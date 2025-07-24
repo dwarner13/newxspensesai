@@ -1,0 +1,16 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[build.environment]
+  NODE_VERSION = "18"
+  
+# Environment variables will be set in Netlify dashboard
+# VITE_SUPABASE_URL = "https://auth.xspensesai.com"
+# VITE_SUPABASE_ANON_KEY = "your-anon-key"
+# VITE_OPENAI_API_KEY = "your-openai-key"
