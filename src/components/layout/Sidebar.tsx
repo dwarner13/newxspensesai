@@ -26,7 +26,10 @@ import {
   User,
   DollarSign,
   Plus,
-  TrendingDown
+  TrendingDown,
+  Brain,
+  Heart,
+  Briefcase
 } from 'lucide-react';
 import { useMockData } from '../../hooks/useMockData';
 import { useMonthSelection, generateMonthsList } from '../../hooks/useMonthSelection';
@@ -40,6 +43,9 @@ interface MenuItem {
   notifications?: number;
   isNew?: boolean;
   type?: 'internal' | 'external';
+  description?: string;
+  badge?: string;
+  badgeType?: 'notification' | 'new' | 'safe-space';
 }
 
 // Professional Logo Component
@@ -60,7 +66,7 @@ const SidebarHeader = () => (
       </div>
       <div className="logo-text">
         <span className="logo-name">XspensesAI</span>
-        <span className="logo-tagline">Smart Finance</span>
+        <span className="logo-tagline">Financial Intelligence</span>
       </div>
     </div>
   </div>
@@ -156,56 +162,121 @@ const TimeSelector = () => {
 
 // Professional Navigation Menu
 const NavigationMenu = () => {
-  const [activeItem, setActiveItem] = useState('Dashboard');
+  const [activeItem, setActiveItem] = useState('Smart Import AI');
   
   const menuStructure: Array<{
     title: string;
     items: MenuItem[];
   }> = [
     {
-      title: "OVERVIEW",
+      title: "CORE FEATURES",
       items: [
-        { name: "Dashboard", icon: <Home size={18} />, path: "/dashboard", active: true },
-        { name: "Analytics", icon: <BarChart3 size={18} />, path: "/analytics", notifications: 2 }
+        { 
+          name: "Smart Import AI", 
+          icon: <Upload size={18} />, 
+          path: "/smart-import", 
+          active: true,
+          description: "Document processing & AI analysis"
+        },
+        { 
+          name: "Business", 
+          icon: <Briefcase size={18} />, 
+          path: "/business",
+          description: "Business expense tools"
+        },
+        { 
+          name: "Goals", 
+          icon: <Target size={18} />, 
+          path: "/goals",
+          description: "Financial goal tracking"
+        },
+        { 
+          name: "Podcasts", 
+          icon: <Headphones size={18} />, 
+          path: "/podcasts",
+          description: "Personal financial podcasts"
+        }
       ]
     },
     {
-      title: "FINANCIAL MANAGEMENT",
+      title: "AI INTELLIGENCE",
       items: [
-        { name: "Transactions", icon: <CreditCard size={18} />, path: "/transactions" },
-        { name: "Upload", icon: <Upload size={18} />, path: "/upload" },
-        { name: "Receipts", icon: <Receipt size={18} />, path: "/receipts" },
-        { name: "Categories", icon: <Tag size={18} />, path: "/categories" },
-        { name: "Budgets", icon: <DollarSign size={18} />, path: "/budgets" },
-        { name: "Goals", icon: <Target size={18} />, path: "/goals" }
+        { 
+          name: "AI Assistant", 
+          icon: <Bot size={18} />, 
+          path: "/ai-assistant", 
+          isNew: true,
+          description: "Your intelligent financial advisor",
+          badge: "3",
+          badgeType: "notification"
+        },
+        { 
+          name: "AI Therapist", 
+          icon: <Brain size={18} />, 
+          path: "/ai-therapist", 
+          isNew: true,
+          description: "Financial mental health & healing",
+          badge: "Safe Space",
+          badgeType: "safe-space"
+        }
       ]
     },
     {
-      title: "AI POWERED TOOLS",
+      title: "ANALYTICS & INSIGHTS",
       items: [
-        { name: "AI Assistant", icon: <Bot size={18} />, path: "/ai-assistant", isNew: true },
-        { name: "AI Insights", icon: <Sparkles size={18} />, path: "/ai-insights" },
-        { name: "Audio Hub", icon: <Headphones size={18} />, path: "/audio", isNew: true },
-        { name: "Personal Podcast", icon: <Mic size={18} />, path: "/personal-podcast", isNew: true }
-      ]
-    },
-    {
-      title: "REPORTS & INSIGHTS",
-      items: [
-        { name: "Monthly Reports", icon: <FileText size={18} />, path: "/reports" },
-        { name: "Tax Center", icon: <Calculator size={18} />, path: "/tax" },
-        { name: "Trends", icon: <TrendingUp size={18} />, path: "/trends" },
-        { name: "Forecasting", icon: <Sparkles size={18} />, path: "/forecasting" }
+        { 
+          name: "Analytics", 
+          icon: <BarChart3 size={18} />, 
+          path: "/analytics",
+          description: "Data visualization & insights"
+        },
+        { 
+          name: "AI Insights", 
+          icon: <Sparkles size={18} />, 
+          path: "/ai-insights",
+          description: "AI-powered financial insights"
+        },
+        { 
+          name: "Trends", 
+          icon: <TrendingUp size={18} />, 
+          path: "/trends",
+          description: "Spending patterns & trends"
+        },
+        { 
+          name: "Forecasting", 
+          icon: <TrendingDown size={18} />, 
+          path: "/forecasting",
+          description: "Financial predictions & planning"
+        }
       ]
     },
     {
       title: "ACCOUNT & SETTINGS",
       items: [
-        { name: "Profile", icon: <User size={18} />, path: "/profile" },
-        { name: "Subscription", icon: <Crown size={18} />, path: "/subscription" },
-        { name: "Pricing", icon: <DollarSign size={18} />, path: "/pricing" },
-        { name: "Settings", icon: <Settings size={18} />, path: "/settings" },
-        { name: "Help & Support", icon: <HelpCircle size={18} />, path: "/help" }
+        { 
+          name: "Settings", 
+          icon: <Settings size={18} />, 
+          path: "/settings",
+          description: "Account & AI preferences"
+        },
+        { 
+          name: "Profile", 
+          icon: <User size={18} />, 
+          path: "/profile",
+          description: "User profile & preferences"
+        },
+        { 
+          name: "Subscription", 
+          icon: <Crown size={18} />, 
+          path: "/subscription",
+          description: "Plan management & billing"
+        },
+        { 
+          name: "Help & Support", 
+          icon: <HelpCircle size={18} />, 
+          path: "/help",
+          description: "Support & documentation"
+        }
       ]
     }
   ];
@@ -222,6 +293,19 @@ const NavigationMenu = () => {
     window.location.href = item.path;
   };
 
+  const getBadgeClass = (badgeType?: string) => {
+    switch (badgeType) {
+      case 'notification':
+        return 'notification-badge';
+      case 'new':
+        return 'new-badge';
+      case 'safe-space':
+        return 'safe-space-badge';
+      default:
+        return 'badge';
+    }
+  };
+
   return (
     <nav className="navigation-menu">
       {menuStructure.map((section, sectionIndex) => (
@@ -235,14 +319,19 @@ const NavigationMenu = () => {
                   onClick={() => handleNavigation(item)}
                 >
                   <span className="menu-icon">{item.icon}</span>
-                  <span className="menu-text">{item.name}</span>
+                  <div className="menu-content">
+                    <span className="menu-text">{item.name}</span>
+                    {item.description && (
+                      <span className="menu-description">{item.description}</span>
+                    )}
+                  </div>
                   
                   {item.isNew && (
                     <span className="new-badge">NEW</span>
                   )}
                   
-                  {item.notifications && item.notifications > 0 && (
-                    <span className="notification-badge">{item.notifications}</span>
+                  {item.badge && (
+                    <span className={getBadgeClass(item.badgeType)}>{item.badge}</span>
                   )}
                 </button>
               </li>
@@ -276,8 +365,6 @@ const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-
-
 
   // Add click outside functionality for mobile menu
   useEffect(() => {
