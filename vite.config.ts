@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
     exclude: ['lucide-react'],
+    include: ['react', 'react-dom', 'react-router-dom', 'framer-motion'],
   },
   build: {
     outDir: 'dist',
@@ -24,6 +25,13 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
+    host: true,
+    hmr: {
+      overlay: false,
+    },
+  },
+  preview: {
+    port: 3000,
     host: true,
   },
 });
