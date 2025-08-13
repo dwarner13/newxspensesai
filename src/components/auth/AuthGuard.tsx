@@ -11,6 +11,11 @@ export function AuthGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkSession = async () => {
       if (!loading && user) {
+        // Skip session validation in development mode
+        if (import.meta.env.DEV) {
+          return;
+        }
+        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error || !session) {

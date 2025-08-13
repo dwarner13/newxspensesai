@@ -1,0 +1,80 @@
+/* XspensesAI Design System Variables */
+:root {
+  /* Primary Colors */
+  --bg-primary: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%);
+  --bg-card: rgba(30, 27, 75, 0.6);
+  --bg-sidebar: rgba(30, 27, 75, 0.95);
+  
+  /* Text Colors */
+  --text-primary: #ffffff;
+  --text-secondary: #e2e8f0;
+  --text-muted: #a78bfa;
+  
+  /* Interactive Colors */
+  --gradient-primary: linear-gradient(45deg, #8b5cf6, #06b6d4);
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #06b6d4;
+  
+  /* Layout */
+  --sidebar-width: 280px;
+  --border-radius: 16px;
+  --card-padding: 24px;
+  --grid-gap: 24px;
+  
+  /* Borders & Effects */
+  --border-light: 1px solid rgba(255, 255, 255, 0.1);
+  --backdrop-blur: blur(20px);
+  --shadow-card: 0 10px 40px rgba(0, 0, 0, 0.2);
+  
+  /* Transitions */
+  --transition-default: all 0.3s ease;
+  --transition-fast: all 0.2s ease;
+  
+  /* Typography */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-weight-normal: 500;
+  --font-weight-medium: 600;
+  --font-weight-bold: 700;
+  --font-weight-heavy: 800;
+}
+
+/* Base Styles */
+body {
+  background: var(--bg-primary);
+  font-family: var(--font-family);
+  color: var(--text-primary);
+}
+
+/* Card Components */
+.chart-container,
+.stat-card,
+.feature-card {
+  background: var(--bg-card) !important;
+  backdrop-filter: var(--backdrop-blur);
+  border: var(--border-light);
+  border-radius: var(--border-radius);
+  padding: var(--card-padding);
+  color: var(--text-primary);
+  transition: var(--transition-default);
+}
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-width);
+  background: var(--bg-sidebar);
+  backdrop-filter: var(--backdrop-blur);
+  border-right: var(--border-light);
+}
+
+/* Navigation */
+.nav-item:hover {
+  background: rgba(139, 92, 246, 0.15);
+  transform: translateX(4px);
+}
+
+.nav-item.active {
+  background: rgba(139, 92, 246, 0.3);
+  border-left: 3px solid #8b5cf6;
+} 

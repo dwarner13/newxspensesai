@@ -58,7 +58,7 @@ const Navbar = () => {
 
   const navItems = [
     { name: 'Home', path: '/dashboard', icon: <Home size={20} /> },
-    { name: 'Reports', path: '/reports', icon: <BarChart size={20} /> },
+            { name: 'Reports', path: '/dashboard/reports', icon: <BarChart size={20} /> },
     { name: 'Scan', path: '/scan-receipt', icon: <Camera size={20} /> },
     { name: 'Transactions', path: '/transactions', icon: <ListFilter size={20} /> },
     { name: 'Profile', path: '/settings/profile', icon: <User size={20} /> },
@@ -163,9 +163,9 @@ const Navbar = () => {
             </div>
             
             <Link
-              to="/reports"
+              to="/dashboard/reports"
               className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                isActive('/reports')
+                isActive('/dashboard/reports')
                   ? 'text-primary-600 bg-primary-50'
                   : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50'
               }`}
@@ -297,7 +297,7 @@ const Navbar = () => {
             </div>
             
             <Link 
-              to="/reports" 
+              to="/dashboard/reports" 
               className="block text-gray-600 hover:text-primary-600 transition-colors"
               onClick={() => setMobileMenuOpen(false)}
             >

@@ -35,7 +35,7 @@ const Layout = () => {
           return 'New Expense - XspensesAI';
         case '/transactions/new-income':
           return 'New Income - XspensesAI';
-        case '/reports':
+        case '/dashboard/reports':
           return 'Reports - XspensesAI';
         case '/settings/profile':
           return 'Account & Users - XspensesAI';
@@ -99,10 +99,10 @@ const Layout = () => {
             <Home size={24} className={location.pathname === '/dashboard' || location.pathname === '/' ? "text-primary-600" : `${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
             <span className={`text-xs ${location.pathname === '/dashboard' || location.pathname === '/' ? "text-primary-600" : `${darkMode ? 'text-gray-400' : 'text-gray-500'}`}`}>Home</span>
           </Link>
-          <Link to="/reports" className="flex flex-col items-center p-2">
-            <BarChart size={24} className={location.pathname === '/reports' ? "text-primary-600" : `${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-            <span className={`text-xs ${location.pathname === '/reports' ? "text-primary-600" : `${darkMode ? 'text-gray-400' : 'text-gray-500'}`}`}>Reports</span>
-          </Link>
+                      <Link to="/dashboard/reports" className="flex flex-col items-center p-2">
+              <BarChart size={24} className={location.pathname === '/dashboard/reports' ? "text-primary-600" : `${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
+              <span className={`text-xs ${location.pathname === '/dashboard/reports' ? "text-primary-600" : `${darkMode ? 'text-gray-400' : 'text-gray-500'}`}`}>Reports</span>
+            </Link>
           <Link to="/scan-receipt" className="flex flex-col items-center p-2">
             <div className="relative -mt-8">
               <div className={`w-14 h-14 ${darkMode ? 'bg-primary-600' : 'bg-green-400'} rounded-full flex items-center justify-center shadow-lg`}>

@@ -1,6 +1,6 @@
 import React from 'react';
 import WebsiteLayout from '../../components/layout/WebsiteLayout';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import { AIAssistantDashboard } from '../../components/ai/AIAssistantDashboard';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';

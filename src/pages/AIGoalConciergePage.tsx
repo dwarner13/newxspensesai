@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import WebsiteLayout from '../components/layout/WebsiteLayout';
 import { ArrowRight, CheckCircle, Play, Sparkles, Star } from 'lucide-react';
 import { Link } from 'react-router-dom';

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import Navbar from '../../components/layout/Navbar';
+import WebsiteLayout from '../../components/layout/WebsiteLayout';
 
 const EmailReceiptsPage = () => {
   const { user } = useAuth();
@@ -54,10 +54,7 @@ const EmailReceiptsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Navbar */}
-      <Navbar />
-      
+    <WebsiteLayout>
       {/* Hero Section */}
       <section className="bg-white py-16 px-4 sm:px-6 lg:px-8 border-b border-gray-200">
         <div className="max-w-5xl ">
@@ -458,7 +455,7 @@ const EmailReceiptsPage = () => {
           </p>
         </div>
       </footer>
-    </div>
+    </WebsiteLayout>
   );
 };
 

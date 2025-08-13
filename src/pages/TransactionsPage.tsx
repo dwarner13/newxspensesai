@@ -12,7 +12,7 @@ import MobileHeader from '../components/layout/MobileHeader';
 import { useAtom } from 'jotai';
 import { mockModeAtom } from '../utils/mockState';
 import { mockDashboardData } from '../utils/mockDashboardData';
-import MockModeToggle from '../components/dashboard/MockModeToggle';
+
 import { HighlightAIAssistant } from '../components/transactions/HighlightAIAssistant';
 import PageHeader from '../components/layout/PageHeader';
 import CreateExpenseModal from '../components/modals/CreateExpenseModal';
@@ -420,7 +420,8 @@ const TransactionsPage = () => {
         <MobileHeader title="Transactions" showSearch={true} />
       )}
       
-      {!isMobile && (
+      <div className="max-w-7xl mx-auto space-y-8">
+        {!isMobile && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <motion.div 
             initial={{ opacity: 0 }}
@@ -462,7 +463,7 @@ const TransactionsPage = () => {
               Add New Expense
             </button>
             
-            <MockModeToggle />
+
           </motion.div>
         </div>
       )}
@@ -929,6 +930,12 @@ const TransactionsPage = () => {
             </Link>
           </div>
         )}
+        
+        {/* AskAI Component */}
+        <AskAI />
+
+        {/* HighlightAIAssistant Component */}
+        <HighlightAIAssistant transactions={transactions} />
       </div>
 
       {/* Receipt Viewer Modal */}
@@ -990,12 +997,6 @@ const TransactionsPage = () => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* AskAI Component */}
-      <AskAI />
-
-      {/* HighlightAIAssistant Component */}
-      <HighlightAIAssistant transactions={transactions} />
 
       {/* Create Expense Modal */}
       <CreateExpenseModal

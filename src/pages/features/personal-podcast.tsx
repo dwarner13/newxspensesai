@@ -1,6 +1,6 @@
 import React from 'react';
 import WebsiteLayout from '../../components/layout/WebsiteLayout';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import { PersonalPodcastDashboard } from '../../components/podcast/PersonalPodcastDashboard';
 import { motion } from 'framer-motion';
 
@@ -103,7 +103,7 @@ export default function PersonalPodcastFeaturePage() {
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
         >
-          Ready to Hear Your Money Story?
+          Ready to Get Roasted by AI?
         </motion.h2>
         <p className="text-xl text-purple-100 mb-8">
           Join thousands who turned boring expense reports into engaging, personalized podcasts.

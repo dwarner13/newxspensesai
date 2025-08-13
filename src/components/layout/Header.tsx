@@ -37,6 +37,7 @@ const Header = ({
   const userMenuRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLButtonElement>(null);
   const userButtonRef = useRef<HTMLButtonElement>(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   
   const getPageTitle = () => {
     switch(location.pathname) {
@@ -48,7 +49,7 @@ const Header = ({
         return 'AI Categorizer';
       case '/transactions':
         return 'Transactions';
-      case '/reports':
+              case '/dashboard/reports':
         return 'Reports';
       case '/settings':
         return 'Settings';
@@ -74,6 +75,16 @@ const Header = ({
         return 'XspensesAI';
     }
   };
+
+  // Update mobile state on resize
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleSignOut = async () => {
     try {
@@ -124,30 +135,14 @@ const Header = ({
   }, [location, setIsNotificationsOpen, setIsUserMenuOpen]);
 
   return (
-    <header className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b sticky top-0 z-50`}>
-      <div className="flex items-center justify-between h-16 px-4 md:px-6">
+    <header className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b sticky top-16 z-30`}>
+      <div className={`flex items-center justify-between ${isMobile ? 'h-20 px-4 pt-4' : 'h-16 px-4 md:px-6'}`}>
         <div className="flex items-center">
-          <button 
-            className="mr-4 md:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none transition-colors"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label="Toggle mobile menu"
-          >
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-          
-          {/* Mobile Logo */}
-          <Link to="/" className="flex items-center md:hidden mr-4">
-            <div className="w-8 h-8 bg-primary-600 rounded-md flex items-center justify-center mr-2">
-              <span className="text-white text-lg font-bold">💰</span>
-            </div>
-            <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>XspensesAI</span>
-          </Link>
-          
           <h1 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{getPageTitle()}</h1>
         </div>
         
         {/* Search Bar (Desktop) */}
-        <div className="hidden md:flex items-center mx-4 flex-1 ">
+        <div className="hidden md:flex items-center mx-4 flex-1">
           <div className="relative w-full">
             <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} size={18} />
             <input 

@@ -49,7 +49,7 @@ const XspensesAIDemoPage = () => {
   const demoResponses = {
     "coffee": "☕ **Coffee Spending Analysis:**\n\nYour coffee expenses: $127/month\n• Peak times: Monday mornings (stress correlation)\n• Starbucks: 67% of purchases\n• Weekend spending: 40% higher\n\n💡 **AI Suggestion:** Switch to subscription model - could save $34/month!",
     
-    "podcast": "🎧 **Generating Your Personal Podcast...**\n\n*'Your Money Story - November Edition'*\n\n🎙️ \"This month Sarah made incredible progress... her savings rate jumped to 23.4%, putting her ahead of 78% of similar users. But here's what's really fascinating - her coffee spending patterns reveal interesting stress-management opportunities...\"\n\n▶️ [Play 12-minute episode]",
+    "podcast": "🎧 **Generating Your AI Roast...**\n\n*'Sofia's Savage Roast - December Edition'*\n\n🎙️ \"This month Sarah made incredible progress... her savings rate jumped to 23.4%, putting her ahead of 78% of similar users. But here's what's really fascinating - her coffee spending patterns reveal interesting stress-management opportunities...\"\n\n▶️ [Play 12-minute episode]",
     
     "weekend": "📊 **Weekend Spending Analysis:**\n\nWeekend pattern detected:\n• Fridays: +127% spending spike\n• Saturdays: Entertainment heavy ($89 avg)\n• Sundays: Preparation spending\n\n🎯 **Optimization Strategy:**\n1. Set Friday evening limit: $50\n2. Plan Saturday activities in advance\n3. Batch Sunday prep purchases",
     
@@ -484,7 +484,7 @@ const XspensesAIDemoPage = () => {
             </h2>
             <p className="text-gray-300 mb-8 max-w-2xl mx-auto">
               Experience the full power of XspensesAI with unlimited uploads, advanced AI insights, 
-              and personalized financial podcasts about YOUR money story.
+              and personalized AI roasts that make saving money addictive.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <button className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 px-8 py-4 rounded-lg font-bold transition-all transform hover:scale-105">

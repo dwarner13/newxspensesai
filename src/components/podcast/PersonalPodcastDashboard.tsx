@@ -121,7 +121,7 @@ export function PersonalPodcastDashboard() {
         </motion.div>
         <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
           AI-generated episodes about your personal financial journey. 
-          Hear your money story come to life with insights, achievements, and motivation.
+          Hear your AI roast come to life with brutal honesty, tough love, and motivation.
         </p>
       </div>
 

@@ -9,7 +9,7 @@ const mainPages = [
   { label: 'Receipts', path: '/receipts' },
   { label: 'AI Insights', path: '/ai-insights' },
   { label: 'Goals', path: '/goals' },
-  { label: 'Reports', path: '/reports' },
+          { label: 'Reports', path: '/dashboard/reports' },
 ];
 
 const settingsPages = [

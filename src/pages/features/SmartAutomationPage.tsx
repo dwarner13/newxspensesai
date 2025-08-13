@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import WebsiteLayout from '../../components/layout/WebsiteLayout';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
@@ -34,6 +34,7 @@ const SmartAutomationPage = () => {
 
   return (
     <WebsiteLayout>
+      <div className="min-h-screen">
       <Helmet>
         <title>Smart Financial Automation - AI Takes Complete Control | XspensesAI</title>
         <meta name="description" content="Revolutionary AI learns your money habits, automates all financial decisions, and achieves 99.7% accuracy. Let intelligent automation take complete control of your finances." />
@@ -586,6 +587,7 @@ const SmartAutomationPage = () => {
             </div>
           </div>
         </section>
+      </div>
       </div>
     </WebsiteLayout>
   );
