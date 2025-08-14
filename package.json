@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "rimraf dist && vite build",
-    "build:analyze": "rimraf dist && vite build --mode analyze",
-    "build:prod": "rimraf dist && vite build --mode production",
+    "build": "rimraf dist && vite build && copy public\\_redirects dist\\",
+    "build:analyze": "rimraf dist && vite build --mode analyze && copy public\\_redirects dist\\",
+    "build:prod": "rimraf dist && vite build --mode production && copy public\\_redirects dist\\",
     "lint": "eslint .",
     "preview": "vite preview",
     "check:main": "node scripts/check-main-balance.js",
