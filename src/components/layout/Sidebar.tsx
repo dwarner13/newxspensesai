@@ -102,8 +102,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
   };
 
   return (
-    <aside className="h-full w-full bg-[#0b0f2a] text-white flex flex-col" ref={sidebarRef}>
-      <div className="h-full flex flex-col">
+    <aside className="h-full flex flex-col" ref={sidebarRef}>
         {/* Scrollable Container */}
         <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
           {/* Header with Logo - Professional Design */}
@@ -458,25 +457,22 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
         </ul>
       </nav>
 
-        </div>
-      </div> {/* end of scrollable nav */}
-      </div> {/* closes: h-full flex flex-col */}
+        </div> {/* end of scrollable nav */}
 
-      {/* profile footer at the very bottom */}
-      <div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border">
-        {/* User Block - Compact Professional Design */}
-        {!isCollapsed && (
-          <div className="p-4 pr-6 bg-blue-900 w-full box-border">
-            <div className="text-sm">
-              <div className="font-semibold">{user.name}</div>
-              <div className="text-xs text-gray-300">{user.plan}</div>
-            </div>
-            <div className="mt-2 bg-orange-500 rounded-full text-xs text-white px-3 py-1 inline-block">
-              Level 8 Money Master
-            </div>
-          </div>
-        )}
+{/* profile footer at the very bottom */}
+<div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border">
+  {!isCollapsed && (
+    <div className="p-4 pr-6 bg-blue-900 w-full box-border">
+      <div className="text-sm">
+        <div className="font-semibold">{user?.name}</div>
+        <div className="text-xs text-gray-300">{user?.plan}</div>
       </div>
-    </aside>
+      <div className="mt-2 bg-orange-500 rounded-full text-xs text-white px-3 py-1 inline-block">
+        Level 8 Money Master
+      </div>
+    </div>
+  )}
+</div>
+</aside>
   );
 }
