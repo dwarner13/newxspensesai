@@ -1,160 +1,108 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase, getProfile } from '../../lib/supabase';
+import supabase from '../../lib/supabase';
 
-export function AuthGuard({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
-  const location = useLocation();
+export default function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { user, loading, initialLoad } = useAuth();
   const [sessionValidating, setSessionValidating] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const location = useLocation();
 
-  // Check session validity on protected routes
   useEffect(() => {
     // Skip if still loading or no user
     if (loading || !user) {
       return;
     }
 
-    // Check if Supabase is properly configured
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'https://auth.xspensesai.com' || supabaseAnonKey === 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqdXhpZ210ZHBqemt5YWZvc3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0ODM4MjQsImV4cCI6MjA2NTA1OTgyNH0.j2qETzVRu2rj1EOqxxh5caiPu-tvjYUnrRA4SU2G-_Y') {
-      console.log('⚠️ Supabase auth skipped - not connected (AuthGuard)');
-      console.log('🔍 AuthGuard: Supabase not configured, skipping session validation');
-      return;
-    }
-    
-    // Skip session validation in development mode or for bypass user
-    if (import.meta.env.DEV || user.id === 'bypass-user-123') {
-      console.log('🔍 AuthGuard: Development mode or bypass user - skipping session validation');
+    // Check if Supabase is available
+    if (!supabase) {
+      // Development mode - no Supabase
+      console.log('⚡ Dev mode: AuthGuard skipping session validation');
       return;
     }
 
-    console.log('🔍 AuthGuard: Starting session validation for user:', user.email);
+    // Skip session validation in development mode or for dev user
+    if (process.env.NODE_ENV !== 'production' || user.id === 'dev-user') {
+      console.log('🔍 AuthGuard: Development mode or dev user - skipping session validation');
+      return;
+    }
+
+    // Production mode - validate session
+    console.log('🔍 AuthGuard: Validating session for production user...');
     setSessionValidating(true);
 
-    // Set a 5-second timeout for session validation
-    timeoutRef.current = setTimeout(() => {
-      console.log('⚠️ AuthGuard: Session validation timeout reached (5s), forcing completion');
+    // Set a timeout to prevent hanging
+    const sessionTimeout = setTimeout(() => {
+      console.log('⚠️ AuthGuard: Session validation timeout');
       setSessionValidating(false);
     }, 5000);
 
-    const checkSession = async () => {
+    const validateSession = async () => {
       try {
         console.log('🔍 AuthGuard: Checking session validity...');
-        
         const { data: { session }, error } = await supabase.auth.getSession();
-        
+
         if (error) {
-          console.error('❌ AuthGuard: Error checking session:', error);
-          setSessionValidating(false);
-          
-          // Clear timeout
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
-          }
-          
-          // Store current path for after login
-          sessionStorage.setItem('xspensesai-intended-path', location.pathname);
+          console.error('❌ AuthGuard: Session validation error:', error);
+          // Redirect to login on session error
+          window.location.href = '/login';
           return;
         }
-        
+
         if (!session) {
-          console.log('⚠️ AuthGuard: Invalid session detected, redirecting to login');
-          setSessionValidating(false);
-          
-          // Clear timeout
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
-          }
-          
-          // Store current path for after login
-          sessionStorage.setItem('xspensesai-intended-path', location.pathname);
+          console.log('🔍 AuthGuard: No valid session found, redirecting to login');
+          window.location.href = '/login';
           return;
         }
 
-        console.log('🔍 AuthGuard: Valid session found, checking profile...');
-        
-        try {
-          // Use getProfile function which handles mock mode and dev users
-          const profile = await getProfile(user.id);
-          console.log('🔍 AuthGuard: Profile check successful:', profile ? 'Profile exists' : 'No profile');
-          
-          // Profile creation is handled by getProfile function
-          // Gamification disabled - streak and XP updates removed
-        } catch (error) {
-          console.error('❌ AuthGuard: Error checking profile:', error);
-          // Don't redirect on profile error, just log it
-        }
-
+        console.log('🔍 AuthGuard: Session validated successfully');
         setSessionValidating(false);
-        
-        // Clear timeout
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-
       } catch (error) {
-        console.error('❌ AuthGuard: Unexpected error in session check:', error);
+        console.error('❌ AuthGuard: Unexpected error during session validation:', error);
         setSessionValidating(false);
-        
-        // Clear timeout
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
+        // On unexpected errors, redirect to login for safety
+        window.location.href = '/login';
       }
     };
 
-    checkSession();
+    validateSession();
 
     // Cleanup function
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
+      clearTimeout(sessionTimeout);
     };
-  }, [user, loading, location.pathname]); // Include location.pathname to prevent unnecessary re-renders
+  }, [user, loading]);
 
-  // Show loading screen during auth check
-  if (loading) {
-    console.log('🔍 AuthGuard: Still loading auth context...');
+  // Show loading while checking authentication
+  if (loading || initialLoad) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4"></div>
-          <p className="text-gray-600">Loading your dashboard...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-lg">Checking authentication...</p>
         </div>
       </div>
     );
   }
 
-  // Show loading screen during session validation
+  // Show loading while validating session
   if (sessionValidating) {
-    console.log('🔍 AuthGuard: Validating session...');
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4"></div>
-          <p className="text-gray-600">Validating your session...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-lg">Validating your session...</p>
         </div>
       </div>
     );
   }
 
+  // Redirect to login if no user
   if (!user) {
     console.log('🔍 AuthGuard: No user found, redirecting to login');
-    // Store the attempted path for redirect after login
-    sessionStorage.setItem('xspensesai-intended-path', location.pathname);
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  console.log('🔍 AuthGuard: User authenticated, rendering protected content');
+  // User is authenticated, render children
   return <>{children}</>;
 }

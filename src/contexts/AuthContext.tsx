@@ -1,11 +1,10 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { User } from '@supabase/supabase-js';
-import toast from 'react-hot-toast';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import supabase from '../lib/supabase';
 
 interface AuthContextType {
-  user: User | null;
+  user: any;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
@@ -15,11 +14,10 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
   const navigate = useNavigate();
-  const location = useLocation();
   
   // Refs for cleanup (currently unused due to bypass)
   // const authTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -27,114 +25,166 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     console.log('🔍 AuthContext: Starting authentication check...');
-    
-    // Check if Supabase is properly configured
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'https://auth.xspensesai.com' || supabaseAnonKey === 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqdXhpZ210ZHBqemt5YWZvc3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0ODM4MjQsImV4cCI6MjA2NTA1OTgyNH0.j2qETzVRu2rj1EOqxxh5caiPu-tvjYUnrRA4SU2G-_Y') {
-      console.log('⚠️ Supabase auth skipped - not connected');
-      console.log('🔍 AuthContext: Supabase not configured, bypassing authentication');
-      
-      // Create a fake authenticated user
-      const fakeUser = {
-        id: 'bypass-user-123',
-        email: 'bypass@example.com',
-        full_name: 'Bypass User',
-        aud: 'authenticated',
-        role: 'authenticated',
-        exp: Date.now() + 86400000, // 24 hours from now
-      } as any;
-      
-      setUser(fakeUser);
-      setLoading(false);
-      setInitialLoad(false);
-      return;
-    }
 
-    if (import.meta.env.DEV) {
-      // DEV ONLY: Fake user for local development
-      console.log('🔍 AuthContext: Development mode - setting fake user');
+    // Check if Supabase is available (production mode)
+    if (supabase) {
+      console.log('🔍 AuthContext: Supabase available, checking authentication...');
+      
+      // Set a timeout to prevent hanging
+      const authTimeout = setTimeout(() => {
+        console.log('⚠️ AuthContext: Authentication check timeout, setting loading to false');
+        setLoading(false);
+        setInitialLoad(false);
+      }, 3000);
+
+      // Check initial session
+      const checkSession = async () => {
+        try {
+          console.log('🔍 AuthContext: Checking Supabase session...');
+          const { data: { session }, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('❌ AuthContext: Session check error:', error);
+            setUser(null);
+          } else if (session?.user) {
+            console.log('🔍 AuthContext: User session found:', session.user.email);
+            setUser(session.user);
+          } else {
+            console.log('🔍 AuthContext: No active session found');
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('❌ AuthContext: Unexpected error during session check:', error);
+          setUser(null);
+        } finally {
+          clearTimeout(authTimeout);
+          setLoading(false);
+          setInitialLoad(false);
+        }
+      };
+
+      checkSession();
+
+      // Set up auth state change listener
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        async (event: string, session: any) => {
+          console.log('🔍 AuthContext: Auth state change:', event, session?.user?.email);
+          
+          clearTimeout(authTimeout);
+          
+          switch (event) {
+            case 'SIGNED_IN':
+              console.log('🔍 AuthContext: User signed in');
+              setUser(session?.user || null);
+              setLoading(false);
+              setInitialLoad(false);
+              break;
+              
+            case 'SIGNED_OUT':
+              console.log('🔍 AuthContext: User signed out');
+              setUser(null);
+              setLoading(false);
+              setInitialLoad(false);
+              navigate('/login', { replace: true });
+              break;
+              
+            case 'TOKEN_REFRESHED':
+              console.log('🔍 AuthContext: Token refreshed');
+              setUser(session?.user || null);
+              break;
+              
+            case 'USER_UPDATED':
+              console.log('🔍 AuthContext: User updated');
+              setUser(session?.user || null);
+              break;
+              
+            default:
+              console.log('🔍 AuthContext: Unhandled auth event:', event);
+          }
+        }
+      );
+
+      // Cleanup function
+      return () => {
+        console.log('🔍 AuthContext: Cleaning up auth context...');
+        clearTimeout(authTimeout);
+        subscription?.unsubscribe();
+      };
+    } else {
+      // Development mode - no Supabase
+      console.log('⚡ Dev mode: skipping Supabase and auth');
+      
+      // Set a fake user for development
       const fakeUser = {
-        id: 'dev-user-123',
+        id: 'dev-user',
         email: 'dev@example.com',
-        full_name: 'Developer Test',
-      } as any;
+        name: 'Developer'
+      };
+      
       setUser(fakeUser);
       setLoading(false);
       setInitialLoad(false);
-      return;
+      
+      return () => {
+        console.log('🔍 AuthContext: Development mode cleanup');
+      };
     }
-
-    // Production authentication logic - TEMPORARILY DISABLED
-    console.log('🔍 AuthContext: Production auth temporarily disabled, using bypass user');
-    
-    // Create a bypass user for now
-    const bypassUser = {
-      id: 'bypass-user-123',
-      email: 'bypass@example.com',
-      full_name: 'Bypass User',
-      aud: 'authenticated',
-      role: 'authenticated',
-      exp: Date.now() + 86400000, // 24 hours from now
-    } as any;
-    
-    setUser(bypassUser);
-    setLoading(false);
-    setInitialLoad(false);
-
-    // Cleanup function - simplified since no timeouts or subscriptions
-    return () => {
-      console.log('🔍 AuthContext: Cleaning up auth context...');
-    };
-  }, []); // Empty dependency array since this effect should only run once
+  }, [navigate]);
 
   const signInWithGoogle = async () => {
     try {
-      console.log('🔍 AuthContext: Starting Google sign in...');
+      console.log('🔍 AuthContext: Signing in with Google...');
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      if (!supabase) {
+        console.log('⚡ Dev mode: Google sign-in skipped');
+        toast.success('Development mode - sign-in simulated');
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin + '/auth/callback',
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
       });
 
       if (error) {
-        console.error('❌ AuthContext: OAuth error:', error);
+        console.error('❌ AuthContext: Google sign-in error:', error);
+        toast.error('Failed to sign in with Google. Please try again.');
         throw error;
       }
-
-      console.log('🔍 AuthContext: OAuth initiated, redirecting to Google...', data);
     } catch (error) {
-      console.error('❌ AuthContext: Sign in error:', error);
+      console.error('❌ AuthContext: Unexpected error during Google sign-in:', error);
+      toast.error('An unexpected error occurred. Please try again.');
       throw error;
     }
   };
 
   const signInWithApple = async () => {
     try {
-      console.log('🔍 AuthContext: Starting Apple sign in...');
+      console.log('🔍 AuthContext: Signing in with Apple...');
       
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      if (!supabase) {
+        console.log('⚡ Dev mode: Apple sign-in skipped');
+        toast.success('Development mode - sign-in simulated');
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'apple',
         options: {
-          redirectTo: window.location.origin + '/auth/callback',
-        },
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
       });
 
       if (error) {
-        console.error('❌ AuthContext: OAuth error:', error);
+        console.error('❌ AuthContext: Apple sign-in error:', error);
+        toast.error('Failed to sign in with Apple. Please try again.');
         throw error;
       }
-
-      console.log('🔍 AuthContext: OAuth initiated, redirecting to Apple...', data);
     } catch (error) {
-      console.error('❌ AuthContext: Sign in error:', error);
+      console.error('❌ AuthContext: Unexpected error during Apple sign-in:', error);
+      toast.error('An unexpected error occurred. Please try again.');
       throw error;
     }
   };
@@ -142,24 +192,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     try {
       console.log('🔍 AuthContext: Signing out user...');
-      
-      // For bypass user, just clear the user state
-      if (user?.id === 'bypass-user-123') {
-        console.log('🔍 AuthContext: Bypass user sign out, clearing state');
+
+      if (!supabase) {
+        // Development mode - just clear the user state
+        console.log('⚡ Dev mode: sign-out simulated');
         setUser(null);
         sessionStorage.removeItem('xspensesai-intended-path');
         toast.success('Signed out successfully');
         navigate('/login', { replace: true });
         return;
       }
-      
-      // Regular Supabase sign out
+
+      // Production mode - use Supabase
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
-      // Clear any stored paths
+
+      setUser(null);
       sessionStorage.removeItem('xspensesai-intended-path');
-      
       toast.success('Signed out successfully');
       navigate('/login', { replace: true });
     } catch (error) {
@@ -202,43 +251,41 @@ export function AppWithAuth({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     console.log('🔍 AppWithAuth: Starting auth initialization...');
-    
-    // Check if Supabase is properly configured
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey || supabaseUrl === 'https://auth.xspensesai.com' || supabaseAnonKey === 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqdXhpZ210ZHBqemt5YWZvc3pmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk0ODM4MjQsImV4cCI6MjA2NTA1OTgyNH0.j2qETzVRu2rj1EOqxxh5caiPu-tvjYUnrRA4SU2G-_Y') {
-      console.log('⚠️ Supabase auth skipped - not connected (AppWithAuth)');
-      console.log('🔍 AppWithAuth: Supabase not configured, bypassing authentication');
+
+    // Check if Supabase is available
+    if (supabase) {
+      console.log('🔍 AppWithAuth: Supabase available, checking auth status...');
+      
+      // Check if auth is already initialized
+      const checkAuth = async () => {
+        try {
+          console.log('🔍 AppWithAuth: Checking Supabase auth status...');
+          const { data: { session }, error } = await supabase.auth.getSession();
+
+          if (error) {
+            console.error('❌ AppWithAuth: Error checking auth status:', error);
+          } else {
+            console.log('🔍 AppWithAuth: Auth status check result:', {
+              hasSession: !!session,
+              userEmail: session?.user?.email || 'No user'
+            });
+          }
+
+          setAuthInitialized(true);
+        } catch (error) {
+          console.error('❌ AppWithAuth: Unexpected error during auth check:', error);
+          setAuthInitialized(true);
+        }
+      };
+
+      checkAuth();
+    } else {
+      // Development mode - no Supabase
+      console.log('⚡ Dev mode: AppWithAuth skipping Supabase auth check');
       setAuthInitialized(true);
-      return;
     }
 
-    // Check if auth is already initialized
-    const checkAuth = async () => {
-      try {
-        console.log('🔍 AppWithAuth: Checking Supabase auth status...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ AppWithAuth: Error checking auth status:', error);
-        } else {
-          console.log('🔍 AppWithAuth: Auth status check result:', {
-            hasSession: !!session,
-            userEmail: session?.user?.email || 'No user'
-          });
-        }
-        
-        setAuthInitialized(true);
-      } catch (error) {
-        console.error('❌ AppWithAuth: Unexpected error during auth check:', error);
-        setAuthInitialized(true);
-      }
-    };
-
-    checkAuth();
-
-    // Cleanup function - simplified since no timeouts
+    // Cleanup function
     return () => {
       console.log('🔍 AppWithAuth: Cleaning up...');
     };
@@ -246,13 +293,10 @@ export function AppWithAuth({ children }: { children: ReactNode }) {
 
   if (!authInitialized) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 mb-4">
-            <img src="/assets/xspensesai-icon.svg" alt="XspensesAI" className="w-full h-full animate-pulse" />
-          </div>
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4"></div>
-          <p className="text-gray-600">Loading XspensesAI...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white text-lg">Initializing...</p>
         </div>
       </div>
     );
