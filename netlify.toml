@@ -393,3 +393,8 @@
   for = "/*"
   [headers.values]
     Content-Encoding = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cache-Control = "no-transform"
