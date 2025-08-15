@@ -1,17 +1,30 @@
 // Only import and initialize Supabase in production mode
 let supabase: any = null;
 
-if (process.env.NODE_ENV === "production") {
-  const { createClient } = require("@supabase/supabase-js");
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Initialize Supabase client
+const initializeSupabase = async () => {
+  if (process.env.NODE_ENV === "production") {
+    try {
+      const { createClient } = await import("@supabase/supabase-js");
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  if (supabaseUrl && supabaseAnonKey) {
-    supabase = createClient(supabaseUrl, supabaseAnonKey);
+      if (supabaseUrl && supabaseAnonKey) {
+        supabase = createClient(supabaseUrl, supabaseAnonKey);
+        console.log("✅ Supabase initialized successfully");
+      } else {
+        console.warn("⚠️ Missing Supabase environment variables");
+      }
+    } catch (error) {
+      console.error("❌ Error initializing Supabase:", error);
+    }
+  } else {
+    console.log("⚡ Dev mode: skipping Supabase initialization");
   }
-} else {
-  console.log("⚡ Dev mode: skipping Supabase initialization");
-}
+};
+
+// Initialize immediately
+initializeSupabase();
 
 // Export both default and named export for compatibility
 export default supabase;
