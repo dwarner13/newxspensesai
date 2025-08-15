@@ -21,27 +21,43 @@ export default function MobileSidebar({
 
   return (
     <div className="fixed inset-0 z-50 lg:hidden">
+      {/* Backdrop */}
       <div
         aria-hidden
         onClick={onClose}
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-in-out"
       />
+      
+      {/* Sidebar */}
       <aside
         role="dialog"
         aria-modal="true"
-        className="absolute inset-y-0 left-0 w-[80vw] max-w-[320px] bg-[#0b0f2a] shadow-2xl border-r border-white/10 flex flex-col"
+        className="absolute inset-y-0 left-0 w-full max-w-[85vw] sm:max-w-[320px] bg-[#0b0f2a] shadow-2xl border-r border-white/10 flex flex-col transform transition-transform duration-300 ease-in-out"
+        style={{
+          transform: open ? 'translateX(0)' : 'translateX(-100%)'
+        }}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-          <span className="text-lg font-semibold">Menu</span>
+        {/* Header with close button */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0b0f2a]/95 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center">
+              <span className="text-white text-sm font-bold">💰</span>
+            </div>
+            <span className="text-lg font-bold text-white">XspensesAI</span>
+          </div>
           <button
             aria-label="Close menu"
             onClick={onClose}
-            className="rounded-xl p-2 hover:bg-white/5"
+            className="rounded-xl p-3 hover:bg-white/10 transition-colors duration-200 text-white/70 hover:text-white"
           >
-            <X className="h-5 w-5" />
+            <X className="h-6 w-6" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        
+        {/* Content area with proper padding and spacing */}
+        <div className="flex-1 overflow-y-auto py-6">
+          {children}
+        </div>
       </aside>
     </div>
   );

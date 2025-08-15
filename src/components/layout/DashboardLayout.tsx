@@ -25,21 +25,28 @@ export default function DashboardLayout() {
         </aside>
 
         {/* Mobile top bar */}
-        <header className="lg:hidden sticky top-0 z-40 bg-[#0b0f2a]/80 backdrop-blur border-b border-white/10">
-          <div className="flex items-center gap-3 px-4 py-3">
+        <header className="lg:hidden sticky top-0 z-40 bg-[#0b0f2a]/95 backdrop-blur border-b border-white/10">
+          <div className="flex items-center gap-3 px-4 py-4">
             <button
               aria-label="Open menu"
               onClick={() => setOpen(true)}
-              className="rounded-xl p-2 hover:bg-white/5"
+              className="rounded-xl p-3 hover:bg-white/10 transition-colors duration-200 text-white/90 hover:text-white"
             >
-              {/* simple hamburger */}
-              <div className="space-y-1">
-                <span className="block h-0.5 w-5 bg-white" />
-                <span className="block h-0.5 w-5 bg-white" />
-                <span className="block h-0.5 w-5 bg-white" />
+              {/* Enhanced hamburger menu */}
+              <div className="space-y-1.5">
+                <span className="block h-0.5 w-6 bg-current transition-all duration-200" />
+                <span className="block h-0.5 w-6 bg-current transition-all duration-200" />
+                <span className="block h-0.5 w-6 bg-current transition-all duration-200" />
               </div>
             </button>
-            <span className="text-base font-semibold">XspensesAI</span>
+            
+            {/* Logo and title */}
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm font-bold">💰</span>
+              </div>
+              <span className="text-lg font-bold text-white">XspensesAI</span>
+            </div>
           </div>
         </header>
 

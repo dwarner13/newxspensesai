@@ -101,6 +101,9 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
     setIsCollapsed(!isCollapsed);
   };
 
+  // Show labels if not collapsed OR if mobile is open
+  const shouldShowLabels = !isCollapsed || isMobileOpen;
+
   return (
     <aside className="h-full flex flex-col" ref={sidebarRef}>
         {/* Scrollable Container */}
@@ -108,7 +111,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
           {/* Header with Logo - Professional Design */}
           <div className="sticky top-0 border-b border-white/10 p-6 backdrop-blur-md">
           <div className="flex items-center justify-between">
-                         {!isCollapsed && (
+                         {shouldShowLabels && (
                <div className="flex items-center gap-4 flex-1">
                  <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-4 shadow-xl">
                    <Crown className="text-white" size={36} />
@@ -118,7 +121,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
                  </div>
                </div>
              )}
-                         {isCollapsed && (
+                         {!shouldShowLabels && (
                <div className="flex items-center justify-center flex-1">
                  <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-3 shadow-xl">
                    <Crown className="text-white" size={32} />
@@ -126,14 +129,16 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
                </div>
              )}
                          <div className="flex items-center gap-3">
-               {/* Collapse Toggle Button */}
-               <button 
-                 onClick={toggleSidebar}
-                 className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
-                 style={{ minHeight: '44px', minWidth: '44px' }}
-               >
-                 {isCollapsed ? <ChevronRight size={22} /> : <ChevronLeft size={22} />}
-               </button>
+               {/* Collapse Toggle Button - Only show on desktop */}
+               {!isMobileOpen && (
+                 <button 
+                   onClick={toggleSidebar}
+                   className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
+                   style={{ minHeight: '44px', minWidth: '44px' }}
+                 >
+                   {isCollapsed ? <ChevronRight size={22} /> : <ChevronLeft size={22} />}
+                 </button>
+               )}
              </div>
           </div>
         </div>
@@ -141,70 +146,74 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
                  {/* Navigation with Professional Scrolling - Optimized Height */}
          <nav className="flex-1 overflow-y-auto px-6 py-6 pb-24" style={{ height: 'calc(100vh - 160px)' }}>
           {/* Main Dashboard */}
-          <ul className="space-y-2 mb-6">
+          <ul className="space-y-3 mb-6">
             <li>
               <NavLink 
                 to="/dashboard" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <BarChart3 size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Main Dashboard</span>}
+                <BarChart3 size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Main Dashboard</span>}
               </NavLink>
             </li>
           </ul>
 
           {/* Personal Finance AI */}
-          {!isCollapsed && (
-            <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-6 font-bold">
+          {shouldShowLabels && (
+            <div className="text-xs uppercase tracking-wider text-white/50 mt-6 mb-4 font-bold px-4">
               Personal Finance AI
             </div>
           )}
-          <ul className="space-y-2 mb-10">
+          <ul className="space-y-3 mb-10">
             <li>
               <NavLink 
                 to="/dashboard/smart-import-ai" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Upload size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Smart Import AI</span>}
+                <Upload size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Smart Import AI</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/ai-financial-assistant" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Bot size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">AI Financial Assistant</span>}
+                <Bot size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Assistant</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/financial-therapist" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Heart size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">AI Financial Therapist</span>}
+                <Heart size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Therapist</span>}
               </NavLink>
             </li>
 
@@ -212,246 +221,261 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               <NavLink 
                 to="/dashboard/goal-concierge" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Target size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">AI Goal Concierge</span>}
+                <Target size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">AI Goal Concierge</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/spending-predictions" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Brain size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Spending Predictions</span>}
+                <Brain size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Spending Predictions</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/ai-categorization" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Brain size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">AI Categorization</span>}
+                <Brain size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">AI Categorization</span>}
               </NavLink>
             </li>
         </ul>
 
             {/* 💳 Expense & Planning Tools */}
-          {!isCollapsed && (
-            <div className="text-xs uppercase tracking-wider text-white/40 mt-6 mb-4 font-semibold">
+          {shouldShowLabels && (
+            <div className="text-xs uppercase tracking-wider text-white/40 mt-8 mb-4 font-semibold px-4">
                 💳 Expense & Planning Tools
             </div>
           )}
-          <ul className="space-y-1 mb-8">
+          <ul className="space-y-3 mb-8">
             <li>
               <NavLink 
                 to="/dashboard/bill-reminders" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Bell size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Bill Reminder System</span>}
+                <Bell size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Bill Reminder System</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/debt-payoff-planner" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <TrendingUp size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Debt Payoff Planner</span>}
+                <TrendingUp size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Debt Payoff Planner</span>}
               </NavLink>
             </li>
               <li>
                 <NavLink 
                   to="/dashboard/financial-freedom" 
                   className={({ isActive }) => 
-                    `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                    `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                       isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                     }`
                   }
-                  style={{ minHeight: '44px' }}
+                  style={{ minHeight: '52px' }}
+                  onClick={() => isMobileOpen && setIsMobileOpen(false)}
                 >
-                  <Crown size={20} className="flex-shrink-0" />
-                  {!isCollapsed && <span className="font-medium">AI Financial Freedom</span>}
+                  <Crown size={22} className="flex-shrink-0 text-white/90" />
+                  {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Freedom</span>}
                 </NavLink>
               </li>
         </ul>
 
         {/* Audio Entertainment */}
-          {!isCollapsed && (
-            <div className="text-xs uppercase tracking-wider text-white/40 mt-6 mb-4 font-semibold">
+          {shouldShowLabels && (
+            <div className="text-xs uppercase tracking-wider text-white/40 mt-8 mb-4 font-semibold px-4">
               Audio Entertainment
             </div>
           )}
-          <ul className="space-y-1 mb-8">
+          <ul className="space-y-3 mb-8">
             <li>
               <NavLink 
                 to="/dashboard/personal-podcast" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Headphones size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Personal Podcast</span>}
+                <Headphones size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Personal Podcast</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/spotify-integration" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Music size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Spotify Integration</span>}
+                <Music size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Spotify Integration</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/wellness-studio" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Heart size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Financial Wellness Studio</span>}
+                <Heart size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Financial Wellness Studio</span>}
               </NavLink>
             </li>
         </ul>
 
         {/* Tax Assistant, Business Intelligence, Smart Automation */}
-          {!isCollapsed && (
-            <div className="text-xs uppercase tracking-wider text-white/40 mt-6 mb-4 font-semibold">
+          {shouldShowLabels && (
+            <div className="text-xs uppercase tracking-wider text-white/40 mt-8 mb-4 font-semibold px-4">
               Tax Assistant, Business Intelligence, Smart Automation
             </div>
           )}
-          <ul className="space-y-1 mb-8">
+          <ul className="space-y-3 mb-8">
             <li>
               <NavLink 
                 to="/dashboard/tax-assistant" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Calculator size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Tax Assistant</span>}
+                <Calculator size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Tax Assistant</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/business-intelligence" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <BarChart3 size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Business Intelligence</span>}
+                <BarChart3 size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Business Intelligence</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/smart-automation" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Zap size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Smart Automation</span>}
+                <Zap size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Smart Automation</span>}
               </NavLink>
             </li>
         </ul>
 
         {/* Tools */}
-          {!isCollapsed && (
-            <div className="text-xs uppercase tracking-wider text-white/40 mt-6 mb-4 font-semibold">
+          {shouldShowLabels && (
+            <div className="text-xs uppercase tracking-wider text-white/40 mt-8 mb-4 font-semibold px-4">
               Tools
             </div>
           )}
-          <ul className="space-y-1 mb-8">
+          <ul className="space-y-3 mb-8">
             <li>
               <NavLink 
                 to="/dashboard/analytics" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <BarChart3 size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Analytics</span>}
+                <BarChart3 size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Analytics</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/settings" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <Settings size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Settings</span>}
+                <Settings size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Settings</span>}
               </NavLink>
             </li>
             <li>
               <NavLink 
                 to="/dashboard/reports" 
                 className={({ isActive }) => 
-                  `flex items-center gap-3 py-3 px-3 rounded-lg transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                     isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
                   }`
                 }
-                style={{ minHeight: '44px' }}
+                style={{ minHeight: '52px' }}
+                onClick={() => isMobileOpen && setIsMobileOpen(false)}
               >
-                <FileText size={20} className="flex-shrink-0" />
-                {!isCollapsed && <span className="font-medium">Reports</span>}
+                <FileText size={22} className="flex-shrink-0 text-white/90" />
+                {shouldShowLabels && <span className="font-medium text-white/90">Reports</span>}
               </NavLink>
             </li>
         </ul>
@@ -461,7 +485,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
 
 {/* profile footer at the very bottom */}
 <div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border">
-  {!isCollapsed && (
+  {shouldShowLabels && (
     <div className="p-4 pr-6 bg-blue-900 w-full box-border">
       <div className="text-sm">
         <div className="font-semibold">{user?.name}</div>
