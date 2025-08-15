@@ -4,7 +4,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/',
+  base: '', // Remove base path for better Netlify compatibility
   plugins: [
     react(),
     visualizer({ open: false }), // view bundle size with `npm run build`
