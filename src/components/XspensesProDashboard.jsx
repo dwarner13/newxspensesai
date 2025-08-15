@@ -4,12 +4,12 @@ import { Link } from 'react-router-dom';
 import { 
   UploadCloud, Bot, HeartPulse, Target, LineChart, Bell, 
   PiggyBank, Crown, Mic, Music, FileText, BarChart3, 
-  Zap, Activity, Settings, User, Plus, MessageCircle
+  Zap, Activity, Settings, User, Plus
 } from 'lucide-react';
+import ChatBot from './chat/ChatBot';
 
 export default function XspensesProDashboard() {
   const [showFab, setShowFab] = useState(false);
-  const [showChatbot, setShowChatbot] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
 
   return (
@@ -99,48 +99,48 @@ export default function XspensesProDashboard() {
           <h2 className="text-2xl font-semibold mb-4 text-white">💳 Expense & Planning Tools</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Bill Reminder System */}
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">⏰</div>
+            <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
+              <div className="text-3xl mb-4">🔔</div>
               <h3 className="text-xl font-semibold mb-2">Bill Reminder System</h3>
               <p className="text-sm text-white/80">Never miss a payment with smart reminders and automated tracking.</p>
-              <Link to="/dashboard/bill-reminders" className="bg-white text-blue-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+              <Link to="/dashboard/bill-reminders" className="bg-white text-orange-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
                 Set Reminders
               </Link>
             </div>
 
             {/* Debt Payoff Planner */}
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">💸</div>
+            <div className="bg-gradient-to-br from-red-500 to-pink-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
+              <div className="text-3xl mb-4">📈</div>
               <h3 className="text-xl font-semibold mb-2">Debt Payoff Planner</h3>
-              <p className="text-sm text-white/80">Create personalized debt payoff strategies with optimal payment sequencing.</p>
-              <Link to="/dashboard/debt-payoff-planner" className="bg-white text-green-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+              <p className="text-sm text-white/80">Create a personalized debt payoff strategy with AI-optimized payment plans.</p>
+              <Link to="/dashboard/debt-payoff-planner" className="bg-white text-red-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
                 Plan Payoff
               </Link>
             </div>
 
             {/* AI Financial Freedom */}
-            <div className="bg-gradient-to-br from-purple-500 to-violet-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🏆</div>
+            <div className="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
+              <div className="text-3xl mb-4">👑</div>
               <h3 className="text-xl font-semibold mb-2">AI Financial Freedom</h3>
-              <p className="text-sm text-white/80">Achieve financial independence with AI-powered planning and coaching.</p>
-              <Link to="/dashboard/ai-financial-freedom" className="bg-white text-purple-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+              <p className="text-sm text-white/80">Track your journey to financial independence with AI-powered insights.</p>
+              <Link to="/dashboard/ai-financial-freedom" className="bg-white text-yellow-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
                 Start Journey
               </Link>
             </div>
           </div>
         </section>
 
-        {/* 🎧 Audio & Media */}
+        {/* 🎵 Audio Entertainment */}
         <section className="mt-10">
-          <h2 className="text-2xl font-semibold mb-4 text-white">🎧 Audio & Media</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-white">🎵 Audio Entertainment</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Personal Podcast */}
-            <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🎙️</div>
+            <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
+              <div className="text-3xl mb-4">🎧</div>
               <h3 className="text-xl font-semibold mb-2">Personal Podcast</h3>
-              <p className="text-sm text-white/80">Create personalized financial podcasts with AI-generated insights and updates.</p>
-              <Link to="/dashboard/personal-podcast" className="bg-white text-orange-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
-                Create Podcast
+              <p className="text-sm text-white/80">AI-generated podcasts about your financial journey and money story.</p>
+              <Link to="/dashboard/personal-podcast" className="bg-white text-purple-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+                Listen Now
               </Link>
             </div>
 
@@ -148,55 +148,19 @@ export default function XspensesProDashboard() {
             <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
               <div className="text-3xl mb-4">🎵</div>
               <h3 className="text-xl font-semibold mb-2">Spotify Integration</h3>
-              <p className="text-sm text-white/80">Sync your financial insights with personalized Spotify playlists and mood music.</p>
+              <p className="text-sm text-white/80">Curated playlists for focus, relaxation, and financial motivation.</p>
               <Link to="/dashboard/spotify-integration" className="bg-white text-green-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
-                Connect Spotify
+                Connect
               </Link>
             </div>
 
-            {/* Wellness Studio */}
-            <div className="bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🧘‍♂️</div>
+            {/* Financial Wellness Studio */}
+            <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
+              <div className="text-3xl mb-4">💚</div>
               <h3 className="text-xl font-semibold mb-2">Financial Wellness Studio</h3>
-              <p className="text-sm text-white/80">Meditation, mindfulness, and stress reduction techniques for financial health.</p>
-              <Link to="/dashboard/wellness-studio" className="bg-white text-teal-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
-                Enter Studio
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        {/* 🧾 Smart Tax & Intelligence */}
-        <section className="mt-10">
-          <h2 className="text-2xl font-semibold mb-4 text-white">🧾 Smart Tax & Intelligence</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Tax Assistant */}
-            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🧾</div>
-              <h3 className="text-xl font-semibold mb-2">Tax Assistant</h3>
-              <p className="text-sm text-white/80">AI-powered tax preparation, deduction optimization, and filing assistance.</p>
-              <Link to="/dashboard/tax-assistant" className="bg-white text-indigo-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
-                Prepare Taxes
-              </Link>
-            </div>
-
-            {/* Business Intelligence */}
-            <div className="bg-gradient-to-br from-blue-500 to-cyan-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">📈</div>
-              <h3 className="text-xl font-semibold mb-2">Business Intelligence</h3>
-              <p className="text-sm text-white/80">Advanced analytics and insights for business financial management.</p>
-              <Link to="/dashboard/business-intelligence" className="bg-white text-blue-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
-                View Analytics
-              </Link>
-            </div>
-
-            {/* Smart Automation */}
-            <div className="bg-gradient-to-br from-violet-500 to-purple-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">⚡</div>
-              <h3 className="text-xl font-semibold mb-2">Smart Automation</h3>
-              <p className="text-sm text-white/80">Automate repetitive financial tasks and workflows with AI.</p>
-              <Link to="/dashboard/smart-automation" className="bg-white text-violet-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
-                Configure
+              <p className="text-sm text-white/80">Educational content and guided sessions for financial mental health.</p>
+              <Link to="/dashboard/wellness-studio" className="bg-white text-pink-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+                Learn More
               </Link>
             </div>
           </div>
@@ -253,31 +217,11 @@ export default function XspensesProDashboard() {
           <button className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center">
             <UploadCloud size={20} />
           </button>
-          <button className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center">
-            <MessageCircle size={20} />
-          </button>
         </div>
       )}
 
-      {/* AI Chatbot */}
-      {showChatbot && (
-        <div className="fixed bottom-6 left-6 w-80 h-96 bg-white rounded-lg shadow-xl z-50">
-          <div className="p-4 border-b">
-            <h3 className="font-semibold">AI Assistant</h3>
-          </div>
-          <div className="p-4 h-80 overflow-y-auto">
-            <p className="text-sm text-gray-600">How can I help you today?</p>
-          </div>
-        </div>
-      )}
-
-      {/* Chatbot Toggle Button */}
-      <button
-        onClick={() => setShowChatbot(!showChatbot)}
-        className="fixed bottom-6 left-6 w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-40"
-      >
-        <MessageCircle size={20} />
-      </button>
+      {/* Working AI Chatbot - Right Side */}
+      <ChatBot />
 
       {/* Premium Modal */}
       {showPremiumModal && (

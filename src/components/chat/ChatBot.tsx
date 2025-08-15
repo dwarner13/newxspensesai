@@ -40,9 +40,9 @@ const ChatBot = () => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const userMessage = {
+    const userMessage: Message = {
       id: Date.now().toString(),
-      type: 'user' as const,
+      type: 'user',
       content: input.trim(),
       timestamp: new Date(),
     };
@@ -52,33 +52,19 @@ const ChatBot = () => {
     setIsLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-          'x-user-id': user.id,
-        },
-        body: JSON.stringify({ question: input.trim() }),
-      });
-
-      if (!response.ok) throw new Error('Failed to get response');
-
-      const { answer } = await response.json();
-
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        type: 'assistant',
-        content: answer,
-        timestamp: new Date(),
-      }]);
+      // Simulate AI response for now
+      setTimeout(() => {
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: "I'm here to help with your financial questions! This is a demo response. In the full version, I'll analyze your transactions and provide personalized insights.",
+          timestamp: new Date(),
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        setIsLoading(false);
+      }, 1000);
     } catch (error) {
-      console.error('Chat error:', error);
-      toast.error('Failed to get response. Please try again.');
-    } finally {
+      toast.error('Failed to get AI response');
       setIsLoading(false);
     }
   };
@@ -86,15 +72,16 @@ const ChatBot = () => {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      handleSubmit(e as any);
     }
   };
 
   return (
     <>
+      {/* Chatbot Toggle Button - Right Side */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 bg-primary-600 text-white p-4 rounded-full shadow-lg hover:bg-primary-700 transition-colors"
+        className="fixed top-1/2 right-6 transform -translate-y-1/2 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 z-40"
       >
         <MessageSquare size={24} />
       </button>
@@ -102,36 +89,38 @@ const ChatBot = () => {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="fixed bottom-6 right-6 w-96 bg-white rounded-lg shadow-xl overflow-hidden"
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 100 }}
+            className="fixed top-1/2 right-6 transform -translate-y-1/2 w-96 bg-white rounded-lg shadow-xl overflow-hidden z-50"
           >
-            <div className="bg-primary-600 text-white px-4 py-3 flex justify-between items-center">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 py-3 flex justify-between items-center">
               <h3 className="font-semibold">XspensesAI Assistant</h3>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-white/80 hover:text-white"
+                className="text-white/80 hover:text-white transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="h-96 overflow-y-auto p-4 space-y-4">
+            {/* Messages */}
+            <div className="h-96 overflow-y-auto p-4 space-y-4 bg-gray-50">
               {messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                    className={`max-w-xs px-3 py-2 rounded-lg ${
                       message.type === 'user'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-gray-100 text-gray-900'
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-white text-gray-800 border border-gray-200'
                     }`}
                   >
                     <p className="text-sm">{message.content}</p>
-                    <p className="text-xs mt-1 opacity-70">
+                    <p className="text-xs opacity-70 mt-1">
                       {message.timestamp.toLocaleTimeString()}
                     </p>
                   </div>
@@ -139,11 +128,10 @@ const ChatBot = () => {
               ))}
               {isLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-100 rounded-lg px-4 py-2">
-                    <div className="flex space-x-2">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                  <div className="bg-white text-gray-800 border border-gray-200 px-3 py-2 rounded-lg">
+                    <div className="flex items-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+                      <span className="text-sm">AI is thinking...</span>
                     </div>
                   </div>
                 </div>
@@ -151,7 +139,8 @@ const ChatBot = () => {
               <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSubmit} className="border-t p-4">
+            {/* Input Form */}
+            <form onSubmit={handleSubmit} className="border-t p-4 bg-white">
               <div className="flex space-x-2">
                 <textarea
                   ref={inputRef}
@@ -159,14 +148,14 @@ const ChatBot = () => {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Ask me anything..."
-                  className="flex-1 resize-none rounded-lg border border-gray-300 p-2 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="flex-1 resize-none rounded-lg border border-gray-300 p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   rows={1}
                   disabled={isLoading}
                 />
                 <button
                   type="submit"
                   disabled={isLoading || !input.trim()}
-                  className="bg-primary-600 text-white p-2 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Send size={20} />
                 </button>
