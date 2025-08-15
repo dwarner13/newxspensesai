@@ -4,12 +4,11 @@ import { Link } from 'react-router-dom';
 import { 
   UploadCloud, Bot, HeartPulse, Target, LineChart, Bell, 
   PiggyBank, Crown, Mic, Music, FileText, BarChart3, 
-  Zap, Activity, Settings, User, Plus
+  Zap, Activity, Settings, User
 } from 'lucide-react';
 import ChatBot from './chat/ChatBot';
 
 export default function XspensesProDashboard() {
-  const [showFab, setShowFab] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
 
   return (
@@ -202,23 +201,6 @@ export default function XspensesProDashboard() {
           </div>
         </section>
       </div>
-
-      {/* Floating Action Button */}
-      <button
-        onClick={() => setShowFab(!showFab)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center z-50"
-      >
-        <Plus size={24} />
-      </button>
-
-      {/* FAB Toggle Button */}
-      {showFab && (
-        <div className="fixed bottom-20 right-6 space-y-2 z-50">
-          <button className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center">
-            <UploadCloud size={20} />
-          </button>
-        </div>
-      )}
 
       {/* Working AI Chatbot - Right Side */}
       <ChatBot />
