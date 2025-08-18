@@ -1,12 +1,12 @@
 import React from 'react';
-import MainNavigation from './MainNavigation';
+import SimpleNavigation from './SimpleNavigation';
 import Footer from './Footer';
 
 const WebsiteLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="min-h-screen flex flex-col">
-      <MainNavigation />
-      <main className="flex-1 pt-16"> {/* pt-16 to offset sticky nav height */}
+      <SimpleNavigation />
+      <main className="flex-1"> {/* Removed pt-16 to eliminate gap */}
         {children}
       </main>
       <Footer />

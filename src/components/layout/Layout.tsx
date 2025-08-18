@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { usePagePersistence } from '../../hooks/usePagePersistence';
 import AppLayout from './AppLayout';
-import Navbar from './Navbar';
+import SimpleNavigation from './SimpleNavigation';
 import { Home, BarChart, Camera, User, ListFilter } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAtom } from 'jotai';
@@ -77,8 +77,8 @@ const Layout = () => {
 
   return (
     <div className={`flex flex-col h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'}`}>
-      {/* Global Navbar */}
-      <Navbar />
+      {/* Global Navigation */}
+      <SimpleNavigation />
       
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content */}

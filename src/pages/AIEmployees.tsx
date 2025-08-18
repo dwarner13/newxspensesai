@@ -9,7 +9,7 @@ import {
   PieChart, Download, Upload, Globe, Lock, Key, Wifi, Smartphone
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import MainHeader from '../components/layout/MainHeader';
+import SimpleNavigation from '../components/layout/SimpleNavigation';
 
 interface AIHost {
   id: string;
@@ -335,7 +335,7 @@ const AIEmployees = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Main Navigation Header */}
-      <MainHeader />
+      <SimpleNavigation />
       
       {/* Hero Section */}
       <div className="relative overflow-hidden">
@@ -366,14 +366,14 @@ const AIEmployees = () => {
             >
               <Link 
                 to="/dashboard"
-                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2"
+                className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-cyan-500/25 flex items-center justify-center gap-2"
               >
                 <Sparkles size={24} />
                 Meet Your AI Team
               </Link>
-              <button className="bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 border border-white/20 flex items-center justify-center gap-2">
+              <button className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2">
                 <Play size={24} />
-                Watch Demo
+                Watch AI Process 50 Receipts in 30 Seconds
               </button>
             </motion.div>
           </div>
@@ -403,7 +403,7 @@ const AIEmployees = () => {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: index * 0.1 }}
-              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 flex flex-col"
             >
               <div className="text-center mb-4">
                 <div className={`w-16 h-16 bg-gradient-to-r ${host.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
@@ -414,14 +414,14 @@ const AIEmployees = () => {
                 <p className="text-blue-400 text-xs font-medium">{host.segment}</p>
               </div>
               
-              <div className="mb-4">
+              <div className="flex-1 mb-4">
                 <p className="text-white/80 text-sm leading-relaxed mb-3">{host.bio}</p>
                 <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 rounded-lg p-3">
                   <p className="text-white font-semibold text-sm">"{host.wowHook}"</p>
                 </div>
               </div>
               
-              <button className={`w-full bg-gradient-to-r ${host.color} hover:opacity-90 text-white py-2 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2`}>
+              <button className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-xl font-semibold transition-all duration-300 hover:shadow-cyan-500/25 flex items-center justify-center gap-2 mt-auto">
                 <Mic size={16} />
                 Listen to {host.name}
               </button>
@@ -453,7 +453,7 @@ const AIEmployees = () => {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: index * 0.05 }}
-              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 flex flex-col"
             >
               <div className="flex items-start gap-4 mb-4">
                 <div className={`w-12 h-12 bg-gradient-to-r ${employee.color} rounded-full flex items-center justify-center flex-shrink-0`}>
@@ -465,13 +465,15 @@ const AIEmployees = () => {
                 </div>
               </div>
               
-              <p className="text-white/80 text-sm leading-relaxed mb-4">{employee.bio}</p>
-              
-              <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-lg p-3 mb-4">
-                <p className="text-white font-semibold text-sm">💡 {employee.proTip}</p>
+              <div className="flex-1">
+                <p className="text-white/80 text-sm leading-relaxed mb-4">{employee.bio}</p>
+                
+                <div className="bg-gradient-to-r from-green-500/20 to-blue-500/20 rounded-lg p-3 mb-4">
+                  <p className="text-white font-semibold text-sm">💡 {employee.proTip}</p>
+                </div>
               </div>
               
-              <button className={`w-full bg-gradient-to-r ${employee.color} hover:opacity-90 text-white py-2 rounded-xl font-semibold transition-all duration-300 flex items-center justify-center gap-2`}>
+              <button className="w-full bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded-xl font-semibold transition-all duration-300 hover:shadow-cyan-500/25 flex items-center justify-center gap-2 mt-auto">
                 <MessageCircle size={16} />
                 Chat with {employee.name}
               </button>
@@ -497,14 +499,14 @@ const AIEmployees = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link 
               to="/dashboard"
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2"
+              className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-cyan-500/25 flex items-center justify-center gap-2"
             >
               <Sparkles size={24} />
-              Start Your AI Journey
+              Experience Automation Magic
             </Link>
-            <button className="bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 border border-white/20 flex items-center justify-center gap-2">
+            <button className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2">
               <Users size={24} />
-              Meet the Team
+              Chat with Your AI Dream Team
             </button>
           </div>
         </motion.div>

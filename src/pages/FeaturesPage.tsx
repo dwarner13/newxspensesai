@@ -87,15 +87,15 @@ const FeaturesPage = () => {
           >
             <a
               href="/ai-demo"
-              className="bg-gradient-to-r from-orange-500 to-pink-500 text-white px-8 py-4 rounded-lg font-semibold hover:from-orange-600 hover:to-pink-600 transition-all duration-300 flex items-center justify-center gap-2"
+              className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 hover:shadow-cyan-500/25 flex items-center justify-center gap-2"
             >
               Try AI Demo
             </a>
             <a
               href="/pricing"
-              className="bg-white/10 backdrop-blur-sm text-white px-8 py-4 rounded-lg font-semibold hover:bg-white/20 transition-all duration-300"
+              className="border-2 border-cyan-400 text-cyan-400 px-8 py-4 rounded-lg font-semibold hover:bg-cyan-400 hover:text-white transition-all duration-300"
             >
-              View Pricing
+              Calculate Your Time Savings
             </a>
           </motion.div>
         </section>
@@ -152,27 +152,27 @@ const FeaturesPage = () => {
             className="space-y-8"
           >
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Ready to Transform Your Finances?
+              Ready to End Manual Expense Work Forever?
             </h2>
             <p className="text-xl text-purple-100 mb-8">
-              Try XspensesAI free and see how easy and fun financial management can be.
+              Experience automation magic that reads ANY financial document in 2.3 seconds with 99.7% accuracy.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a
                 href="/signup"
                 className="bg-white text-purple-600 px-8 py-4 rounded-xl text-lg font-semibold hover:shadow-xl transform hover:scale-105 transition-all duration-200"
               >
-                Start Free Trial
+                End Manual Work Forever
               </a>
               <a
                 href="/pricing"
                 className="border-2 border-white text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-white hover:text-purple-600 transition-all duration-200"
               >
-                View Pricing
+                Calculate Your Time Savings
               </a>
             </div>
             <p className="text-purple-100 text-sm">
-              No credit card required • 14-day free trial • Cancel anytime
+              ✓ No credit card required • ✓ Process 10 documents free • ✓ See results in 2.3 seconds
             </p>
           </motion.div>
         </section>

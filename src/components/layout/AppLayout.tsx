@@ -5,7 +5,7 @@ import { isMobileMenuOpenAtom, isDarkModeAtom } from '../../lib/uiStore';
 import Header from './Header';
 import Footer from './Footer';
 import MobileMenu from './MobileMenu';
-import MainHeader from './MainHeader';
+import SimpleNavigation from './SimpleNavigation';
 import { X } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -82,7 +82,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   return (
     <div className={`app-layout ${darkMode ? 'dark' : ''}`}>
       {/* Main Header - Only render if not dashboard page */}
-      {!isDashboardPage && <MainHeader />}
+      {!isDashboardPage && <SimpleNavigation />}
       
       {/* Main Content Area */}
       <div className={`main-content ${isDashboardPage ? 'dashboard-fullscreen-container' : 'ml-0'}`}>

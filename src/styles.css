@@ -31,24 +31,278 @@
 html, body {
   height: 100%;
   font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-  background: #f8fafc;
-  color: #2d3748;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   line-height: 1.6;
 }
 
-/* Root Variables */
+/* Root Variables - SearchAtlas Dark Theme */
 :root {
-  --primary-purple: #8B5CF6;
-  --primary-pink: #A855F7;
-  --accent-purple: #C084FC;
-  --accent-pink: #E879F9;
-  --accent-rose: #F472B6;
-  --text-dark: #2d3748;
-  --text-light: #718096;
-  --bg-light: #f8fafc;
-  --white: #ffffff;
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  /* Dark Theme Colors */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: rgba(255, 255, 255, 0.08);
+  --bg-card-hover: rgba(255, 255, 255, 0.12);
+  
+  /* Text Colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-dark: #1e293b;
+  
+  /* Accent Colors */
+  --accent-teal: #06b6d4;
+  --accent-teal-hover: #0891b2;
+  --accent-purple: #a855f7;
+  --accent-purple-light: #f3e8ff;
+  
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #a855f7 0%, #f3e8ff 100%);
+  --gradient-dark: linear-gradient(135deg, #0a0a0a 0%, #1e1b4b 100%);
+  
+  /* Borders & Shadows */
+  --border-light: rgba(255, 255, 255, 0.1);
+  --border-medium: rgba(255, 255, 255, 0.15);
+  --shadow-dark: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg-dark: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  --glow-teal: 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+/* SearchAtlas Dark Theme Utilities */
+.gradient-text {
+  background: linear-gradient(135deg, #a855f7 0%, #c084fc 25%, #e879f9 50%, #f0abfc 75%, #f3e8ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease-in-out infinite;
+  font-weight: 800;
+  text-shadow: 0 0 30px rgba(168, 85, 247, 0.3);
+}
+
+.gradient-text-hero {
+  background: linear-gradient(135deg, #a855f7 0%, #c084fc 25%, #e879f9 50%, #f0abfc 75%, #f3e8ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease-in-out infinite;
+  font-weight: 900;
+  text-shadow: 0 0 40px rgba(168, 85, 247, 0.4);
+  letter-spacing: -0.02em;
+}
+
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Global Dark Theme Application */
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* Global Page Backgrounds */
+.page-background {
+  background: var(--bg-primary);
+}
+
+.page-background-gradient {
+  background: var(--gradient-dark);
+}
+
+/* Global Card Styling */
+.card-dark {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  backdrop-filter: blur(12px);
+}
+
+.card-dark-hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-medium);
+  box-shadow: var(--shadow-lg-dark);
+}
+
+/* Global Button Styling */
+.btn-primary-dark {
+  background: var(--accent-teal);
+  color: white;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary-dark:hover {
+  background: var(--accent-teal-hover);
+  box-shadow: var(--glow-teal);
+}
+
+.btn-secondary-dark {
+  background: transparent;
+  color: var(--accent-teal);
+  border: 2px solid var(--accent-teal);
+  transition: all 0.2s ease;
+}
+
+.btn-secondary-dark:hover {
+  background: var(--accent-teal);
+  color: white;
+}
+
+/* Global Form Styling */
+.input-dark {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  color: var(--text-primary);
+}
+
+.input-dark:focus {
+  border-color: var(--accent-teal);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+}
+
+/* Global Navigation Styling */
+.nav-dark {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* Global Section Styling */
+.section-dark {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.section-dark-alt {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Global Text Styling */
+.text-primary-dark {
+  color: var(--text-primary);
+}
+
+.text-secondary-dark {
+  color: var(--text-secondary);
+}
+
+.text-muted-dark {
+  color: var(--text-muted);
+}
+
+/* Global Link Styling */
+.link-dark {
+  color: var(--accent-teal);
+  transition: color 0.2s ease;
+}
+
+.link-dark:hover {
+  color: var(--accent-teal-hover);
+}
+
+/* Global Hover Effects */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg-dark);
+}
+
+/* Global Focus States */
+.focus-ring {
+  outline: none;
+  transition: box-shadow 0.2s ease;
+}
+
+.focus-ring:focus {
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.3);
+}
+
+/* Global Animation Classes */
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dark-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.dark-card-hover {
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--glow-teal);
+}
+
+.btn-primary-teal {
+  background: var(--accent-teal);
+  color: white;
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.btn-primary-teal:hover {
+  background: var(--accent-teal-hover);
+  box-shadow: var(--glow-teal);
+  transform: translateY(-2px);
+}
+
+.btn-secondary-dark {
+  background: transparent;
+  color: var(--text-primary);
+  border: 2px solid var(--accent-teal);
+  transition: all 0.3s ease;
+}
+
+.btn-secondary-dark:hover {
+  background: var(--accent-teal);
+  color: white;
+  box-shadow: var(--glow-teal);
+}
+
+/* Glassmorphism Effects */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border-light);
+}
+
+.glass-hover:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--glow-teal);
 }
 
 /* Mobile Responsive Layout */

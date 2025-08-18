@@ -111,14 +111,14 @@ const GoalsPage = () => {
             The only AI financial goal planner that learns your habits, adapts to your life, and remembers your preferences. Start your adaptive financial journey today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center mt-8">
-            <Link to="/signup" className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-8 py-4 rounded-lg font-semibold hover:from-purple-600 hover:to-pink-600 transition-all duration-300 flex items-center justify-center gap-2">
-              Start Free Trial <ArrowRight className="inline-block ml-2 w-5 h-5" />
+            <Link to="/signup" className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 hover:shadow-cyan-500/25 flex items-center justify-center gap-2">
+              End Manual Work Forever <ArrowRight className="inline-block ml-2 w-5 h-5" />
             </Link>
-            <Link to="/pricing" className="border-2 border-purple-500 text-purple-700 px-8 py-4 rounded-lg font-semibold hover:bg-purple-50 transition-all duration-300">
-              View Pricing
+            <Link to="/pricing" className="border-2 border-cyan-500 text-cyan-500 px-8 py-4 rounded-lg font-semibold hover:bg-cyan-500 hover:text-white transition-all duration-300">
+              Calculate Your Time Savings
             </Link>
-            <Link to="/ai-demo" className="border-2 border-pink-500 text-pink-700 px-8 py-4 rounded-lg font-semibold hover:bg-pink-50 transition-all duration-300">
-              Try AI Demo
+            <Link to="/ai-demo" className="border-2 border-cyan-400 text-cyan-400 px-8 py-4 rounded-lg font-semibold hover:bg-cyan-400 hover:text-white transition-all duration-300">
+              Watch AI Process 50 Receipts in 30 Seconds
             </Link>
           </div>
         </div>
@@ -290,23 +290,23 @@ const GoalsPage = () => {
       {/* Final CTA Section */}
       <section className="py-20 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-center">
         <div className="container max-w-3xl mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready for an AI That Grows With You?</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to End Manual Expense Work Forever?</h2>
           <p className="text-xl text-purple-100 mb-8">
             The sooner you start, the smarter your AI becomes. Don’t waste another day with generic financial advice.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/signup" className="bg-white text-purple-600 px-8 py-4 rounded-xl text-lg font-semibold hover:shadow-xl transform hover:scale-105 transition-all duration-200">
-              Start Free Trial <ArrowRight className="inline-block ml-2 w-5 h-5" />
+              End Manual Work Forever <ArrowRight className="inline-block ml-2 w-5 h-5" />
             </Link>
             <Link to="/pricing" className="border-2 border-white text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-white hover:text-purple-600 transition-all duration-200">
-              View Pricing
+              Calculate Your Time Savings
             </Link>
             <Link to="/ai-demo" className="border-2 border-white text-white px-8 py-4 rounded-xl text-lg font-semibold hover:bg-white hover:text-purple-600 transition-all duration-200">
-              Try AI Demo
+              Watch AI Process 50 Receipts in 30 Seconds
             </Link>
           </div>
           <p className="text-purple-100 text-sm mt-6">
-            No credit card required • 14-day free trial • Cancel anytime
+            ✓ No credit card required • ✓ Process 10 documents free • ✓ See results in 2.3 seconds
           </p>
         </div>
       </section>

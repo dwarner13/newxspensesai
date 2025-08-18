@@ -1,10 +1,12 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Bot, MessageCircle, Upload, Brain, Target, Music, Mic } from 'lucide-react';
+import WebsiteLayout from '../components/layout/WebsiteLayout';
 
 export default function AIAssistantPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 p-6">
+    <WebsiteLayout>
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 p-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -160,7 +162,7 @@ export default function AIAssistantPage() {
                 {insight.message}
               </p>
               <button className="text-xs text-white/80 hover:text-white font-medium">
-                Learn more →
+                See AI in Action →
               </button>
             </div>
           ))}
@@ -234,6 +236,7 @@ export default function AIAssistantPage() {
       <button className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 flex items-center justify-center">
         <MessageCircle size={24} />
       </button>
-    </div>
+      </div>
+    </WebsiteLayout>
   );
 } 

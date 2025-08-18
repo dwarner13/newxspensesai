@@ -11,13 +11,13 @@ import {
   Target, 
   Zap 
 } from 'lucide-react';
-import Navbar from '../components/layout/Navbar';
+import SimpleNavigation from '../components/layout/SimpleNavigation';
 
 const HowItWorksPage = () => {
   return (
     <div className="min-h-screen bg-white">
-      {/* Navbar */}
-      <Navbar />
+      {/* Navigation */}
+      <SimpleNavigation />
       
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-primary-50 to-secondary-50 py-20 px-4">

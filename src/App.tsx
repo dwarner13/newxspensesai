@@ -6,7 +6,7 @@ import TherapistNotification from './components/therapist/TherapistNotification'
 import TherapistModal from './components/therapist/TherapistModal';
 import AppLayout from './components/layout/AppLayout';
 import DashboardLayout from './components/layout/DashboardLayout';
-import MainHeader from './components/layout/MainHeader';
+
 import { AuthProvider } from './contexts/AuthContext';
 import { AudioProvider } from './contexts/AudioContext';
 import { PersonalPodcastProvider } from './contexts/PersonalPodcastContext';
@@ -39,8 +39,10 @@ const AIFinancialFreedomPage = lazy(() => import('./pages/dashboard/AIFinancialF
 const AIEmployees = lazy(() => import('./pages/AIEmployees'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
+const PricingPage = lazy(() => import('./pages/PricingPage'));
 
 // Feature pages - lazy load as they're less critical
+const FeaturesPage = lazy(() => import('./pages/FeaturesPage'));
 const SmartImportAIFeaturePage = lazy(() => import('./archived/SmartImportAIFeaturePage'));
 const SpendingPredictionsFeaturePage = lazy(() => import('./archived/SpendingPredictionsFeaturePage'));
 const SpotifyIntegrationFeaturePage = lazy(() => import('./pages/features/spotify-integration'));
@@ -102,7 +104,7 @@ function App() {
           <AIFinancialAssistantProvider>
             <UserProvider>
             <ScrollToTop />
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
               <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
                   {/* Public routes */}
@@ -110,11 +112,13 @@ function App() {
                   <Route path="/ai-assistant" element={<AIAssistantPage />} />
                   <Route path="/contact" element={<ContactPage />} />
                   <Route path="/reviews" element={<ReviewsPage />} />
+                  <Route path="/pricing" element={<PricingPage />} />
                   
                   {/* Reports route - redirect to dashboard */}
                   <Route path="/reports" element={<Navigate to="/dashboard/reports" replace />} />
                   
                   {/* Feature pages */}
+                  <Route path="/features" element={<FeaturesPage />} />
                   <Route path="/features/smart-import" element={<SmartImportAIFeaturePage />} />
                   <Route path="/features/smart-import-ai" element={<SmartImportAIFeaturePage />} />
                   <Route path="/features/spending-predictions" element={<SpendingPredictionsFeaturePage />} />
