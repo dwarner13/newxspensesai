@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Check, Zap, Brain, Headphones, TrendingUp } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 
 interface FeaturesDropdownProps {
   open: boolean;
@@ -8,40 +8,39 @@ interface FeaturesDropdownProps {
 }
 
 const FeaturesDropdown: React.FC<FeaturesDropdownProps> = ({ open, onLinkClick }) => {
-  if (!open) return null;
-  
   const handleLinkClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const href = e.currentTarget.getAttribute('href');
-    
+    // Don't prevent default - let React Router handle navigation
     if (onLinkClick) {
       onLinkClick();
     }
-    
-    setTimeout(() => {
-      if (href) {
-        window.location.href = href;
-      }
-    }, 100);
   };
 
   const features = {
-    personalFinanceAI: [
+    featuredTools: [
       { name: "Smart Import AI", path: "/features/smart-import-ai", icon: "📄", badge: "NEW" },
       { name: "AI Financial Assistant", path: "/features/ai-assistant", icon: "🧠" },
       { name: "AI Financial Therapist", path: "/features/ai-therapist", icon: "💚" },
       { name: "AI Goal Concierge", path: "/features/goal-concierge", icon: "🎯" },
-      { name: "Spending Predictions", path: "/features/spending-predictions", icon: "🔮" }
+      { name: "Spending Predictions", path: "/features/spending-predictions", icon: "🔮" },
+      { name: "Personal Podcast Generator", path: "/features/podcast-generator", icon: "🎙️" }
     ],
-    audioEntertainment: [
-      { name: "Personal Podcast Generator", path: "/features/podcast-generator", icon: "🎙️" },
-      { name: "Spotify Integration", path: "/features/spotify-integration", icon: "🎵" },
-      { name: "Financial Wellness Studio", path: "/features/wellness-studio", icon: "🎧" }
-    ],
-    businessTax: [
-      { name: "Freelancer Tax Assistant", path: "/features/freelancer-tax", icon: "📊" },
+    automation: [
+      { name: "Smart Automation", path: "/features/smart-automation", icon: "⚡" },
       { name: "Business Intelligence", path: "/features/business-expense-intelligence", icon: "💼" },
-      { name: "Smart Automation", path: "/features/smart-automation", icon: "⚡" }
+      { name: "Freelancer Tax Assistant", path: "/features/freelancer-tax", icon: "📊" },
+      { name: "Content Optimization", path: "/features/content-optimization", icon: "✍️" }
+    ],
+    entertainment: [
+      { name: "Spotify Integration", path: "/features/spotify-integration", icon: "🎵" },
+      { name: "Financial Wellness Studio", path: "/features/wellness-studio", icon: "🎧" },
+      { name: "Gamified Achievement System", path: "/features/gamification", icon: "🏆" },
+      { name: "Financial Podcasts", path: "/features/financial-podcasts", icon: "🎙️" }
+    ],
+    business: [
+      { name: "Enterprise Solutions", path: "/features/enterprise", icon: "🏢" },
+      { name: "White Label Software", path: "/features/white-label", icon: "🏷️" },
+      { name: "Agency Tools", path: "/features/agency-tools", icon: "🎯" },
+      { name: "Team Collaboration", path: "/features/team-collaboration", icon: "👥" }
     ]
   };
 
@@ -71,13 +70,13 @@ const FeaturesDropdown: React.FC<FeaturesDropdownProps> = ({ open, onLinkClick }
         </div>
       </div>
 
-      {/* Right Features Panel */}
+      {/* Right Features Panel - SearchAtlas Style */}
       <div className="dropdown-features-panel">
-        {/* Personal Finance AI */}
+        {/* Featured Tools */}
         <div className="feature-category">
-          <h4 className="category-header">Personal Finance AI</h4>
+          <h4 className="category-header">FEATURED TOOLS</h4>
           <ul className="feature-list">
-            {features.personalFinanceAI.map(item => (
+            {features.featuredTools.map(item => (
               <li key={item.name}>
                 <Link 
                   to={item.path} 
@@ -93,11 +92,11 @@ const FeaturesDropdown: React.FC<FeaturesDropdownProps> = ({ open, onLinkClick }
           </ul>
         </div>
 
-        {/* Audio Entertainment */}
+        {/* Automation */}
         <div className="feature-category">
-          <h4 className="category-header">Audio Entertainment</h4>
+          <h4 className="category-header">AUTOMATION</h4>
           <ul className="feature-list">
-            {features.audioEntertainment.map(item => (
+            {features.automation.map(item => (
               <li key={item.name}>
                 <Link 
                   to={item.path} 
@@ -112,11 +111,30 @@ const FeaturesDropdown: React.FC<FeaturesDropdownProps> = ({ open, onLinkClick }
           </ul>
         </div>
 
-        {/* Business & Tax */}
+        {/* Entertainment */}
         <div className="feature-category">
-          <h4 className="category-header">Business & Tax</h4>
+          <h4 className="category-header">ENTERTAINMENT</h4>
           <ul className="feature-list">
-            {features.businessTax.map(item => (
+            {features.entertainment.map(item => (
+              <li key={item.name}>
+                <Link 
+                  to={item.path} 
+                  className="feature-item"
+                  onClick={handleLinkClick}
+                >
+                  <span className="feature-icon">{item.icon}</span>
+                  <span className="feature-name">{item.name}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Business */}
+        <div className="feature-category">
+          <h4 className="category-header">BUSINESS</h4>
+          <ul className="feature-list">
+            {features.business.map(item => (
               <li key={item.name}>
                 <Link 
                   to={item.path} 

@@ -8,17 +8,15 @@ import {
   Bot
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import FeaturesDropdown from './FeaturesDropdown';
+import FeaturesMegaMenu from '../nav/FeaturesMegaMenu';
 import '../../styles/mobile-navigation.css';
 
 const SimpleNavigation = () => {
   const location = useLocation();
-  const [featuresDropdownOpen, setFeaturesDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileFeaturesOpen, setMobileFeaturesOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const featuresDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -33,21 +31,13 @@ const SimpleNavigation = () => {
         setIsMobileMenuOpen(false);
         setMobileFeaturesOpen(false);
       }
-      
-      if (
-        featuresDropdownOpen &&
-        featuresDropdownRef.current &&
-        !featuresDropdownRef.current.contains(event.target as Node)
-      ) {
-        setFeaturesDropdownOpen(false);
-      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMobileMenuOpen, featuresDropdownOpen]);
+  }, [isMobileMenuOpen]);
 
   // Close mobile menu when location changes
   useEffect(() => {
@@ -68,18 +58,7 @@ const SimpleNavigation = () => {
     };
   }, [isMobileMenuOpen]);
 
-  // Lock body scroll when features dropdown is open
-  useEffect(() => {
-    if (featuresDropdownOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
 
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [featuresDropdownOpen]);
 
   const navigationItems = [
     { name: 'Home', path: '/', hasDropdown: false },
@@ -91,17 +70,26 @@ const SimpleNavigation = () => {
   ];
 
   const mobileFeatures = [
+    // FEATURED TOOLS
     { name: 'Smart Import AI', path: '/features/smart-import-ai' },
     { name: 'AI Financial Assistant', path: '/features/ai-assistant' },
     { name: 'AI Financial Therapist', path: '/features/ai-therapist' },
     { name: 'AI Goal Concierge', path: '/features/goal-concierge' },
     { name: 'Spending Predictions', path: '/features/spending-predictions' },
-    { name: 'Personal Podcast Generator', path: '/features/podcast-generator' },
-    { name: 'Spotify Integration', path: '/features/spotify-integration' },
+    // ENTERTAINMENT
+    { name: 'Personal Podcast', path: '/features/personal-podcast' },
     { name: 'Financial Wellness Studio', path: '/features/wellness-studio' },
-    { name: 'Freelancer Tax Assistant', path: '/features/freelancer-tax' },
+    { name: 'Spotify Integration', path: '/features/spotify-integration' },
+    // BUSINESS
     { name: 'Business Intelligence', path: '/features/business-expense-intelligence' },
-    { name: 'Smart Automation', path: '/features/smart-automation' }
+    { name: 'Freelancer Assistant', path: '/features/freelancer-tax' },
+    { name: 'Tax Optimization', path: '/features/tax-optimization' },
+    { name: 'Compliance & Audit', path: '/features/compliance-audit' },
+    // TECHNICAL
+    { name: 'Receipt Scanner', path: '/features/receipt-scanner' },
+    { name: 'Document Upload', path: '/features/document-upload' },
+    { name: 'API & Webhooks', path: '/features/api-webhooks' },
+    { name: 'Security & Privacy', path: '/features/security-privacy' }
   ];
 
   return (
@@ -123,15 +111,7 @@ const SimpleNavigation = () => {
             {navigationItems.map((item) => (
               <div key={item.name} className="relative">
                 {item.hasDropdown ? (
-                  <div ref={featuresDropdownRef}>
-                    <button
-                      onClick={() => setFeaturesDropdownOpen(!featuresDropdownOpen)}
-                      className="flex items-center text-gray-200 hover:text-cyan-400 py-2 px-3 rounded-md text-sm font-medium transition-colors hover:bg-white/5"
-                    >
-                      {item.name}
-                      <ChevronDown size={16} className={`ml-1 transition-transform ${featuresDropdownOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                  </div>
+                  <FeaturesMegaMenu />
                 ) : (
                   <Link
                     to={item.path}
@@ -148,12 +128,12 @@ const SimpleNavigation = () => {
           <div className="flex items-center space-x-4">
             {/* Desktop Navigation Buttons - HIDDEN ON MOBILE */}
             <div className="hidden md:flex items-center space-x-3 desktop-cta-buttons">
-              <Link
-                to="/login"
-                className="text-gray-200 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 border border-white/20 hover:border-white/30 hover:bg-white/5"
-              >
-                Login
-              </Link>
+                             <Link
+                 to="/dashboard"
+                 className="text-gray-200 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 border border-white/20 hover:border-white/30 hover:bg-white/5"
+               >
+                 Dashboard
+               </Link>
               
               <Link
                 to="/signup"
@@ -237,13 +217,13 @@ const SimpleNavigation = () => {
             </li>
             
             <li className="mobile-cta-section">
-              <Link 
-                to="/login" 
-                className="mobile-login-btn"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Login
-              </Link>
+                             <Link 
+                 to="/dashboard" 
+                 className="mobile-login-btn"
+                 onClick={() => setIsMobileMenuOpen(false)}
+               >
+                 Dashboard
+               </Link>
               <Link 
                 to="/signup" 
                 className="mobile-cta-btn"
@@ -256,19 +236,7 @@ const SimpleNavigation = () => {
         </div>
       </div>
 
-      {/* Features Dropdown Backdrop */}
-      {featuresDropdownOpen && (
-        <div 
-          className="dropdown-backdrop open"
-          onClick={() => setFeaturesDropdownOpen(false)}
-        />
-      )}
 
-      {/* Features Dropdown */}
-      <FeaturesDropdown 
-        open={featuresDropdownOpen} 
-        onLinkClick={() => setFeaturesDropdownOpen(false)} 
-      />
     </header>
   );
 };

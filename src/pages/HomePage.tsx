@@ -11,13 +11,13 @@ const NewHomepageHero = () => (
       <div className="inline-flex items-center px-4 py-2 bg-white/5 backdrop-blur-sm rounded-full text-sm mb-8 font-semibold shadow border border-white/10">
         <span className="mr-2 text-lg">🤖</span>
         <span>AI Automation That Ends Manual Work Forever</span>
-      </div>
+        </div>
       
       {/* Hero Headline */}
       <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 leading-tight max-w-5xl mx-auto">
         <span className="gradient-text-hero block mb-3">End Manual Expense Work Forever</span>
         <span className="gradient-text block text-2xl md:text-3xl lg:text-4xl">Smart AI Does Everything Automatically</span>
-      </h1>
+        </h1>
       
       {/* Hero Subtitle */}
       <p className="text-xl md:text-2xl text-gray-200 mb-10 max-w-4xl mx-auto leading-relaxed">
@@ -70,7 +70,7 @@ const NewHomepageHero = () => (
         <span className="flex items-center gap-2">⭐ 4.9/5 rating</span>
         <span className="flex items-center gap-2">👥 50,000+ automated users</span>
         <span className="flex items-center gap-2">🔒 SOC 2 compliant</span>
-      </div>
+        </div>
       
       {/* Time Savings Calculator */}
       <div className="time-savings-calculator bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 max-w-4xl mx-auto">
@@ -79,7 +79,7 @@ const NewHomepageHero = () => (
           <div className="bg-white/10 rounded-lg p-4 border border-white/5">
             <div className="text-3xl font-bold text-red-400">8 hours</div>
             <div className="text-sm text-gray-300">Manual work/month</div>
-          </div>
+      </div>
           <div className="bg-white/10 rounded-lg p-4 border border-white/5">
             <div className="text-3xl font-bold text-green-400">5 minutes</div>
             <div className="text-sm text-gray-300">Smart Import AI/month</div>
@@ -499,8 +499,8 @@ const RevolutionaryFeatures = () => (
           <p className="text-lg text-white font-semibold">
             "Every other financial app makes you avoid money management. XspensesAI makes you excited about it. Our entertainment features create genuine addiction to financial wellness."
           </p>
-        </div>
       </div>
+              </div>
 
       {/* Three-Column Feature Cards */}
       <div className="features-grid grid md:grid-cols-3 gap-8 mb-16">
@@ -511,8 +511,8 @@ const RevolutionaryFeatures = () => (
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
               </svg>
+              </div>
             </div>
-          </div>
           
           <h3 className="text-2xl font-bold text-white mb-3 text-center">Your Money Story, Beautifully Told</h3>
           <p className="text-gray-300 text-center mb-6 leading-relaxed">
@@ -523,7 +523,7 @@ const RevolutionaryFeatures = () => (
             <div className="bg-white/5 rounded-lg p-3 border border-white/10">
               <div className="text-sm text-cyan-300 font-semibold">Sample Episode:</div>
               <div className="text-xs text-gray-300">"Sarah's Coffee Shop Conquest: How $200 Monthly Became a Business Strategy"</div>
-            </div>
+          </div>
             <div className="bg-white/5 rounded-lg p-3 border border-white/10">
               <div className="text-sm text-cyan-300 font-semibold">Sample Episode:</div>
               <div className="text-xs text-gray-300">"The Great Credit Card Payoff of 2024: Mike's 8-Month Victory Story"</div>
@@ -534,14 +534,14 @@ const RevolutionaryFeatures = () => (
             <div className="text-2xl font-bold text-cyan-400 mb-1">87%</div>
             <div className="text-sm text-gray-300">of users check their finances daily after getting their first podcast</div>
             <div className="text-xs text-cyan-300 mt-2">Users share these episodes on social media!</div>
-          </div>
-          
+        </div>
+        
           <div className="text-center">
             <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:shadow-cyan-500/25 transform hover:scale-105">
               Hear Sample Episode
             </button>
-          </div>
-        </div>
+              </div>
+              </div>
         
         {/* Card 2: AI Financial Therapist */}
         <div className="feature-card bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-cyan-400/30 transition-all duration-300 hover:shadow-cyan-500/25 group">
@@ -550,8 +550,8 @@ const RevolutionaryFeatures = () => (
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>
+              </div>
             </div>
-          </div>
           
           <h3 className="text-2xl font-bold text-white mb-3 text-center">Heal Your Relationship with Money</h3>
           <p className="text-gray-300 text-center mb-6 leading-relaxed">
@@ -563,8 +563,8 @@ const RevolutionaryFeatures = () => (
             <div className="text-xs text-gray-300 space-y-2">
               <div><strong>User:</strong> "I feel guilty buying anything for myself"</div>
               <div><strong>AI Therapist:</strong> "That guilt is protecting you from past financial fear. You've built healthy habits now - a $20 self-care purchase is an investment in your wellbeing, not a failure."</div>
-            </div>
           </div>
+            </div>
           
           <div className="benefit-highlight bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 mb-6 text-center">
             <div className="text-2xl font-bold text-emerald-400 mb-1">76%</div>
@@ -598,11 +598,11 @@ const RevolutionaryFeatures = () => (
             <div className="bg-white/5 rounded-lg p-3 border border-white/10">
               <div className="text-sm text-purple-300 font-semibold">🏆 Coffee Conqueror</div>
               <div className="text-xs text-gray-300">Optimized coffee spending for 30 days</div>
-            </div>
+              </div>
             <div className="bg-white/5 rounded-lg p-3 border border-white/10">
               <div className="text-sm text-purple-300 font-semibold">🎯 Emergency Fund Hero</div>
               <div className="text-xs text-gray-300">Built 6-month emergency fund</div>
-            </div>
+              </div>
             <div className="bg-white/5 rounded-lg p-3 border border-white/10">
               <div className="text-sm text-purple-300 font-semibold">💎 Debt Destroyer</div>
               <div className="text-xs text-gray-300">Eliminated credit card debt</div>
@@ -613,7 +613,7 @@ const RevolutionaryFeatures = () => (
             <div className="text-2xl font-bold text-purple-400 mb-1">3x</div>
             <div className="text-sm text-gray-300">more likely to reach financial goals</div>
             <div className="text-xs text-purple-300 mt-2">Users 3x more likely to reach financial goals</div>
-          </div>
+            </div>
           
           <div className="text-center">
             <button className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:shadow-purple-500/25 transform hover:scale-105">
@@ -798,7 +798,7 @@ const AILearningEvolution = () => (
           </div>
           <div className="ai-learning-indicator mt-4">
             <div className="text-xs text-cyan-400 font-semibold">AI Status: Pattern Recognition</div>
-          </div>
+        </div>
         </motion.div>
         
         <div className="timeline-stage bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border border-white/10">
