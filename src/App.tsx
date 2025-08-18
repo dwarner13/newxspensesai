@@ -44,6 +44,7 @@ const PricingPage = lazy(() => import('./pages/PricingPage'));
 // Spotify integration components
 const SpotifyCallbackPage = lazy(() => import('./pages/SpotifyCallbackPage'));
 const SpotifyPlayerPage = lazy(() => import('./pages/SpotifyPlayerPage'));
+const SpotifyIntegration = lazy(() => import('./pages/dashboard/SpotifyIntegration'));
 
 // Feature pages - lazy load as they're less critical
 const FeaturesPage = lazy(() => import('./pages/FeaturesPage'));
@@ -172,6 +173,7 @@ function App() {
                     <Route path="settings" element={<Settings />} />
                     <Route path="reports" element={<ReportsPage />} />
                     <Route path="spotify-integration" element={<SpotifyIntegrationDashboardPage />} />
+                    <Route path="spotify-integration-new" element={<SpotifyIntegration />} />
                     <Route path="wellness-studio" element={<WellnessStudioPage />} />
                     <Route path="financial-therapist" element={<FinancialTherapistPage />} />
                   </Route>

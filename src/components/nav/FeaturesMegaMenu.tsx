@@ -22,6 +22,7 @@ const SECTIONS: Section[] = [
       { label: "Personal Podcast", to: "/features/personal-podcast" },
       { label: "Financial Wellness Studio", to: "/features/wellness-studio" },
       { label: "Spotify Integration", to: "/features/spotify-integration", tag: "NEW" },
+      { label: "Dashboard Player", to: "/dashboard/spotify-integration-new", tag: "BETA" },
     ],
   },
   {

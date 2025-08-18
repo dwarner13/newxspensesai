@@ -80,6 +80,7 @@ const SimpleNavigation = () => {
     { name: 'Personal Podcast', path: '/features/personal-podcast' },
     { name: 'Financial Wellness Studio', path: '/features/wellness-studio' },
     { name: 'Spotify Integration', path: '/features/spotify-integration' },
+    { name: 'Dashboard Player', path: '/dashboard/spotify-integration-new' },
     // BUSINESS
     { name: 'Business Intelligence', path: '/features/business-expense-intelligence' },
     { name: 'Freelancer Assistant', path: '/features/freelancer-tax' },
