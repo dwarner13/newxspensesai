@@ -1,8 +1,8 @@
-import { getSpotifyLoginUrl } from "@/utils/SpotifyAuth";
+import { getSpotifyAuthURL } from "@/utils/SpotifyAuth";
 
 export default function SpotifyIntegration() {
   const handleConnect = () => {
-    window.location.href = getSpotifyLoginUrl();
+    window.location.href = getSpotifyAuthURL();
   };
 
   return (

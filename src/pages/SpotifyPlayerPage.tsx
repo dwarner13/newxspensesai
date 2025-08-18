@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { getSpotifyLoginUrl } from "../utils/SpotifyAuth";
+import { getSpotifyAuthURL } from "../utils/SpotifyAuth";
 
 export default function SpotifyPlayerPage() {
   const [track, setTrack] = useState<any>(null);
@@ -20,7 +20,7 @@ export default function SpotifyPlayerPage() {
     return (
       <div className="p-10 text-white">
         <a
-          href={getSpotifyLoginUrl()}
+          href={getSpotifyAuthURL()}
           className="rounded-xl bg-green-500 px-6 py-3 font-semibold text-slate-900 hover:bg-green-400"
         >
           Connect to Spotify
