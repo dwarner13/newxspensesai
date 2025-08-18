@@ -1,4 +1,4 @@
-import { getSpotifyAuthURL } from "@/utils/SpotifyAuth";
+import { getSpotifyAuthURL } from "../../utils/SpotifyAuth";
 
 export default function SpotifyIntegration() {
   const handleConnect = () => {

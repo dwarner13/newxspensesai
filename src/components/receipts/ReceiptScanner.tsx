@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { extractTextFromImage, parseReceiptText, ParsedReceiptData } from '../../utils/ocrService';
+import { parseReceiptWithAI } from '../../utils/parseReceiptWithAI';
 import toast from 'react-hot-toast';
 
 interface ReceiptScannerProps {
@@ -19,6 +20,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<ParsedReceiptData | null>(null);
+  const [receiptInfo, setReceiptInfo] = useState<any>(null);
   const [rawOcrText, setRawOcrText] = useState<string>('');
   const [showRawText, setShowRawText] = useState(false);
   const [processingMessage, setProcessingMessage] = useState('');
@@ -205,14 +207,27 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
         // Start progress simulation for AI phase (60% to 80%)
         startProgressSimulation(60, 80, 2000);
 
-        // Parse the extracted text
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate AI processing
-        const parsedData = parseReceiptText(ocrResult.text);
+        // Parse the extracted text with AI
+        setProcessingMessage('🤖 AI is analyzing receipt data...');
+        const aiResult = await parseReceiptWithAI(ocrResult.text);
+        setReceiptInfo(aiResult);
         
-        // Enhance with OCR confidence
-        parsedData.confidence = Math.min(parsedData.confidence || 0.5, ocrResult.confidence);
-        
-        setExtractedData(parsedData);
+        if (aiResult) {
+          // Convert AI result to our expected format
+          const parsedData: ParsedReceiptData = {
+            vendor: aiResult.title || 'Unknown Vendor',
+            amount: aiResult.amount || 0,
+            date: aiResult.date || new Date().toISOString().split('T')[0],
+            category: aiResult.category || 'Uncategorized',
+            confidence: Math.min(0.9, ocrResult.confidence) // AI parsing is more reliable
+          };
+          setExtractedData(parsedData);
+        } else {
+          // Fallback to basic parsing if AI fails
+          const parsedData = parseReceiptText(ocrResult.text);
+          parsedData.confidence = Math.min(parsedData.confidence || 0.5, ocrResult.confidence);
+          setExtractedData(parsedData);
+        }
 
         // Stop AI progress simulation and set to 80%
         stopProgressSimulation();
@@ -349,6 +364,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
     setSelectedImage(null);
     setImagePreview(null);
     setExtractedData(null);
+    setReceiptInfo(null);
     setRawOcrText('');
     setShowRawText(false);
     setIsProcessing(false);
@@ -649,6 +665,35 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                     </motion.div>
                   )}
                 </AnimatePresence>
+              </motion.div>
+            )}
+
+            {/* AI Receipt Details */}
+            {receiptInfo && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 bg-white text-black p-4 rounded-lg border border-gray-200 shadow-sm"
+              >
+                <h2 className="text-xl font-bold mb-3 text-gray-800">🤖 AI Receipt Analysis</h2>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-600">🧾 Title:</p>
+                    <p className="font-medium text-gray-800">{receiptInfo.title}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">💸 Amount:</p>
+                    <p className="font-medium text-gray-800">${receiptInfo.amount}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">📅 Date:</p>
+                    <p className="font-medium text-gray-800">{receiptInfo.date}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-600">📂 Category:</p>
+                    <p className="font-medium text-gray-800">{receiptInfo.category}</p>
+                  </div>
+                </div>
               </motion.div>
             )}
 
