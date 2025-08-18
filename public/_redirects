@@ -1,5 +1,1 @@
-# Handle SPA routing - redirect all routes to index.html
 /*    /index.html   200
-
-# Handle assets with proper caching
-/assets/*    /assets/:splat    200
