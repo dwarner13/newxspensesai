@@ -103,7 +103,7 @@ const SimpleNavigation = () => {
               <div className="w-8 h-8 bg-cyan-500 rounded-md flex items-center justify-center mr-2 shadow-lg">
                 <span className="text-white text-lg">💰</span>
               </div>
-              <span className="font-bold text-white text-xl">XspensesAI</span>
+              <span className="font-bold text-white text-xl font-['Montserrat']">XspensesAI</span>
             </Link>
           </div>
 
@@ -116,7 +116,7 @@ const SimpleNavigation = () => {
                 ) : (
                   <Link
                     to={item.path}
-                    className="text-gray-200 hover:text-cyan-400 py-2 px-3 rounded-md text-sm font-medium transition-colors hover:bg-white/5"
+                    className="text-gray-200 hover:text-cyan-400 py-2 px-3 rounded-md text-sm font-medium transition-colors hover:bg-white/5 font-['Montserrat']"
                   >
                     {item.name}
                   </Link>
@@ -131,14 +131,14 @@ const SimpleNavigation = () => {
             <div className="hidden md:flex items-center space-x-3 desktop-cta-buttons">
                              <Link
                  to="/dashboard"
-                 className="text-gray-200 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 border border-white/20 hover:border-white/30 hover:bg-white/5"
+                 className="text-gray-200 hover:text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 border border-white/20 hover:border-white/30 hover:bg-white/5 font-['Montserrat']"
                >
                  Dashboard
                </Link>
               
               <Link
                 to="/signup"
-                className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-2 rounded-lg font-semibold transition-all duration-200 hover:shadow-cyan-500/25 transform hover:scale-105"
+                                 className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-2 rounded-lg font-semibold transition-all duration-200 hover:shadow-cyan-500/25 transform hover:scale-105 font-['Montserrat']"
               >
                 Get Started
               </Link>
@@ -163,13 +163,13 @@ const SimpleNavigation = () => {
       <div className={`mobile-menu-overlay ${isMobileMenuOpen ? 'open' : ''}`} ref={mobileMenuRef}>
         <div className="mobile-menu-content">
           <ul className="mobile-menu-items">
-            <li>
+            <li className="font-['Montserrat']">
               <Link to="/" onClick={() => setIsMobileMenuOpen(false)}>
                 Home
               </Link>
             </li>
             
-            <li className="mobile-submenu">
+            <li className="mobile-submenu font-['Montserrat']">
               <button 
                 className="mobile-submenu-trigger"
                 onClick={() => setMobileFeaturesOpen(!mobileFeaturesOpen)}
@@ -193,25 +193,25 @@ const SimpleNavigation = () => {
               </ul>
             </li>
             
-            <li>
+            <li className="font-['Montserrat']">
               <Link to="/pricing" onClick={() => setIsMobileMenuOpen(false)}>
                 Pricing
               </Link>
             </li>
             
-            <li>
+            <li className="font-['Montserrat']">
               <Link to="/ai-employees" onClick={() => setIsMobileMenuOpen(false)}>
                 AI Employees
               </Link>
             </li>
             
-            <li>
+            <li className="font-['Montserrat']">
               <Link to="/reviews" onClick={() => setIsMobileMenuOpen(false)}>
                 Reviews
               </Link>
             </li>
             
-            <li>
+            <li className="font-['Montserrat']">
               <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)}>
                 Contact
               </Link>

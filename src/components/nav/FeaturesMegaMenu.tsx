@@ -93,7 +93,7 @@ export default function FeaturesMegaMenu() {
         onClick={() => setOpen((v) => !v)}
         onMouseEnter={openWithDelay}
         onMouseLeave={closeWithDelay}
-        className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-slate-200 hover:text-white focus:outline-none font-medium"
+        className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-slate-200 hover:text-white focus:outline-none font-medium font-['Montserrat']"
       >
         Features <ChevronDown className="h-4 w-4 opacity-70" />
       </button>
@@ -112,7 +112,7 @@ export default function FeaturesMegaMenu() {
         <div className="grid grid-cols-4 gap-6 p-6">
           {SECTIONS.map((sec) => (
             <div key={sec.title}>
-              <div className="text-xs font-semibold tracking-widest text-slate-300">
+              <div className="text-xs font-semibold tracking-widest text-slate-300 font-['Montserrat']">
                 {sec.title}
               </div>
               <ul className="mt-1 space-y-0.5">
@@ -120,7 +120,7 @@ export default function FeaturesMegaMenu() {
                   <li key={it.label}>
                     <Link
                       to={it.to}
-                      className="group flex items-center justify-between rounded-xl px-3 py-2 text-[0.94rem] text-slate-200 hover:bg-white/5 hover:text-white"
+                      className="group flex items-center justify-between rounded-xl px-3 py-2 text-[0.94rem] text-slate-200 hover:bg-white/5 hover:text-white font-['Montserrat']"
                       onClick={() => setOpen(false)}
                     >
                       <span>{it.label}</span>
@@ -144,12 +144,12 @@ export default function FeaturesMegaMenu() {
 
         {/* bottom footer strip with CTA */}
         <div className="flex items-center justify-between rounded-b-3xl border-t border-white/10 bg-white/5 px-6 py-2">
-          <div className="text-sm text-slate-300">
+          <div className="text-sm text-slate-300 font-['Montserrat']">
             Transform your finances with AI — <span className="text-white font-semibold">start today</span>.
           </div>
           <Link
             to="/signup"
-            className="rounded-xl bg-[#06b6d4]/90 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-[#06b6d4]"
+            className="rounded-xl bg-[#06b6d4]/90 px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-[#06b6d4] font-['Montserrat']"
             onClick={() => setOpen(false)}
           >
             Get Started
