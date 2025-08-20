@@ -10,6 +10,7 @@ const SmartImportAIPage = () => {
   const navigate = useNavigate();
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
+  const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
@@ -145,7 +146,10 @@ const SmartImportAIPage = () => {
               </div>
             </div>
             <p className="text-sm text-white/80 mb-4">Chat with your AI assistant for real-time financial insights, categorization help, and spending analysis.</p>
-            <button className="w-full bg-white text-purple-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition-all">
+            <button 
+              onClick={() => setShowAIAssistant(true)}
+              className="w-full bg-white text-purple-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition-all hover:bg-gray-100 transition-all"
+            >
               Start Chat
             </button>
           </DashboardCard>
@@ -375,6 +379,32 @@ const SmartImportAIPage = () => {
                   Process Email Content
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Financial Assistant Modal */}
+      {showAIAssistant && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-900 rounded-2xl p-8 max-w-4xl w-full mx-4 h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-white">🤖 AI Financial Assistant</h3>
+              <button 
+                onClick={() => setShowAIAssistant(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-hidden">
+              <SpecializedChatBot 
+                name="Smart Import AI Assistant"
+                expertise="Document processing, financial categorization, receipt analysis, and smart import guidance"
+                avatar="🤖"
+                welcomeMessage="Hello! I'm your AI Financial Assistant for Smart Import. I can help you with document categorization, explain what documents you're looking at, troubleshoot upload issues, and provide financial insights. What would you like to know about your documents or financial data?"
+              />
             </div>
           </div>
         </div>
