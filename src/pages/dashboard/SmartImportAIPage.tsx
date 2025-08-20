@@ -126,7 +126,7 @@ const SmartImportAIPage = () => {
             </div>
             <p className="text-sm text-white/80 mb-4">Drag & drop your financial documents here or click to browse. Supports PDF, CSV, and scanned receipts.</p>
             <button 
-              onClick={handleBulkUpload}
+              onClick={() => setShowUploadModal(true)}
               className="w-full bg-white text-blue-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition-all"
             >
               Upload or Scan
@@ -259,7 +259,7 @@ const SmartImportAIPage = () => {
               </button>
               
               <button 
-                onClick={handleBulkUpload}
+                onClick={() => fileInputRef.current?.click()}
                 className="flex items-center gap-3 p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-all"
               >
                 <Upload size={20} className="text-purple-400" />
