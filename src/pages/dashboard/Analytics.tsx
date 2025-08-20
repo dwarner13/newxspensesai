@@ -92,8 +92,12 @@ const Analytics = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDateRange, setSelectedDateRange] = useState('ytd');
   const [selectedFilter, setSelectedFilter] = useState('all');
-  // const [showFilters, setShowFilters] = useState(false);
-  // const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('all');
+  const [selectedVendor, setSelectedVendor] = useState('all');
+  const [selectedTransactionType, setSelectedTransactionType] = useState('all');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [extractedData, setExtractedData] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Mock key metrics data
@@ -124,15 +128,59 @@ const Analytics = () => {
     { month: 'Dec', income: 23000, expenses: 15500, profit: 7500, cashFlow: 11500 }
   ];
 
-  // Mock category breakdown
+  // Comprehensive category system
+  const allCategories = {
+    'Income': {
+      'Client Projects': ['Web Development', 'Mobile Apps', 'Consulting', 'Design Services'],
+      'Product Sales': ['Digital Products', 'Physical Products', 'Licenses', 'Subscriptions'],
+      'Investments': ['Stocks', 'Bonds', 'Real Estate', 'Crypto', 'Dividends'],
+      'Other Income': ['Refunds', 'Gifts', 'Awards', 'Interest', 'Rental Income']
+    },
+    'Expenses': {
+      'Business Operations': ['Software & Tools', 'Office & Supplies', 'Internet & Phone', 'Utilities'],
+      'Marketing & Advertising': ['Google Ads', 'Social Media Ads', 'Content Creation', 'SEO Tools'],
+      'Professional Services': ['Legal Services', 'Accounting', 'Insurance', 'Consulting'],
+      'Travel & Meals': ['Airfare', 'Hotels', 'Meals', 'Transportation', 'Entertainment'],
+      'Employee Costs': ['Salaries', 'Benefits', 'Training', 'Equipment', 'Bonuses'],
+      'Technology': ['Hardware', 'Software Licenses', 'Cloud Services', 'Maintenance'],
+      'Office & Facilities': ['Rent', 'Utilities', 'Furniture', 'Maintenance', 'Security']
+    },
+    'Taxes': {
+      'Federal Taxes': ['Income Tax', 'Self-Employment Tax', 'Estimated Payments'],
+      'State Taxes': ['State Income Tax', 'Sales Tax', 'Property Tax'],
+      'Local Taxes': ['City Tax', 'County Tax', 'Special Assessments']
+    },
+    'Personal': {
+      'Housing': ['Rent', 'Mortgage', 'Utilities', 'Maintenance', 'Insurance'],
+      'Transportation': ['Car Payment', 'Gas', 'Insurance', 'Maintenance', 'Public Transit'],
+      'Food & Dining': ['Groceries', 'Restaurants', 'Takeout', 'Coffee Shops'],
+      'Healthcare': ['Insurance', 'Medical Bills', 'Prescriptions', 'Dental', 'Vision'],
+      'Entertainment': ['Streaming Services', 'Movies', 'Concerts', 'Hobbies', 'Gym'],
+      'Shopping': ['Clothing', 'Electronics', 'Home Goods', 'Personal Care']
+    }
+  };
+
+  // Mock category breakdown with enhanced data
   const expenseCategories: CategoryData[] = [
     { name: 'Software & Tools', value: 25000, percentage: 20, color: '#3B82F6' },
     { name: 'Marketing & Ads', value: 30000, percentage: 24, color: '#10B981' },
     { name: 'Office & Supplies', value: 15000, percentage: 12, color: '#F59E0B' },
     { name: 'Travel & Meals', value: 20000, percentage: 16, color: '#EF4444' },
     { name: 'Professional Services', value: 15000, percentage: 12, color: '#8B5CF6' },
+    { name: 'Technology', value: 18000, percentage: 14, color: '#EC4899' },
     { name: 'Other', value: 20000, percentage: 16, color: '#6B7280' }
   ];
+
+  // Vendor data for filtering
+  const topVendorsList = [
+    'Adobe Creative Suite', 'Google Ads', 'Microsoft Office', 'Zoom Pro', 'Slack',
+    'Stripe', 'PayPal', 'QuickBooks', 'Xero', 'FreshBooks', 'Canva Pro', 'Figma',
+    'GitHub', 'AWS', 'Google Cloud', 'Dropbox', 'Notion', 'Trello', 'Asana',
+    'Mailchimp', 'ConvertKit', 'ConvertKit', 'ConvertKit', 'ConvertKit'
+  ];
+
+  // Transaction types
+  const transactionTypes = ['Income', 'Expense', 'Transfer', 'Refund', 'Investment', 'Tax Payment'];
 
   // const incomeCategories: CategoryData[] = [
   //   { name: 'Client Projects', value: 120000, percentage: 65, color: '#3B82F6' },
@@ -297,6 +345,33 @@ const Analytics = () => {
   //   }
   // };
 
+  // Data extraction and filtering functions
+  const extractDataByCategory = (category: string, subcategory: string = 'all') => {
+    // Simulate data extraction based on selected filters
+    const mockData = {
+      totalTransactions: Math.floor(Math.random() * 500) + 100,
+      totalAmount: Math.floor(Math.random() * 50000) + 10000,
+      averageTransaction: Math.floor(Math.random() * 200) + 50,
+      topVendors: topVendorsList.slice(0, 5).map(vendor => ({
+        name: vendor,
+        amount: Math.floor(Math.random() * 5000) + 500,
+        transactions: Math.floor(Math.random() * 20) + 5
+      })),
+      monthlyTrend: trendData.map(month => ({
+        month: month.month,
+        amount: Math.floor(Math.random() * 5000) + 1000
+      })),
+      insights: [
+        `${category} spending is ${Math.random() > 0.5 ? 'above' : 'below'} average this month`,
+        `Top vendor in ${category} is ${topVendorsList[Math.floor(Math.random() * topVendorsList.length)]}`,
+        `${Math.floor(Math.random() * 20) + 10} transactions need categorization`
+      ]
+    };
+    
+    setExtractedData(mockData);
+    return mockData;
+  };
+
   const getInsightColor = (type: string) => {
     switch (type) {
       case 'positive': return 'bg-green-500/20 border-green-500/30';
@@ -316,60 +391,138 @@ const Analytics = () => {
       <h1 className="text-4xl font-bold mb-4">Analytics Dashboard</h1>
       <p className="text-lg text-gray-300 mb-8">See all your numbers, trends, and insights at a glance.</p>
 
-      {/* Action Buttons */}
-      <div className="flex items-center gap-4 mb-8">
-        <button className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all flex items-center gap-2">
-          <Filter size={20} />
-          Filters
-        </button>
-        <button className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all">
-          <DownloadIcon size={20} />
-          Export Report
-        </button>
-      </div>
+
 
       <div className="space-y-8">
             
-            {/* Date Range & Filters */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-4">
-                  <select 
-                    value={selectedDateRange}
-                    onChange={(e) => setSelectedDateRange(e.target.value)}
-                    className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
-                  >
-                    <option value="ytd">Year to Date</option>
-                    <option value="this-month">This Month</option>
-                    <option value="last-month">Last Month</option>
-                    <option value="q1">Q1</option>
-                    <option value="q2">Q2</option>
-                    <option value="q3">Q3</option>
-                    <option value="q4">Q4</option>
-                    <option value="custom">Custom Range</option>
-                  </select>
-                  
-                  <select 
-                    value={selectedFilter}
-                    onChange={(e) => setSelectedFilter(e.target.value)}
-                    className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
-                  >
-                    <option value="all">All Categories</option>
-                    <option value="business">Business</option>
-                    <option value="freelance">Freelance</option>
-                    <option value="income">Income</option>
-                    <option value="expenses">Expenses</option>
-                  </select>
-                </div>
+            {/* Enhanced Date Range & Filters */}
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">Data Filters & Extraction</h3>
+                <button 
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all flex items-center gap-2"
+                >
+                  <Filter size={16} />
+                  {showAdvancedFilters ? 'Hide' : 'Show'} Advanced Filters
+                </button>
+              </div>
+
+              {/* Basic Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <select 
+                  value={selectedDateRange}
+                  onChange={(e) => setSelectedDateRange(e.target.value)}
+                  className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                >
+                  <option value="ytd">Year to Date</option>
+                  <option value="this-month">This Month</option>
+                  <option value="last-month">Last Month</option>
+                  <option value="q1">Q1</option>
+                  <option value="q2">Q2</option>
+                  <option value="q3">Q3</option>
+                  <option value="q4">Q4</option>
+                  <option value="custom">Custom Range</option>
+                </select>
                 
-                <div className="flex items-center space-x-2">
-                  <button className="bg-white/10 hover:bg-white/20 text-white p-2 rounded transition-all">
-                    <RefreshCw size={16} />
+                <select 
+                  value={selectedCategory}
+                  onChange={(e) => {
+                    setSelectedCategory(e.target.value);
+                    setSelectedSubcategory('all');
+                    if (e.target.value !== 'all') {
+                      extractDataByCategory(e.target.value);
+                    }
+                  }}
+                  className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                >
+                  <option value="all">All Categories</option>
+                  {Object.keys(allCategories).map(category => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+
+                <select 
+                  value={selectedSubcategory}
+                  onChange={(e) => {
+                    setSelectedSubcategory(e.target.value);
+                    if (e.target.value !== 'all' && selectedCategory !== 'all') {
+                      extractDataByCategory(selectedCategory, e.target.value);
+                    }
+                  }}
+                  className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                  disabled={selectedCategory === 'all'}
+                >
+                  <option value="all">All Subcategories</option>
+                  {selectedCategory !== 'all' && allCategories[selectedCategory as keyof typeof allCategories] && 
+                    Object.keys(allCategories[selectedCategory as keyof typeof allCategories]).map(subcategory => (
+                      <option key={subcategory} value={subcategory}>{subcategory}</option>
+                    ))
+                  }
+                </select>
+
+                <select 
+                  value={selectedTransactionType}
+                  onChange={(e) => setSelectedTransactionType(e.target.value)}
+                  className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                >
+                  <option value="all">All Types</option>
+                  {transactionTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Advanced Filters */}
+              {showAdvancedFilters && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-white/20">
+                  <select 
+                    value={selectedVendor}
+                    onChange={(e) => setSelectedVendor(e.target.value)}
+                    className="bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                  >
+                    <option value="all">All Vendors</option>
+                    {topVendorsList.map(vendor => (
+                      <option key={vendor} value={vendor}>{vendor}</option>
+                    ))}
+                  </select>
+
+                  <button 
+                    onClick={() => extractDataByCategory(selectedCategory, selectedSubcategory)}
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-4 py-2 rounded-lg transition-all flex items-center gap-2 justify-center"
+                  >
+                    <Zap size={16} />
+                    Extract Data
                   </button>
-                  <button className="bg-white/10 hover:bg-white/20 text-white p-2 rounded transition-all">
-                    <Share2 size={16} />
+
+                  <button 
+                    onClick={() => {
+                      setSelectedCategory('all');
+                      setSelectedSubcategory('all');
+                      setSelectedVendor('all');
+                      setSelectedTransactionType('all');
+                      setExtractedData(null);
+                    }}
+                    className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all flex items-center gap-2 justify-center"
+                  >
+                    <RefreshCw size={16} />
+                    Reset Filters
                   </button>
                 </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center space-x-2 pt-4 border-t border-white/20">
+                <button className="bg-white/10 hover:bg-white/20 text-white p-2 rounded transition-all">
+                  <RefreshCw size={16} />
+                </button>
+                <button className="bg-white/10 hover:bg-white/20 text-white p-2 rounded transition-all">
+                  <Share2 size={16} />
+                </button>
+                <button className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg transition-all flex items-center gap-2">
+                  <DownloadIcon size={16} />
+                  Export Report
+                </button>
               </div>
             </div>
 
@@ -390,6 +543,68 @@ const Analytics = () => {
                 </div>
               ))}
             </div>
+
+            {/* Data Extraction Results */}
+            {extractedData && (
+              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 backdrop-blur-md rounded-2xl p-6 border border-blue-500/20">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <Zap size={24} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Data Extraction Results</h3>
+                    <p className="text-blue-200">Category: {selectedCategory} {selectedSubcategory !== 'all' && `> ${selectedSubcategory}`}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                    <div className="text-white/60 text-sm mb-1">Total Transactions</div>
+                    <div className="text-2xl font-bold text-white">{extractedData.totalTransactions}</div>
+                  </div>
+                  <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                    <div className="text-white/60 text-sm mb-1">Total Amount</div>
+                    <div className="text-2xl font-bold text-white">${extractedData.totalAmount.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                    <div className="text-white/60 text-sm mb-1">Average Transaction</div>
+                    <div className="text-2xl font-bold text-white">${extractedData.averageTransaction}</div>
+                  </div>
+                  <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                    <div className="text-white/60 text-sm mb-1">Top Vendors</div>
+                    <div className="text-2xl font-bold text-white">{extractedData.topVendors.length}</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top Vendors */}
+                  <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                    <h4 className="text-lg font-semibold text-white mb-3">Top Vendors</h4>
+                    <div className="space-y-2">
+                      {extractedData.topVendors.map((vendor: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between text-sm">
+                          <span className="text-white/80">{vendor.name}</span>
+                          <span className="text-white font-medium">${vendor.amount.toLocaleString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Insights */}
+                  <div className="bg-white/10 rounded-xl p-4 border border-white/20">
+                    <h4 className="text-lg font-semibold text-white mb-3">AI Insights</h4>
+                    <div className="space-y-2">
+                      {extractedData.insights.map((insight: string, index: number) => (
+                        <div key={index} className="flex items-start gap-2 text-sm">
+                          <div className="w-2 h-2 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-white/80">{insight}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* AI-Powered Insights & Alerts Panel */}
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
