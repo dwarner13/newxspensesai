@@ -222,11 +222,19 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
             confidence: Math.min(0.9, ocrResult.confidence) // AI parsing is more reliable
           };
           setExtractedData(parsedData);
+          
+          // Log AI parsing results for debugging
+          console.log('AI Parsing Result:', aiResult);
+          console.log('Converted to ParsedData:', parsedData);
         } else {
           // Fallback to basic parsing if AI fails
           const parsedData = parseReceiptText(ocrResult.text);
           parsedData.confidence = Math.min(parsedData.confidence || 0.5, ocrResult.confidence);
           setExtractedData(parsedData);
+          
+          // Log fallback parsing results for debugging
+          console.log('Fallback Parsing Result:', parsedData);
+          console.log('Raw OCR Text Lines:', ocrResult.text.split('\n'));
         }
 
         // Stop AI progress simulation and set to 80%
@@ -694,8 +702,48 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                     <p className="font-medium text-gray-800">{receiptInfo.category}</p>
                   </div>
                 </div>
+                
+                {/* Debug Section */}
+                <details className="mt-4">
+                  <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    🔍 Debug: Show OCR Text & Parsing Details
+                  </summary>
+                  <div className="mt-3 p-3 bg-gray-50 rounded border">
+                    <div className="mb-3">
+                      <p className="text-xs text-gray-500 mb-1">Raw OCR Text (what the scanner saw):</p>
+                      <div className="p-2 bg-white rounded text-xs font-mono max-h-32 overflow-y-auto border">
+                        {rawOcrText}
+                      </div>
+                    </div>
+                    
+                    <div className="mb-3">
+                      <p className="text-xs text-gray-500 mb-1">Parsed Data Structure:</p>
+                      <div className="p-2 bg-white rounded text-xs font-mono border">
+                        <pre>{JSON.stringify(extractedData, null, 2)}</pre>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">OCR Confidence: {(extractedData?.confidence || 0) * 100}%</p>
+                      <p className="text-xs text-gray-500">Lines Detected: {rawOcrText.split('\n').length}</p>
+                      <p className="text-xs text-gray-500">Items Found: {extractedData?.items?.length || 0}</p>
+                    </div>
+                  </div>
+                </details>
               </motion.div>
             )}
+
+            {/* Tips for Better Results */}
+            <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 className="text-sm font-semibold text-blue-800 mb-2">💡 Tips for Better Receipt Recognition:</h3>
+              <ul className="text-xs text-blue-700 space-y-1">
+                <li>• Ensure good lighting and flat surface</li>
+                <li>• Avoid shadows and glare on the receipt</li>
+                <li>• Make sure text is clear and readable</li>
+                <li>• Hold camera steady and parallel to receipt</li>
+                <li>• Clean receipt surface if possible</li>
+              </ul>
+            </div>
 
             {/* Action Buttons */}
             <div className="flex space-x-3">

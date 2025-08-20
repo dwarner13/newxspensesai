@@ -140,14 +140,36 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
     if (total > 0) break;
   }
 
-  // Extract line items
+  // Extract line items - be more selective to avoid false positives
   for (const line of lines) {
-    const itemMatch = line.match(/(.+?)\s+\$?(\d+\.?\d*)\s*$/);
+    // Skip lines that are likely headers, footers, or noise
+    const skipPatterns = [
+      /^(total|subtotal|tax|change|balance|amount|due|paid)/i,
+      /^(store|address|phone|website|email)/i,
+      /^(thank|receipt|copy|original|void)/i,
+      /^[0-9\s\-\(\)]+$/, // Just numbers and symbols
+      /^[A-Z\s\-\(\)]+$/, // Just uppercase letters (likely headers)
+    ];
+    
+    if (skipPatterns.some(pattern => pattern.test(line))) {
+      continue;
+    }
+    
+    // Look for actual item patterns
+    const itemMatch = line.match(/^(.+?)\s+\$?(\d+\.?\d*)\s*$/);
     if (itemMatch) {
       const description = itemMatch[1].trim();
       const amount = parseFloat(itemMatch[2]);
       
-      if (amount > 0 && amount < total && description.length > 2) {
+      // More strict validation
+      if (amount > 0 && 
+          amount < total && 
+          description.length > 3 && 
+          description.length < 50 && // Not too long
+          !description.match(/^(total|subtotal|tax|change|balance|amount|due|paid)/i) &&
+          !description.match(/^[0-9\s\-\(\)]+$/) &&
+          !description.match(/^[A-Z\s\-\(\)]+$/)) {
+        
         items.push({
           description: description.replace(/[^a-zA-Z0-9\s&'-]/g, '').trim(),
           amount
