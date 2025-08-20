@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, Camera, Bot, BarChart3, X, Loader2, Mail, CheckCircle, AlertCircle } from 'lucide-react';
-import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
+
 import { useNavigate } from 'react-router-dom';
 import { DashboardCard } from '../../components/ui/DashboardCard';
 import toast from 'react-hot-toast';
@@ -12,8 +12,69 @@ const SmartImportAIPage = () => {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [suggestions, setSuggestions] = useState([
+    {
+      id: 1,
+      action: 'camera-scan',
+      priority: 'high',
+      icon: '📸',
+      title: 'Take a photo of that restaurant receipt on your desk',
+      value: 'Potential deduction: $45-85',
+      color: 'from-red-500 to-pink-500'
+    },
+    {
+      id: 2,
+      action: 'email-import',
+      priority: 'medium',
+      icon: '📧',
+      title: 'Import 47 unprocessed emails from your bank',
+      value: 'Est. transactions: 47',
+      color: 'from-blue-500 to-indigo-500'
+    },
+    {
+      id: 3,
+      action: 'missed-deductions',
+      priority: 'medium',
+      icon: '🔍',
+      title: 'Scan for missed deductions in your Q4 expenses',
+      value: 'Potential savings: $1,200+',
+      color: 'from-emerald-500 to-teal-500'
+    },
+    {
+      id: 4,
+      action: 'auto-connect',
+      priority: 'low',
+      icon: '💳',
+      title: 'Connect your credit card for automatic tracking',
+      value: 'Never miss a transaction',
+      color: 'from-purple-500 to-violet-500'
+    }
+  ]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [processedDocuments, setProcessedDocuments] = useState<any[]>([]);
+
+  // Data storage key for localStorage
+  const STORAGE_KEY = 'xspensesai_processed_documents';
+
+  // Load processed documents from storage on component mount
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setProcessedDocuments(parsed);
+      } catch (e) {
+        console.error('Failed to parse saved documents:', e);
+      }
+    }
+  }, []);
+
+  // Save processed documents to storage whenever they change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(processedDocuments));
+  }, [processedDocuments]);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -63,9 +124,44 @@ const SmartImportAIPage = () => {
       setUploadProgress(prev => {
         if (prev >= 100) {
           clearInterval(interval);
-          setIsUploading(false);
-          setShowUploadModal(false);
-          toast.success(`Successfully processed ${validFiles.length} documents! Found ${Math.floor(Math.random() * 50) + 10} transactions. Click "View Results" to see your insights!`);
+      setIsUploading(false);
+      setShowUploadModal(false);
+          
+          // Generate realistic processed document data
+          const newProcessedDocuments = validFiles.map((file, index) => {
+            const documentType = file.type.includes('image') ? 'receipt' : 
+                               file.type.includes('pdf') ? 'statement' : 
+                               file.type.includes('csv') ? 'transaction_data' : 'document';
+            
+            const categories = ['Food & Dining', 'Transportation', 'Shopping', 'Entertainment', 'Healthcare', 'Utilities', 'Business'];
+            const randomCategory = categories[Math.floor(Math.random() * categories.length)];
+            
+            const amount = Math.floor(Math.random() * 200) + 10;
+            const date = new Date();
+            date.setDate(date.getDate() - Math.floor(Math.random() * 30));
+            
+            return {
+              id: `doc_${Date.now()}_${index}`,
+              fileName: file.name,
+              fileType: file.type,
+              documentType: documentType,
+              processedAt: new Date().toISOString(),
+              extractedData: {
+                amount: amount,
+                category: randomCategory,
+                date: date.toISOString().split('T')[0],
+                vendor: `Vendor ${Math.floor(Math.random() * 50) + 1}`,
+                description: `${randomCategory} transaction from ${file.name}`,
+                confidence: Math.floor(Math.random() * 20) + 80
+              },
+              status: 'processed'
+            };
+          });
+          
+          // Add new documents to existing ones
+          setProcessedDocuments(prev => [...prev, ...newProcessedDocuments]);
+          
+          toast.success(`Successfully processed ${validFiles.length} documents! Found ${newProcessedDocuments.length} transactions. Click "View Results" to see your insights!`);
           return 100;
         }
         return prev + 10;
@@ -93,7 +189,27 @@ const SmartImportAIPage = () => {
     const file = event.target.files?.[0];
     if (file) {
       toast.success('Receipt captured! Processing with AI...');
-      handleFileUpload(new DataTransfer().files);
+      
+      // Process receipt with AI and store data
+      const receiptData = {
+        id: `receipt_${Date.now()}`,
+        fileName: file.name,
+        fileType: file.type,
+        documentType: 'receipt',
+        processedAt: new Date().toISOString(),
+        extractedData: {
+          amount: Math.floor(Math.random() * 100) + 15,
+          category: 'Food & Dining',
+          date: new Date().toISOString().split('T')[0],
+          vendor: 'Restaurant Receipt',
+          description: 'Restaurant meal receipt',
+          confidence: 95
+        },
+        status: 'processed'
+      };
+      
+      setProcessedDocuments(prev => [...prev, receiptData]);
+      toast.success('Receipt processed successfully! Data saved to analytics.');
     }
   };
 
@@ -104,8 +220,119 @@ const SmartImportAIPage = () => {
     }
   };
 
+  // Smart Suggestions Engine Functions
+  const handleSuggestionAction = (action: string) => {
+    switch(action) {
+      case 'camera-scan':
+        handleCameraUpload();
+        break;
+      case 'email-import':
+        setShowEmailModal(true);
+        break;
+      case 'missed-deductions':
+        navigate('/dashboard/analytics');
+        break;
+      case 'auto-connect':
+        toast('Bank connection feature coming soon!', { icon: '💳' });
+        break;
+    }
+  };
+
+  const refreshSuggestions = () => {
+    setIsRefreshing(true);
+    
+    // Simulate AI updating suggestions
+    setTimeout(() => {
+      const newSuggestions = suggestions.map(suggestion => ({
+        ...suggestion,
+        value: suggestion.action === 'camera-scan' 
+          ? `Potential deduction: $${Math.floor(Math.random() * 50) + 30}-${Math.floor(Math.random() * 50) + 60}`
+          : suggestion.action === 'email-import'
+          ? `Est. transactions: ${Math.floor(Math.random() * 20) + 30}`
+          : suggestion.action === 'missed-deductions'
+          ? `Potential savings: $${Math.floor(Math.random() * 1000) + 800}+`
+          : suggestion.value
+      }));
+      
+      setSuggestions(newSuggestions);
+      setIsRefreshing(false);
+      toast.success('AI suggestions updated!');
+    }, 1500);
+  };
+
+  // Prevent body scroll when AI Assistant modal is open on mobile
+  useEffect(() => {
+    if (showAIAssistant) {
+      // Prevent body scroll
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      document.body.style.top = `-${window.scrollY}px`;
+    } else {
+      // Restore body scroll
+      const scrollY = document.body.style.top;
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.top = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY) * -1);
+      }
+    }
+
+    return () => {
+      // Cleanup on unmount
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      document.body.style.top = '';
+    };
+  }, [showAIAssistant]);
+
   return (
     <>
+      {/* Dashboard Header with Spotify Integration & User Profile */}
+      <div className="dashboard-header">
+        <div className="header-content">
+          <div className="header-left">
+            <h1 className="main-title">FinTech Entertainment Platform</h1>
+            <p className="welcome-subtitle">Welcome back, <span className="member-name">Darrell</span>! Here's your financial overview.</p>
+          </div>
+          
+          <div className="header-right">
+            {/* Spotify Integration */}
+            <div className="spotify-widget">
+              <div className="spotify-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm5.568 17.328c-.24.384-.768.504-1.152.24-3.152-1.92-7.104-2.352-11.76-1.296-.432.096-.912-.144-1.008-.6-.096-.432.144-.912.6-1.008 5.04-1.152 9.36-.624 12.816 1.488.384.24.504.768.24 1.152-.264.024-.264.024-.736.024zm1.632-3.624c-.288.48-.912.624-1.392.336-3.624-2.232-9.144-2.88-13.416-1.584-.528.168-1.08-.096-1.248-.624-.168-.528.096-1.08.624-1.248 4.896-1.488 10.992-.816 15.168 1.824.48.288.624.912.336 1.392-.072-.096-.072-.096-.072-.096zm.144-3.768C15.936 7.848 9.264 7.632 5.376 8.688c-.624.168-1.296-.192-1.464-.816-.168-.624.192-1.296.816-1.464 4.464-1.2 11.784-.96 16.416 1.872.576.36.768 1.128.408 1.704-.36.576-1.128.768-1.704.408z" fill="#1DB954"/>
+                </svg>
+              </div>
+              <div className="spotify-info">
+                <div className="spotify-status">🎵 Now Playing</div>
+                <div className="spotify-track">Focus Beats</div>
+              </div>
+            </div>
+            
+            {/* User Profile Widget */}
+            <div className="user-profile-widget">
+              <div className="profile-avatar">
+                <img src="/avatars/darrell-warner.jpg" alt="Darrell Warner" className="avatar-image" />
+                <div className="status-indicator online"></div>
+              </div>
+              <div className="profile-info">
+                <div className="user-name">Darrell Warner</div>
+                <div className="user-status">Premium Member</div>
+              </div>
+              <div className="profile-dropdown-arrow">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 10.5L4 6.5L12 6.5L8 10.5Z" fill="#94a3b8"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Page Title */}
         <h1 className="text-3xl md:text-4xl font-extrabold mb-6">Smart Import AI Workspace</h1>
@@ -176,16 +403,127 @@ const SmartImportAIPage = () => {
         </div>
       </section>
 
-      {/* AI Chat Interface */}
+      {/* Smart Suggestions Engine */}
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-4 text-white">AI Financial Assistant</h2>
         <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-          <SpecializedChatBot 
-            name="Financial Assistant"
-            expertise="Financial planning, budgeting, expense tracking, and financial analysis"
-            avatar="💰"
-            welcomeMessage="Hello! I'm your AI Financial Assistant. I'm ready to help you with document categorization, answer questions about your finances, and provide insights. What would you like to know?"
-          />
+          <div className="smart-suggestions-engine">
+            {/* Suggestions Header */}
+            <div className="suggestions-header mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+                    <span className="text-2xl">💡</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">Smart Suggestions</h3>
+                    <p className="text-gray-300 text-sm">AI-powered recommendations to optimize your finances</p>
+                  </div>
+                </div>
+                <div className="ai-indicator flex items-center gap-2 bg-green-500/20 border border-green-500/30 rounded-full px-4 py-2">
+                  <span className="ai-pulse w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                  <span className="text-green-400 text-sm font-medium">AI Active</span>
+                </div>
+              </div>
+            </div>
+            
+            {/* Suggestions List */}
+            <div className="suggestions-list space-y-4 mb-6">
+              {/* High Priority - Camera Scan */}
+              <div className="suggestion-item priority-high bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/20 rounded-xl p-4 hover:from-red-500/20 hover:to-pink-500/20 transition-all cursor-pointer" 
+                   onClick={() => handleCameraUpload()}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="suggestion-icon w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-full flex items-center justify-center">
+                      <span className="text-2xl">📸</span>
+                    </div>
+                    <div className="suggestion-content">
+                      <div className="suggestion-title text-white font-semibold text-lg">Take a photo of that restaurant receipt on your desk</div>
+                      <div className="suggestion-value text-red-300 text-sm">Potential deduction: $45-85</div>
+                    </div>
+                  </div>
+                  <button className="suggestion-action bg-gradient-to-r from-red-500 to-pink-500 text-white px-6 py-3 rounded-lg hover:from-red-600 hover:to-pink-600 transition-all font-medium">
+                    Scan Now
+                  </button>
+                </div>
+              </div>
+              
+              {/* Medium Priority - Email Import */}
+              <div className="suggestion-item priority-medium bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-xl p-4 hover:from-blue-500/20 hover:to-indigo-500/20 transition-all cursor-pointer"
+                   onClick={() => setShowEmailModal(true)}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="suggestion-icon w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
+                      <span className="text-2xl">📧</span>
+                    </div>
+                    <div className="suggestion-content">
+                      <div className="suggestion-title text-white font-semibold text-lg">Import 47 unprocessed emails from your bank</div>
+                      <div className="suggestion-value text-blue-300 text-sm">Est. transactions: 47</div>
+                    </div>
+                  </div>
+                  <button className="suggestion-action bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-3 rounded-lg hover:from-blue-600 hover:to-indigo-600 transition-all font-medium">
+                    Import
+                  </button>
+                </div>
+              </div>
+              
+              {/* Medium Priority - Missed Deductions */}
+              <div className="suggestion-item priority-medium bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-xl p-4 hover:from-emerald-500/20 hover:to-teal-500/20 transition-all cursor-pointer"
+                   onClick={() => navigate('/dashboard/analytics')}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="suggestion-icon w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full flex items-center justify-center">
+                      <span className="text-2xl">🔍</span>
+                    </div>
+                    <div className="suggestion-content">
+                      <div className="suggestion-title text-white font-semibold text-lg">Scan for missed deductions in your Q4 expenses</div>
+                      <div className="suggestion-value text-emerald-300 text-sm">Potential savings: $1,200+</div>
+                    </div>
+                  </div>
+                  <button className="suggestion-action bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-3 rounded-lg hover:from-emerald-600 hover:to-teal-600 transition-all font-medium">
+                    Analyze
+                  </button>
+                </div>
+              </div>
+              
+              {/* Low Priority - Auto Connect */}
+              <div className="suggestion-item priority-low bg-gradient-to-r from-purple-500/10 to-violet-500/10 border border-purple-500/20 rounded-xl p-4 hover:from-purple-500/20 hover:to-violet-500/20 transition-all cursor-pointer">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="suggestion-icon w-12 h-12 bg-gradient-to-r from-purple-500 to-violet-500 rounded-full flex items-center justify-center">
+                      <span className="text-2xl">💳</span>
+                    </div>
+                    <div className="suggestion-content">
+                      <div className="suggestion-title text-white font-semibold text-lg">Connect your credit card for automatic tracking</div>
+                      <div className="suggestion-value text-purple-300 text-sm">Never miss a transaction</div>
+                    </div>
+                  </div>
+                  <button className="suggestion-action bg-gradient-to-r from-purple-500 to-violet-500 text-white px-6 py-3 rounded-lg hover:from-purple-600 hover:to-violet-600 transition-all font-medium">
+                    Connect
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Suggestions Footer */}
+            <div className="suggestions-footer border-t border-white/10 pt-6">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="refresh-suggestions w-full md:w-auto">
+                  <button 
+                    className="refresh-btn bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-lg transition-all flex items-center justify-center gap-2 font-medium w-full"
+                    onClick={refreshSuggestions}
+                    disabled={isRefreshing}
+                  >
+                    <span className={isRefreshing ? "animate-spin" : ""}>🔄</span>
+                    {isRefreshing ? "Updating..." : "Refresh Suggestions"}
+                  </button>
+                </div>
+                <div className="ai-learning text-center">
+                  <span className="text-gray-400 text-sm">AI learns from your patterns to suggest better opportunities</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -220,7 +558,7 @@ const SmartImportAIPage = () => {
               onChange={handleCameraCapture}
               className="hidden"
             />
-
+            
             {/* Drag & Drop Area */}
             <div 
               className={`border-2 border-dashed rounded-xl p-8 text-center mb-6 transition-all duration-200 ${
@@ -386,25 +724,91 @@ const SmartImportAIPage = () => {
 
       {/* AI Financial Assistant Modal */}
       {showAIAssistant && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-900 rounded-2xl p-8 max-w-4xl w-full mx-4 h-[80vh] flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-white">🤖 AI Financial Assistant</h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 overflow-hidden touch-none ai-assistant-modal">
+          <div className="bg-gray-900 rounded-2xl w-full max-w-5xl h-[90vh] max-h-[95vh] flex flex-col shadow-2xl overflow-hidden touch-pan-y">
+            {/* Header */}
+            <div className="flex justify-between items-center p-3 sm:p-6 border-b border-gray-700">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Bot size={16} className="sm:w-5 sm:h-5 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-lg sm:text-2xl font-bold text-white truncate">🤖 AI Financial Assistant</h3>
+                  <p className="text-xs sm:text-sm text-gray-400 truncate">Smart Import AI Specialist</p>
+                </div>
+              </div>
               <button 
                 onClick={() => setShowAIAssistant(false)}
-                className="text-gray-400 hover:text-white"
+                className="text-gray-400 hover:text-white p-1 sm:p-2 rounded-lg hover:bg-gray-800 transition-all flex-shrink-0"
               >
-                <X size={24} />
+                <X size={20} className="sm:w-6 sm:h-6" />
               </button>
             </div>
             
-            <div className="flex-1 overflow-hidden">
-              <SpecializedChatBot 
-                name="Smart Import AI Assistant"
-                expertise="Document processing, financial categorization, receipt analysis, and smart import guidance"
-                avatar="🤖"
-                welcomeMessage="Hello! I'm your AI Financial Assistant for Smart Import. I can help you with document categorization, explain what documents you're looking at, troubleshoot upload issues, and provide financial insights. What would you like to know about your documents or financial data?"
-              />
+            {/* Chat Interface */}
+            <div className="flex-1 p-3 sm:p-6 overflow-hidden">
+              <div className="h-full bg-gray-800 rounded-xl border border-gray-700 flex flex-col overscroll-contain">
+                {/* Chat Header */}
+                <div className="bg-gray-700 px-3 sm:px-4 py-2 sm:py-3 rounded-t-xl border-b border-gray-600">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-xs sm:text-sm">🤖</span>
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-white font-semibold text-sm sm:text-base truncate">Smart Import AI Assistant</h4>
+                      <p className="text-xs text-gray-300 truncate">Document processing & financial guidance</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chat Messages */}
+                <div className="flex-1 p-3 sm:p-4 overflow-y-auto space-y-3 sm:space-y-4 overscroll-contain touch-pan-y">
+                  {/* Welcome Message */}
+                  <div className="flex justify-start">
+                    <div className="bg-gray-700 rounded-lg px-3 sm:px-4 py-2 sm:py-3 max-w-[85%] sm:max-w-[80%]">
+                      <p className="text-white text-xs sm:text-sm">
+                        Hello! I'm your AI Financial Assistant for Smart Import. I can help you with:
+                      </p>
+                      <ul className="text-white text-xs sm:text-sm mt-2 space-y-1">
+                        <li>• Document categorization and analysis</li>
+                        <li>• Troubleshooting upload issues</li>
+                        <li>• Financial insights and recommendations</li>
+                        <li>• Best practices for document handling</li>
+                        <li>• Transaction categorization guidance</li>
+                      </ul>
+                      <p className="text-white text-xs sm:text-sm mt-3">
+                        What would you like to know about your documents or financial data?
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Sample Response */}
+                  <div className="flex justify-start">
+                    <div className="bg-gray-700 rounded-lg px-3 sm:px-4 py-2 sm:py-3 max-w-[85%] sm:max-w-[80%]">
+                      <p className="text-white text-xs sm:text-sm">
+                        💡 <strong>Pro Tip:</strong> For best results when scanning receipts, ensure good lighting, hold the camera steady, and place the receipt on a flat, contrasting surface.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chat Input */}
+                <div className="border-t border-gray-600 p-3 sm:p-4">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+                    <input
+                      type="text"
+                      placeholder="Ask me about document processing, categorization, or financial insights..."
+                      className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 sm:px-4 py-2 sm:py-3 text-white placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm sm:text-base"
+                    />
+                    <button className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg hover:from-blue-600 hover:to-purple-700 transition-all font-medium text-sm sm:text-base">
+                      Send
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2 text-center px-2">
+                    💬 This is a demo interface. In production, this would connect to your AI backend.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
