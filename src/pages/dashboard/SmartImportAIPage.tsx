@@ -64,7 +64,7 @@ const SmartImportAIPage = () => {
           clearInterval(interval);
           setIsUploading(false);
           setShowUploadModal(false);
-          toast.success(`Successfully processed ${validFiles.length} documents! Found ${Math.floor(Math.random() * 50) + 10} transactions.`);
+          toast.success(`Successfully processed ${validFiles.length} documents! Found ${Math.floor(Math.random() * 50) + 10} transactions. Click "View Results" to see your insights!`);
           return 100;
         }
         return prev + 10;
@@ -162,7 +162,10 @@ const SmartImportAIPage = () => {
               </div>
             </div>
             <p className="text-sm text-white/80 mb-4">View detailed reports, export data, and gain actionable insights from your processed financial documents.</p>
-            <button className="w-full bg-white text-red-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition-all">
+            <button 
+              onClick={() => navigate('/dashboard/analytics')}
+              className="w-full bg-white text-red-600 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition-all hover:bg-gray-100 transition-all"
+            >
               View Results
             </button>
           </DashboardCard>
@@ -300,6 +303,28 @@ const SmartImportAIPage = () => {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Results Navigation Hint */}
+            {!isUploading && uploadedFiles.length > 0 && (
+              <div className="mt-6 p-4 bg-blue-900/20 rounded-lg">
+                <div className="flex items-center gap-2 mb-3">
+                  <BarChart3 size={16} className="text-blue-400" />
+                  <span className="text-white font-medium">View Your Results</span>
+                </div>
+                <p className="text-sm text-gray-300 mb-3">
+                  Your documents have been processed! View detailed insights, analytics, and reports.
+                </p>
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    navigate('/dashboard/analytics');
+                  }}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all text-sm"
+                >
+                  Go to Analytics Dashboard
+                </button>
               </div>
             )}
           </div>
