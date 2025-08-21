@@ -13,218 +13,229 @@ export default function XspensesProDashboard() {
 
   return (
     <div className="w-full">
-      {/* Header */}
-      <header className="mb-8">
-        <h2 className="text-3xl font-bold mb-2 text-white">FinTech Entertainment Platform</h2>
-        <p className="text-white/70">Welcome back, John! Here's your financial overview.</p>
+      {/* Enhanced Header with Reference Design Styling */}
+      <header className="mb-8 p-6 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2 rounded-2xl">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-4xl font-extrabold mb-2 bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
+              FinTech Entertainment Platform
+            </h1>
+            <p className="text-slate-400 text-lg">Welcome back, John! Here's your financial overview.</p>
+          </div>
+          <div className="hidden md:flex items-center gap-4">
+            {/* Profile and Settings Icons */}
+            <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200">
+              <User className="w-5 h-5 text-slate-300" />
+            </button>
+            <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200">
+              <Settings className="w-5 h-5 text-slate-300" />
+            </button>
+          </div>
+        </div>
       </header>
 
       {/* Content Area */}
-      <div className="max-w-7xl mx-auto">
-        {/* 🧠 Personal Finance AI */}
-        <section className="mt-10">
-          <h2 className="text-2xl font-semibold mb-4 text-white">🧠 Personal Finance AI</h2>
+      <div className="max-w-7xl mx-auto space-y-12">
+        
+        {/* 🧠 Personal Finance AI Section */}
+        <section>
+          <div className="flex items-center gap-3 mb-8">
+            <span className="text-3xl">🧠</span>
+            <h2 className="text-3xl font-bold text-white">Personal Finance AI</h2>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
             {/* Smart Import AI */}
-            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">📥</div>
-              <h3 className="text-xl font-semibold mb-2">Smart Import AI</h3>
-              <p className="text-sm text-white/80">Instantly upload or scan bank statements, bills, or receipts — PDF, photo, CSV, Excel, even handwritten.</p>
-              <Link to="/dashboard/smart-import-ai" className="bg-white text-indigo-500 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 hover:shadow-purple-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">🏦</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">Smart Import AI</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Instantly upload or scan bank statements, bills, or receipts — PDF, photo, CSV, Excel, even handwritten.</p>
+              </div>
+              <Link to="/dashboard/smart-import-ai" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Upload or Scan
               </Link>
             </div>
 
             {/* AI Financial Assistant */}
-            <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🤖</div>
-              <h3 className="text-xl font-semibold mb-2">AI Financial Assistant</h3>
-              <p className="text-sm text-white/80">Automatic expense tracking, insights, and predictions. No spreadsheets required.</p>
-              <Link to="/dashboard/ai-financial-assistant" className="bg-white text-pink-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-pink-600 via-rose-600 to-pink-700 hover:shadow-pink-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">🤖</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">AI Financial Assistant</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Automatic expense tracking, insights, and predictions. No spreadsheets required.</p>
+              </div>
+              <Link to="/dashboard/ai-financial-assistant" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 View Insights
               </Link>
             </div>
 
             {/* AI Financial Therapist */}
-            <div className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🧘</div>
-              <h3 className="text-xl font-semibold mb-2">AI Financial Therapist</h3>
-              <p className="text-sm text-white/80">Emotional and behavioral coaching to improve your financial wellness and mental clarity.</p>
-              <Link to="/dashboard/financial-therapist" className="bg-white text-rose-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-rose-600 via-pink-600 to-rose-700 hover:shadow-rose-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">💚</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">AI Financial Therapist</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Emotional and behavioral coaching to improve your financial wellness and mental clarity.</p>
+              </div>
+              <Link to="/dashboard/financial-therapist" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Start Session
               </Link>
             </div>
           </div>
         </section>
 
-        {/* 🎯 Goals & Predictions */}
-        <section className="mt-10">
-          <h2 className="text-2xl font-semibold mb-4 text-white">🎯 Goals & Predictions</h2>
+        {/* 🎯 Goals & Predictions Section */}
+        <section>
+          <div className="flex items-center gap-3 mb-8">
+            <span className="text-3xl">🎯</span>
+            <h2 className="text-3xl font-bold text-white">Goals & Predictions</h2>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
             {/* AI Goal Concierge */}
-            <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🎯</div>
-              <h3 className="text-xl font-semibold mb-2">AI Goal Concierge</h3>
-              <p className="text-sm text-white/80">Plan savings, debt payoff, and life milestones with AI-driven support and timelines.</p>
-              <Link to="/dashboard/goal-concierge" className="bg-white text-emerald-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-emerald-600 via-green-600 to-emerald-700 hover:shadow-emerald-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">🎯</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">AI Goal Concierge</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Plan savings, debt payoff, and life milestones with AI-driven support and timelines.</p>
+              </div>
+              <Link to="/dashboard/goal-concierge" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Set Goals
               </Link>
             </div>
 
             {/* Spending Predictions */}
-            <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">📊</div>
-              <h3 className="text-xl font-semibold mb-2">Spending Predictions</h3>
-              <p className="text-sm text-white/80">See future trends and spending forecasts based on past behaviors and seasonal cycles.</p>
-              <Link to="/dashboard/spending-predictions" className="bg-white text-yellow-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 hover:shadow-amber-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">📊</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">Spending Predictions</h3>
+                <p className="text-sm text-white/90 leading-relaxed">See future trends and spending forecasts based on past behaviors and seasonal cycles.</p>
+              </div>
+              <Link to="/dashboard/spending-predictions" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 View Trends
               </Link>
             </div>
 
             {/* AI Categorization */}
-            <div className="bg-gradient-to-br from-sky-500 to-blue-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🏷️</div>
-              <h3 className="text-xl font-semibold mb-2">AI Categorization</h3>
-              <p className="text-sm text-white/80">Automatically categorize transactions and learn from your corrections.</p>
-              <div className="bg-white text-sky-500 font-semibold py-2 px-4 rounded-lg opacity-50 cursor-not-allowed mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-blue-600 via-sky-600 to-blue-700 hover:shadow-blue-500/25">
+              <div className="absolute top-4 right-4 bg-white/20 text-white py-2 px-4 rounded-xl text-xs font-semibold backdrop-blur-md">
                 Coming Soon
               </div>
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">🏷️</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">AI Categorization</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Automatically categorize transactions and learn from your corrections.</p>
+              </div>
+              <button className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold opacity-60 cursor-not-allowed self-start">
+                Coming Soon
+              </button>
             </div>
           </div>
         </section>
 
-        {/* 💳 Expense & Planning Tools */}
-        <section className="mt-10">
-          <h2 className="text-2xl font-semibold mb-4 text-white">💳 Expense & Planning Tools</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Bill Reminder System */}
-            <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🔔</div>
-              <h3 className="text-xl font-semibold mb-2">Bill Reminder System</h3>
-              <p className="text-sm text-white/80">Never miss a payment with smart reminders and automated tracking.</p>
-              <Link to="/dashboard/bill-reminders" className="bg-white text-orange-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
-                Set Reminders
-              </Link>
-            </div>
-
-            {/* Debt Payoff Planner */}
-            <div className="bg-gradient-to-br from-red-500 to-pink-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">📈</div>
-              <h3 className="text-xl font-semibold mb-2">Debt Payoff Planner</h3>
-              <p className="text-sm text-white/80">Create a personalized debt payoff strategy with AI-optimized payment plans.</p>
-              <Link to="/dashboard/debt-payoff-planner" className="bg-white text-red-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
-                Plan Payoff
-              </Link>
-            </div>
-
-            {/* AI Financial Freedom */}
-            <div className="bg-gradient-to-br from-yellow-500 to-orange-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">👑</div>
-              <h3 className="text-xl font-semibold mb-2">AI Financial Freedom</h3>
-              <p className="text-sm text-white/80">Track your journey to financial independence with AI-powered insights.</p>
-              <Link to="/dashboard/ai-financial-freedom" className="bg-white text-yellow-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
-                Start Journey
-              </Link>
-            </div>
+        {/* 🎭 Expense & Planning Tools Section */}
+        <section>
+          <div className="flex items-center gap-3 mb-8">
+            <span className="text-3xl">🎭</span>
+            <h2 className="text-3xl font-bold text-white">Expense & Planning Tools</h2>
           </div>
-        </section>
-
-        {/* 🎵 Audio Entertainment */}
-        <section className="mt-10">
-          <h2 className="text-2xl font-semibold mb-4 text-white">🎵 Audio Entertainment</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
             {/* Personal Podcast */}
-            <div className="bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🎧</div>
-              <h3 className="text-xl font-semibold mb-2">Personal Podcast</h3>
-              <p className="text-sm text-white/80">AI-generated podcasts about your financial journey and money story.</p>
-              <Link to="/dashboard/personal-podcast" className="bg-white text-purple-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-purple-600 via-violet-600 to-purple-700 hover:shadow-purple-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">🎙️</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">Personal Podcast</h3>
+                <p className="text-sm text-white/90 leading-relaxed">AI-generated podcasts about your financial journey and money story.</p>
+              </div>
+              <Link to="/dashboard/personal-podcast" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Listen Now
               </Link>
             </div>
 
             {/* Spotify Integration */}
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">🎵</div>
-              <h3 className="text-xl font-semibold mb-2">Spotify Integration</h3>
-              <p className="text-sm text-white/80">Curated playlists for focus, relaxation, and financial motivation.</p>
-              <Link to="/dashboard/spotify-integration" className="bg-white text-green-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-green-500 via-emerald-500 to-green-600 hover:shadow-green-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">🎵</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">Spotify Integration</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Curated playlists for focus, relaxation, and financial motivation.</p>
+              </div>
+              <Link to="/dashboard/spotify-integration" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Connect
               </Link>
             </div>
 
             {/* Financial Wellness Studio */}
-            <div className="bg-gradient-to-br from-pink-500 to-rose-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">💚</div>
-              <h3 className="text-xl font-semibold mb-2">Financial Wellness Studio</h3>
-              <p className="text-sm text-white/80">Educational content and guided sessions for financial mental health.</p>
-              <Link to="/dashboard/wellness-studio" className="bg-white text-pink-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-red-600 via-rose-600 to-red-700 hover:shadow-red-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">💖</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">Financial Wellness Studio</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Educational content and guided sessions for financial mental health.</p>
+              </div>
+              <Link to="/dashboard/wellness-studio" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Learn More
               </Link>
             </div>
           </div>
         </section>
 
-        {/* 🛠️ Tools & Settings */}
-        <section className="mt-10">
-          <h2 className="text-2xl font-semibold mb-4 text-white">🛠️ Tools & Settings</h2>
+        {/* 🛠️ Tools & Settings Section */}
+        <section>
+          <div className="flex items-center gap-3 mb-8">
+            <span className="text-3xl">🛠️</span>
+            <h2 className="text-3xl font-bold text-white">Tools & Settings</h2>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
             {/* Analytics */}
-            <div className="bg-gradient-to-br from-gray-500 to-gray-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">📊</div>
-              <h3 className="text-xl font-semibold mb-2">Analytics</h3>
-              <p className="text-sm text-white/80">Comprehensive financial analytics and reporting dashboard.</p>
-              <Link to="/dashboard/analytics" className="bg-white text-gray-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:shadow-slate-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">📈</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">Analytics</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Comprehensive financial analytics and reporting dashboard.</p>
+              </div>
+              <Link to="/dashboard/analytics" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 View Reports
               </Link>
             </div>
 
             {/* Settings */}
-            <div className="bg-gradient-to-br from-slate-500 to-gray-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">⚙️</div>
-              <h3 className="text-xl font-semibold mb-2">Settings</h3>
-              <p className="text-sm text-white/80">Configure your account, preferences, and security settings.</p>
-              <Link to="/dashboard/settings" className="bg-white text-slate-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:shadow-slate-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">⚙️</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">Settings</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Configure your account, preferences, and security settings.</p>
+              </div>
+              <Link to="/dashboard/settings" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Configure
               </Link>
             </div>
 
             {/* Reports */}
-            <div className="bg-gradient-to-br from-stone-500 to-gray-600 rounded-2xl p-6 shadow-lg hover:scale-[1.02] transition-all">
-              <div className="text-3xl mb-4">📋</div>
-              <h3 className="text-xl font-semibold mb-2">Reports</h3>
-              <p className="text-sm text-white/80">Generate and export detailed financial reports and summaries.</p>
-              <Link to="/dashboard/reports" className="bg-white text-stone-600 font-semibold py-2 px-4 rounded-lg hover:opacity-90 mt-4 inline-block">
+            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:shadow-slate-500/25">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="relative z-10">
+                <div className="text-5xl mb-5">📋</div>
+                <h3 className="text-2xl font-bold mb-3 text-white">Reports</h3>
+                <p className="text-sm text-white/90 leading-relaxed">Generate and export detailed financial reports and summaries.</p>
+              </div>
+              <Link to="/dashboard/reports" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-3 px-6 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Generate
               </Link>
             </div>
           </div>
         </section>
       </div>
-
-      {/* Working AI Chatbot - Right Side */}
-      <ChatBot />
-
-      {/* Premium Modal */}
-      {showPremiumModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-xl font-bold mb-4">Upgrade to Premium</h3>
-            <p className="text-gray-600 mb-4">Unlock advanced features and unlimited access to all AI tools.</p>
-            <div className="flex space-x-4">
-              <button className="flex-1 bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600">
-                Upgrade Now
-              </button>
-              <button 
-                onClick={() => setShowPremiumModal(false)}
-                className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded hover:bg-gray-400"
-              >
-                Maybe Later
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
