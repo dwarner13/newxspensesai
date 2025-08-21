@@ -512,6 +512,74 @@
   }
 }
 
+/* AGGRESSIVE DASHBOARD GAP FIX - TARGETS ALL POSSIBLE SOURCES */
+.dashboard-container,
+.dashboard-container *,
+.dashboard-container > *,
+.dashboard-container > * > * {
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Re-apply only necessary padding */
+.dashboard-header {
+  padding: 20px 32px !important;
+}
+
+.dashboard-content {
+  padding: 32px !important;
+}
+
+.sidebar {
+  padding: 24px 0 !important;
+}
+
+/* Fix sidebar menu items */
+.sidebar-menu-item {
+  padding: 12px 24px !important;
+  margin: 0 !important;
+}
+
+/* Ensure content flows properly */
+.main-content {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Remove any unwanted margins from framework */
+.container-fluid,
+.container,
+.row,
+.col,
+.grid {
+  margin: 0 !important;
+  padding: 0 !important;
+  max-width: none !important;
+}
+
+/* Force zero spacing on flex containers */
+.flex,
+.flex-col,
+.flex-row,
+.grid {
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Target specific dashboard classes */
+.workspace-content,
+.smart-import-workspace,
+.dashboard-workspace {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
 /* Emergency gap fix */
 .dashboard-container {
   gap: 0 !important;
