@@ -141,10 +141,10 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
         </div>
       </div>
 
-      {/* Navigation with Professional Scrolling - Optimized Height */}
+      {/* Navigation with Tight Spacing - Optimized Height */}
       <nav className="flex-1 overflow-y-auto px-4 py-4" style={{ height: 'calc(100vh - 200px)' }}>
         {/* Main Dashboard */}
-        <ul className="space-y-2 mb-6">
+        <ul className="space-y-1 mb-4">
           <li>
             <NavLink 
               to="/dashboard" 
@@ -164,11 +164,11 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
 
         {/* Personal Finance AI */}
         {shouldShowLabels && (
-          <div className="text-xs uppercase tracking-wider text-white/50 mt-6 mb-3 font-bold px-3">
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
             Personal Finance AI
           </div>
         )}
-        <ul className="space-y-2 mb-6">
+        <ul className="space-y-1 mb-4">
           <li>
             <NavLink 
               to="/dashboard/smart-import-ai" 
@@ -248,11 +248,11 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
 
         {/* Additional Features */}
         {shouldShowLabels && (
-          <div className="text-xs uppercase tracking-wider text-white/50 mt-6 mb-3 font-bold px-3">
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
             Additional Features
           </div>
         )}
-        <ul className="space-y-2 mb-6">
+        <ul className="space-y-1 mb-4">
           <li>
             <NavLink 
               to="/dashboard/personal-podcast" 
@@ -302,11 +302,11 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
 
         {/* Tools */}
         {shouldShowLabels && (
-          <div className="text-xs uppercase tracking-wider text-white/50 mt-6 mb-3 font-bold px-3">
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
             Tools
           </div>
         )}
-        <ul className="space-y-2 mb-6">
+        <ul className="space-y-1 mb-4">
           <li>
             <NavLink 
               to="/dashboard/analytics" 
@@ -355,20 +355,20 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
         </ul>
       </nav>
 
-      {/* Profile footer at the very bottom */}
+      {/* Premium User Badge at the very bottom */}
       <div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border bg-[rgba(15,23,42,0.95)]">
         {shouldShowLabels && (
-          <div className="p-4 bg-gradient-to-r from-blue-900/50 to-purple-900/50 rounded-xl border border-white/10">
+          <div className="p-4 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-xl border border-purple-500/30 shadow-lg">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
                 <User size={20} className="text-white" />
               </div>
               <div className="flex-1">
                 <div className="font-semibold text-white text-sm">{user?.name || 'John Doe'}</div>
-                <div className="text-xs text-gray-300">{user?.plan || 'Premium Plan'}</div>
+                <div className="text-xs text-white/80">{user?.plan || 'Premium Plan'}</div>
               </div>
             </div>
-            <div className="bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full text-xs text-white px-3 py-1 inline-block font-medium">
+            <div className="bg-white/20 text-white px-2 py-1 rounded-md text-xs font-medium backdrop-blur-sm">
               Level 8 Money Master
             </div>
           </div>
