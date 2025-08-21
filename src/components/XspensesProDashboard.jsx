@@ -23,12 +23,12 @@ export default function XspensesProDashboard() {
             <p className="text-slate-400 text-lg">Welcome back, John! Here's your financial overview.</p>
           </div>
           <div className="hidden md:flex items-center gap-4">
-            {/* Profile and Settings Icons */}
+            {/* Profile and Music Icons */}
             <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200">
               <User className="w-5 h-5 text-slate-300" />
             </button>
             <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200">
-              <Settings className="w-5 h-5 text-slate-300" />
+              <Music className="w-5 h-5 text-slate-300" />
             </button>
           </div>
         </div>

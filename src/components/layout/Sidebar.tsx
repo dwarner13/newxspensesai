@@ -105,398 +105,282 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
   const shouldShowLabels = !isCollapsed || isMobileOpen;
 
   return (
-    <aside className="h-full flex flex-col" ref={sidebarRef}>
-        {/* Scrollable Container */}
-        <div className="flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-          {/* Header with Logo - Professional Design */}
-          <div className="sticky top-0 border-b border-white/10 p-6 backdrop-blur-md">
-          <div className="flex items-center justify-between">
-                         {shouldShowLabels && (
-               <div className="flex items-center gap-4 flex-1">
-                 <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-4 shadow-xl">
-                   <Crown className="text-white" size={36} />
-        </span>
-        <div>
-                   <span className="font-bold text-2xl leading-tight tracking-tight text-white">XspensesAI</span>
-                 </div>
-               </div>
-             )}
-                         {!shouldShowLabels && (
-               <div className="flex items-center justify-center flex-1">
-                 <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-3 shadow-xl">
-                   <Crown className="text-white" size={32} />
-                 </span>
-               </div>
-             )}
-                         <div className="flex items-center gap-3">
-               {/* Collapse Toggle Button - Only show on desktop */}
-               {!isMobileOpen && (
-                 <button 
-                   onClick={toggleSidebar}
-                   className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
-                   style={{ minHeight: '44px', minWidth: '44px' }}
-                 >
-                   {isCollapsed ? <ChevronRight size={22} /> : <ChevronLeft size={22} />}
-                 </button>
-               )}
-             </div>
+    <aside className="h-full flex flex-col bg-[#1e293b] border-r border-purple-500/10" ref={sidebarRef}>
+      {/* Header with Logo - Professional Design */}
+      <div className="sticky top-0 border-b border-white/10 p-6 backdrop-blur-md bg-[#1e293b]">
+        <div className="flex items-center justify-between">
+          {shouldShowLabels && (
+            <div className="flex items-center gap-4 flex-1">
+              <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-3 shadow-xl">
+                <Crown className="text-white" size={28} />
+              </span>
+              <div>
+                <span className="font-bold text-xl leading-tight tracking-tight text-white">XspensesAI</span>
+              </div>
+            </div>
+          )}
+          {!shouldShowLabels && (
+            <div className="flex items-center justify-center flex-1">
+              <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-3 shadow-xl">
+                <Crown className="text-white" size={28} />
+              </span>
+            </div>
+          )}
+          <div className="flex items-center gap-3">
+            {/* Collapse Toggle Button - Only show on desktop */}
+            {!isMobileOpen && (
+              <button 
+                onClick={toggleSidebar}
+                className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
+                style={{ minHeight: '44px', minWidth: '44px' }}
+              >
+                {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+              </button>
+            )}
           </div>
         </div>
+      </div>
 
-                 {/* Navigation with Professional Scrolling - Optimized Height */}
-         <nav className="flex-1 overflow-y-auto px-6 py-6 pb-24" style={{ height: 'calc(100vh - 160px)' }}>
-          {/* Main Dashboard */}
-          <ul className="space-y-3 mb-6">
-            <li>
-              <NavLink 
-                to="/dashboard" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <BarChart3 size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Main Dashboard</span>}
-              </NavLink>
-            </li>
-          </ul>
-
-          {/* Personal Finance AI */}
-          {shouldShowLabels && (
-            <div className="text-xs uppercase tracking-wider text-white/50 mt-6 mb-4 font-bold px-4">
-              Personal Finance AI
-            </div>
-          )}
-          <ul className="space-y-3 mb-10">
-            <li>
-              <NavLink 
-                to="/dashboard/smart-import-ai" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Upload size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Smart Import AI</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/ai-financial-assistant" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Bot size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Assistant</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/financial-therapist" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Heart size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Therapist</span>}
-              </NavLink>
-            </li>
-
-            <li>
-              <NavLink 
-                to="/dashboard/goal-concierge" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Target size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">AI Goal Concierge</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/spending-predictions" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Brain size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Spending Predictions</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/ai-categorization" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Brain size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">AI Categorization</span>}
-              </NavLink>
-            </li>
+      {/* Navigation with Professional Scrolling - Optimized Height */}
+      <nav className="flex-1 overflow-y-auto px-4 py-4" style={{ height: 'calc(100vh - 200px)' }}>
+        {/* Main Dashboard */}
+        <ul className="space-y-2 mb-6">
+          <li>
+            <NavLink 
+              to="/dashboard" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <BarChart3 size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Main Dashboard</span>}
+            </NavLink>
+          </li>
         </ul>
 
-            {/* 💳 Expense & Planning Tools */}
-          {shouldShowLabels && (
-            <div className="text-xs uppercase tracking-wider text-white/40 mt-8 mb-4 font-semibold px-4">
-                💳 Expense & Planning Tools
-            </div>
-          )}
-          <ul className="space-y-3 mb-8">
-            <li>
-              <NavLink 
-                to="/dashboard/bill-reminders" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Bell size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Bill Reminder System</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/debt-payoff-planner" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <TrendingUp size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Debt Payoff Planner</span>}
-              </NavLink>
-            </li>
-              <li>
-                <NavLink 
-                  to="/dashboard/financial-freedom" 
-                  className={({ isActive }) => 
-                    `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                      isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                    }`
-                  }
-                  style={{ minHeight: '52px' }}
-                  onClick={() => isMobileOpen && setIsMobileOpen(false)}
-                >
-                  <Crown size={22} className="flex-shrink-0 text-white/90" />
-                  {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Freedom</span>}
-                </NavLink>
-              </li>
+        {/* Personal Finance AI */}
+        {shouldShowLabels && (
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-6 mb-3 font-bold px-3">
+            Personal Finance AI
+          </div>
+        )}
+        <ul className="space-y-2 mb-6">
+          <li>
+            <NavLink 
+              to="/dashboard/smart-import-ai" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Upload size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Smart Import AI</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/ai-financial-assistant" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Bot size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Assistant</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/financial-therapist" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Heart size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Therapist</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/goal-concierge" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Target size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">AI Goal Concierge</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/spending-predictions" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <TrendingUp size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Spending Predictions</span>}
+            </NavLink>
+          </li>
         </ul>
 
-        {/* Audio Entertainment */}
-          {shouldShowLabels && (
-            <div className="text-xs uppercase tracking-wider text-white/40 mt-8 mb-4 font-semibold px-4">
-              Audio Entertainment
-            </div>
-          )}
-          <ul className="space-y-3 mb-8">
-            <li>
-              <NavLink 
-                to="/dashboard/personal-podcast" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Headphones size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Personal Podcast</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/spotify-integration" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Music size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Spotify Integration</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/wellness-studio" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Heart size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Financial Wellness Studio</span>}
-              </NavLink>
-            </li>
-        </ul>
-
-        {/* Tax Assistant, Business Intelligence, Smart Automation */}
-          {shouldShowLabels && (
-            <div className="text-xs uppercase tracking-wider text-white/40 mt-8 mb-4 font-semibold px-4">
-              Tax Assistant, Business Intelligence, Smart Automation
-            </div>
-          )}
-          <ul className="space-y-3 mb-8">
-            <li>
-              <NavLink 
-                to="/dashboard/tax-assistant" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Calculator size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Tax Assistant</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/business-intelligence" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <BarChart3 size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Business Intelligence</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/smart-automation" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Zap size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Smart Automation</span>}
-              </NavLink>
-            </li>
+        {/* Additional Features */}
+        {shouldShowLabels && (
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-6 mb-3 font-bold px-3">
+            Additional Features
+          </div>
+        )}
+        <ul className="space-y-2 mb-6">
+          <li>
+            <NavLink 
+              to="/dashboard/personal-podcast" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Mic size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Personal Podcast</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/spotify-integration" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Music size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Spotify Integration</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/wellness-studio" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Heart size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Wellness Studio</span>}
+            </NavLink>
+          </li>
         </ul>
 
         {/* Tools */}
-          {shouldShowLabels && (
-            <div className="text-xs uppercase tracking-wider text-white/40 mt-8 mb-4 font-semibold px-4">
-              Tools
-            </div>
-          )}
-          <ul className="space-y-3 mb-8">
-            <li>
-              <NavLink 
-                to="/dashboard/analytics" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <BarChart3 size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Analytics</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/settings" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <Settings size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Settings</span>}
-              </NavLink>
-            </li>
-            <li>
-              <NavLink 
-                to="/dashboard/reports" 
-                className={({ isActive }) => 
-                  `flex items-center gap-4 py-4 px-4 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                    isActive ? 'bg-white/20 border-l-4 border-purple-400' : ''
-                  }`
-                }
-                style={{ minHeight: '52px' }}
-                onClick={() => isMobileOpen && setIsMobileOpen(false)}
-              >
-                <FileText size={22} className="flex-shrink-0 text-white/90" />
-                {shouldShowLabels && <span className="font-medium text-white/90">Reports</span>}
-              </NavLink>
-            </li>
+        {shouldShowLabels && (
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-6 mb-3 font-bold px-3">
+            Tools
+          </div>
+        )}
+        <ul className="space-y-2 mb-6">
+          <li>
+            <NavLink 
+              to="/dashboard/analytics" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <BarChart3 size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Analytics</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/settings" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Settings size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Settings</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/reports" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <FileText size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Reports</span>}
+            </NavLink>
+          </li>
         </ul>
       </nav>
 
-        </div> {/* end of scrollable nav */}
-
-{/* profile footer at the very bottom */}
-<div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border">
-  {shouldShowLabels && (
-    <div className="p-4 pr-6 bg-blue-900 w-full box-border">
-      <div className="text-sm">
-        <div className="font-semibold">{user?.name}</div>
-        <div className="text-xs text-gray-300">{user?.plan}</div>
+      {/* Profile footer at the very bottom */}
+      <div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border bg-[#1e293b]">
+        {shouldShowLabels && (
+          <div className="p-4 bg-gradient-to-r from-blue-900/50 to-purple-900/50 rounded-xl border border-white/10">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                <User size={20} className="text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-white text-sm">{user?.name || 'John Doe'}</div>
+                <div className="text-xs text-gray-300">{user?.plan || 'Premium Plan'}</div>
+              </div>
+            </div>
+            <div className="bg-gradient-to-r from-orange-500 to-yellow-500 rounded-full text-xs text-white px-3 py-1 inline-block font-medium">
+              Level 8 Money Master
+            </div>
+          </div>
+        )}
+        {!shouldShowLabels && (
+          <div className="flex justify-center">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+              <User size={20} className="text-white" />
+            </div>
+          </div>
+        )}
       </div>
-      <div className="mt-2 bg-orange-500 rounded-full text-xs text-white px-3 py-1 inline-block">
-        Level 8 Money Master
-      </div>
-    </div>
-  )}
-</div>
-</aside>
+    </aside>
   );
 }
