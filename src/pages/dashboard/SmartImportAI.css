@@ -173,7 +173,7 @@
 
 /* Dashboard Header Styles */
 .dashboard-header {
-  padding: 24px 32px;
+  padding: 20px 24px;
   border-bottom: 1px solid rgba(139, 92, 246, 0.1);
   background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(6, 182, 212, 0.02) 100%);
 }
@@ -181,26 +181,29 @@
 .header-content {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 20px;
 }
 
 .header-left {
   flex: 1;
+  min-width: 0;
 }
 
 .main-title {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 800;
   background: linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin: 0 0 8px 0;
+  margin: 0 0 4px 0;
+  line-height: 1.2;
 }
 
 .welcome-subtitle {
   color: #94a3b8;
-  font-size: 16px;
+  font-size: 14px;
   margin: 0;
 }
 
@@ -209,13 +212,154 @@
   font-weight: 600;
 }
 
-.header-right {
+/* Header Widgets Container */
+.header-widgets {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
+  flex-shrink: 0;
 }
 
-/* Spotify Widget */
+/* Compact Spotify Widget */
+.spotify-widget-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(29, 185, 84, 0.1);
+  border: 1px solid rgba(29, 185, 84, 0.2);
+  border-radius: 10px;
+  padding: 8px 12px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  min-width: 140px;
+}
+
+.spotify-widget-compact:hover {
+  background: rgba(29, 185, 84, 0.15);
+  transform: translateY(-1px);
+}
+
+.spotify-icon-small {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1DB954;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.spotify-info-compact {
+  flex: 1;
+  min-width: 0;
+}
+
+.now-playing-text {
+  color: #1DB954;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1;
+}
+
+.track-name {
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+/* Compact User Profile Widget */
+.user-profile-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(30, 41, 59, 0.8);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 10px;
+  padding: 6px 12px 6px 6px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  min-width: 160px;
+}
+
+.user-profile-compact:hover {
+  border-color: #8b5cf6;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.15);
+}
+
+.profile-avatar-small {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.avatar-image-small {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid #8b5cf6;
+}
+
+.status-dot {
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border: 2px solid #1e293b;
+  border-radius: 50%;
+}
+
+.profile-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name-compact {
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.user-badge {
+  color: #06b6d4;
+  font-size: 9px;
+  font-weight: 600;
+  background: rgba(6, 182, 212, 0.15);
+  padding: 1px 4px;
+  border-radius: 3px;
+  display: inline-block;
+  margin-top: 1px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dropdown-arrow {
+  color: #94a3b8;
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+
+.user-profile-compact:hover .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+/* Legacy Widgets (keeping for backward compatibility) */
 .spotify-widget {
   display: flex;
   align-items: center;
@@ -263,7 +407,6 @@
   font-weight: 500;
 }
 
-/* User Profile Widget */
 .user-profile-widget {
   display: flex;
   align-items: center;
@@ -367,4 +510,19 @@
   .user-profile-widget {
     min-width: auto;
   }
+}
+
+/* Emergency gap fix */
+.dashboard-container {
+  gap: 0 !important;
+}
+
+.main-content {
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+.sidebar {
+  margin-right: 0 !important;
+  padding-right: 0 !important;
 }
