@@ -105,9 +105,9 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
   const shouldShowLabels = !isCollapsed || isMobileOpen;
 
   return (
-    <aside className="h-full flex flex-col bg-[#1e293b] border-r border-purple-500/10" ref={sidebarRef}>
+    <aside className="h-full flex flex-col bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20" ref={sidebarRef}>
       {/* Header with Logo - Professional Design */}
-      <div className="sticky top-0 border-b border-white/10 p-6 backdrop-blur-md bg-[#1e293b]">
+      <div className="sticky top-0 border-b border-white/10 p-6 backdrop-blur-md bg-[rgba(15,23,42,0.95)]">
         <div className="flex items-center justify-between">
           {shouldShowLabels && (
             <div className="flex items-center gap-4 flex-1">
@@ -356,7 +356,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
       </nav>
 
       {/* Profile footer at the very bottom */}
-      <div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border bg-[#1e293b]">
+      <div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border bg-[rgba(15,23,42,0.95)]">
         {shouldShowLabels && (
           <div className="p-4 bg-gradient-to-r from-blue-900/50 to-purple-900/50 rounded-xl border border-white/10">
             <div className="flex items-center gap-3 mb-3">

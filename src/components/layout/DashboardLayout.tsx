@@ -18,14 +18,14 @@ export default function DashboardLayout() {
   return (
     <>
       <RouteScrollReset />
-      <div className="dashboard-layout min-h-dvh bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] text-white lg:flex">
+      <div className="dashboard-layout min-h-screen bg-[#0f172a] text-white lg:flex">
         {/* Desktop sidebar - Fixed width, no margin */}
-        <aside className="hidden lg:block w-72 shrink-0 border-r border-purple-500/10 bg-[#1e293b]">
+        <aside className="hidden lg:block w-[300px] shrink-0 border-r border-purple-500/20 bg-[rgba(15,23,42,0.95)]">
           <Sidebar isMobileOpen={false} setIsMobileOpen={() => {}} />
         </aside>
 
         {/* Mobile top bar */}
-        <header className="lg:hidden sticky top-0 z-40 bg-[#1e293b]/95 backdrop-blur border-b border-white/10">
+        <header className="lg:hidden sticky top-0 z-40 bg-[rgba(15,23,42,0.95)]/95 backdrop-blur border-b border-white/10">
           <div className="flex items-center gap-3 px-4 py-4">
             <button
               aria-label="Open menu"
@@ -56,8 +56,8 @@ export default function DashboardLayout() {
         </MobileSidebar>
 
         {/* Main content - No margin, direct flex connection */}
-        <div className="flex-1 flex flex-col lg:min-h-dvh">
-          <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex-1 flex flex-col lg:min-h-screen">
+          <main className="flex-1 overflow-y-auto px-8 py-8">
             <Outlet />
           </main>
         </div>

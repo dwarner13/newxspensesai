@@ -34,19 +34,19 @@ export default function XspensesProDashboard() {
         </div>
       </header>
 
-      {/* Content Area */}
-      <div className="max-w-7xl mx-auto space-y-12">
+      {/* Content Area with Enhanced Styling */}
+      <div className="max-w-7xl mx-auto space-y-8">
         
         {/* 🧠 Personal Finance AI Section */}
         <section>
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">🧠</span>
             <h2 className="text-3xl font-bold text-white">Personal Finance AI</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Smart Import AI */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 hover:shadow-purple-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-indigo-600 via-purple-600 to-indigo-700 hover:shadow-purple-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">🏦</div>
@@ -59,7 +59,7 @@ export default function XspensesProDashboard() {
             </div>
 
             {/* AI Financial Assistant */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-pink-600 via-rose-600 to-pink-700 hover:shadow-pink-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-pink-600 via-rose-600 to-pink-700 hover:shadow-pink-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">🤖</div>
@@ -72,7 +72,7 @@ export default function XspensesProDashboard() {
             </div>
 
             {/* AI Financial Therapist */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-rose-600 via-pink-600 to-rose-700 hover:shadow-rose-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-rose-600 via-pink-600 to-rose-700 hover:shadow-rose-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">💚</div>
@@ -88,14 +88,14 @@ export default function XspensesProDashboard() {
 
         {/* 🎯 Goals & Predictions Section */}
         <section>
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">🎯</span>
             <h2 className="text-3xl font-bold text-white">Goals & Predictions</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* AI Goal Concierge */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-emerald-600 via-green-600 to-emerald-700 hover:shadow-emerald-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-emerald-600 via-green-600 to-emerald-700 hover:shadow-emerald-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">🎯</div>
@@ -108,7 +108,7 @@ export default function XspensesProDashboard() {
             </div>
 
             {/* Spending Predictions */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 hover:shadow-amber-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-amber-500 via-orange-500 to-amber-600 hover:shadow-amber-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">📊</div>
@@ -121,7 +121,7 @@ export default function XspensesProDashboard() {
             </div>
 
             {/* AI Categorization */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-blue-600 via-sky-600 to-blue-700 hover:shadow-blue-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-blue-600 via-sky-600 to-blue-700 hover:shadow-blue-500/25">
               <div className="absolute top-4 right-4 bg-white/20 text-white py-2 px-4 rounded-xl text-xs font-semibold backdrop-blur-md">
                 Coming Soon
               </div>
@@ -140,14 +140,14 @@ export default function XspensesProDashboard() {
 
         {/* 🎭 Expense & Planning Tools Section */}
         <section>
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">🎭</span>
-            <h2 className="text-3xl font-bold text-white">Expense & Planning Tools</h2>
+            <h2 className="text-2xl font-bold text-white">Expense & Planning Tools</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Personal Podcast */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-purple-600 via-violet-600 to-purple-700 hover:shadow-purple-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-purple-600 via-violet-600 to-purple-700 hover:shadow-purple-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">🎙️</div>
@@ -160,7 +160,7 @@ export default function XspensesProDashboard() {
             </div>
 
             {/* Spotify Integration */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-green-500 via-emerald-500 to-green-600 hover:shadow-green-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-green-500 via-emerald-500 to-green-600 hover:shadow-green-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">🎵</div>
@@ -173,7 +173,7 @@ export default function XspensesProDashboard() {
             </div>
 
             {/* Financial Wellness Studio */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-red-600 via-rose-600 to-red-700 hover:shadow-red-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-red-600 via-rose-600 to-red-700 hover:shadow-red-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">💖</div>
@@ -189,14 +189,14 @@ export default function XspensesProDashboard() {
 
         {/* 🛠️ Tools & Settings Section */}
         <section>
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-6">
             <span className="text-3xl">🛠️</span>
-            <h2 className="text-3xl font-bold text-white">Tools & Settings</h2>
+            <h2 className="text-2xl font-bold text-white">Tools & Settings</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             
             {/* Analytics */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:shadow-slate-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:shadow-slate-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">📈</div>
@@ -209,7 +209,7 @@ export default function XspensesProDashboard() {
             </div>
 
             {/* Settings */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:shadow-slate-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:shadow-slate-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">⚙️</div>
@@ -222,7 +222,7 @@ export default function XspensesProDashboard() {
             </div>
 
             {/* Reports */}
-            <div className="group relative overflow-hidden rounded-3xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[280px] flex flex-col justify-between bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:shadow-slate-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-8 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800 hover:shadow-slate-500/25">
               <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div className="relative z-10">
                 <div className="text-5xl mb-5">📋</div>
