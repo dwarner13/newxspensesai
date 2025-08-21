@@ -18,8 +18,8 @@ export default function DashboardLayout() {
   return (
     <>
       <RouteScrollReset />
-      <div className="min-h-dvh bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] text-white lg:flex">
-        {/* Desktop sidebar */}
+      <div className="dashboard-layout min-h-dvh bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] text-white lg:flex">
+        {/* Desktop sidebar - Fixed width, no margin */}
         <aside className="hidden lg:block w-72 shrink-0 border-r border-white/10 bg-[#0b0f2a]">
           <Sidebar isMobileOpen={false} setIsMobileOpen={() => {}} />
         </aside>
@@ -55,7 +55,7 @@ export default function DashboardLayout() {
           <Sidebar isMobileOpen={open} setIsMobileOpen={setOpen} />
         </MobileSidebar>
 
-        {/* Main content */}
+        {/* Main content - No margin, direct flex connection */}
         <div className="flex-1 flex flex-col lg:min-h-dvh">
           <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
             <Outlet />

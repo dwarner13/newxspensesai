@@ -1,6 +1,87 @@
 /* DASHBOARD GLOBAL STYLES - MASTER STYLESHEET */
 /* ALL DASHBOARD PAGES MUST USE THESE STYLES - NO EXCEPTIONS */
 
+/* CRITICAL LAYOUT FIX - ELIMINATE SIDEBAR GAP */
+/* This overrides any conflicting CSS that causes gaps */
+.dashboard-layout {
+  display: flex !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+.dashboard-layout > aside {
+  width: 288px !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.dashboard-layout > main,
+.dashboard-layout > div:not(aside) {
+  flex: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+}
+
+/* Override any conflicting dashboard-container styles */
+.dashboard-container {
+  display: flex !important;
+  min-height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+.dashboard-container .sidebar {
+  width: 288px !important;
+  flex-shrink: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.dashboard-container .main-content {
+  flex: 1 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+}
+
+/* AGGRESSIVE GAP ELIMINATION - OVERRIDE ALL POSSIBLE SOURCES */
+.dashboard-layout *,
+.dashboard-container * {
+  gap: 0 !important;
+}
+
+/* Ensure Tailwind classes don't add unwanted spacing */
+.dashboard-layout .lg\:flex,
+.dashboard-layout .flex-1,
+.dashboard-layout .shrink-0 {
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+/* Override any framework CSS that might add spacing */
+.dashboard-layout .container,
+.dashboard-layout .row,
+.dashboard-layout .col {
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+/* Force zero spacing on all flex containers within dashboard */
+.dashboard-layout .flex,
+.dashboard-layout .flex-col,
+.dashboard-layout .flex-row {
+  gap: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 /* CORE DASHBOARD COLORS - LOCKED */
 :root {
   /* Background gradient - NEVER CHANGE */
