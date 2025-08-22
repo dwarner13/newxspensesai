@@ -35,6 +35,7 @@ import {
   MicOff,
   Paperclip
 } from 'lucide-react';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 
 import { aiCategorizer } from '../../utils/aiCategorizer';
 import { supabase } from '../../lib/supabase';
@@ -780,67 +781,59 @@ Or upload a financial document for personalized analysis!`;
     };
 
     return (
-      <>
-          {/* Header */}
-          <header className="bg-gradient-to-r from-indigo-500/20 via-blue-500/20 to-purple-500/20 backdrop-blur-sm border-b border-indigo-200/30 p-6">
-            <div className="space-y-4">
-              {/* Title and Subtitle */}
-                <div>
-                <h1 className="text-3xl font-bold text-white mb-2">AI Financial Assistant</h1>
-                <p className="text-gray-300 text-lg">Your intelligent financial companion for personalized advice and analysis</p>
-                </div>
-              
-              {/* Status Bar */}
-              <div className="bg-gradient-to-r from-indigo-600/20 to-blue-600/20 rounded-lg p-4 border border-indigo-200/30">
-                <div className="flex items-center justify-between text-white">
-                  <div className="flex items-center space-x-6">
-                    <div className="flex items-center space-x-2">
-                      <div className={`w-2 h-2 rounded-full ${isAIConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                      <span className="text-sm font-medium">{isAIConnected ? 'AI Online' : 'Demo Mode'}</span>
+      <div className="w-full">
+        {/* Standardized Dashboard Header */}
+        <DashboardHeader />
+        
+        {/* Status Bar */}
+        <div className="mb-8 bg-gradient-to-r from-indigo-600/20 to-blue-600/20 rounded-lg p-4 border border-indigo-200/30">
+          <div className="flex items-center justify-between text-white">
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${isAIConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                <span className="text-sm font-medium">{isAIConnected ? 'AI Online' : 'Demo Mode'}</span>
               </div>
               <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 bg-blue-400 rounded-sm flex items-center justify-center">
-                        <span className="text-xs font-bold text-white">A</span>
+                <div className="w-4 h-4 bg-blue-400 rounded-sm flex items-center justify-center">
+                  <span className="text-xs font-bold text-white">A</span>
                 </div>
-                      <span className="text-sm">94% Accuracy</span>
+                <span className="text-sm">94% Accuracy</span>
               </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 text-blue-400">
-                        <svg fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                        </svg>
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 text-blue-400">
+                  <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <span className="text-sm">2.3s Avg</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 text-blue-400">
+                  <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <span className="text-sm">Documents Today: {documents.length}</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 text-blue-400">
+                  <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <span className="text-sm">Time Saved: 1.2h</span>
+              </div>
             </div>
-                      <span className="text-sm">2.3s Avg</span>
-                              </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 text-blue-400">
-                        <svg fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                        </svg>
-                              </div>
-                      <span className="text-sm">Documents Today: {documents.length}</span>
-                        </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-4 h-4 text-blue-400">
-                        <svg fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <span className="text-sm">Time Saved: 1.2h</span>
-                    </div>
-                  </div>
 
-                  {/* Chat Toggle Button */}
-                              <button
-                    onClick={() => setShowChat(!showChat)}
-                    className="bg-gradient-to-r from-indigo-400 to-blue-400 hover:from-indigo-500 hover:to-blue-500 text-white px-4 py-2 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-sm"
-                  >
-                    {showChat ? 'Hide Chat' : 'Show Chat'}
-                              </button>
-                            </div>
-                          </div>
-                      </div>
-          </header>
+            {/* Chat Toggle Button */}
+            <button
+              onClick={() => setShowChat(!showChat)}
+              className="bg-gradient-to-r from-indigo-400 to-blue-400 hover:from-indigo-500 hover:to-blue-500 text-white px-4 py-2 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-sm"
+            >
+              {showChat ? 'Hide Chat' : 'Show Chat'}
+            </button>
+          </div>
+        </div>
 
                     {/* Main Content */}
           <main className="flex-1 overflow-hidden">
@@ -1047,7 +1040,7 @@ Or upload a financial document for personalized analysis!`;
               />
             </div>
           </main>
-      </>
+        </div>
     );
   } catch (error) {
     console.error('Error loading AIFinancialAssistantPage:', error);

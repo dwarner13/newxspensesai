@@ -6,6 +6,7 @@ import {
   Brain, Mail, Upload, FileText, X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 
 interface Bill {
   id: string;
@@ -301,11 +302,9 @@ const BillRemindersPage = () => {
   };
 
   return (
-    <>
-      <header className="p-6">
-        <h1 className="text-4xl font-bold mb-2">Bill Reminder System</h1>
-        <p className="text-lg text-gray-300">AI-powered alerts for upcoming bills and recurring payments</p>
-      </header>
+    <div className="w-full">
+      {/* Standardized Dashboard Header */}
+      <DashboardHeader />
       <div className="flex-1 overflow-y-auto p-6">
 
         {/* Action Buttons */}
@@ -714,7 +713,7 @@ const BillRemindersPage = () => {
           />
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

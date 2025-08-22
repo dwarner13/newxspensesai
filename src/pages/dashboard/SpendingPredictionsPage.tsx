@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
 import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 
 interface Prediction {
   id: string;
@@ -190,51 +191,9 @@ const SpendingPredictionsPage = () => {
   };
 
   return (
-    <div className="contents">
-      {/* Desktop Header */}
-      <header className="hidden lg:block bg-black/20 backdrop-blur-md border-b border-white/10 p-4 lg:p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 transition-all duration-300" style={{ minHeight: '60px' }}>
-        <div className="flex-1">
-          <h2 className="text-xl lg:text-3xl font-bold text-white mb-2 leading-tight">
-            Spending Predictions
-          </h2>
-          <p className="text-white/70 text-sm lg:text-base">
-            Your AI-powered financial crystal ball
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <button className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-            <RefreshCw size={20} />
-          </button>
-          <button className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-            <Settings size={20} />
-          </button>
-        </div>
-      </header>
-
-      {/* Mobile Header */}
-      <header className="lg:hidden bg-black/20 backdrop-blur-md border-b border-white/10 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsMobileOpen(true)}
-            className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
-            style={{ minHeight: '44px', minWidth: '44px' }}
-          >
-            <Menu size={22} />
-          </button>
-          <div>
-            <h2 className="text-lg font-bold text-white">Spending Predictions</h2>
-            <p className="text-white/70 text-sm">Your AI-powered financial crystal ball</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-            <RefreshCw size={18} />
-          </button>
-          <button className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-            <Settings size={18} />
-          </button>
-        </div>
-      </header>
+    <div className="w-full">
+      {/* Standardized Dashboard Header */}
+      <DashboardHeader />
 
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto p-6">

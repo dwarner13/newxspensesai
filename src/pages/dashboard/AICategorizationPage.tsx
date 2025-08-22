@@ -3,6 +3,7 @@ import {
   Tag, CheckCircle, X, RefreshCw, Filter, Download, 
   TrendingUp, BarChart3, Settings, AlertCircle, Clock
 } from 'lucide-react';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 
 const AICategorizationPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -38,11 +39,9 @@ const AICategorizationPage = () => {
   };
 
   return (
-    <>
-        <h1 className="text-4xl font-bold mb-4">AI Categorization</h1>
-        <p className="text-lg text-gray-300 mb-8">
-          Automatically categorize your transactions and learn from your corrections
-        </p>
+    <div className="w-full">
+      {/* Standardized Dashboard Header */}
+      <DashboardHeader />
 
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -221,7 +220,7 @@ const AICategorizationPage = () => {
             </div>
           </div>
         </div>
-      </>
+    </div>
   );
 };
 
