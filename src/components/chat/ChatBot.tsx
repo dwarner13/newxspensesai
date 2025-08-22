@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, MessageSquare, Sparkles } from 'lucide-react';
+import { Send, X, MessageSquare, Sparkles, Clock, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -21,6 +21,9 @@ const ChatBot = () => {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [currentPersonality, setCurrentPersonality] = useState<string>('XspensesAI Assistant');
   const [currentCatchphrase, setCurrentCatchphrase] = useState<string>('');
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [conversationContext, setConversationContext] = useState<string>('');
+  const [userPreferences, setUserPreferences] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -31,7 +34,7 @@ const ChatBot = () => {
     }
   }, [isOpen]);
 
-  // Load conversation history from database
+  // Load conversation history from enhanced backend
   const loadConversationHistory = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -40,39 +43,76 @@ const ChatBot = () => {
         return;
       }
 
+      setIsLoadingHistory(true);
+
       // Try to find existing conversation
       const { data: existingConversation } = await supabase
         .from('conversations')
         .select('*')
         .eq('user_id', user.id)
         .eq('personality_type', 'XspensesAI Assistant')
-        .order('updated_at', { ascending: false })
+        .order('last_message_at', { ascending: false })
         .limit(1);
 
       if (existingConversation && existingConversation.length > 0) {
         const conv = existingConversation[0];
         setConversationId(conv.id);
         
-        // Load messages from conversation
-        if (conv.messages && conv.messages.length > 0) {
-          const loadedMessages = conv.messages.map((msg: any) => ({
-            id: msg.id || Date.now().toString(),
-            type: msg.type,
+        // Load messages from the new messages table
+        const { data: conversationMessages } = await supabase
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', conv.id)
+          .order('created_at', { ascending: true });
+
+        if (conversationMessages && conversationMessages.length > 0) {
+          const loadedMessages = conversationMessages.map((msg: any) => ({
+            id: msg.id,
+            type: msg.role === 'user' ? 'user' : 'assistant',
             content: msg.content,
-            timestamp: new Date(msg.timestamp),
-            personality: msg.personality,
-            catchphrase: msg.catchphrase
+            timestamp: new Date(msg.created_at),
+            personality: msg.metadata?.personality || 'XspensesAI Assistant',
+            catchphrase: msg.metadata?.catchphrase || ''
           }));
           setMessages(loadedMessages);
+          
+          // Set conversation context
+          if (loadedMessages.length > 2) {
+            setConversationContext(`Continuing conversation with XspensesAI Assistant (${loadedMessages.length} messages)`);
+          }
         } else {
           addWelcomeMessage();
         }
       } else {
         addWelcomeMessage();
       }
+
+      // Load user preferences for this personality
+      await loadUserPreferences(user.id);
+
     } catch (error) {
       console.error('Error loading conversation history:', error);
       addWelcomeMessage();
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  // Load user preferences for personalization
+  const loadUserPreferences = async (userId: string) => {
+    try {
+      const { data: preferences } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('personality_type', 'XspensesAI Assistant')
+        .single();
+
+      if (preferences) {
+        setUserPreferences(preferences);
+      }
+    } catch (error) {
+      console.error('Error loading user preferences:', error);
     }
   };
 
@@ -87,49 +127,6 @@ const ChatBot = () => {
       catchphrase: ''
     };
     setMessages([welcomeMsg]);
-  };
-
-  // Save conversation to database
-  const saveConversation = async (newMessages: Message[]) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const conversationData = {
-        user_id: user.id,
-        personality_type: 'XspensesAI Assistant',
-        messages: newMessages.map(msg => ({
-          id: msg.id,
-          type: msg.type,
-          content: msg.content,
-          timestamp: msg.timestamp.toISOString(),
-          personality: msg.personality,
-          catchphrase: msg.catchphrase
-        })),
-        updated_at: new Date().toISOString()
-      };
-
-      if (conversationId) {
-        // Update existing conversation
-        await supabase
-          .from('conversations')
-          .update(conversationData)
-          .eq('id', conversationId);
-      } else {
-        // Create new conversation
-        const { data: newConversation } = await supabase
-          .from('conversations')
-          .insert([{ ...conversationData, created_at: new Date().toISOString() }])
-          .select()
-          .single();
-        
-        if (newConversation) {
-          setConversationId(newConversation.id);
-        }
-      }
-    } catch (error) {
-      console.error('Error saving conversation:', error);
-    }
   };
 
   useEffect(() => {
@@ -166,13 +163,14 @@ const ChatBot = () => {
         body: JSON.stringify({ 
           question: input.trim(),
           botName: 'XspensesAI Assistant',
-          expertise: 'Financial Analysis & Personal Finance'
+          expertise: 'Financial Analysis & Personal Finance',
+          conversationId: conversationId // Include conversation ID for continuity
         }),
       });
 
       if (!response.ok) throw new Error('Failed to get response');
 
-      const { answer, personality, catchphrase } = await response.json();
+      const { answer, personality, catchphrase, conversationId: newConversationId } = await response.json();
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -188,8 +186,18 @@ const ChatBot = () => {
       setCurrentPersonality(personality);
       setCurrentCatchphrase(catchphrase);
 
-      // Save conversation to database
-      await saveConversation(updatedMessages);
+      // Update conversation ID if new
+      if (newConversationId && !conversationId) {
+        setConversationId(newConversationId);
+      }
+
+      // Update conversation context
+      if (updatedMessages.length > 2) {
+        setConversationContext(`Active conversation with XspensesAI Assistant (${updatedMessages.length} messages)`);
+      }
+
+      // Reload user preferences to see updated learning data
+      await loadUserPreferences(user.id);
 
     } catch (error) {
       console.error('Chat error:', error);
@@ -292,6 +300,45 @@ const ChatBot = () => {
                 <X size={20} />
               </button>
             </div>
+
+            {/* Conversation Context Indicator */}
+            {conversationContext && (
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-b border-purple-200 px-4 py-2">
+                <div className="flex items-center gap-2 text-xs text-purple-700">
+                  <MessageCircle size={14} />
+                  <span className="font-medium">{conversationContext}</span>
+                </div>
+              </div>
+            )}
+
+            {/* User Preferences Display */}
+            {userPreferences && userPreferences.interaction_count > 0 && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-200 px-4 py-2">
+                <div className="flex items-center justify-between text-xs text-green-700">
+                  <div className="flex items-center gap-2">
+                    <Clock size={14} />
+                    <span>Learning from {userPreferences.interaction_count} interactions</span>
+                  </div>
+                  <span className="text-xs opacity-70">
+                    {userPreferences.learning_data?.preferred_response_length || 'medium'} responses
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Loading History Indicator */}
+            {isLoadingHistory && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 px-4 py-2">
+                <div className="flex items-center gap-2 text-xs text-blue-700">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                  <span>Loading conversation history...</span>
+                </div>
+              </div>
+            )}
 
             {/* Enhanced Messages */}
             <div className="h-[500px] overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-gray-50 to-white">
