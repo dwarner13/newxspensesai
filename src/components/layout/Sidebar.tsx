@@ -141,9 +141,9 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
         </div>
       </div>
 
-      {/* Navigation with Tight Spacing - Natural Height */}
-      <div className="flex-1 flex flex-col overflow-y-auto">
-        <nav className="px-4 py-4">
+      {/* Navigation with Tight Spacing - Fixed Height */}
+      <div className="flex flex-col h-[calc(100vh-200px)]">
+        <nav className="px-4 py-4 overflow-y-auto flex-1">
         {/* Main Dashboard */}
         <ul className="space-y-1 mb-4">
           <li>
