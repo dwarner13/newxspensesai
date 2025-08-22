@@ -304,7 +304,245 @@ function extractTopic(message: string): string {
   return 'general';
 }
 
-// Build enhanced prompt with user preferences and conversation context
+// NEW: Financial Data Access and Analysis Functions
+async function getUserFinancialData(supabase: any, userId: string, timeframe: string = '30d') {
+  try {
+    const endDate = new Date();
+    const startDate = new Date();
+    
+    if (timeframe === '30d') {
+      startDate.setDate(endDate.getDate() - 30);
+    } else if (timeframe === '7d') {
+      startDate.setDate(endDate.getDate() - 7);
+    } else if (timeframe === '90d') {
+      startDate.setDate(endDate.getDate() - 90);
+    }
+
+    // Get transactions
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('date', startDate.toISOString())
+      .lte('date', endDate.toISOString())
+      .order('date', { ascending: false });
+
+    // Get budgets/goals (if table exists)
+    let budgets = [];
+    try {
+      const { data: budgetData } = await supabase
+        .from('budgets')
+        .select('*')
+        .eq('user_id', userId);
+      budgets = budgetData || [];
+    } catch (error) {
+      console.log('Budgets table not available, skipping budget data');
+    }
+
+    // Get categories (if table exists)
+    let categories = [];
+    try {
+      const { data: categoryData } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', userId);
+      categories = categoryData || [];
+    } catch (error) {
+      console.log('Categories table not available, skipping category data');
+    }
+
+    return {
+      transactions: transactions || [],
+      budgets: budgets,
+      categories: categories,
+      timeframe
+    };
+  } catch (error) {
+    console.error('Error getting financial data:', error);
+    return {
+      transactions: [],
+      budgets: [],
+      categories: [],
+      timeframe
+    };
+  }
+}
+
+async function analyzeSpendingPatterns(transactions: any[]) {
+  const analysis = {
+    totalSpent: 0,
+    topCategories: {},
+    dailyAverage: 0,
+    weekendVsWeekday: { weekend: 0, weekday: 0 },
+    trends: {},
+    insights: []
+  };
+
+  if (!transactions || transactions.length === 0) {
+    return analysis;
+  }
+
+  transactions.forEach(transaction => {
+    if (transaction.amount < 0) { // Assuming negative amounts are expenses
+      analysis.totalSpent += Math.abs(transaction.amount);
+      
+      // Category analysis
+      const category = transaction.category || 'Uncategorized';
+      analysis.topCategories[category] = (analysis.topCategories[category] || 0) + Math.abs(transaction.amount);
+      
+      // Weekend vs weekday
+      const date = new Date(transaction.date);
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        analysis.weekendVsWeekday.weekend += Math.abs(transaction.amount);
+      } else {
+        analysis.weekendVsWeekday.weekday += Math.abs(transaction.amount);
+      }
+    }
+  });
+
+  // Calculate daily average
+  const daysInPeriod = 30; // Default to 30 days
+  analysis.dailyAverage = analysis.totalSpent / daysInPeriod;
+
+  // Generate insights
+  const sortedCategories = Object.entries(analysis.topCategories)
+    .sort(([,a], [,b]) => (b as number) - (a as number));
+  
+  if (sortedCategories.length > 0) {
+    analysis.insights.push(`Your top spending category is ${sortedCategories[0][0]} at $${(sortedCategories[0][1] as number).toFixed(2)}`);
+  }
+
+  if (analysis.weekendVsWeekday.weekend > analysis.weekendVsWeekday.weekday) {
+    analysis.insights.push("You tend to spend more on weekends than weekdays");
+  }
+
+  if (analysis.totalSpent > 0) {
+    analysis.insights.push(`You're averaging $${analysis.dailyAverage.toFixed(2)} per day in spending`);
+  }
+
+  return analysis;
+}
+
+async function getBudgetProgress(userId: string, budgets: any[], transactions: any[]) {
+  const progress = {};
+  
+  if (!budgets || budgets.length === 0) {
+    return progress;
+  }
+  
+  budgets.forEach(budget => {
+    const categorySpending = transactions
+      .filter(t => t.category === budget.category && t.amount < 0)
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+    
+    progress[budget.category] = {
+      budgeted: budget.amount,
+      spent: categorySpending,
+      remaining: budget.amount - categorySpending,
+      percentage: (categorySpending / budget.amount) * 100,
+      status: categorySpending > budget.amount ? 'over' : 'under'
+    };
+  });
+
+  return progress;
+}
+
+// NEW: Build enhanced personality prompt with financial context
+function buildFinancialPersonalityPrompt(personality: any, financialData: any, userPreferences: any) {
+  const basePrompt = `You are ${personality.name}, ${personality.role}.
+
+${personality.personality}
+
+Your catchphrase: "${personality.catchphrase}"
+Your voice style: ${personality.voiceStyle}
+Your team role: ${personality.teamRole}
+Your special skills: ${personality.specialSkills.join(', ')}
+
+IMPORTANT INSTRUCTIONS:
+- Always stay in character as ${personality.name}
+- Use your unique personality traits and voice style
+- Incorporate your catchphrase naturally in responses
+- Apply your special skills to provide valuable insights
+- Be ${personality.motivationalStyle}
+- Use emojis and engaging language that matches your personality
+- Focus on financial insights while maintaining your character`;
+
+  let enhancements = '';
+  const learningData = userPreferences.learning_data;
+  
+  // Add response length preference
+  if (learningData.preferred_response_length === 'short') {
+    enhancements += '\n\nIMPORTANT: User prefers concise, brief responses. Keep answers short and to the point.';
+  } else if (learningData.preferred_response_length === 'long') {
+    enhancements += '\n\nIMPORTANT: User appreciates detailed explanations. Provide comprehensive, thorough responses.';
+  }
+  
+  // Add recent topics context
+  if (learningData.last_topics?.length) {
+    const recentTopics = learningData.last_topics.slice(-3).join(', ');
+    enhancements += `\n\nCONTEXT: User has recently discussed: ${recentTopics}`;
+  }
+  
+  // Add relationship context
+  if (userPreferences.interaction_count > 5) {
+    enhancements += '\n\nRELATIONSHIP: You have an established relationship with this user. Be more familiar and reference past conversations when relevant.';
+  }
+  
+  // Add conversation history context
+  if (financialData.conversationHistory && financialData.conversationHistory.length > 0) {
+    enhancements += '\n\nCONVERSATION CONTEXT: This conversation has history. Reference previous discussions when relevant and maintain continuity.';
+  }
+
+  // NEW: Add financial context
+  let financialContext = '\n\nFINANCIAL CONTEXT:\n';
+  
+  if (financialData.analysis && financialData.analysis.totalSpent > 0) {
+    financialContext += `- Total spending this month: $${financialData.analysis.totalSpent.toFixed(2)}\n`;
+    financialContext += `- Daily average: $${financialData.analysis.dailyAverage.toFixed(2)}\n`;
+  }
+  
+  if (financialData.analysis && financialData.analysis.insights.length > 0) {
+    financialContext += `- Key insights: ${financialData.analysis.insights.join(', ')}\n`;
+  }
+  
+  if (financialData.budgetProgress && Object.keys(financialData.budgetProgress).length > 0) {
+    financialContext += '- Budget status:\n';
+    Object.entries(financialData.budgetProgress).forEach(([category, progress]: [string, any]) => {
+      financialContext += `  * ${category}: ${progress.percentage.toFixed(1)}% used (${progress.status})\n`;
+    });
+  }
+
+  // Personality-specific financial guidance
+  let personalityGuidance = '';
+  
+  switch (personality.name) {
+    case 'MotivationBot':
+      personalityGuidance = '\nFOCUS: Use this financial data to motivate and celebrate wins! If they\'re over budget, help them get excited about getting back on track.';
+      break;
+    case 'AnalyticsBot':
+      personalityGuidance = '\nFOCUS: Provide strategic analysis of spending patterns and suggest optimizations. Look for trends and long-term implications.';
+      break;
+    case 'FinancialTherapistBot':
+      personalityGuidance = '\nFOCUS: Address emotional aspects of spending. If they\'re struggling with budget, provide support and understanding.';
+      break;
+    case 'GoalConciergeBot':
+      personalityGuidance = '\nFOCUS: Give honest reality checks about budget performance. Be direct about overspending but constructive.';
+      break;
+    case 'CreativityBot':
+      personalityGuidance = '\nFOCUS: Suggest creative ways to optimize spending or increase income based on their patterns.';
+      break;
+    case 'SmartImportBot':
+      personalityGuidance = '\nFOCUS: Promote balanced financial wellness. Help them find peace with their financial situation.';
+      break;
+    default:
+      personalityGuidance = '\nFOCUS: Provide helpful financial insights while maintaining your unique personality.';
+  }
+
+  return basePrompt + enhancements + financialContext + personalityGuidance;
+}
+
+// Build enhanced prompt with user preferences and conversation context (existing function)
 function buildEnhancedPersonalityPrompt(personality: any, userPreferences: any, conversationHistory: any[] = []) {
   const basePrompt = `You are ${personality.name}, ${personality.role}.
 
@@ -353,13 +591,42 @@ IMPORTANT INSTRUCTIONS:
   return basePrompt + enhancements;
 }
 
+// NEW: Extract financial topics from user message
+function extractFinancialTopics(message: string): string[] {
+  const financialKeywords = {
+    'spending': ['spend', 'spent', 'expense', 'cost', 'buy', 'bought', 'purchase'],
+    'budget': ['budget', 'limit', 'allowance', 'plan'],
+    'saving': ['save', 'saving', 'savings', 'emergency'],
+    'income': ['income', 'salary', 'earn', 'revenue', 'profit'],
+    'debt': ['debt', 'loan', 'credit', 'owe', 'payment'],
+    'investment': ['invest', 'stock', 'portfolio', 'return', 'growth']
+  };
+  
+  const lowerMessage = message.toLowerCase();
+  const topics = [];
+  
+  for (const [topic, keywords] of Object.entries(financialKeywords)) {
+    if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+      topics.push(topic);
+    }
+  }
+  
+  return topics;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { question, botName, expertise, conversationId: existingConversationId } = await req.json();
+    const { 
+      question, 
+      botName, 
+      expertise, 
+      conversationId: existingConversationId,
+      includeFinancialData = true 
+    } = await req.json();
     const userId = req.headers.get('x-user-id');
 
     if (!question || !userId) {
@@ -389,7 +656,27 @@ Deno.serve(async (req) => {
     // Save user message
     await saveMessage(supabase, conversation.id, 'user', question);
 
-    // Get relevant transactions based on the question
+    // NEW: Load and analyze financial data
+    let financialData = null;
+    if (includeFinancialData) {
+      try {
+        const rawFinancialData = await getUserFinancialData(supabase, userId);
+        const analysis = await analyzeSpendingPatterns(rawFinancialData.transactions);
+        const budgetProgress = await getBudgetProgress(userId, rawFinancialData.budgets, rawFinancialData.transactions);
+        
+        financialData = {
+          ...rawFinancialData,
+          analysis,
+          budgetProgress,
+          conversationHistory
+        };
+      } catch (error) {
+        console.error('Error loading financial data:', error);
+        // Continue without financial data if there's an error
+      }
+    }
+
+    // Get relevant transactions based on the question (existing logic)
     const now = new Date();
     let startDate = subMonths(now, 3); // Default to last 3 months
     
@@ -423,7 +710,9 @@ Deno.serve(async (req) => {
     }));
 
     // Create enhanced personality-specific system prompt
-    const systemPrompt = buildEnhancedPersonalityPrompt(personality, userPreferences, conversationHistory);
+    const systemPrompt = financialData 
+      ? buildFinancialPersonalityPrompt(personality, financialData, userPreferences)
+      : buildEnhancedPersonalityPrompt(personality, userPreferences, conversationHistory);
 
     // Prepare messages for OpenAI with conversation context
     const openAIMessages = [
@@ -454,7 +743,7 @@ Respond as ${personality.name} would - with your unique personality, style, and 
         model: 'gpt-3.5-turbo',
         messages: openAIMessages,
         temperature: 0.7, // Increased for more personality
-        max_tokens: userPreferences.learning_data.preferred_response_length === 'short' ? 150 : 300,
+        max_tokens: userPreferences.learning_data.preferred_response_length === 'short' ? 150 : 400, // Increased for financial insights
       }),
     });
 
@@ -465,16 +754,20 @@ Respond as ${personality.name} would - with your unique personality, style, and 
     const aiResponse = await response.json();
     const aiResponseContent = aiResponse.choices[0].message.content;
     
-    // Save AI response
+    // Save AI response with financial context metadata
     await saveMessage(supabase, conversation.id, 'assistant', aiResponseContent, {
       personality: personality.name,
-      catchphrase: personality.catchphrase
+      catchphrase: personality.catchphrase,
+      hasFinancialData: !!financialData,
+      financialTopics: extractFinancialTopics(question)
     });
     
     // Update user preferences based on interaction
     await updateUserPreferences(supabase, userId, personality.name, {
       topic: extractTopic(question),
-      responseLength: aiResponseContent.length
+      responseLength: aiResponseContent.length,
+      hasFinancialData: !!financialData,
+      financialTopics: extractFinancialTopics(question)
     });
     
     return new Response(
@@ -483,6 +776,7 @@ Respond as ${personality.name} would - with your unique personality, style, and 
         personality: personality.name,
         catchphrase: personality.catchphrase,
         conversationId: conversation.id,
+        financialInsights: financialData?.analysis?.insights || [],
         timestamp: new Date().toISOString()
       }),
       {

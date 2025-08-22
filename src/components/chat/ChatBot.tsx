@@ -1,17 +1,70 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, X, MessageSquare, Sparkles, Clock, MessageCircle } from 'lucide-react';
+import { Send, X, MessageSquare, Sparkles, Clock, MessageCircle, Users, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 
 interface Message {
   id: string;
-  type: 'user' | 'assistant';
+  type: 'user' | 'assistant' | 'team';
   content: string;
   timestamp: Date;
   personality?: string;
   catchphrase?: string;
+  financialInsights?: string[];
+  consultations?: any[];
 }
+
+// Financial Insight Card Component
+const FinancialInsightCard = ({ insights, personality }: { insights: string[], personality: string }) => {
+  if (!insights || insights.length === 0) return null;
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="financial-insights-card"
+    >
+      <div className="insight-header">
+        <span className="insight-icon">📊</span>
+        <h4>{personality} noticed:</h4>
+      </div>
+      <div className="insights-list">
+        {insights.map((insight, index) => (
+          <div key={index} className="insight-item">
+            <span className="insight-bullet">•</span>
+            <span className="insight-text">{insight}</span>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+// Team Consultation Display Component
+const TeamConsultationDisplay = ({ consultations }: { consultations: any[] }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="team-consultation"
+  >
+    <div className="team-header">
+      <span className="team-icon">🤝</span>
+      <h4>Team Consultation</h4>
+    </div>
+    <div className="consultations-grid">
+      {consultations.map((consultation, index) => (
+        <div key={index} className="consultation-card">
+          <div className="consultant-header">
+            <span className="consultant-emoji">{consultation.emoji}</span>
+            <span className="consultant-name">{consultation.personality}</span>
+          </div>
+          <p className="consultation-advice">{consultation.advice}</p>
+        </div>
+      ))}
+    </div>
+  </motion.div>
+);
 
 const ChatBot = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,6 +77,9 @@ const ChatBot = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [conversationContext, setConversationContext] = useState<string>('');
   const [userPreferences, setUserPreferences] = useState<any>(null);
+  const [includeFinancialData, setIncludeFinancialData] = useState(true);
+  const [isRequestingTeam, setIsRequestingTeam] = useState(false);
+  const [lastUserMessage, setLastUserMessage] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -72,7 +128,8 @@ const ChatBot = () => {
             content: msg.content,
             timestamp: new Date(msg.created_at),
             personality: msg.metadata?.personality || 'XspensesAI Assistant',
-            catchphrase: msg.metadata?.catchphrase || ''
+            catchphrase: msg.metadata?.catchphrase || '',
+            financialInsights: msg.metadata?.financialInsights || []
           }));
           setMessages(loadedMessages);
           
@@ -129,6 +186,51 @@ const ChatBot = () => {
     setMessages([welcomeMsg]);
   };
 
+  // Request team consultation
+  const requestTeamConsultation = async (query: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Please log in to use team consultation');
+        return;
+      }
+
+      setIsRequestingTeam(true);
+      
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-team-consultation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userQuery: query,
+          userId: user.id,
+          primaryPersonality: 'XspensesAI Assistant'
+        }),
+      });
+      
+      if (!response.ok) throw new Error('Team consultation failed');
+      
+      const teamData = await response.json();
+      
+      // Add team consultation to chat
+      const teamMessage: Message = {
+        id: Date.now().toString(),
+        type: 'team',
+        content: `**Team Consultation Results**\n\n**Your Question:** ${teamData.userQuery}\n\n**Team Summary:** ${teamData.teamSummary}`,
+        timestamp: new Date(),
+        consultations: teamData.consultations
+      };
+      
+      setMessages(prev => [...prev, teamMessage]);
+      toast.success('Team consultation complete!');
+      
+    } catch (error) {
+      console.error('Team consultation failed:', error);
+      toast.error('Team consultation failed. Please try again.');
+    } finally {
+      setIsRequestingTeam(false);
+    }
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -146,6 +248,7 @@ const ChatBot = () => {
 
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
+    setLastUserMessage(input.trim());
     setInput('');
     setIsLoading(true);
 
@@ -164,13 +267,14 @@ const ChatBot = () => {
           question: input.trim(),
           botName: 'XspensesAI Assistant',
           expertise: 'Financial Analysis & Personal Finance',
-          conversationId: conversationId // Include conversation ID for continuity
+          conversationId: conversationId, // Include conversation ID for continuity
+          includeFinancialData: includeFinancialData // Include financial data option
         }),
       });
 
       if (!response.ok) throw new Error('Failed to get response');
 
-      const { answer, personality, catchphrase, conversationId: newConversationId } = await response.json();
+      const { answer, personality, catchphrase, conversationId: newConversationId, financialInsights } = await response.json();
 
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -178,7 +282,8 @@ const ChatBot = () => {
         content: answer,
         timestamp: new Date(),
         personality: personality,
-        catchphrase: catchphrase
+        catchphrase: catchphrase,
+        financialInsights: financialInsights
       };
 
       const updatedMessages = [...newMessages, aiMessage];
@@ -301,6 +406,26 @@ const ChatBot = () => {
               </button>
             </div>
 
+            {/* Chat Controls */}
+            <div className="chat-controls">
+              <label className="financial-toggle">
+                <input
+                  type="checkbox"
+                  checked={includeFinancialData}
+                  onChange={(e) => setIncludeFinancialData(e.target.checked)}
+                />
+                <span>📊 Financial insights</span>
+              </label>
+              
+              <button 
+                className="team-consultation-btn"
+                onClick={() => requestTeamConsultation(lastUserMessage)}
+                disabled={isRequestingTeam || !lastUserMessage}
+              >
+                {isRequestingTeam ? '🤝 Consulting team...' : '🤝 Ask the team'}
+              </button>
+            </div>
+
             {/* Conversation Context Indicator */}
             {conversationContext && (
               <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-b border-purple-200 px-4 py-2">
@@ -357,6 +482,20 @@ const ChatBot = () => {
                     }`}
                   >
                     <p className="text-sm leading-relaxed">{message.content}</p>
+                    
+                    {/* Add financial insights for AI messages */}
+                    {message.type === 'assistant' && message.financialInsights && (
+                      <FinancialInsightCard 
+                        insights={message.financialInsights} 
+                        personality={message.personality || 'XspensesAI Assistant'} 
+                      />
+                    )}
+                    
+                    {/* Add team consultation display */}
+                    {message.type === 'team' && message.consultations && (
+                      <TeamConsultationDisplay consultations={message.consultations} />
+                    )}
+                    
                     <p className="text-xs opacity-70 mt-2">
                       {message.timestamp.toLocaleTimeString()}
                     </p>
@@ -411,6 +550,139 @@ const ChatBot = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Add CSS for new components */}
+      <style jsx>{`
+        .chat-controls {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 8px 16px;
+          background: rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .financial-toggle {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 12px;
+          color: #94a3b8;
+        }
+
+        .team-consultation-btn {
+          background: linear-gradient(135deg, #22c55e, #3b82f6);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          padding: 6px 12px;
+          font-size: 12px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .team-consultation-btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+        }
+
+        .team-consultation-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .financial-insights-card {
+          background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(6, 182, 212, 0.1));
+          border: 1px solid rgba(139, 92, 246, 0.2);
+          border-radius: 12px;
+          padding: 16px;
+          margin-top: 12px;
+        }
+
+        .insight-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+
+        .insight-header h4 {
+          color: #8b5cf6;
+          margin: 0;
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .insights-list {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+
+        .insight-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          font-size: 13px;
+          color: #64748b;
+        }
+
+        .team-consultation {
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(59, 130, 246, 0.1));
+          border: 1px solid rgba(34, 197, 94, 0.2);
+          border-radius: 12px;
+          padding: 16px;
+          margin-top: 12px;
+        }
+
+        .team-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 12px;
+        }
+
+        .team-header h4 {
+          color: #22c55e;
+          margin: 0;
+          font-size: 14px;
+          font-weight: 600;
+        }
+
+        .consultations-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 12px;
+          margin-top: 12px;
+        }
+
+        .consultation-card {
+          background: rgba(255, 255, 255, 0.5);
+          border-radius: 8px;
+          padding: 12px;
+        }
+
+        .consultant-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 8px;
+        }
+
+        .consultant-name {
+          font-weight: 600;
+          font-size: 13px;
+          color: #374151;
+        }
+
+        .consultation-advice {
+          font-size: 13px;
+          color: #6b7280;
+          margin: 0;
+          line-height: 1.4;
+        }
+      `}</style>
     </>
   );
 };
