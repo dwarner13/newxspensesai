@@ -7,32 +7,14 @@ import {
   Zap, Activity, Settings, User
 } from 'lucide-react';
 import ChatBot from './chat/ChatBot';
+import DashboardHeader from './ui/DashboardHeader';
 
 export default function XspensesProDashboard() {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
 
   return (
     <div className="w-full">
-      {/* Enhanced Header with Reference Design Styling */}
-      <header className="mb-8 p-6 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2 rounded-2xl">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-4xl font-extrabold mb-2 bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
-              FinTech Entertainment Platform
-            </h1>
-            <p className="text-slate-400 text-lg">Welcome back, John! Here's your financial overview.</p>
-          </div>
-          <div className="hidden md:flex items-center gap-4">
-            {/* Profile and Music Icons */}
-            <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200">
-              <User className="w-5 h-5 text-slate-300" />
-            </button>
-            <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200">
-              <Music className="w-5 h-5 text-slate-300" />
-            </button>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader />
 
       {/* Content Area with Enhanced Styling */}
       <div className="max-w-7xl mx-auto space-y-8">

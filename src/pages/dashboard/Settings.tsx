@@ -5,9 +5,10 @@ import {
   Upload, Camera, Plus, CheckCircle, AlertTriangle,
   ExternalLink, HelpCircle, Gift, Crown, Users, 
   Lock, RefreshCw, FileText, Mail, ChevronRight, Edit, Save,
-  Download as DownloadIcon, Link, X
+  Download as DownloadIcon, Link, X, Music
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
 
 
@@ -95,12 +96,8 @@ const Settings = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] text-white">
-      {/* Header */}
-      <header className="p-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-lg text-gray-300 mt-2">Manage your account, preferences, and integrations</p>
-      </header>
+    <div className="w-full">
+      <DashboardHeader />
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-6">

@@ -1,5 +1,5 @@
 /* Import Dashboard Global Styles */
-@import './styles/dashboard-global.css';
+
 
 @tailwind base;
 @tailwind components;

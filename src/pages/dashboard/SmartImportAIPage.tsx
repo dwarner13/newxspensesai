@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Camera, Bot, BarChart3, X, Loader2, Mail, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, Camera, Bot, BarChart3, X, Loader2, Mail, CheckCircle, AlertCircle, User, Music } from 'lucide-react';
 
 import { useNavigate } from 'react-router-dom';
 import { DashboardCard } from '../../components/ui/DashboardCard';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 import toast from 'react-hot-toast';
 import './SmartImportAI.css';
 
@@ -290,52 +291,10 @@ const SmartImportAIPage = () => {
   }, [showAIAssistant]);
 
   return (
-    <>
-      {/* Dashboard Header with Spotify Integration & User Profile */}
-      <div className="dashboard-header">
-        <div className="header-content">
-          <div className="header-left">
-            <h1 className="main-title">FinTech Entertainment Platform</h1>
-            <p className="welcome-subtitle">Welcome back, <span className="member-name">Darrell</span>! Here's your financial overview.</p>
-          </div>
-          
-          <div className="header-right">
-            {/* Spotify Integration */}
-            <div className="spotify-widget">
-              <div className="spotify-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm5.568 17.328c-.24.384-.768.504-1.152.24-3.152-1.92-7.104-2.352-11.76-1.296-.432.096-.912-.144-1.008-.6-.096-.432.144-.912.6-1.008 5.04-1.152 9.36-.624 12.816 1.488.384.24.504.768.24 1.152-.264.024-.264.024-.736.024zm1.632-3.624c-.288.48-.912.624-1.392.336-3.624-2.232-9.144-2.88-13.416-1.584-.528.168-1.08-.096-1.248-.624-.168-.528.096-1.08.624-1.248 4.896-1.488 10.992-.816 15.168 1.824.48.288.624.912.336 1.392-.072-.096-.072-.096-.072-.096zm.144-3.768C15.936 7.848 9.264 7.632 5.376 8.688c-.624.168-1.296-.192-1.464-.816-.168-.624.192-1.296.816-1.464 4.464-1.2 11.784-.96 16.416 1.872.576.36.768 1.128.408 1.704-.36.576-1.128.768-1.704.408z" fill="#1DB954"/>
-                </svg>
-              </div>
-              <div className="spotify-info">
-                <div className="spotify-status">🎵 Now Playing</div>
-                <div className="spotify-track">Focus Beats</div>
-              </div>
-            </div>
-            
-            {/* User Profile Widget */}
-            <div className="user-profile-widget">
-              <div className="profile-avatar">
-                <img src="/avatars/darrell-warner.jpg" alt="Darrell Warner" className="avatar-image" />
-                <div className="status-indicator online"></div>
-              </div>
-              <div className="profile-info">
-                <div className="user-name">Darrell Warner</div>
-                <div className="user-status">Premium Member</div>
-              </div>
-              <div className="profile-dropdown-arrow">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 10.5L4 6.5L12 6.5L8 10.5Z" fill="#94a3b8"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="w-full">
+      <DashboardHeader />
 
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Page Title */}
-        <h1 className="text-3xl md:text-4xl font-extrabold mb-6">Smart Import AI Workspace</h1>
         
         {/* Smart Import Tools */}
         <section className="mb-8">
@@ -814,7 +773,7 @@ const SmartImportAIPage = () => {
         </div>
       )}
         </div>
-    </>
+    </div>
   );
 };
 

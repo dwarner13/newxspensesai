@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import FeaturesMegaMenu from '../nav/FeaturesMegaMenu';
-import '../../styles/mobile-navigation.css';
+
 
 const SimpleNavigation = () => {
   const location = useLocation();

@@ -5,10 +5,11 @@ import {
   Users, Zap, Brain, PieChart,
   ArrowUpRight, ArrowDownRight,
   Filter, Share2, RefreshCw, Download as DownloadIcon,
-  Receipt, Building2
+  Receipt, Building2, User, Music
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 // import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
 
 
@@ -1216,9 +1217,8 @@ Just tell me what's on your mind - I'm here to help and learn! 😊`;
   // const netProfit = keyMetrics.find(m => m.name === 'Net Profit')?.value as number || 0;
 
   return (
-    <div>
-      <h1 className="text-4xl font-bold mb-4">Analytics Dashboard</h1>
-      <p className="text-lg text-gray-300 mb-8">See all your numbers, trends, and insights at a glance.</p>
+    <div className="w-full">
+      <DashboardHeader />
 
 
 
