@@ -142,7 +142,8 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
       </div>
 
       {/* Navigation with Tight Spacing - Natural Height */}
-      <nav className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        <nav className="px-4 py-4">
         {/* Main Dashboard */}
         <ul className="space-y-1 mb-4">
           <li>
@@ -353,10 +354,10 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
             </NavLink>
           </li>
         </ul>
-      </nav>
+        </nav>
 
-      {/* Premium User Badge at the very bottom */}
-      <div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border bg-[rgba(15,23,42,0.95)]">
+        {/* Premium User Badge at the very bottom */}
+        <div className="border-t border-white/10 px-4 py-4 mt-auto w-full box-border bg-[rgba(15,23,42,0.95)]">
         {shouldShowLabels && (
           <div className="p-4 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-xl border border-purple-500/30 shadow-lg">
             <div className="flex items-center gap-3 mb-3">
@@ -380,6 +381,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
             </div>
           </div>
         )}
+        </div>
       </div>
     </aside>
   );
