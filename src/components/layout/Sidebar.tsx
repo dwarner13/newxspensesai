@@ -245,12 +245,81 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               {shouldShowLabels && <span className="font-medium text-white/90">Spending Predictions</span>}
             </NavLink>
           </li>
+          <li>
+            <NavLink 
+              to="/dashboard/ai-categorization" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Brain size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">AI Categorization</span>}
+            </NavLink>
+          </li>
         </ul>
 
-        {/* Additional Features */}
+        {/* 💳 Expense & Planning Tools */}
         {shouldShowLabels && (
           <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-            Additional Features
+            💳 Expense & Planning Tools
+          </div>
+        )}
+        <ul className="space-y-1 mb-4">
+          <li>
+            <NavLink 
+              to="/dashboard/bill-reminders" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Bell size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Bill Reminder System</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/debt-payoff-planner" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <CreditCard size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Debt Payoff Planner</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/ai-financial-freedom" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Award size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Freedom</span>}
+            </NavLink>
+          </li>
+        </ul>
+
+        {/* Audio Entertainment */}
+        {shouldShowLabels && (
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
+            Audio Entertainment
           </div>
         )}
         <ul className="space-y-1 mb-4">
@@ -297,6 +366,60 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
             >
               <Heart size={20} className="flex-shrink-0 text-white/90" />
               {shouldShowLabels && <span className="font-medium text-white/90">Wellness Studio</span>}
+            </NavLink>
+          </li>
+        </ul>
+
+        {/* Tax Assistant, Business Intelligence, Smart Automation */}
+        {shouldShowLabels && (
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
+            Tax, Business & Automation
+          </div>
+        )}
+        <ul className="space-y-1 mb-4">
+          <li>
+            <NavLink 
+              to="/dashboard/tax-assistant" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Calculator size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Tax Assistant</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/business-intelligence" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Building2 size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Business Intelligence</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/smart-automation" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Zap size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Smart Automation</span>}
             </NavLink>
           </li>
         </ul>
