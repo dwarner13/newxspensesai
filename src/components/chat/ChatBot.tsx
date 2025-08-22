@@ -9,6 +9,8 @@ interface Message {
   type: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  personality?: string;
+  catchphrase?: string;
 }
 
 const ChatBot = () => {
@@ -16,21 +18,119 @@ const ChatBot = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [currentPersonality, setCurrentPersonality] = useState<string>('XspensesAI Assistant');
+  const [currentCatchphrase, setCurrentCatchphrase] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  // Load conversation history when chat opens
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      setMessages([
-        {
-          id: 'welcome',
-          type: 'assistant',
-          content: "Hi 👋 I'm your XspensesAI assistant. Ask me anything about your transactions and financial insights!",
-          timestamp: new Date(),
-        },
-      ]);
+      loadConversationHistory();
     }
   }, [isOpen]);
+
+  // Load conversation history from database
+  const loadConversationHistory = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        addWelcomeMessage();
+        return;
+      }
+
+      // Try to find existing conversation
+      const { data: existingConversation } = await supabase
+        .from('conversations')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('personality_type', 'XspensesAI Assistant')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (existingConversation && existingConversation.length > 0) {
+        const conv = existingConversation[0];
+        setConversationId(conv.id);
+        
+        // Load messages from conversation
+        if (conv.messages && conv.messages.length > 0) {
+          const loadedMessages = conv.messages.map((msg: any) => ({
+            id: msg.id || Date.now().toString(),
+            type: msg.type,
+            content: msg.content,
+            timestamp: new Date(msg.timestamp),
+            personality: msg.personality,
+            catchphrase: msg.catchphrase
+          }));
+          setMessages(loadedMessages);
+        } else {
+          addWelcomeMessage();
+        }
+      } else {
+        addWelcomeMessage();
+      }
+    } catch (error) {
+      console.error('Error loading conversation history:', error);
+      addWelcomeMessage();
+    }
+  };
+
+  // Add welcome message
+  const addWelcomeMessage = () => {
+    const welcomeMsg: Message = {
+      id: 'welcome',
+      type: 'assistant',
+      content: "Hi 👋 I'm your XspensesAI assistant. Ask me anything about your transactions and financial insights!",
+      timestamp: new Date(),
+      personality: 'XspensesAI Assistant',
+      catchphrase: ''
+    };
+    setMessages([welcomeMsg]);
+  };
+
+  // Save conversation to database
+  const saveConversation = async (newMessages: Message[]) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const conversationData = {
+        user_id: user.id,
+        personality_type: 'XspensesAI Assistant',
+        messages: newMessages.map(msg => ({
+          id: msg.id,
+          type: msg.type,
+          content: msg.content,
+          timestamp: msg.timestamp.toISOString(),
+          personality: msg.personality,
+          catchphrase: msg.catchphrase
+        })),
+        updated_at: new Date().toISOString()
+      };
+
+      if (conversationId) {
+        // Update existing conversation
+        await supabase
+          .from('conversations')
+          .update(conversationData)
+          .eq('id', conversationId);
+      } else {
+        // Create new conversation
+        const { data: newConversation } = await supabase
+          .from('conversations')
+          .insert([{ ...conversationData, created_at: new Date().toISOString() }])
+          .select()
+          .single();
+        
+        if (newConversation) {
+          setConversationId(newConversation.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving conversation:', error);
+    }
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -47,24 +147,54 @@ const ChatBot = () => {
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInput('');
     setIsLoading(true);
 
     try {
-      // Simulate AI response for now
-      setTimeout(() => {
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          type: 'assistant',
-          content: "I'm here to help with your financial questions! This is a demo response. In the full version, I'll analyze your transactions and provide personalized insights.",
-          timestamp: new Date(),
-        };
-        setMessages(prev => [...prev, aiMessage]);
-        setIsLoading(false);
-      }, 1000);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({ 
+          question: input.trim(),
+          botName: 'XspensesAI Assistant',
+          expertise: 'Financial Analysis & Personal Finance'
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to get response');
+
+      const { answer, personality, catchphrase } = await response.json();
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant',
+        content: answer,
+        timestamp: new Date(),
+        personality: personality,
+        catchphrase: catchphrase
+      };
+
+      const updatedMessages = [...newMessages, aiMessage];
+      setMessages(updatedMessages);
+      setCurrentPersonality(personality);
+      setCurrentCatchphrase(catchphrase);
+
+      // Save conversation to database
+      await saveConversation(updatedMessages);
+
     } catch (error) {
+      console.error('Chat error:', error);
       toast.error('Failed to get AI response');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -147,8 +277,11 @@ const ChatBot = () => {
                   <MessageSquare size={20} />
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg">XspensesAI Assistant</h3>
+                  <h3 className="font-bold text-lg">{currentPersonality}</h3>
                   <p className="text-xs text-white/80">Your Financial AI Companion</p>
+                  {currentCatchphrase && (
+                    <p className="text-xs text-white/90 mt-1 font-medium">"{currentCatchphrase}"</p>
+                  )}
                 </div>
               </div>
               
