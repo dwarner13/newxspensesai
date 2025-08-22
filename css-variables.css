@@ -40,41 +40,6 @@
   --font-weight-heavy: 800;
 }
 
-/* Base Styles */
-body {
-  background: var(--bg-primary);
-  font-family: var(--font-family);
-  color: var(--text-primary);
-}
 
-/* Card Components */
-.chart-container,
-.stat-card,
-.feature-card {
-  background: var(--bg-card) !important;
-  backdrop-filter: var(--backdrop-blur);
-  border: var(--border-light);
-  border-radius: var(--border-radius);
-  padding: var(--card-padding);
-  color: var(--text-primary);
-  transition: var(--transition-default);
-}
 
-/* Sidebar */
-.sidebar {
-  width: var(--sidebar-width);
-  background: var(--bg-sidebar);
-  backdrop-filter: var(--backdrop-blur);
-  border-right: var(--border-light);
-}
-
-/* Navigation */
-.nav-item:hover {
-  background: rgba(139, 92, 246, 0.15);
-  transform: translateX(4px);
-}
-
-.nav-item.active {
-  background: rgba(139, 92, 246, 0.3);
-  border-left: 3px solid #8b5cf6;
-} 
+ 

@@ -1960,50 +1960,7 @@ input:focus, textarea:focus {
   background: #f7fafc;
 }
 
-/* Mobile Responsive */
-@media (max-width: 768px) {
-  .sidebar {
-    /* Keep sidebar visible on mobile */
-    transform: none;
-    transition: transform 0.3s ease;
-    z-index: 1000;
-  }
-  
-  .sidebar.mobile-open {
-    transform: translateX(0);
-  }
-  
-  .mobile-menu-toggle {
-    display: block !important;
-  }
-  
-  .main-content {
-    margin-left: 0;
-    height: 100vh;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-  
-  .page-content {
-    padding: 16px;
-  }
-  
-  .stats-container {
-    grid-template-columns: 1fr;
-  }
-  
-  .action-buttons-container {
-    flex-direction: column;
-  }
-}
-
-@media (min-width: 769px) {
-  .mobile-menu-toggle {
-    display: none !important;
-  }
-}
-
-/* Mobile Menu Toggle */
+/* Mobile Menu Toggle - Consolidated */
 .mobile-menu-toggle {
   position: fixed;
   top: 16px;
