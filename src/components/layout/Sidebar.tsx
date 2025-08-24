@@ -39,21 +39,13 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
   const location = useLocation();
   const user = useUser();
 
-  // NUCLEAR OPTION: NEVER show sidebar on marketing pages
-  if (location.pathname === '/' || 
-      location.pathname === '/features' ||
-      location.pathname === '/pricing' ||
-      location.pathname === '/ai-employees' ||
-      location.pathname === '/reviews' ||
-      location.pathname === '/contact' ||
-      location.pathname.startsWith('/features/')) {
-    return null; // Completely hide sidebar
+  // CORRECT LOGIC: Only show sidebar on dashboard routes
+  if (!location.pathname.startsWith('/dashboard')) {
+    return null; // Hide sidebar on ALL non-dashboard routes
   }
   
-  // Only show on dashboard routes
-  if (!location.pathname.startsWith('/dashboard')) {
-    return null;
-  }
+  // Show sidebar ONLY on dashboard routes
+  // Continue with sidebar rendering
 
   // Preserve sidebar scroll position on route change
   useEffect(() => {
