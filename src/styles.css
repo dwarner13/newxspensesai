@@ -7315,130 +7315,14 @@ body[data-route*="features"] nav.desktop-navigation {
   z-index: auto !important;
 }
 
-/* Fix FeaturesDropdown positioning */
-.features-dropdown {
-  position: absolute !important;
-  top: 100% !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  z-index: 50 !important;
-  width: 850px !important;
-  max-width: 90vw !important;
-  background: linear-gradient(135deg, #2a1946 0%, #1a2142 50%, #111827 100%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 24px !important;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  transition: all 0.3s ease !important;
-  margin-top: 12px !important;
-  pointer-events: none !important;
-}
+/* REMOVED CONFLICTING FEATURES DROPDOWN CSS - Using Tailwind classes instead */
 
-.features-dropdown.open {
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
+/* REMOVED AGGRESSIVE CSS RULES - Using component-level logic instead */
 
-/* Ensure parent container has relative positioning */
-.desktop-navigation > div.relative {
-  position: relative !important;
-}
-
-/* Prevent dropdown from appearing as sidebar */
-.features-dropdown {
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  position: absolute !important;
-  top: 100% !important;
-  width: 850px !important;
-  max-width: 90vw !important;
-}
-
-/* Force dropdown to be below navigation, not on the left */
-.features-dropdown:not(.open) {
-  display: none !important;
-}
-
-/* Ensure dropdown doesn't interfere with main content */
-.features-dropdown.open {
-  position: absolute !important;
-  top: 100% !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  z-index: 50 !important;
-}
-
-/* NUCLEAR OPTION: Hide ANY sidebar on feature pages */
-body[data-route*="features"] .sidebar,
-body[data-route*="features"] [class*="sidebar"],
-body[data-route*="features"] [class*="Sidebar"],
-body[data-route*="features"] aside,
-body[data-route*="features"] [class*="aside"],
-body[data-route*="features"] [class*="Aside"],
-body[data-route*="features"] .left-navigation,
-body[data-route*="features"] .left-nav,
-body[data-route*="features"] .left-menu,
-body[data-route*="features"] .features-dropdown,
-body[data-route*="features"] [data-features-dropdown] {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  width: 0 !important;
-  height: 0 !important;
-  position: absolute !important;
-  left: -9999px !important;
-  top: -9999px !important;
-  z-index: -9999 !important;
-}
-
-/* Force feature pages to use full width */
-body[data-route*="features"] {
-  padding-left: 0 !important;
-  margin-left: 0 !important;
-  width: 100% !important;
-}
-
-/* Ensure main content takes full width on feature pages */
-body[data-route*="features"] main,
-body[data-route*="features"] .main-content,
-body[data-route*="features"] [class*="main"] {
-  width: 100% !important;
-  margin-left: 0 !important;
-  padding-left: 0 !important;
-  max-width: none !important;
-}
-
-/* Hide any left navigation that might be appearing */
-.left-navigation,
-.left-nav,
-.left-menu,
-.features-dropdown:not(.open),
-[data-features-dropdown]:not(.open) {
-  display: none !important;
-}
-
-/* Force main navigation to be visible and functional */
-header nav,
-.desktop-navigation,
-nav.desktop-navigation {
-  display: flex !important;
-  flex-direction: row !important;
-  position: static !important;
-  width: auto !important;
-  height: auto !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  z-index: auto !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-/* NUCLEAR OPTION: Hide ANY sidebar on marketing pages */
 /* REMOVED AGGRESSIVE CSS RULES - Using component-level logic instead */
 
 /* REMOVED AGGRESSIVE CSS RULES - Using component-level logic instead */
 
 /* REMOVED AGGRESSIVE CSS RULES - Using component-level logic instead */
+
+/* REMOVED ALL AGGRESSIVE CSS RULES - Using component-level logic instead */
