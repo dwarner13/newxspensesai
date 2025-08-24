@@ -7326,3 +7326,47 @@ body[data-route*="features"] nav.desktop-navigation {
 /* REMOVED AGGRESSIVE CSS RULES - Using component-level logic instead */
 
 /* REMOVED ALL AGGRESSIVE CSS RULES - Using component-level logic instead */
+
+/* HIDE MOBILE NAVIGATION ON DESKTOP */
+@media (min-width: 768px) {
+  .mobile-submenu-trigger,
+  .mobile-menu,
+  .mobile-nav,
+  .mobile-navigation,
+  .mobile-menu-overlay,
+  .mobile-menu-content,
+  .mobile-menu-items,
+  .mobile-submenu,
+  .mobile-submenu-items,
+  .mobile-cta-section,
+  .mobile-login-btn,
+  .mobile-cta-btn,
+  [class*="mobile-"],
+  [class*="mobile"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+}
+
+/* ENSURE MOBILE NAV ONLY SHOWS ON MOBILE */
+@media (max-width: 767px) {
+  .mobile-submenu-trigger,
+  .mobile-menu,
+  .mobile-nav,
+  .mobile-navigation,
+  .mobile-menu-overlay,
+  .mobile-menu-content,
+  .mobile-menu-items,
+  .mobile-submenu,
+  .mobile-submenu-items,
+  .mobile-cta-section,
+  .mobile-login-btn,
+  .mobile-cta-btn {
+    display: block;
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

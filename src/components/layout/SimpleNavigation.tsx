@@ -16,8 +16,21 @@ import MobileFeaturesDropdown from './MobileFeaturesDropdown';
 export default function SimpleNavigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Check if device is mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Force close features dropdown on mount
   useEffect(() => {
@@ -190,82 +203,84 @@ export default function SimpleNavigation() {
       </div>
 
       {/* Mobile Menu Overlay - VISIBLE ONLY ON MOBILE */}
-      <div className={`mobile-menu-overlay ${isMobileMenuOpen ? 'open' : ''}`} ref={mobileMenuRef}>
-        <div className="mobile-menu-content">
-          <ul className="mobile-menu-items">
-            <li className="font-['Montserrat']">
-              <Link to="/" onClick={() => setIsMobileMenuOpen(false)}>
-                Home
-              </Link>
-            </li>
-            
-            <li className="mobile-submenu font-['Montserrat']">
-              <button 
-                className="mobile-submenu-trigger"
-                onClick={() => setIsFeaturesOpen(!isFeaturesOpen)}
-              >
-                Features {isFeaturesOpen ? '▾' : '▸'}
-              </button>
-              <ul className={`mobile-submenu-items ${isFeaturesOpen ? 'open' : ''}`}>
-                {mobileFeatures.map((feature) => (
-                  <li key={feature.name}>
-                    <Link 
-                      to={feature.path} 
-                      onClick={() => {
-                        setIsMobileMenuOpen(false);
-                        setIsFeaturesOpen(false);
-                      }}
-                    >
-                      {feature.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </li>
-            
-            <li className="font-['Montserrat']">
-              <Link to="/pricing" onClick={() => setIsMobileMenuOpen(false)}>
-                Pricing
-              </Link>
-            </li>
-            
-            <li className="font-['Montserrat']">
-              <Link to="/ai-employees" onClick={() => setIsMobileMenuOpen(false)}>
-                AI Employees
-              </Link>
-            </li>
-            
-            <li className="font-['Montserrat']">
-              <Link to="/reviews" onClick={() => setIsMobileMenuOpen(false)}>
-                Reviews
-              </Link>
-            </li>
-            
-            <li className="font-['Montserrat']">
-              <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)}>
-                Contact
-              </Link>
-            </li>
-            
-            <li className="mobile-cta-section">
-                             <Link 
+      {isMobile && (
+        <div className={`mobile-menu-overlay ${isMobileMenuOpen ? 'open' : ''}`} ref={mobileMenuRef}>
+          <div className="mobile-menu-content">
+            <ul className="mobile-menu-items">
+              <li className="font-['Montserrat']">
+                <Link to="/" onClick={() => setIsMobileMenuOpen(false)}>
+                  Home
+                </Link>
+              </li>
+              
+              <li className="mobile-submenu font-['Montserrat']">
+                <button 
+                  className="mobile-submenu-trigger"
+                  onClick={() => setIsFeaturesOpen(!isFeaturesOpen)}
+                >
+                  Features {isFeaturesOpen ? '▾' : '▸'}
+                </button>
+                <ul className={`mobile-submenu-items ${isFeaturesOpen ? 'open' : ''}`}>
+                  {mobileFeatures.map((feature) => (
+                    <li key={feature.name}>
+                      <Link 
+                        to={feature.path} 
+                        onClick={() => {
+                          setIsMobileMenuOpen(false);
+                          setIsFeaturesOpen(false);
+                        }}
+                      >
+                        {feature.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+              
+              <li className="font-['Montserrat']">
+                <Link to="/pricing" onClick={() => setIsMobileMenuOpen(false)}>
+                  Pricing
+                </Link>
+              </li>
+              
+              <li className="font-['Montserrat']">
+                <Link to="/ai-employees" onClick={() => setIsMobileMenuOpen(false)}>
+                  AI Employees
+                </Link>
+              </li>
+              
+              <li className="font-['Montserrat']">
+                <Link to="/reviews" onClick={() => setIsMobileMenuOpen(false)}>
+                  Reviews
+                </Link>
+              </li>
+              
+              <li className="font-['Montserrat']">
+                <Link to="/contact" onClick={() => setIsMobileMenuOpen(false)}>
+                  Contact
+                </Link>
+              </li>
+              
+              <li className="mobile-cta-section">
+                <Link 
                   to="/dashboard" 
                   className="mobile-login-btn"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Dashboard
                 </Link>
-               <Link 
-                 to="/signup" 
-                 className="mobile-cta-btn"
-                 onClick={() => setIsMobileMenuOpen(false)}
-               >
-                 Get Started
-               </Link>
-             </li>
-           </ul>
-         </div>
-       </div>
+                <Link 
+                  to="/signup" 
+                  className="mobile-cta-btn"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Get Started
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </div>
+      )}
 
 
      </header>
