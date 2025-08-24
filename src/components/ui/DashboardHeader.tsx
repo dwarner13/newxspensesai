@@ -110,12 +110,18 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
 
   return (
     <header className="mb-8 p-6 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2 rounded-2xl">
+      {/* Page Title and Subtitle - Hidden on mobile to prevent double title */}
+      <div className="hidden md:block mb-8">
+        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent mb-2">
+          {customTitle || pageTitles[location.pathname]?.title || 'Dashboard'}
+        </h1>
+        <p className="text-xl text-white/80">
+          {customSubtitle || pageTitles[location.pathname]?.subtitle || 'Your financial command center'}
+        </p>
+      </div>
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-4xl font-extrabold mb-2 bg-gradient-to-r from-purple-500 to-pink-500 bg-clip-text text-transparent">
-            {pageInfo.title}
-          </h1>
-          <p className="text-slate-400 text-lg">{pageInfo.subtitle}</p>
+        <div className="hidden md:block">
+          {/* Title removed to prevent duplication */}
         </div>
         <div className="hidden md:flex items-center gap-4">
           {/* Spotify Icon */}
@@ -133,12 +139,12 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
           <div className="relative" ref={profileRef}>
             <button 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200 group"
+              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200 group flex items-center gap-2"
             >
               <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-teal-500 rounded-full flex items-center justify-center">
                 <User className="w-5 h-5 text-white" />
               </div>
-              <ChevronDown className={`w-4 h-4 text-slate-300 ml-1 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {/* Profile Dropdown Menu */}

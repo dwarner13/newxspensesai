@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { 
   Tag, CheckCircle, X, RefreshCw, Filter, Download, 
-  TrendingUp, BarChart3, Settings, AlertCircle, Clock
+  TrendingUp, BarChart3, Settings, AlertCircle, Clock,
+  Utensils, Car, ShoppingBag, Film, Zap, Building2
 } from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
 
@@ -11,12 +12,12 @@ const AICategorizationPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const categories = [
-    { id: 'food', name: 'Food & Dining', color: 'from-green-500 to-emerald-600', icon: '🍽️' },
-    { id: 'transport', name: 'Transportation', color: 'from-blue-500 to-indigo-600', icon: '🚗' },
-    { id: 'shopping', name: 'Shopping', color: 'from-purple-500 to-pink-600', icon: '🛍️' },
-    { id: 'entertainment', name: 'Entertainment', color: 'from-orange-500 to-red-600', icon: '🎬' },
-    { id: 'utilities', name: 'Utilities', color: 'from-gray-500 to-gray-600', icon: '⚡' },
-    { id: 'health', name: 'Healthcare', color: 'from-red-500 to-pink-600', icon: '🏥' }
+    { id: 'food', name: 'Food & Dining', color: 'from-green-500 to-emerald-600', icon: <Utensils size={20} /> },
+    { id: 'transport', name: 'Transportation', color: 'from-blue-500 to-indigo-600', icon: <Car size={20} /> },
+    { id: 'shopping', name: 'Shopping', color: 'from-purple-500 to-pink-600', icon: <ShoppingBag size={20} /> },
+    { id: 'entertainment', name: 'Entertainment', color: 'from-orange-500 to-red-600', icon: <Film size={20} /> },
+    { id: 'utilities', name: 'Utilities', color: 'from-gray-500 to-gray-600', icon: <Zap size={20} /> },
+    { id: 'health', name: 'Healthcare', color: 'from-red-500 to-pink-600', icon: <Building2 size={20} /> }
   ];
 
   const transactions = [
@@ -43,6 +44,8 @@ const AICategorizationPage = () => {
       {/* Standardized Dashboard Header */}
       <DashboardHeader />
 
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto space-y-8">
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
@@ -220,6 +223,7 @@ const AICategorizationPage = () => {
             </div>
           </div>
         </div>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { DollarSign } from "lucide-react";
 import Sidebar from "./Sidebar";
 import MobileSidebar from "./MobileSidebar";
 import BottomNav from "./BottomNav";
@@ -43,7 +44,7 @@ export default function DashboardLayout() {
             {/* Logo and title */}
             <div className="flex items-center gap-3 flex-1">
               <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm font-bold">💰</span>
+                <DollarSign className="text-white text-sm font-bold" />
               </div>
               <span className="text-lg font-bold text-white">XspensesAI</span>
             </div>

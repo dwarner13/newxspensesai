@@ -7098,3 +7098,468 @@ html, body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Features Dropdown Styling */
+.features-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  width: 850px;
+  background: linear-gradient(135deg, #2a1946 0%, #1a2142 50%, #111827 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  margin-top: 12px;
+}
+
+.features-dropdown.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.features-dropdown::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid #2a1946;
+}
+
+.dropdown-cta-panel {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%);
+  padding: 24px;
+  border-radius: 20px 0 0 20px;
+}
+
+.dropdown-features-panel {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  padding: 24px;
+}
+
+.feature-category {
+  display: flex;
+  flex-direction: column;
+}
+
+.category-header {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #cbd5e1;
+  margin-bottom: 12px;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.feature-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  color: #e2e8f0;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.feature-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+}
+
+.feature-icon {
+  color: #06b6d4;
+  flex-shrink: 0;
+}
+
+.feature-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.new-badge {
+  background: rgba(6, 182, 212, 0.9);
+  color: #0f172a;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+  margin-left: auto;
+}
+
+.cta-content h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 12px;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.cta-content p {
+  color: #cbd5e1;
+  margin-bottom: 16px;
+  line-height: 1.6;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.cta-features {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.cta-features span {
+  color: #94a3b8;
+  font-size: 14px;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.cta-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  color: #0f172a;
+  padding: 12px 24px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.cta-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(6, 182, 212, 0.3);
+}
+
+/* Responsive Features Dropdown */
+@media (max-width: 1024px) {
+  .features-dropdown {
+    width: 90vw;
+    max-width: 600px;
+  }
+  
+  .dropdown-features-panel {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .features-dropdown {
+    width: 95vw;
+    left: 2.5vw;
+    transform: none;
+  }
+  
+  .dropdown-features-panel {
+    grid-template-columns: 1fr;
+  }
+  
+  .dropdown-cta-panel {
+    border-radius: 20px 20px 0 0;
+  }
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Fix for main navigation being incorrectly rendered as sidebar */
+.desktop-navigation {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  z-index: auto !important;
+}
+
+.desktop-navigation > div {
+  display: inline-block !important;
+  position: relative !important;
+}
+
+.desktop-navigation a,
+.desktop-navigation button {
+  display: inline-block !important;
+  position: relative !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 8px 16px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+/* Ensure navigation items are horizontal */
+nav.desktop-navigation {
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  overflow: visible !important;
+}
+
+/* Prevent any sidebar-like behavior on main navigation */
+header nav:not(.sidebar) {
+  display: flex !important;
+  flex-direction: row !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  z-index: auto !important;
+}
+
+/* Force horizontal navigation layout */
+header .desktop-navigation,
+header nav.desktop-navigation,
+header > nav {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  z-index: auto !important;
+  overflow: visible !important;
+}
+
+/* Ensure navigation items are horizontal */
+header .desktop-navigation > div,
+header nav.desktop-navigation > div,
+header > nav > div {
+  display: inline-block !important;
+  position: relative !important;
+  margin: 0 8px !important;
+}
+
+/* Fix navigation item styling */
+header .desktop-navigation a,
+header .desktop-navigation button,
+header nav.desktop-navigation a,
+header nav.desktop-navigation button,
+header > nav a,
+header > nav button {
+  display: inline-block !important;
+  position: relative !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 8px 16px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  text-decoration: none !important;
+  color: inherit !important;
+}
+
+/* Prevent any sidebar from appearing on feature pages */
+body:not(.dashboard-page) .sidebar,
+body:not(.dashboard-page) [class*="sidebar"],
+body:not(.dashboard-page) [class*="Sidebar"] {
+  display: none !important;
+}
+
+/* Ensure feature pages don't have sidebar layout */
+.features-page,
+[data-page="features"],
+body[data-route*="features"] {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* Force main content to take full width on feature pages */
+.features-page main,
+[data-page="features"] main,
+body[data-route*="features"] main {
+  width: 100% !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+}
+
+/* Hide any sidebar on feature pages */
+body[data-route*="features"] .sidebar,
+body[data-route*="features"] [class*="sidebar"],
+body[data-route*="features"] [class*="Sidebar"],
+body[data-route*="features"] aside,
+body[data-route*="features"] [class*="aside"],
+body[data-route*="features"] [class*="Aside"] {
+  display: none !important;
+}
+
+/* Force feature pages to use full width layout */
+body[data-route*="features"] {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* Ensure navigation is always horizontal on feature pages */
+body[data-route*="features"] header nav,
+body[data-route*="features"] .desktop-navigation,
+body[data-route*="features"] nav.desktop-navigation {
+  display: flex !important;
+  flex-direction: row !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  z-index: auto !important;
+}
+
+/* Fix FeaturesDropdown positioning */
+.features-dropdown {
+  position: absolute !important;
+  top: 100% !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 50 !important;
+  width: 850px !important;
+  max-width: 90vw !important;
+  background: linear-gradient(135deg, #2a1946 0%, #1a2142 50%, #111827 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 24px !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5) !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: all 0.3s ease !important;
+  margin-top: 12px !important;
+  pointer-events: none !important;
+}
+
+.features-dropdown.open {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+
+/* Ensure parent container has relative positioning */
+.desktop-navigation > div.relative {
+  position: relative !important;
+}
+
+/* Prevent dropdown from appearing as sidebar */
+.features-dropdown {
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  position: absolute !important;
+  top: 100% !important;
+  width: 850px !important;
+  max-width: 90vw !important;
+}
+
+/* Force dropdown to be below navigation, not on the left */
+.features-dropdown:not(.open) {
+  display: none !important;
+}
+
+/* Ensure dropdown doesn't interfere with main content */
+.features-dropdown.open {
+  position: absolute !important;
+  top: 100% !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 50 !important;
+}
+
+/* NUCLEAR OPTION: Hide ANY sidebar on feature pages */
+body[data-route*="features"] .sidebar,
+body[data-route*="features"] [class*="sidebar"],
+body[data-route*="features"] [class*="Sidebar"],
+body[data-route*="features"] aside,
+body[data-route*="features"] [class*="aside"],
+body[data-route*="features"] [class*="Aside"],
+body[data-route*="features"] .left-navigation,
+body[data-route*="features"] .left-nav,
+body[data-route*="features"] .left-menu,
+body[data-route*="features"] .features-dropdown,
+body[data-route*="features"] [data-features-dropdown] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  z-index: -9999 !important;
+}
+
+/* Force feature pages to use full width */
+body[data-route*="features"] {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+
+/* Ensure main content takes full width on feature pages */
+body[data-route*="features"] main,
+body[data-route*="features"] .main-content,
+body[data-route*="features"] [class*="main"] {
+  width: 100% !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  max-width: none !important;
+}
+
+/* Hide any left navigation that might be appearing */
+.left-navigation,
+.left-nav,
+.left-menu,
+.features-dropdown:not(.open),
+[data-features-dropdown]:not(.open) {
+  display: none !important;
+}
+
+/* Force main navigation to be visible and functional */
+header nav,
+.desktop-navigation,
+nav.desktop-navigation {
+  display: flex !important;
+  flex-direction: row !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  z-index: auto !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}

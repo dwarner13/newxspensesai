@@ -5,18 +5,25 @@ import {
   X, 
   ChevronDown,
   Home,
-  Bot
+  Bot,
+  DollarSign
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import FeaturesMegaMenu from '../nav/FeaturesMegaMenu';
+import FeaturesDropdown from './FeaturesDropdown';
+import MobileFeaturesDropdown from './MobileFeaturesDropdown';
 
 
-const SimpleNavigation = () => {
-  const location = useLocation();
+export default function SimpleNavigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [mobileFeaturesOpen, setMobileFeaturesOpen] = useState(false);
-  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const [isFeaturesOpen, setIsFeaturesOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  // Force close features dropdown on mount
+  useEffect(() => {
+    setIsFeaturesOpen(false);
+    console.log('Features dropdown forced closed on mount');
+  }, []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -29,7 +36,19 @@ const SimpleNavigation = () => {
         !menuButtonRef.current.contains(event.target as Node)
       ) {
         setIsMobileMenuOpen(false);
-        setMobileFeaturesOpen(false);
+        setIsFeaturesOpen(false);
+      }
+      
+      // Close features dropdown when clicking outside
+      if (isFeaturesOpen) {
+        const target = event.target as Node;
+        const featuresButton = document.querySelector('[data-features-button]');
+        const featuresDropdown = document.querySelector('[data-features-dropdown]');
+        
+        if (featuresButton && !featuresButton.contains(target) && 
+            featuresDropdown && !featuresDropdown.contains(target)) {
+          setIsFeaturesOpen(false);
+        }
       }
     };
 
@@ -37,12 +56,12 @@ const SimpleNavigation = () => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isMobileMenuOpen]);
+  }, [isMobileMenuOpen, isFeaturesOpen]);
 
   // Close mobile menu when location changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
-    setMobileFeaturesOpen(false);
+    setIsFeaturesOpen(false);
   }, [location.pathname]);
 
   // Lock body scroll when mobile menu is open
@@ -80,13 +99,10 @@ const SimpleNavigation = () => {
     { name: 'Personal Podcast', path: '/features/personal-podcast' },
     { name: 'Financial Wellness Studio', path: '/features/wellness-studio' },
     { name: 'Spotify Integration', path: '/features/spotify-integration' },
-    { name: 'Dashboard Player', path: '/dashboard/spotify-integration-new' },
     // BUSINESS
     { name: 'Business Intelligence', path: '/features/business-expense-intelligence' },
-    { name: 'Freelancer Assistant', path: '/features/freelancer-tax' },
-    { name: 'Tax Optimization', path: '/features/tax-optimization' },
-    { name: 'Compliance & Audit', path: '/features/compliance-audit' },
-    // TECHNICAL
+    { name: 'Freelancer Tax Assistant', path: '/features/freelancer-tax' },
+    { name: 'Smart Automation', path: '/features/smart-automation' },
     { name: 'Receipt Scanner', path: '/features/receipt-scanner' },
     { name: 'Document Upload', path: '/features/document-upload' },
     { name: 'API & Webhooks', path: '/features/api-webhooks' },
@@ -101,7 +117,7 @@ const SimpleNavigation = () => {
           <div className="flex items-center">
             <Link to="/" className="flex items-center">
               <div className="w-8 h-8 bg-cyan-500 rounded-md flex items-center justify-center mr-2 shadow-lg">
-                <span className="text-white text-lg">💰</span>
+                <DollarSign size={20} className="text-white" />
               </div>
               <span className="font-bold text-white text-xl font-['Montserrat']">XspensesAI</span>
             </Link>
@@ -112,7 +128,16 @@ const SimpleNavigation = () => {
             {navigationItems.map((item) => (
               <div key={item.name} className="relative">
                 {item.hasDropdown ? (
-                  <FeaturesMegaMenu />
+                  <div className="relative">
+                    <button
+                      data-features-button
+                      onClick={() => setIsFeaturesOpen(!isFeaturesOpen)}
+                      className="text-gray-200 hover:text-cyan-400 py-2 px-3 rounded-md text-sm font-medium transition-colors hover:bg-white/5 font-['Montserrat']"
+                    >
+                      {item.name}
+                    </button>
+                    <FeaturesDropdown open={isFeaturesOpen} onLinkClick={() => setIsFeaturesOpen(false)} />
+                  </div>
                 ) : (
                   <Link
                     to={item.path}
@@ -172,18 +197,18 @@ const SimpleNavigation = () => {
             <li className="mobile-submenu font-['Montserrat']">
               <button 
                 className="mobile-submenu-trigger"
-                onClick={() => setMobileFeaturesOpen(!mobileFeaturesOpen)}
+                onClick={() => setIsFeaturesOpen(!isFeaturesOpen)}
               >
-                Features {mobileFeaturesOpen ? '▾' : '▸'}
+                Features {isFeaturesOpen ? '▾' : '▸'}
               </button>
-              <ul className={`mobile-submenu-items ${mobileFeaturesOpen ? 'open' : ''}`}>
+              <ul className={`mobile-submenu-items ${isFeaturesOpen ? 'open' : ''}`}>
                 {mobileFeatures.map((feature) => (
                   <li key={feature.name}>
                     <Link 
                       to={feature.path} 
                       onClick={() => {
                         setIsMobileMenuOpen(false);
-                        setMobileFeaturesOpen(false);
+                        setIsFeaturesOpen(false);
                       }}
                     >
                       {feature.name}
@@ -219,27 +244,25 @@ const SimpleNavigation = () => {
             
             <li className="mobile-cta-section">
                              <Link 
-                 to="/dashboard" 
-                 className="mobile-login-btn"
+                  to="/dashboard" 
+                  className="mobile-login-btn"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  Dashboard
+                </Link>
+               <Link 
+                 to="/signup" 
+                 className="mobile-cta-btn"
                  onClick={() => setIsMobileMenuOpen(false)}
                >
-                 Dashboard
+                 Get Started
                </Link>
-              <Link 
-                to="/signup" 
-                className="mobile-cta-btn"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Get Started
-              </Link>
-            </li>
-          </ul>
-        </div>
-      </div>
+             </li>
+           </ul>
+         </div>
+       </div>
 
 
-    </header>
-  );
-};
-
-export default SimpleNavigation;
+     </header>
+   );
+ };
