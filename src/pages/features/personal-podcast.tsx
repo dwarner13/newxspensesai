@@ -1,7 +1,6 @@
 import React from 'react';
 import WebsiteLayout from '../../components/layout/WebsiteLayout';
 import { Helmet } from 'react-helmet-async';
-import { PersonalPodcastDashboard } from '../../components/podcast/PersonalPodcastDashboard';
 import { motion } from 'framer-motion';
 
 export default function PersonalPodcastFeaturePage() {
@@ -46,7 +45,14 @@ export default function PersonalPodcastFeaturePage() {
 
       {/* Interactive Podcast Player Demo */}
       <section id="podcast-demo" className="max-w-5xl mx-auto mb-20">
-        <PersonalPodcastDashboard />
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          <h3 className="text-2xl font-bold text-center mb-6 text-gray-900">Experience Your Personal AI Podcast</h3>
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 text-center">
+            <div className="text-6xl mb-4">🎙️</div>
+            <p className="text-lg text-gray-700 mb-4">Your AI-generated financial podcast will appear here after you sign up and connect your accounts.</p>
+            <p className="text-sm text-gray-600">Each episode is personalized based on your spending patterns, goals, and achievements.</p>
+          </div>
+        </div>
       </section>
 
       {/* What Makes It Special */}
