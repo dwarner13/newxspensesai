@@ -7563,3 +7563,60 @@ nav.desktop-navigation {
   visibility: visible !important;
   opacity: 1 !important;
 }
+
+/* NUCLEAR OPTION: Hide ANY sidebar on marketing pages */
+body:not([data-route*="dashboard"]) .sidebar,
+body:not([data-route*="dashboard"]) [class*="sidebar"],
+body:not([data-route*="dashboard"]) [class*="Sidebar"],
+body:not([data-route*="dashboard"]) aside,
+body:not([data-route*="dashboard"]) [class*="aside"],
+body:not([data-route*="dashboard"]) [class*="Aside"],
+body:not([data-route*="dashboard"]) .left-navigation,
+body:not([data-route*="dashboard"]) .left-nav,
+body:not([data-route*="dashboard"]) .left-menu,
+body:not([data-route*="dashboard"]) .features-dropdown:not(.open),
+body:not([data-route*="dashboard"]) [data-features-dropdown]:not(.open) {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  z-index: -9999 !important;
+  pointer-events: none !important;
+}
+
+/* Force marketing pages to use full width */
+body:not([data-route*="dashboard"]) {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+
+/* Ensure main content takes full width on marketing pages */
+body:not([data-route*="dashboard"]) main,
+body:not([data-route*="dashboard"]) .main-content,
+body:not([data-route*="dashboard"]) [class*="main"] {
+  width: 100% !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  max-width: none !important;
+}
+
+/* Hide any left navigation that might be appearing on marketing pages */
+body:not([data-route*="dashboard"]) .left-navigation,
+body:not([data-route*="dashboard"]) .left-nav,
+body:not([data-route*="dashboard"]) .left-menu {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  z-index: -9999 !important;
+  pointer-events: none !important;
+}
