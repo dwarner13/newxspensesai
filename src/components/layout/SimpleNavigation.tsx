@@ -6,7 +6,8 @@ import {
   ChevronDown,
   Home,
   Bot,
-  DollarSign
+  DollarSign,
+  User
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import FeaturesDropdown from './FeaturesDropdown';
@@ -276,6 +277,29 @@ export default function SimpleNavigation() {
                 >
                   Get Started
                 </Link>
+              </li>
+              
+              {/* Mobile Header Icons - Added to mobile nav menu */}
+              <li className="mobile-header-icons border-t border-white/20 pt-4 mt-4">
+                <div className="flex items-center justify-center gap-4">
+                  {/* Spotify Icon */}
+                  <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200 group">
+                    <svg 
+                      className="w-6 h-6 text-slate-300 group-hover:text-green-400 transition-colors duration-200" 
+                      viewBox="0 0 24 24" 
+                      fill="currentColor"
+                    >
+                      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-9.54-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 3.6-1.08 7.56-.6 10.68 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.24 12.6c.361.181.54.78.301 1.44zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+                    </svg>
+                  </button>
+                  
+                  {/* Profile Icon */}
+                  <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200 group">
+                    <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-teal-500 rounded-full flex items-center justify-center">
+                      <User className="w-4 h-4 text-white" />
+                    </div>
+                  </button>
+                </div>
               </li>
             </ul>
           </div>

@@ -7370,3 +7370,179 @@ body[data-route*="features"] nav.desktop-navigation {
     pointer-events: auto;
   }
 }
+
+/* RESTORE PROPER FEATURES DROPDOWN LAYOUT */
+.features-dropdown {
+  position: fixed !important;
+  top: 80px !important; /* Below main navbar */
+  left: 0 !important;
+  right: 0 !important;
+  width: 100vw !important;
+  max-width: 1200px !important;
+  margin: 0 auto !important;
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(139, 92, 246, 0.2) !important;
+  border-radius: 0 0 16px 16px !important;
+  z-index: 9999 !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* FIX DROPDOWN CONTENT LAYOUT */
+.features-dropdown-content {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr 1fr !important;
+  gap: 2rem !important;
+  padding: 2rem !important;
+  max-height: 70vh !important;
+  overflow-y: auto !important;
+}
+
+/* FIX FEATURE SECTIONS */
+.feature-section {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
+.feature-section h3 {
+  color: #8b5cf6 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.feature-item {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 12px !important;
+  padding: 12px !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+  text-decoration: none !important;
+  color: #e2e8f0 !important;
+}
+
+.feature-item:hover {
+  background: rgba(139, 92, 246, 0.1) !important;
+  color: #8b5cf6 !important;
+}
+
+.feature-icon {
+  width: 24px !important;
+  height: 24px !important;
+  color: #06b6d4 !important;
+  flex-shrink: 0 !important;
+}
+
+.feature-text {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+}
+
+.feature-name {
+  font-weight: 600 !important;
+  font-size: 14px !important;
+}
+
+.feature-description {
+  font-size: 12px !important;
+  opacity: 0.7 !important;
+  line-height: 1.4 !important;
+}
+
+.feature-badge {
+  background: #06b6d4 !important;
+  color: #0f172a !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+/* ENSURE DROPDOWN DOESN'T INTERFERE WITH PAGE CONTENT */
+.features-dropdown ~ * {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* MOBILE RESPONSIVE DROPDOWN */
+@media (max-width: 1024px) {
+  .features-dropdown-content {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 1.5rem !important;
+    padding: 1.5rem !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .features-dropdown {
+    top: 70px !important;
+  }
+  
+  .features-dropdown-content {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+    padding: 1rem !important;
+    max-height: 60vh !important;
+  }
+  
+  .feature-item {
+    padding: 8px !important;
+  }
+}
+
+/* DROPDOWN ANIMATION */
+.features-dropdown {
+  opacity: 0 !important;
+  transform: translateY(-10px) !important;
+  transition: all 0.3s ease !important;
+}
+
+.features-dropdown.open {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
+}
+
+/* Z-INDEX HIERARCHY */
+.main-navbar {
+  z-index: 10000 !important;
+}
+
+.features-dropdown {
+  z-index: 9999 !important;
+}
+
+.main-content {
+  z-index: 1 !important;
+}
+
+/* MOBILE HEADER ICONS MOVED TO NAV MENU - No CSS needed since component handles it */
+
+/* MOBILE HEADER ICONS IN NAV MENU */
+.mobile-header-icons {
+  border-top: 1px solid rgba(255, 255, 255, 0.2) !important;
+  padding-top: 1rem !important;
+  margin-top: 1rem !important;
+}
+
+.mobile-header-icons button {
+  padding: 0.75rem !important;
+  border-radius: 0.75rem !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  transition: all 0.2s ease !important;
+}
+
+.mobile-header-icons button:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  transform: scale(1.05) !important;
+}
+
+.mobile-header-icons .bg-gradient-to-br {
+  background: linear-gradient(to bottom right, #8b5cf6, #14b8a6) !important;
+}
