@@ -51,7 +51,7 @@ const FeaturesDropdown: React.FC<FeaturesDropdownProps> = ({ open, onLinkClick }
   return (
     <div 
       data-features-dropdown 
-      className={`absolute top-full left-0 z-50 w-[850px] max-w-[90vw] bg-gradient-to-br from-[#2a1946] via-[#1a2142] to-[#111827] border border-white/10 rounded-3xl shadow-2xl transition-all duration-300 mt-3 ${open ? 'block' : 'hidden'}`}
+      className={`fixed top-20 left-1/2 transform -translate-x-1/2 z-50 w-[850px] max-w-[90vw] bg-gradient-to-br from-[#2a1946] via-[#1a2142] to-[#111827] border border-white/10 rounded-3xl shadow-2xl transition-all duration-300 ${open ? 'block' : 'hidden'}`}
       style={{ display: open ? 'block' : 'none' }}
     >
       {/* Top border glow */}

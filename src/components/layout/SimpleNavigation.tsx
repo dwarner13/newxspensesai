@@ -22,8 +22,13 @@ export default function SimpleNavigation() {
   // Force close features dropdown on mount
   useEffect(() => {
     setIsFeaturesOpen(false);
-    console.log('Features dropdown forced closed on mount');
+    console.log('Features dropdown forced closed on mount, state:', isFeaturesOpen);
   }, []);
+
+  // Debug dropdown state changes
+  useEffect(() => {
+    console.log('Features dropdown state changed to:', isFeaturesOpen);
+  }, [isFeaturesOpen]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
