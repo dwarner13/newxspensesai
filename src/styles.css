@@ -7575,7 +7575,10 @@ body:not([data-route*="dashboard"]) .left-navigation,
 body:not([data-route*="dashboard"]) .left-nav,
 body:not([data-route*="dashboard"]) .left-menu,
 body:not([data-route*="dashboard"]) .features-dropdown:not(.open),
-body:not([data-route*="dashboard"]) [data-features-dropdown]:not(.open) {
+body:not([data-route*="dashboard"]) [data-features-dropdown]:not(.open),
+body:not([data-route*="dashboard"]) .dashboard-sidebar,
+body:not([data-route*="dashboard"]) .dashboard-nav,
+body:not([data-route*="dashboard"]) .dashboard-menu {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
@@ -7586,23 +7589,30 @@ body:not([data-route*="dashboard"]) [data-features-dropdown]:not(.open) {
   top: -9999px !important;
   z-index: -9999 !important;
   pointer-events: none !important;
+  transform: translateX(-100%) !important;
+  clip-path: inset(0 100% 0 0) !important;
 }
 
-/* Force marketing pages to use full width */
+/* Force marketing pages to use full width - MORE AGGRESSIVE */
 body:not([data-route*="dashboard"]) {
   padding-left: 0 !important;
   margin-left: 0 !important;
   width: 100% !important;
+  overflow-x: hidden !important;
 }
 
-/* Ensure main content takes full width on marketing pages */
+/* Ensure main content takes full width on marketing pages - MORE AGGRESSIVE */
 body:not([data-route*="dashboard"]) main,
 body:not([data-route*="dashboard"]) .main-content,
-body:not([data-route*="dashboard"]) [class*="main"] {
+body:not([data-route*="dashboard"]) [class*="main"],
+body:not([data-route*="dashboard"]) .content,
+body:not([data-route*="dashboard"]) [class*="content"] {
   width: 100% !important;
   margin-left: 0 !important;
   padding-left: 0 !important;
   max-width: none !important;
+  left: 0 !important;
+  position: relative !important;
 }
 
 /* Hide any left navigation that might be appearing on marketing pages */

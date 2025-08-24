@@ -1,11 +1,32 @@
-import React, { useEffect } from "react";
-import { X } from "lucide-react";
+import React, { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import { X } from 'lucide-react';
 
-export default function MobileSidebar({
-  open,
-  onClose,
-  children,
-}: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+interface MobileSidebarProps {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+export default function MobileSidebar({ open, onClose, children }: MobileSidebarProps) {
+  const location = useLocation();
+
+  // NUCLEAR OPTION: NEVER show sidebar on marketing pages
+  if (location.pathname === '/' || 
+      location.pathname === '/features' ||
+      location.pathname === '/pricing' ||
+      location.pathname === '/ai-employees' ||
+      location.pathname === '/reviews' ||
+      location.pathname === '/contact' ||
+      location.pathname.startsWith('/features/')) {
+    return null; // Completely hide sidebar
+  }
+  
+  // Only show on dashboard routes
+  if (!location.pathname.startsWith('/dashboard')) {
+    return null;
+  }
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -50,7 +71,7 @@ export default function MobileSidebar({
             onClick={onClose}
             className="rounded-xl p-3 hover:bg-white/10 transition-colors duration-200 text-white/70 hover:text-white"
           >
-            <X className="h-6 w-6" />
+            <X className="h-5 w-5" />
           </button>
         </div>
         
