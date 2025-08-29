@@ -2305,30 +2305,52 @@ input:focus, textarea:focus {
   .mobile-menu-scroll::-webkit-scrollbar {
     display: none;
   }
+  
+  /* Simple mobile performance optimizations */
+@media (max-width: 768px) {
+  .mobile-menu-overlay {
+    touch-action: pan-y pinch-zoom;
+  }
+  
+  .mobile-menu-content {
+    -webkit-overflow-scrolling: touch;
+  }
+}
 }
 
-/* Mobile menu animations */
-.mobile-menu-enter {
-  opacity: 0;
-  transform: translateX(100%);
+/* Mobile menu styles moved to separate file to prevent conflicts */
+
+/* Mobile menu items moved to separate file */
+
+/* Mobile Menu Enhancements */
+@media (max-width: 768px) {
+  .mobile-menu-overlay {
+    backdrop-filter: blur(8px);
+  }
+  
+  .mobile-menu-content {
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
+  }
+  
+  /* Ensure touch targets are large enough */
+  .mobile-nav-link {
+    min-height: 44px;
+    padding: 12px 16px;
+  }
+  
+  /* Smooth scrolling for mobile menu */
+  .mobile-menu-scroll {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .mobile-menu-scroll::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-.mobile-menu-enter-active {
-  opacity: 1;
-  transform: translateX(0%);
-  transition: opacity 300ms, transform 300ms;
-}
-
-.mobile-menu-exit {
-  opacity: 1;
-  transform: translateX(0%);
-}
-
-.mobile-menu-exit-active {
-  opacity: 0;
-  transform: translateX(100%);
-  transition: opacity 300ms, transform 300ms;
-}
+/* Mobile menu animations - removed to prevent conflicts */
 
 /* Glassmorphism effects for mobile menu */
 .glass-effect-mobile {
@@ -2337,17 +2359,26 @@ input:focus, textarea:focus {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* Mobile menu button animations */
-.mobile-menu-button {
-  transition: all 0.3s ease;
+/* Mobile menu button animations - removed to prevent conflicts */
+
+/* Hamburger menu button animation - simplified */
+.mobile-menu-toggle {
+  transition: background-color 0.2s ease;
 }
 
-.mobile-menu-button:hover {
-  transform: scale(1.05);
+.mobile-menu-toggle:hover {
+  background-color: rgba(255, 255, 255, 0.15);
 }
 
-.mobile-menu-button:active {
-  transform: scale(0.95);
+/* Mobile submenu animations - simplified */
+.mobile-submenu-items {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease;
+}
+
+.mobile-submenu-items.open {
+  max-height: 200px;
 } 
 
 /* Camera Receipt Scanner Styles */
@@ -7557,26 +7588,7 @@ body[data-route*="features"] nav.desktop-navigation {
   }
 }
 
-/* ENSURE MOBILE NAV ONLY SHOWS ON MOBILE */
-@media (max-width: 767px) {
-  .mobile-submenu-trigger,
-  .mobile-menu,
-  .mobile-nav,
-  .mobile-navigation,
-  .mobile-menu-overlay,
-  .mobile-menu-content,
-  .mobile-menu-items,
-  .mobile-submenu,
-  .mobile-submenu-items,
-  .mobile-cta-section,
-  .mobile-login-btn,
-  .mobile-cta-btn {
-    display: block;
-    visibility: visible;
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
+/* All mobile menu styles moved to separate file */
 
 /* RESTORE PROPER FEATURES DROPDOWN LAYOUT */
 .features-dropdown {

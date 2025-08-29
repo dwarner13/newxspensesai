@@ -4,9 +4,9 @@ import { useAtom } from 'jotai';
 import { isMobileMenuOpenAtom, isDarkModeAtom } from '../../lib/uiStore';
 import Header from './Header';
 import Footer from './Footer';
-import MobileMenu from './MobileMenu';
+
 import SimpleNavigation from './SimpleNavigation';
-import { X } from 'lucide-react';
+
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -98,41 +98,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
         {!isDashboardPage && <Footer />}
       </div>
       
-      {/* Full-Screen Mobile Menu Overlay */}
-      {isMobile && isMobileMenuOpen && (
-        <div 
-          className="fixed inset-0 z-50 bg-black bg-opacity-50 backdrop-blur-sm"
-          onClick={() => setIsMobileMenuOpen(false)}
-        >
-          <div 
-            className="fixed inset-0 bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Mobile Menu Header */}
-            <div className="flex items-center justify-between p-6 border-b border-white/20">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                  <span className="text-white text-xl">💰</span>
-                </div>
-                <div>
-                  <h2 className="text-white font-bold text-lg">XspensesAI</h2>
-                  <p className="text-white/80 text-xs">Financial Management</p>
-                </div>
-              </div>
-              <button 
-                className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-                onClick={() => setIsMobileMenuOpen(false)}
-                aria-label="Close mobile menu"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            {/* Mobile Menu Content */}
-            <MobileMenu />
-          </div>
-        </div>
-      )}
+      {/* Mobile menu is handled by SimpleNavigation component */}
     </div>
   );
 };

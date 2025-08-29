@@ -37,9 +37,10 @@ export default defineConfig({
     port: 3000,
     open: true,
     host: 'localhost',
-    hmr: {
-      overlay: false,
-      port: 3000,
+    hmr: false, // Completely disable HMR to stop all updates
+    watch: {
+      usePolling: false,
+      interval: 5000, // Increase to 5 seconds
     },
   },
   preview: {

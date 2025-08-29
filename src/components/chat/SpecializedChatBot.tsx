@@ -74,13 +74,13 @@ const TeamConsultationDisplay = ({ consultations }: { consultations: any[] }) =>
   </motion.div>
 );
 
-const SpecializedChatBot = ({ 
-  name, 
-  expertise, 
-  avatar, 
-  welcomeMessage, 
-  color = "primary" 
-}: SpecializedChatBotProps) => {
+const SpecializedChatBot: React.FC<SpecializedChatBotProps> = ({
+  name,
+  expertise,
+  avatar,
+  welcomeMessage,
+  color = "indigo"
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -107,10 +107,19 @@ const SpecializedChatBot = ({
   // Load conversation history from enhanced backend
   const loadConversationHistory = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        addWelcomeMessage();
-        return;
+      // In development mode, use fake user; in production, get from Supabase
+      let user;
+      if (import.meta.env.DEV) {
+        // Development mode - use fake user with valid UUID format
+        user = { id: '00000000-0000-0000-0000-000000000000', email: 'dev@example.com' };
+      } else {
+        // Production mode - get from Supabase
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+        if (!supabaseUser) {
+          addWelcomeMessage();
+          return;
+        }
+        user = supabaseUser;
       }
 
       setIsLoadingHistory(true);
@@ -267,8 +276,17 @@ const SpecializedChatBot = ({
     setIsLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      // In development mode, use fake user; in production, get from Supabase
+      let user;
+      if (import.meta.env.DEV) {
+        // Development mode - use fake user with valid UUID format
+        user = { id: '00000000-0000-0000-0000-000000000000', email: 'dev@example.com' };
+      } else {
+        // Production mode - get from Supabase
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+        if (!supabaseUser) throw new Error('User not authenticated');
+        user = supabaseUser;
+      }
 
       const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
         method: 'POST',
@@ -276,13 +294,15 @@ const SpecializedChatBot = ({
           'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
           'Content-Type': 'application/json',
           'x-user-id': user.id,
+          'x-openai-key': import.meta.env.VITE_OPENAI_API_KEY,
         },
         body: JSON.stringify({ 
           question: input.trim(),
           botName: name,
           expertise: expertise,
           conversationId: conversationId, // Include conversation ID for continuity
-          includeFinancialData: includeFinancialData // Include financial data option
+          includeFinancialData: includeFinancialData, // Include financial data option
+          userId: user.id // Include user ID for personalization
         }),
       });
 
@@ -351,111 +371,74 @@ const SpecializedChatBot = ({
 
   return (
     <>
-      {/* Enhanced Chatbot Toggle Button */}
-      <div className="fixed bottom-6 right-6 z-40">
-        {/* Glowing background effect */}
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 rounded-full blur-xl opacity-30 animate-pulse"></div>
-        
-        {/* Main button with enhanced styling */}
-        <motion.button
+      {/* Floating Chat Button */}
+      {!isOpen && (
+        <button
           onClick={() => setIsOpen(true)}
-          className={`relative w-16 h-16 text-white rounded-full shadow-2xl hover:shadow-purple-500/50 transition-all duration-300 flex items-center justify-center group ${getColorClasses()}`}
-          whileHover={{ 
-            scale: 1.1,
-            rotate: 5
-          }}
-          whileTap={{ scale: 0.95 }}
-          animate={{
-            boxShadow: [
-              "0 0 20px rgba(147, 51, 234, 0.5)",
-              "0 0 40px rgba(147, 51, 234, 0.8)",
-              "0 0 20px rgba(147, 51, 234, 0.5)"
-            ]
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
+          className="fixed bottom-20 sm:bottom-6 right-6 z-50 p-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110"
+          style={{ zIndex: 1000 }}
         >
-          {/* Sparkles icon */}
-          <div className="absolute -top-2 -right-2 text-yellow-400 animate-bounce">
-            <Sparkles size={12} />
-          </div>
-          
-          {/* Main icon */}
-          <MessageSquare size={24} className="group-hover:scale-110 transition-transform duration-200" />
-          
-          {/* Pulse ring effect */}
-          <div className="absolute inset-0 border-2 border-white/30 rounded-full animate-ping opacity-75"></div>
-        </motion.button>
-        
-        {/* Floating label */}
-        <div className="absolute -left-4 top-full mt-3 bg-white text-gray-800 px-3 py-1 rounded-lg shadow-lg text-sm font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          {name}
-          <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-white rotate-45"></div>
-        </div>
-      </div>
+          <div className="text-2xl">{avatar}</div>
+        </button>
+      )}
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.8 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.8 }}
-            className="fixed bottom-6 right-6 w-96 bg-white rounded-2xl shadow-2xl overflow-hidden z-50 border border-purple-200"
-            style={{
-              boxShadow: "0 25px 50px -12px rgba(147, 51, 234, 0.25), 0 0 0 1px rgba(147, 51, 234, 0.1)"
-            }}
-          >
-            {/* Enhanced Header with Personality Info */}
-            <div className={`${getColorClasses()} text-white px-4 py-3 flex justify-between items-center relative overflow-hidden`}>
-              {/* Background pattern */}
-              <div className="absolute inset-0 opacity-10">
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/20 to-transparent"></div>
-              </div>
-              
-              <div className="flex items-center gap-3 relative z-10">
-                <span className="text-2xl">{avatar}</span>
-                <div>
-                  <h3 className="font-semibold text-lg">{name}</h3>
-                  <p className="text-xs opacity-80">{expertise}</p>
-                  {currentCatchphrase && (
-                    <p className="text-xs opacity-90 mt-1 font-medium">"{currentCatchphrase}"</p>
-                  )}
+      {/* Chat Interface */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" style={{ zIndex: 1000 }}>
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+            onClick={() => setIsOpen(false)}
+          />
+          
+          {/* Chat Window */}
+          <div className="relative w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl h-[450px] sm:h-[550px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-4 rounded-t-2xl flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="text-2xl">{avatar}</div>
+                  <div>
+                    <h3 className="font-semibold text-lg">{name}</h3>
+                    <p className="text-indigo-100 text-sm">{expertise}</p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  className="text-white/80 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-white/80 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg relative z-10"
-              >
-                <X size={20} />
-              </button>
             </div>
 
-            {/* Chat Controls */}
-            <div className="chat-controls">
-              <label className="financial-toggle">
-                <input
-                  type="checkbox"
-                  checked={includeFinancialData}
-                  onChange={(e) => setIncludeFinancialData(e.target.checked)}
-                />
-                <span>📊 Financial insights</span>
-              </label>
-              
-              <button 
-                className="team-consultation-btn"
-                onClick={() => requestTeamConsultation(lastUserMessage)}
-                disabled={isRequestingTeam || !lastUserMessage}
-              >
-                {isRequestingTeam ? '🤝 Consulting team...' : '🤝 Ask the team'}
-              </button>
+            {/* Options */}
+            <div className="p-4 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center space-x-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={includeFinancialData}
+                    onChange={(e) => setIncludeFinancialData(e.target.checked)}
+                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span>Financial insights</span>
+                </label>
+                <button
+                  onClick={() => requestTeamConsultation(lastUserMessage)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm rounded-lg hover:shadow-lg transition-all duration-200 hover:scale-105"
+                  disabled={isRequestingTeam || !lastUserMessage}
+                >
+                  {isRequestingTeam ? '🤝 Consulting team...' : '🤝 Ask the team'}
+                </button>
+              </div>
             </div>
 
             {/* Conversation Context Indicator */}
             {conversationContext && (
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-b border-purple-200 px-4 py-2">
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-b border-purple-200 px-4 py-2 flex-shrink-0">
                 <div className="flex items-center gap-2 text-xs text-purple-700">
                   <MessageCircle size={14} />
                   <span className="font-medium">{conversationContext}</span>
@@ -465,7 +448,7 @@ const SpecializedChatBot = ({
 
             {/* User Preferences Display */}
             {userPreferences && userPreferences.interaction_count > 0 && (
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-200 px-4 py-2">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-200 px-4 py-2 flex-shrink-0">
                 <div className="flex items-center justify-between text-xs text-green-700">
                   <div className="flex items-center gap-2">
                     <Clock size={14} />
@@ -480,7 +463,7 @@ const SpecializedChatBot = ({
 
             {/* Loading History Indicator */}
             {isLoadingHistory && (
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 px-4 py-2">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200 px-4 py-2 flex-shrink-0">
                 <div className="flex items-center gap-2 text-xs text-blue-700">
                   <div className="flex space-x-1">
                     <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
@@ -493,7 +476,7 @@ const SpecializedChatBot = ({
             )}
 
             {/* Enhanced Messages */}
-            <div className="h-96 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-gray-50 to-white">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-gray-50 to-white min-h-0">
               {messages.map((message) => (
                 <motion.div
                   key={message.id}
@@ -505,10 +488,11 @@ const SpecializedChatBot = ({
                     className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ${
                       message.type === 'user'
                         ? `${getColorClasses()} text-white`
-                        : 'bg-white text-gray-800 border border-gray-200 shadow-md'
+                        : 'bg-white border-2 border-gray-500 shadow-2xl'
                     }`}
+                    style={message.type === 'assistant' ? { color: '#000000' } : {}}
                   >
-                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    <p className="text-sm leading-relaxed font-bold" style={message.type === 'assistant' ? { color: '#000000' } : {}}>{message.content}</p>
                     
                     {/* Add financial insights for AI messages */}
                     {message.type === 'assistant' && message.financialInsights && (
@@ -523,7 +507,7 @@ const SpecializedChatBot = ({
                       <TeamConsultationDisplay consultations={message.consultations} />
                     )}
                     
-                    <p className="text-xs opacity-70 mt-2">
+                    <p className="text-xs text-gray-900 mt-2 font-bold">
                       {message.timestamp.toLocaleTimeString()}
                     </p>
                   </div>
@@ -535,14 +519,14 @@ const SpecializedChatBot = ({
                   animate={{ opacity: 1 }}
                   className="flex justify-start"
                 >
-                  <div className="bg-white text-gray-800 border border-gray-200 px-4 py-3 rounded-2xl shadow-md">
+                  <div className="bg-white text-black border-2 border-gray-400 px-4 py-3 rounded-2xl shadow-xl">
                     <div className="flex items-center space-x-3">
                       <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
-                      <span className="text-sm text-gray-600">{name} is thinking...</span>
+                      <span className="text-sm text-gray-800 font-bold">{name} is thinking...</span>
                     </div>
                   </div>
                 </motion.div>
@@ -551,7 +535,7 @@ const SpecializedChatBot = ({
             </div>
 
             {/* Enhanced Input Form */}
-            <form onSubmit={handleSubmit} className="border-t border-gray-200 p-4 bg-white">
+            <form onSubmit={handleSubmit} className="border-t border-gray-200 p-4 bg-white flex-shrink-0">
               <div className="flex space-x-3">
                 <textarea
                   ref={inputRef}
@@ -574,9 +558,9 @@ const SpecializedChatBot = ({
                 </motion.button>
               </div>
             </form>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
 
       {/* Add CSS for new components */}
       <style jsx>{`
@@ -652,7 +636,8 @@ const SpecializedChatBot = ({
           align-items: flex-start;
           gap: 8px;
           font-size: 13px;
-          color: #64748b;
+          color: #000000 !important;
+          font-weight: 700 !important;
         }
 
         .team-consultation {
@@ -708,6 +693,32 @@ const SpecializedChatBot = ({
           color: #6b7280;
           margin: 0;
           line-height: 1.4;
+        }
+        
+        /* Force dark text for all AI messages */
+        .financial-insights-card * {
+          color: #000000 !important;
+        }
+        
+        .financial-insights-card .insight-item {
+          color: #000000 !important;
+          font-weight: 700 !important;
+        }
+        
+        .financial-insights-card .insight-text {
+          color: #000000 !important;
+          font-weight: 700 !important;
+        }
+        
+        /* Additional specificity to override any remaining conflicts */
+        .financial-insights-card .insight-item span {
+          color: #000000 !important;
+          font-weight: 700 !important;
+        }
+        
+        .financial-insights-card .insight-bullet {
+          color: #000000 !important;
+          font-weight: 700 !important;
         }
       `}</style>
     </>

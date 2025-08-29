@@ -606,7 +606,7 @@ const AIFinancialAssistantPage = () => {
             name="AIFinancialAssistantBot"
             expertise="General financial guidance, analysis, answering money questions"
             avatar="🤖"
-            welcomeMessage="Hi! I'm AIFinancialAssistantBot, your comprehensive financial advisor. I can help you with financial analysis, investment advice, debt management, budgeting strategies, and answering any money-related questions. What financial topic would you like to discuss today?"
+            welcomeMessage="Hey there! 👋 I'm your AI Financial Assistant. I can help you with money questions, budgeting, investing, and more. What would you like to know about your finances today?"
             color="indigo"
           />
         </div>

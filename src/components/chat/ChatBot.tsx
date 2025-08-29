@@ -466,7 +466,7 @@ const ChatBot = () => {
             )}
 
             {/* Enhanced Messages */}
-            <div className="h-[500px] overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-gray-50 to-white">
+            <div className="h-[500px] overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-slate-50 via-blue-50/30 to-white">
               {messages.map((message) => (
                 <motion.div
                   key={message.id}
@@ -475,13 +475,13 @@ const ChatBot = () => {
                   className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-xs px-4 py-3 rounded-2xl shadow-sm ${
+                    className={`max-w-xs px-4 py-3 rounded-2xl shadow-lg ${
                       message.type === 'user'
-                        ? 'bg-gradient-to-r from-purple-500 to-blue-600 text-white'
-                        : 'bg-white text-gray-800 border border-gray-200 shadow-md'
+                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-blue-500/25'
+                        : 'bg-white text-gray-800 border border-gray-100 shadow-xl shadow-gray-200/50'
                     }`}
                   >
-                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    <p className="text-sm leading-relaxed font-medium">{message.content}</p>
                     
                     {/* Add financial insights for AI messages */}
                     {message.type === 'assistant' && message.financialInsights && (
@@ -496,7 +496,7 @@ const ChatBot = () => {
                       <TeamConsultationDisplay consultations={message.consultations} />
                     )}
                     
-                    <p className="text-xs opacity-70 mt-2">
+                    <p className="text-xs text-gray-500 mt-2 font-medium">
                       {message.timestamp.toLocaleTimeString()}
                     </p>
                   </div>
@@ -508,14 +508,14 @@ const ChatBot = () => {
                   animate={{ opacity: 1 }}
                   className="flex justify-start"
                 >
-                  <div className="bg-white text-gray-800 border border-gray-200 px-4 py-3 rounded-2xl shadow-md">
+                  <div className="bg-white text-gray-800 border border-gray-100 px-4 py-3 rounded-2xl shadow-xl shadow-gray-200/50">
                     <div className="flex items-center space-x-3">
                       <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
-                      <span className="text-sm text-gray-600">AI is thinking...</span>
+                      <span className="text-sm text-gray-700 font-medium">AI is thinking...</span>
                     </div>
                   </div>
                 </motion.div>

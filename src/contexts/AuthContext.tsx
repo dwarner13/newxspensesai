@@ -26,17 +26,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     console.log('🔍 AuthContext: Starting authentication check...');
 
-    // Check if Supabase is available (production mode)
+    // Simple check - if Supabase is available, use it; otherwise, set a fake user
     if (supabase) {
       console.log('🔍 AuthContext: Supabase available, checking authentication...');
       
-      // Set a timeout to prevent hanging
-      const authTimeout = setTimeout(() => {
-        console.log('⚠️ AuthContext: Authentication check timeout, setting loading to false');
-        setLoading(false);
-        setInitialLoad(false);
-      }, 3000);
-
       // Check initial session
       const checkSession = async () => {
         try {
@@ -57,7 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('❌ AuthContext: Unexpected error during session check:', error);
           setUser(null);
         } finally {
-          clearTimeout(authTimeout);
           setLoading(false);
           setInitialLoad(false);
         }
@@ -69,8 +61,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         async (event: string, session: any) => {
           console.log('🔍 AuthContext: Auth state change:', event, session?.user?.email);
-          
-          clearTimeout(authTimeout);
           
           switch (event) {
             case 'SIGNED_IN':
@@ -107,29 +97,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Cleanup function
       return () => {
         console.log('🔍 AuthContext: Cleaning up auth context...');
-        clearTimeout(authTimeout);
         subscription?.unsubscribe();
       };
     } else {
-      // Development mode - no Supabase
-      console.log('⚡ Dev mode: skipping Supabase and auth');
-      
-      // Set a fake user for development
-      const fakeUser = {
-        id: 'dev-user',
-        email: 'dev@example.com',
-        name: 'Developer'
-      };
+              // Supabase not ready, set a fake user for now
+        console.log('⚡ Dev mode: Setting fake user while waiting for Supabase...');
+        const fakeUser = {
+          id: '00000000-0000-0000-0000-000000000000',
+          email: 'dev@example.com',
+          name: 'Developer'
+        };
       
       setUser(fakeUser);
       setLoading(false);
       setInitialLoad(false);
-      
-      return () => {
-        console.log('🔍 AuthContext: Development mode cleanup');
-      };
     }
-  }, [navigate]);
+  }, [navigate, supabase]);
 
   const signInWithGoogle = async () => {
     try {
