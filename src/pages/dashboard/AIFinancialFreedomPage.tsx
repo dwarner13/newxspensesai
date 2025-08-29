@@ -1,206 +1,279 @@
-import React, { useState } from 'react';
-import { 
-  Crown, Target, TrendingUp, DollarSign, Calendar, 
-  CheckCircle, AlertCircle, Zap, BarChart3, Settings
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Crown, TrendingUp, Target, Zap, Star, CheckCircle, Clock, DollarSign } from 'lucide-react';
+import DashboardHeader from '../../components/ui/DashboardHeader';
+
+interface FreedomMilestone {
+  id: string;
+  title: string;
+  description: string;
+  targetDate: string;
+  status: 'pending' | 'in-progress' | 'completed';
+  priority: 'low' | 'medium' | 'high';
+}
+
+interface FreedomPath {
+  id: string;
+  name: string;
+  description: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  estimatedTime: string;
+  rewards: string[];
+}
 
 const AIFinancialFreedomPage = () => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [selectedMilestone, setSelectedMilestone] = useState<string | null>(null);
+  const [showPathBuilder, setShowPathBuilder] = useState(false);
 
-  const freedomSteps = [
+  // Ensure page starts at the top
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  const freedomMilestones: FreedomMilestone[] = [
     {
-      id: 1,
-      title: 'Financial Assessment',
-      description: 'Complete AI-powered analysis of your current financial situation',
-      icon: '📊',
-      status: 'completed'
+      id: '1',
+      title: 'Debt Freedom',
+      description: 'Eliminate all high-interest debt',
+      targetDate: '2024-12-31',
+      status: 'in-progress',
+      priority: 'high'
     },
     {
-      id: 2,
-      title: 'Goal Setting',
-      description: 'Define your financial freedom milestones and timeline',
-      icon: '🎯',
-      status: 'active'
+      id: '2',
+      title: 'Emergency Fund',
+      description: 'Build 6-month emergency fund',
+      targetDate: '2024-08-15',
+      status: 'completed',
+      priority: 'high'
     },
     {
-      id: 3,
-      title: 'Strategy Creation',
-      description: 'AI generates personalized strategies for achieving freedom',
-      icon: '🧠',
-      status: 'pending'
-    },
-    {
-      id: 4,
-      title: 'Implementation',
-      description: 'Execute your financial freedom plan with AI guidance',
-      icon: '⚡',
-      status: 'pending'
-    },
-    {
-      id: 5,
-      title: 'Monitoring',
-      description: 'Track progress and adjust strategies as needed',
-      icon: '📈',
-      status: 'pending'
+      id: '3',
+      title: 'Investment Portfolio',
+      description: 'Start building wealth through investments',
+      targetDate: '2025-06-30',
+      status: 'pending',
+      priority: 'medium'
     }
   ];
 
-  const financialMetrics = [
-    { name: 'Current Net Worth', value: '$45,230', change: '+12.5%', trend: 'up' },
-    { name: 'Monthly Savings Rate', value: '23%', change: '+5.2%', trend: 'up' },
-    { name: 'Debt-to-Income Ratio', value: '28%', change: '-3.1%', trend: 'down' },
-    { name: 'Emergency Fund', value: '6.2 months', change: '+1.1 months', trend: 'up' }
+  const freedomPaths: FreedomPath[] = [
+    {
+      id: '1',
+      name: 'Debt Avalanche',
+      description: 'Pay off debts from highest to lowest interest rate',
+      difficulty: 'intermediate',
+      estimatedTime: '2-5 years',
+      rewards: ['Lower interest payments', 'Faster debt elimination', 'Improved credit score']
+    },
+    {
+      id: '2',
+      name: 'FIRE Movement',
+      description: 'Financial Independence, Retire Early strategy',
+      difficulty: 'advanced',
+      estimatedTime: '10-20 years',
+      rewards: ['Early retirement', 'Complete financial freedom', 'Lifestyle flexibility']
+    },
+    {
+      id: '3',
+      name: 'Passive Income',
+      description: 'Build multiple income streams',
+      difficulty: 'intermediate',
+      estimatedTime: '3-7 years',
+      rewards: ['Recurring income', 'Reduced work dependency', 'Financial security']
+    }
   ];
 
-  const handleStartAssessment = async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setCurrentStep(2);
-    } catch (err) {
-      setError('Failed to start financial assessment. Please try again.');
-    } finally {
-      setIsLoading(false);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'text-green-400 bg-green-500/20';
+      case 'in-progress': return 'text-blue-400 bg-blue-500/20';
+      default: return 'text-yellow-400 bg-yellow-500/20';
     }
   };
 
-  if (error) {
-    return (
-      <>
-        <header className="p-6">
-          <h1 className="text-3xl font-bold">AI Financial Freedom</h1>
-        </header>
-        <div className="flex-1 px-10 py-12">
-          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center">
-            <AlertCircle size={48} className="text-red-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-red-400 mb-2">Error</h2>
-            <p className="text-white/80 mb-4">{error}</p>
-            <button 
-              onClick={() => setError(null)}
-              className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-            >
-              Try Again
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  }
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high': return 'text-red-400';
+      case 'medium': return 'text-yellow-400';
+      default: return 'text-green-400';
+    }
+  };
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty) {
+      case 'beginner': return 'text-green-400 bg-green-500/20';
+      case 'intermediate': return 'text-yellow-400 bg-yellow-500/20';
+      case 'advanced': return 'text-red-400 bg-red-500/20';
+      default: return 'text-gray-400 bg-gray-500/20';
+    }
+  };
 
   return (
-    <>
-      <header className="p-6">
-        <h1 className="text-3xl font-bold mb-2">AI Financial Freedom</h1>
-        <p className="text-lg text-gray-300">Your personalized path to financial independence</p>
-      </header>
-      <div className="flex-1 px-10 py-12">
-        <div className="max-w-7xl mx-auto space-y-8">
-          
-          {/* Progress Overview */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-            <h2 className="text-xl font-bold text-white mb-6">Your Freedom Journey</h2>
-            <div className="space-y-4">
-              {freedomSteps.map((step, index) => (
-                <div key={step.id} className="flex items-center space-x-4">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                    step.status === 'completed' ? 'bg-green-500' :
-                    step.status === 'active' ? 'bg-blue-500' : 'bg-gray-500'
-                  }`}>
-                    {step.status === 'completed' ? (
-                      <CheckCircle size={16} className="text-white" />
-                    ) : (
-                      <span className="text-white text-sm font-bold">{step.id}</span>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-white font-semibold">{step.title}</h3>
-                    <p className="text-white/60 text-sm">{step.description}</p>
-                  </div>
-                  <div className="text-2xl">{step.icon}</div>
-                </div>
-              ))}
+    <div className="w-full">
+      <DashboardHeader />
+      
+      <div className="max-w-7xl mx-auto space-y-8 px-6">
+        {/* Freedom Overview */}
+        <div className="bg-gradient-to-r from-purple-500/20 to-cyan-500/20 rounded-2xl p-6 border border-purple-500/20">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center justify-center">
+              <Crown size={32} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold text-white">Financial Freedom Journey</h2>
+              <p className="text-white/80 text-lg">Your path to complete financial independence</p>
             </div>
           </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white/10 rounded-xl p-4 text-center">
+              <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Target size={24} className="text-green-400" />
+              </div>
+              <h3 className="text-white font-semibold mb-1">Freedom Score</h3>
+              <p className="text-2xl font-bold text-green-400">78%</p>
+            </div>
+            
+            <div className="bg-white/10 rounded-xl p-4 text-center">
+              <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <TrendingUp size={24} className="text-blue-400" />
+              </div>
+              <h3 className="text-white font-semibold mb-1">Progress</h3>
+              <p className="text-2xl font-bold text-blue-400">3/5</p>
+            </div>
+            
+            <div className="bg-white/10 rounded-xl p-4 text-center">
+              <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Clock size={24} className="text-purple-400" />
+              </div>
+              <h3 className="text-white font-semibold mb-1">Time to Freedom</h3>
+              <p className="text-2xl font-bold text-purple-400">~8 years</p>
+            </div>
+          </div>
+        </div>
 
-          {/* Financial Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {financialMetrics.map((metric, index) => (
-              <div key={index} className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                    <BarChart3 size={24} className="text-white" />
+        {/* Freedom Milestones */}
+        <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-white">Freedom Milestones</h2>
+            <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors">
+              Add Milestone
+            </button>
+          </div>
+          
+          <div className="space-y-4">
+            {freedomMilestones.map((milestone) => (
+              <div
+                key={milestone.id}
+                className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all cursor-pointer"
+                onClick={() => setSelectedMilestone(milestone.id)}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-white">{milestone.title}</h3>
+                  <div className={`text-xs px-2 py-1 rounded-full ${getStatusColor(milestone.status)}`}>
+                    {milestone.status}
                   </div>
-                  <span className="text-2xl font-bold text-white">{metric.value}</span>
                 </div>
-                <h3 className="text-white font-semibold mb-2">{metric.name}</h3>
-                <div className={`flex items-center space-x-1 ${
-                  metric.trend === 'up' ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  <TrendingUp size={16} className={metric.trend === 'down' ? 'rotate-180' : ''} />
-                  <span className="text-sm">{metric.change}</span>
+                
+                <p className="text-white/70 text-sm mb-3">{milestone.description}</p>
+                
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-white/60">Target: {new Date(milestone.targetDate).toLocaleDateString()}</span>
+                  <span className={`${getPriorityColor(milestone.priority)} capitalize`}>
+                    {milestone.priority} priority
+                  </span>
                 </div>
               </div>
             ))}
           </div>
+        </div>
 
-          {/* AI Recommendations */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 mb-8">
-            <h2 className="text-xl font-bold text-white mb-4">AI Recommendations</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 rounded-xl p-4 border border-green-500/20">
-                <div className="flex items-center space-x-3 mb-3">
-                  <Target size={20} className="text-green-400" />
-                  <h3 className="text-white font-semibold">Increase Savings Rate</h3>
+        {/* Freedom Paths */}
+        <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-white">Freedom Paths</h2>
+            <button
+              onClick={() => setShowPathBuilder(!showPathBuilder)}
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              Build Custom Path
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {freedomPaths.map((path) => (
+              <div key={path.id} className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-white">{path.name}</h3>
+                  <span className={`text-xs px-2 py-1 rounded-full ${getDifficultyColor(path.difficulty)}`}>
+                    {path.difficulty}
+                  </span>
                 </div>
-                <p className="text-white/80 text-sm">
-                  Based on your spending patterns, you can increase your savings rate by 5% by reducing dining out expenses.
-                </p>
-              </div>
-              
-              <div className="bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-xl p-4 border border-blue-500/20">
-                <div className="flex items-center space-x-3 mb-3">
-                  <Zap size={20} className="text-blue-400" />
-                  <h3 className="text-white font-semibold">Investment Opportunity</h3>
+                
+                <p className="text-white/70 text-sm mb-4">{path.description}</p>
+                
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center text-sm">
+                    <Clock size={14} className="text-white/60 mr-2" />
+                    <span className="text-white/60">Time:</span>
+                    <span className="text-white ml-1">{path.estimatedTime}</span>
+                  </div>
                 </div>
-                <p className="text-white/80 text-sm">
-                  Consider investing your emergency fund excess in a high-yield savings account for better returns.
-                </p>
+                
+                <div className="space-y-2">
+                  <h4 className="text-white/80 text-sm font-medium">Rewards:</h4>
+                  {path.rewards.map((reward, index) => (
+                    <div key={index} className="flex items-center text-sm">
+                      <Star size={12} className="text-yellow-400 mr-2" />
+                      <span className="text-white/70">{reward}</span>
+                    </div>
+                  ))}
+                </div>
+                
+                <button className="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg transition-colors text-sm">
+                  Start Path
+                </button>
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/* AI Freedom Coach */}
+        <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-2xl p-6 border border-green-500/20">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
+              <Zap size={24} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-white">AI Freedom Coach</h2>
+              <p className="text-white/80">Get personalized guidance on your freedom journey</p>
             </div>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex space-x-4">
-            <button
-              onClick={handleStartAssessment}
-              disabled={isLoading}
-              className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 flex items-center space-x-2"
-            >
-              {isLoading ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <>
-                  <Crown size={20} />
-                  <span>Start Freedom Assessment</span>
-                </>
-              )}
-            </button>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white/10 rounded-xl p-4">
+              <h3 className="font-semibold text-white mb-3">Today's Focus</h3>
+              <p className="text-white/80 text-sm mb-3">
+                Based on your current financial situation, focus on increasing your emergency fund contribution by 20%.
+              </p>
+              <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors text-sm">
+                Get Details
+              </button>
+            </div>
             
-            <button className="bg-white/10 hover:bg-white/20 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-200">
-              View Detailed Plan
-            </button>
+            <div className="bg-white/10 rounded-xl p-4">
+              <h3 className="font-semibold text-white mb-3">Next Milestone</h3>
+              <p className="text-white/80 text-sm mb-3">
+                You're 85% of the way to debt freedom. Consider a side hustle to accelerate your progress.
+              </p>
+              <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors text-sm">
+                Learn More
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

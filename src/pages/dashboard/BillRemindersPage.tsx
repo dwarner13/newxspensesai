@@ -3,10 +3,11 @@ import {
   Bell, Calendar, DollarSign, AlertTriangle, CheckCircle, 
   Plus, Edit3, Trash2, Settings, TrendingUp,
   CreditCard, Home, Car, ShoppingCart, Heart,
-  Brain, Mail, Upload, FileText, X
+  Brain, Mail, Upload, FileText, X, Zap
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DashboardHeader from '../../components/ui/DashboardHeader';
+import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
 
 interface Bill {
   id: string;
@@ -301,6 +302,20 @@ const BillRemindersPage = () => {
     }
   };
 
+  // Simple error boundary to prevent component crash
+  if (!bills || bills.length === 0) {
+    return (
+      <div className="w-full">
+        <DashboardHeader />
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="text-center py-12">
+            <p className="text-white/60">Loading bills...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full">
       {/* Standardized Dashboard Header */}
@@ -320,7 +335,8 @@ const BillRemindersPage = () => {
             <Settings size={20} />
           </button>
         </div>
-          <div className="max-w-7xl mx-auto space-y-8">
+        
+        <div className="max-w-7xl mx-auto space-y-8">
             
             {/* 🧠 AI Memory Panel */}
             {showAIMemory && aiRecurringBills.length > 0 && (

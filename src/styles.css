@@ -21,6 +21,213 @@
   background-clip: content-box;
 }
 
+/* Independent Sidebar Scrolling */
+.sidebar-nav-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
+  scroll-behavior: smooth;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 3px;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.5);
+}
+
+/* Main Dashboard Content Independent Scrolling */
+.dashboard-main-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.2) transparent;
+  scroll-behavior: smooth;
+  height: 100%;
+  max-height: 100vh;
+}
+
+/* Dashboard Layout - Prevent Page Scrolling */
+.dashboard-layout {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Ensure dashboard content takes full height - only target main content, not sidebar */
+.dashboard-layout > .flex-1 {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Ensure main content area can scroll independently */
+.dashboard-main-content {
+  min-height: 0;
+  flex: 1;
+}
+
+/* Fix dashboard card sizing consistency */
+.dashboard-main-content .grid {
+  grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+}
+
+@media (min-width: 768px) {
+  .dashboard-main-content .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-main-content .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+.dashboard-main-content .grid.gap-6 {
+  gap: 1.5rem !important;
+}
+
+/* Force card sizing consistency */
+.dashboard-main-content section .grid {
+  display: grid !important;
+  grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+}
+
+@media (min-width: 768px) {
+  .dashboard-main-content section .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-main-content section .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+.dashboard-main-content section .grid.gap-6 {
+  gap: 1.5rem !important;
+}
+
+/* Fix card heights to ensure buttons align properly */
+.dashboard-main-content section .grid {
+  grid-template-rows: 1fr !important;
+  align-items: stretch !important;
+}
+
+.dashboard-main-content section .grid > * {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.dashboard-main-content section .grid > * > *:last-child {
+  margin-top: auto !important;
+}
+
+/* Ensure buttons are properly spaced and aligned */
+.dashboard-main-content section .grid button {
+  margin-top: auto !important;
+}
+
+
+
+/* Center logo in mobile view */
+@media (max-width: 1023px) {
+  .dashboard-layout header .flex.items-center.gap-3.flex-1 {
+    justify-content: center !important;
+  }
+  
+  .dashboard-layout header .flex.items-center.gap-3.flex-1 .flex.items-center.gap-3 {
+    justify-content: center !important;
+  }
+  
+  /* Increase mobile logo size and add professional spacing */
+  .dashboard-layout header .w-8.h-8 {
+    width: 3rem !important;
+    height: 3rem !important;
+  }
+  
+  .dashboard-layout header .flex.items-center.gap-3 .flex.items-center.gap-3 {
+    gap: 0.75rem !important;
+  }
+  
+  .dashboard-layout header .text-lg.font-bold {
+    font-size: 1.25rem !important;
+    font-weight: 700 !important;
+  }
+  
+
+  
+
+  
+  /* Hide top logo and consolidate titles in mobile */
+  .dashboard-layout header .flex.items-center.gap-3.flex-1 .flex.items-center.gap-3:first-child {
+    display: none !important;
+  }
+  
+  .dashboard-layout header .flex.items-center.gap-3.flex-1 .flex.items-center.gap-3:last-child {
+    justify-content: center !important;
+    width: 100% !important;
+  }
+  
+
+}
+
+/* Fix card content padding and spacing */
+.dashboard-main-content .group {
+  padding: 1.5rem !important;
+}
+
+.dashboard-main-content .group .relative.z-10 {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.dashboard-main-content .group h3 {
+  margin-bottom: 0.75rem !important;
+  padding: 0 !important;
+}
+
+.dashboard-main-content .group p {
+  margin-bottom: 1rem !important;
+  padding: 0 !important;
+  line-height: 1.5 !important;
+}
+
+.dashboard-main-content .group .absolute.top-4.right-4 {
+  top: 1rem !important;
+  right: 1rem !important;
+}
+
+.dashboard-main-content .group .relative.z-10.bg-white\/20 {
+  margin-top: auto !important;
+  padding: 0.5rem 1rem !important;
+}
+
+.dashboard-main-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-main-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dashboard-main-content::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.2);
+  border-radius: 4px;
+}
+
+.dashboard-main-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.4);
+}
+
 /* XspensesAI - Clean CSS Reset */
 * {
   margin: 0;

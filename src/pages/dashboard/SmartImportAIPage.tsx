@@ -76,6 +76,12 @@ const SmartImportAIPage = () => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(processedDocuments));
   }, [processedDocuments]);
+
+  // Ensure page starts at the top
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -294,7 +300,7 @@ const SmartImportAIPage = () => {
     <div className="w-full">
       <DashboardHeader />
 
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-8 px-6">
         
         {/* Smart Import Tools */}
         <section className="mb-8">
@@ -365,7 +371,7 @@ const SmartImportAIPage = () => {
       {/* Smart Suggestions Engine */}
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-4 text-white">AI Financial Assistant</h2>
-        <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+        <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
           <div className="smart-suggestions-engine">
             {/* Suggestions Header */}
             <div className="suggestions-header mb-6">
@@ -389,7 +395,7 @@ const SmartImportAIPage = () => {
             {/* Suggestions List */}
             <div className="suggestions-list space-y-4 mb-6">
               {/* High Priority - Camera Scan */}
-              <div className="suggestion-item priority-high bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/20 rounded-xl p-4 hover:from-red-500/20 hover:to-pink-500/20 transition-all cursor-pointer" 
+              <div className="suggestion-item priority-high bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all cursor-pointer" 
                    onClick={() => handleCameraUpload()}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -408,7 +414,7 @@ const SmartImportAIPage = () => {
               </div>
               
               {/* Medium Priority - Email Import */}
-              <div className="suggestion-item priority-medium bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/20 rounded-xl p-4 hover:from-blue-500/20 hover:to-indigo-500/20 transition-all cursor-pointer"
+              <div className="suggestion-item priority-medium bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all cursor-pointer"
                    onClick={() => setShowEmailModal(true)}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -427,7 +433,7 @@ const SmartImportAIPage = () => {
               </div>
               
               {/* Medium Priority - Missed Deductions */}
-              <div className="suggestion-item priority-medium bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/20 rounded-xl p-4 hover:from-emerald-500/20 hover:to-teal-500/20 transition-all cursor-pointer"
+              <div className="suggestion-item priority-medium bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all cursor-pointer"
                    onClick={() => navigate('/dashboard/analytics')}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -446,7 +452,7 @@ const SmartImportAIPage = () => {
               </div>
               
               {/* Low Priority - Auto Connect */}
-              <div className="suggestion-item priority-low bg-gradient-to-r from-purple-500/10 to-violet-500/10 border border-purple-500/20 rounded-xl p-4 hover:from-purple-500/20 hover:to-violet-500/20 transition-all cursor-pointer">
+              <div className="suggestion-item priority-low bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="suggestion-icon w-12 h-12 bg-gradient-to-r from-purple-500 to-violet-500 rounded-full flex items-center justify-center">

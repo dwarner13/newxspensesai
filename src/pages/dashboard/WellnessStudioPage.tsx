@@ -17,6 +17,7 @@ import {
   Meh,
   Menu
 } from 'lucide-react';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 
 const WellnessStudioPage = () => {
   const [currentSession, setCurrentSession] = useState({
@@ -67,8 +68,7 @@ const WellnessStudioPage = () => {
 
   return (
     <div>
-      <h1 className="text-4xl font-bold mb-4">AI Financial Therapist</h1>
-      <p className="text-lg text-gray-300 mb-8">Heal your relationship with money through positive reinforcement and AI-powered encouragement</p>
+      <DashboardHeader />
 
       {/* Action Buttons */}
       <div className="flex items-center space-x-4 mb-8">

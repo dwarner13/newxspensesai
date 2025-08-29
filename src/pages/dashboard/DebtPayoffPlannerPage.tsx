@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import WebsiteLayout from "../../components/layout/WebsiteLayout";
+import DashboardHeader from "../../components/ui/DashboardHeader";
 
 type Strategy = "avalanche" | "snowball" | "ai_optimized";
 
@@ -35,6 +36,11 @@ export default function DebtPayoffPlannerPage() {
   const [debts, setDebts] = useState<Debt[]>(initialDebts);
   const [extra, setExtra] = useState<number>(0); // extra monthly payment
 
+  // Ensure page starts at the top
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   const ordered = useMemo(() => sortDebts(strategy, debts), [strategy, debts]);
 
   const totalMin = useMemo(
@@ -48,18 +54,23 @@ export default function DebtPayoffPlannerPage() {
   );
 
   return (
-    <>
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
+    <div className="w-full">
+      {/* Standardized Dashboard Header */}
+      <DashboardHeader />
+      
+      {/* Content Area with Enhanced Styling */}
+      <div className="max-w-7xl mx-auto space-y-8">
+        
         {/* Header */}
         <header className="flex items-center justify-between">
-          <h1 className="text-2xl md:text-3xl font-bold">Debt Payoff Planner</h1>
           <div className="text-sm opacity-80">
             Total Balance: <span className="font-semibold">${totalBalance.toLocaleString()}</span>
           </div>
         </header>
 
         {/* Controls */}
-        <section className="grid md:grid-cols-3 gap-4">
+        <div className="space-y-6">
+          <section className="grid md:grid-cols-3 gap-4">
             <div className="bg-white/10 rounded-xl border border-white/20 p-4">
               <div className="text-sm mb-2 opacity-80">Payoff strategy</div>
               <div className="flex gap-2 flex-wrap">
@@ -155,8 +166,7 @@ export default function DebtPayoffPlannerPage() {
             </button>
           </section>
         </div>
-
-        {/* Modals / Portals could live here if needed (outside content area) */}
-      </>
-    );
+      </div>
+    </div>
+  );
 } 

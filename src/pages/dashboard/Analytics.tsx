@@ -116,6 +116,8 @@ const Analytics = () => {
     }
   }, []);
 
+
+
   // Calculate real metrics from processed documents
   const calculateRealMetrics = () => {
     if (processedDocuments.length === 0) return null;
@@ -1104,7 +1106,10 @@ Just tell me what's on your mind - I'm here to help and learn! 😊`;
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only scroll to bottom if there are chat messages and it's not the initial load
+    if (chatHistory.length > 1) {
+      scrollToBottom();
+    }
   }, [chatHistory]);
 
   const getChangeIcon = (changeType: string) => {

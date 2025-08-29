@@ -1,25 +1,35 @@
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { DollarSign } from "lucide-react";
+import { DollarSign, Crown } from "lucide-react";
 import Sidebar from "./Sidebar";
 import MobileSidebar from "./MobileSidebar";
 import BottomNav from "./BottomNav";
-import RouteScrollReset from '../util/RouteScrollReset';
+
 
 export default function DashboardLayout() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
 
-  // Close drawer + scroll to top on route change
+  // Add dashboard-page class to body when this component mounts
+  useEffect(() => {
+    document.body.classList.add('dashboard-page');
+    // Prevent body scrolling when dashboard is active
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.classList.remove('dashboard-page');
+      // Restore body scrolling when leaving dashboard
+      document.body.style.overflow = 'auto';
+    };
+  }, []);
+
+  // Close drawer on route change (no page scrolling needed)
   useEffect(() => {
     setOpen(false);
-    window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior });
   }, [location.pathname]);
 
   return (
     <>
-      <RouteScrollReset />
-      <div className="dashboard-layout min-h-screen bg-[#0f172a] text-white lg:flex">
+      <div className="dashboard-layout min-h-screen bg-[#0f172a] text-white lg:flex" data-page="dashboard">
         {/* Desktop sidebar - Fixed width, no margin */}
         <aside className="hidden lg:block w-[300px] shrink-0 border-r border-purple-500/20 bg-[rgba(15,23,42,0.95)]">
           <Sidebar isMobileOpen={false} setIsMobileOpen={() => {}} />
@@ -28,6 +38,15 @@ export default function DashboardLayout() {
         {/* Mobile top bar */}
         <header className="lg:hidden sticky top-0 z-40 bg-[rgba(15,23,42,0.95)]/95 backdrop-blur border-b border-white/10">
           <div className="flex items-center gap-3 px-4 py-4">
+            {/* Logo and title - Now on the LEFT */}
+            <div className="flex items-center gap-3 flex-1">
+              <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                <Crown className="text-white text-lg font-bold" />
+              </div>
+              <span className="text-2xl font-bold text-white tracking-tight">XspensesAI</span>
+            </div>
+            
+            {/* Hamburger menu - Now on the RIGHT */}
             <button
               aria-label="Open menu"
               onClick={() => setOpen(true)}
@@ -40,14 +59,6 @@ export default function DashboardLayout() {
                 <span className="block h-0.5 w-6 bg-current transition-all duration-200" />
               </div>
             </button>
-            
-            {/* Logo and title */}
-            <div className="flex items-center gap-3 flex-1">
-              <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center">
-                <DollarSign className="text-white text-sm font-bold" />
-              </div>
-              <span className="text-lg font-bold text-white">XspensesAI</span>
-            </div>
           </div>
         </header>
 
@@ -56,9 +67,9 @@ export default function DashboardLayout() {
           <Sidebar isMobileOpen={open} setIsMobileOpen={setOpen} />
         </MobileSidebar>
 
-        {/* Main content - No margin, direct flex connection */}
-        <div className="flex-1 flex flex-col lg:min-h-screen">
-          <main className="flex-1 overflow-y-auto px-8 py-8">
+        {/* Main content - Independent scrolling container */}
+        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+          <main className="flex-1 overflow-y-auto px-8 py-8 dashboard-main-content">
             <Outlet />
           </main>
         </div>

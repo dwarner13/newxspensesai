@@ -11,6 +11,7 @@ import {
   DollarSign,
   Menu
 } from 'lucide-react';
+import DashboardHeader from '../components/ui/DashboardHeader';
 import { getTransactions, getCategories } from '../lib/supabase';
 import { Transaction } from '../types/database.types';
 import SpendingChart from '../components/dashboard/SpendingChart';
@@ -183,24 +184,17 @@ const ReportsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] text-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a]">
       {/* Header */}
       <header className="p-6">
-        <h1 className="text-2xl font-bold">Financial Reports</h1>
-        <p className="text-lg text-gray-300 mt-2">View detailed financial reports and analytics</p>
+        <DashboardHeader />
       </header>
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto p-6">
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <motion.h1 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-2xl font-bold text-white"
-            >
-              Financial Reports
-            </motion.h1>
+
             
             <motion.div 
               initial={{ opacity: 0 }}
@@ -265,7 +259,7 @@ const ReportsPage = () => {
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
-              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20"
+              className="bg-white/5 rounded-xl p-4 border border-white/10"
             >
               <div className="flex items-center space-x-4">
                 <Calendar size={20} className="text-purple-400" />
@@ -288,80 +282,112 @@ const ReportsPage = () => {
             <>
               {/* Analytics Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard
-                  title="Total Income"
-                  value={formatCurrency(analytics.totalIncome)}
-                  icon={<TrendingUp size={24} className="text-green-400" />}
-                  className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-400/30"
-                />
-                <StatCard
-                  title="Total Expenses"
-                  value={formatCurrency(analytics.totalExpenses)}
-                  icon={<TrendingDown size={24} className="text-red-400" />}
-                  className="bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-400/30"
-                />
-                <StatCard
-                  title="Net Cash Flow"
-                  value={formatCurrency(analytics.totalIncome - analytics.totalExpenses)}
-                  icon={<DollarSign size={24} className="text-blue-400" />}
-                  className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-400/30"
-                />
-                <StatCard
-                  title="Transactions"
-                  value={analytics.transactionCount.toString()}
-                  icon={<BarChart3 size={24} className="text-purple-400" />}
-                  className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-400/30"
-                />
+                <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-300 text-sm font-medium mb-2">Total Income</p>
+                      <p className="text-3xl font-bold text-white">{formatCurrency(analytics.totalIncome)}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                      <TrendingUp size={24} className="text-green-400" />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-300 text-sm font-medium mb-2">Total Expenses</p>
+                      <p className="text-3xl font-bold text-white">{formatCurrency(analytics.totalExpenses)}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center">
+                      <TrendingDown size={24} className="text-red-400" />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-300 text-sm font-medium mb-2">Net Cash Flow</p>
+                      <p className="text-3xl font-bold text-white">{formatCurrency(analytics.totalIncome - analytics.totalExpenses)}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                      <DollarSign size={24} className="text-blue-400" />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-300 text-sm font-medium mb-2">Transactions</p>
+                      <p className="text-3xl font-bold text-white">{analytics.transactionCount}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                      <BarChart3 size={24} className="text-purple-400" />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Additional Analytics */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                  <h3 className="text-lg font-semibold mb-4 text-white">Monthly Average</h3>
+                <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                  <h3 className="text-lg font-semibold mb-4 text-white flex items-center">
+                    <TrendingUp size={20} className="mr-2 text-blue-400" />
+                    Monthly Average
+                  </h3>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-400 mb-2">
+                    <div className="text-3xl font-bold text-white mb-2">
                       {formatCurrency(analytics.monthlyAverage)}
                     </div>
-                    <div className="text-sm text-white/50">
+                    <div className="text-sm text-gray-300">
                       Average monthly spending
                     </div>
-                    <div className="text-xs text-white/40 mt-2">
+                    <div className="text-xs text-gray-400 mt-2">
                       {format(new Date(dateRange.startDate), 'MMM dd')} - {format(new Date(dateRange.endDate), 'MMM dd')}
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                  <h3 className="text-lg font-semibold mb-4 text-white">Top Spending Category</h3>
+                <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                  <h3 className="text-lg font-semibold mb-4 text-white flex items-center">
+                    <BarChart3 size={20} className="mr-2 text-purple-400" />
+                    Top Spending Category
+                  </h3>
                   {analytics.topCategory ? (
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-400 mb-2">
+                      <div className="text-3xl font-bold text-white mb-2">
                         {analytics.topCategory.category}
                       </div>
-                      <div className="text-lg text-white/70">
+                      <div className="text-lg text-gray-300">
                         {formatCurrency(analytics.topCategory.amount)}
                       </div>
-                      <div className="text-sm text-white/50 mt-2">
+                      <div className="text-sm text-gray-400 mt-2">
                         {((analytics.topCategory.amount / analytics.totalExpenses) * 100).toFixed(1)}% of total expenses
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center text-white/50">
+                    <div className="text-center text-gray-400">
                       No expense data available
                     </div>
                   )}
                 </div>
 
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                  <h3 className="text-lg font-semibold mb-4 text-white">Savings Rate</h3>
+                <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                  <h3 className="text-lg font-semibold mb-4 text-white flex items-center">
+                    <TrendingUp size={20} className="mr-2 text-emerald-400" />
+                    Savings Rate
+                  </h3>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-400 mb-2">
+                    <div className="text-3xl font-bold text-white mb-2">
                       {analytics.totalIncome > 0 
                         ? (((analytics.totalIncome - analytics.totalExpenses) / analytics.totalIncome) * 100).toFixed(1)
                         : '0'
                       }%
                     </div>
-                    <div className="text-sm text-white/50">
+                    <div className="text-sm text-gray-300">
                       {analytics.totalIncome > analytics.totalExpenses ? 'Positive' : 'Negative'} savings rate
                     </div>
                   </div>
@@ -370,20 +396,29 @@ const ReportsPage = () => {
 
               {/* Charts */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                  <h2 className="text-xl font-bold mb-6 text-white">Spending by Category</h2>
+                <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                  <h2 className="text-xl font-bold mb-6 text-white flex items-center">
+                    <BarChart3 size={24} className="mr-3 text-blue-400" />
+                    Spending by Category
+                  </h2>
                   <SpendingChart transactions={transactions} type="bar" />
                 </div>
                 
-                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                  <h2 className="text-xl font-bold mb-6 text-white">Category Distribution</h2>
+                <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                  <h2 className="text-xl font-bold mb-6 text-white flex items-center">
+                    <BarChart3 size={24} className="mr-3 text-purple-400" />
+                    Category Distribution
+                  </h2>
                   <SpendingChart transactions={transactions} type="pie" />
                 </div>
               </div>
 
               {/* Monthly Breakdown */}
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <h2 className="text-xl font-bold mb-6 text-white">Monthly Breakdown</h2>
+              <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl p-6 border border-gray-700/50 hover:border-gray-600/70 transition-all duration-300">
+                <h2 className="text-xl font-bold mb-6 text-white flex items-center">
+                  <Calendar size={24} className="mr-3 text-emerald-400" />
+                  Monthly Breakdown
+                </h2>
                 <MonthlyBreakdown 
                   transactions={transactions}
                   categories={categories.filter(c => c !== 'All')}

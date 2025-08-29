@@ -22,6 +22,7 @@ import {
   Plus,
   MessageCircle
 } from 'lucide-react';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 
 const SpotifyIntegrationDashboard = () => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -69,8 +70,7 @@ const SpotifyIntegrationDashboard = () => {
 
   return (
     <div>
-      <h1 className="text-4xl font-bold mb-4">Spotify Integration</h1>
-      <p className="text-lg text-gray-300 mb-8">Control your music while budgeting</p>
+      <DashboardHeader />
 
       <div className="space-y-8">
         {/* Connection Status */}

@@ -7,6 +7,7 @@ import {
   Target as GoalIcon, Lightbulb, BookOpen, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 
 interface BusinessMetric {
   id: string;
@@ -70,6 +71,8 @@ const BusinessIntelligence = () => {
   const [scenarioExpenseChange, setScenarioExpenseChange] = useState(0);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+
 
   // Mock business data - replace with real data from your app
   const businessMetrics: BusinessMetric[] = [
@@ -217,7 +220,10 @@ const BusinessIntelligence = () => {
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Only scroll to bottom if there are chat messages and it's not the initial load
+    if (chatHistory.length > 1) {
+      scrollToBottom();
+    }
   }, [chatHistory]);
 
   const getChangeIcon = (changeType: string) => {
@@ -256,15 +262,14 @@ const BusinessIntelligence = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] text-white">
-      <header className="p-6">
-        <h1 className="text-4xl font-bold mb-2">Business Intelligence Assistant</h1>
-        <p className="text-lg text-gray-300">See your numbers. Grow your business. Ask AI for help.</p>
-      </header>
-      <main className="flex-1 overflow-y-auto p-6">
-
-      {/* Action Buttons */}
-      <div className="flex items-center gap-4 mb-8">
+    <div className="w-full">
+      <DashboardHeader />
+      
+      {/* Content Area with Enhanced Styling */}
+      <div className="max-w-7xl mx-auto space-y-8">
+        
+        {/* Action Buttons */}
+        <div className="flex items-center gap-4 mb-8">
         <button className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all">
           <Download size={20} />
           Export Report
@@ -680,7 +685,7 @@ const BusinessIntelligence = () => {
               </div>
             </div>
           </div>
-        </main>
+        </div>
       </div>
   );
 };

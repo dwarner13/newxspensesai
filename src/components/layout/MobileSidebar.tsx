@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { X, Crown } from 'lucide-react';
 
 interface MobileSidebarProps {
   open: boolean;
@@ -51,19 +51,19 @@ export default function MobileSidebar({ open, onClose, children }: MobileSidebar
         }}
       >
         {/* Header with close button */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0b0f2a]/95 backdrop-blur-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center">
-              <span className="text-white text-sm font-bold">💰</span>
-            </div>
-            <span className="text-lg font-bold text-white">XspensesAI</span>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-gradient-to-r from-[#0b0f2a] to-[#1a1f3a] backdrop-blur-md">
+          <div className="flex items-center gap-4">
+            <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-4 shadow-2xl ring-2 ring-yellow-300/20">
+              <Crown className="text-white" size={28} />
+            </span>
+            <span className="font-bold text-2xl leading-tight tracking-tight text-white drop-shadow-sm">XspensesAI</span>
           </div>
           <button
             aria-label="Close menu"
             onClick={onClose}
-            className="rounded-xl p-3 hover:bg-white/10 transition-colors duration-200 text-white/70 hover:text-white"
+            className="rounded-xl p-3 hover:bg-white/10 transition-all duration-300 text-white/80 hover:text-white hover:scale-110 active:scale-95"
           >
-            <X className="h-5 w-5" />
+            <X className="h-6 w-6" />
           </button>
         </div>
         

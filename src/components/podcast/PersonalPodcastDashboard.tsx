@@ -99,13 +99,13 @@ export function PersonalPodcastDashboard() {
       case 'goal': return <Target size={20} className="text-purple-500" />;
       case 'insight': return <TrendingUp size={20} className="text-indigo-500" />;
       case 'celebration': return <Heart size={20} className="text-red-500" />;
-      default: return <Mic size={20} className="text-gray-500" />;
+      default: return <Mic size={20} className="text-white/60" />;
     }
   };
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
-      {/* Header */}
+      {/* Description */}
       <div className="text-center">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -115,11 +115,8 @@ export function PersonalPodcastDashboard() {
           <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
             <Mic size={24} className="text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-            Your Financial Story Podcast
-          </h1>
         </motion.div>
-        <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+        <p className="text-xl text-white/80 max-w-2xl mx-auto">
           AI-generated episodes about your personal financial journey. 
           Hear your AI roast come to life with brutal honesty, tough love, and motivation.
         </p>
@@ -138,14 +135,14 @@ export function PersonalPodcastDashboard() {
           { label: 'Completion Rate', value: `${state.libraryStats.completionRate}%`, icon: <TrendingUp size={20} />, color: 'text-purple-500' },
           { label: 'Favorites', value: state.libraryStats.favoriteEpisodes.length, icon: <Heart size={20} />, color: 'text-red-500' },
         ].map((stat, index) => (
-          <div key={index} className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
+          <div key={index} className="bg-white/10 border border-white/20 rounded-xl p-6 shadow-lg">
             <div className="flex items-center space-x-3">
               <div className={`${stat.color}`}>
                 {stat.icon}
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{stat.label}</p>
+                <p className="text-2xl font-bold text-white">{stat.value}</p>
+                <p className="text-sm text-white/80">{stat.label}</p>
               </div>
             </div>
           </div>
@@ -158,7 +155,7 @@ export function PersonalPodcastDashboard() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl p-8 border border-purple-200 dark:border-purple-800"
+          className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 rounded-2xl p-8 border border-purple-500/20"
         >
           <div className="flex items-start space-x-6">
             <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
@@ -166,15 +163,15 @@ export function PersonalPodcastDashboard() {
             </div>
             <div className="flex-1">
               <div className="flex items-center space-x-2 mb-2">
-                <Sparkles size={16} className="text-purple-500" />
-                <span className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                <Sparkles size={16} className="text-purple-400" />
+                <span className="text-sm font-medium text-purple-400">
                   Latest Episode
                 </span>
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+              <h3 className="text-2xl font-bold text-white mb-2">
                 {state.episodes[0].title}
               </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
+              <p className="text-white/80 mb-4">
                 {state.episodes[0].description}
               </p>
               <div className="flex items-center space-x-4">
@@ -191,11 +188,11 @@ export function PersonalPodcastDashboard() {
                     {state.currentEpisode?.id === state.episodes[0].id && state.currentEpisode?.isPlaying ? 'Pause' : 'Play'} Episode
                   </span>
                 </button>
-                <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex items-center space-x-2 text-sm text-white/60">
                   <Clock size={14} />
                   <span>{formatDuration(state.episodes[0].duration)}</span>
                 </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="flex items-center space-x-2 text-sm text-white/60">
                   <Calendar size={14} />
                   <span>{formatDate(state.episodes[0].createdAt)}</span>
                 </div>
@@ -210,15 +207,15 @@ export function PersonalPodcastDashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700"
+        className="bg-white/10 border border-white/20 rounded-xl p-6 shadow-lg"
       >
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+          <h3 className="text-xl font-semibold text-white">
             Generate New Episode
           </h3>
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="flex items-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+            className="flex items-center space-x-2 text-white/80 hover:text-white transition-colors"
           >
             <Settings size={16} />
             <span>Settings</span>
@@ -232,17 +229,17 @@ export function PersonalPodcastDashboard() {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
+              className="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg"
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-white/80 mb-2">
                     Frequency
                   </label>
                   <select
                     value={state.preferences.frequency}
                     onChange={(e) => updatePreferences({ frequency: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 border border-white/20 rounded-lg bg-white/10 text-white"
                   >
                     <option value="daily">Daily</option>
                     <option value="weekly">Weekly</option>
@@ -251,13 +248,13 @@ export function PersonalPodcastDashboard() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-white/80 mb-2">
                     Episode Length
                   </label>
                   <select
                     value={state.preferences.episodeLength}
                     onChange={(e) => updatePreferences({ episodeLength: parseInt(e.target.value) as any })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 border border-white/20 rounded-lg bg-white/10 text-white"
                   >
                     <option value={5}>5 minutes</option>
                     <option value={10}>10 minutes</option>
@@ -265,13 +262,13 @@ export function PersonalPodcastDashboard() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-white/80 mb-2">
                     Voice Type
                   </label>
                   <select
                     value={state.preferences.voiceType}
                     onChange={(e) => updatePreferences({ voiceType: e.target.value as any })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="w-full px-3 py-2 border border-white/20 rounded-lg bg-white/10 text-white"
                   >
                     <option value="friendly">Friendly</option>
                     <option value="professional">Professional</option>
@@ -298,8 +295,8 @@ export function PersonalPodcastDashboard() {
               key={episodeType.type}
               onClick={() => handleGenerateEpisode(episodeType.type)}
               disabled={isGenerating}
-              className={`flex flex-col items-center space-y-2 p-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 transition-all ${
-                isGenerating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+              className={`flex flex-col items-center space-y-2 p-4 rounded-lg border-2 border-dashed border-white/30 hover:border-white/50 transition-all ${
+                isGenerating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white/5'
               }`}
             >
               <div className={`w-12 h-12 bg-gradient-to-r ${episodeType.color} rounded-lg flex items-center justify-center`}>
@@ -307,7 +304,7 @@ export function PersonalPodcastDashboard() {
                   {episodeType.icon}
                 </div>
               </div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 text-center">
+              <span className="text-sm font-medium text-white text-center">
                 {episodeType.label}
               </span>
             </button>
@@ -316,8 +313,8 @@ export function PersonalPodcastDashboard() {
 
         {isGenerating && (
           <div className="mt-6 text-center">
-            <div className="inline-flex items-center space-x-2 text-purple-600 dark:text-purple-400">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+            <div className="inline-flex items-center space-x-2 text-purple-400">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-400"></div>
               <span>Generating your personal episode...</span>
             </div>
           </div>
@@ -329,25 +326,25 @@ export function PersonalPodcastDashboard() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
+        className="bg-white/10 border border-white/20 rounded-xl shadow-lg"
       >
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <div className="p-6 border-b border-white/20">
+          <h3 className="text-xl font-semibold text-white">
             Your Episode Library
           </h3>
-          <p className="text-gray-600 dark:text-gray-400 mt-1">
+          <p className="text-white/80 mt-1">
             All your personalized financial story episodes
           </p>
         </div>
 
-        <div className="divide-y divide-gray-200 dark:divide-gray-700">
+        <div className="divide-y divide-white/20">
           {state.episodes.map((episode, index) => (
             <motion.div
               key={episode.id}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 * index }}
-              className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              className="p-6 hover:bg-white/5 transition-colors"
             >
               <div className="flex items-start space-x-4">
                 <div className="flex-shrink-0">
@@ -356,13 +353,13 @@ export function PersonalPodcastDashboard() {
                 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                    <h4 className="text-lg font-semibold text-white truncate" style={{ color: 'white' }}>
                       {episode.title}
                     </h4>
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={() => handlePlayEpisode(episode.id)}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                        className="p-2 text-white/80 hover:text-white transition-colors"
                       >
                         {state.currentEpisode?.id === episode.id && state.currentEpisode?.isPlaying ? (
                           <Pause size={16} />
@@ -372,18 +369,18 @@ export function PersonalPodcastDashboard() {
                       </button>
                       <button
                         onClick={() => shareEpisode(episode.id, 'twitter')}
-                        className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                        className="p-2 text-white/80 hover:text-white transition-colors"
                       >
                         <Share2 size={16} />
                       </button>
                     </div>
                   </div>
                   
-                  <p className="text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                  <p className="text-white/80 mb-3 line-clamp-2" style={{ color: 'rgba(255, 255, 255, 0.8)' }}>
                     {episode.description}
                   </p>
                   
-                  <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="flex items-center space-x-4 text-sm text-white/60">
                     <div className="flex items-center space-x-1">
                       <Clock size={14} />
                       <span>{formatDuration(episode.duration)}</span>
@@ -405,13 +402,13 @@ export function PersonalPodcastDashboard() {
 
         {state.episodes.length === 0 && (
           <div className="p-12 text-center">
-            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Mic size={24} className="text-gray-400" />
+            <div className="w-16 h-16 bg-white/10 border border-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Mic size={24} className="text-white/60" />
             </div>
-            <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            <h4 className="text-lg font-medium text-white mb-2">
               No episodes yet
             </h4>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-white/80 mb-4">
               Generate your first personalized financial story episode to get started.
             </p>
             <button

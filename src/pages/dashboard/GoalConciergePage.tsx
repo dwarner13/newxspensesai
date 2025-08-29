@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useNotificationSpacing } from '../../hooks/useNotificationSpacing';
+import DashboardHeader from '../../components/ui/DashboardHeader';
 
 
 interface Goal {
@@ -187,17 +188,8 @@ const GoalConciergePage = () => {
 
   return (
     <>
-      {/* Desktop Header */}
-      <header className="hidden lg:block bg-black/20 backdrop-blur-md border-b border-white/10 p-4 lg:p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 transition-all duration-300" style={{ minHeight: '60px' }}>
-        <div className="flex-1">
-          <h2 className="text-xl lg:text-3xl font-bold text-white mb-2 leading-tight">
-            AI Goal Concierge
-          </h2>
-          <p className="text-white/70 text-sm lg:text-base">
-            Your intelligent financial coach that learns and adapts
-          </p>
-        </div>
-      </header>
+      {/* Standardized Dashboard Header */}
+      <DashboardHeader />
 
       {/* Scrollable Content Area */}
       <div className={`flex-1 overflow-y-auto p-6 ${hasNotifications ? 'pt-20' : ''}`}>

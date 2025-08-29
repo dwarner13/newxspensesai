@@ -79,879 +79,448 @@ interface FinancialInsight {
   actionable: boolean;
 }
 
-// Add error boundary for imports
 const AIFinancialAssistantPage = () => {
   console.log('🎯 AIFinancialAssistantPage component is loading...');
   
-  try {
-    // State management
-    const [documents, setDocuments] = useState<FinancialDocument[]>([]);
-    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-      {
-        id: 1,
-        type: 'ai',
-        message: "Hello! I'm your AI Financial Assistant. I can help you analyze financial documents, provide investment advice, calculate loan payoffs, and optimize your financial strategy. Upload a document or ask me anything about your finances!",
-        timestamp: new Date().toLocaleTimeString()
-      }
-    ]);
-    const [inputMessage, setInputMessage] = useState('');
-    const [isTyping, setIsTyping] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const [showChat, setShowChat] = useState(true);
-    const [insights, setInsights] = useState<FinancialInsight[]>([]);
-    const [selectedDocument, setSelectedDocument] = useState<FinancialDocument | null>(null);
-    const [isAIConnected, setIsAIConnected] = useState(false);
-    const [isMobileOpen, setIsMobileOpen] = useState(false);
+  // State management
+  const [documents, setDocuments] = useState<FinancialDocument[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: 1,
+      type: 'ai',
+      message: "Hello! I'm your AI Financial Assistant. I can help you analyze financial documents, provide investment advice, calculate loan payoffs, and optimize your financial strategy. Upload a document or ask me anything about your finances!",
+      timestamp: new Date().toLocaleTimeString()
+    }
+  ]);
+  const [inputMessage, setInputMessage] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showChat, setShowChat] = useState(true);
+  const [insights, setInsights] = useState<FinancialInsight[]>([]);
+  const [selectedDocument, setSelectedDocument] = useState<FinancialDocument | null>(null);
+  const [isAIConnected, setIsAIConnected] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-    
-    // New state for enhanced features
-    const [isRecording, setIsRecording] = useState(false);
-    const [showUploadMenu, setShowUploadMenu] = useState(false);
-    const [isListening, setIsListening] = useState(false);
-    
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const uploadMenuRef = useRef<HTMLDivElement>(null);
+  // New state for enhanced features
+  const [isRecording, setIsRecording] = useState(false);
+  const [showUploadMenu, setShowUploadMenu] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const uploadMenuRef = useRef<HTMLDivElement>(null);
 
-    // Check AI connection on mount
-    useEffect(() => {
-      checkAIConnection();
-    }, []);
+  // Check AI connection on mount and ensure page starts at top
+  useEffect(() => {
+    checkAIConnection();
+  }, []);
 
-    // Close upload menu when clicking outside
-    useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-        if (uploadMenuRef.current && !uploadMenuRef.current.contains(event.target as Node)) {
-          setShowUploadMenu(false);
-        }
-      };
+  // Separate effect for scroll-to-top to ensure it happens after component is fully rendered
+  useEffect(() => {
+    // Use setTimeout to ensure this runs after the component is fully rendered
+    const timer = setTimeout(() => {
+      window.scrollTo(0, 0);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }, []);
-
-    const checkAIConnection = async () => {
-      try {
-        const isConnected = await aiCategorizer.testConnection();
-        setIsAIConnected(isConnected);
-        if (!isConnected) {
-          setChatMessages(prev => [...prev, {
-            id: Date.now(),
-            type: 'ai',
-            message: "⚠️ AI service is currently unavailable. I'll provide simulated responses for demonstration purposes.",
-            timestamp: new Date().toLocaleTimeString()
-          }]);
-        }
-      } catch (error) {
-        console.error('AI connection test failed:', error);
-        setIsAIConnected(false);
+  // Close upload menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (uploadMenuRef.current && !uploadMenuRef.current.contains(event.target as Node)) {
+        setShowUploadMenu(false);
       }
     };
 
-    // Auto-scroll to bottom of chat
-    useEffect(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [chatMessages]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
-    // Share with Financial Therapist
-    const handleShareWithTherapist = (messageId: number) => {
-      const message = chatMessages.find(msg => msg.id === messageId);
-      if (message) {
+  const checkAIConnection = async () => {
+    try {
+      // Wrap the AI connection test in a try-catch to prevent component crash
+      const isConnected = await aiCategorizer.testConnection();
+      setIsAIConnected(isConnected);
+      if (!isConnected) {
         setChatMessages(prev => [...prev, {
           id: Date.now(),
           type: 'ai',
-          message: `I've shared this conversation with your Financial Therapist! 💜\n\nThey'll review your financial situation and provide personalized emotional support and guidance. You can expect a response within the next few hours.\n\nIn the meantime, would you like me to help you with any other financial questions?`,
+          message: "⚠️ AI service is currently unavailable. I'll provide simulated responses for demonstration purposes.",
           timestamp: new Date().toLocaleTimeString()
         }]);
       }
-    };
-
-    // Voice recording functionality
-    const handleVoiceInput = () => {
-      if (!isRecording) {
-        setIsRecording(true);
-        setIsListening(true);
-        // Simulate voice recording
-        setTimeout(() => {
-          setIsRecording(false);
-          setIsListening(false);
-          // Simulate voice-to-text
-          const voiceMessage = "I want to know how much I can save by paying an extra $100 per month on my car loan.";
-          setInputMessage(voiceMessage);
-          setChatMessages(prev => [...prev, {
-            id: Date.now(),
-            type: 'user',
-            message: voiceMessage,
-            timestamp: new Date().toLocaleTimeString()
-          }]);
-          // Auto-send the voice message
-          setTimeout(() => {
-            handleSendMessage();
-          }, 500);
-        }, 3000);
-      } else {
-        setIsRecording(false);
-        setIsListening(false);
-      }
-    };
-
-    // Floating upload menu
-    const handleUploadMenuToggle = () => {
-      setShowUploadMenu(!showUploadMenu);
-    };
-
-    const handleQuickUpload = (type: 'document' | 'image' | 'camera') => {
-      setShowUploadMenu(false);
-      if (type === 'camera') {
-        // Simulate camera access
-        setChatMessages(prev => [...prev, {
-          id: Date.now(),
-          type: 'ai',
-          message: "📸 Camera access requested. Please allow camera permissions to scan documents.",
-          timestamp: new Date().toLocaleTimeString()
-        }]);
-      } else {
-        fileInputRef.current?.click();
-      }
-    };
-
-    // Real file upload with Supabase storage
-    const handleFileUpload = async (files: FileList) => {
-      setIsUploading(true);
-      
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const documentId = Date.now() + i;
-        
-        // Create document object
-        const document: FinancialDocument = {
-          id: documentId.toString(),
-          name: file.name,
-          type: file.type.includes('pdf') ? 'pdf' : 
-                file.type.includes('image') ? 'image' : 'csv',
-          size: file.size,
-          uploadedAt: new Date().toISOString()
-        };
-        
-        setDocuments(prev => [...prev, document]);
-        
-        try {
-          // Upload to Supabase storage
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('financial-documents')
-            .upload(`${documentId}/${file.name}`, file);
-
-          if (uploadError) {
-            throw new Error(`Upload failed: ${uploadError.message}`);
-          }
-
-          // Get public URL
-          const { data: urlData } = supabase.storage
-            .from('financial-documents')
-            .getPublicUrl(`${documentId}/${file.name}`);
-
-          // Update document with file URL
-          setDocuments(prev => prev.map(doc => 
-            doc.id === documentId.toString() 
-              ? { ...doc, fileUrl: urlData.publicUrl }
-              : doc
-          ));
-
-          // Extract text from document
-          const extractedText = await extractTextFromFile(file);
-          
-          // Update document with extracted text
-          setDocuments(prev => prev.map(doc => 
-            doc.id === documentId.toString() 
-              ? { ...doc, extractedText }
-              : doc
-          ));
-          
-          // Analyze with real AI
-          await analyzeDocumentWithAI(documentId.toString(), extractedText);
-          
-        } catch (error) {
-          console.error('Error processing file:', error);
-          setChatMessages(prev => [...prev, {
-            id: Date.now(),
-            type: 'ai',
-            message: `I had trouble processing ${file.name}. Please make sure the document is clear and readable.`,
-            timestamp: new Date().toLocaleTimeString()
-          }]);
-        }
-      }
-      
-      setIsUploading(false);
-    };
-
-    // Real text extraction with OCR/PDF parsing
-    const extractTextFromFile = async (file: File): Promise<string> => {
-      try {
-        if (file.type.includes('pdf')) {
-          // Real PDF parsing - you can integrate pdf-parse here
-          return await extractPDFText(file);
-        } else if (file.type.includes('image')) {
-          // Real OCR - you can integrate tesseract.js or OCR.space here
-          return await extractImageText(file);
-        } else if (file.name.includes('.csv')) {
-          // Real CSV parsing
-          return await extractCSVText(file);
-        }
-        
-        return 'Document content extracted successfully.';
-      } catch (error) {
-        console.error('Text extraction failed:', error);
-        // Fallback to simulated extraction
-        return getSimulatedExtraction(file);
-      }
-    };
-
-    // Real PDF text extraction (placeholder for pdf-parse integration)
-    const extractPDFText = async (file: File): Promise<string> => {
-      // TODO: Integrate pdf-parse
-      // const pdf = await pdfParse(file);
-      // return pdf.text;
-      
-      // Simulated for now
-      return `PDF Document Content:
-      Account: Manulife RRSP
-      Balance: $14,000
-      Annual Return: 6.2%
-      Last Contribution: $500 on 2024-01-15
-      Account Type: Registered Retirement Savings Plan`;
-    };
-
-    // Real OCR text extraction (placeholder for tesseract.js integration)
-    const extractImageText = async (file: File): Promise<string> => {
-      // TODO: Integrate tesseract.js or OCR.space
-      // const result = await Tesseract.recognize(file);
-      // return result.data.text;
-      
-      // Simulated for now
-      return `Image Document Content:
-      Car Loan Statement
-      Remaining Balance: $14,700
-      Interest Rate: 6.1%
-      Monthly Payment: $350
-      Term: 48 months remaining`;
-    };
-
-    // Real CSV text extraction
-    const extractCSVText = async (file: File): Promise<string> => {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const text = e.target?.result as string;
-          resolve(text);
-        };
-        reader.readAsText(file);
-      });
-    };
-
-    // Fallback simulated extraction
-    const getSimulatedExtraction = (file: File): string => {
-      if (file.name.toLowerCase().includes('rrsp')) {
-        return `RRSP Statement:
-        Account: Manulife RRSP
-        Balance: $14,000
-        Annual Return: 6.2%
-        Last Contribution: $500 on 2024-01-15`;
-      } else if (file.name.toLowerCase().includes('loan')) {
-        return `Car Loan Statement:
-        Remaining Balance: $14,700
-        Interest Rate: 6.1%
-        Monthly Payment: $350
-        Term: 48 months remaining`;
-      }
-      return 'Document content extracted successfully.';
-    };
-
-    // Real AI analysis using OpenAI
-    const analyzeDocumentWithAI = async (documentId: string, extractedText: string) => {
-      setIsTyping(true);
-      
-      try {
-        const document = documents.find(doc => doc.id === documentId);
-        if (!document) return;
-
-        let aiResponse = '';
-
-        if (isAIConnected) {
-          // Real AI analysis using OpenAI
-          aiResponse = await getRealAIAnalysis(extractedText, document);
-        } else {
-          // Fallback to simulated analysis
-          aiResponse = getSimulatedAIAnalysis(extractedText, document);
-        }
-        
-        setChatMessages(prev => [...prev, {
-          id: Date.now(),
-          type: 'ai',
-          message: aiResponse,
-          timestamp: new Date().toLocaleTimeString(),
-          attachments: [document]
-        }]);
-        
-        // Generate insights
-        generateFinancialInsights(extractedText);
-        
-      } catch (error) {
-        console.error('AI analysis failed:', error);
-        setChatMessages(prev => [...prev, {
-          id: Date.now(),
-          type: 'ai',
-          message: "I encountered an error analyzing your document. Please try again or contact support if the issue persists.",
-          timestamp: new Date().toLocaleTimeString()
-        }]);
-      } finally {
-        setIsTyping(false);
-      }
-    };
-
-    // Real OpenAI API call for financial analysis
-    const getRealAIAnalysis = async (extractedText: string, document: FinancialDocument): Promise<string> => {
-      try {
-        const prompt = `You are a professional financial advisor analyzing a client's financial document. 
-
-Document Type: ${document.type}
-Extracted Content: ${extractedText}
-
-Please provide:
-1. Key financial insights from this document
-2. Specific recommendations for optimization
-3. Calculations for potential savings or growth
-4. Next steps the client should consider
-
-Be professional, specific, and actionable. Include numbers and calculations where relevant.`;
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: 'gpt-4',
-            messages: [
-              {
-                role: 'system',
-                content: 'You are a professional financial advisor with expertise in personal finance, investments, debt management, and tax optimization. Provide specific, actionable advice with calculations.'
-              },
-              {
-                role: 'user',
-                content: prompt
-              }
-            ],
-            temperature: 0.3,
-            max_tokens: 1000,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('OpenAI API request failed');
-        }
-
-        const data = await response.json();
-        return data.choices[0]?.message?.content || 'Analysis completed successfully.';
-
-      } catch (error) {
-        console.error('OpenAI API error:', error);
-        throw error;
-      }
-    };
-
-    // Simulated AI analysis for fallback
-    const getSimulatedAIAnalysis = (extractedText: string, document: FinancialDocument): string => {
-      if (extractedText.includes('RRSP')) {
-        return `I've analyzed your Manulife RRSP document! 📊
-
-**Key Findings:**
-• Current Balance: $14,000
-• Annual Return: 6.2%
-• Recent Contribution: $500
-
-**AI Insights:**
-• At 6.2% return, you could earn ~$220 in 3 months
-• Consider increasing monthly contributions to $750 for faster growth
-• Your RRSP is performing well compared to average returns
-
-**Recommendations:**
-1. Set up automatic monthly contributions
-2. Consider diversifying into different fund types
-3. Review your risk tolerance annually
-
-Would you like me to calculate different contribution scenarios or compare this to other investment options?`;
-      } else if (extractedText.includes('Car Loan')) {
-        return `I've analyzed your car loan statement! 🚗
-
-**Current Situation:**
-• Remaining Balance: $14,700
-• Interest Rate: 6.1%
-• Monthly Payment: $350
-• Time Remaining: 48 months
-
-**AI Analysis:**
-• If you pay an extra $50/month, you'd save ~$1,200 in interest
-• You'd be debt-free 8 months earlier
-• Total interest paid: ~$2,100
-
-**Smart Strategies:**
-1. **Aggressive Payoff:** $400/month = debt-free in 36 months
-2. **Balanced Approach:** $375/month = debt-free in 42 months
-3. **Investment vs Debt:** Consider if 6.1% loan rate vs potential investment returns
-
-Would you like me to calculate different payment scenarios or compare this to investing in your TFSA?`;
-      } else {
-        return `I've analyzed your financial document! 📄
-
-**Document Type:** ${document.type}
-**Key Information Extracted:** ${extractedText.substring(0, 200)}...
-
-**AI Insights:**
-• I can help you optimize this financial situation
-• Let me provide personalized recommendations
-• Consider asking me specific questions about this data
-
-**What would you like to know?**
-• "How can I optimize this?"
-• "What are my best next steps?"
-• "Should I prioritize this over other financial goals?"`;
-      }
-    };
-
-    const generateFinancialInsights = (extractedText: string) => {
-      const newInsights: FinancialInsight[] = [];
-      
-      if (extractedText.includes('RRSP')) {
-        newInsights.push({
-          id: Date.now().toString(),
-          type: 'investment',
-          title: 'RRSP Growth Opportunity',
-          description: 'Your RRSP is performing well at 6.2% return',
-          impact: 'Potential $220 gain in 3 months',
-          priority: 'high',
-          actionable: true
-        });
-      }
-      
-      if (extractedText.includes('Car Loan')) {
-        newInsights.push({
-          id: (Date.now() + 1).toString(),
-          type: 'debt',
-          title: 'Debt Payoff Strategy',
-          description: 'Extra $50/month could save $1,200 in interest',
-          impact: 'Debt-free 8 months earlier',
-          priority: 'high',
-          actionable: true
-        });
-      }
-      
-      setInsights(prev => [...prev, ...newInsights]);
-    };
-
-    const handleSendMessage = async () => {
-      if (!inputMessage.trim()) return;
-      
-      const userMessage = inputMessage;
-      setInputMessage('');
-      
-      // Add user message
+    } catch (error) {
+      console.error('AI connection test failed:', error);
+      // Set AI as disconnected but don't crash the component
+      setIsAIConnected(false);
+      // Add a message to inform the user
       setChatMessages(prev => [...prev, {
         id: Date.now(),
-        type: 'user',
-        message: userMessage,
+        type: 'ai',
+        message: "⚠️ AI service is currently unavailable. I'll provide simulated responses for demonstration purposes.",
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    }
+  };
+
+  // Auto-scroll to bottom of chat - only when new messages are added (not on initial load)
+  useEffect(() => {
+    // Don't scroll on initial load, only when new messages are added
+    if (chatMessages.length > 1 && chatMessages.length > 3) { // Ensure we have more than initial messages
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages]);
+
+  // Share with Financial Therapist
+  const handleShareWithTherapist = (messageId: number) => {
+    const message = chatMessages.find(msg => msg.id === messageId);
+    if (message) {
+      setChatMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'ai',
+        message: `I've shared this conversation with your Financial Therapist! 💜\n\nThey'll review your financial situation and provide personalized emotional support and guidance. You can expect a response within the next few hours.\n\nIn the meantime, would you like me to help you with any other financial questions?`,
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    }
+  };
+
+  // Voice recording functionality
+  const handleVoiceInput = () => {
+    if (!isRecording) {
+      setIsRecording(true);
+      setIsListening(true);
+      // Simulate voice recording
+      setTimeout(() => {
+        setIsRecording(false);
+        setIsListening(false);
+        // Add a simulated voice message
+        setChatMessages(prev => [...prev, {
+          id: Date.now(),
+          type: 'user',
+          message: "I just recorded a voice message about my financial goals.",
+          timestamp: new Date().toLocaleTimeString()
+        }]);
+      }, 3000);
+    } else {
+      setIsRecording(false);
+      setIsListening(false);
+    }
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    
+    setIsUploading(true);
+    
+    try {
+      // Simulate file processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const newDocuments: FinancialDocument[] = Array.from(files).map((file, index) => ({
+        id: `doc-${Date.now()}-${index}`,
+        name: file.name,
+        type: file.type.includes('pdf') ? 'pdf' : 
+              file.type.includes('csv') ? 'csv' : 
+              file.type.includes('image') ? 'image' : 'screenshot',
+        size: file.size,
+        uploadedAt: new Date().toISOString(),
+        fileUrl: URL.createObjectURL(file)
+      }));
+      
+      setDocuments(prev => [...prev, ...newDocuments]);
+      
+      // Add AI analysis message
+      setChatMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'ai',
+        message: `I've analyzed ${newDocuments.length} document(s). Here's what I found:\n\n${newDocuments.map(doc => `📄 ${doc.name} - ${doc.type.toUpperCase()}`).join('\n')}\n\nI can help you extract financial data, categorize transactions, or answer questions about these documents. What would you like to know?`,
         timestamp: new Date().toLocaleTimeString()
       }]);
       
-      setIsTyping(true);
+    } catch (error) {
+      console.error('File upload error:', error);
+      setChatMessages(prev => [...prev, {
+        id: Date.now(),
+        type: 'ai',
+        message: "Sorry, I encountered an error processing your documents. Please try again.",
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle quick upload
+  const handleQuickUpload = (type: string) => {
+    setShowUploadMenu(false);
+    // Simulate different upload types
+    const mockDocument: FinancialDocument = {
+      id: `quick-${Date.now()}`,
+      name: `Quick ${type} upload`,
+      type: type === 'pdf' ? 'pdf' : 'image',
+      size: 1024 * 1024,
+      uploadedAt: new Date().toISOString()
+    };
+    
+    setDocuments(prev => [...prev, mockDocument]);
+    setChatMessages(prev => [...prev, {
+      id: Date.now(),
+      type: 'ai',
+      message: `I've processed your ${type} upload. I can help analyze this document and extract financial insights. What would you like me to focus on?`,
+      timestamp: new Date().toLocaleTimeString()
+    }]);
+  };
+
+  // Handle send message
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim()) return;
+    
+    const userMessage: ChatMessage = {
+      id: Date.now(),
+      type: 'user',
+      message: inputMessage,
+      timestamp: new Date().toLocaleTimeString()
+    };
+    
+    setChatMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    setIsTyping(true);
+    
+    try {
+      // Simulate AI response
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      try {
-        // Generate real AI response
-        const aiResponse = await generateRealAIResponse(userMessage);
-        setChatMessages(prev => [...prev, {
-          id: Date.now(),
+              const aiResponse: ChatMessage = {
+          id: Date.now() + 1,
           type: 'ai',
-          message: aiResponse,
+          message: generateAIResponse(inputMessage),
           timestamp: new Date().toLocaleTimeString()
-        }]);
-      } catch (error) {
-        console.error('AI response generation failed:', error);
-        // Fallback to simulated response
-        const fallbackResponse = generateSimulatedAIResponse(userMessage);
-        setChatMessages(prev => [...prev, {
-          id: Date.now(),
-          type: 'ai',
-          message: fallbackResponse,
-          timestamp: new Date().toLocaleTimeString()
-        }]);
-      } finally {
-        setIsTyping(false);
-      }
-    };
-
-    // Real AI response generation
-    const generateRealAIResponse = async (userMessage: string): Promise<string> => {
-      if (!isAIConnected) {
-        throw new Error('AI not connected');
-      }
-
-      const prompt = `You are a professional financial advisor. A user is asking: "${userMessage}"
-
-Please provide:
-1. Specific financial advice and calculations
-2. Relevant strategies and recommendations
-3. Actionable next steps
-4. Professional, helpful tone
-
-Context: The user has uploaded financial documents and is seeking personalized financial advice.`;
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a professional financial advisor. Provide specific, actionable advice with calculations when relevant.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.3,
-          max_tokens: 800,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('OpenAI API request failed');
-      }
-
-      const data = await response.json();
-      return data.choices[0]?.message?.content || 'I understand your question. Let me provide some guidance.';
-    };
-
-    // Simulated AI response for fallback
-    const generateSimulatedAIResponse = (userMessage: string): string => {
-      const message = userMessage.toLowerCase();
+        };
       
-      // Financial calculation responses
-      if (message.includes('tfsa') && message.includes('month')) {
-        return `**TFSA Growth Calculation:** 📈
+      setChatMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      setChatMessages(prev => [...prev, {
+        id: Date.now() + 1,
+        type: 'ai',
+        message: "I'm sorry, I encountered an error processing your request. Please try again.",
+        timestamp: new Date().toLocaleTimeString()
+      }]);
+    } finally {
+      setIsTyping(false);
+    }
+  };
 
-If you add $50/month to your TFSA at 4.75% annual return:
-• Monthly contribution: $50
-• Annual return: 4.75%
-• In 6 months: $300 + ~$7.50 interest = $307.50
-• In 1 year: $600 + ~$15 interest = $615
-
-**Smart Strategy:**
-• Consider weekly contributions ($12.50/week) for compound growth
-• Automate transfers to avoid missing months
-• Review and increase contributions annually
-
-Would you like me to calculate different contribution amounts or compare this to other investment options?`;
-      }
-      
-      if (message.includes('loan') && message.includes('pay')) {
-        return `**Loan Payoff Analysis:** 💰
-
-Based on your $14,700 car loan at 6.1%:
-• Current monthly payment: $350
-• If you add $50/month ($400 total):
-  - Payoff time: 36 months (vs 48 months)
-  - Interest saved: ~$1,200
-  - Total savings: $1,200 + 12 months of payments
-
-**Comparison:**
-• **Conservative:** $375/month = 42 months to payoff
-• **Aggressive:** $400/month = 36 months to payoff
-• **Very Aggressive:** $450/month = 30 months to payoff
-
-**Recommendation:** The extra $50/month is a smart move - you'll save significant interest and be debt-free faster!`;
-      }
-      
-      if (message.includes('rrsp') && message.includes('tfsa')) {
-        return `**RRSP vs TFSA Comparison:** 🏦
-
-**Your RRSP ($14,000 at 6.2%):**
-• Annual growth: ~$868
-• Tax deduction benefit: Immediate tax savings
-• Withdrawal: Taxed in retirement
-
-**TFSA (if you had $14,000 at 4.75%):**
-• Annual growth: ~$665
-• No tax deduction: But tax-free withdrawals
-• Flexibility: Can withdraw anytime
-
-**AI Recommendation:**
-• **RRSP is better for:** High income earners, long-term retirement
-• **TFSA is better for:** Medium income, flexibility, emergency fund
-• **Best strategy:** Use both! RRSP for retirement, TFSA for flexibility
-
-Your RRSP is growing faster, which is excellent for retirement planning!`;
-      }
-      
-      if (message.includes('invest') || message.includes('save')) {
-        return `**Investment Strategy Analysis:** 📊
-
-Based on your financial situation, here are my recommendations:
-
-**Priority 1: Emergency Fund**
-• Save 3-6 months of expenses
-• Use TFSA for flexibility
-
-**Priority 2: Debt Reduction**
-• Pay off high-interest debt first (6.1% car loan)
-• Consider debt consolidation if rates are lower
-
-**Priority 3: Investment Growth**
-• RRSP: Great for retirement (6.2% return)
-• TFSA: Good for medium-term goals
-• Consider: Index funds, ETFs for diversification
-
-**Smart Next Steps:**
-1. Build emergency fund in TFSA
-2. Pay extra on car loan ($50/month)
-3. Increase RRSP contributions gradually
-4. Consider automated investing
-
-Would you like me to create a detailed financial plan for you?`;
-      }
-      
-      // Default response
-      return `I understand you're asking about "${userMessage}". 
-
-I can help you with:
-• **Financial calculations** (loan payoffs, investment growth)
-• **Strategy comparisons** (debt vs investing)
-• **Goal planning** (emergency fund, retirement)
-• **Document analysis** (upload statements for personalized advice)
-
-Try asking me specific questions like:
-• "How much would I save with extra loan payments?"
-• "Should I prioritize my RRSP or TFSA?"
-• "What's my best debt payoff strategy?"
-
-Or upload a financial document for personalized analysis!`;
-    };
-
-    const handleKeyPress = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        handleSendMessage();
-      }
-    };
-
-    const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files[0]) {
-        handleFileUpload(e.target.files);
-      }
-    };
-
-    const removeDocument = (documentId: string) => {
-      setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-    };
-
-    // Drag and drop handlers
-    const handleDragOver = (e: React.DragEvent) => {
+  // Handle key press
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      e.currentTarget.classList.add('border-pink-400', 'bg-pink-500/10');
-    };
+      handleSendMessage();
+    }
+  };
 
-    const handleDragLeave = (e: React.DragEvent) => {
-      e.preventDefault();
-      e.currentTarget.classList.remove('border-pink-400', 'bg-pink-500/10');
-    };
+  // Generate AI response
+  const generateAIResponse = (userMessage: string): string => {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    if (lowerMessage.includes('budget') || lowerMessage.includes('spending')) {
+      return "Great question about budgeting! I can help you create a budget, track spending, and identify areas to save. Would you like me to analyze your current spending patterns or help you set up a new budget?";
+    } else if (lowerMessage.includes('invest') || lowerMessage.includes('savings')) {
+      return "Investing and savings are key to building wealth! I can help you understand different investment options, calculate compound interest, and create a savings plan. What's your current financial situation?";
+    } else if (lowerMessage.includes('debt') || lowerMessage.includes('loan')) {
+      return "Managing debt effectively is crucial for financial health. I can help you create a debt payoff strategy, calculate interest, and explore consolidation options. What types of debt are you dealing with?";
+    } else if (lowerMessage.includes('tax') || lowerMessage.includes('deduction')) {
+      return "Tax planning can save you money! I can help you understand deductions, plan for tax season, and optimize your tax strategy. Are you looking for business deductions or personal tax advice?";
+    } else {
+      return "That's an interesting financial question! I'm here to help with budgeting, investing, debt management, tax planning, and more. Could you give me more details about what you'd like to know?";
+    }
+  };
 
-    const handleDrop = (e: React.DragEvent) => {
-      e.preventDefault();
-      e.currentTarget.classList.remove('border-pink-400', 'bg-pink-500/10');
-      
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        handleFileUpload(e.dataTransfer.files);
-      }
-    };
-
+  // Try to render the component, but catch any errors and show a fallback
+  try {
     return (
       <div className="w-full">
-        {/* Standardized Dashboard Header */}
         <DashboardHeader />
         
-        {/* Status Bar */}
-        <div className="mb-8 bg-gradient-to-r from-indigo-600/20 to-blue-600/20 rounded-lg p-4 border border-indigo-200/30">
-          <div className="flex items-center justify-between text-white">
-            <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-2">
-                <div className={`w-2 h-2 rounded-full ${isAIConnected ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                <span className="text-sm font-medium">{isAIConnected ? 'AI Online' : 'Demo Mode'}</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-blue-400 rounded-sm flex items-center justify-center">
-                  <span className="text-xs font-bold text-white">A</span>
+        {/* Content Area with Enhanced Styling */}
+        <div className="max-w-7xl mx-auto space-y-8 px-4">
+          
+          {/* Status Bar */}
+          <div className="mb-8 bg-gradient-to-r from-indigo-600/20 to-blue-600/20 rounded-lg p-4 border border-indigo-200/30">
+            <div className="flex items-center justify-between text-white">
+              <div className="flex items-center space-x-6">
+                <div className="flex items-center space-x-2">
+                  <div className={`w-3 h-3 rounded-full ${isAIConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                  <span className="text-sm">
+                    {isAIConnected ? 'AI Connected' : 'AI Offline'}
+                  </span>
                 </div>
-                <span className="text-sm">94% Accuracy</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 text-blue-400">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                  </svg>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 rounded-full bg-blue-400"></div>
+                  <span className="text-sm">Ready to Help</span>
                 </div>
-                <span className="text-sm">2.3s Avg</span>
               </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 text-blue-400">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <span className="text-sm">Documents Today: {documents.length}</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 text-blue-400">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <span className="text-sm">Time Saved: 1.2h</span>
-              </div>
+              <button
+                onClick={() => checkAIConnection()}
+                className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-lg transition-colors"
+              >
+                Refresh Status
+              </button>
             </div>
-
-            {/* Chat Toggle Button */}
-            <button
-              onClick={() => setShowChat(!showChat)}
-              className="bg-gradient-to-r from-indigo-400 to-blue-400 hover:from-indigo-500 hover:to-blue-500 text-white px-4 py-2 rounded-lg transition-all duration-200 transform hover:scale-105 shadow-lg text-sm"
-            >
-              {showChat ? 'Hide Chat' : 'Show Chat'}
-            </button>
           </div>
-        </div>
 
-                    {/* Main Content */}
-          <main className="flex-1 overflow-hidden">
-            <div className="max-w-7xl mx-auto space-y-8">
-              <div className="h-full">
-                
-                {/* Chat Interface - Full Width */}
+          {/* Main Content */}
+          <main className="flex-1 overflow-y-auto">
+            <div className="space-y-8">
+              
+              {/* Financial Overview Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-blue-500/20 rounded-xl">
+                      <DollarSign className="w-6 h-6 text-blue-400" />
+                    </div>
+                    <span className="text-2xl font-bold text-white">$24,580</span>
+                  </div>
+                  <p className="text-gray-300 text-sm">Total Assets</p>
+                  <div className="flex items-center mt-2 text-green-400 text-sm">
+                    <TrendingUp className="w-4 h-4 mr-1" />
+                    +12.5%
+                  </div>
+                </div>
+
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-red-500/20 rounded-xl">
+                      <CreditCard className="w-6 h-6 text-red-400" />
+                    </div>
+                    <span className="text-2xl font-bold text-white">$8,420</span>
+                  </div>
+                  <p className="text-gray-300 text-sm">Total Debt</p>
+                  <div className="flex items-center mt-2 text-red-400 text-sm">
+                    <TrendingUp className="w-4 h-4 mr-1" />
+                    +2.1%
+                  </div>
+                </div>
+
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-green-500/20 rounded-xl">
+                      <PiggyBank className="w-6 h-6 text-green-400" />
+                    </div>
+                    <span className="text-2xl font-bold text-white">$3,250</span>
+                  </div>
+                  <p className="text-gray-300 text-sm">Monthly Savings</p>
+                  <div className="flex items-center mt-2 text-green-400 text-sm">
+                    <TrendingUp className="w-4 h-4 mr-1" />
+                    +8.3%
+                  </div>
+                </div>
+
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-purple-500/20 rounded-xl">
+                      <Target className="w-6 h-6 text-purple-400" />
+                    </div>
+                    <span className="text-2xl font-bold text-white">85%</span>
+                  </div>
+                  <p className="text-gray-300 text-sm">Goal Progress</p>
+                  <div className="flex items-center mt-2 text-purple-400 text-sm">
+                    <Target className="w-4 h-4 mr-1" />
+                    On Track
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Chat Interface */}
+              <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 overflow-hidden">
+                <div className="p-6 border-b border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-500 rounded-full flex items-center justify-center">
+                        <Bot className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">AI Financial Assistant</h3>
+                        <p className="text-sm text-gray-300">Ask me anything about your finances</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowChat(!showChat)}
+                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      {showChat ? <X className="w-5 h-5 text-gray-400" /> : <MessageSquare className="w-5 h-5 text-gray-400" />}
+                    </button>
+                  </div>
+                </div>
+
                 {showChat && (
-                  <div className="flex flex-col bg-white/10 backdrop-blur-sm h-full">
-                    {/* Chat Messages - Fixed Scroll Container */}
-                     <div className="flex-1 overflow-y-auto p-6 space-y-4 min-h-0 chat-messages">
+                  <div className="p-6">
+                    {/* Chat Messages */}
+                    <div className="space-y-4 mb-6 max-h-96 overflow-y-auto">
                       {chatMessages.map((message) => (
                         <div
                           key={message.id}
                           className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                           <div
-                            className={`max-w-[80%] p-4 rounded-lg shadow-lg ${
+                            className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
                               message.type === 'user'
-                                ? 'bg-gradient-to-r from-indigo-400 to-blue-400 text-white'
-                                : 'bg-white/10 text-white border border-indigo-200/30'
+                                ? 'bg-gradient-to-r from-indigo-500 to-blue-500 text-white'
+                                : 'bg-white/10 text-gray-200 border border-white/20'
                             }`}
                           >
-                            <div className="flex items-start space-x-3">
+                            <p className="text-sm">{message.message}</p>
+                            <div className="flex items-center justify-between mt-2">
+                              <span className="text-xs opacity-70">{message.timestamp}</span>
                               {message.type === 'ai' && (
-                                <Sparkles className="w-5 h-5 text-indigo-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => handleShareWithTherapist(message.id)}
+                                    className="text-xs bg-white/20 hover:bg-white/30 px-2 py-1 rounded transition-colors"
+                                  >
+                                    Share with Therapist
+                                  </button>
+                                </div>
                               )}
-                              <div className="flex-1">
-                                <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                                  {message.message}
-                                </div>
-                                
-                                {/* Document Attachments */}
-                                {message.attachments && message.attachments.length > 0 && (
-                                  <div className="mt-3 space-y-2">
-                                    {message.attachments.map((doc) => (
-                                      <div
-                                        key={doc.id}
-                                        className="bg-white/10 rounded-lg p-3 border border-blue-200/30"
-                                      >
-                                        <div className="flex items-center space-x-2">
-                                          <FileText className="w-4 h-4 text-blue-400" />
-                                          <span className="text-gray-300 text-sm">
-                                            Analyzed: {doc.name}
-                                          </span>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                                
-                                <div className="flex items-center justify-between mt-3">
-                                  <span className="text-xs text-gray-400">
-                                    {message.timestamp}
-                                  </span>
-                                  {message.type === 'ai' && (
-                                    <div className="flex items-center space-x-2">
-                                      <button 
-                                        onClick={() => handleShareWithTherapist(message.id)}
-                                        className="flex items-center space-x-1 px-2 py-1 bg-gradient-to-r from-blue-100/20 to-cyan-100/20 hover:from-blue-200/20 hover:to-cyan-200/20 text-blue-300 rounded text-xs transition-all duration-200"
-                                      >
-                                        <Heart className="w-3 h-3" />
-                                        <span>Share with Therapist</span>
-                                      </button>
-                                      <div className="flex items-center space-x-1">
-                                        <button className="p-1 hover:bg-blue-100/20 rounded transition-colors">
-                                          <ThumbsUp className="w-3 h-3 text-gray-400" />
-                                        </button>
-                                        <button className="p-1 hover:bg-blue-100/20 rounded transition-colors">
-                                          <ThumbsDown className="w-3 h-3 text-gray-400" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
                             </div>
                           </div>
                         </div>
                       ))}
-                      
-                      {/* Typing Indicator */}
                       {isTyping && (
                         <div className="flex justify-start">
-                          <div className="bg-white/10 text-white p-4 rounded-lg border border-blue-200/30 shadow-lg">
-                            <div className="flex items-center space-x-3">
-                              <Sparkles className="w-5 h-5 text-blue-400" />
-                              <div className="flex space-x-1">
-                                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                              </div>
+                          <div className="bg-white/10 text-gray-200 border border-white/20 max-w-xs lg:max-w-md px-4 py-3 rounded-2xl">
+                            <div className="flex space-x-1">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                             </div>
                           </div>
                         </div>
                       )}
-                      
                       <div ref={messagesEndRef} />
                     </div>
 
                     {/* Chat Input */}
                     <div className="p-6 border-t border-blue-200/30 bg-white/10">
                       <div className="flex items-center space-x-3">
-                        {/* File Upload Button */}
+                        {/* Upload Button */}
                         <div className="relative" ref={uploadMenuRef}>
                           <button
-                            onClick={handleUploadMenuToggle}
-                            className="p-3 bg-gradient-to-r from-blue-100/20 to-cyan-100/20 hover:from-blue-200/20 hover:to-cyan-200/20 text-blue-300 rounded-xl transition-all duration-200 transform hover:scale-105 shadow-sm"
+                            onClick={() => setShowUploadMenu(!showUploadMenu)}
+                            className="p-3 rounded-xl bg-gradient-to-r from-blue-100/20 to-cyan-100/20 hover:from-blue-200/20 hover:to-cyan-200/20 text-blue-300 transition-all duration-200"
                           >
-                            <Plus className="w-5 h-5" />
+                            <Paperclip className="w-5 h-5" />
                           </button>
                           
-                          {/* Upload Menu */}
                           {showUploadMenu && (
-                            <div className="absolute bottom-full left-0 mb-2 bg-gray-800 rounded-xl shadow-lg border border-blue-200/30 p-2 min-w-[200px]">
-                              <div className="space-y-1">
+                            <div className="absolute bottom-full left-0 mb-2 w-48 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-10">
+                              <div className="p-2 space-y-1">
                                 <button
-                                  onClick={() => handleQuickUpload('document')}
+                                  onClick={() => handleQuickUpload('pdf')}
                                   className="w-full flex items-center space-x-3 px-3 py-2 text-left text-gray-300 hover:bg-blue-500/20 rounded-lg transition-colors"
                                 >
                                   <FileText className="w-4 h-4 text-blue-400" />
@@ -1029,29 +598,50 @@ Or upload a financial document for personalized analysis!`;
                   </div>
                 )}
               </div>
-              
-              {/* Specialized AI Financial Assistant Chatbot */}
-              <SpecializedChatBot
-                name="AIFinancialAssistantBot"
-                expertise="General financial guidance, analysis, answering money questions"
-                avatar="🤖"
-                welcomeMessage="Hi! I'm AIFinancialAssistantBot, your comprehensive financial advisor. I can help you with financial analysis, investment advice, debt management, budgeting strategies, and answering any money-related questions. What financial topic would you like to discuss today?"
-                color="indigo"
-              />
             </div>
           </main>
+          
+          {/* Specialized AI Financial Assistant Chatbot */}
+          <SpecializedChatBot
+            name="AIFinancialAssistantBot"
+            expertise="General financial guidance, analysis, answering money questions"
+            avatar="🤖"
+            welcomeMessage="Hi! I'm AIFinancialAssistantBot, your comprehensive financial advisor. I can help you with financial analysis, investment advice, debt management, budgeting strategies, and answering any money-related questions. What financial topic would you like to discuss today?"
+            color="indigo"
+          />
         </div>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".pdf,.csv,.jpg,.jpeg,.png,.txt,.xlsx,.xls"
+          onChange={(e) => handleFileUpload(e.target.files)}
+          className="hidden"
+        />
+      </div>
     );
   } catch (error) {
-    console.error('Error loading AIFinancialAssistantPage:', error);
+    // Fallback UI if the component crashes
+    console.error('AIFinancialAssistantPage crashed:', error);
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-100">
-        <div className="bg-white p-8 rounded-lg shadow-xl text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">AI Financial Assistant</h2>
-          <p className="text-gray-600 mb-4">
-            It seems there was an issue loading the AI Financial Assistant. Please try refreshing the page or contact support.
-          </p>
-          <p className="text-gray-500 text-sm">Error: {error instanceof Error ? error.message : String(error)}</p>
+      <div className="w-full">
+        <DashboardHeader />
+        <div className="max-w-7xl mx-auto p-8">
+          <div className="bg-red-500/10 border border-red-500/20 rounded-2xl p-8 text-center">
+            <AlertTriangle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white mb-2">Something went wrong</h2>
+            <p className="text-gray-300 mb-4">
+              The AI Financial Assistant encountered an error. This might be due to a temporary issue with the AI service.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl transition-colors"
+            >
+              Reload Page
+            </button>
+          </div>
         </div>
       </div>
     );

@@ -80,6 +80,10 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard/ai-financial-freedom': {
     title: 'AI Financial Freedom',
     subtitle: 'Pathway to financial independence with AI guidance.'
+  },
+  '/dashboard/reports': {
+    title: 'Reports',
+    subtitle: 'Comprehensive financial reports and analytics.'
   }
 };
 
@@ -110,8 +114,8 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
 
   return (
     <header className="mb-8 p-6 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2 rounded-2xl">
-      {/* Page Title and Subtitle - Hidden on mobile to prevent double title */}
-      <div className="hidden md:block mb-8">
+      {/* Page Title and Subtitle - Now visible on both desktop and mobile */}
+      <div className="mb-8">
         <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent mb-2">
           {customTitle || pageTitles[location.pathname]?.title || 'Dashboard'}
         </h1>

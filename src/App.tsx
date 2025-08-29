@@ -86,13 +86,20 @@ function ScrollToTop() {
   const location = useLocation();
   
   useEffect(() => {
-    // For dashboard routes, preserve scroll position and don't scroll to top
+    // For dashboard routes, scroll to top but preserve sidebar scroll
     if (location.pathname.startsWith('/dashboard')) {
-      // Don't scroll - preserve current position including sidebar scroll
-      return;
+      // Scroll main content to top, but preserve sidebar scroll
+      const mainContent = document.querySelector('.dashboard-main-content');
+      if (mainContent) {
+        mainContent.scrollTop = 0;
+      } else {
+        // Fallback to window scroll if main content not found
+        window.scrollTo(0, 0);
+      }
+    } else {
+      // For non-dashboard routes, scroll to top
+      window.scrollTo(0, 0);
     }
-    // For non-dashboard routes, scroll to top
-    window.scrollTo(0, 0);
   }, [location.pathname]);
   
   return null;
@@ -153,7 +160,7 @@ function App() {
                   <Route path="/features/automation" element={<AutomationFeaturePage />} />
                   <Route path="/features/podcast-generator" element={<PodcastGeneratorFeaturePage />} />
                   
-                  {/* Dashboard routes with persistent layout */}
+                  {/* Dashboard routes with persistent layout - Each route shows its specific page */}
                   <Route path="/dashboard" element={<DashboardLayout />}>
                     <Route index element={<XspensesProDashboard />} />
                     <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
@@ -172,7 +179,7 @@ function App() {
                     <Route path="analytics" element={<Analytics />} />
                     <Route path="settings" element={<Settings />} />
                     <Route path="reports" element={<ReportsPage />} />
-                    <Route path="spotify-integration" element={<SpotifyIntegrationDashboardPage />} />
+                    <Route path="spotify-integration" element={<SpotifyIntegration />} />
                     <Route path="spotify-integration-new" element={<SpotifyIntegration />} />
                     <Route path="wellness-studio" element={<WellnessStudioPage />} />
                     <Route path="financial-therapist" element={<FinancialTherapistPage />} />

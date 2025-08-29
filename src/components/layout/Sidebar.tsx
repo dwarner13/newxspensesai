@@ -112,44 +112,45 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
 
   return (
     <aside className="h-full flex flex-col bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20" ref={sidebarRef}>
-      {/* Header with Logo - Professional Design */}
-      <div className="sticky top-0 border-b border-white/10 p-6 backdrop-blur-md bg-[rgba(15,23,42,0.95)]">
-        <div className="flex items-center justify-between">
-          {shouldShowLabels && (
-            <div className="flex items-center gap-4 flex-1">
-              <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-3 shadow-xl">
-                <Crown className="text-white" size={28} />
-              </span>
-              <div>
-                <span className="font-bold text-xl leading-tight tracking-tight text-white">XspensesAI</span>
+              {/* Header with Logo - Professional Design */}
+                      {/* Header with Logo - Professional Design */}
+        <div className={`sticky top-0 border-b border-white/10 backdrop-blur-md bg-[rgba(15,23,42,0.95)] ${shouldShowLabels && !isMobileOpen ? 'p-6' : 'h-0 overflow-hidden'}`}>
+          <div className="flex items-center justify-between">
+            {shouldShowLabels && !isMobileOpen && (
+              <div className="flex items-center gap-4 flex-1">
+                <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-4 shadow-xl">
+                  <Crown className="text-white" size={32} />
+                </span>
+                <div>
+                  <span className="font-bold text-xl leading-tight tracking-tight text-white">XspensesAI</span>
+                </div>
               </div>
-            </div>
-          )}
-          {!shouldShowLabels && (
-            <div className="flex items-center justify-center flex-1">
-              <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-3 shadow-xl">
-                <Crown className="text-white" size={28} />
-              </span>
-            </div>
-          )}
-          <div className="flex items-center gap-3">
-            {/* Collapse Toggle Button - Only show on desktop */}
-            {!isMobileOpen && (
-              <button 
-                onClick={toggleSidebar}
-                className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
-                style={{ minHeight: '44px', minWidth: '44px' }}
-              >
-                {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-              </button>
             )}
+            {!shouldShowLabels && (
+              <div className="flex items-center justify-center flex-1">
+                <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-3 shadow-xl">
+                  <Crown className="text-white" size={28} />
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-3">
+              {/* Collapse Toggle Button - Only show on desktop */}
+              {!isMobileOpen && (
+                <button 
+                  onClick={toggleSidebar}
+                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
+                  style={{ minHeight: '44px', minWidth: '44px' }}
+                >
+                  {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Navigation with Tight Spacing - Full Height */}
-      <div className="flex flex-col flex-1 min-h-0">
-        <nav className="px-4 py-4 overflow-y-auto flex-1" style={{ height: 'calc(100vh - 280px)', maxHeight: 'calc(100vh - 280px)' }}>
+              {/* Navigation with Independent Scrolling */}
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <nav className="px-4 py-4 overflow-y-auto flex-1 sidebar-nav-scroll" style={{ maxHeight: 'calc(100vh - 200px)' }} onWheel={(e) => e.stopPropagation()}>
         {/* Main Dashboard */}
         <ul className="space-y-1 mb-4">
           <li>
