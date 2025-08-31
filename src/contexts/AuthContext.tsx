@@ -30,9 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey || 
-        supabaseUrl === 'https://auth.xspensesai.com' || 
-        supabaseAnonKey === 'placeholder-key') {
+    if (!supabaseUrl || !supabaseAnonKey) {
       console.log('⚠️ Supabase auth skipped - not connected');
       console.log('🔍 AuthContext: Supabase not configured, bypassing authentication');
       
