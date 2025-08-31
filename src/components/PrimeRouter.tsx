@@ -50,11 +50,16 @@ Always respond as Prime, the helpful AI boss.`;
       const href = link.getAttribute('href');
       if (!href) return;
 
-      // Only intercept marketing CTAs (signup, dashboard, feature pages)
-      const isMarketingCTA = href.includes('/signup') || 
-                            href.includes('/dashboard') || 
-                            href.includes('/features/') ||
-                            href.includes('/ai-employees');
+      // Only intercept actual CTA buttons, not navigation links
+      const isCTAButton = link.textContent?.toLowerCase().includes('get started') ||
+                         link.textContent?.toLowerCase().includes('start free') ||
+                         link.textContent?.toLowerCase().includes('try it free') ||
+                         link.textContent?.toLowerCase().includes('create account') ||
+                         link.textContent?.toLowerCase().includes('sign up') ||
+                         link.textContent?.toLowerCase().includes('start trial');
+      
+      // Only intercept if it's a CTA button going to signup/dashboard
+      const isMarketingCTA = isCTAButton && (href.includes('/signup') || href.includes('/dashboard'));
 
       if (!isMarketingCTA) return;
 
