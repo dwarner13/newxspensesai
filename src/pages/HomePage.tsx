@@ -1,1689 +1,1321 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
+import { 
+  Crown, Zap, Brain, Play, RefreshCw, Calculator
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import WebsiteLayout from '../components/layout/WebsiteLayout';
 
-const NewHomepageHero = () => (
-  <section className="homepage-hero bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white py-24">
-    <div className="container max-w-7xl mx-auto px-4 text-center">
-      {/* Hero Badge */}
-      <div className="inline-flex items-center px-4 py-2 bg-white/5 backdrop-blur-sm rounded-full text-sm mb-8 font-semibold shadow border border-white/10">
-        <span className="mr-2 text-lg">🤖</span>
-        <span>AI That Categorizes Expenses While You Sleep</span>
-        </div>
-      
-      {/* Hero Headline */}
-      <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold mb-6 leading-tight max-w-5xl mx-auto">
-        <span className="gradient-text-hero block mb-3">AI Expense Management That's Actually Fun</span>
-        <span className="gradient-text block text-2xl md:text-3xl lg:text-4xl">Smart AI + Entertainment = Financial Freedom</span>
-        </h1>
-      
-      {/* Hero Subtitle */}
-      <p className="text-xl md:text-2xl text-gray-200 mb-10 max-w-4xl mx-auto leading-relaxed">
-        Revolutionary AI automatically categorizes expenses with 99.7% accuracy in 2.3 seconds. Plus, get personalized financial insights through AI-generated podcasts that make money management addictive. Meet your team of 9 AI Employees, each with unique personalities and superpowers. Never manually categorize expenses again.
-      </p>
-      
-      {/* Unique Features Preview */}
-      <div className="unique-features-preview grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-10 max-w-5xl mx-auto">
-        <div className="flex items-center gap-3 text-lg text-gray-200 justify-center md:justify-start">
-          <span className="text-2xl">🤖</span> 
-          <span>99.7% AI accuracy (better than humans)</span>
-        </div>
-        <div className="flex items-center gap-3 text-lg text-gray-200 justify-center md:justify-start">
-          <span className="text-2xl">⚡</span> 
-          <span>2.3s processing speed (instant results)</span>
-        </div>
-        <div className="flex items-center gap-3 text-lg text-gray-200 justify-center md:justify-start">
-          <span className="text-2xl">🌍</span> 
-          <span>Works with 500+ banks worldwide</span>
-        </div>
-        <div className="flex items-center gap-3 text-lg text-gray-200 justify-center md:justify-start">
-          <span className="text-2xl">🧠</span> 
-          <span>AI learns and never asks twice</span>
-        </div>
-        <div className="flex items-center gap-3 text-lg text-gray-200 justify-center md:justify-start">
-          <span className="text-2xl">🎧</span> 
-          <span>AI-generated podcasts about YOUR money</span>
-        </div>
-        <div className="flex items-center gap-3 text-lg text-gray-200 justify-center md:justify-start">
-          <span className="text-2xl">👥</span> 
-          <span>9 AI Employees with unique personalities</span>
-        </div>
-      </div>
-      
-      {/* Hero CTAs */}
-      <div className="hero-cta flex flex-col sm:flex-row gap-4 mb-12 justify-center">
-        <button className="btn-primary-large bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-xl font-semibold text-xl shadow-lg hover:scale-105 transition-all duration-300 hover:shadow-cyan-500/25">
-          Start Your AI Financial Journey
-          <span className="block text-xs font-normal mt-1">✓ No credit card required • ✓ Process 10 documents free • ✓ See results in 2.3 seconds</span>
-          </button>
-        <button className="btn-secondary flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-lg border-2 border-cyan-500 text-cyan-500 hover:bg-cyan-500 hover:text-white transition-all duration-300">
-            <span className="play-icon text-2xl">▶️</span>
-          Watch AI Process 50 Receipts in 30 Seconds
-          </button>
-        </div>
-      
-      {/* Trust Indicators */}
-      <div className="trust-indicators flex flex-wrap gap-6 text-sm text-gray-300 font-medium mb-12 justify-center">
-        <span className="flex items-center gap-2">💳 Bank-level security</span>
-        <span className="flex items-center gap-2">⭐ 4.9/5 rating</span>
-        <span className="flex items-center gap-2">👥 50,000+ automated users</span>
-        <span className="flex items-center gap-2">🔒 SOC 2 compliant</span>
-        </div>
-      
-      {/* Time Savings Calculator */}
-      <div className="time-savings-calculator bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 max-w-4xl mx-auto">
-        <h3 className="text-xl font-bold text-white mb-6">Your Time Savings Calculator</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-          <div className="bg-white/10 rounded-lg p-4 border border-white/5">
-            <div className="text-3xl font-bold text-red-400">8 hours</div>
-            <div className="text-sm text-gray-300">Manual work/month</div>
-      </div>
-          <div className="bg-white/10 rounded-lg p-4 border border-white/5">
-            <div className="text-3xl font-bold text-green-400">5 minutes</div>
-            <div className="text-sm text-gray-300">Smart Import AI/month</div>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 border border-white/5">
-            <div className="text-3xl font-bold text-yellow-400">94 hours</div>
-            <div className="text-sm text-gray-300">Annual time saved</div>
-          </div>
-          <div className="bg-white/10 rounded-lg p-4 border border-white/5">
-            <div className="text-3xl font-bold text-cyan-400">$4,700</div>
-            <div className="text-sm text-gray-300">Value at $50/hour</div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Professional Smart Import AI Showcase */}
-      <div className="mt-16 flex justify-center">
-        <div className="w-full max-w-6xl">
-          {/* Main Showcase Card */}
-          <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/10 overflow-hidden">
-            {/* Header Section */}
-            <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 p-8 border-b border-white/10">
-              <div className="flex items-center justify-center gap-4 mb-6">
-                {/* Modern Abstract Icon */}
-                <div className="relative">
-                  <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
-                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  {/* Floating Elements */}
-                  <div className="absolute -top-2 -right-2 w-4 h-4 bg-cyan-400 rounded-full animate-pulse"></div>
-                  <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-blue-400 rounded-full animate-pulse delay-100"></div>
-                </div>
+interface AIEmployee {
+  name: string;
+  role: string;
+  avatar: string;
+  specialty: string;
+  color: string;
+  superpower: string;
+  demoQuote: string;
+}
+
+interface FeaturePreview {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  color: string;
+  link: string;
+  aiEmployee: string;
+}
+
+interface UserTestimonial {
+  id: string;
+  name: string;
+  role: string;
+  avatar: string;
+  savings: string;
+  testimonial: string;
+  aiEmployee: string;
+}
+
+const HomePage = () => {
+  const [showAIDemo, setShowAIDemo] = useState(false);
+  const [isAIDemoRunning, setIsAIDemoRunning] = useState(false);
+  const [demoProgress, setDemoProgress] = useState(0);
+
+  const [showPersonalityQuiz, setShowPersonalityQuiz] = useState(false);
+  const [userSavings, setUserSavings] = useState(0);
+  const [isCalculatingROI, setIsCalculatingROI] = useState(false);
+
+  // AI Dream Team
+  const aiDreamTeam: AIEmployee[] = [
+    {
+      name: 'Prime',
+      role: 'AI Boss & Director',
+      avatar: '👑',
+      specialty: 'Strategic Financial Orchestration',
+      color: 'from-purple-500 to-pink-500',
+      superpower: 'Orchestrates your complete financial empire with superhuman intelligence',
+      demoQuote: 'I\'ve analyzed your financial patterns and orchestrated a strategy that will save you $4,700 this year.'
+    },
+    {
+      name: 'Byte',
+      role: 'AI Process Optimizer',
+      avatar: '⚙️',
+      specialty: 'Superhuman Document Processing',
+      color: 'from-blue-500 to-cyan-500',
+      superpower: 'Processes any financial document in 2.3 seconds with 99.7% accuracy',
+      demoQuote: 'Just processed 47 bank statements. Found 12 uncategorized business meals worth $340!'
+    },
+    {
+      name: 'Tag',
+      role: 'AI Rule Engine',
+      avatar: '🏷️',
+      specialty: 'Intelligent Categorization',
+      color: 'from-green-500 to-emerald-500',
+      superpower: 'Creates and manages intelligent automation rules that never fail',
+      demoQuote: 'I\'ve created smart rules that automatically categorize your expenses with perfect accuracy.'
+    },
+    {
+      name: 'Crystal',
+      role: 'AI Prediction Engine',
+      avatar: '🔮',
+      specialty: 'Future Financial Predictions',
+      color: 'from-indigo-500 to-purple-500',
+      superpower: 'Predicts your financial future with 99.7% accuracy',
+      demoQuote: 'You\'ll overspend on dining next week. Should I adjust your budget automatically?'
+    }
+  ];
+
+  // Revolutionary Features
+  const revolutionaryFeatures: FeaturePreview[] = [
+    {
+      id: 'smart-automation',
+      title: 'AI Smart Automation',
+      description: 'Complete autonomous financial control with 200+ daily AI decisions',
+      icon: '🤖',
+      color: 'from-purple-500 to-pink-500',
+      link: '/features/smart-automation',
+      aiEmployee: 'Prime'
+    },
+    {
+      id: 'tax-assistant',
+      title: 'AI Tax Assistant',
+      description: 'Revolutionary AI that finds deductions and optimizes your taxes',
+      icon: '📊',
+      color: 'from-blue-500 to-cyan-500',
+      link: '/features/tax-assistant',
+      aiEmployee: 'Tag'
+    },
+    {
+      id: 'business-intelligence',
+      title: 'AI Business Intelligence',
+      description: 'AI-powered business insights and strategy recommendations',
+      icon: '📈',
+      color: 'from-green-500 to-emerald-500',
+      link: '/features/business-intelligence',
+      aiEmployee: 'Crystal'
+    },
+    {
+      id: 'wellness-studio',
+      title: 'AI Wellness Studio',
+      description: 'Complete financial wellness and emotional support system',
+      icon: '🧘',
+      color: 'from-indigo-500 to-purple-500',
+      link: '/features/wellness-studio',
+      aiEmployee: 'Prime'
+    },
+    {
+      id: 'personal-podcast',
+      title: 'AI Personal Podcast',
+      description: 'Personalized podcasts about YOUR financial journey',
+      icon: '🎧',
+      color: 'from-orange-500 to-red-500',
+      link: '/features/personal-podcast',
+      aiEmployee: 'Crystal'
+    },
+    {
+      id: 'spotify-integration',
+      title: 'AI Spotify Integration',
+      description: 'AI-powered music that makes financial tasks enjoyable',
+      icon: '🎵',
+      color: 'from-pink-500 to-purple-500',
+      link: '/features/spotify-integration',
+      aiEmployee: 'Byte'
+    }
+  ];
+
+  // Live User Testimonials
+  const liveTestimonials: UserTestimonial[] = [
+    {
+      id: '1',
+      name: 'Sarah M.',
+      role: 'Small Business Owner',
+      avatar: 'SM',
+      savings: '$4,700',
+      testimonial: 'Prime orchestrated my entire financial strategy. I saved $4,700 in the first year!',
+      aiEmployee: 'Prime'
+    },
+    {
+      id: '2',
+      name: 'Mike R.',
+      role: 'Freelance Developer',
+      avatar: 'MR',
+      savings: '$2,300',
+      testimonial: 'Byte processes my receipts in seconds. I get hours of my life back every week!',
+      aiEmployee: 'Byte'
+    },
+    {
+      id: '3',
+      name: 'Jennifer L.',
+      role: 'Marketing Consultant',
+      avatar: 'JL',
+      savings: '$3,200',
+      testimonial: 'Tag\'s smart categorization found $3,200 in missed tax deductions!',
+      aiEmployee: 'Tag'
+    },
+    {
+      id: '4',
+      name: 'David K.',
+      role: 'Product Manager',
+      avatar: 'DK',
+      savings: '$1,800',
+      testimonial: 'Crystal predicted my spending patterns and helped me save $1,800 this quarter!',
+      aiEmployee: 'Crystal'
+    }
+  ];
+
+  // Demo Functions
+  const startAIDemo = () => {
+    setIsAIDemoRunning(true);
+    setDemoProgress(0);
+    
+    const interval = setInterval(() => {
+      setDemoProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setIsAIDemoRunning(false);
+          return 100;
+        }
+        return prev + 20;
+      });
+    }, 500);
+  };
+
+  const calculateROI = () => {
+    setIsCalculatingROI(true);
+    setTimeout(() => {
+      setUserSavings(Math.floor(Math.random() * 5000) + 2000);
+      setIsCalculatingROI(false);
+    }, 2000);
+  };
+
+  return (
+    <>
+      <Helmet>
+        <title>XspensesAI - Revolutionary AI Financial Management | Prime's AI Empire</title>
+        <meta name="description" content="Experience the future of financial management with Prime's AI Empire. Revolutionary AI automation, 99.7% accuracy, and complete financial control. Join 50,000+ users who've transformed their financial lives." />
+        <meta name="keywords" content="AI financial management, Prime AI, Byte AI, Tag AI, Crystal AI, smart automation, AI expense tracking, revolutionary AI, financial AI team" />
+        <meta property="og:title" content="XspensesAI - Revolutionary AI Financial Management | Prime's AI Empire" />
+        <meta property="og:description" content="Experience the future of financial management with Prime's AI Empire." />
+        <meta property="og:type" content="website" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="XspensesAI - Revolutionary AI Financial Management | Prime's AI Empire" />
+        <meta name="twitter:description" content="Experience the future of financial management with Prime's AI Empire." />
+      </Helmet>
+
+      {/* Hero Section - Prime's AI Empire */}
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 pt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center mb-16">
+            {/* Prime Badge */}
+                         <div className="text-center mb-12">
+               <motion.div 
+                 initial={{ opacity: 0, y: -20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 transition={{ duration: 0.6 }}
+                 className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md border border-white/20 rounded-full px-6 py-3"
+               >
+                 <Crown size={20} className="text-yellow-400" />
+                 <span className="text-white font-semibold">Smart-Categorizing AI</span>
+               </motion.div>
+             </div>
                 
-                <div className="text-center">
-                  <h3 className="text-3xl font-bold text-white mb-2">Smart Import AI</h3>
-                  <p className="text-lg text-cyan-300 font-medium">Revolutionary Financial Automation</p>
-                </div>
-              </div>
-              
-              {/* Key Benefits Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-cyan-400 mb-1">99.7%</div>
-                  <div className="text-sm text-gray-300">Accuracy Rate</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-400 mb-1">2.3s</div>
-                  <div className="text-sm text-gray-300">Processing Speed</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-400 mb-1">500+</div>
-                  <div className="text-sm text-gray-300">Banks Supported</div>
-                </div>
-              </div>
-            </div>
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-3xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight"
+            >
+              XspensesAI: The World's First<br />
+              <span className="text-purple-400">
+                Fintech Entertainment Platform
+              </span><br />
+              That Works While You Play
+            </motion.h1>
             
-            {/* Content Section */}
-            <div className="p-8">
-              <div className="grid md:grid-cols-2 gap-8 items-center">
-                {/* Left: Value Proposition */}
-                <div className="space-y-6">
-                  <div>
-                    <h4 className="text-xl font-bold text-white mb-3">End Manual Expense Work Forever</h4>
-                    <p className="text-gray-300 leading-relaxed">
-                      Revolutionary AI that reads ANY financial document with superhuman accuracy. 
-                      No more manual categorization, no more missed deductions, no more tax season stress.
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 text-gray-200">
-                      <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
-                      <span>Process 50+ documents simultaneously</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-gray-200">
-                      <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
-                      <span>Learn your business patterns automatically</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-gray-200">
-                      <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
-                      <span>Find thousands in missed deductions</span>
-                    </div>
-                  </div>
-                  
-                  <div className="pt-4">
-                    <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:shadow-cyan-500/25 transform hover:scale-105">
-                      See AI in Action
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Right: Social Proof & Stats */}
-                <div className="space-y-6">
-                  <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-                    <div className="text-center mb-4">
-                      <div className="text-3xl font-bold text-cyan-400 mb-1">50,000+</div>
-                      <div className="text-sm text-gray-300">Enterprise Users</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-green-400 mb-1">2.8M+</div>
-                      <div className="text-sm text-gray-300">Documents Processed</div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-2xl p-6 border border-cyan-500/20">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                      <span className="text-sm font-semibold text-cyan-300">Live Processing</span>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-lg font-bold text-white mb-1">847 transactions</div>
-                      <div className="text-sm text-gray-300">processed in 12 seconds</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-);
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
+            >
+              Meet <span className="text-purple-400 font-semibold">Prime</span> (AI Boss), <span className="text-blue-400 font-semibold">Byte</span> (Process Optimizer), <span className="text-green-400 font-semibold">Tag</span> (Smart Categorizer), and <span className="text-indigo-400 font-semibold">Crystal</span> (Prediction Engine) - your dedicated AI employees who work 24/7 to categorize expenses, predict spending, and entertain you while managing your finances with 99.7% accuracy.
+            </motion.p>
 
-const SmartImportAIDemo = () => (
-  <section className="smart-import-demo py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-    <div className="container max-w-7xl mx-auto px-4">
-      <div className="section-header text-center mb-16">
-        <h2 className="gradient-text text-3xl md:text-4xl font-extrabold mb-2">Watch AI Turn Boring Documents Into Entertainment</h2>
-        <h3 className="section-subtitle text-lg text-gray-300 font-bold">See how AI transforms your finances into binge-worthy content</h3>
-      </div>
-      
-      {/* 3-Step Process */}
-      <div className="demo-process grid md:grid-cols-3 gap-8 mb-16">
-        <div className="step-card bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border border-white/10">
-          <div className="step-number bg-gradient-to-r from-cyan-500 to-blue-500 text-white w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">1</div>
-          <h3 className="text-xl font-bold mb-3 text-white">Drop & Forget</h3>
-          <p className="text-gray-300 mb-4">PDFs, CSVs, receipts, emails, bank statements - AI reads it all</p>
-          <div className="document-examples flex flex-wrap gap-2 justify-center">
-            <span className="bg-cyan-100/20 text-cyan-300 px-3 py-1 rounded-full text-sm border border-cyan-200/20">Chase Statement</span>
-            <span className="bg-purple-100/20 text-purple-300 px-3 py-1 rounded-full text-sm border border-purple-200/20">Receipt Photo</span>
-            <span className="bg-blue-100/20 text-blue-300 px-3 py-1 rounded-full text-sm border border-blue-200/20">CSV Export</span>
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
+              className="flex flex-col sm:flex-row gap-6 justify-center mb-12"
+            >
+              <button 
+                onClick={() => setShowAIDemo(true)}
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-pink-500 hover:to-purple-500 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+              >
+                <Play size={24} />
+                Enter AI Empire
+              </button>
+              <button 
+                onClick={startAIDemo}
+                className="border-2 border-green-400 text-green-400 hover:bg-green-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <Zap size={24} />
+                Watch AI Demo
+              </button>
+            </motion.div>
+
+            {/* Live Stats */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.8 }}
+              className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
+            >
+              {[
+                { number: '99.7%', label: 'AI Accuracy', icon: '🎯' },
+                { number: '2.3s', label: 'Processing Speed', icon: '⚡' },
+                { number: '200+', label: 'Daily AI Decisions', icon: '🤖' },
+                { number: '$4.7M', label: 'User Savings', icon: '💰' }
+              ].map((stat) => (
+                <div key={stat.label} className="text-center">
+                  <div className="text-4xl mb-2">{stat.icon}</div>
+                  <div className="text-3xl font-bold text-cyan-400 mb-1">{stat.number}</div>
+                  <div className="text-white/70 text-sm">{stat.label}</div>
           </div>
-        </div>
-        
-        <div className="step-card bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border border-white/10">
-          <div className="step-number bg-gradient-to-r from-cyan-500 to-blue-500 text-white w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">2</div>
-          <h3 className="text-xl font-bold mb-3 text-white">AI Magic Happens</h3>
-          <p className="text-gray-300 mb-4">Superhuman accuracy with 99.7% categorization precision</p>
-          <div className="processing-stats text-center">
-            <div className="stat-highlight bg-green-100/20 text-green-300 px-4 py-2 rounded-lg border border-green-200/20">
-              <span className="font-bold">847 transactions</span> in <span className="font-bold">12 seconds</span>
+              ))}
+            </motion.div>
             </div>
           </div>
         </div>
         
-        <div className="step-card bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border border-white/10">
-          <div className="step-number bg-gradient-to-r from-cyan-500 to-blue-500 text-white w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-4">3</div>
-          <h3 className="text-xl font-bold mb-3 text-white">Get Rich Insights</h3>
-          <p className="text-gray-300 mb-4">Tax-ready categories with audit-proof documentation</p>
-                  <div className="result-highlight bg-gradient-to-r from-cyan-100/20 to-blue-100/20 px-4 py-2 rounded-lg border border-cyan-200/20">
-          <span className="font-bold text-cyan-300">$3,400</span> in missed deductions found
-          </div>
-        </div>
-      </div>
-      
-      {/* AI Conversation Example */}
-      <div className="ai-conversation bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 max-w-4xl mx-auto border border-white/10">
-        <h3 className="text-xl font-bold mb-6 text-center text-white">AI That Actually Makes You Laugh</h3>
-        <div className="conversation-flow space-y-4">
-          <div className="ai-message bg-cyan-100/20 rounded-lg p-4 border border-cyan-200/20">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="ai-avatar text-xl">🤖</span>
-              <span className="font-semibold text-cyan-300">AI Assistant</span>
-            </div>
-            <p className="text-gray-200">"OMG! I just found $847 in uncategorized business meals! Want me to create a podcast episode about your dining habits?"</p>
-          </div>
-          <div className="user-message bg-purple-100/20 rounded-lg p-4 ml-8 border border-purple-200/20">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="user-avatar text-xl">👤</span>
-              <span className="font-semibold text-purple-300">You</span>
-            </div>
-            <p className="text-gray-200">"Yes! That sounds amazing!"</p>
-          </div>
-          <div className="ai-message bg-cyan-100/20 rounded-lg p-4 border border-cyan-200/20">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="ai-avatar text-xl">🤖</span>
-              <span className="font-semibold text-cyan-300">AI Assistant</span>
-            </div>
-            <p className="text-gray-200">"Episode 1: 'The Business Lunch Chronicles' - How you turned coffee meetings into tax deductions! 🎙️"</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-);
-
-const TaxSeasonTransformation = () => (
-  <section className="tax-season-hero py-24 bg-gradient-to-br from-gray-800 via-gray-900 to-black">
-    <div className="container max-w-7xl mx-auto px-4">
-      <div className="section-header text-center mb-16">
-        <h2 className="gradient-text text-3xl md:text-4xl font-extrabold mb-2">Turn Tax Season Into Your Favorite Show</h2>
-        <h2 className="section-subtitle text-lg text-gray-300">From financial nightmare to AI-powered entertainment</h2>
-      </div>
-      
-      <div className="transformation-showcase grid md:grid-cols-2 gap-12 items-center">
-        {/* Before XspensesAI */}
-        <div className="before-scenario bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10">
-          <h3 className="text-2xl font-bold mb-6 text-red-400">🎭 Before XspensesAI</h3>
-          <div className="pain-points space-y-4">
-            <div className="pain-point flex items-start gap-3">
-              <span className="text-red-400 text-xl">😰</span>
-              <div>
-                <h4 className="font-semibold text-white">Your Life as a Receipt Detective</h4>
-                <p className="text-gray-300">Spending 8+ hours playing financial Sherlock Holmes</p>
-              </div>
-            </div>
-            <div className="pain-point flex items-start gap-3">
-              <span className="text-red-400 text-xl">😤</span>
-              <div>
-                <h4 className="font-semibold text-white">Playing Financial Russian Roulette</h4>
-                <p className="text-gray-300">Forgetting rules and making inconsistent decisions</p>
-              </div>
-            </div>
-            <div className="pain-point flex items-start gap-3">
-              <span className="text-red-400 text-xl">😱</span>
-              <div>
-                <h4 className="font-semibold text-white">Leaving Money on the Table</h4>
-                <p className="text-gray-300">Overlooking legitimate business expenses</p>
-              </div>
-            </div>
-            <div className="pain-point flex items-start gap-3">
-              <span className="text-red-400 text-xl">😵</span>
-              <div>
-                <h4 className="font-semibold text-white">Tax Season PTSD</h4>
-                <p className="text-gray-300">Panic attacks and sleepless nights</p>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* After XspensesAI */}
-        <div className="after-scenario bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10">
-          <h3 className="text-2xl font-bold mb-6 text-green-400">🎉 After XspensesAI</h3>
-          <div className="success-points space-y-4">
-            <div className="success-point flex items-start gap-3">
-              <span className="text-green-400 text-xl">⚡</span>
-              <div>
-                <h4 className="font-semibold text-white">AI Does the Heavy Lifting</h4>
-                <p className="text-gray-300">47 bank statements organized in 3 minutes</p>
-              </div>
-            </div>
-            <div className="success-point flex items-start gap-3">
-              <span className="text-green-400 text-xl">🧠</span>
-              <div>
-                <h4 className="font-semibold text-white">AI That Never Sleeps</h4>
-                <p className="text-gray-300">Perfect categorization with 99.7% accuracy</p>
-              </div>
-            </div>
-            <div className="success-point flex items-start gap-3">
-              <span className="text-green-400 text-xl">💰</span>
-              <div>
-                <h4 className="font-semibold text-white">AI Found Your Hidden Money</h4>
-                <p className="text-gray-300">$3,400 in missed business expenses discovered</p>
-              </div>
-            </div>
-            <div className="success-point flex items-start gap-3">
-              <span className="text-green-400 text-xl">😌</span>
-              <div>
-                <h4 className="font-semibold text-white">Tax Season Becomes a Celebration</h4>
-                <p className="text-gray-300">Tax-ready reports with audit-proof documentation</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-
-    </div>
-  </section>
-);
-
-const AIEmployeesShowcase = () => (
-  <section className="ai-employees-showcase py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-    <div className="container max-w-7xl mx-auto px-4">
-      <div className="section-header text-center mb-16">
-        <h2 className="gradient-text text-3xl md:text-4xl font-extrabold mb-2">🎭 Meet Your AI Financial Team</h2>
-        <p className="section-subtitle text-lg text-gray-300">9 Specialized AI Employees, Each with Unique Personalities & Superpowers</p>
-      </div>
-      
-      {/* AI Employees Grid */}
-      <div className="ai-employees-grid grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-        {/* Finley - Personal Finance AI */}
-        <div className="ai-employee-card bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10 hover:border-cyan-500/50 transition-all duration-300 group">
-          <div className="ai-avatar mb-6 flex justify-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg group-hover:scale-110 transition-transform">
-              📊
-            </div>
-          </div>
-          <div className="ai-info text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Finley</h3>
-            <p className="text-cyan-400 font-semibold mb-3">Personal Finance AI</p>
-            <p className="text-gray-300 text-sm mb-4">Your always-on financial sidekick who knows your entire financial picture 24/7</p>
-            <div className="ai-quote bg-cyan-100/20 rounded-lg p-4 border border-cyan-200/20">
-              <p className="text-cyan-300 text-sm italic">"Your coffee spending suggests stress - want me to create a self-care budget?"</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Byte - Smart Import AI */}
-        <div className="ai-employee-card bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10 hover:border-green-500/50 transition-all duration-300 group">
-          <div className="ai-avatar mb-6 flex justify-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg group-hover:scale-110 transition-transform">
-              ⚡
-            </div>
-          </div>
-          <div className="ai-info text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Byte</h3>
-            <p className="text-green-400 font-semibold mb-3">Smart Import AI</p>
-            <p className="text-gray-300 text-sm mb-4">The efficiency wizard who processes documents with superhuman accuracy</p>
-            <div className="ai-quote bg-green-100/20 rounded-lg p-4 border border-green-200/20">
-              <p className="text-green-300 text-sm italic">"Just processed 47 bank statements. Found 12 uncategorized business meals!"</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Luna - AI Financial Therapist */}
-        <div className="ai-employee-card bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10 hover:border-pink-500/50 transition-all duration-300 group">
-          <div className="ai-avatar mb-6 flex justify-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-pink-500 to-rose-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg group-hover:scale-110 transition-transform">
-              💝
-            </div>
-          </div>
-          <div className="ai-info text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Luna</h3>
-            <p className="text-pink-400 font-semibold mb-3">AI Financial Therapist</p>
-            <p className="text-gray-300 text-sm mb-4">Your emotional support system that reduces financial anxiety by 87%</p>
-            <div className="ai-quote bg-pink-100/20 rounded-lg p-4 border border-pink-200/20">
-              <p className="text-pink-300 text-sm italic">"That overspending guilt is normal. Let's work through it together."</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Sage - Podcast Host */}
-        <div className="ai-employee-card bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10 hover:border-purple-500/50 transition-all duration-300 group">
-          <div className="ai-avatar mb-6 flex justify-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-violet-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg group-hover:scale-110 transition-transform">
-              🎤
-            </div>
-          </div>
-          <div className="ai-info text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Sage</h3>
-            <p className="text-purple-400 font-semibold mb-3">Podcast Host</p>
-            <p className="text-gray-300 text-sm mb-4">Your financial storyteller who creates 150,000+ personalized episodes</p>
-            <div className="ai-quote bg-purple-100/20 rounded-lg p-4 border border-purple-200/20">
-              <p className="text-purple-300 text-sm italic">"Your Q4 financial journey deserves an epic episode. Ready to record?"</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Crystal - Spending Predictions */}
-        <div className="ai-employee-card bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10 hover:border-indigo-500/50 transition-all duration-300 group">
-          <div className="ai-avatar mb-6 flex justify-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg group-hover:scale-110 transition-transform">
-              🔮
-            </div>
-          </div>
-          <div className="ai-info text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Crystal</h3>
-            <p className="text-indigo-400 font-semibold mb-3">Spending Predictions</p>
-            <p className="text-gray-300 text-sm mb-4">Your financial fortune teller with 94% accurate expense forecasting</p>
-            <div className="ai-quote bg-indigo-100/20 rounded-lg p-4 border border-indigo-200/20">
-              <p className="text-indigo-300 text-sm italic">"You'll overspend on dining next week. Should I adjust your budget?"</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Ledger - Tax Assistant */}
-        <div className="ai-employee-card bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10 hover:border-orange-500/50 transition-all duration-300 group">
-          <div className="ai-avatar mb-6 flex justify-center">
-            <div className="w-20 h-20 bg-gradient-to-br from-orange-500 to-amber-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg group-hover:scale-110 transition-transform">
-              📋
-            </div>
-          </div>
-          <div className="ai-info text-center">
-            <h3 className="text-xl font-bold text-white mb-2">Ledger</h3>
-            <p className="text-orange-400 font-semibold mb-3">Tax Assistant</p>
-            <p className="text-gray-300 text-sm mb-4">Your personal tax genius who finds deductions others miss</p>
-            <div className="ai-quote bg-orange-100/20 rounded-lg p-4 border border-orange-200/20">
-              <p className="text-orange-300 text-sm italic">"Found $3,400 in missed deductions. Your tax refund just got bigger!"</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* CTA Section */}
-      <div className="ai-team-cta text-center">
-        <h3 className="text-2xl font-bold text-white mb-4">Ready to Meet Your AI Team?</h3>
-        <p className="text-gray-300 mb-8">Join 50,000+ users who've already hired their AI financial employees</p>
-        <div className="cta-buttons flex flex-col sm:flex-row gap-4 justify-center">
-          <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 hover:shadow-cyan-500/25 transform hover:scale-105">
-            Hire Your AI Team
-          </button>
-          <button className="bg-white/10 hover:bg-white/20 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 border border-white/20">
-            Meet All 9 AI Employees
-          </button>
-        </div>
-      </div>
-    </div>
-  </section>
-);
-
-const RevolutionaryFeatures = () => (
-  <section className="revolutionary-features py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-    <div className="container max-w-7xl mx-auto px-4">
-      <div className="section-header text-center mb-16">
-        <h2 className="gradient-text text-4xl md:text-5xl font-extrabold mb-4">The Entertainment Revolution That Makes Finance Addictive</h2>
-        <p className="section-subtitle text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed">
-          The first and only financial platform that people actually want to use every day. Here's how we turned the most boring task into genuine entertainment.
-        </p>
-        <div className="revolutionary-statement mt-6 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20 max-w-3xl mx-auto">
-          <p className="text-lg text-white font-semibold">
-            "Every other financial app makes you avoid money management. XspensesAI makes you excited about it. Our entertainment features create genuine addiction to financial wellness."
-          </p>
-      </div>
-              </div>
-
-      {/* Three-Column Feature Cards */}
-      <div className="features-grid grid md:grid-cols-3 gap-8 mb-16">
-        {/* Card 1: Personal Podcasts */}
-        <div className="feature-card bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-cyan-400/30 transition-all duration-300 hover:shadow-cyan-500/25 group">
-          <div className="feature-icon mb-6 flex justify-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-              </svg>
-              </div>
-            </div>
-          
-          <h3 className="text-2xl font-bold text-white mb-3 text-center">Your Money Story, Beautifully Told</h3>
-          <p className="text-gray-300 text-center mb-6 leading-relaxed">
-            AI creates personalized podcast episodes about YOUR financial journey. Like having a financial documentary about your spending patterns, goals, and achievements.
-          </p>
-          
-          <div className="sample-episodes mb-6 space-y-3">
-            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <div className="text-sm text-cyan-300 font-semibold">Sample Episode:</div>
-              <div className="text-xs text-gray-300">"Sarah's Coffee Shop Conquest: How $200 Monthly Became a Business Strategy"</div>
-          </div>
-            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <div className="text-sm text-cyan-300 font-semibold">Sample Episode:</div>
-              <div className="text-xs text-gray-300">"The Great Credit Card Payoff of 2024: Mike's 8-Month Victory Story"</div>
-            </div>
-          </div>
-          
-          <div className="benefit-highlight bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-4 mb-6 text-center">
-            <div className="text-2xl font-bold text-cyan-400 mb-1">87%</div>
-            <div className="text-sm text-gray-300">of users check their finances daily after getting their first podcast</div>
-            <div className="text-xs text-cyan-300 mt-2">Users share these episodes on social media!</div>
-        </div>
-        
-          <div className="text-center">
-            <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:shadow-cyan-500/25 transform hover:scale-105">
-              Hear Sample Episode
-            </button>
-              </div>
-              </div>
-        
-        {/* Card 2: AI Financial Therapist */}
-        <div className="feature-card bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-cyan-400/30 transition-all duration-300 hover:shadow-cyan-500/25 group">
-          <div className="feature-icon mb-6 flex justify-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-              </svg>
-              </div>
-            </div>
-          
-          <h3 className="text-2xl font-bold text-white mb-3 text-center">Heal Your Relationship with Money</h3>
-          <p className="text-gray-300 text-center mb-6 leading-relaxed">
-            24/7 emotional support that understands financial psychology. Address money anxiety without judgment or shame.
-          </p>
-          
-          <div className="therapy-session-preview mb-6 bg-white/5 rounded-lg p-4 border border-white/10">
-            <div className="text-sm text-emerald-300 font-semibold mb-2">Therapy Session Preview:</div>
-            <div className="text-xs text-gray-300 space-y-2">
-              <div><strong>User:</strong> "I feel guilty buying anything for myself"</div>
-              <div><strong>AI Therapist:</strong> "That guilt is protecting you from past financial fear. You've built healthy habits now - a $20 self-care purchase is an investment in your wellbeing, not a failure."</div>
-          </div>
-            </div>
-          
-          <div className="benefit-highlight bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 mb-6 text-center">
-            <div className="text-2xl font-bold text-emerald-400 mb-1">76%</div>
-            <div className="text-sm text-gray-300">reduction in financial anxiety within 30 days</div>
-            <div className="text-xs text-emerald-300 mt-2">Developed with financial psychology experts</div>
-          </div>
-          
-          <div className="text-center">
-            <button className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:shadow-emerald-500/25 transform hover:scale-105">
-              Try Therapy Session
-            </button>
-          </div>
-        </div>
-        
-        {/* Card 3: Gamified Progress */}
-        <div className="feature-card bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:border-cyan-400/30 transition-all duration-300 hover:shadow-cyan-500/25 group">
-          <div className="feature-icon mb-6 flex justify-center">
-            <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-              </svg>
-                </div>
-              </div>
-          
-                    <h3 className="text-2xl font-bold text-white mb-3 text-center">Turn Goals Into Addictive Challenges</h3>
-          <p className="text-gray-300 text-center mb-6 leading-relaxed">
-            Achievement system that makes financial progress genuinely exciting. Celebrate wins, track streaks, compete with yourself.
-          </p>
-          
-          <div className="achievement-examples mb-6 space-y-3">
-            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <div className="text-sm text-purple-300 font-semibold">🏆 Coffee Conqueror</div>
-              <div className="text-xs text-gray-300">Optimized coffee spending for 30 days</div>
-              </div>
-            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <div className="text-sm text-purple-300 font-semibold">🎯 Emergency Fund Hero</div>
-              <div className="text-xs text-gray-300">Built 6-month emergency fund</div>
-              </div>
-            <div className="bg-white/5 rounded-lg p-3 border border-white/10">
-              <div className="text-sm text-purple-300 font-semibold">💎 Debt Destroyer</div>
-              <div className="text-xs text-gray-300">Eliminated credit card debt</div>
-            </div>
-          </div>
-          
-          <div className="benefit-highlight bg-purple-500/10 border border-purple-500/20 rounded-xl p-4 mb-6 text-center">
-            <div className="text-2xl font-bold text-purple-400 mb-1">3x</div>
-            <div className="text-sm text-gray-300">more likely to reach financial goals</div>
-            <div className="text-xs text-purple-300 mt-2">Users 3x more likely to reach financial goals</div>
-            </div>
-          
-          <div className="text-center">
-            <button className="bg-purple-500 hover:bg-purple-600 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 hover:shadow-purple-500/25 transform hover:scale-105">
-              See Goal Tracker
-            </button>
-          </div>
-              </div>
-            </div>
-
-
-
-      {/* The Entertainment Difference */}
-      <div className="entertainment-difference bg-gradient-to-r from-cyan-500/10 to-purple-500/10 backdrop-blur-sm rounded-3xl p-8 border border-cyan-500/20 mb-12">
-        <h3 className="text-2xl font-bold text-white mb-6 text-center">The Entertainment Difference</h3>
-        <div className="comparison-grid grid md:grid-cols-2 gap-8">
-          <div className="before-section">
-            <h4 className="text-xl font-bold text-red-400 mb-4 text-center">❌ Before XspensesAI</h4>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-red-400">•</span>
-                <span>Avoid checking finances</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-red-400">•</span>
-                <span>Dread expense categorization</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-red-400">•</span>
-                <span>Financial stress and anxiety</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-red-400">•</span>
-                <span>Boring, clinical money management</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-red-400">•</span>
-                <span>Use apps once and forget</span>
-              </div>
-            </div>
-          </div>
-          <div className="after-section">
-            <h4 className="text-xl font-bold text-green-400 mb-4 text-center">✅ After XspensesAI</h4>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-green-400">•</span>
-                <span>Excited to see new podcast episodes</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-green-400">•</span>
-                <span>Look forward to AI conversations</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-green-400">•</span>
-                <span>Financial goals feel like game achievements</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-green-400">•</span>
-                <span>Money management becomes entertainment</span>
-              </div>
-              <div className="flex items-center gap-3 text-gray-300">
-                <span className="text-green-400">•</span>
-                <span>Daily engagement with financial wellness</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-
-
-      {/* Enhanced Bottom CTA Section */}
-      <div className="cta-section text-center">
-        <h3 className="text-3xl font-bold text-white mb-4">Ready to Fall in Love with Your Finances?</h3>
-        <p className="text-xl text-gray-300 mb-8 max-w-3xl mx-auto">
-          This isn't financial software with entertainment bolted on. This is entertainment that happens to make you financially successful. XspensesAI is the Netflix of financial wellness - addictive, personalized, and genuinely enjoyable.
-        </p>
-        
-        <div className="cta-buttons flex flex-col sm:flex-row gap-4 justify-center mb-8">
-          <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 hover:shadow-cyan-500/25 transform hover:scale-105">
-            Start My Entertainment Journey
-          </button>
-          <button className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200">
-            Listen to Sample Podcast
-          </button>
-          <button className="border-2 border-emerald-400 text-emerald-400 hover:bg-emerald-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200">
-            Try AI Therapist Session
-          </button>
-        </div>
-        
-        <div className="trust-indicators text-sm text-gray-400 mb-6">
-          ✓ No credit card required • ✓ 2.3M+ episodes created • ✓ Join 50,000+ addicted users
-        </div>
-
-        <div className="social-proof-explosion bg-gradient-to-r from-cyan-500/10 to-purple-500/10 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20">
-          <h4 className="text-lg font-bold text-white mb-4">What Users Are Saying:</h4>
-          <div className="testimonials-grid grid md:grid-cols-3 gap-4 text-sm">
-            <div className="testimonial bg-white/5 rounded-lg p-3 border border-white/10">
-              <p className="text-gray-200 italic">"I actually look forward to Monday mornings because that's when my financial podcast drops. My money story feels like a Netflix series I'm starring in."</p>
-              <div className="text-cyan-300 font-semibold mt-2">- Sarah M.</div>
-            </div>
-            <div className="testimonial bg-white/5 rounded-lg p-3 border border-white/10">
-              <p className="text-gray-200 italic">"The AI therapist helped me overcome 20 years of money anxiety. I went from financial panic attacks to financial confidence in 30 days."</p>
-              <div className="text-emerald-300 font-semibold mt-2">- Jennifer K.</div>
-            </div>
-            <div className="testimonial bg-white/5 rounded-lg p-3 border border-white/10">
-              <p className="text-gray-200 italic">"My friends think I'm crazy for being excited about budgeting. XspensesAI turned the most boring task into my favorite hobby."</p>
-              <div className="text-purple-300 font-semibold mt-2">- Mike R.</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-);
-
-const AILearningEvolution = () => (
-  <section className="ai-learning-evolution py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
-    <div className="container max-w-7xl mx-auto px-4">
-      <div className="section-header text-center mb-16">
-        <h2 className="gradient-text text-3xl md:text-4xl font-extrabold mb-2">AI Learning & Evolution Timeline</h2>
-        <p className="section-subtitle text-lg text-gray-300">Watch your AI transform from basic tool to financial genius</p>
-        <div className="ai-evolution-preview mt-6 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 backdrop-blur-sm rounded-2xl p-6 border border-cyan-500/20 max-w-3xl mx-auto">
-          <p className="text-lg text-white font-semibold">
-            "Your AI doesn't just categorize expenses - it becomes your personal financial advisor, learning your patterns, predicting your needs, and evolving into the perfect financial companion."
-          </p>
-        </div>
-      </div>
-      
-      <div className="learning-timeline grid md:grid-cols-4 gap-8">
+      {/* AI Dream Team Showcase */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className="timeline-stage bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border border-white/10 hover:border-cyan-400/30 transition-all duration-300 hover:shadow-cyan-500/25 group"
+          className="text-center mb-16"
         >
-          <div className="stage-number bg-gradient-to-r from-cyan-500 to-blue-500 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">1</div>
-          <h3 className="text-xl font-bold mb-3 text-white">Week 1</h3>
-          <div className="accuracy-meter mb-4">
-            <div className="text-3xl font-bold text-cyan-300">78%</div>
-            <div className="text-sm text-gray-300">Accuracy</div>
-          </div>
-          <p className="text-gray-300 mb-4">Learning your basic spending patterns and categorization preferences</p>
-          <div className="learning-example bg-white/10 rounded-lg p-3 text-sm border border-white/10 text-gray-300">
-            <strong>Example:</strong> "Starbucks = Coffee" (basic categorization)
-          </div>
-          <div className="ai-learning-indicator mt-4">
-            <div className="text-xs text-cyan-400 font-semibold">AI Status: Pattern Recognition</div>
-        </div>
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Meet Your AI Dream Team</h2>
+          <p className="text-white/80 text-lg max-w-3xl mx-auto">Four revolutionary AI employees, each with unique superpowers, working together to transform your financial life</p>
         </motion.div>
-        
-        <div className="timeline-stage bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border border-white/10">
-          <div className="stage-number bg-gradient-to-r from-cyan-500 to-blue-500 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">2</div>
-          <h3 className="text-xl font-bold mb-3">Month 1</h3>
-          <div className="accuracy-meter mb-4">
-            <div className="text-3xl font-bold text-cyan-300">87%</div>
-            <div className="text-sm text-gray-300">Accuracy</div>
-          </div>
-          <p className="text-gray-300 mb-4">Understanding context and business vs personal patterns</p>
-          <div className="learning-example bg-white/10 rounded-lg p-3 text-sm border border-white/10 text-gray-300">
-            <strong>Example:</strong> "Starbucks near office = Business Meals"
-          </div>
-        </div>
-        
-        <div className="timeline-stage bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border border-white/10">
-          <div className="stage-number bg-gradient-to-r from-purple-500 to-pink-600 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">3</div>
-          <h3 className="text-xl font-bold mb-3">Month 3</h3>
-          <div className="accuracy-meter mb-4">
-            <div className="text-3xl font-bold text-purple-300">94%</div>
-            <div className="text-sm text-gray-300">Accuracy</div>
-          </div>
-          <p className="text-gray-300 mb-4">Predicting categories before you think about them</p>
-          <div className="learning-example bg-white/10 rounded-lg p-3 text-sm border border-white/10 text-gray-300">
-            <strong>Example:</strong> "This looks like a client lunch - categorizing as Business Meals"
-          </div>
-        </div>
-        
-        <div className="timeline-stage bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border border-white/10">
-          <div className="stage-number bg-gradient-to-r from-red-500 to-orange-500 text-white w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold mx-auto mb-4">4</div>
-          <h3 className="text-xl font-bold mb-3">Month 6</h3>
-          <div className="accuracy-meter mb-4">
-            <div className="text-3xl font-bold text-red-300">99.7%</div>
-            <div className="text-sm text-gray-300">Accuracy</div>
-          </div>
-          <p className="text-gray-300 mb-4">Financial telepathy - knows your patterns better than you do</p>
-          <div className="learning-example bg-white/10 rounded-lg p-3 text-sm border border-white/10 text-gray-300">
-            <strong>Example:</strong> "Found 3 similar transactions that should be reclassified"
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {aiDreamTeam.map((member, index) => (
+            <motion.div 
+              key={member.name}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 cursor-pointer"
+
+            >
+              <div className="text-center">
+                <div className="text-6xl mb-4">{member.avatar}</div>
+                <h3 className="text-xl font-bold text-white mb-2">{member.name}</h3>
+                <p className="text-cyan-400 font-semibold mb-3">{member.role}</p>
+                <p className="text-white/70 text-sm mb-4">{member.specialty}</p>
+                <div className={`w-full h-1 bg-gradient-to-r ${member.color} rounded-full mb-4`}></div>
+                <p className="text-white/60 text-xs">{member.superpower}</p>
+                <div className="mt-4 p-3 bg-white/5 rounded-lg">
+                  <p className="text-white/80 text-xs italic">"{member.demoQuote}"</p>
+      </div>
+              </div>
+            </motion.div>
+          ))}
           </div>
         </div>
+        
+      {/* Live AI Demo */}
+      {isAIDemoRunning && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-white mb-4">Live AI Empire Demo</h2>
+              <p className="text-white/80">Watch Prime orchestrate your AI team in real-time</p>
       </div>
       
-      <div className="ai-memory-features bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 mt-12 border border-white/10">
-        <h3 className="text-2xl font-bold mb-6 text-center text-white">AI Memory Palace Features</h3>
-        <div className="memory-grid grid md:grid-cols-3 gap-6">
-          <div className="memory-feature text-center">
-            <div className="memory-icon text-3xl mb-3">🧠</div>
-            <h4 className="font-semibold mb-2">Never Categorize Twice</h4>
-            <p className="text-sm text-gray-300">AI remembers every decision and applies it consistently</p>
-          </div>
-          <div className="memory-feature text-center">
-            <div className="memory-icon text-3xl mb-3">🔮</div>
-            <h4 className="font-semibold mb-2">Pattern Prediction</h4>
-            <p className="text-sm text-gray-300">Anticipates your categorization before you make it</p>
-          </div>
-          <div className="memory-feature text-center">
-            <div className="memory-icon text-3xl mb-3">💡</div>
-            <h4 className="font-semibold mb-2">Motivation Mastery</h4>
-            <p className="text-sm text-gray-300">Learns what motivates you and tailors suggestions accordingly</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="text-center mt-10">
-        <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 hover:shadow-cyan-500/25">
-          Watch AI Learn Live
-        </button>
-      </div>
+            <div className="bg-white/10 rounded-xl p-6 mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">AI Empire Activation</h3>
+                <span className="text-cyan-400 font-bold">{demoProgress}%</span>
     </div>
-  </section>
-);
-
-const SmartImportAISection = () => (
-  <section className="smart-import-ai py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
-    <div className="container max-w-7xl mx-auto px-4">
-      <div className="section-header text-center mb-16">
-        <h2 className="gradient-text text-3xl md:text-4xl font-extrabold mb-2">Smart Import AI Superpowers</h2>
-        <p className="section-subtitle text-lg text-gray-300">Revolutionary AI that reads ANY financial document instantly</p>
+              <div className="w-full bg-white/20 rounded-full h-3 mb-4">
+                <div 
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 h-3 rounded-full transition-all duration-500"
+                  style={{ width: `${demoProgress}%` }}
+                ></div>
       </div>
-      <div className="ai-superpowers grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-        <div className="ai-power bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10">
-          <div className="power-icon text-4xl mb-4">🌍</div>
-          <h3 className="text-xl font-bold mb-3">Universal Compatibility</h3>
-          <p className="text-gray-300 mb-4">Reads statements from 12,000+ banks worldwide. PDFs, CSVs, images, emails, handwritten receipts - AI reads it all.</p>
-          <div className="power-example bg-white/10 rounded-lg p-3 border border-white/10">
-            <div className="text-sm text-gray-300">
-              <strong>Example:</strong> Upload Chase, Wells Fargo, or any international bank statement
+              <div className="text-center">
+                <p className="text-white/70 text-sm">
+                  {demoProgress < 25 && "Prime is analyzing your financial patterns..."}
+                  {demoProgress >= 25 && demoProgress < 50 && "Byte is optimizing your document processing..."}
+                  {demoProgress >= 50 && demoProgress < 75 && "Tag is creating intelligent automation rules..."}
+                  {demoProgress >= 75 && demoProgress < 100 && "Crystal is predicting your financial future..."}
+                  {demoProgress >= 100 && "Your AI Empire is now live and ready to serve!"}
+                </p>
             </div>
           </div>
-        </div>
-        
-        <div className="ai-power bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10">
-          <div className="power-icon text-4xl mb-4">🧠</div>
-          <h3 className="text-xl font-bold mb-3">Memory Palace</h3>
-          <p className="text-gray-300 mb-4">Never ask you to categorize "Starbucks" as coffee again. AI remembers every preference and learns your financial DNA.</p>
-          <div className="power-example bg-white/10 rounded-lg p-3 border border-white/10">
-            <div className="text-sm text-gray-300">
-              <strong>Example:</strong> AI learned: "Starbucks" = "Business Meals" for you
+          </motion.div>
             </div>
-          </div>
-        </div>
-        
-        <div className="ai-power bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 border border-white/10">
-          <div className="power-icon text-4xl mb-4">⚡</div>
-          <h3 className="text-xl font-bold mb-3">Tax Season Magic</h3>
-          <p className="text-gray-300 mb-4">Organizes entire year of expenses in under 5 minutes. Creates audit-proof categorization for tax season.</p>
-          <div className="power-example bg-white/10 rounded-lg p-3 border border-white/10">
-            <div className="text-sm text-gray-300">
-              <strong>Example:</strong> 47 bank statements → Tax-ready in 3 minutes
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
-      <div className="text-center mt-12">
-        <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 hover:shadow-cyan-500/25">
-          Try Smart Import Free
-        </button>
-      </div>
-    </div>
-  </section>
-);
+      {/* Revolutionary Features */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Revolutionary AI Features</h2>
+          <p className="text-white/80 text-lg max-w-3xl mx-auto">Experience the future of financial management with our revolutionary AI-powered features</p>
+        </motion.div>
 
-const SocialProofResults = () => (
-  <section className="social-proof-results py-24 bg-white">
-    <div className="container max-w-7xl mx-auto px-4">
-      <div className="results-grid grid grid-cols-2 md:grid-cols-4 gap-8 mb-16 text-center">
-        <div className="result-stat bg-white shadow-lg rounded-2xl p-8 border border-gray-100">
-          <span className="stat-number text-4xl font-bold text-blue-600 block mb-3">$12M+</span>
-          <span className="stat-label text-gray-700 font-medium">SAVED BY USERS</span>
-        </div>
-        <div className="result-stat bg-white shadow-lg rounded-2xl p-8 border border-gray-100">
-          <span className="stat-number text-4xl font-bold text-blue-600 block mb-3">2.8M+</span>
-          <span className="stat-label text-gray-700 font-medium">DOCUMENTS READ BY AI</span>
-        </div>
-        <div className="result-stat bg-white shadow-lg rounded-2xl p-8 border border-gray-100">
-          <span className="stat-number text-4xl font-bold text-blue-600 block mb-3">94%</span>
-          <span className="stat-label text-gray-700 font-medium">ACHIEVE FINANCIAL GOALS</span>
-          <span className="stat-subtitle text-sm text-gray-500 block mt-1">(vs 23% industry)</span>
-        </div>
-        <div className="result-stat bg-white shadow-lg rounded-2xl p-8 border border-gray-100">
-          <span className="stat-number text-4xl font-bold text-blue-600 block mb-3">150K+</span>
-          <span className="stat-label text-gray-700 font-medium">PERSONAL PODCASTS GENERATED</span>
-        </div>
-      </div>
-      <div className="testimonials-preview text-center">
-        <h3 className="text-2xl font-bold mb-8">Real Tax Season Transformations</h3>
-        <div className="testimonials-grid grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="testimonial-card bg-white rounded-2xl p-8 shadow-lg border border-gray-100 flex flex-col items-center">
-            <div className="testimonial-content text-gray-800 mb-4">
-              <p>"Uploaded 47 bank statements → AI organized everything for taxes in 3 minutes. Found $3,400 in missed deductions! Tax season is now effortless."</p>
-            </div>
-            <div className="testimonial-author flex items-center gap-3">
-              <img src="/api/placeholder/50/50" alt="Sarah M." className="rounded-full w-12 h-12 object-cover" />
-              <div className="text-left">
-                <span className="author-name font-semibold text-gray-900 block">Sarah M.</span>
-                <div className="author-rating text-yellow-400">⭐⭐⭐⭐⭐</div>
-              </div>
-            </div>
-          </div>
-          <div className="testimonial-card bg-white rounded-2xl p-8 shadow-lg border border-gray-100 flex flex-col items-center">
-            <div className="testimonial-content text-gray-800 mb-4">
-              <p>"AI reads ANY financial document. My shoebox of receipts became tax-ready categories in under 5 minutes. Never categorize 'Starbucks' as coffee again!"</p>
-            </div>
-            <div className="testimonial-author flex items-center gap-3">
-              <img src="/api/placeholder/50/50" alt="Mike R." className="rounded-full w-12 h-12 object-cover" />
-              <div className="text-left">
-                <span className="author-name font-semibold text-gray-900 block">Mike R.</span>
-                <div className="author-rating text-yellow-400">⭐⭐⭐⭐⭐</div>
-              </div>
-            </div>
-          </div>
-          <div className="testimonial-card bg-white rounded-2xl p-8 shadow-lg border border-gray-100 flex flex-col items-center">
-            <div className="testimonial-content text-gray-800 mb-4">
-              <p>"The AI remembers every categorization preference. From tax season chaos to entertainment platform - managing money is now actually fun!"</p>
-            </div>
-            <div className="testimonial-author flex items-center gap-3">
-              <img src="/api/placeholder/50/50" alt="Jennifer L." className="rounded-full w-12 h-12 object-cover" />
-              <div className="text-left">
-                <span className="author-name font-semibold text-gray-900 block">Jennifer L.</span>
-                <div className="author-rating text-yellow-400">⭐⭐⭐⭐⭐</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-);
-
-const CompetitiveDifferentiation = () => (
-  <section className="competitive-section py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
-    <div className="container max-w-5xl mx-auto px-4">
-      <h2 className="gradient-text text-3xl md:text-4xl font-extrabold text-center mb-12">Why XspensesAI vs. Other Expense Apps</h2>
-              <div className="comparison-grid grid grid-cols-1 md:grid-cols-2 gap-12">
-        <div className="comparison-item bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border border-white/10">
-          <h4 className="text-xl font-bold mb-4 text-gray-200">Other Apps</h4>
-          <ul className="comparison-list negative text-left space-y-3 text-gray-300">
-            <li>❌ Manual expense categorization</li>
-            <li>❌ Limited to specific bank formats</li>
-            <li>❌ Forget your categorization rules</li>
-            <li>❌ Tax season chaos and stress</li>
-            <li>❌ No entertainment or engagement value</li>
-          </ul>
-        </div>
-        <div className="comparison-item highlight bg-white/5 backdrop-blur-sm rounded-2xl shadow-lg p-8 text-center border-2 border-cyan-500">
-          <h4 className="text-xl font-bold mb-4 text-cyan-400">XspensesAI</h4>
-          <ul className="comparison-list positive text-left space-y-3 text-gray-200 font-semibold">
-            <li>✅ AI reads ANY financial document instantly</li>
-            <li>✅ Universal compatibility - 12,000+ banks worldwide</li>
-            <li>✅ AI remembers every preference forever</li>
-            <li>✅ AI organizes entire year in under 5 minutes</li>
-            <li>✅ Entertainment platform that makes finance enjoyable</li>
-          </ul>
-        </div>
-      </div>
-      <div className="text-center mt-12">
-        <button className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 hover:shadow-cyan-500/25">
-          See the Difference
-        </button>
-      </div>
-    </div>
-  </section>
-);
-
-const FinalCTA = () => (
-  <section className="final-cta py-24 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white">
-    <div className="container max-w-3xl mx-auto px-4 text-center">
-      <div className="cta-content">
-        <h2 className="gradient-text text-3xl md:text-4xl font-extrabold mb-4">Ready to End Manual Expense Work Forever?</h2>
-        <p className="text-xl text-blue-100 mb-8">Join 50,000+ users who've eliminated manual expense work with AI automation that reads ANY document in 2.3 seconds</p>
-        <div className="cta-buttons flex flex-col sm:flex-row gap-4 justify-center mb-8">
-          <button className="btn-primary-xl bg-cyan-500 hover:bg-cyan-600 text-white px-10 py-5 rounded-xl font-semibold text-xl shadow-lg hover:scale-105 transition-all duration-300 hover:shadow-cyan-500/25">
-            End Manual Work Forever
-            <span className="block text-xs font-normal mt-1">✓ No credit card required • ✓ Process 10 documents free • ✓ Join 50,000+ automated users</span>
-          </button>
-          <button className="btn-secondary-large flex items-center gap-2 px-10 py-5 rounded-xl font-semibold text-lg border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white transition-all duration-300">
-            Watch AI Process 50 Receipts in 30 Seconds
-          </button>
-          <button className="btn-secondary-large flex items-center gap-2 px-10 py-5 rounded-xl font-semibold text-lg border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white transition-all duration-300">
-            See AI in Action
-          </button>
-          </div>
-        <div className="cta-guarantees flex flex-wrap gap-4 text-sm text-blue-200 font-medium justify-center">
-          <span className="flex items-center gap-1">💳 No credit card required</span>
-          <span className="flex items-center gap-1">🔒 Bank-level security</span>
-          <span className="flex items-center gap-1">📞 24/7 support</span>
-          <span className="flex items-center gap-1">↩️ Cancel anytime</span>
-        </div>
-      </div>
-    </div>
-  </section>
-);
-
-const NewHomePage = () => (
-  <>
-    <Helmet>
-      <title>XspensesAI - World's First FinTech Entertainment Platform | AI Reads Any Statement</title>
-      <meta name="description" content="Revolutionary AI reads any bank statement, receipt, or financial document instantly. Creates personal podcasts about YOUR money story + Spotify integration. End expense categorization hell forever." />
-      <meta name="keywords" content="AI expense tracker, smart expense management, AI financial assistant, automated expense categorization, financial entertainment platform, AI statement reader, AI reads bank statements automatically, upload any financial document AI organizes, entertainment financial management platform, AI that learns your spending patterns, smart expense import any format, financial podcast creator personal" />
-      <meta property="og:title" content="XspensesAI - World's First FinTech Entertainment Platform | AI Reads Any Statement" />
-      <meta property="og:description" content="Revolutionary AI reads any bank statement, receipt, or financial document instantly. Creates personal podcasts about YOUR money story + Spotify integration. End expense categorization hell forever." />
-      <meta property="og:type" content="website" />
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content="XspensesAI - World's First FinTech Entertainment Platform | AI Reads Any Statement" />
-      <meta name="twitter:description" content="Revolutionary AI reads any bank statement, receipt, or financial document instantly. Creates personal podcasts about YOUR money story + Spotify integration." />
-    </Helmet>
-    <NewHomepageHero />
-    <SmartImportAIDemo />
-    <TaxSeasonTransformation />
-    <AIEmployeesShowcase />
-    <RevolutionaryFeatures />
-    <AILearningEvolution />
-    <AIEmployeesSection />
-    <EntertainmentFeaturesSection />
-    <SocialProofResults />
-    <FAQSection />
-    <CompetitiveDifferentiation />
-    <FinalCTA />
-    {/* Add more sections here for features, testimonials, etc. */}
-  </>
-);
-
-// AI Employees Section
-const AIEmployeesSection: React.FC = () => {
-  const [selectedAI, setSelectedAI] = useState<string | null>(null);
-
-  const aiEmployees = [
-    {
-      id: 'finley',
-      name: 'Finley',
-      role: 'Personal Finance AI',
-      icon: '📊',
-      personality: 'Your always-on financial sidekick',
-      specialty: 'Instant answers to any money question',
-      highlight: 'Knows your entire financial picture 24/7',
-      demoQuote: 'Your coffee spending suggests stress - want me to create a self-care budget?',
-      category: 'Core Financial'
-    },
-    {
-      id: 'byte',
-      name: 'Byte',
-      role: 'Smart Import AI',
-      icon: '⚡',
-      personality: 'The efficiency wizard',
-      specialty: 'Superhuman document processing',
-      highlight: '99.7% accuracy in 2.3 seconds',
-      demoQuote: 'Just processed 47 bank statements. Found 12 uncategorized business meals!',
-      category: 'Core Financial'
-    },
-    {
-      id: 'crystal',
-      name: 'Crystal',
-      role: 'Spending Predictions',
-      icon: '🔮',
-      personality: 'Your financial fortune teller',
-      specialty: '94% accurate expense forecasting',
-      highlight: 'Prevents financial surprises before they happen',
-      demoQuote: 'You\'ll overspend on dining next week. Should I adjust your budget?',
-      category: 'Core Financial'
-    },
-    {
-      id: 'ledger',
-      name: 'Ledger',
-      role: 'Tax Assistant',
-      icon: '📋',
-      personality: 'Your personal tax genius',
-      specialty: 'Finds deductions others miss',
-      highlight: 'IRS/CRA expert knowledge',
-      demoQuote: 'Found $3,400 in missed deductions. Your tax refund just got bigger!',
-      category: 'Core Financial'
-    },
-    {
-      id: 'luna',
-      name: 'Luna',
-      role: 'AI Financial Therapist',
-      icon: '💝',
-      personality: 'Your emotional support system',
-      specialty: 'Money anxiety and financial stress relief',
-      highlight: '87% reduction in financial anxiety',
-      demoQuote: 'That overspending guilt is normal. Let\'s work through it together.',
-      category: 'Entertainment & Wellness'
-    },
-    {
-      id: 'sage',
-      name: 'Sage',
-      role: 'Podcast Host',
-      icon: '🎤',
-      personality: 'Your financial storyteller',
-      specialty: 'Personal podcasts about YOUR money',
-      highlight: '150,000+ episodes created',
-      demoQuote: 'Your Q4 financial journey deserves an epic episode. Ready to record?',
-      category: 'Entertainment & Wellness'
-    },
-    {
-      id: 'wave',
-      name: 'Wave',
-      role: 'Spotify Integration',
-      icon: '🎵',
-      personality: 'Your financial DJ',
-      specialty: 'Perfect soundtracks for money tasks',
-      highlight: 'Music that makes finance fun',
-      demoQuote: 'Tax prep playlist loading... time to make filing taxes enjoyable!',
-      category: 'Entertainment & Wellness'
-    },
-    {
-      id: 'harmony',
-      name: 'Harmony',
-      role: 'Wellness Studio',
-      icon: '🧘',
-      personality: 'Your financial wellness guide',
-      specialty: 'Holistic financial health',
-      highlight: 'Mind + money wellness programs',
-      demoQuote: 'Your spending anxiety is spiking. Want a 5-minute financial meditation?',
-      category: 'Entertainment & Wellness'
-    }
-  ];
-
-  return (
-    <section className="ai-employees py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
-      <div className="container max-w-7xl mx-auto px-4">
-        <div className="text-center mb-16">
-          <h2 className="gradient-text text-4xl md:text-5xl font-extrabold mb-6">Meet Your Personal AI Financial Dream Team</h2>
-          <p className="gradient-text text-xl md:text-2xl font-semibold mb-6">16 specialized AI experts with unique personalities, skills, and expertise. The only financial platform with AI emotional intelligence.</p>
-          <p className="text-lg text-gray-300 max-w-4xl mx-auto">While other apps give you boring calculators, XspensesAI gives you an entire team of AI specialists who learn your personality, remember your preferences, and evolve with your financial journey. This is the future of financial management.</p>
-        </div>
-
-        {/* AI Employee Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-          {aiEmployees.map((ai) => (
-            <motion.div
-              key={ai.id}
-              whileHover={{ scale: 1.05, y: -5 }}
-              whileTap={{ scale: 0.95 }}
-              className="ai-card bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10 hover:border-cyan-400/50 transition-all duration-300 cursor-pointer group"
-              onClick={() => setSelectedAI(selectedAI === ai.id ? null : ai.id)}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {revolutionaryFeatures.map((feature, index) => (
+            <motion.div 
+              key={feature.id}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
             >
-              <div className="text-center mb-4">
-                <div className="text-4xl mb-3">{ai.icon}</div>
-                <h3 className="text-xl font-bold text-white mb-1">{ai.name}</h3>
-                <p className="text-sm text-cyan-400 font-medium">{ai.role}</p>
-              </div>
-              
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Personality</p>
-                  <p className="text-sm text-white font-medium">{ai.personality}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Specialty</p>
-                  <p className="text-sm text-white font-medium">{ai.specialty}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-400 mb-1">Highlight</p>
-                  <p className="text-sm text-white font-medium">{ai.highlight}</p>
-                </div>
+              <div className="text-center">
+                <div className="text-4xl mb-4">{feature.icon}</div>
+                <h3 className="text-xl font-bold text-white mb-2">{feature.title}</h3>
+                <p className="text-white/70 text-sm mb-4">{feature.description}</p>
+                <div className={`w-full h-1 bg-gradient-to-r ${feature.color} rounded-full mb-4`}></div>
+                <p className="text-white/60 text-xs mb-4">Powered by {feature.aiEmployee}</p>
+                <Link 
+                  to={feature.link}
+                  className="inline-block bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-lg font-semibold text-sm hover:from-pink-500 hover:to-purple-500 transition-all duration-300"
+                >
+                  Experience Now
+                </Link>
+            </div>
+            </motion.div>
+          ))}
+          </div>
+        </div>
+
+      {/* Live User Testimonials */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">Live User Success Stories</h2>
+            <p className="text-white/80">Real users, real savings, real AI transformations</p>
+        </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {liveTestimonials.map((testimonial, index) => (
+              <motion.div 
+                key={testimonial.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className="bg-white/10 rounded-xl p-6 border border-white/10"
+              >
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-semibold">
+                    {testimonial.avatar}
+            </div>
+                  <div>
+                    <h4 className="font-semibold text-white">{testimonial.name}</h4>
+                    <p className="text-white/70 text-sm">{testimonial.role}</p>
+                    <div className="text-green-400 font-bold text-lg">{testimonial.savings} saved</div>
+          </div>
+            </div>
+                <p className="text-white/80 text-sm mb-3">"{testimonial.testimonial}"</p>
+                <div className="text-cyan-400 text-xs">Powered by {testimonial.aiEmployee}</div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
+        </div>
+
+      {/* ROI Calculator */}
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
+        >
+          <h2 className="text-3xl font-bold text-white mb-4">Calculate Your AI Savings</h2>
+          <p className="text-white/80 mb-8">See how much Prime's AI Empire can save you</p>
+          
+          <button 
+            onClick={calculateROI}
+            disabled={isCalculatingROI}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-pink-500 hover:to-purple-500 disabled:opacity-50 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 mx-auto"
+          >
+            {isCalculatingROI ? (
+              <>
+                <RefreshCw size={24} className="animate-spin" />
+                AI is Calculating...
+              </>
+            ) : (
+              <>
+                <Calculator size={24} />
+                Calculate My Savings
+              </>
+            )}
+          </button>
+
+          {userSavings > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5 }}
+              className="mt-8 bg-white/10 rounded-xl p-6"
+            >
+              <h3 className="text-2xl font-bold text-white mb-2">Your AI Savings Potential</h3>
+              <div className="text-4xl font-bold text-green-400 mb-2">${userSavings.toLocaleString()}</div>
+              <p className="text-white/80">Annual savings with Prime's AI Empire</p>
+            </motion.div>
+          )}
+        </motion.div>
               </div>
 
-              {/* Demo Quote - Hidden by default, shown on hover/click */}
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ 
-                  opacity: selectedAI === ai.id ? 1 : 0,
-                  height: selectedAI === ai.id ? 'auto' : 0
-                }}
-                className="mt-4 p-3 bg-cyan-500/10 border border-cyan-400/30 rounded-lg"
+      {/* AI Capability Tester */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">Test Your AI Knowledge</h2>
+            <p className="text-white/80">Challenge yourself with AI financial questions</p>
+            </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { question: "How fast can AI process 100 receipts?", answer: "2.3 seconds", difficulty: "Easy" },
+              { question: "What's the AI accuracy rate?", answer: "99.7%", difficulty: "Medium" },
+              { question: "How many AI decisions per day?", answer: "200+", difficulty: "Hard" }
+            ].map((quiz, index) => (
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className="bg-white/10 rounded-xl p-6 border border-white/10"
               >
-                <p className="text-sm text-cyan-300 italic">"{ai.demoQuote}"</p>
+          <div className="text-center">
+                  <div className="text-2xl mb-4">🧠</div>
+                  <h3 className="font-semibold text-white mb-2">{quiz.question}</h3>
+                  <p className="text-cyan-400 font-bold text-lg mb-2">{quiz.answer}</p>
+                  <span className="text-white/60 text-sm">{quiz.difficulty}</span>
+              </div>
               </motion.div>
+            ))}
+              </div>
+        </motion.div>
+            </div>
+          
+      {/* Live AI Performance Dashboard */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Live AI Performance Dashboard</h2>
+          <p className="text-white/80 text-lg max-w-3xl mx-auto">Real-time metrics from Prime's AI Empire</p>
+        </motion.div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          {[
+            { metric: 'Documents Processed', value: '47,892', icon: '📄', color: 'text-blue-400' },
+            { metric: 'AI Decisions Made', value: '12,847', icon: '🤖', color: 'text-purple-400' },
+            { metric: 'Money Saved', value: '$2.3M', icon: '💰', color: 'text-green-400' },
+            { metric: 'Users Served', value: '50,000+', icon: '👥', color: 'text-orange-400' }
+          ].map((stat, index) => (
+            <motion.div 
+              key={stat.metric}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center"
+            >
+              <div className="text-4xl mb-4">{stat.icon}</div>
+              <div className={`text-3xl font-bold ${stat.color} mb-2`}>{stat.value}</div>
+              <div className="text-white/70 text-sm">{stat.metric}</div>
+            </motion.div>
+          ))}
+          </div>
+            </div>
+          
+      {/* AI Goal Tracker */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">AI Goal Tracker</h2>
+            <p className="text-white/80">Set financial goals and let AI help you achieve them</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { goal: 'Save $10,000', progress: 75, aiTip: 'Prime suggests: Cut dining out by 30%' },
+              { goal: 'Pay off $5,000 debt', progress: 60, aiTip: 'Crystal predicts: Achievable in 8 months' },
+              { goal: 'Invest $2,000', progress: 90, aiTip: 'Tag found: $500 in tax deductions' }
+            ].map((goal, index) => (
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className="bg-white/10 rounded-xl p-6 border border-white/10"
+              >
+                <h3 className="font-semibold text-white mb-3">{goal.goal}</h3>
+                <div className="w-full bg-white/20 rounded-full h-3 mb-4">
+                  <div 
+                    className="bg-gradient-to-r from-green-500 to-emerald-500 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${goal.progress}%` }}
+                  ></div>
+          </div>
+                <p className="text-white/70 text-sm">{goal.progress}% Complete</p>
+                <p className="text-cyan-400 text-xs mt-2 italic">"{goal.aiTip}"</p>
+              </motion.div>
+            ))}
+        </div>
+        </motion.div>
+              </div>
+          
+      {/* Future Financial Predictor */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">🔮 Future Financial Predictor</h2>
+            <p className="text-white/80">See your financial future with AI-powered predictions</p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="text-center">
+              <div className="text-6xl mb-4">📈</div>
+              <h3 className="text-xl font-bold text-white mb-2">With AI Empire</h3>
+              <div className="text-3xl font-bold text-green-400 mb-4">$47,000</div>
+              <p className="text-white/70">Projected savings in 5 years</p>
+            </div>
+          <div className="text-center">
+              <div className="text-6xl mb-4">📉</div>
+              <h3 className="text-xl font-bold text-white mb-2">Without AI</h3>
+              <div className="text-3xl font-bold text-red-400 mb-4">$12,000</div>
+              <p className="text-white/70">Projected savings in 5 years</p>
+          </div>
+              </div>
+        </motion.div>
+            </div>
+
+      {/* AI Achievement System */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">🏆 AI Achievement System</h2>
+          <p className="text-white/80 text-lg max-w-3xl mx-auto">Unlock achievements as you master your finances with AI</p>
+        </motion.div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {[
+            { achievement: 'First AI Decision', icon: '🤖', unlocked: true },
+            { achievement: 'Savings Master', icon: '💰', unlocked: true },
+            { achievement: 'Tax Optimizer', icon: '📊', unlocked: false },
+            { achievement: 'AI Empire Ruler', icon: '👑', unlocked: false }
+          ].map((achievement, index) => (
+            <motion.div 
+              key={achievement.achievement}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              className={`bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center ${achievement.unlocked ? 'opacity-100' : 'opacity-50'}`}
+            >
+              <div className="text-4xl mb-4">{achievement.icon}</div>
+              <h3 className="font-semibold text-white mb-2">{achievement.achievement}</h3>
+              <div className={`text-sm ${achievement.unlocked ? 'text-green-400' : 'text-white/50'}`}>
+                {achievement.unlocked ? 'Unlocked' : 'Locked'}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Call to Action */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
+        >
+          <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
+            Ready to Join Prime's AI Empire?
+          </h2>
+          <p className="text-white/80 text-lg mb-6 max-w-2xl mx-auto">
+            Experience the future of financial management with revolutionary AI automation, 99.7% accuracy, and complete autonomous control. Join 50,000+ users who've transformed their financial lives.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link 
+              to="/pricing"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-pink-500 hover:to-purple-500 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+            >
+              <Crown size={24} />
+              Start Free Forever
+            </Link>
+            <button 
+              onClick={() => setShowPersonalityQuiz(true)}
+              className="border-2 border-green-400 text-green-400 hover:bg-green-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2"
+            >
+              <Brain size={24} />
+              Find My AI Match
+          </button>
+          </div>
+        </motion.div>
+        </div>
+        
+      {/* AI Voice Commands Demo */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">🎤 AI Voice Commands</h2>
+            <p className="text-white/80">Control your finances with voice commands</p>
+        </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { command: "Hey Prime, analyze my spending", response: "Analyzing your patterns..." },
+              { command: "Byte, categorize my receipts", response: "Processing 47 documents..." },
+              { command: "Crystal, predict my budget", response: "Forecasting next month..." }
+            ].map((voice, index) => (
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className="bg-white/10 rounded-xl p-6 border border-white/10"
+              >
+                <div className="text-center">
+                  <div className="text-3xl mb-4">🎤</div>
+                  <h3 className="font-semibold text-white mb-2">"{voice.command}"</h3>
+                  <p className="text-cyan-400 text-sm italic">"{voice.response}"</p>
+            </div>
+              </motion.div>
+            ))}
+            </div>
+        </motion.div>
+            </div>
+
+      {/* Global AI Network */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">🌍 Global AI Network</h2>
+          <p className="text-white/80 text-lg max-w-3xl mx-auto">Prime's AI Empire spans the globe</p>
+        </motion.div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          {[
+            { country: 'United States', users: '25,000+', savings: '$1.2M', icon: '🇺🇸' },
+            { country: 'Canada', users: '8,500+', savings: '$450K', icon: '🇨🇦' },
+            { country: 'United Kingdom', users: '12,300+', savings: '$680K', icon: '🇬🇧' },
+            { country: 'Australia', users: '4,200+', savings: '$220K', icon: '🇦🇺' }
+          ].map((region, index) => (
+            <motion.div 
+              key={region.country}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center"
+            >
+              <div className="text-4xl mb-4">{region.icon}</div>
+              <h3 className="font-semibold text-white mb-2">{region.country}</h3>
+              <div className="text-cyan-400 font-bold text-lg mb-1">{region.users}</div>
+              <div className="text-green-400 font-bold text-lg mb-2">{region.savings}</div>
+              <div className="text-white/70 text-sm">Total Savings</div>
+            </motion.div>
+          ))}
+          </div>
+        </div>
+        
+      {/* AI Entertainment Theater */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">🎪 AI Entertainment Theater</h2>
+            <p className="text-white/80">Interactive AI games and financial entertainment</p>
+        </div>
+        
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              { 
+                game: 'AI Financial Trivia', 
+                description: 'Test your financial knowledge with AI-generated questions',
+                icon: '🎯', 
+                players: '2,847',
+                difficulty: 'Easy',
+                rewards: '500 pts',
+                aiHost: 'Prime'
+              },
+              { 
+                game: 'AI Budget Challenge', 
+                description: 'Beat AI in real-time budget optimization challenges',
+                icon: '🏆', 
+                players: '1,234',
+                difficulty: 'Medium',
+                rewards: '1000 pts',
+                aiHost: 'Tag'
+              },
+              { 
+                game: 'AI Savings Race', 
+                description: 'Race against time to save money with AI assistance',
+                icon: '🏃', 
+                players: '3,456',
+                difficulty: 'Hard',
+                rewards: '1500 pts',
+                aiHost: 'Crystal'
+              },
+              { 
+                game: 'AI Investment Simulator', 
+                description: 'Practice investing with AI market predictions',
+                icon: '📈', 
+                players: '892',
+                difficulty: 'Expert',
+                rewards: '2000 pts',
+                aiHost: 'Crystal'
+              },
+              { 
+                game: 'AI Tax Detective', 
+                description: 'Find hidden tax deductions with AI clues',
+                icon: '🔍', 
+                players: '1,567',
+                difficulty: 'Medium',
+                rewards: '1200 pts',
+                aiHost: 'Tag'
+              },
+              { 
+                game: 'AI Financial Quiz Show', 
+                description: 'Compete in live AI-hosted financial quiz shows',
+      icon: '🎤',
+                players: '4,123',
+                difficulty: 'Mixed',
+                rewards: '800 pts',
+                aiHost: 'Prime'
+              }
+            ].map((game, index) => (
+            <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className="bg-white/10 rounded-xl p-6 border border-white/10 text-center cursor-pointer hover:scale-105 transition-all duration-300"
+              >
+                <div className="text-4xl mb-4">{game.icon}</div>
+                <h3 className="font-semibold text-white mb-2">{game.game}</h3>
+                <p className="text-white/70 text-sm mb-3">{game.description}</p>
+                <div className="flex justify-between items-center text-sm mb-3">
+                  <span className="text-cyan-400 font-bold">{game.players} players</span>
+                  <span className="text-green-400">{game.rewards}</span>
+              </div>
+                <div className="flex justify-between items-center">
+                  <span className={`text-xs px-2 py-1 rounded-full ${
+                    game.difficulty === 'Easy' ? 'bg-green-500/20 text-green-300' :
+                    game.difficulty === 'Medium' ? 'bg-yellow-500/20 text-yellow-300' :
+                    game.difficulty === 'Hard' ? 'bg-red-500/20 text-red-300' :
+                    'bg-purple-500/20 text-purple-300'
+                  }`}>
+                    {game.difficulty}
+                  </span>
+                  <span className="text-purple-300 text-xs">Host: {game.aiHost}</span>
+                </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Revolutionary Differentiation */}
-        <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10 mb-12">
-          <h3 className="text-2xl font-bold text-white mb-6 text-center">Why XspensesAI's AI Team is Revolutionary</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full mt-2"></div>
-                <p className="text-gray-300">16 specialized personalities vs. generic chatbots elsewhere</p>
+          <div className="text-center mt-8">
+            <button className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-500 hover:to-pink-500 transition-all duration-300">
+              Play AI Games Now
+            </button>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full mt-2"></div>
-                <p className="text-gray-300">Each AI remembers your preferences and learns your communication style</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full mt-2"></div>
-                <p className="text-gray-300">Emotional intelligence combined with financial expertise</p>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full mt-2"></div>
-                <p className="text-gray-300">Available 24/7 with instant, personalized responses</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full mt-2"></div>
-                <p className="text-gray-300">The only financial platform with true AI personalities</p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-cyan-400 rounded-full mt-2"></div>
-                <p className="text-gray-300">Learns and evolves with your financial journey</p>
-              </div>
-            </div>
-          </div>
+        </motion.div>
         </div>
 
-        {/* Social Proof */}
-        <div className="text-center mb-12">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="text-3xl font-bold text-cyan-400 mb-2">2.8M+</div>
-              <div className="text-gray-300">conversations with AI employees</div>
-            </div>
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="text-3xl font-bold text-cyan-400 mb-2">94%</div>
-              <div className="text-gray-300">say 'More helpful than human advisors'</div>
-            </div>
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-              <div className="text-3xl font-bold text-cyan-400 mb-2">47 min</div>
-              <div className="text-gray-300">daily average with AI team</div>
-            </div>
-          </div>
+      {/* AI Market Predictor */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">📊 AI Market Predictor</h2>
+            <p className="text-white/80">Crystal's market insights and predictions</p>
         </div>
 
-        {/* CTA Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div className="text-center">
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-4">
-            <Link to="/ai-employees" className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 hover:shadow-cyan-500/25 transform hover:scale-105">Meet Your AI Dream Team</Link>
-            <Link to="/ai-assistant" className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300">Take AI Personality Quiz</Link>
+              <div className="text-6xl mb-4">📈</div>
+              <h3 className="text-xl font-bold text-white mb-2">Market Prediction</h3>
+              <div className="text-3xl font-bold text-green-400 mb-4">+12.7%</div>
+              <p className="text-white/70">S&P 500 next quarter</p>
+              <p className="text-cyan-400 text-sm mt-2">Crystal's confidence: 94.2%</p>
           </div>
-          <p className="text-gray-300">Chat with 16 specialists - each with unique expertise</p>
+            <div className="text-center">
+              <div className="text-6xl mb-4">💰</div>
+              <h3 className="text-xl font-bold text-white mb-2">Investment Tip</h3>
+              <div className="text-2xl font-bold text-blue-400 mb-4">Tech Sector</div>
+              <p className="text-white/70">Best performing sector</p>
+              <p className="text-cyan-400 text-sm mt-2">AI recommendation</p>
         </div>
       </div>
-    </section>
-  );
-};
-
-// Entertainment Features Section
-const EntertainmentFeaturesSection: React.FC = () => {
-  return (
-    <section className="entertainment-features py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
-      <div className="container max-w-7xl mx-auto px-4">
-        <div className="text-center mb-16">
-          <h2 className="gradient-text text-4xl md:text-5xl font-extrabold mb-6">The Entertainment Revolution That Makes Finance Addictive</h2>
-          <p className="gradient-text text-xl md:text-2xl font-semibold mb-6">The first and only financial platform that people actually want to use every day. Here's how we turned the most boring task into genuine entertainment.</p>
-          <p className="text-lg text-gray-300 max-w-4xl mx-auto">Every other financial app makes you avoid money management. XspensesAI makes you excited about it. Our entertainment features create genuine addiction to financial wellness.</p>
+        </motion.div>
         </div>
 
-        {/* Feature 1: Personal Financial Podcasts */}
-        <div className="mb-20">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <div className="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-2xl p-8 mb-6">
-                <div className="text-4xl mb-4">🎤</div>
-                <h3 className="text-2xl font-bold text-white mb-4">Your Money Story, Beautifully Told</h3>
-                <p className="text-lg text-gray-300 mb-6">AI creates personalized podcast episodes about YOUR financial journey</p>
+      {/* AI Health Score */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-blue-500/20 to-indigo-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">❤️ AI Financial Health Score</h2>
+            <p className="text-white/80">Get your personalized financial health rating</p>
               </div>
               
-              <div className="space-y-4 mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
-                  <p className="text-gray-300">Monthly episodes celebrating your wins and analyzing your patterns</p>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            {[
+              { metric: 'Savings Rate', score: '85', color: 'text-green-400', icon: '💰' },
+              { metric: 'Debt Ratio', score: '12', color: 'text-blue-400', icon: '📊' },
+              { metric: 'Investment', score: '78', color: 'text-purple-400', icon: '📈' },
+              { metric: 'Emergency Fund', score: '92', color: 'text-emerald-400', icon: '🛡️' }
+            ].map((health, index) => (
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className="bg-white/10 rounded-xl p-6 border border-white/10 text-center"
+              >
+                <div className="text-3xl mb-3">{health.icon}</div>
+                <h3 className="font-semibold text-white mb-2">{health.metric}</h3>
+                <div className={`text-2xl font-bold ${health.color} mb-2`}>{health.score}/100</div>
+                <div className="w-full bg-white/20 rounded-full h-2">
+                  <div 
+                    className={`bg-gradient-to-r ${health.color.replace('text-', '')} h-2 rounded-full`}
+                    style={{ width: `${health.score}%` }}
+                  ></div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
-                  <p className="text-gray-300">Documentary-style narration that makes your finances feel important</p>
+              </motion.div>
+            ))}
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
-                  <p className="text-gray-300">Shareable content that friends actually want to hear</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
-                  <p className="text-gray-300">150,000+ episodes created and climbing</p>
-                </div>
+        </motion.div>
               </div>
 
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-                <h4 className="text-lg font-semibold text-white mb-3">Sample Episode Titles:</h4>
-                <div className="space-y-2 text-sm text-gray-300">
-                  <p>• "Sarah's Coffee Shop Conquest: How $200 Monthly Became a Business Strategy"</p>
-                  <p>• "The Great Credit Card Payoff of 2024: Mike's 8-Month Victory Story"</p>
-                  <p>• "Jennifer's Side Hustle Success: From Broke to $5K Monthly in 6 Episodes"</p>
-                </div>
+      {/* AI Speed Comparison */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-orange-500/20 to-red-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">⚡ AI vs Human Speed</h2>
+            <p className="text-white/80">See how AI outperforms human processing</p>
               </div>
 
-              <div className="mt-6 p-4 bg-cyan-500/10 border border-cyan-400/30 rounded-lg">
-                <p className="text-cyan-300 italic">"I share my financial podcast episodes on Instagram. My friends are asking how to get their own AI financial documentarian!"</p>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="text-center">
-                <div className="text-6xl mb-4">🎧</div>
-                <h4 className="text-xl font-bold text-white mb-4">Podcast Player Interface</h4>
-                <div className="space-y-3">
-                  <div className="bg-white/10 rounded-lg p-3">
-                    <div className="text-sm text-gray-400">Episode 12: "The Budget Breakthrough"</div>
-                    <div className="text-xs text-gray-500">23 min • Released 2 days ago</div>
+              <div className="text-6xl mb-4">🤖</div>
+              <h3 className="text-xl font-bold text-white mb-2">AI Processing</h3>
+              <div className="text-3xl font-bold text-green-400 mb-4">2.3 seconds</div>
+              <p className="text-white/70">100 receipts processed</p>
+              <p className="text-white/70">99.7% accuracy</p>
+              <p className="text-white/70">24/7 operation</p>
                   </div>
-                  <div className="bg-white/10 rounded-lg p-3">
-                    <div className="text-sm text-gray-400">Episode 11: "Coffee Shop Strategy"</div>
-                    <div className="text-xs text-gray-500">18 min • Released 1 week ago</div>
-                  </div>
-                  <div className="bg-white/10 rounded-lg p-3">
-                    <div className="text-sm text-gray-400">Episode 10: "Emergency Fund Victory"</div>
-                    <div className="text-xs text-gray-500">21 min • Released 2 weeks ago</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Feature 2: AI Financial Therapist */}
-        <div className="mb-20">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="order-2 md:order-1">
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
                 <div className="text-center">
-                  <div className="text-6xl mb-4">💝</div>
-                  <h4 className="text-xl font-bold text-white mb-4">Therapy Session Interface</h4>
-                  <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg p-4">
-                    <div className="text-sm text-gray-300 mb-2">AI Therapist: "How are you feeling about your finances today?"</div>
-                    <div className="text-sm text-gray-400 italic">User: "I feel guilty buying anything for myself"</div>
-                    <div className="text-sm text-cyan-300 mt-2">AI Therapist: "That guilt is protecting you from past financial fear. You've built healthy habits now - a $20 self-care purchase is an investment in your wellbeing, not a failure."</div>
+              <div className="text-6xl mb-4">👤</div>
+              <h3 className="text-xl font-bold text-white mb-2">Human Processing</h3>
+              <div className="text-3xl font-bold text-red-400 mb-4">2.5 hours</div>
+              <p className="text-white/70">100 receipts processed</p>
+              <p className="text-white/70">85% accuracy</p>
+              <p className="text-white/70">8 hours/day</p>
                   </div>
                 </div>
-              </div>
+        </motion.div>
             </div>
 
-            <div className="order-1 md:order-2">
-              <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-2xl p-8 mb-6">
-                <div className="text-4xl mb-4">💝</div>
-                <h3 className="text-2xl font-bold text-white mb-4">Heal Your Relationship with Money</h3>
-                <p className="text-lg text-gray-300 mb-6">24/7 emotional support that understands financial psychology</p>
+      {/* AI Video Content Hub */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-red-500/20 to-orange-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">🎬 AI Video Content Hub</h2>
+            <p className="text-white/80">AI-generated videos about YOUR financial journey</p>
               </div>
               
-              <div className="space-y-4 mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                  <p className="text-gray-300">Address money anxiety without judgment or shame</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[
+              { 
+                title: 'AI Financial Analysis Video', 
+                description: 'Personalized video breakdown of your spending patterns',
+                duration: '3:45',
+                views: '2.1K',
+                thumbnail: '📊',
+                aiGenerated: true,
+                category: 'Analysis'
+              },
+              { 
+                title: 'AI Budget Tutorial Video', 
+                description: 'AI creates custom budget tutorial just for you',
+                duration: '5:12',
+                views: '1.8K',
+                thumbnail: '💰',
+                aiGenerated: true,
+                category: 'Tutorial'
+              },
+              { 
+                title: 'AI Investment Strategy Video', 
+                description: 'Crystal explains your personalized investment strategy',
+                duration: '4:23',
+                views: '3.4K',
+                thumbnail: '📈',
+                aiGenerated: true,
+                category: 'Strategy'
+              },
+              { 
+                title: 'AI Tax Optimization Video', 
+                description: 'Tag shows you how to optimize your taxes',
+                duration: '6:18',
+                views: '2.7K',
+                thumbnail: '📋',
+                aiGenerated: true,
+                category: 'Tax'
+              },
+              { 
+                title: 'AI Financial Goals Video', 
+                description: 'Prime creates motivational video about your goals',
+                duration: '2:56',
+                views: '4.2K',
+                thumbnail: '🎯',
+                aiGenerated: true,
+                category: 'Motivation'
+              },
+              { 
+                title: 'AI Market Update Video', 
+                description: 'Weekly AI-generated market analysis and predictions',
+                duration: '7:34',
+                views: '5.1K',
+                thumbnail: '🌍',
+                aiGenerated: true,
+                category: 'Market'
+              }
+            ].map((video, index) => (
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className="bg-white/10 rounded-xl p-6 border border-white/10 text-center cursor-pointer hover:scale-105 transition-all duration-300"
+              >
+                <div className="text-4xl mb-4">{video.thumbnail}</div>
+                <h3 className="font-semibold text-white mb-2">{video.title}</h3>
+                <p className="text-white/70 text-sm mb-3">{video.description}</p>
+                <div className="flex justify-between items-center text-sm mb-3">
+                  <span className="text-cyan-400">{video.duration}</span>
+                  <span className="text-white/60">{video.views} views</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                  <p className="text-gray-300">Work through spending guilt and financial trauma</p>
+                <div className="flex justify-between items-center">
+                  <span className="bg-purple-500/20 text-purple-300 text-xs px-2 py-1 rounded-full">
+                    {video.category}
+                  </span>
+                  <span className="bg-green-500/20 text-green-300 text-xs px-2 py-1 rounded-full">
+                    AI Generated
+                  </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                  <p className="text-gray-300">Build healthy money mindset through AI guidance</p>
+              </motion.div>
+            ))}
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                  <p className="text-gray-300">87% reduction in financial stress within 30 days</p>
+
+          <div className="text-center mt-8">
+            <button className="bg-gradient-to-r from-red-500 to-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:from-orange-500 hover:to-red-500 transition-all duration-300">
+              Generate My AI Video
+            </button>
                 </div>
+        </motion.div>
               </div>
 
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-                <p className="text-purple-300 italic">"The AI therapist helped me overcome 20 years of money anxiety. I went from financial panic attacks to financial confidence in 30 days." - Jennifer K.</p>
+      {/* AI Chat Integration */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">💬 AI Chat Integration</h2>
+            <p className="text-white/80">Chat with Prime's AI team in real-time</p>
               </div>
 
-              <div className="mt-4 p-3 bg-purple-500/10 border border-purple-400/30 rounded-lg">
-                <p className="text-sm text-purple-300">Developed with financial psychology experts and licensed therapists</p>
+          <div className="bg-white/10 rounded-xl p-6 border border-white/10">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-semibold">
+                👑
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Feature 3: Gamified Financial Achievement System */}
-        <div className="mb-20">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-2xl p-8 mb-6">
-                <div className="text-4xl mb-4">🏆</div>
-                <h3 className="text-2xl font-bold text-white mb-4">Turn Goals Into Addictive Challenges</h3>
-                <p className="text-lg text-gray-300 mb-6">Achievement system that makes financial progress genuinely exciting</p>
+                <h3 className="font-semibold text-white">Prime</h3>
+                <p className="text-white/70 text-sm">AI Boss & Director</p>
               </div>
-              
-              <div className="space-y-4 mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <p className="text-gray-300">Milestone celebrations with personalized rewards</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <p className="text-gray-300">Achievement streaks that build momentum</p>
+            <div className="bg-white/5 rounded-lg p-4 mb-4">
+              <p className="text-white/80 text-sm">"Hello! I'm Prime, your AI financial director. I can help you with budgeting, investment strategies, and financial planning. What would you like to discuss today?"</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <p className="text-gray-300">Progress visualization that feels like leveling up</p>
+            <div className="flex gap-2">
+              <button className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg text-sm hover:from-pink-500 hover:to-purple-500 transition-all duration-300">
+                Ask about Budgeting
+              </button>
+              <button className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-lg text-sm hover:from-pink-500 hover:to-purple-500 transition-all duration-300">
+                Investment Advice
+              </button>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <p className="text-gray-300">Social sharing of financial wins (without revealing amounts)</p>
                 </div>
+        </motion.div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 text-center">
-                  <div className="text-2xl mb-2">🏆</div>
-                  <div className="text-sm font-semibold text-white">Coffee Conqueror</div>
-                  <div className="text-xs text-gray-400">Optimized coffee spending for 30 days</div>
-                </div>
-                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 text-center">
-                  <div className="text-2xl mb-2">🎯</div>
-                  <div className="text-sm font-semibold text-white">Emergency Fund Hero</div>
-                  <div className="text-xs text-gray-400">Built 6-month emergency fund</div>
-                </div>
-                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 text-center">
-                  <div className="text-2xl mb-2">🚀</div>
-                  <div className="text-sm font-semibold text-white">Business Expense Master</div>
-                  <div className="text-xs text-gray-400">Perfect categorization for 90 days</div>
-                </div>
-                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 text-center">
-                  <div className="text-2xl mb-2">💎</div>
-                  <div className="text-sm font-semibold text-white">Debt Destroyer</div>
-                  <div className="text-xs text-gray-400">Eliminated credit card debt</div>
-                </div>
-              </div>
+      {/* AI Leaderboard & Rewards */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold text-white mb-4">🏆 AI Leaderboard & Rewards</h2>
+            <p className="text-white/80">Compete with other users and earn AI rewards</p>
             </div>
 
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
-              <div className="text-center">
-                <div className="text-6xl mb-4">🎮</div>
-                <h4 className="text-xl font-bold text-white mb-4">Achievement Dashboard</h4>
-                <div className="space-y-4">
-                  <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg p-4">
-                    <div className="text-lg font-bold text-white mb-2">Level 7: Financial Master</div>
-                    <div className="w-full bg-white/20 rounded-full h-2 mb-2">
-                      <div className="bg-green-400 h-2 rounded-full" style={{width: '75%'}}></div>
+          <div className="space-y-4 mb-8">
+            {[
+              { rank: 1, name: 'Sarah M.', points: '12,847', reward: '🏆 AI Empire Master', savings: '$4,700' },
+              { rank: 2, name: 'Mike R.', points: '10,234', reward: '🥈 AI Strategist', savings: '$2,300' },
+              { rank: 3, name: 'Jennifer L.', points: '8,921', reward: '🥉 AI Optimizer', savings: '$3,200' },
+              { rank: 4, name: 'David K.', points: '7,456', reward: '💎 AI Enthusiast', savings: '$1,800' }
+            ].map((leader, index) => (
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, x: -20 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className="flex items-center justify-between bg-white/10 rounded-xl p-4 border border-white/10"
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold ${
+                    index === 0 ? 'bg-yellow-500' : 
+                    index === 1 ? 'bg-gray-400' : 
+                    index === 2 ? 'bg-orange-600' : 'bg-blue-500'
+                  }`}>
+                    {leader.rank}
                     </div>
-                    <div className="text-sm text-gray-300">75% to Level 8</div>
+                  <div>
+                    <h3 className="font-semibold text-white">{leader.name}</h3>
+                    <p className="text-white/70 text-sm">{leader.reward}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-white/10 rounded-lg p-3 text-center">
-                      <div className="text-2xl">🏆</div>
-                      <div className="text-xs text-gray-300">Achievements: 12/20</div>
                     </div>
-                    <div className="bg-white/10 rounded-lg p-3 text-center">
-                      <div className="text-2xl">🔥</div>
-                      <div className="text-xs text-gray-300">Streak: 47 days</div>
+                <div className="text-right">
+                  <div className="text-cyan-400 font-bold">{leader.points} pts</div>
+                  <div className="text-green-400 text-sm">{leader.savings} saved</div>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+              </motion.div>
+            ))}
         </div>
 
-        {/* Feature 4: Spotify for Finance */}
-        <div className="mb-20">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="order-2 md:order-1">
-              <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
                 <div className="text-center">
-                  <div className="text-6xl mb-4">🎵</div>
-                  <h4 className="text-xl font-bold text-white mb-4">Music Player Integration</h4>
-                  <div className="space-y-4">
-                    <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg p-4">
-                      <div className="text-sm text-gray-300 mb-2">Now Playing: "Focus Flow"</div>
-                      <div className="text-xs text-gray-400">Perfect for budget planning sessions</div>
+            <button className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-3 rounded-lg font-semibold hover:from-orange-500 hover:to-yellow-500 transition-all duration-300">
+              Join the Competition
+            </button>
                     </div>
-                    <div className="bg-white/10 rounded-lg p-4">
-                      <div className="text-sm text-gray-300 mb-2">Next: "Victory Anthem"</div>
-                      <div className="text-xs text-gray-400">Celebration music for goal achievements</div>
-                    </div>
-                    <div className="bg-white/10 rounded-lg p-4">
-                      <div className="text-sm text-gray-300 mb-2">Queue: "Stress Relief"</div>
-                      <div className="text-xs text-gray-400">Calming sounds for financial anxiety</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        </motion.div>
             </div>
 
-            <div className="order-1 md:order-2">
-              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-2xl p-8 mb-6">
-                <div className="text-4xl mb-4">🎵</div>
-                <h3 className="text-2xl font-bold text-white mb-4">The Perfect Soundtrack for Every Money Task</h3>
-                <p className="text-lg text-gray-300 mb-6">Context-aware music that makes financial work enjoyable</p>
-              </div>
-              
-              <div className="space-y-4 mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <p className="text-gray-300">Focus playlists for budget planning sessions</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <p className="text-gray-300">Victory anthems when you hit financial goals</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <p className="text-gray-300">Calming sounds for financial stress relief</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  <p className="text-gray-300">Productivity beats for expense categorization</p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-                  <h4 className="text-lg font-semibold text-white mb-2">Smart Integration:</h4>
-                  <div className="space-y-2 text-sm text-gray-300">
-                    <p>• AI detects your task and plays perfect background music</p>
-                    <p>• Celebration songs trigger automatically when goals are met</p>
-                    <p>• Stress-relief audio activates during tax season</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-
-
-
-
-
-
-
-
-      </div>
-    </section>
-  );
-};
-
-// FAQ Section
-const FAQSection: React.FC = () => {
-  const categories = [
-    { key: 'smart', label: 'Smart Import AI' },
-    { key: 'entertainment', label: 'Entertainment Features' },
-    { key: 'pricing', label: 'Pricing & Plans' },
-    { key: 'security', label: 'Security & Privacy' }
-  ] as const;
-
-  const [activeCategory, setActiveCategory] = useState<typeof categories[number]['key']>('smart');
-
-  const faqs: Record<string, { q: string; a: string }[]> = {
-    smart: [
-      {
-        q: 'What exactly is Smart Import AI?',
-        a: "Smart Import AI is revolutionary technology that reads ANY financial document in 2.3 seconds with 99.7% accuracy. Upload bank statements, receipts, CSV exports, or photos - our AI instantly categorizes every transaction. It learns your patterns and never asks you to categorize 'Starbucks' as coffee again."
-      },
-      {
-        q: 'Which banks and formats does it support?',
-        a: 'Smart Import AI works with 500+ banks worldwide including Chase, Wells Fargo, Bank of America, and international institutions. Supports PDFs, CSV files, images, scanned documents, and even crumpled receipts. If it has financial data, our AI reads it perfectly.'
-      },
-      {
-        q: 'How accurate is the AI categorization?',
-        a: '99.7% accuracy that exceeds human accountants. Our AI learns from millions of transactions and gets smarter with every document processed. Users report eliminating 8+ hours of monthly manual work while achieving perfect categorization.'
-      }
-    ],
-    entertainment: [
-      {
-        q: 'What are personal financial podcasts?',
-        a: 'AI creates personalized podcast episodes about YOUR money journey. Like having a financial documentary about your spending patterns, goals, and achievements. Users share these episodes on social media and report checking their finances daily.'
-      },
-      {
-        q: 'How does AI Financial Therapy work?',
-        a: '24/7 emotional support for money anxiety and financial stress. Our AI understands the psychology behind spending and provides judgment-free therapy. 87% of users report reduced financial anxiety within 30 days.'
-      }
-    ],
-    pricing: [
-      {
-        q: 'Is there a free version?',
-        a: 'Yes! Process 10 documents monthly with full Smart Import AI accuracy. Experience the automation magic with 3 personal podcasts and 1 AI personality. No credit card required.'
-      },
-      {
-        q: "What's the ROI of paid plans?",
-        a: "Business plan users save $3,200+ annually in found tax deductions while paying $600/year. Personal plan users save 94 hours annually (worth $4,700) while paying $180/year. The platform literally pays for itself."
-      }
-    ],
-    security: [
-      {
-        q: 'Is my financial data secure?',
-        a: 'Ultimate privacy with zero data storage. We process your documents, extract insights, then delete everything. Bank-level encryption, SOC 2 compliance, and your data never leaves our secure processing environment.'
-      },
-      {
-        q: 'How is this different from other expense apps?',
-        a: "Other apps store your data and require manual work. XspensesAI processes everything automatically with zero storage. Plus, we're the only platform that makes financial management genuinely entertaining and engaging."
-      }
-    ]
-  };
-
-  const [openIndex, setOpenIndex] = useState<number | null>(0);
-
-  return (
-    <section className="faq-section py-24 bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white">
-      <div className="container max-w-6xl mx-auto px-4">
-        <div className="text-center mb-12">
-          <h2 className="gradient-text text-4xl md:text-5xl font-extrabold mb-4">Frequently Asked Questions</h2>
-          <p className="text-lg text-gray-300 max-w-3xl mx-auto">Everything you need to know about XspensesAI's revolutionary automation platform and how it ends manual expense work forever.</p>
-        </div>
-
-        {/* Category Buttons */}
-        <div className="flex flex-wrap justify-center gap-3 mb-10">
-          {categories.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => { setActiveCategory(key); setOpenIndex(0); }}
-              className={`px-4 py-2 rounded-full border transition-all duration-200 ${
-                activeCategory === key
-                  ? 'bg-cyan-500 text-white border-cyan-500 shadow-md'
-                  : 'bg-black/20 text-gray-200 border-white/20 hover:bg-white/10'
-              }`}
+      {/* AI Demo Modal */}
+      <AnimatePresence>
+        {showAIDemo && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowAIDemo(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
+              onClick={(e) => e.stopPropagation()}
             >
-              {label}
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold text-white mb-4">Welcome to Prime's AI Empire</h2>
+                <p className="text-white/80">Experience the future of financial management</p>
+              </div>
+              
+              <div className="space-y-4 mb-8">
+                {aiDreamTeam.map((member) => (
+                  <div key={member.name} className="flex items-center gap-4 p-4 bg-white/10 rounded-lg">
+                    <div className="text-3xl">{member.avatar}</div>
+                    <div>
+                      <h3 className="font-semibold text-white">{member.name}</h3>
+                      <p className="text-white/70 text-sm">{member.role}</p>
+                </div>
+                </div>
+                ))}
+              </div>
+
+              <div className="flex gap-4 justify-center">
+                <button 
+                  onClick={() => setShowAIDemo(false)}
+                  className="px-6 py-3 border border-white/30 text-white rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  Close
+                </button>
+                <Link 
+                  to="/pricing"
+                  className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-pink-500 hover:to-purple-500 transition-all duration-300"
+                >
+                  Start My AI Empire
+                </Link>
+                  </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Personality Quiz Modal */}
+      <AnimatePresence>
+        {showPersonalityQuiz && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setShowPersonalityQuiz(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold text-white mb-4">Find Your Perfect AI Match</h2>
+                <p className="text-white/80">Discover which AI employee matches your financial style</p>
+      </div>
+
+              <div className="space-y-4 mb-8">
+                {aiDreamTeam.map((member) => (
+            <button
+                    key={member.name}
+                    onClick={() => setShowPersonalityQuiz(false)}
+                    className="w-full flex items-center gap-4 p-4 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
+                  >
+                    <div className="text-3xl">{member.avatar}</div>
+                    <div className="text-left">
+                      <h3 className="font-semibold text-white">{member.name}</h3>
+                      <p className="text-white/70 text-sm">{member.role}</p>
+                    </div>
             </button>
           ))}
         </div>
 
-        {/* FAQ Items */}
-        <div className="space-y-3">
-          {faqs[activeCategory].map((item, index) => (
-            <div key={item.q} className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden">
+              <div className="flex gap-4 justify-center">
               <button
-                onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                className="w-full text-left px-5 py-4 flex items-center justify-between hover:bg-white/10 transition-colors"
+                  onClick={() => setShowPersonalityQuiz(false)}
+                  className="px-6 py-3 border border-white/30 text-white rounded-lg hover:bg-white/10 transition-colors"
               >
-                <span className="font-semibold text-white">{item.q}</span>
-                <span className="text-cyan-400 ml-4">{openIndex === index ? '−' : '+'}</span>
+                  Close
               </button>
-              <AnimatePresence initial={false}>
-                {openIndex === index && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className="px-5 pb-5 text-gray-300 leading-relaxed border-t border-white/10"
-                  >
-                    {item.a}
+                <Link 
+                  to="/ai-employees"
+                  className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-pink-500 hover:to-purple-500 transition-all duration-300"
+                >
+                  Meet All AI Employees
+                </Link>
+              </div>
+            </motion.div>
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-          ))}
-        </div>
-
-        {/* Bottom CTA */}
-        <div className="text-center mt-12">
-          <p className="text-gray-300 mb-6">Still have questions? Chat with our AI team or start your free trial.</p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/ai-assistant" className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300 hover:shadow-cyan-500/25">Chat with AI Assistant</Link>
-            <Link to="/signup" className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-3 rounded-xl font-semibold transition-all duration-300">Start Free Trial</Link>
-          </div>
-          <div className="text-sm text-gray-400 mt-4">Join 50,000+ users who've automated their finances</div>
-        </div>
-      </div>
-    </section>
+    </>
   );
 };
 
-export default NewHomePage;
+export default HomePage;

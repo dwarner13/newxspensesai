@@ -1,298 +1,633 @@
-import React, { useState } from 'react';
-import WebsiteLayout from '../../components/layout/WebsiteLayout';
-import { Helmet } from 'react-helmet-async';
-import { motion } from 'framer-motion';
+import { useState } from 'react';
 import { 
-  Music,
-  Headphones,
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Volume2,
-  VolumeX,
-  Heart,
-  CheckCircle,
-  RefreshCw,
-  Target,
-  TrendingUp,
-  DollarSign,
-  Calendar,
-  User,
-  Settings,
-  LogOut
+  Music, Heart, Crown, Zap, Play, SkipBack, SkipForward, 
+  Volume2, RefreshCw, CheckCircle, Headphones
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const SpotifyIntegrationFeaturePage = () => {
+interface MusicRecommendation {
+  id: string;
+  title: string;
+  artist: string;
+  mood: string;
+  financialTask: string;
+  aiReason: string;
+  energy: number;
+  genre: string;
+}
+
+interface AIEmployee {
+  name: string;
+  role: string;
+  avatar: string;
+  specialty: string;
+  color: string;
+  musicStyle: string;
+}
+
+export default function SpotifyIntegrationFeaturePage() {
+  const [showMusicStudio, setShowMusicStudio] = useState(false);
+  const [isGeneratingPlaylist, setIsGeneratingPlaylist] = useState(false);
+  const [playlistProgress, setPlaylistProgress] = useState(0);
+  const [selectedMood, setSelectedMood] = useState<string>('motivated');
+  const [currentRecommendation, setCurrentRecommendation] = useState<MusicRecommendation | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [currentTrack, setCurrentTrack] = useState({
-    name: "Lo-fi Study Beats",
-    artist: "Chill Vibes Collective",
-    album: "Focus & Flow",
-    albumArt: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop&crop=center",
-    duration: 180,
-    progress: 45,
-    isPlaying: true
-  });
-  const [volume, setVolume] = useState(75);
-  const [isMuted, setIsMuted] = useState(false);
 
-  const handleSpotifyLogin = async () => {
+  // AI Music Team
+  const aiMusicTeam: AIEmployee[] = [
+    {
+      name: 'Prime',
+      role: 'AI Music Director & Orchestrator',
+      avatar: '👑',
+      specialty: 'Orchestrates perfect music for every financial moment',
+      color: 'from-yellow-400 via-orange-400 to-red-400',
+      musicStyle: 'Strategic playlist curation & mood analysis'
+    },
+    {
+      name: 'Crystal',
+      role: 'Emotional Music Intelligence',
+      avatar: '💎',
+      specialty: 'Matches music to your financial emotions and goals',
+      color: 'from-purple-500 to-pink-500',
+      musicStyle: 'Emotional intelligence & mood-based recommendations'
+    },
+    {
+      name: 'Finley',
+      role: 'Financial Focus Music Curator',
+      avatar: '💰',
+      specialty: 'Creates playlists that enhance financial productivity',
+      color: 'from-green-500 to-emerald-500',
+      musicStyle: 'Productivity-focused beats & concentration music'
+    },
+    {
+      name: 'Nova',
+      role: 'Creative Music Innovation',
+      avatar: '🌱',
+      specialty: 'Discovers new music trends and innovative soundscapes',
+      color: 'from-teal-500 to-cyan-500',
+      musicStyle: 'Trend discovery & innovative sound design'
+    }
+  ];
+
+  // Music Recommendations
+  const musicRecommendations: MusicRecommendation[] = [
+    {
+      id: '1',
+      title: 'Focus Flow',
+      artist: 'AI Beats Collective',
+      mood: 'motivated',
+      financialTask: 'Budget Planning',
+      aiReason: 'Prime suggests this high-energy track to boost your focus during budget planning',
+      energy: 85,
+      genre: 'Electronic'
+    },
+    {
+      id: '2',
+      title: 'Calm Calculations',
+      artist: 'Crystal\'s Soundscapes',
+      mood: 'calm',
+      financialTask: 'Expense Review',
+      aiReason: 'Crystal recommends this soothing track to reduce stress while reviewing expenses',
+      energy: 35,
+      genre: 'Ambient'
+    },
+    {
+      id: '3',
+      title: 'Money Moves',
+      artist: 'Finley\'s Fintech',
+      mood: 'confident',
+      financialTask: 'Investment Analysis',
+      aiReason: 'Finley curates this confident track to enhance your investment decision-making',
+      energy: 70,
+      genre: 'Hip-Hop'
+    },
+    {
+      id: '4',
+      title: 'Innovation Vibes',
+      artist: 'Nova\'s Network',
+      mood: 'creative',
+      financialTask: 'Goal Setting',
+      aiReason: 'Nova suggests this creative track to inspire innovative financial goal setting',
+      energy: 60,
+      genre: 'Indie'
+    }
+  ];
+
+  // Playlist Generation Stages
+  const playlistStages = [
+    'Analyzing your financial mood...',
+    'Scanning your music preferences...',
+    'Crystal is matching emotions to beats...',
+    'Finley is curating focus tracks...',
+    'Nova is adding innovative sounds...',
+    'Prime is orchestrating the perfect playlist...',
+    'Your AI Music Experience is ready! 🎵'
+  ];
+
+  // Demo Functions for Marketing Page
+  const handleSpotifyLogin = () => {
     setIsLoading(true);
-    // Simulate OAuth flow
+    // Simulate OAuth flow for demo
     setTimeout(() => {
       setIsConnected(true);
       setIsLoading(false);
     }, 2000);
   };
 
-  const togglePlayPause = () => {
-    setCurrentTrack(prev => ({ ...prev, isPlaying: !prev.isPlaying }));
-  };
-
-  const handleVolumeChange = (newVolume: number) => {
-    setVolume(newVolume);
-    setIsMuted(newVolume === 0);
-  };
-
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-  };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  const generateAIPlaylist = () => {
+    setIsGeneratingPlaylist(true);
+    setPlaylistProgress(0);
+    
+    const interval = setInterval(() => {
+      setPlaylistProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          setIsGeneratingPlaylist(false);
+          setCurrentRecommendation(musicRecommendations[Math.floor(Math.random() * musicRecommendations.length)]);
+          return 100;
+        }
+        return prev + 15;
+      });
+    }, 600);
   };
 
   return (
-    <WebsiteLayout>
-      <Helmet>
-        <title>Spotify Integration - Music While You Budget | XspensesAI</title>
-        <meta name="description" content="Connect your Spotify account and control music while budgeting. Access playlists, control playback, and enjoy Financial Focus playlists." />
-        <meta name="keywords" content="spotify integration, music while budgeting, financial focus playlists, spotify dashboard, expense tracking music" />
-      </Helmet>
-
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-slate-900">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-purple-900 via-blue-900 to-green-700 text-white py-20 px-4 text-center rounded-3xl shadow-xl mb-16">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-slate-900 pt-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+          {/* Prime's Crown Badge */}
+          <div className="text-center mb-8">
         <motion.div
-          className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-lg"
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8 }}
-        >
-          <Music size={40} className="text-white" />
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="inline-flex items-center bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 text-white px-4 py-2 rounded-full shadow-2xl"
+            >
+              <Crown size={20} className="mr-2" />
+              <span className="font-bold">Prime's AI Music Division</span>
         </motion.div>
+          </div>
+
+          {/* Hero Content */}
+          <div className="text-center mb-16">
         <motion.h1
-          className="text-5xl md:text-6xl font-extrabold mb-6"
-          initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
+              transition={{ duration: 0.6 }}
+              className="text-4xl md:text-6xl font-bold text-white mb-8"
         >
-          Connect Your <span className="bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">Spotify</span> Account
+              The World's First{' '}
+              <span className="text-green-400 drop-shadow-lg">
+                AI Music & Finance Theater
+              </span>
         </motion.h1>
         <motion.p
-          className="text-xl md:text-2xl text-blue-100 mb-10 max-w-2xl mx-auto"
-          initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
         >
-          Control your music while budgeting. Access your playlists, control playback, and enjoy <span className="font-bold text-white">Financial Focus</span> playlists designed for money management.
+              Experience the future of financial productivity with AI-powered music that adapts to your mood, enhances your focus, and makes every financial task feel like a concert. Our AI analyzes your financial state and curates the perfect soundtrack for your money journey.
         </motion.p>
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="flex flex-col sm:flex-row gap-6 justify-center"
         >
+              {!isConnected ? (
           <button
             onClick={handleSpotifyLogin}
             disabled={isLoading}
-            className="inline-block bg-gradient-to-r from-green-500 to-emerald-500 text-white px-10 py-5 rounded-xl font-bold text-lg shadow-lg hover:from-emerald-500 hover:to-green-500 transition-all duration-300 disabled:opacity-50"
+                  className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-emerald-500 hover:to-green-500 disabled:opacity-50 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>
-                <RefreshCw size={20} className="animate-spin inline mr-2" />
+                      <RefreshCw size={24} className="animate-spin" />
                 Connecting to Spotify...
               </>
             ) : (
               <>
-                <Music size={20} className="inline mr-2" />
-                Connect Spotify Account
+                      <Music size={24} />
+                      Connect Your Spotify Account
               </>
             )}
           </button>
-        </motion.div>
-      </section>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => setShowMusicStudio(true)}
+                    className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-emerald-500 hover:to-green-500 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <Music size={24} />
+                    Enter AI Music Studio
+                  </button>
+                  <button 
+                    onClick={generateAIPlaylist}
+                    className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2"
+                  >
+                    <Zap size={24} />
+                    Generate AI Playlist
+                  </button>
+                </>
+              )}
+            </motion.div>
+          </div>
 
-      {/* Connection Status */}
-      {isConnected && (
-        <section className="max-w-4xl mx-auto mb-20">
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <CheckCircle size={24} className="text-green-500" />
-              <h2 className="text-2xl font-bold text-gray-900">Successfully Connected to Spotify</h2>
+          {/* AI Music Team Showcase */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
+          >
+            <h3 className="text-2xl font-bold text-white text-center mb-8">
+              🎵 Prime's AI Music Team
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {aiMusicTeam.map((member, index) => (
+                <motion.div
+                  key={member.name}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  className="text-center"
+                >
+                  <div className={`w-16 h-16 bg-gradient-to-r ${member.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                    <span className="text-2xl">{member.avatar}</span>
+                  </div>
+                  <h4 className="text-lg font-bold text-white mb-2">{member.name}</h4>
+                  <p className="text-white/70 text-sm mb-2">{member.role}</p>
+                  <p className="text-white/60 text-xs">{member.specialty}</p>
+                </motion.div>
+              ))}
             </div>
-            <p className="text-gray-600 mb-6">You can now control your music while managing your finances.</p>
+        </motion.div>
+        </div>
+      </div>
+
+      {/* Spotify Integration Demo */}
+      {isConnected && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
+          >
+            <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-3 mb-4">
+                <CheckCircle size={24} className="text-green-400" />
+                <h2 className="text-2xl font-bold text-white">Spotify Integration Demo</h2>
+              </div>
+              <p className="text-white/80">Experience how our AI seamlessly integrates with your Spotify account to enhance your financial productivity.</p>
+            </div>
             
-            {/* Currently Playing Demo */}
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Headphones size={20} className="text-green-500" />
-                Currently Playing
+            {/* Demo Music Player */}
+            <div className="bg-white/10 rounded-xl p-6 mb-6">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Headphones size={20} className="text-green-400" />
+                AI-Enhanced Music Experience
               </h3>
               <div className="flex items-center gap-4">
                 <img 
-                  src={currentTrack.albumArt} 
+                  src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop&crop=center" 
                   alt="Album Art" 
                   className="w-16 h-16 rounded-lg object-cover shadow-md"
                 />
                 <div className="flex-1 text-left">
-                  <h4 className="font-semibold text-gray-900">{currentTrack.name}</h4>
-                  <p className="text-gray-600 text-sm">{currentTrack.artist}</p>
+                  <h4 className="font-semibold text-white">Focus Flow</h4>
+                  <p className="text-white/70 text-sm">AI Beats Collective</p>
+                  <p className="text-white/60 text-xs">Perfect for Budget Planning</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="text-gray-600 hover:text-gray-900 transition-colors">
+                  <button className="text-white/70 hover:text-white transition-colors">
                     <SkipBack size={20} />
                   </button>
-                  <button 
-                    onClick={togglePlayPause}
-                    className="w-10 h-10 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center transition-colors"
-                  >
-                    {currentTrack.isPlaying ? <Pause size={16} className="text-white" /> : <Play size={16} className="text-white" />}
+                  <button className="w-10 h-10 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center transition-colors">
+                    <Play size={16} className="text-white" />
                   </button>
-                  <button className="text-gray-600 hover:text-gray-900 transition-colors">
+                  <button className="text-white/70 hover:text-white transition-colors">
                     <SkipForward size={20} />
                   </button>
                 </div>
               </div>
+              
+              {/* Volume Control Demo */}
+              <div className="flex items-center gap-3 mt-4">
+                <Volume2 size={16} className="text-white/70" />
+                <div className="flex-1 h-2 bg-white/20 rounded-lg">
+                  <div className="h-2 bg-green-400 rounded-lg w-3/4"></div>
+                </div>
+                <span className="text-white/70 text-sm w-12">75%</span>
+              </div>
             </div>
+
+            {/* Demo Playlists */}
+            <div className="bg-white/10 rounded-xl p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">Your AI-Curated Playlists</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  { name: "Financial Focus", tracks: 24, mood: "Productive" },
+                  { name: "Budget Beats", tracks: 18, mood: "Motivated" },
+                  { name: "Investment Vibes", tracks: 31, mood: "Confident" },
+                  { name: "Expense Review", tracks: 15, mood: "Calm" },
+                  { name: "Goal Setting", tracks: 22, mood: "Inspired" },
+                  { name: "Money Mindfulness", tracks: 19, mood: "Peaceful" }
+                ].map((playlist, index) => (
+                  <div 
+                    key={index}
+                    className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src="https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=300&h=300&fit=crop&crop=center" 
+                        alt="Playlist" 
+                        className="w-12 h-12 rounded object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-white text-sm truncate">{playlist.name}</h4>
+                        <p className="text-white/60 text-xs">{playlist.tracks} tracks • {playlist.mood}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
           </div>
-        </section>
       )}
 
-      {/* What Makes It Special */}
-      <section className="max-w-4xl mx-auto mb-20">
-        <h2 className="text-3xl font-bold text-center mb-10 text-gray-900">Seamless Music Integration for Financial Focus</h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-            <div className="text-4xl mb-4">🎵</div>
-            <h3 className="text-xl font-bold text-green-700 mb-2">OAuth Login</h3>
-            <p className="text-gray-700">Secure connection with your Spotify account using industry-standard OAuth 2.0 authentication.</p>
-          </div>
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-            <div className="text-4xl mb-4">🎧</div>
-            <h3 className="text-xl font-bold text-green-700 mb-2">Playlist Access</h3>
-            <p className="text-gray-700">Browse and play your personal playlists while managing expenses and budgets.</p>
-          </div>
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-            <div className="text-4xl mb-4">🎛️</div>
-            <h3 className="text-xl font-bold text-green-700 mb-2">Full Playback Control</h3>
-            <p className="text-gray-700">Play, pause, skip, and control volume directly from your financial dashboard.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Feature List */}
-      <section className="max-w-4xl mx-auto mb-20">
-        <h2 className="text-3xl font-bold text-center mb-10 text-gray-900">Complete Spotify Integration Features</h2>
-        <div className="bg-white rounded-2xl shadow-lg p-8">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="flex items-start gap-3">
-              <CheckCircle size={20} className="text-green-500 mt-1 flex-shrink-0" />
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">OAuth Login</h4>
-                <p className="text-gray-600 text-sm">Secure connection with your Spotify account</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <CheckCircle size={20} className="text-green-500 mt-1 flex-shrink-0" />
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">Playlist Access</h4>
-                <p className="text-gray-600 text-sm">Browse and play your personal playlists</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <CheckCircle size={20} className="text-green-500 mt-1 flex-shrink-0" />
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">Playback Control</h4>
-                <p className="text-gray-600 text-sm">Play, pause, skip, and control volume</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <CheckCircle size={20} className="text-green-500 mt-1 flex-shrink-0" />
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">Financial Focus</h4>
-                <p className="text-gray-600 text-sm">Curated playlists for financial tasks</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <CheckCircle size={20} className="text-green-500 mt-1 flex-shrink-0" />
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">Real-time Sync</h4>
-                <p className="text-gray-600 text-sm">Live updates from your Spotify account</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <CheckCircle size={20} className="text-green-500 mt-1 flex-shrink-0" />
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-1">Premium Support</h4>
-                <p className="text-gray-600 text-sm">Full features for Spotify Premium users</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="max-w-5xl mx-auto mb-20">
-        <h2 className="text-3xl font-bold text-center mb-10 text-gray-900">How Users Enjoy Music While Budgeting</h2>
-        <div className="grid md:grid-cols-3 gap-8">
-          <div className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center">
-            <div className="w-14 h-14 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mb-4 text-white text-2xl">🎵</div>
-            <p className="text-gray-700 italic mb-4">"I love having my music while I budget. It makes the whole process so much more enjoyable!"</p>
-            <div className="font-bold text-gray-900">Sarah K.</div>
-            <div className="text-sm text-gray-500">Student</div>
-            </div>
-          <div className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center">
-            <div className="w-14 h-14 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mb-4 text-white text-2xl">🎧</div>
-            <p className="text-gray-700 italic mb-4">"The Financial Focus playlists are perfect for when I'm reviewing my expenses."</p>
-            <div className="font-bold text-gray-900">Mike R.</div>
-            <div className="text-sm text-gray-500">Freelancer</div>
-            </div>
-          <div className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center">
-            <div className="w-14 h-14 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mb-4 text-white text-2xl">🎛️</div>
-            <p className="text-gray-700 italic mb-4">"Seamless integration. I can control my music without leaving the dashboard."</p>
-            <div className="font-bold text-gray-900">Emma L.</div>
-            <div className="text-sm text-gray-500">Designer</div>
-          </div>
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="py-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl mt-16 text-white text-center max-w-4xl mx-auto shadow-xl">
-        <h2 className="text-3xl font-bold mb-4">Ready to Connect Your Spotify?</h2>
-        <p className="text-xl mb-8 opacity-90">Start enjoying music while you manage your finances today.</p>
-        <button
-          onClick={handleSpotifyLogin}
-          disabled={isLoading}
-          className="bg-white text-green-600 hover:bg-gray-100 disabled:opacity-50 px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all duration-300"
+      {/* Live AI Music Generation Demo */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
-          {isLoading ? (
-            <>
-              <RefreshCw size={20} className="animate-spin inline mr-2" />
-              Connecting...
-            </>
-          ) : (
-            <>
-              <Music size={20} className="inline mr-2" />
-              Connect Spotify Now
-            </>
-          )}
-        </button>
-      </section>
-    </WebsiteLayout>
-  );
-};
+          <div className="text-center mb-8">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+              🎵 Live AI Music Generation Theater
+            </h2>
+            <p className="text-lg text-white/80 max-w-3xl mx-auto">
+              Watch as our AI creates the perfect playlist for your financial mood. This is where music meets money management!
+            </p>
+          </div>
 
-export default SpotifyIntegrationFeaturePage; 
+          {/* Playlist Generation Progress */}
+          {isGeneratingPlaylist && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-8"
+            >
+              <div className="bg-white/10 rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-white font-semibold">AI Generating Your Playlist...</span>
+                  <span className="text-green-400 font-bold">{playlistProgress}%</span>
+                </div>
+                <div className="w-full bg-white/20 rounded-full h-3 mb-4">
+                  <motion.div 
+                    className="bg-gradient-to-r from-green-400 to-emerald-400 h-3 rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${playlistProgress}%` }}
+                    transition={{ duration: 0.3 }}
+                  />
+          </div>
+                <div className="text-center">
+                  <p className="text-white/80 text-sm">
+                    {playlistStages[Math.floor((playlistProgress / 15))] || 'Finalizing...'}
+                  </p>
+          </div>
+        </div>
+            </motion.div>
+          )}
+
+          {/* Generated Music Recommendation Display */}
+          {currentRecommendation && (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/10 rounded-xl p-6"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white">{currentRecommendation.title}</h3>
+                <span className="text-green-400 text-sm">{currentRecommendation.genre}</span>
+              </div>
+              <p className="text-white/80 mb-4">by {currentRecommendation.artist}</p>
+              <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg p-4 mb-4">
+                <p className="text-white font-semibold text-sm mb-2">🎯 Perfect for: {currentRecommendation.financialTask}</p>
+                <p className="text-white/90 text-sm">{currentRecommendation.aiReason}</p>
+              </div>
+              <div className="flex items-center gap-4 text-sm">
+                <span className="text-white/60">Mood: <span className="text-white font-semibold">{currentRecommendation.mood}</span></span>
+                <span className="text-white/60">Energy: <span className="text-white font-semibold">{currentRecommendation.energy}%</span></span>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Playlist Generation Controls */}
+          <div className="text-center">
+            <button 
+              onClick={generateAIPlaylist}
+              disabled={isGeneratingPlaylist}
+              className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-emerald-500 hover:to-green-500 disabled:opacity-50 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-300 hover:shadow-lg flex items-center gap-2 mx-auto"
+            >
+              <Zap size={20} />
+              {isGeneratingPlaylist ? 'Generating...' : 'Generate New AI Playlist'}
+            </button>
+          </div>
+        </motion.div>
+            </div>
+
+      {/* AI Music Features */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-12"
+        >
+          <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
+            🎧 AI-Powered Music Features
+          </h2>
+          <p className="text-lg text-white/80 leading-relaxed max-w-4xl mx-auto">
+            Our AI doesn't just play music - it creates the perfect soundtrack for your financial journey. From mood analysis to productivity enhancement, experience music like never before.
+          </p>
+        </motion.div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+          {[
+            {
+              title: 'Mood-Based Recommendations',
+              description: 'AI analyzes your financial mood and suggests music that enhances your productivity and emotional state.',
+              icon: '🧠',
+              color: 'from-purple-500 to-pink-500'
+            },
+            {
+              title: 'Task-Specific Playlists',
+              description: 'Different music for different financial tasks - focus beats for budgeting, calm tunes for expense review.',
+              icon: '🎯',
+              color: 'from-green-500 to-emerald-500'
+            },
+            {
+              title: 'Emotional Intelligence',
+              description: 'Crystal understands your emotional relationship with money and curates music that supports your financial wellness.',
+              icon: '💎',
+              color: 'from-blue-500 to-cyan-500'
+            },
+            {
+              title: 'Productivity Enhancement',
+              description: 'Finley creates playlists scientifically designed to boost focus and concentration during financial tasks.',
+              icon: '⚡',
+              color: 'from-orange-500 to-red-500'
+            },
+            {
+              title: 'Trend Discovery',
+              description: 'Nova discovers new music trends and innovative soundscapes to keep your financial soundtrack fresh.',
+              icon: '🌱',
+              color: 'from-teal-500 to-cyan-500'
+            },
+            {
+              title: 'Smart Integration',
+              description: 'Prime orchestrates seamless integration between your music and financial workflow for maximum efficiency.',
+              icon: '👑',
+              color: 'from-yellow-500 to-orange-500'
+            }
+          ].map((feature, index) => (
+            <motion.div 
+              key={feature.title}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: index * 0.1 }}
+              className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
+            >
+              <div className={`w-16 h-16 bg-gradient-to-r ${feature.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                <span className="text-2xl">{feature.icon}</span>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
+              <p className="text-white/80 text-sm leading-relaxed">{feature.description}</p>
+            </motion.div>
+          ))}
+              </div>
+            </div>
+
+      {/* Call to Action Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
+        >
+          <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
+            Ready to Experience AI-Powered Music & Finance?
+          </h2>
+          <p className="text-white/80 text-lg mb-6 max-w-2xl mx-auto">
+            Connect your Spotify account in the dashboard to unlock the full power of AI-enhanced financial productivity with your favorite music. Experience the future of financial wellness today.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button 
+              onClick={() => setShowMusicStudio(true)}
+              className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-emerald-500 hover:to-green-500 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+            >
+              <Music size={24} />
+              Try AI Music Demo
+            </button>
+            <button 
+              onClick={generateAIPlaylist}
+              className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2"
+            >
+              <Zap size={24} />
+              Generate AI Playlist
+            </button>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* AI Music Studio Modal */}
+      <AnimatePresence>
+        {showMusicStudio && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
+            onClick={() => setShowMusicStudio(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold text-white mb-4">
+                  🎵 Welcome to Prime's AI Music Studio
+                </h2>
+                <p className="text-white/80">
+                  This is where the magic happens. Choose your financial mood and let our AI create the perfect music experience for you.
+                </p>
+              </div>
+
+              {/* Mood Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                <div 
+                  className={`p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
+                    selectedMood === 'motivated' 
+                      ? 'border-green-400 bg-green-500/20' 
+                      : 'border-white/20 bg-white/10'
+                  }`}
+                  onClick={() => setSelectedMood('motivated')}
+                >
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Zap size={32} className="text-white" />
+            </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Motivated Mode</h3>
+                    <p className="text-white/80 text-sm">Get energized and focused for financial tasks!</p>
+          </div>
+        </div>
+
+                <div 
+                  className={`p-6 rounded-xl border-2 cursor-pointer transition-all duration-300 ${
+                    selectedMood === 'calm' 
+                      ? 'border-blue-400 bg-blue-500/20' 
+                      : 'border-white/20 bg-white/10'
+                  }`}
+                  onClick={() => setSelectedMood('calm')}
+                >
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Heart size={32} className="text-white" />
+            </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Calm Mode</h3>
+                    <p className="text-white/80 text-sm">Relax and reduce stress while managing finances!</p>
+            </div>
+          </div>
+        </div>
+
+              {/* Studio Actions */}
+              <div className="text-center">
+        <button
+                  onClick={() => {
+                    setShowMusicStudio(false);
+                    generateAIPlaylist();
+                  }}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-pink-500 hover:to-purple-500 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center gap-2 mx-auto"
+                >
+                  <Zap size={24} />
+                  Generate {selectedMood === 'motivated' ? 'Motivated' : 'Calm'} Playlist
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}; 

@@ -418,19 +418,7 @@ const StandalonePricingPage = () => {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gray-800 py-12 border-t border-white/10">
-        <div className="max-w-6xl mx-auto px-4 text-center">
-          <p className="text-gray-400 mb-4">
-            © 2024 XspensesAI. All rights reserved.
-          </p>
-          <div className="flex justify-center space-x-6 text-sm text-gray-400">
-            <Link to="/privacy" className="hover:text-white transition-colors">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link>
-            <Link to="/support" className="hover:text-white transition-colors">Support</Link>
-          </div>
-        </div>
-      </footer>
+
     </div>
   );
 };

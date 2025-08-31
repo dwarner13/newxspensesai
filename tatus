@@ -1,0 +1,5 @@
+[33m6eeed39[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix duplicate sections on homepage and improve navigation styling - Remove duplicate Revolutionary Statistics section - Remove duplicate What Users Are Saying testimonials - Remove duplicate The Entertainment Difference section - Remove duplicate CTA sections - Remove duplicate success stories from TaxSeasonTransformation - Update mega menu and mobile navigation background to match dashboard - Apply consistent font styling across navigation components - Fix logo consistency and reduce yellow border size - Clean up homepage content and remove redundant sections
+[33mffe66e5[m Add AI Financial Assistant chatbot with production-ready styling and smart app features
+[33m94b5c8f[m Update dashboard styling and fix JSX syntax errors - Reports page dark theme, card consistency, and component fixes
+[33ma4e2fd0[m Fix double icons issue: Remove mobile icons from DashboardHeader, move to mobile nav menu only
+[33m290a3b1[m Fix mobile menu showing on desktop - add responsive CSS and component logic

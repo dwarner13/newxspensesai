@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { useEffect } from 'react';
 import SimpleNavigation from '../components/layout/SimpleNavigation';
 import BossBubble from '../components/boss/BossBubble';
+import Footer from '../components/layout/Footer';
 
 export default function MarketingLayout() {
   useEffect(() => {
@@ -18,6 +19,7 @@ export default function MarketingLayout() {
       <main className="pt-16">
         <Outlet />
       </main>
+      <Footer />
     </>
   );
 }

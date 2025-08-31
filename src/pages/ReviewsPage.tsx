@@ -84,7 +84,7 @@ const ReviewsPage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
           >
-            What Our Users Are <span className="bg-gradient-to-r from-orange-400 to-pink-400 bg-clip-text text-transparent">Saying</span>
+            What Our Users Are <span className="text-orange-400 drop-shadow-lg">Saying</span>
           </motion.h1>
           
           <motion.p 

@@ -69,7 +69,7 @@ export default function SimpleNavigation() {
         { label: "AI Financial Assistant", to: "/features/ai-assistant" },
         { label: "AI Financial Therapist", to: "/features/ai-therapist" },
         { label: "AI Goal Concierge", to: "/features/goal-concierge" },
-        { label: "Spending Predictions", to: "/features/spending-predictions" },
+        { label: "AI Crystal Ball Theater", to: "/features/spending-predictions" },
       ],
     },
     {

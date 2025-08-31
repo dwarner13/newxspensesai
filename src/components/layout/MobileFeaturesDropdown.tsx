@@ -22,7 +22,7 @@ const MobileFeaturesDropdown: React.FC<MobileFeaturesDropdownProps> = ({ isOpen,
         { name: 'AI Financial Assistant', path: '/features/ai-assistant', icon: <Brain size={20} /> },
         { name: 'AI Financial Therapist', path: '/features/ai-therapist', icon: <Heart size={20} /> },
         { name: 'AI Goal Concierge', path: '/features/goal-concierge', icon: <Target size={20} /> },
-        { name: 'Spending Predictions', path: '/features/spending-predictions', icon: <TrendingUp size={20} /> }
+        { name: 'AI Crystal Ball Theater', path: '/features/predictions', icon: <TrendingUp size={20} /> }
       ]
     },
     audioEntertainment: {

@@ -7,42 +7,41 @@ type Section = { title: string; items: Item[] };
 
 const SECTIONS: Section[] = [
   {
-    title: "FEATURED TOOLS",
+    title: "🤖 AI TOOLS",
     items: [
       { label: "Smart Import AI", to: "/features/smart-import-ai", tag: "NEW" },
       { label: "AI Financial Assistant", to: "/features/ai-assistant" },
       { label: "AI Financial Therapist", to: "/features/ai-therapist" },
       { label: "AI Goal Concierge", to: "/features/goal-concierge" },
-      { label: "Spending Predictions", to: "/features/spending-predictions" },
+      { label: "AI Crystal Ball Theater", to: "/features/spending-predictions", tag: "NEW" },
+      { label: "AI Categorization", to: "/features/ai-categorization" },
     ],
   },
   {
-    title: "ENTERTAINMENT",
+    title: "💳 EXPENSE & PLANNING",
+    items: [
+      { label: "Bill Reminder System", to: "/features/bill-reminders" },
+      { label: "Debt Payoff Planner", to: "/features/debt-payoff-planner" },
+      { label: "AI Financial Freedom", to: "/features/ai-financial-freedom" },
+    ],
+  },
+  {
+    title: "🎵 AUDIO ENTERTAINMENT",
     items: [
       { label: "Personal Podcast", to: "/features/personal-podcast" },
-      { label: "Financial Wellness Studio", to: "/features/wellness-studio" },
-      { label: "Spotify Integration", to: "/features/spotify-integration", tag: "NEW" },
-      { label: "Dashboard Player", to: "/dashboard/spotify-integration-new", tag: "BETA" },
+      { label: "Spotify Integration", to: "/features/spotify-integration" },
+      { label: "Wellness Studio", to: "/features/wellness-studio" },
     ],
   },
   {
-    title: "BUSINESS",
+    title: "🏢 TAX, BUSINESS & AUTOMATION",
     items: [
-      { label: "Business Intelligence", to: "/features/business-expense-intelligence" },
-      { label: "Freelancer Assistant", to: "/features/freelancer-tax" },
-      { label: "Tax Optimization", to: "/features/tax-optimization" },
-      { label: "Compliance & Audit", to: "/features/compliance-audit" },
+      { label: "Tax Assistant", to: "/features/tax-assistant" },
+      { label: "Business Intelligence", to: "/features/business-intelligence" },
+      { label: "Smart Automation", to: "/features/smart-automation" },
     ],
   },
-  {
-    title: "TECHNICAL",
-    items: [
-      { label: "Receipt Scanner", to: "/features/receipt-scanner" },
-      { label: "Document Upload", to: "/features/document-upload" },
-      { label: "API & Webhooks", to: "/features/api-webhooks", tag: "BETA" },
-      { label: "Security & Privacy", to: "/features/security-privacy" },
-    ],
-  },
+
 ];
 
 export default function FeaturesMegaMenu() {
@@ -51,6 +50,7 @@ export default function FeaturesMegaMenu() {
   const panelRef = useRef<HTMLDivElement>(null);
   const [hoverTimeout, setHoverTimeout] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
 
   // Detect mobile device
   useEffect(() => {
@@ -87,15 +87,20 @@ export default function FeaturesMegaMenu() {
   const openWithDelay = () => {
     if (isMobile) return; // Don't use hover on mobile
     if (hoverTimeout) window.clearTimeout(hoverTimeout);
-    const id = window.setTimeout(() => setOpen(true), 90);
+    setIsHovering(true);
+    const id = window.setTimeout(() => setOpen(true), 50);
     setHoverTimeout(id);
   };
   
   const closeWithDelay = () => {
     if (isMobile) return; // Don't use hover on mobile
     if (hoverTimeout) window.clearTimeout(hoverTimeout);
-    const id = window.setTimeout(() => setOpen(false), 130);
-    setHoverTimeout(id);
+    setIsHovering(false);
+    // Only close if not hovering over the panel
+    if (!isHovering) {
+      const id = window.setTimeout(() => setOpen(false), 300);
+      setHoverTimeout(id);
+    }
   };
 
   const handleClick = () => {
@@ -119,9 +124,16 @@ export default function FeaturesMegaMenu() {
       {/* PANEL */}
       <div
         ref={panelRef}
-        onMouseEnter={openWithDelay}
-        onMouseLeave={closeWithDelay}
-        className={`pointer-events-auto ${isMobile ? 'absolute' : 'fixed'} left-1/2 z-[70] w-[850px] -translate-x-1/2 rounded-3xl border border-white/20 shadow-2xl transition-all bg-[#0b0f2a]
+        onMouseEnter={() => {
+          if (hoverTimeout) window.clearTimeout(hoverTimeout);
+          setHoverTimeout(null);
+          setIsHovering(true);
+        }}
+        onMouseLeave={() => {
+          setIsHovering(false);
+          closeWithDelay();
+        }}
+        className={`pointer-events-auto ${isMobile ? 'absolute' : 'fixed'} left-1/2 z-[70] w-[900px] -translate-x-1/2 rounded-3xl border border-white/20 shadow-2xl transition-all bg-[#0b0f2a]
         ${open ? "opacity-100 visible" : "opacity-0 invisible"}`}
         style={{ top: isMobile ? '2rem' : '4rem' }}
       >

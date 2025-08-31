@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { useAtom } from 'jotai';
 import { isMobileMenuOpenAtom, isDarkModeAtom } from '../../lib/uiStore';
 import Header from './Header';
-import Footer from './Footer';
+
 
 import SimpleNavigation from './SimpleNavigation';
 
@@ -94,8 +94,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
           {children}
         </main>
         
-        {/* Footer - Only render if not dashboard page */}
-        {!isDashboardPage && <Footer />}
+
       </div>
       
       {/* Mobile menu is handled by SimpleNavigation component */}
