@@ -251,4 +251,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by the XspensesAI Team**
 
-*Transforming finance through entertainment, one transaction at a time.*
+*Transforming finance through entertainment, one transaction at a time.*#   T e s t   d e p l o y m e n t  
+ 
