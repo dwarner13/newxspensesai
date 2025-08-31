@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Star, Quote, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import WebsiteLayout from '../components/layout/WebsiteLayout';
+// WebsiteLayout removed - navigation handled by MarketingLayout
 
 const ReviewsPage = () => {
   const reviews = [
@@ -64,7 +64,7 @@ const ReviewsPage = () => {
   ];
 
   return (
-    <WebsiteLayout>
+    <>
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white py-20">
         <div className="container mx-auto px-4 text-center">
@@ -236,7 +236,7 @@ const ReviewsPage = () => {
           </motion.div>
         </div>
       </section>
-    </WebsiteLayout>
+    </>
   );
 };
 

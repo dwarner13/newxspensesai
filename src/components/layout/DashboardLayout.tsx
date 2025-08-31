@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { DollarSign, Crown } from "lucide-react";
 import Sidebar from "./Sidebar";
 import MobileSidebar from "./MobileSidebar";
 import BottomNav from "./BottomNav";
+import Logo from "../common/Logo";
 
 
 export default function DashboardLayout() {
@@ -40,10 +40,7 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-3 px-4 py-4">
             {/* Logo and title - Now on the LEFT */}
             <div className="flex items-center gap-3 flex-1">
-              <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-                <Crown className="text-white text-lg font-bold" />
-              </div>
-              <span className="text-2xl font-bold text-white tracking-tight">XspensesAI</span>
+              <Logo size="md" linkTo="/dashboard" />
             </div>
             
             {/* Hamburger menu - Now on the RIGHT */}

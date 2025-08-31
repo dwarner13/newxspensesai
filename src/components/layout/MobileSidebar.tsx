@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { X, Crown } from 'lucide-react';
+import { X } from 'lucide-react';
+import Logo from '../common/Logo';
 
 interface MobileSidebarProps {
   open: boolean;
@@ -53,9 +54,7 @@ export default function MobileSidebar({ open, onClose, children }: MobileSidebar
         {/* Header with close button */}
         <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-gradient-to-r from-[#0b0f2a] to-[#1a1f3a] backdrop-blur-md">
           <div className="flex items-center gap-4">
-            <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-4 shadow-2xl ring-2 ring-yellow-300/20">
-              <Crown className="text-white" size={28} />
-            </span>
+            <Logo size="lg" showText={false} />
             <span className="font-bold text-2xl leading-tight tracking-tight text-white drop-shadow-sm">XspensesAI</span>
           </div>
           <button

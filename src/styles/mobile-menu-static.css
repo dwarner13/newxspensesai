@@ -1,190 +1,39 @@
-/* Static Mobile Menu Styles - No HMR issues */
+/* === Marketing Navigation Responsive Styles === */
 
-/* Mobile menu overlay */
-.mobile-menu-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 50;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  /* Performance optimizations */
-  will-change: opacity, visibility;
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
+/* Desktop: show nav + CTAs */
+@media (min-width: 768px) {
+  .marketing-nav .desktop-navigation { display: flex; }
+  .marketing-nav .desktop-cta-buttons { display: flex; }
 }
 
-.mobile-menu-overlay.open {
-  opacity: 1;
-  visibility: visible;
+/* Mobile: hide desktop nav + CTAs */
+@media (max-width: 767px) {
+  .marketing-nav .desktop-navigation,
+  .marketing-nav .desktop-cta-buttons {
+    display: none !important;
+    visibility: hidden !important;
+  }
 }
 
-/* Mobile menu content */
-.mobile-menu-content {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: linear-gradient(145deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
-  display: flex;
-  flex-direction: column;
-  z-index: 51;
-  transform: translateX(-100%);
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  /* Performance optimizations */
-  will-change: transform;
-  -webkit-transform: translateX(-100%) translateZ(0);
-  transform: translateX(-100%) translateZ(0);
+/* Mobile menu button styling */
+.marketing-nav button.md\\:hidden {
+  display: block !important;
 }
 
-.mobile-menu-overlay.open .mobile-menu-content {
-  -webkit-transform: translateX(0) translateZ(0);
-  transform: translateX(0) translateZ(0);
+/* Desktop: hide mobile button */
+@media (min-width: 768px) {
+  .marketing-nav button.md\\:hidden {
+    display: none !important;
+  }
 }
 
-/* Smooth exit animations */
-.mobile-menu-overlay:not(.open) .mobile-menu-content > div:first-child {
-  opacity: 0;
-  transform: translateY(-20px);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.mobile-menu-overlay:not(.open) .mobile-menu-items li {
-  opacity: 0;
-  transform: translateX(-50px);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.mobile-menu-overlay:not(.open) .mobile-cta-section {
-  opacity: 0;
-  transform: translateY(30px);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Mobile menu header */
-.mobile-menu-content > div:first-child {
-  opacity: 0;
-  transform: translateY(-20px);
-  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.1s;
-}
-
-.mobile-menu-overlay.open .mobile-menu-content > div:first-child {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-/* Mobile menu items */
-.mobile-menu-items {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.mobile-menu-items li {
-  padding: 12px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  opacity: 0;
-  transform: translateX(-50px);
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.mobile-menu-overlay.open .mobile-menu-items li {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-/* Stagger the menu items with proper delays */
-.mobile-menu-overlay.open .mobile-menu-items li:nth-child(1) { transition-delay: 0.1s; }
-.mobile-menu-overlay.open .mobile-menu-items li:nth-child(2) { transition-delay: 0.15s; }
-.mobile-menu-overlay.open .mobile-menu-items li:nth-child(3) { transition-delay: 0.2s; }
-.mobile-menu-overlay.open .mobile-menu-items li:nth-child(4) { transition-delay: 0.25s; }
-.mobile-menu-overlay.open .mobile-menu-items li:nth-child(5) { transition-delay: 0.3s; }
-.mobile-menu-overlay.open .mobile-menu-items li:nth-child(6) { transition-delay: 0.35s; }
-
-.mobile-menu-items li:last-child {
-  border-bottom: none;
-}
-
-.mobile-menu-items li a,
-.mobile-menu-items li button {
-  color: white;
-  text-decoration: none;
-  font-size: 16px;
-  font-weight: 500;
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.mobile-menu-items li a:hover,
-.mobile-menu-items li button:hover {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-/* Mobile CTA buttons */
-.mobile-cta-section {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  opacity: 0;
-  transform: translateY(30px);
-  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.4s;
-}
-
-.mobile-menu-overlay.open .mobile-cta-section {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.mobile-login-btn,
-.mobile-cta-btn {
-  padding: 12px 20px;
-  border-radius: 8px;
-  text-align: center;
-  font-weight: 600;
-  text-decoration: none;
-  display: block;
-}
-
-.mobile-login-btn {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-.mobile-cta-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-}
-
-/* Mobile menu toggle button */
+/* Legacy classes - neutralized */
+.website-mobile-menu-overlay,
+.website-mobile-menu-content,
+.website-mobile-menu-items,
+.website-mobile-login-btn,
+.website-mobile-cta-btn,
+.website-mobile-cta-section,
 .mobile-menu-toggle {
-  cursor: pointer;
-  transition: background-color 0.2s ease, transform 0.2s ease;
-}
-
-.mobile-menu-toggle:hover {
-  background-color: rgba(255, 255, 255, 0.15);
-  transform: scale(1.05);
-}
-
-/* Add smooth rotation for the hamburger icon */
-.mobile-menu-toggle svg {
-  transition: transform 0.3s ease;
-}
-
-.mobile-menu-overlay.open .mobile-menu-toggle svg {
-  transform: rotate(90deg);
+  /* No-op on purpose; dropdown is implemented in SimpleNavigation */
 }

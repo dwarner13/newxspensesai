@@ -7400,6 +7400,8 @@ html, body {
 }
 
 /* Fix for main navigation being incorrectly rendered as sidebar */
+/* === LEGACY RULE - COMMENTED OUT TO FIX RESPONSIVE BEHAVIOR === */
+/*
 .desktop-navigation {
   display: flex !important;
   flex-direction: row !important;
@@ -7413,12 +7415,18 @@ html, body {
   box-shadow: none !important;
   z-index: auto !important;
 }
+*/
 
+/* === LEGACY RULE - COMMENTED OUT === */
+/*
 .desktop-navigation > div {
   display: inline-block !important;
   position: relative !important;
 }
+*/
 
+/* === LEGACY RULE - COMMENTED OUT === */
+/*
 .desktop-navigation a,
 .desktop-navigation button {
   display: inline-block !important;
@@ -7430,15 +7438,16 @@ html, body {
   text-align: center !important;
   white-space: nowrap !important;
 }
+*/
 
-/* Ensure navigation items are horizontal */
+/* === LEGACY RULES - COMMENTED OUT TO FIX RESPONSIVE BEHAVIOR === */
+/*
 nav.desktop-navigation {
   flex-direction: row !important;
   flex-wrap: nowrap !important;
   overflow: visible !important;
 }
 
-/* Prevent any sidebar-like behavior on main navigation */
 header nav:not(.sidebar) {
   display: flex !important;
   flex-direction: row !important;
@@ -7451,7 +7460,6 @@ header nav:not(.sidebar) {
   z-index: auto !important;
 }
 
-/* Force horizontal navigation layout */
 header .desktop-navigation,
 header nav.desktop-navigation,
 header > nav {
@@ -7470,7 +7478,6 @@ header > nav {
   overflow: visible !important;
 }
 
-/* Ensure navigation items are horizontal */
 header .desktop-navigation > div,
 header nav.desktop-navigation > div,
 header > nav > div {
@@ -7479,7 +7486,6 @@ header > nav > div {
   margin: 0 8px !important;
 }
 
-/* Fix navigation item styling */
 header .desktop-navigation a,
 header .desktop-navigation button,
 header nav.desktop-navigation a,
@@ -7497,6 +7503,7 @@ header > nav button {
   text-decoration: none !important;
   color: inherit !important;
 }
+*/
 
 /* Prevent any sidebar from appearing on feature pages */
 body:not(.dashboard-page) .sidebar,
@@ -7538,7 +7545,8 @@ body[data-route*="features"] {
   margin-left: 0 !important;
 }
 
-/* Ensure navigation is always horizontal on feature pages */
+/* === LEGACY RULE - COMMENTED OUT TO FIX RESPONSIVE BEHAVIOR === */
+/*
 body[data-route*="features"] header nav,
 body[data-route*="features"] .desktop-navigation,
 body[data-route*="features"] nav.desktop-navigation {
@@ -7552,6 +7560,7 @@ body[data-route*="features"] nav.desktop-navigation {
   box-shadow: none !important;
   z-index: auto !important;
 }
+*/
 
 /* REMOVED CONFLICTING FEATURES DROPDOWN CSS - Using Tailwind classes instead */
 
@@ -7764,4 +7773,22 @@ body[data-route*="features"] nav.desktop-navigation {
 
 .mobile-header-icons .bg-gradient-to-br {
   background: linear-gradient(to bottom right, #8b5cf6, #14b8a6) !important;
+}
+
+/* === Marketing-only gradient overrides (fix blue strip) === */
+body.marketing-page {
+  /* ensure no forced page bg bleeds above the fixed header */
+  background: transparent !important;
+}
+
+/* primary culprit from earlier audit: body::before gradient overlay */
+body.marketing-page::before {
+  content: none !important;  /* disable the overlay entirely on marketing pages */
+}
+
+/* in case design-system.css enforces a gradient with !important */
+body.marketing-page,
+body.marketing-page * {
+  background-image: none !important;
+  /* do NOT blanket-reset other props; just ensure no page-wide gradient */
 }

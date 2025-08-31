@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle } from 'lucide-react';
-import WebsiteLayout from '../components/layout/WebsiteLayout';
+// WebsiteLayout removed - navigation handled by MarketingLayout
 
 const featureSamples = [
   {
@@ -50,8 +50,7 @@ const FeaturesPage = () => {
   const [openModal, setOpenModal] = useState<number | null>(null);
 
   return (
-    <WebsiteLayout>
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50">
         {/* Hero Section */}
         <section className="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white py-20 mb-12 rounded-3xl shadow-xl text-center">
           <motion.div
@@ -90,6 +89,12 @@ const FeaturesPage = () => {
               className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 hover:shadow-cyan-500/25 flex items-center justify-center gap-2"
             >
               Try AI Demo
+            </a>
+            <a
+              href="#feature-grid"
+              className="bg-purple-500 hover:bg-purple-600 text-white px-8 py-4 rounded-lg font-semibold transition-all duration-300 hover:shadow-purple-500/25 flex items-center justify-center gap-2"
+            >
+              View All Features
             </a>
             <a
               href="/pricing"
@@ -244,6 +249,53 @@ const FeaturesPage = () => {
                 </div>
               </div>
             </div>
+            
+            {/* Individual Feature Pages Navigation */}
+            <div id="feature-grid" className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-2xl py-12 px-4">
+              <h2 className="text-3xl font-bold mb-8 text-purple-700 text-center">Explore Individual Features</h2>
+              <div className="grid md:grid-cols-4 gap-6">
+                <a href="/features/smart-import" className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <span className="text-3xl mb-3">🤖</span>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900">Smart Import AI</h3>
+                  <p className="text-gray-600 text-sm">AI-powered document processing</p>
+                </a>
+                <a href="/features/ai-insights" className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <span className="text-3xl mb-3">🧠</span>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900">AI Insights</h3>
+                  <p className="text-gray-600 text-sm">Smart financial analysis</p>
+                </a>
+                <a href="/features/spotify-integration" className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <span className="text-3xl mb-3">🎵</span>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900">Spotify Integration</h3>
+                  <p className="text-gray-600 text-sm">Music while managing money</p>
+                </a>
+                <a href="/features/personal-podcast" className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <span className="text-3xl mb-3">🎧</span>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900">Personal Podcasts</h3>
+                  <p className="text-gray-600 text-sm">AI-generated financial stories</p>
+                </a>
+                <a href="/features/ai-therapist" className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <span className="text-3xl mb-3">💆</span>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900">AI Therapist</h3>
+                  <p className="text-gray-600 text-sm">Financial wellness support</p>
+                </a>
+                <a href="/features/ai-coach" className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <span className="text-3xl mb-3">🏆</span>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900">AI Coach</h3>
+                  <p className="text-gray-600 text-sm">Personal financial guidance</p>
+                </a>
+                <a href="/features/ai-goals" className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <span className="text-3xl mb-3">🎯</span>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900">AI Goals</h3>
+                  <p className="text-gray-600 text-sm">Smart goal setting</p>
+                </a>
+                <a href="/features/ai-assistant" className="bg-white rounded-xl shadow-lg p-6 flex flex-col items-center text-center border border-gray-100 hover:shadow-xl transition-all duration-300 hover:scale-105">
+                  <span className="text-3xl mb-3">💬</span>
+                  <h3 className="text-lg font-semibold mb-2 text-gray-900">AI Assistant</h3>
+                  <p className="text-gray-600 text-sm">Chat with your finances</p>
+                </a>
+              </div>
+            </div>
             {/* Security & Privacy */}
             <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-2xl py-12 px-4">
               <h2 className="text-3xl font-bold mb-8 text-green-700 text-center">Security & Privacy</h2>
@@ -337,9 +389,353 @@ const FeaturesPage = () => {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-    </WebsiteLayout>
+              </div>
   );
 };
 
 export default FeaturesPage; 
+
+
+              ✓ No credit card required • ✓ Process 10 documents free • ✓ See results in 2.3 seconds
+
+            </p>
+
+          </motion.div>
+
+        </section>
+
+        {/* Expanded Features Section */}
+
+        <section className="py-20">
+
+          <div className="container mx-auto px-4 space-y-24">
+
+            {/* AI-Powered Intelligence */}
+
+            <div>
+
+              <h2 className="text-3xl font-bold mb-8 text-purple-700 text-center">AI-Powered Intelligence</h2>
+
+              <div className="grid md:grid-cols-3 gap-8">
+
+                {featureSamples.map((feature, idx) => (
+
+                  <button
+
+                    key={feature.title}
+
+                    className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 text-left focus:outline-none focus:ring-2 focus:ring-purple-400"
+
+                    onClick={() => setOpenModal(idx)}
+
+                  >
+
+                    <div className="flex items-center gap-4 mb-4">
+
+                      {feature.icon}
+
+                      <h3 className="text-xl font-semibold text-gray-900">{feature.title}</h3>
+
+                    </div>
+
+                    <p className="text-gray-600 leading-relaxed">
+
+                      {idx === 0 && 'Chat naturally about your finances and get instant, personalized advice'}
+
+                      {idx === 1 && 'AI automatically categorizes expenses and learns from your corrections'}
+
+                      {idx === 2 && 'Get forecasts about future spending and budget recommendations'}
+
+                    </p>
+
+                  </button>
+
+                ))}
+
+              </div>
+
+            </div>
+
+            {/* Audio Entertainment */}
+
+            <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl py-12 px-4">
+
+              <h2 className="text-3xl font-bold mb-8 text-pink-600 text-center">Audio Entertainment</h2>
+
+              <div className="grid md:grid-cols-3 gap-8">
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">🎧</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">Personalized Podcasts</h3>
+
+                  <p className="text-gray-600">AI generates monthly podcast episodes about YOUR financial journey, celebrating wins and providing motivation.</p>
+
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">🎶</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">Spotify Integration</h3>
+
+                  <p className="text-gray-600">Control your music directly in the app while managing expenses. Focus music for budgeting, celebration playlists for goals achieved.</p>
+
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">🎼</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">Context-Aware Music</h3>
+
+                  <p className="text-gray-600">Smart music curation based on your current financial tasks and emotional state.</p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Smart Analytics */}
+
+            <div>
+
+              <h2 className="text-3xl font-bold mb-8 text-blue-700 text-center">Smart Analytics</h2>
+
+              <div className="grid md:grid-cols-3 gap-8">
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">⭐</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">XspensesScore</h3>
+
+                  <p className="text-gray-600">Track your financial health with our proprietary scoring system that gamifies financial improvement.</p>
+
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">📋</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">Visual Reports</h3>
+
+                  <p className="text-gray-600">Beautiful charts and graphs that make your financial data come alive and easy to understand.</p>
+
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">🎯</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">Goal Tracking</h3>
+
+                  <p className="text-gray-600">Set and achieve financial goals with AI-powered guidance and progress celebrations.</p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Security & Privacy */}
+
+            <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-2xl py-12 px-4">
+
+              <h2 className="text-3xl font-bold mb-8 text-green-700 text-center">Security & Privacy</h2>
+
+              <div className="grid md:grid-cols-2 gap-8">
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">🔒</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">Bank-Grade Security</h3>
+
+                  <p className="text-gray-600">Your data is protected with bank-level encryption and privacy standards. We never sell your data.</p>
+
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">🛡️</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">SOC 2 Compliant</h3>
+
+                  <p className="text-gray-600">XspensesAI is SOC 2 compliant, ensuring your financial information is always safe and secure.</p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* Integrations */}
+
+            <div>
+
+              <h2 className="text-3xl font-bold mb-8 text-indigo-700 text-center">Integrations</h2>
+
+              <div className="grid md:grid-cols-2 gap-8">
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">🔗</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">Bank Connections</h3>
+
+                  <p className="text-gray-600">Connect all your bank accounts and credit cards for seamless, automatic transaction import.</p>
+
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+                  <span className="text-4xl mb-4">⚙️</span>
+
+                  <h3 className="text-xl font-semibold mb-2 text-gray-900">API & Export</h3>
+
+                  <p className="text-gray-600">Export your data or connect with other tools using our robust API and CSV export options.</p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* How It Works Section */}
+
+        <section className="py-20 max-w-6xl mx-auto">
+
+          <h2 className="text-3xl font-bold text-center mb-10 text-gray-900">How It Works</h2>
+
+          <div className="grid md:grid-cols-3 gap-8">
+
+            <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+              <span className="text-4xl mb-4">📤</span>
+
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">1. Upload or Connect</h3>
+
+              <p className="text-gray-600">Upload your bank statements or connect your accounts securely in seconds.</p>
+
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+              <span className="text-4xl mb-4">🤖</span>
+
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">2. Let AI Do the Work</h3>
+
+              <p className="text-gray-600">Our AI categorizes, analyzes, and finds insights instantly—no manual work required.</p>
+
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center text-center border border-gray-100">
+
+              <span className="text-4xl mb-4">🎉</span>
+
+              <h3 className="text-xl font-semibold mb-2 text-gray-900">3. Get Insights & Celebrate</h3>
+
+              <p className="text-gray-600">See your progress, get tips, and celebrate your financial wins with podcasts and music.</p>
+
+            </div>
+
+          </div>
+
+        </section>
+
+        {/* Did You Know Callout */}
+
+        <section className="py-12 max-w-4xl mx-auto">
+
+          <div className="bg-gradient-to-r from-purple-100 to-pink-100 rounded-2xl p-8 text-center shadow-lg">
+
+            <h3 className="text-2xl font-bold mb-2 text-purple-700">Did you know?</h3>
+
+            <p className="text-lg text-purple-900">XspensesAI users save an average of 8 hours per month and $1,200 per year—just by letting AI handle the busywork!</p>
+
+          </div>
+
+        </section>
+
+        {/* Modal Popup */}
+
+        <AnimatePresence>
+
+          {openModal !== null && (
+
+            <motion.div
+
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40"
+
+              initial={{ opacity: 0 }}
+
+              animate={{ opacity: 1 }}
+
+              exit={{ opacity: 0 }}
+
+            >
+
+              <motion.div
+
+                className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg w-full relative"
+
+                initial={{ scale: 0.9, opacity: 0 }}
+
+                animate={{ scale: 1, opacity: 1 }}
+
+                exit={{ scale: 0.9, opacity: 0 }}
+
+              >
+
+                <button
+
+                  className="absolute top-4 right-4 text-gray-400 hover:text-purple-600 text-2xl font-bold"
+
+                  onClick={() => setOpenModal(null)}
+
+                  aria-label="Close"
+
+                >
+
+                  ×
+
+                </button>
+
+                <div className="flex flex-col items-center mb-4">
+
+                  {featureSamples[openModal].icon}
+
+                  <h3 className="text-2xl font-bold mb-2 text-gray-900">{featureSamples[openModal].title}</h3>
+
+                </div>
+
+                <div>{featureSamples[openModal].sample}</div>
+
+              </motion.div>
+
+            </motion.div>
+
+          )}
+
+        </AnimatePresence>
+
+      </div>
+
+    </WebsiteLayout>
+
+  );
+
+};
+
+
+
+export default FeaturesPage; 
+
+

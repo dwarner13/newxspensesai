@@ -6,12 +6,14 @@ import TherapistNotification from './components/therapist/TherapistNotification'
 import TherapistModal from './components/therapist/TherapistModal';
 import AppLayout from './components/layout/AppLayout';
 import DashboardLayout from './components/layout/DashboardLayout';
+import MarketingLayout from './layouts/MarketingLayout';
 
 import { AuthProvider } from './contexts/AuthContext';
 import { AudioProvider } from './contexts/AudioContext';
 import { PersonalPodcastProvider } from './contexts/PersonalPodcastContext';
 import { AIFinancialAssistantProvider } from './contexts/AIFinancialAssistantContext';
 import { UserProvider } from './contexts/UserContext';
+import { BossProvider } from './lib/agents/context';
 
 // Critical components - load immediately
 import HomePage from './pages/HomePage';
@@ -110,94 +112,99 @@ function App() {
   const [isTherapistModalOpen] = useAtom(isTherapistModalOpenAtom);
   
   return (
-    <AuthProvider>
-      <AudioProvider>
-        <PersonalPodcastProvider>
-          <AIFinancialAssistantProvider>
-            <UserProvider>
-            <ScrollToTop />
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-              <Suspense fallback={<LoadingSpinner />}>
-                <Routes>
-                  {/* Public routes */}
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/ai-assistant" element={<AIAssistantPage />} />
-                  <Route path="/contact" element={<ContactPage />} />
-                  <Route path="/reviews" element={<ReviewsPage />} />
-                  <Route path="/pricing" element={<PricingPage />} />
-                  
-                  {/* Spotify integration routes */}
-                  <Route path="/callback" element={<SpotifyCallbackPage />} />
-                  <Route path="/spotify-player" element={<SpotifyPlayerPage />} />
-                  
-                  {/* Reports route - redirect to dashboard */}
-                  <Route path="/reports" element={<Navigate to="/dashboard/reports" replace />} />
-                  
-                  {/* Feature pages */}
-                  <Route path="/features" element={<FeaturesPage />} />
-                  <Route path="/features/smart-import" element={<SmartImportAIFeaturePage />} />
-                  <Route path="/features/smart-import-ai" element={<SmartImportAIFeaturePage />} />
-                  <Route path="/features/spending-predictions" element={<SpendingPredictionsFeaturePage />} />
-                  <Route path="/features/spotify-integration" element={<SpotifyIntegrationFeaturePage />} />
-                  <Route path="/features/ai-insights" element={<AIInsightsFeaturePage />} />
-                  <Route path="/features/email-receipts" element={<EmailReceiptsFeaturePage />} />
-                  <Route path="/features/personal-business-goals" element={<PersonalBusinessGoalsFeaturePage />} />
-                  <Route path="/features/smart-automation" element={<SmartAutomationFeaturePage />} />
-                  <Route path="/features/business-expense-intelligence" element={<BusinessExpenseIntelligenceFeaturePage />} />
-                  <Route path="/features/freelancer-tax" element={<FreelancerTaxFeaturePage />} />
-                  <Route path="/features/wellness-studio" element={<WellnessStudioFeaturePage />} />
-                  <Route path="/features/goal-concierge" element={<GoalConciergeFeaturePage />} />
-                  <Route path="/features/personal-podcast" element={<PersonalPodcastFeaturePage />} />
-                  <Route path="/features/gamification" element={<GamificationFeaturePage />} />
-                  <Route path="/features/business-expenses" element={<BusinessExpensesFeaturePage />} />
-                  <Route path="/features/ai-therapist" element={<AITherapistFeaturePage />} />
-                  <Route path="/features/ai-coach" element={<AICoachFeaturePage />} />
-                  <Route path="/features/ai-goals" element={<AIGoalsFeaturePage />} />
-                  <Route path="/features/ai-assistant" element={<AIAssistantFeaturePage />} />
-                  <Route path="/features/voice-control" element={<VoiceControlFeaturePage />} />
-                  <Route path="/features/social-money" element={<SocialMoneyFeaturePage />} />
-                  <Route path="/features/predictions" element={<PredictionsFeaturePage />} />
-                  <Route path="/features/automation" element={<AutomationFeaturePage />} />
-                  <Route path="/features/podcast-generator" element={<PodcastGeneratorFeaturePage />} />
-                  
-                  {/* Dashboard routes with persistent layout - Each route shows its specific page */}
-                  <Route path="/dashboard" element={<DashboardLayout />}>
-                    <Route index element={<XspensesProDashboard />} />
-                    <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
-                    <Route path="smart-import-ai" element={<SmartImportAIPage />} />
-                    <Route path="goal-concierge" element={<AIGoalConcierge />} />
-                    <Route path="spending-predictions" element={<SpendingPredictionsPage />} />
-                    <Route path="ai-categorization" element={<AICategorizationPage />} />
-                    <Route path="bill-reminders" element={<BillRemindersPage />} />
-                    <Route path="debt-payoff-planner" element={<DebtPayoffPlannerPage />} />
-                    <Route path="ai-financial-freedom" element={<AIFinancialFreedomPage />} />
-                    <Route path="therapist-demo" element={<TherapistDemoPage />} />
-                    <Route path="personal-podcast" element={<PersonalPodcastPage />} />
-                    <Route path="tax-assistant" element={<TaxAssistant />} />
-                    <Route path="business-intelligence" element={<BusinessIntelligence />} />
-                    <Route path="smart-automation" element={<SmartAutomation />} />
-                    <Route path="analytics" element={<Analytics />} />
-                    <Route path="settings" element={<Settings />} />
-                    <Route path="reports" element={<ReportsPage />} />
-                    <Route path="spotify-integration" element={<SpotifyIntegration />} />
-                    <Route path="spotify-integration-new" element={<SpotifyIntegration />} />
-                    <Route path="wellness-studio" element={<WellnessStudioPage />} />
-                    <Route path="financial-therapist" element={<FinancialTherapistPage />} />
-                  </Route>
-                  
-                  <Route path="/ai-employees" element={<AIEmployees />} />
-                </Routes>
-              </Suspense>
-            </div>
-            
-            {/* Global Therapist Components */}
-            {therapistTrigger && <TherapistNotification />}
-            <TherapistModal />
-          </UserProvider>
+    <BossProvider>
+      <AuthProvider>
+        <AudioProvider>
+          <PersonalPodcastProvider>
+            <AIFinancialAssistantProvider>
+              <UserProvider>
+                <ScrollToTop />
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <Routes>
+                      {/* Marketing routes with BossBubble */}
+                      <Route element={<MarketingLayout />}>
+                        <Route path="/" element={<HomePage />} />
+                        <Route path="/ai-assistant" element={<AIAssistantPage />} />
+                        <Route path="/contact" element={<ContactPage />} />
+                        <Route path="/reviews" element={<ReviewsPage />} />
+                        <Route path="/pricing" element={<PricingPage />} />
+                        
+                        {/* Spotify integration routes */}
+                        <Route path="/callback" element={<SpotifyCallbackPage />} />
+                        <Route path="/spotify-player" element={<SpotifyPlayerPage />} />
+                        
+                        {/* Reports route - redirect to dashboard */}
+                        <Route path="/reports" element={<Navigate to="/dashboard/reports" replace />} />
+                        
+                                              {/* Feature pages */}
+                      <Route path="/features" element={<FeaturesPage />} />
+                      <Route path="/features/smart-import" element={<SmartImportAIFeaturePage />} />
+                      <Route path="/features/smart-import-ai" element={<SmartImportAIFeaturePage />} />
+                      <Route path="/features/spending-predictions" element={<SpendingPredictionsFeaturePage />} />
+                      <Route path="/features/spotify-integration" element={<SpotifyIntegrationFeaturePage />} />
+                      <Route path="/features/ai-insights" element={<AIInsightsFeaturePage />} />
+                      <Route path="/features/email-receipts" element={<EmailReceiptsFeaturePage />} />
+                      <Route path="/features/personal-business-goals" element={<PersonalBusinessGoalsFeaturePage />} />
+                      <Route path="/features/smart-automation" element={<SmartAutomationFeaturePage />} />
+                      <Route path="/features/business-expense-intelligence" element={<BusinessExpenseIntelligenceFeaturePage />} />
+                      <Route path="/features/freelancer-tax" element={<FreelancerTaxFeaturePage />} />
+                      <Route path="/features/wellness-studio" element={<WellnessStudioFeaturePage />} />
+                      <Route path="/features/goal-concierge" element={<GoalConciergeFeaturePage />} />
+                      <Route path="/features/personal-podcast" element={<PersonalPodcastFeaturePage />} />
+                      <Route path="/features/gamification" element={<GamificationFeaturePage />} />
+                      <Route path="/features/business-expenses" element={<BusinessExpensesFeaturePage />} />
+                      <Route path="/features/ai-therapist" element={<AITherapistFeaturePage />} />
+                      <Route path="/features/ai-coach" element={<AICoachFeaturePage />} />
+                      <Route path="/features/ai-goals" element={<AIGoalsFeaturePage />} />
+                      <Route path="/features/ai-assistant" element={<AIAssistantFeaturePage />} />
+                      <Route path="/features/voice-control" element={<VoiceControlFeaturePage />} />
+                      <Route path="/features/social-money" element={<SocialMoneyFeaturePage />} />
+                      <Route path="/features/predictions" element={<PredictionsFeaturePage />} />
+                      <Route path="/features/automation" element={<AutomationFeaturePage />} />
+                      <Route path="/features/podcast-generator" element={<PodcastGeneratorFeaturePage />} />
+                      
+                      {/* AI Employees page */}
+                      <Route path="/ai-employees" element={<AIEmployees />} />
+                    </Route>
+                    
+                    {/* Dashboard routes with persistent layout - Each route shows its specific page */}
+                    <Route path="/dashboard" element={<DashboardLayout />}>
+                      <Route index element={<XspensesProDashboard />} />
+                      <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
+                      <Route path="smart-import-ai" element={<SmartImportAIPage />} />
+                      <Route path="goal-concierge" element={<AIGoalConcierge />} />
+                      <Route path="spending-predictions" element={<SpendingPredictionsPage />} />
+                      <Route path="ai-categorization" element={<AICategorizationPage />} />
+                      <Route path="bill-reminders" element={<BillRemindersPage />} />
+                      <Route path="debt-payoff-planner" element={<DebtPayoffPlannerPage />} />
+                      <Route path="ai-financial-freedom" element={<AIFinancialFreedomPage />} />
+                      <Route path="therapist-demo" element={<TherapistDemoPage />} />
+                      <Route path="personal-podcast" element={<PersonalPodcastPage />} />
+                      <Route path="tax-assistant" element={<TaxAssistant />} />
+                      <Route path="business-intelligence" element={<BusinessIntelligence />} />
+                      <Route path="smart-automation" element={<SmartAutomation />} />
+                      <Route path="analytics" element={<Analytics />} />
+                      <Route path="settings" element={<Settings />} />
+                      <Route path="reports" element={<ReportsPage />} />
+                      <Route path="spotify-integration" element={<SpotifyIntegration />} />
+                      <Route path="spotify-integration-new" element={<SpotifyIntegration />} />
+                      <Route path="wellness-studio" element={<WellnessStudioPage />} />
+                      <Route path="financial-therapist" element={<FinancialTherapistPage />} />
+                    </Route>
+                    </Routes>
+                  </Suspense>
+                </div>
+                
+                {/* Global Therapist Components */}
+                {therapistTrigger && <TherapistNotification />}
+                <TherapistModal />
+              </UserProvider>
           </AIFinancialAssistantProvider>
         </PersonalPodcastProvider>
       </AudioProvider>
     </AuthProvider>
+    </BossProvider>
   );
 }
 

@@ -22,13 +22,13 @@ import {
   ChevronRight,
   Menu,
   X,
-  Crown,
   Bot,
   Bell,
   CreditCard,
   Award,
   Building2
 } from 'lucide-react';
+import Logo from '../common/Logo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from "../../contexts/UserContext";
 
@@ -118,9 +118,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
           <div className="flex items-center justify-between">
             {shouldShowLabels && !isMobileOpen && (
               <div className="flex items-center gap-4 flex-1">
-                <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-4 shadow-xl">
-                  <Crown className="text-white" size={32} />
-                </span>
+                <Logo size="lg" showText={false} />
                 <div>
                   <span className="font-bold text-xl leading-tight tracking-tight text-white">XspensesAI</span>
                 </div>
@@ -128,9 +126,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
             )}
             {!shouldShowLabels && (
               <div className="flex items-center justify-center flex-1">
-                <span className="rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-3 shadow-xl">
-                  <Crown className="text-white" size={28} />
-                </span>
+                <Logo size="md" showText={false} />
               </div>
             )}
             <div className="flex items-center gap-3">

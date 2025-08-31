@@ -476,13 +476,13 @@ const SpecializedChatBot: React.FC<SpecializedChatBotProps> = ({
             )}
 
             {/* Enhanced Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-gray-50 to-white min-h-0">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gradient-to-b from-gray-50 to-white min-h-0 messages-container">
               {messages.map((message) => (
                 <motion.div
                   key={message.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} pt-2 message-item`}
                 >
                   <div
                     className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ${
@@ -563,154 +563,23 @@ const SpecializedChatBot: React.FC<SpecializedChatBotProps> = ({
       )}
 
       {/* Add CSS for new components */}
-      <style jsx>{`
+      <style>{`
         .chat-controls {
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          padding: 8px 16px;
-          background: rgba(255, 255, 255, 0.05);
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          gap: 1rem;
         }
-
-        .financial-toggle {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 12px;
-          color: #94a3b8;
-        }
-
-        .team-consultation-btn {
-          background: linear-gradient(135deg, #22c55e, #3b82f6);
-          color: white;
-          border: none;
-          border-radius: 6px;
-          padding: 6px 12px;
-          font-size: 12px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .team-consultation-btn:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
-        }
-
-        .team-consultation-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        .financial-insights-card {
-          background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(6, 182, 212, 0.1));
-          border: 1px solid rgba(139, 92, 246, 0.2);
-          border-radius: 12px;
-          padding: 16px;
-          margin-top: 12px;
-        }
-
-        .insight-header {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 12px;
-        }
-
-        .insight-header h4 {
-          color: #8b5cf6;
-          margin: 0;
-          font-size: 14px;
-          font-weight: 600;
-        }
-
-        .insights-list {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-
+        
         .insight-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 8px;
-          font-size: 13px;
           color: #000000 !important;
           font-weight: 700 !important;
         }
-
-        .team-consultation {
-          background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(59, 130, 246, 0.1));
-          border: 1px solid rgba(34, 197, 94, 0.2);
-          border-radius: 12px;
-          padding: 16px;
-          margin-top: 12px;
-        }
-
-        .team-header {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 12px;
-        }
-
-        .team-header h4 {
-          color: #22c55e;
-          margin: 0;
-          font-size: 14px;
-          font-weight: 600;
-        }
-
-        .consultations-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 12px;
-          margin-top: 12px;
-        }
-
-        .consultation-card {
-          background: rgba(255, 255, 255, 0.5);
-          border-radius: 8px;
-          padding: 12px;
-        }
-
-        .consultant-header {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          margin-bottom: 8px;
-        }
-
-        .consultant-name {
-          font-weight: 600;
-          font-size: 13px;
-          color: #374151;
-        }
-
-        .consultation-advice {
-          font-size: 13px;
-          color: #6b7280;
-          margin: 0;
-          line-height: 1.4;
-        }
         
-        /* Force dark text for all AI messages */
         .financial-insights-card * {
           color: #000000 !important;
-        }
-        
-        .financial-insights-card .insight-item {
-          color: #000000 !important;
           font-weight: 700 !important;
         }
         
-        .financial-insights-card .insight-text {
-          color: #000000 !important;
-          font-weight: 700 !important;
-        }
-        
-        /* Additional specificity to override any remaining conflicts */
         .financial-insights-card .insight-item span {
           color: #000000 !important;
           font-weight: 700 !important;
@@ -719,6 +588,23 @@ const SpecializedChatBot: React.FC<SpecializedChatBotProps> = ({
         .financial-insights-card .insight-bullet {
           color: #000000 !important;
           font-weight: 700 !important;
+        }
+        
+        /* Fix message container spacing */
+        .messages-container {
+          padding-top: 1rem !important;
+          padding-bottom: 1rem !important;
+        }
+        
+        .message-item {
+          margin-top: 0.5rem !important;
+          margin-bottom: 0.5rem !important;
+        }
+        
+        /* Ensure first message is visible */
+        .message-item:first-child {
+          margin-top: 0 !important;
+          padding-top: 0.5rem !important;
         }
       `}</style>
     </>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
-import WebsiteLayout from '../components/layout/WebsiteLayout';
+// WebsiteLayout removed - navigation handled by MarketingLayout
 
 const ContactPage = () => {
   const [formData, setFormData] = useState({

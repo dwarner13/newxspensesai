@@ -1,34 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-  Menu, 
-  X, 
-  DollarSign,
-  User
-} from 'lucide-react';
+import { Menu, X, ChevronDown } from 'lucide-react';
+import FeaturesMegaMenu from '../nav/FeaturesMegaMenu';
+import Logo from '../common/Logo';
 
 export default function SimpleNavigation() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const [isFeaturesExpanded, setIsFeaturesExpanded] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
-
-  // Check if device is mobile
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   // Close mobile menu when location changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
+    setIsFeaturesExpanded(false);
   }, [location.pathname]);
 
   // Lock body scroll when mobile menu is open
@@ -50,11 +35,10 @@ export default function SimpleNavigation() {
       if (
         isMobileMenuOpen &&
         mobileMenuRef.current &&
-        !mobileMenuRef.current.contains(event.target as Node) &&
-        menuButtonRef.current &&
-        !menuButtonRef.current.contains(event.target as Node)
+        !mobileMenuRef.current.contains(event.target as Node)
       ) {
         setIsMobileMenuOpen(false);
+        setIsFeaturesExpanded(false);
       }
     };
 
@@ -69,43 +53,85 @@ export default function SimpleNavigation() {
 
   const navigationItems = [
     { name: 'Home', path: '/', hasDropdown: false },
-    { name: 'Features', path: '/features', hasDropdown: false },
+    { name: 'Features', path: '/features', hasDropdown: true },
     { name: 'Pricing', path: '/pricing', hasDropdown: false },
     { name: 'AI Employees', path: '/ai-employees', hasDropdown: false },
     { name: 'Reviews', path: '/reviews', hasDropdown: false },
     { name: 'Contact', path: '/contact', hasDropdown: false }
   ];
 
+  // Features mega menu sections for mobile
+  const featuresSections = [
+    {
+      title: "FEATURED TOOLS",
+      items: [
+        { label: "Smart Import AI", to: "/features/smart-import-ai", tag: "NEW" },
+        { label: "AI Financial Assistant", to: "/features/ai-assistant" },
+        { label: "AI Financial Therapist", to: "/features/ai-therapist" },
+        { label: "AI Goal Concierge", to: "/features/goal-concierge" },
+        { label: "Spending Predictions", to: "/features/spending-predictions" },
+      ],
+    },
+    {
+      title: "ENTERTAINMENT",
+      items: [
+        { label: "Personal Podcast", to: "/features/personal-podcast" },
+        { label: "Financial Wellness Studio", to: "/features/wellness-studio" },
+        { label: "Spotify Integration", to: "/features/spotify-integration", tag: "NEW" },
+        { label: "Dashboard Player", to: "/dashboard/spotify-integration-new", tag: "BETA" },
+      ],
+    },
+    {
+      title: "BUSINESS",
+      items: [
+        { label: "Business Intelligence", to: "/features/business-expense-intelligence" },
+        { label: "Freelancer Assistant", to: "/features/freelancer-tax" },
+        { label: "Tax Optimization", to: "/features/tax-optimization" },
+        { label: "Compliance & Audit", to: "/features/compliance-audit" },
+      ],
+    },
+    {
+      title: "TECHNICAL",
+      items: [
+        { label: "Receipt Scanner", to: "/features/receipt-scanner" },
+        { label: "Document Upload", to: "/features/document-upload" },
+        { label: "API & Webhooks", to: "/features/api-webhooks", tag: "BETA" },
+        { label: "Security & Privacy", to: "/features/security-privacy" },
+      ],
+    },
+  ];
+
   return (
-    <header className="bg-black/80 backdrop-blur-md sticky top-0 z-40 border-b border-white/10">
+    <header className="marketing-nav bg-black/80 backdrop-blur-md fixed top-0 inset-x-0 z-[60] border-b border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
+          {/* Logo - Left Side */}
           <div className="flex items-center">
-            <Link to="/" className="flex items-center">
-              <div className="w-8 h-8 bg-cyan-500 rounded-md flex items-center justify-center mr-2 shadow-lg">
-                <DollarSign size={20} className="text-white" />
-              </div>
-              <span className="font-bold text-white text-xl font-['Montserrat']">XspensesAI</span>
-            </Link>
+            <Logo size="md" linkTo="/" />
           </div>
 
-          {/* Desktop Navigation - HIDDEN ON MOBILE */}
-          <nav className="hidden md:flex items-center space-x-8 desktop-navigation">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.name}
-                to={item.path}
-                className="text-gray-200 hover:text-cyan-400 py-2 px-3 rounded-md text-sm font-medium transition-colors hover:bg-white/5 font-['Montserrat']"
-              >
-                {item.name}
-              </Link>
-            ))}
+          {/* Desktop Navigation - Center */}
+          <nav className="hidden md:flex items-center desktop-navigation">
+            <div className="flex items-center space-x-8">
+              {navigationItems.map((item) => (
+                item.name === 'Features' ? (
+                  <FeaturesMegaMenu key={item.name} />
+                ) : (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className="text-gray-200 hover:text-cyan-400 py-2 px-3 rounded-md text-sm font-medium transition-colors hover:bg-white/5 font-['Montserrat']"
+                  >
+                    {item.name}
+                  </Link>
+                )
+              ))}
+            </div>
           </nav>
 
-          {/* Right side - Navigation Buttons */}
+          {/* Right side - CTA Buttons and Mobile Menu */}
           <div className="flex items-center space-x-4">
-            {/* Desktop Navigation Buttons - HIDDEN ON MOBILE */}
+            {/* Desktop CTA Buttons */}
             <div className="hidden md:flex items-center space-x-3 desktop-cta-buttons">
               <Link
                 to="/dashboard"
@@ -122,70 +148,96 @@ export default function SimpleNavigation() {
               </Link>
             </div>
             
-            {/* Mobile Hamburger Menu Button - VISIBLE ONLY ON MOBILE */}
-            <div className="md:hidden">
-              <button 
-                ref={menuButtonRef}
-                className="mobile-menu-toggle text-gray-300 hover:text-white p-2 rounded-md hover:bg-white/10 transition-colors"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                aria-label="Toggle mobile menu"
-              >
-                <Menu size={24} />
-              </button>
-            </div>
+            {/* Mobile Hamburger Menu Button */}
+            <button 
+              className="md:hidden text-gray-300 hover:text-white p-2 rounded-md hover:bg-white/10 transition-colors border border-white/20 bg-white/10"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle mobile menu"
+            >
+              <Menu size={24} />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Mobile Menu Overlay - VISIBLE ONLY ON MOBILE */}
-      {isMobile && (
-        <div className={`mobile-menu-overlay ${isMobileMenuOpen ? 'open' : ''}`} ref={mobileMenuRef}>
-          <div className="mobile-menu-content">
-            {/* Mobile Menu Header with Close Button */}
-            <div className="flex items-center justify-between p-6 border-b border-white/20">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
-                  <span className="text-white text-xl">💰</span>
-                </div>
-                <div>
-                  <h2 className="text-white font-bold text-lg">XspensesAI</h2>
-                  <p className="text-white/80 text-xs">Financial Management</p>
-                </div>
-              </div>
-              <button 
-                className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-                onClick={() => setIsMobileMenuOpen(false)}
-                aria-label="Close mobile menu"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            <ul className="mobile-menu-items">
+      {/* Mobile Menu Dropdown */}
+      {isMobileMenuOpen && (
+        <div 
+          ref={mobileMenuRef}
+          className="md:hidden absolute left-0 right-0 top-20 bg-[#0b0f2a] border-b border-white/10 shadow-2xl max-h-[80vh] overflow-y-auto"
+        >
+          <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="space-y-2">
               {navigationItems.map((item) => (
-                <li key={item.name} className="font-['Montserrat']">
-                  <Link 
-                    to={item.path} 
+                item.name === 'Features' ? (
+                  <div key={item.name} className="space-y-2">
+                    <button
+                      onClick={() => setIsFeaturesExpanded(!isFeaturesExpanded)}
+                      className="flex items-center justify-between w-full text-white/80 hover:text-white py-3 px-4 rounded-lg hover:bg-white/10 transition-colors font-bold leading-tight tracking-tight"
+                    >
+                      <span>{item.name}</span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${isFeaturesExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isFeaturesExpanded && (
+                      <div className="ml-4 space-y-4 border-l border-white/10 pl-4">
+                        {featuresSections.map((section) => (
+                          <div key={section.title} className="space-y-2">
+                            <h3 className="text-xs font-bold tracking-tight text-white drop-shadow-sm">
+                              {section.title}
+                            </h3>
+                            <div className="space-y-1">
+                              {section.items.map((feature) => (
+                                <Link
+                                  key={feature.label}
+                                  to={feature.to}
+                                  className="flex items-center justify-between block text-white/80 hover:text-white py-2 px-3 rounded-lg hover:bg-white/10 transition-colors font-bold leading-tight tracking-tight text-sm"
+                                  onClick={() => {
+                                    setIsMobileMenuOpen(false);
+                                    setIsFeaturesExpanded(false);
+                                  }}
+                                >
+                                  <span>{feature.label}</span>
+                                  {feature.tag && (
+                                    <span
+                                      className={`ml-2 inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold
+                                      ${feature.tag === "NEW"
+                                          ? "bg-cyan-400/90 text-slate-900"
+                                          : "bg-fuchsia-500/90 text-white"}`}
+                                    >
+                                      {feature.tag}
+                                    </span>
+                                  )}
+                                </Link>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Link
+                    key={item.name}
+                    to={item.path}
+                    className="block text-white/80 hover:text-white py-3 px-4 rounded-lg hover:bg-white/10 transition-colors font-bold leading-tight tracking-tight"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
                     {item.name}
                   </Link>
-                </li>
+                )
               ))}
-            </ul>
-            
-            {/* Mobile CTA Section - Separate from menu items */}
-            <div className="mobile-cta-section">
-              <Link 
-                to="/dashboard" 
-                className="mobile-login-btn"
+            </div>
+            <div className="pt-4 border-t border-white/10 mt-4 space-y-2">
+              <Link
+                to="/dashboard"
+                className="block text-center text-white/80 hover:text-white py-3 px-4 rounded-lg hover:bg-white/10 transition-colors font-bold leading-tight tracking-tight"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Dashboard
               </Link>
-              <Link 
-                to="/signup" 
-                className="mobile-cta-btn"
+              <Link
+                to="/signup"
+                className="block text-center bg-cyan-500 hover:bg-cyan-600 text-white py-3 px-4 rounded-lg font-bold leading-tight tracking-tight transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Get Started

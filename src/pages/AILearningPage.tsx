@@ -11,13 +11,13 @@ import {
   TrendingUp, 
   Shield
 } from 'lucide-react';
-import SimpleNavigation from '../components/layout/SimpleNavigation';
+// SimpleNavigation is now handled by MarketingLayout
 
 const AILearningPage = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Navigation */}
-      <SimpleNavigation />
+      {/* SimpleNavigation is now handled by MarketingLayout */}
       
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-primary-50 to-secondary-50 py-20 px-4">

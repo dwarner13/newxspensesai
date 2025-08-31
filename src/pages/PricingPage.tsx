@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import WebsiteLayout from '../components/layout/WebsiteLayout';
+// WebsiteLayout removed - navigation handled by MarketingLayout
 
 const PricingPage = () => {
   const [isAnnual, setIsAnnual] = useState(false);
@@ -103,7 +103,7 @@ const PricingPage = () => {
   };
 
   return (
-    <WebsiteLayout>
+    <>
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white py-20">
         <div className="container max-w-3xl mx-auto px-4 text-center">
@@ -322,7 +322,7 @@ const PricingPage = () => {
           </div>
         </div>
       </div>
-    </WebsiteLayout>
+    </>
   );
 };
 

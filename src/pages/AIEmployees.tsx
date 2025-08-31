@@ -9,7 +9,7 @@ import {
   PieChart, Download, Upload, Globe, Lock, Key, Wifi, Smartphone
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import SimpleNavigation from '../components/layout/SimpleNavigation';
+// SimpleNavigation is now handled by MarketingLayout
 
 interface AIHost {
   id: string;
@@ -335,7 +335,7 @@ const AIEmployees = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       {/* Main Navigation Header */}
-      <SimpleNavigation />
+      {/* SimpleNavigation is now handled by MarketingLayout */}
       
       {/* Hero Section */}
       <div className="relative overflow-hidden">
