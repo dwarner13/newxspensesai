@@ -7,14 +7,19 @@ const initializeSupabase = async () => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-    if (supabaseUrl && supabaseAnonKey) {
+    // Check if environment variables are properly configured
+    if (supabaseUrl && supabaseAnonKey && 
+        supabaseUrl !== 'https://auth.xspensesai.com' && 
+        supabaseAnonKey !== 'placeholder-key') {
       supabase = createClient(supabaseUrl, supabaseAnonKey);
       console.log("✅ Supabase initialized successfully");
     } else {
-      console.warn("⚠️ Missing Supabase environment variables");
+      console.warn("⚠️ Supabase not configured - using mock data");
+      supabase = null; // Ensure it's null for bypass logic
     }
   } catch (error) {
     console.error("❌ Error initializing Supabase:", error);
+    supabase = null; // Ensure it's null on error
   }
 };
 

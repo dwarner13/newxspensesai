@@ -26,93 +26,105 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     console.log('🔍 AuthContext: Starting authentication check...');
 
-    // Simple check - if Supabase is available, use it; otherwise, set a fake user
-    if (supabase) {
-      console.log('🔍 AuthContext: Supabase available, checking authentication...');
+    // Check if Supabase environment variables are configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey || 
+        supabaseUrl === 'https://auth.xspensesai.com' || 
+        supabaseAnonKey === 'placeholder-key') {
+      console.log('⚠️ Supabase auth skipped - not connected');
+      console.log('🔍 AuthContext: Supabase not configured, bypassing authentication');
       
-      // Check initial session
-      const checkSession = async () => {
-        try {
-          console.log('🔍 AuthContext: Checking Supabase session...');
-          const { data: { session }, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('❌ AuthContext: Session check error:', error);
-            setUser(null);
-          } else if (session?.user) {
-            console.log('🔍 AuthContext: User session found:', session.user.email);
-            setUser(session.user);
-          } else {
-            console.log('🔍 AuthContext: No active session found');
-            setUser(null);
-          }
-        } catch (error) {
-          console.error('❌ AuthContext: Unexpected error during session check:', error);
-          setUser(null);
-        } finally {
-          setLoading(false);
-          setInitialLoad(false);
-        }
-      };
-
-      checkSession();
-
-      // Set up auth state change listener
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        async (event: string, session: any) => {
-          console.log('🔍 AuthContext: Auth state change:', event, session?.user?.email);
-          
-          switch (event) {
-            case 'SIGNED_IN':
-              console.log('🔍 AuthContext: User signed in');
-              setUser(session?.user || null);
-              setLoading(false);
-              setInitialLoad(false);
-              break;
-              
-            case 'SIGNED_OUT':
-              console.log('🔍 AuthContext: User signed out');
-              setUser(null);
-              setLoading(false);
-              setInitialLoad(false);
-              navigate('/login', { replace: true });
-              break;
-              
-            case 'TOKEN_REFRESHED':
-              console.log('🔍 AuthContext: Token refreshed');
-              setUser(session?.user || null);
-              break;
-              
-            case 'USER_UPDATED':
-              console.log('🔍 AuthContext: User updated');
-              setUser(session?.user || null);
-              break;
-              
-            default:
-              console.log('🔍 AuthContext: Unhandled auth event:', event);
-          }
-        }
-      );
-
-      // Cleanup function
-      return () => {
-        console.log('🔍 AuthContext: Cleaning up auth context...');
-        subscription?.unsubscribe();
-      };
-    } else {
-              // Supabase not ready, set a fake user for now
-        console.log('⚡ Dev mode: Setting fake user while waiting for Supabase...');
-        const fakeUser = {
-          id: '00000000-0000-0000-0000-000000000000',
-          email: 'dev@example.com',
-          name: 'Developer'
-        };
+      // Create bypass user for development
+      const bypassUser = {
+        id: 'bypass-user-123',
+        email: 'bypass@example.com',
+        full_name: 'Bypass User',
+        aud: 'authenticated',
+        role: 'authenticated',
+        exp: Date.now() + 86400000, // 24 hours from now
+      } as any;
       
-      setUser(fakeUser);
+      setUser(bypassUser);
       setLoading(false);
       setInitialLoad(false);
+      console.log('🔍 AuthContext: Production auth temporarily disabled, using bypass user');
+      return;
     }
-  }, [navigate, supabase]);
+
+    // Supabase is configured, use normal authentication
+    console.log('🔍 AuthContext: Supabase configured, checking authentication...');
+    
+    const checkSession = async () => {
+      try {
+        console.log('🔍 AuthContext: Checking Supabase session...');
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ AuthContext: Session check error:', error);
+          setUser(null);
+        } else if (session?.user) {
+          console.log('🔍 AuthContext: User session found:', session.user.email);
+          setUser(session.user);
+        } else {
+          console.log('🔍 AuthContext: No active session found');
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('❌ AuthContext: Unexpected error during session check:', error);
+        setUser(null);
+      } finally {
+        setLoading(false);
+        setInitialLoad(false);
+      }
+    };
+
+    checkSession();
+
+    // Set up auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: string, session: any) => {
+        console.log('🔍 AuthContext: Auth state change:', event, session?.user?.email);
+        
+        switch (event) {
+          case 'SIGNED_IN':
+            console.log('🔍 AuthContext: User signed in');
+            setUser(session?.user || null);
+            setLoading(false);
+            setInitialLoad(false);
+            break;
+            
+          case 'SIGNED_OUT':
+            console.log('🔍 AuthContext: User signed out');
+            setUser(null);
+            setLoading(false);
+            setInitialLoad(false);
+            navigate('/login', { replace: true });
+            break;
+            
+          case 'TOKEN_REFRESHED':
+            console.log('🔍 AuthContext: Token refreshed');
+            setUser(session?.user || null);
+            break;
+            
+          case 'USER_UPDATED':
+            console.log('🔍 AuthContext: User updated');
+            setUser(session?.user || null);
+            break;
+            
+          default:
+            console.log('🔍 AuthContext: Unhandled auth event:', event);
+        }
+      }
+    );
+
+    // Cleanup function
+    return () => {
+      console.log('🔍 AuthContext: Cleaning up auth context...');
+      subscription?.unsubscribe();
+    };
+  }, [navigate]);
 
   const signInWithGoogle = async () => {
     try {
