@@ -7,10 +7,16 @@ const initializeSupabase = async () => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+    console.log("🔍 Checking Supabase configuration...");
+    console.log("URL:", supabaseUrl ? "Set" : "Not set");
+    console.log("Key:", supabaseAnonKey ? "Set" : "Not set");
+
     // Check if environment variables are properly configured
     if (supabaseUrl && supabaseAnonKey && 
         supabaseUrl !== 'https://auth.xspensesai.com' && 
-        supabaseAnonKey !== 'placeholder-key') {
+        supabaseAnonKey !== 'placeholder-key' &&
+        supabaseUrl.length > 0 &&
+        supabaseAnonKey.length > 0) {
       supabase = createClient(supabaseUrl, supabaseAnonKey);
       console.log("✅ Supabase initialized successfully");
     } else {
