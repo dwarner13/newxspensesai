@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EMPLOYEES, findEmployeeByIntent } from '../data/aiEmployees';
 import { chatWithBoss, ChatMessage } from '../lib/boss/openaiClient';
+import { useAuth } from '../contexts/AuthContext';
 
 interface PrimeRouterProps {
   children: React.ReactNode;
@@ -9,6 +10,7 @@ interface PrimeRouterProps {
 
 export default function PrimeRouter({ children }: PrimeRouterProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [isPrimeActive, setIsPrimeActive] = useState(false);
 
   // Create system prompt for Prime
@@ -17,18 +19,22 @@ export default function PrimeRouter({ children }: PrimeRouterProps) {
       `${e.emoji} ${e.name}: ${e.short} (tags: ${e.tags.join(', ')})`
     ).join('\n');
 
-    return `You are Prime, the Boss AI for XspensesAI. A user clicked a marketing CTA button. Your job is to understand their intent and route them to the right AI employee.
+    const isAuthenticated = !!user;
+    const authStatus = isAuthenticated ? 'authenticated' : 'not authenticated';
+
+    return `You are Prime, the Boss AI for XspensesAI. A user clicked a marketing CTA button. Your job is to understand their intent and route them appropriately.
+
+User Status: ${authStatus}
 
 Available AI Employees:
 ${employeeList}
 
 Instructions:
 1. Analyze the user's likely intent based on the context
-2. Match it to the most appropriate AI employee
-3. Respond naturally and conversationally
-4. If you find a good match, format your response as: "I'll connect you with [Employee Name] who specializes in [their expertise]. [Brief explanation]"
-5. If no clear match, suggest the dashboard or ask for clarification
-6. Be helpful, friendly, and professional
+2. If user is NOT authenticated and wants to use a specific feature, suggest they create an account first
+3. If user IS authenticated, match them to the most appropriate AI employee
+4. Respond naturally and conversationally
+5. Be helpful, friendly, and professional
 
 Always respond as Prime, the helpful AI boss.`;
   };
@@ -93,17 +99,40 @@ Always respond as Prime, the helpful AI boss.`;
         );
 
         if (employeeMatch) {
-          // Show Prime's response briefly, then navigate
-          setTimeout(() => {
-            navigate(employeeMatch.route);
-            setIsPrimeActive(false);
-          }, 1500);
+          // Check if user is authenticated
+          if (!user) {
+            // User not authenticated - suggest signup first
+            setTimeout(() => {
+              navigate('/signup');
+              setIsPrimeActive(false);
+            }, 1500);
+          } else {
+            // User authenticated - route to employee
+            setTimeout(() => {
+              navigate(employeeMatch.route);
+              setIsPrimeActive(false);
+            }, 1500);
+          }
         } else {
-          // Fallback to original destination
-          setTimeout(() => {
-            navigate(href);
-            setIsPrimeActive(false);
-          }, 1000);
+          // No specific employee match - check if user wants to use features
+          const wantsFeature = userIntent.toLowerCase().includes('receipt') || 
+                              userIntent.toLowerCase().includes('import') ||
+                              userIntent.toLowerCase().includes('scan') ||
+                              userIntent.toLowerCase().includes('feature');
+          
+          if (!user && wantsFeature) {
+            // User wants to use features but not authenticated
+            setTimeout(() => {
+              navigate('/signup');
+              setIsPrimeActive(false);
+            }, 1000);
+          } else {
+            // Fallback to original destination
+            setTimeout(() => {
+              navigate(href);
+              setIsPrimeActive(false);
+            }, 1000);
+          }
         }
       } catch (error) {
         console.error('Prime routing error, using fallback:', error);
@@ -112,10 +141,20 @@ Always respond as Prime, the helpful AI boss.`;
         const keywordMatch = findEmployeeByIntent(userIntent);
         
         if (keywordMatch) {
-          setTimeout(() => {
-            navigate(keywordMatch.route);
-            setIsPrimeActive(false);
-          }, 1000);
+          // Check if user is authenticated
+          if (!user) {
+            // User not authenticated - suggest signup first
+            setTimeout(() => {
+              navigate('/signup');
+              setIsPrimeActive(false);
+            }, 1000);
+          } else {
+            // User authenticated - route to employee
+            setTimeout(() => {
+              navigate(keywordMatch.route);
+              setIsPrimeActive(false);
+            }, 1000);
+          }
         } else {
           // Final fallback to original destination
           setTimeout(() => {
