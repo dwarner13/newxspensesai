@@ -103,47 +103,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     checkSession();
 
-    // Set up auth state change listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: string, session: any) => {
-        console.log('🔍 AuthContext: Auth state change:', event, session?.user?.email);
-        
-        switch (event) {
-          case 'SIGNED_IN':
-            console.log('🔍 AuthContext: User signed in');
-            setUser(session?.user || null);
-            setLoading(false);
-            setInitialLoad(false);
-            break;
-            
-          case 'SIGNED_OUT':
-            console.log('🔍 AuthContext: User signed out');
-            setUser(null);
-            setLoading(false);
-            setInitialLoad(false);
-            navigate('/login', { replace: true });
-            break;
-            
-          case 'TOKEN_REFRESHED':
-            console.log('🔍 AuthContext: Token refreshed');
-            setUser(session?.user || null);
-            break;
-            
-          case 'USER_UPDATED':
-            console.log('🔍 AuthContext: User updated');
-            setUser(session?.user || null);
-            break;
-            
-          default:
-            console.log('🔍 AuthContext: Unhandled auth event:', event);
+    // Set up auth state change listener only if supabase is available
+    let subscription: any = null;
+    
+    if (supabase && supabase.auth) {
+      const { data } = supabase.auth.onAuthStateChange(
+        async (event: string, session: any) => {
+          console.log('🔍 AuthContext: Auth state change:', event, session?.user?.email);
+          
+          switch (event) {
+            case 'SIGNED_IN':
+              console.log('🔍 AuthContext: User signed in');
+              setUser(session?.user || null);
+              setLoading(false);
+              setInitialLoad(false);
+              break;
+              
+            case 'SIGNED_OUT':
+              console.log('🔍 AuthContext: User signed out');
+              setUser(null);
+              setLoading(false);
+              setInitialLoad(false);
+              navigate('/login', { replace: true });
+              break;
+              
+            case 'TOKEN_REFRESHED':
+              console.log('🔍 AuthContext: Token refreshed');
+              setUser(session?.user || null);
+              break;
+              
+            case 'USER_UPDATED':
+              console.log('🔍 AuthContext: User updated');
+              setUser(session?.user || null);
+              break;
+              
+            default:
+              console.log('🔍 AuthContext: Unhandled auth event:', event);
+          }
         }
-      }
-    );
+      );
+      subscription = data.subscription;
+    }
 
     // Cleanup function
     return () => {
       console.log('🔍 AuthContext: Cleaning up auth context...');
-      subscription?.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, [navigate]);
 
@@ -151,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔍 AuthContext: Signing in with Google...');
       
-      if (!supabase) {
+      if (!supabase || !supabase.auth) {
         console.log('⚡ Dev mode: Google sign-in skipped');
         toast.success('Development mode - sign-in simulated');
         return;
@@ -180,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔍 AuthContext: Signing in with Apple...');
       
-      if (!supabase) {
+      if (!supabase || !supabase.auth) {
         console.log('⚡ Dev mode: Apple sign-in skipped');
         toast.success('Development mode - sign-in simulated');
         return;
@@ -209,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔍 AuthContext: Signing out user...');
 
-      if (!supabase) {
+      if (!supabase || !supabase.auth) {
         // Development mode - just clear the user state
         console.log('⚡ Dev mode: sign-out simulated');
         setUser(null);
