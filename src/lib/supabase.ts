@@ -1,7 +1,21 @@
 // Initialize Supabase client
 let supabase: any = null;
+let isInitializing = false;
 
 const initializeSupabase = async () => {
+  // Prevent multiple initializations
+  if (isInitializing) {
+    console.log("🔍 Supabase initialization already in progress...");
+    return;
+  }
+  
+  if (supabase) {
+    console.log("🔍 Supabase already initialized");
+    return;
+  }
+
+  isInitializing = true;
+  
   try {
     const { createClient } = await import("@supabase/supabase-js");
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -17,7 +31,13 @@ const initializeSupabase = async () => {
         supabaseAnonKey !== 'placeholder-key' &&
         supabaseUrl.length > 0 &&
         supabaseAnonKey.length > 0) {
-      supabase = createClient(supabaseUrl, supabaseAnonKey);
+      supabase = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true
+        }
+      });
       console.log("✅ Supabase initialized successfully");
     } else {
       console.warn("⚠️ Supabase not configured - using mock data");
@@ -26,6 +46,8 @@ const initializeSupabase = async () => {
   } catch (error) {
     console.error("❌ Error initializing Supabase:", error);
     supabase = null; // Ensure it's null on error
+  } finally {
+    isInitializing = false;
   }
 };
 

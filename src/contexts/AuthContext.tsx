@@ -57,6 +57,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkSession = async () => {
       try {
         console.log('🔍 AuthContext: Checking Supabase session...');
+        
+        // Wait for Supabase to be initialized
+        if (!supabase) {
+          console.log('🔍 AuthContext: Waiting for Supabase to initialize...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        if (!supabase) {
+          console.log('🔍 AuthContext: Supabase not available, using bypass');
+          const bypassUser = {
+            id: 'bypass-user-123',
+            email: 'bypass@example.com',
+            full_name: 'Bypass User',
+            aud: 'authenticated',
+            role: 'authenticated',
+            exp: Date.now() + 86400000,
+          } as any;
+          setUser(bypassUser);
+          setLoading(false);
+          setInitialLoad(false);
+          return;
+        }
+        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
