@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import MobileSidebar from "./MobileSidebar";
 import BottomNav from "./BottomNav";
 import Logo from "../common/Logo";
+import BossBubble from "../boss/BossBubble";
 
 
 export default function DashboardLayout() {
@@ -74,6 +75,9 @@ export default function DashboardLayout() {
         {/* Bottom tabs (mobile only) */}
         <BottomNav onMore={() => setOpen(true)} />
       </div>
+      
+      {/* Prime Boss Bubble */}
+      <BossBubble />
     </>
   );
 }

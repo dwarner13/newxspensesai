@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { EMPLOYEES } from '../data/aiEmployees';
 import { 
   Crown, Bot, Calculator, BarChart3, Brain, Headphones, 
   Users, Zap, Target, TrendingUp, ArrowRight, Star,
@@ -61,6 +62,10 @@ interface AIEmployee {
 }
 
 const AIEmployees = () => {
+  // Get Prime and other employees from registry
+  const PRIME = EMPLOYEES.find(e => e.key === 'prime')!;
+  const OTHERS = EMPLOYEES.filter(e => e.key !== 'prime');
+  
   // Prime - The AI Boss
   const aiBoss: AIBoss = {
     id: 'prime',
@@ -474,6 +479,22 @@ const AIEmployees = () => {
               creating the world's most intelligent financial ecosystem. From data processing to entertainment, 
               every AI employee has a unique superpower designed to transform your financial life.
             </motion.p>
+
+            {/* Prime Hero Card */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.6 }}
+              className="rounded-2xl border border-white/10 bg-white/5 p-6 mb-6 max-w-2xl mx-auto"
+            >
+              <div className="text-2xl">{PRIME.emoji}</div>
+              <h2 className="text-2xl font-bold mt-1">{PRIME.name}</h2>
+              <p className="text-white/80 mt-2">{PRIME.short}</p>
+              <div className="mt-4 flex gap-2">
+                <a href={PRIME.learnMorePath || '/ai-employees'} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10">Learn more</a>
+                <a href={PRIME.route} className="px-4 py-2 rounded-lg bg-cyan-500 text-slate-900 font-semibold hover:bg-cyan-400">Ask Prime</a>
+              </div>
+            </motion.div>
 
             {/* Team Stats */}
             <motion.div 
