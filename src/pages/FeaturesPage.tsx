@@ -393,12 +393,7 @@ const FeaturesPage = () => {
   );
 };
 
-export default FeaturesPage; 
-
-
-              ✓ No credit card required • ✓ Process 10 documents free • ✓ See results in 2.3 seconds
-
-            </p>
+export default FeaturesPage;
 
           </motion.div>
 
