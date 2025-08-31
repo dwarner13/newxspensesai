@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { EMPLOYEES, findEmployeeByIntent } from '../../data/aiEmployees';
+import { supabase } from '../../lib/supabase';
 
 export default function BossBubble() {
   const [open, setOpen] = useState(false);
@@ -10,6 +11,20 @@ export default function BossBubble() {
   ]);
   const panelRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  async function logInteraction(userQuery: string, matchKey?: string) {
+    try {
+      await supabase.from('prime_interactions').insert([
+        {
+          query: userQuery,
+          matched_employee: matchKey || null,
+          created_at: new Date().toISOString()
+        }
+      ]);
+    } catch (e) {
+      console.error('Prime logging error:', e);
+    }
+  }
 
   useEffect(() => {
     function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false); }
@@ -32,6 +47,8 @@ export default function BossBubble() {
     setInput('');
 
     const match = findEmployeeByIntent(q);
+    logInteraction(q, match?.key);
+    
     if (!match) {
       setMessages(m => [...m, { role: 'prime', text: 'Try asking about goals, tax, bills, importing receipts, predictions, or categorization.' }]);
       return;
