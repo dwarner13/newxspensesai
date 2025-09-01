@@ -219,6 +219,39 @@ const PodcastPreferencesPanel: React.FC<PodcastPreferencesPanelProps> = ({
         </div>
       </div>
 
+      {/* Podcaster Style */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <h3 className="font-semibold text-gray-900 mb-4">Podcaster Style</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Choose your preferred podcasting personality - from ultra-positive to sassy roasting!
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {newPodcasters.map((podcaster) => (
+            <div
+              key={podcaster.id}
+              onClick={() => handleSave({
+                podcaster_style: podcaster.style as any,
+                preferred_podcasters: [podcaster.id]
+              })}
+              className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                preferences.podcaster_style === podcaster.style
+                  ? 'border-orange-500 bg-orange-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-3 mb-2">
+                <span className="text-2xl">{podcaster.icon}</span>
+                <div className="font-medium text-gray-900">{podcaster.name}</div>
+              </div>
+              <div className="text-sm text-gray-600">{podcaster.description}</div>
+              {preferences.podcaster_style === podcaster.style && (
+                <div className="mt-2 text-xs text-orange-600 font-medium">✓ Selected</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Favorite AI Employees */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h3 className="font-semibold text-gray-900 mb-4">Favorite AI Employees</h3>
