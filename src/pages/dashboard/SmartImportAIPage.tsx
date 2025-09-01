@@ -51,6 +51,8 @@ export default function SmartImportAIPage() {
   const [showChatHistory, setShowChatHistory] = useState(false);
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [uploadResults, setUploadResults] = useState<any[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileView, setMobileView] = useState<'chat' | 'upload' | 'stats'>('chat');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,6 +144,44 @@ Just drag and drop your files or ask me anything!`,
   useEffect(() => {
     loadChatHistory();
   }, [user?.id]);
+
+  // Mobile detection and view management
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
+        setMobileView('chat'); // Start with chat on mobile
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Mobile view transitions
+  const handleMobileChatClose = () => {
+    if (isMobile) {
+      setMobileView('upload');
+      // Auto-scroll to upload section after a brief delay
+      setTimeout(() => {
+        const uploadSection = document.querySelector('[data-mobile-upload]');
+        uploadSection?.scrollIntoView({ behavior: 'smooth' });
+      }, 300);
+    }
+  };
+
+  const handleMobileUploadComplete = () => {
+    if (isMobile) {
+      setMobileView('stats');
+      // Auto-scroll to stats section
+      setTimeout(() => {
+        const statsSection = document.querySelector('[data-mobile-stats]');
+        statsSection?.scrollIntoView({ behavior: 'smooth' });
+      }, 500);
+    }
+  };
 
     const sendMessage = async (content: string) => {
     if (!content.trim() || !user?.id || isLoading) return;
@@ -490,6 +530,10 @@ Could you tell me more specifically what you'd like to import or process? I'm re
         // Trigger multi-AI conversation based on file types
         setTimeout(() => {
           triggerMultiAIConversation(files);
+          // Handle mobile flow
+          if (isMobile) {
+            handleMobileUploadComplete();
+          }
         }, 1000);
       }, 3000);
     }
@@ -639,7 +683,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
 
         {/* Smart Handoff Components */}
         <SmartHandoffBanner />
-        {showWelcomeMessage && (
+        {showWelcomeMessage && !isMobile && (
           <SmartWelcomeMessage 
             employeeName="Byte" 
             employeeEmoji="📄"
@@ -647,12 +691,122 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           />
         )}
 
-                        {/* Top Row: Upload Documents */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 mb-6"
-        >
+        {/* Mobile Chat Hero View */}
+        {isMobile && mobileView === 'chat' && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-md"
+          >
+            <div className="flex flex-col h-full">
+              {/* Mobile Chat Header */}
+              <div className="bg-white/10 backdrop-blur-md border-b border-white/20 px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="text-2xl">📄</div>
+                    <div>
+                      <h2 className="text-white font-semibold text-lg">Byte AI</h2>
+                      <p className="text-white/70 text-sm">Smart Import Assistant</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleMobileChatClose}
+                    className="text-white/60 hover:text-white transition-colors p-2"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Mobile Chat Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-4xl mb-4">📄</div>
+                    <h3 className="text-white text-lg font-semibold mb-2">Welcome to Byte AI!</h3>
+                    <p className="text-white/70 text-sm mb-4">I'm here to help you upload and process your financial documents.</p>
+                    <p className="text-white/60 text-xs">Ask me anything or upload your files to get started!</p>
+                  </div>
+                ) : (
+                  messages.map((message, index) => {
+                    const isUser = message.role === 'user';
+                    const aiEmployee = aiEmployees[message.role as keyof typeof aiEmployees];
+                    
+                    return (
+                      <motion.div
+                        key={index}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                          isUser 
+                            ? 'bg-blue-600 text-white' 
+                            : aiEmployee
+                            ? `${aiEmployee.bgColor} text-white border ${aiEmployee.borderColor}`
+                            : 'bg-white/10 text-white border border-white/20'
+                        }`}>
+                          {!isUser && aiEmployee && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-lg">{aiEmployee.emoji}</span>
+                              <span className={`text-sm font-semibold ${aiEmployee.color}`}>
+                                {aiEmployee.name}
+                              </span>
+                            </div>
+                          )}
+                          <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                        </div>
+                      </motion.div>
+                    );
+                  })
+                )}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm">Byte is thinking...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Mobile Chat Input */}
+              <div className="bg-white/10 backdrop-blur-md border-t border-white/20 p-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage(input)}
+                    placeholder="Ask Byte anything..."
+                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-400"
+                  />
+                  <button
+                    onClick={() => sendMessage(input)}
+                    disabled={isLoading || !input.trim()}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Desktop Layout - Hidden on Mobile */}
+        {!isMobile && (
+          <>
+            {/* Top Row: Upload Documents */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 mb-6"
+            >
           <div className="text-center mb-6">
             <UploadCloud className="w-12 h-12 text-blue-400 mx-auto mb-3" />
             <h2 className="text-xl font-bold text-white mb-2">Upload Documents</h2>
@@ -950,6 +1104,187 @@ Could you tell me more specifically what you'd like to import or process? I'm re
             </div>
           </motion.div>
         </div>
+          </>
+        )}
+
+        {/* Mobile Layout */}
+        {isMobile && (
+          <>
+            {/* Mobile Upload Section */}
+            <motion.div
+              data-mobile-upload
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 mb-6"
+            >
+              <div className="text-center mb-6">
+                <UploadCloud className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+                <h2 className="text-2xl font-bold text-white mb-2">Upload Documents</h2>
+                <p className="text-white/70 text-sm">Drag and drop or click to browse</p>
+              </div>
+
+              {/* Mobile Upload Area */}
+              <div 
+                className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 cursor-pointer ${
+                  uploadStatus === 'idle' 
+                    ? 'border-blue-400/50 bg-blue-500/5 hover:border-blue-400 hover:bg-blue-500/10' 
+                    : uploadStatus === 'uploading' || uploadStatus === 'processing'
+                    ? 'border-orange-400/50 bg-orange-500/5'
+                    : uploadStatus === 'complete'
+                    ? 'border-green-400/50 bg-green-500/5'
+                    : 'border-red-400/50 bg-red-500/5'
+                }`}
+                onClick={uploadStatus === 'idle' ? handleFileUpload : undefined}
+              >
+                {uploadStatus === 'idle' && (
+                  <>
+                    <UploadCloud className="w-20 h-20 text-blue-400 mx-auto mb-4" />
+                    <p className="text-white/80 text-lg mb-3">Choose Files</p>
+                    <p className="text-white/60 text-sm">JPG, PNG, PDF, CSV, XLSX</p>
+                  </>
+                )}
+
+                {uploadStatus === 'uploading' && (
+                  <>
+                    <Loader2 className="w-20 h-20 text-orange-400 mx-auto mb-4 animate-spin" />
+                    <p className="text-white/80 text-lg mb-3">Uploading...</p>
+                    <div className="w-full bg-white/20 rounded-full h-2 mb-2">
+                      <div 
+                        className="bg-orange-400 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-white/60 text-sm">{uploadProgress}% complete</p>
+                  </>
+                )}
+
+                {uploadStatus === 'processing' && (
+                  <>
+                    <Loader2 className="w-20 h-20 text-blue-400 mx-auto mb-4 animate-spin" />
+                    <p className="text-white/80 text-lg mb-3">Processing...</p>
+                    <p className="text-white/60 text-sm">AI is analyzing your documents</p>
+                  </>
+                )}
+
+                {uploadStatus === 'complete' && (
+                  <>
+                    <CheckCircle className="w-20 h-20 text-green-400 mx-auto mb-4" />
+                    <p className="text-white/80 text-lg mb-3">Upload Complete!</p>
+                    <p className="text-white/60 text-sm">Documents processed successfully</p>
+                  </>
+                )}
+
+                {uploadStatus === 'error' && (
+                  <>
+                    <AlertTriangle className="w-20 h-20 text-red-400 mx-auto mb-4" />
+                    <p className="text-white/80 text-lg mb-3">Upload Failed</p>
+                    <p className="text-white/60 text-sm">Please try again</p>
+                  </>
+                )}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".jpg,.jpeg,.png,.pdf,.csv,.xlsx,.heic"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </motion.div>
+
+            {/* Mobile Stats Section */}
+            <motion.div
+              data-mobile-stats
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-1 gap-4"
+            >
+              {/* Processing Stats Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+              >
+                <h3 className="text-lg font-semibold text-white mb-4">Processing Stats</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-400">95.2%</div>
+                    <div className="text-white/70 text-sm">Accuracy</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-400">1.2s</div>
+                    <div className="text-white/70 text-sm">Avg. Time</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-purple-400">12</div>
+                    <div className="text-white/70 text-sm">Files Today</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-400">2m</div>
+                    <div className="text-white/70 text-sm">Last Upload</div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Quick Actions Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+              >
+                <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {quickActions.map((action, index) => (
+                    <button
+                      key={index}
+                      onClick={action.action}
+                      className="flex items-center gap-2 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg text-white transition-colors"
+                    >
+                      <action.icon className="w-4 h-4" />
+                      <span className="text-sm">{action.text}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+
+              {/* Upload History Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-white">Recent Uploads</h3>
+                  <History className="w-5 h-5 text-white/60" />
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                    <div>
+                      <p className="text-white text-sm font-medium">Bank Statement</p>
+                      <p className="text-white/60 text-xs">Feb 26 • 14 receipts</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-green-400 text-sm font-semibold">97%</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                    <div>
+                      <p className="text-white text-sm font-medium">Receipts Batch</p>
+                      <p className="text-white/60 text-xs">Feb 25 • 8 receipts</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-green-400 text-sm font-semibold">94%</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          </>
+        )}
       </div>
     </div>
   );
