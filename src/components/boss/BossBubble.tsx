@@ -116,6 +116,13 @@ Special Instructions:
        - Income growth, side hustles → Liberty
        - Freedom planning, roadmaps → Liberty
 
+       Chime-Specific Routing: // Added
+       - Bill reminders, payment tracking → Chime
+       - Payment automation, auto-pay → Chime
+       - Late payment help, fees → Chime
+       - Bill organization, management → Chime
+       - Payment scheduling, budgeting → Chime
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags

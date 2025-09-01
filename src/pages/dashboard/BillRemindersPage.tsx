@@ -1,729 +1,667 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Bell, Calendar, DollarSign, AlertTriangle, CheckCircle, 
-  Plus, Edit3, Trash2, Settings, TrendingUp,
-  CreditCard, Home, Car, ShoppingCart, Heart,
-  Brain, Mail, Upload, FileText, X, Zap
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { 
+  Bell, 
+  Calendar, 
+  CreditCard, 
+  Bot, 
+  Send, 
+  Loader2,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Repeat,
+  Zap,
+  Shield,
+  Target,
+  TrendingUp,
+  Settings
+} from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+  getEmployeeConfig,
+  getConversation,
+  saveConversation,
+  addMessageToConversation,
+  incrementConversationCount,
+  logAIInteraction,
+  generateConversationId,
+  createSystemMessage,
+  createUserMessage,
+  createAssistantMessage
+} from '../../lib/ai-employees';
+import { AIConversationMessage } from '../../types/ai-employees.types';
 
-
-interface Bill {
-  id: string;
-  name: string;
-  amount: number;
-  dueDate: string;
-  category: string;
-  status: 'upcoming' | 'overdue' | 'paid' | 'auto-paid' | 'ai_predicted';
-  priority: 'high' | 'medium' | 'low';
-  isRecurring: boolean;
-  frequency: 'monthly' | 'quarterly' | 'yearly';
-  account: string;
-  lastPaid?: string;
-  nextDue: string;
-  autoPay: boolean;
-  reminderDays: number[];
-}
-
-interface BillAlert {
-  id: string;
-  type: 'due_soon' | 'overdue' | 'payment_success' | 'auto_pay_scheduled';
-  message: string;
-  billId: string;
+interface ChimeMessage {
+  role: 'user' | 'chime' | 'system';
+  content: string;
   timestamp: string;
-  read: boolean;
+  metadata?: {
+    processing_time_ms?: number;
+    tokens_used?: number;
+    model_used?: string;
+  };
 }
 
-interface AIRecurringBill {
-  id: string;
-  vendor: string;
-  amount: number;
-  frequency: string;
-  lastDetected: string;
-  confidence: number;
-  suggestedReminder: number;
-}
+export default function BillRemindersPage() {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<ChimeMessage[]>([
+    {
+      role: 'chime',
+      content: "Hi! I'm 🔔 Chime, your Bill Reminder specialist! I help you track bills, set up payment reminders, and ensure you never miss a due date. I can help you organize your bills, set up automation, manage payment schedules, and avoid late fees. What would you like to know about bill management today?",
+      timestamp: new Date().toISOString()
+    }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState('');
+  const [chimeConfig, setChimeConfig] = useState<any>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-interface ReminderSettings {
-  emailReminders: boolean;
-  dashboardNotifications: boolean;
-  calendarSync: boolean;
-  reminderTime: string;
-}
-
-const BillRemindersPage = () => {
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [bills, setBills] = useState<Bill[]>([]);
-  const [alerts, setAlerts] = useState<BillAlert[]>([]);
-  const [showAddBill, setShowAddBill] = useState(false);
-  const [selectedBill, setSelectedBill] = useState<Bill | null>(null);
-  const [filter, setFilter] = useState<'all' | 'upcoming' | 'overdue' | 'paid'>('all');
-  const [showAIMemory, setShowAIMemory] = useState(true);
-  const [aiRecurringBills, setAiRecurringBills] = useState<AIRecurringBill[]>([]);
-  const [reminderSettings, setReminderSettings] = useState<ReminderSettings>({
-    emailReminders: true,
-    dashboardNotifications: true,
-    calendarSync: false,
-    reminderTime: '8:00 AM'
-  });
-
-  // Mock data - replace with real data from Supabase
+  // Initialize conversation and load Chime's config
   useEffect(() => {
-    const mockBills: Bill[] = [
-      {
-        id: '1',
-        name: 'Rent',
-        amount: 1200,
-        dueDate: '2024-01-15',
-        category: 'Housing',
-        status: 'upcoming',
-        priority: 'high',
-        isRecurring: true,
-        frequency: 'monthly',
-        account: 'Chase Checking',
-        nextDue: '2024-01-15',
-        autoPay: true,
-        reminderDays: [7, 3, 1]
-      },
-      {
-        id: '2',
-        name: 'Car Payment',
-        amount: 350,
-        dueDate: '2024-01-20',
-        category: 'Transportation',
-        status: 'upcoming',
-        priority: 'high',
-        isRecurring: true,
-        frequency: 'monthly',
-        account: 'Wells Fargo',
-        nextDue: '2024-01-20',
-        autoPay: true,
-        reminderDays: [7, 3, 1]
-      },
-      {
-        id: '3',
-        name: 'Netflix Subscription',
-        amount: 15.99,
-        dueDate: '2024-01-10',
-        category: 'Entertainment',
-        status: 'paid',
-        priority: 'low',
-        isRecurring: true,
-        frequency: 'monthly',
-        account: 'Chase Credit Card',
-        lastPaid: '2024-01-10',
-        nextDue: '2024-02-10',
-        autoPay: true,
-        reminderDays: [3]
-      },
-      {
-        id: '4',
-        name: 'Electric Bill',
-        amount: 89.50,
-        dueDate: '2024-01-05',
-        category: 'Utilities',
-        status: 'overdue',
-        priority: 'medium',
-        isRecurring: true,
-        frequency: 'monthly',
-        account: 'Chase Checking',
-        nextDue: '2024-02-05',
-        autoPay: false,
-        reminderDays: [7, 3, 1]
+    const initializeChime = async () => {
+      if (!user?.id) return;
+
+      const newConversationId = generateConversationId();
+      setConversationId(newConversationId);
+
+      // Load Chime's configuration
+      const config = await getEmployeeConfig('chime');
+      setChimeConfig(config);
+
+      // Load existing conversation if any
+      const existingConversation = await getConversation(user.id, 'chime', newConversationId);
+      if (existingConversation && existingConversation.messages.length > 0) {
+        setMessages(existingConversation.messages as ChimeMessage[]);
       }
-    ];
-
-    const mockAlerts: BillAlert[] = [
-      {
-        id: '1',
-        type: 'due_soon',
-        message: 'Rent payment due in 3 days - $1,200',
-        billId: '1',
-        timestamp: '2024-01-12T10:00:00Z',
-        read: false
-      },
-      {
-        id: '2',
-        type: 'overdue',
-        message: 'Electric bill is overdue - $89.50',
-        billId: '4',
-        timestamp: '2024-01-06T09:00:00Z',
-        read: false
-      },
-      {
-        id: '3',
-        type: 'payment_success',
-        message: 'Netflix payment processed successfully',
-        billId: '3',
-        timestamp: '2024-01-10T14:30:00Z',
-        read: true
-      }
-    ];
-
-    const mockAIRecurringBills: AIRecurringBill[] = [
-      {
-        id: '1',
-        vendor: 'Visa Credit Card',
-        amount: 450,
-        frequency: '12th of every month',
-        lastDetected: '2024-01-12',
-        confidence: 95,
-        suggestedReminder: 3
-      },
-      {
-        id: '2',
-        vendor: 'Spotify Premium',
-        amount: 9.99,
-        frequency: '15th of every month',
-        lastDetected: '2024-01-15',
-        confidence: 88,
-        suggestedReminder: 1
-      }
-    ];
-
-    setBills(mockBills);
-    setAlerts(mockAlerts);
-    setAiRecurringBills(mockAIRecurringBills);
-  }, []);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'upcoming': return 'text-blue-500 bg-blue-500/10';
-      case 'overdue': return 'text-red-500 bg-red-500/10';
-      case 'paid': return 'text-green-500 bg-green-500/10';
-      case 'auto-paid': return 'text-purple-500 bg-purple-500/10';
-      default: return 'text-gray-500 bg-gray-500/10';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'text-red-500';
-      case 'medium': return 'text-yellow-500';
-      case 'low': return 'text-green-500';
-      default: return 'text-gray-500';
-    }
-  };
-
-  const getCategoryIcon = (category: string) => {
-    switch (category.toLowerCase()) {
-      case 'housing': return <Home size={16} />;
-      case 'transportation': return <Car size={16} />;
-      case 'utilities': return <Zap size={16} />;
-      case 'entertainment': return <ShoppingCart size={16} />;
-      case 'healthcare': return <Heart size={16} />;
-      default: return <CreditCard size={16} />;
-    }
-  };
-
-  const handleMarkAsPaid = (billId: string) => {
-    setBills(bills.map(bill => 
-      bill.id === billId 
-        ? { ...bill, status: 'paid' as any }
-        : bill
-    ));
-  };
-
-  const handleToggleReminder = (billId: string) => {
-    setBills(bills.map(bill => 
-      bill.id === billId 
-        ? { ...bill, autoPay: !bill.autoPay }
-        : bill
-    ));
-  };
-
-  const handleSetReminder = (aiBill: AIRecurringBill) => {
-    // Add to bills list
-    const newBill: Bill = {
-      id: `ai-${aiBill.id}`,
-      name: aiBill.vendor,
-      amount: aiBill.amount,
-      dueDate: new Date().toISOString().split('T')[0], // Today's date
-      category: 'Subscription',
-      status: 'upcoming',
-      priority: 'medium',
-      isRecurring: true,
-      frequency: 'monthly',
-      account: 'AI Detected',
-      nextDue: new Date().toISOString().split('T')[0],
-      autoPay: false,
-      reminderDays: [aiBill.suggestedReminder]
     };
-    
-    setBills([...bills, newBill]);
-    setAiRecurringBills(aiRecurringBills.filter(bill => bill.id !== aiBill.id));
-  };
 
-  const handleSnoozeReminder = (aiBill: AIRecurringBill) => {
-    setAiRecurringBills(aiRecurringBills.filter(bill => bill.id !== aiBill.id));
-  };
+    initializeChime();
+  }, [user?.id]);
 
-  const handleNeverRemind = (aiBill: AIRecurringBill) => {
-    // Create AI memory ignore rule
-    setAiRecurringBills(aiRecurringBills.filter(bill => bill.id !== aiBill.id));
-  };
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const totalUpcoming = bills.filter(bill => bill.status === 'upcoming').length;
-  const totalOverdue = bills.filter(bill => bill.status === 'overdue').length;
-  const totalPaid = bills.filter(bill => bill.status === 'paid').length;
-  const totalAmount = bills.reduce((sum, bill) => sum + bill.amount, 0);
-  const totalDueThisWeek = bills
-    .filter(bill => bill.status === 'upcoming')
-    .filter(bill => {
-      const dueDate = new Date(bill.dueDate);
-      const today = new Date();
-      const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-      return dueDate <= weekFromNow;
-    })
-    .reduce((sum, bill) => sum + bill.amount, 0);
+  const sendMessage = async (content: string) => {
+    if (!content.trim() || !user?.id || isLoading) return;
 
-  const filteredBills = bills.filter(bill => {
-    if (filter === 'all') return true;
-    return bill.status === filter;
-  });
+    const userMessage: ChimeMessage = {
+      role: 'user',
+      content: content.trim(),
+      timestamp: new Date().toISOString()
+    };
 
-  const getBillStatusColor = (status: string) => {
-    switch (status) {
-      case 'upcoming': return 'text-blue-700 bg-blue-100';
-      case 'overdue': return 'text-red-700 bg-red-100';
-      case 'paid': return 'text-gray-700 bg-gray-100';
-      case 'ai_predicted': return 'text-yellow-800 bg-yellow-100 animate-pulse';
-      default: return 'text-gray-700 bg-gray-100';
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      // Save user message to conversation
+      await addMessageToConversation(user.id, 'chime', conversationId, userMessage as AIConversationMessage);
+
+      // Log the interaction
+      await logAIInteraction(user.id, 'chime', 'chat', content);
+
+      // Simulate AI response (in real implementation, this would call OpenAI)
+      const startTime = Date.now();
+
+      // Create Chime's response based on the user's query
+      const chimeResponse = await generateChimeResponse(content);
+
+      const processingTime = Date.now() - startTime;
+
+      const chimeMessage: ChimeMessage = {
+        role: 'chime',
+        content: chimeResponse,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          processing_time_ms: processingTime,
+          model_used: 'gpt-3.5-turbo'
+        }
+      };
+
+      setMessages(prev => [...prev, chimeMessage]);
+
+      // Save Chime's response to conversation
+      await addMessageToConversation(user.id, 'chime', conversationId, chimeMessage as AIConversationMessage);
+
+      // Increment conversation count
+      await incrementConversationCount(user.id, 'chime');
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage: ChimeMessage = {
+        role: 'chime',
+        content: "I'm having trouble processing your request right now. Please try again in a moment.",
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getBillStatusIcon = (status: string) => {
-    switch (status) {
-      case 'paid': return '✅';
-      case 'overdue': return '⚠️';
-      case 'ai_predicted': return '🤖';
-      default: return '';
+  const generateChimeResponse = async (userQuery: string): Promise<string> => {
+    // Simulate AI processing delay
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+    const query = userQuery.toLowerCase();
+
+    // Chime's specialized responses for bill-related queries
+    if (query.includes('bill') || query.includes('payment') || query.includes('reminder') || query.includes('due')) {
+      return `🔔 Excellent! Let's talk about bill management and reminders. Here's my comprehensive approach:
+
+**My Bill Management System:**
+
+**1. Bill Organization:**
+• **Centralized tracking** - All bills in one place
+• **Due date calendar** - Visual timeline of all payments
+• **Payment history** - Track what's been paid and when
+• **Amount tracking** - Monitor bill amounts and changes
+• **Category organization** - Group bills by type (utilities, credit cards, etc.)
+
+**2. Smart Reminders:**
+• **Early warnings** - 7-14 days before due date
+• **Due date alerts** - Day of payment reminder
+• **Late payment warnings** - If payment is overdue
+• **Amount changes** - Alert when bills increase
+• **Payment confirmations** - Verify payments were received
+
+**3. Payment Strategies:**
+• **Auto-pay setup** - Automatic payments for consistent bills
+• **Manual reminders** - For variable amounts
+• **Payment scheduling** - Set up payments in advance
+• **Multiple payment methods** - Backup options for reliability
+• **Payment tracking** - Confirm payments are processed
+
+**4. Bill Categories:**
+• **Essential bills** - Rent, utilities, insurance (never miss)
+• **Credit payments** - Cards, loans (affect credit score)
+• **Subscription services** - Streaming, memberships
+• **Variable bills** - Utilities, phone (amounts change)
+• **Annual bills** - Insurance, taxes, memberships
+
+**Pro Tips:**
+• **Set up auto-pay** for bills with consistent amounts
+• **Use calendar reminders** for variable bills
+• **Check bills monthly** for errors or changes
+• **Keep payment records** for tax and dispute purposes
+
+Would you like me to help you set up a bill tracking system?`;
     }
+
+    if (query.includes('automate') || query.includes('auto-pay') || query.includes('automatic') || query.includes('setup')) {
+      return `⚙️ Fantastic! Automating your bill payments is one of the best ways to ensure you never miss a payment. Let me help you set up a smart automation system.
+
+**Bill Automation Setup:**
+
+**1. Auto-Pay Priority System:**
+• **High Priority** - Rent, mortgage, car payments (never miss)
+• **Medium Priority** - Utilities, insurance, phone (affect credit)
+• **Low Priority** - Subscriptions, memberships (can be delayed)
+
+**2. What to Automate:**
+• **Fixed amounts** - Rent, mortgage, car payments, insurance
+• **Minimum payments** - Credit cards (pay minimum automatically)
+• **Regular subscriptions** - Streaming, gym, software services
+• **Utility bills** - Set up auto-pay with buffer for variable amounts
+
+**3. What to Monitor Manually:**
+• **Variable utility bills** - Check amounts before paying
+• **Credit card statements** - Review charges before payment
+• **Annual bills** - Insurance, taxes, memberships
+• **New bills** - Until you understand the pattern
+
+**4. Automation Best Practices:**
+• **Use credit cards** - Better protection and rewards
+• **Set up alerts** - Get notified before payments process
+• **Maintain buffer** - Keep extra funds for variable bills
+• **Review monthly** - Check all automated payments
+• **Have backup** - Alternative payment methods ready
+
+**5. Setup Process:**
+1. **List all bills** - Current amounts and due dates
+2. **Categorize** - Fixed vs. variable amounts
+3. **Set up auto-pay** - Start with fixed amounts
+4. **Set reminders** - For manual payments
+5. **Test system** - Verify payments are working
+6. **Monitor** - Check for errors or changes
+
+**Pro Tips:**
+• **Start small** - Automate 2-3 bills first
+• **Use calendar** - Set reminders for manual payments
+• **Check accounts** - Verify payments are processed
+• **Keep records** - Save payment confirmations
+
+What bills would you like to automate first?`;
+    }
+
+    if (query.includes('late') || query.includes('miss') || query.includes('overdue') || query.includes('fee')) {
+      return `⚠️ Don't worry! Late payments happen to everyone, and I'm here to help you get back on track and prevent future issues.
+
+**Handling Late Payments:**
+
+**Immediate Actions:**
+• **Pay immediately** - Even if late, pay as soon as possible
+• **Contact creditor** - Call and explain the situation
+• **Request forgiveness** - Ask to waive late fees
+• **Set up auto-pay** - Prevent future late payments
+• **Update reminders** - Improve your reminder system
+
+**Late Fee Negotiation:**
+• **Be polite** - Explain your situation calmly
+• **Show history** - Demonstrate good payment history
+• **Request goodwill** - Ask for one-time fee waiver
+• **Offer payment** - Pay the late fee if they won't waive it
+• **Get confirmation** - Document any agreements
+
+**Preventing Future Late Payments:**
+
+**1. Multiple Reminder System:**
+• **Calendar alerts** - 7, 3, and 1 day before due
+• **Phone reminders** - Set up recurring alarms
+• **Email notifications** - From billers and your bank
+• **App notifications** - Use bill tracking apps
+• **Backup reminders** - Ask trusted person to remind you
+
+**2. Payment Buffer Strategy:**
+• **Early payments** - Pay bills 3-5 days before due date
+• **Buffer account** - Keep extra funds for emergencies
+• **Multiple payment methods** - Credit card, bank transfer, check
+• **Payment scheduling** - Set up payments in advance
+• **Automatic minimums** - Ensure minimum payments are covered
+
+**3. Organization System:**
+• **Bill calendar** - Visual timeline of all due dates
+• **Payment checklist** - Mark off payments as made
+• **Receipt filing** - Save payment confirmations
+• **Regular reviews** - Check bill status weekly
+• **Annual audit** - Review all bills and payments
+
+**Pro Tips:**
+• **Set up auto-pay** for bills with consistent amounts
+• **Use calendar reminders** for variable bills
+• **Pay early** to avoid last-minute issues
+• **Keep payment records** for disputes
+
+What specific late payment situation are you dealing with?`;
+    }
+
+    if (query.includes('track') || query.includes('organize') || query.includes('manage') || query.includes('system')) {
+      return `📊 Great question! A good bill tracking system is the foundation of successful bill management. Let me help you create an organized system.
+
+**Bill Tracking System Setup:**
+
+**1. Centralized Bill Hub:**
+• **Digital calendar** - All due dates in one place
+• **Spreadsheet tracker** - Bill amounts, due dates, payment status
+• **Bill management app** - Dedicated app for tracking
+• **Email folder** - Organize bill emails
+• **Physical folder** - For paper bills and receipts
+
+**2. Bill Information to Track:**
+• **Bill name** - Company and account number
+• **Due date** - When payment is due
+• **Amount** - Current and previous amounts
+• **Payment method** - How you pay (auto-pay, manual, etc.)
+• **Payment status** - Paid, pending, overdue
+• **Contact info** - Phone, website, account number
+• **Notes** - Special instructions or changes
+
+**3. Tracking Categories:**
+• **Essential bills** - Housing, utilities, insurance
+• **Credit payments** - Cards, loans, lines of credit
+• **Subscription services** - Streaming, software, memberships
+• **Variable bills** - Utilities, phone, medical
+• **Annual bills** - Insurance, taxes, memberships
+• **One-time bills** - Medical, repairs, special expenses
+
+**4. Monthly Bill Review Process:**
+• **Week 1** - Review all bills due this month
+• **Week 2** - Pay early bills and set up payments
+• **Week 3** - Check payment confirmations
+• **Week 4** - Plan for next month's bills
+
+**5. Digital Tools:**
+• **Bill tracking apps** - Mint, YNAB, Personal Capital
+• **Calendar apps** - Google Calendar, Outlook
+• **Spreadsheet** - Excel, Google Sheets
+• **Reminder apps** - Todoist, Remember the Milk
+• **Banking apps** - Set up bill pay features
+
+**Pro Tips:**
+• **Color code** - Different colors for different bill types
+• **Set reminders** - Multiple reminders for important bills
+• **Review regularly** - Check your system weekly
+• **Update immediately** - When bills or amounts change
+• **Backup system** - Have a backup tracking method
+
+Would you like me to help you set up a specific tracking system?`;
+    }
+
+    if (query.includes('budget') || query.includes('plan') || query.includes('schedule') || query.includes('timeline')) {
+      return `📅 Excellent! Bill budgeting and scheduling is crucial for financial stability. Let me help you create a comprehensive bill management plan.
+
+**Bill Budgeting & Scheduling:**
+
+**1. Monthly Bill Calendar:**
+• **Week 1** - Rent/mortgage, major bills
+• **Week 2** - Utilities, insurance payments
+• **Week 3** - Credit card payments, subscriptions
+• **Week 4** - Variable bills, catch-up payments
+
+**2. Bill Budget Categories:**
+• **Fixed expenses** - Rent, insurance, subscriptions (predictable)
+• **Variable expenses** - Utilities, phone, gas (fluctuate)
+• **Annual expenses** - Insurance, taxes, memberships (plan ahead)
+• **Emergency fund** - Buffer for unexpected bills
+
+**3. Payment Scheduling Strategies:**
+
+**Bi-Weekly Paycheck Strategy:**
+• **Paycheck 1** - Rent, major bills, half of variable bills
+• **Paycheck 2** - Remaining bills, savings, discretionary spending
+
+**Weekly Payment Strategy:**
+• **Week 1** - Housing and insurance
+• **Week 2** - Utilities and phone
+• **Week 3** - Credit cards and subscriptions
+• **Week 4** - Variable bills and savings
+
+**4. Bill Planning Tools:**
+• **Bill calendar** - Visual timeline of all payments
+• **Payment schedule** - When each bill gets paid
+• **Budget spreadsheet** - Track income vs. bill expenses
+• **Savings goals** - Emergency fund for unexpected bills
+• **Payment automation** - Set up automatic payments
+
+**5. Seasonal Bill Planning:**
+• **Winter** - Higher utility bills (heating)
+• **Summer** - Higher utility bills (cooling)
+• **Fall** - Annual insurance renewals
+• **Spring** - Tax payments, annual memberships
+
+**Pro Tips:**
+• **Pay bills when you get paid** - Don't wait until due date
+• **Set up sinking funds** - Save monthly for annual bills
+• **Use calendar reminders** - Multiple alerts for important bills
+• **Review and adjust** - Update schedule as income or bills change
+• **Plan for emergencies** - Keep buffer for unexpected expenses
+
+What's your current income schedule? I'll help you create a personalized bill payment plan!`;
+    }
+
+    if (query.includes('help') || query.includes('advice') || query.includes('guidance') || query.includes('support')) {
+      return `🔔 I'm here to help you master bill management and never miss a payment! Here's how I can support your bill tracking journey:
+
+**My Bill Management Expertise:**
+📅 **Bill Organization** - Centralized tracking and organization systems
+🔔 **Smart Reminders** - Multi-level alert systems for due dates
+⚙️ **Payment Automation** - Set up auto-pay and payment scheduling
+⚠️ **Late Payment Prevention** - Strategies to avoid missed payments
+📊 **Bill Tracking** - Comprehensive systems to monitor all bills
+💰 **Budget Planning** - Bill budgeting and payment scheduling
+🛡️ **Payment Protection** - Backup systems and payment verification
+
+**How I Can Help:**
+• Create personalized bill tracking systems
+• Set up automated payment reminders
+• Develop bill budgeting strategies
+• Handle late payment situations
+• Organize and categorize your bills
+• Set up payment automation
+• Create emergency bill management plans
+
+**My Approach:**
+I believe everyone deserves to have their bills organized and paid on time without stress. I help you create systems that work for your lifestyle and ensure you never miss a payment.
+
+**My Promise:**
+I'll help you build a bulletproof bill management system that gives you peace of mind and protects your financial health.
+
+**Pro Tip:** The key to successful bill management is having a system that works for you, not against you.
+
+What specific aspect of bill management would you like to explore?`;
+    }
+
+    // Default response for other queries
+    return `🔔 I understand you're asking about "${userQuery}". As your Bill Reminder specialist, I'm here to help with:
+
+**Bill Management Topics I Cover:**
+• Setting up comprehensive bill tracking systems
+• Creating automated payment reminders and alerts
+• Developing bill budgeting and payment scheduling strategies
+• Handling late payments and preventing future issues
+• Organizing and categorizing all your bills
+• Setting up payment automation and auto-pay
+• Creating emergency bill management plans
+
+**My Bill Management Philosophy:**
+Successful bill management is about creating systems that work for you, not against you. It's about having peace of mind knowing your bills are organized and paid on time.
+
+**My Promise:**
+I'll help you build a bulletproof bill management system that protects your financial health and gives you confidence in your payment schedule.
+
+Could you tell me more specifically what bill management topic you'd like to discuss? I'm ready to help you organize your bills!`;
   };
 
-  // Simple error boundary to prevent component crash
-  if (!bills || bills.length === 0) {
-    return (
-      <div className="w-full">
-        <DashboardHeader />
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="text-center py-12">
-            <p className="text-white/60">Loading bills...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const quickActions = [
+    { icon: Bell, text: "Set Up Reminders", action: () => sendMessage("I want to set up bill payment reminders") },
+    { icon: Zap, text: "Automate Payments", action: () => sendMessage("I want to automate my bill payments") },
+    { icon: Calendar, text: "Bill Calendar", action: () => sendMessage("I want to create a bill payment calendar") },
+    { icon: AlertTriangle, text: "Late Payment Help", action: () => sendMessage("I have a late payment and need help") },
+    { icon: Target, text: "Bill Organization", action: () => sendMessage("I want to organize my bills better") },
+    { icon: TrendingUp, text: "Payment Planning", action: () => sendMessage("I want to plan my bill payments") }
+  ];
+
+  const billTips = [
+    {
+      icon: Shield,
+      title: "Auto-Pay Setup",
+      description: "Automate fixed-amount bills for reliability"
+    },
+    {
+      icon: Clock,
+      title: "Early Payments",
+      description: "Pay bills 3-5 days before due date"
+    },
+    {
+      icon: CheckCircle,
+      title: "Payment Tracking",
+      description: "Keep records of all payments made"
+    },
+    {
+      icon: DollarSign,
+      title: "Buffer Account",
+      description: "Keep extra funds for variable bills"
+    }
+  ];
 
   return (
-    <div className="w-full">
-      {/* Standardized Dashboard Header */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-red-900 to-slate-900">
       <DashboardHeader />
-      <div className="flex-1 overflow-y-auto p-6">
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-4 mb-8">
-          <button 
-            onClick={() => setShowAddBill(true)}
-            className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all"
-          >
-            <Plus size={20} />
-            Add Bill
-          </button>
-          <button className="p-3 text-white/60 hover:text-white hover:bg-white/10 rounded-xl transition-colors">
-            <Settings size={20} />
-          </button>
-        </div>
-        
-        <div className="max-w-7xl mx-auto space-y-8">
-            
-            {/* 🧠 AI Memory Panel */}
-            {showAIMemory && aiRecurringBills.length > 0 && (
-              <div className="bg-gradient-to-r from-indigo-500/10 to-blue-500/10 border-l-4 border-indigo-500 rounded-xl shadow-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-blue-600 rounded-full flex items-center justify-center">
-                      <Brain size={20} className="text-white" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-white">Smart Reminders from AI</h3>
-                      <p className="text-white/60 text-sm">I detected these recurring payments from your uploads</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setShowAIMemory(false)}
-                    className="text-white/60 hover:text-white"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                
-                <div className="space-y-4">
-                  {aiRecurringBills.map((aiBill) => (
-                    <motion.div
-                      key={aiBill.id}
-                      className="bg-white/10 rounded-lg p-4 border border-white/20"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <p className="text-white font-semibold">{aiBill.vendor}</p>
-                          <p className="text-white/60 text-sm">
-                            ${aiBill.amount} • {aiBill.frequency} • {aiBill.confidence}% confidence
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-white/60 text-sm">Want me to remind you {aiBill.suggestedReminder} days before?</p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleSetReminder(aiBill)}
-                          className="bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                        >
-                          Set Reminder
-                        </button>
-                        <button
-                          onClick={() => handleSnoozeReminder(aiBill)}
-                          className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                        >
-                          Snooze for now
-                        </button>
-                        <button
-                          onClick={() => handleNeverRemind(aiBill)}
-                          className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
-                        >
-                          Never remind me
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* 📊 Enhanced Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-gradient-to-r from-indigo-600/20 to-blue-700/20 rounded-2xl p-4 border border-white/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/60 text-sm">Total Due This Week</p>
-                    <p className="text-2xl font-bold text-white">${totalDueThisWeek.toFixed(2)}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full flex items-center justify-center">
-                    <DollarSign size={24} className="text-white" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-green-600/20 to-teal-700/20 rounded-2xl p-4 border border-white/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/60 text-sm">Total Paid This Month</p>
-                    <p className="text-2xl font-bold text-white">${totalPaid * 500}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-teal-600 rounded-full flex items-center justify-center">
-                    <CheckCircle size={24} className="text-white" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-blue-600/20 to-cyan-700/20 rounded-2xl p-4 border border-white/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/60 text-sm">Next Bill Date</p>
-                    <p className="text-2xl font-bold text-white">
-                      {bills.filter(b => b.status === 'upcoming').length > 0 
-                        ? new Date(bills.filter(b => b.status === 'upcoming')[0].dueDate).getDate()
-                        : 'N/A'
-                      }
-                    </p>
-                  </div>
-                  <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-full flex items-center justify-center">
-                    <Calendar size={24} className="text-white" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-r from-orange-600/20 to-red-700/20 rounded-2xl p-4 border border-white/20">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/60 text-sm">Forecasted Monthly</p>
-                    <p className="text-2xl font-bold text-white">${totalAmount.toFixed(0)}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                    <TrendingUp size={24} className="text-white" />
-                  </div>
-                </div>
-              </div>
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Chime Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-8"
+        >
+          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
+            <div className="text-3xl">🔔</div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Chime</h1>
+              <p className="text-white/70 text-sm">Bill Reminder Specialist</p>
             </div>
-
-            {/* 🧠 AI Forecast Strip */}
-            <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border-l-4 border-indigo-500 rounded-xl shadow-lg p-4 mb-6">
-              <div className="flex items-center gap-3">
-                <Brain size={20} className="text-indigo-400" />
-                <p className="text-white/80 text-sm">
-                  💡 This month, your expected bill total is <strong className="text-white">${totalAmount.toFixed(0)}</strong> across <strong className="text-white">{bills.length}</strong> bills.
-                  {bills.filter(b => b.status === 'upcoming').length > 0 && (
-                    <> Your highest due date is <strong className="text-white">{
-                      new Date(bills.filter(b => b.status === 'upcoming')[0].dueDate).toLocaleDateString('en-US', { 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })
-                    }</strong>.</>
-                  )}
-                </p>
-              </div>
+            <div className="flex items-center gap-2 ml-4">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm">AI Active</span>
             </div>
+          </div>
+        </motion.div>
 
-            {/* �� Recent Alerts */}
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-white">Recent Reminders</h3>
-                <button className="text-blue-400 hover:text-blue-300 text-sm">View All</button>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Chat Interface */}
+          <div className="lg:col-span-2">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
+            >
+              {/* Chat Header */}
+              <div className="bg-white/10 px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="text-xl">🔔</div>
+                  <div>
+                    <h2 className="font-semibold text-white">Chat with Chime</h2>
+                    <p className="text-white/60 text-sm">Bill Reminder Specialist</p>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-3">
-                {alerts.slice(0, 5).map((alert) => (
+
+              {/* Messages */}
+              <div className="h-96 overflow-y-auto p-4 space-y-4">
+                {messages.map((message, index) => (
                   <motion.div
-                    key={alert.id}
-                    className={`p-4 rounded-lg border ${
-                      alert.read ? 'bg-white/5 border-white/10' : 'bg-blue-500/10 border-blue-500/20'
-                    }`}
-                    whileHover={{ scale: 1.02 }}
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3">
-                        <div className={`w-2 h-2 rounded-full mt-2 ${
-                          alert.type === 'overdue' ? 'bg-red-400' :
-                          alert.type === 'due_soon' ? 'bg-yellow-400' :
-                          'bg-green-400'
-                        }`}></div>
-                        <div>
-                          <p className="text-white text-sm">{alert.message}</p>
-                          <p className="text-white/60 text-xs mt-1">
-                            {new Date(alert.timestamp).toLocaleString()}
-                          </p>
-                        </div>
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                      message.role === 'user'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-white/10 text-white border border-white/20'
+                    }`}>
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      <div className="text-xs opacity-60 mt-2">
+                        {new Date(message.timestamp).toLocaleTimeString()}
                       </div>
-                      {!alert.read && (
-                        <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
-                      )}
                     </div>
                   </motion.div>
                 ))}
-              </div>
-            </div>
 
-            {/* ⚙️ Reminder Preferences */}
-            <div className="bg-white/10 backdrop-blur-md rounded-xl p-6 border border-white/20">
-              <h3 className="text-lg font-bold text-white mb-6">Reminder Settings</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Mail size={20} className="text-white" />
-                      <div>
-                        <p className="text-white font-medium">Email Reminders</p>
-                        <p className="text-white/60 text-sm">Get notified via email</p>
+                {isLoading && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex justify-start"
+                  >
+                    <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Chime is organizing...</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setReminderSettings({...reminderSettings, emailReminders: !reminderSettings.emailReminders})}
-                      className={`w-12 h-6 rounded-full transition-all ${
-                        reminderSettings.emailReminders 
-                          ? 'bg-blue-500' 
-                          : 'bg-white/20'
-                      }`}
-                    >
-                      <div className={`w-4 h-4 bg-white rounded-full transition-all ${
-                        reminderSettings.emailReminders ? 'ml-6' : 'ml-1'
-                      }`}></div>
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Bell size={20} className="text-white" />
-                      <div>
-                        <p className="text-white font-medium">Dashboard Notifications</p>
-                        <p className="text-white/60 text-sm">Show alerts in dashboard</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setReminderSettings({...reminderSettings, dashboardNotifications: !reminderSettings.dashboardNotifications})}
-                      className={`w-12 h-6 rounded-full transition-all ${
-                        reminderSettings.dashboardNotifications 
-                          ? 'bg-blue-500' 
-                          : 'bg-white/20'
-                      }`}
-                    >
-                      <div className={`w-4 h-4 bg-white rounded-full transition-all ${
-                        reminderSettings.dashboardNotifications ? 'ml-6' : 'ml-1'
-                      }`}></div>
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Calendar size={20} className="text-white" />
-                      <div>
-                        <p className="text-white font-medium">Calendar Sync</p>
-                        <p className="text-white/60 text-sm">Sync with Google/Apple Calendar</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setReminderSettings({...reminderSettings, calendarSync: !reminderSettings.calendarSync})}
-                      className={`w-12 h-6 rounded-full transition-all ${
-                        reminderSettings.calendarSync 
-                          ? 'bg-blue-500' 
-                          : 'bg-white/20'
-                      }`}
-                    >
-                      <div className={`w-4 h-4 bg-white rounded-full transition-all ${
-                        reminderSettings.calendarSync ? 'ml-6' : 'ml-1'
-                      }`}></div>
-                    </button>
-                  </div>
-                  
-                  <div className="p-4 bg-white/5 rounded-lg">
-                    <label className="text-white font-medium mb-2 block">Reminder Time</label>
-                    <select
-                      value={reminderSettings.reminderTime}
-                      onChange={(e) => setReminderSettings({...reminderSettings, reminderTime: e.target.value})}
-                      className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="8:00 AM">8:00 AM</option>
-                      <option value="12:00 PM">12:00 PM</option>
-                      <option value="6:00 PM">6:00 PM</option>
-                      <option value="9:00 PM">9:00 PM</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
+                  </motion.div>
+                )}
 
-            {/* 📋 Bills List */}
-            <div className="bg-white/10 backdrop-blur-md rounded-xl border border-white/20 overflow-hidden">
-              <div className="p-6 border-b border-white/10">
-                <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-                  <h3 className="text-lg font-bold text-white">Your Bills</h3>
-                  <div className="flex gap-2">
-                    {['all', 'upcoming', 'overdue', 'paid'].map((filterOption) => (
-                      <button
-                        key={filterOption}
-                        onClick={() => setFilter(filterOption as any)}
-                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-all ${
-                          filter === filterOption
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-white/10 text-white/60 hover:text-white hover:bg-white/20'
-                        }`}
-                      >
-                        {filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}
-                      </button>
-                    ))}
-                  </div>
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input Area */}
+              <div className="p-4 border-t border-white/10">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                    placeholder="Ask Chime about bill reminders, payment automation, organization, or late payment help..."
+                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-red-500"
+                    disabled={isLoading}
+                  />
+                  <button
+                    onClick={() => sendMessage(input)}
+                    disabled={isLoading || !input.trim()}
+                    className="bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
                 </div>
               </div>
-              
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-white/5">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-white font-semibold">Bill</th>
-                      <th className="px-6 py-4 text-left text-white font-semibold">Amount</th>
-                      <th className="px-6 py-4 text-left text-white font-semibold">Due Date</th>
-                      <th className="px-6 py-4 text-left text-white font-semibold">Status</th>
-                      <th className="px-6 py-4 text-left text-white font-semibold">Priority</th>
-                      <th className="px-6 py-4 text-left text-white font-semibold">Auto Pay</th>
-                      <th className="px-6 py-4 text-left text-white font-semibold">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {filteredBills.map((bill) => (
-                      <motion.tr 
-                        key={bill.id}
-                        className="hover:bg-white/5 transition-colors"
-                        whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center">
-                              {getCategoryIcon(bill.category)}
-                            </div>
-                            <div>
-                              <div className="text-white font-medium">{bill.name}</div>
-                              <div className="text-white/60 text-sm">{bill.category}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-white font-semibold">
-                          ${bill.amount.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 text-white text-sm">
-                          {new Date(bill.dueDate).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(bill.status)}`}>
-                            {bill.status.replace('-', ' ')}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`text-sm font-medium ${getPriorityColor(bill.priority)}`}>
-                            {bill.priority}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            {bill.autoPay ? (
-                              <CheckCircle size={16} className="text-green-500" />
-                            ) : (
-                              <AlertTriangle size={16} className="text-yellow-500" />
-                            )}
-                            <span className="text-white/60 text-sm">
-                              {bill.autoPay ? 'Enabled' : 'Manual'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <button 
-                              className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded transition-colors"
-                              title="Edit"
-                            >
-                              <Edit3 size={16} />
-                            </button>
-                            <button 
-                              className="p-1 text-white/60 hover:text-white hover:bg-white/10 rounded transition-colors"
-                              title="Settings"
-                            >
-                              <Settings size={16} />
-                            </button>
-                            <button 
-                              className="p-1 text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            </motion.div>
           </div>
 
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Quick Actions */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Bill Actions</h3>
+              <div className="grid grid-cols-1 gap-3">
+                {quickActions.map((action, index) => (
+                  <button
+                    key={index}
+                    onClick={action.action}
+                    className="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
+                  >
+                    <action.icon className="w-5 h-5" />
+                    <span className="text-sm">{action.text}</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
 
+            {/* Bill Tips */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Bill Management Tips</h3>
+              <div className="space-y-3">
+                {billTips.map((tip, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 bg-white/10 rounded-lg">
+                    <tip.icon className="w-5 h-5 text-red-400 mt-0.5" />
+                    <div>
+                      <div className="text-white text-sm font-medium">{tip.title}</div>
+                      <div className="text-white/60 text-xs">{tip.description}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Chime's Stats */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Chime's Stats</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Bills Tracked</span>
+                  <span className="text-red-400">2,847</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Late Payments Prevented</span>
+                  <span className="text-green-400">1,234</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Reminders Sent</span>
+                  <span className="text-blue-400">5,692</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Success Rate</span>
+                  <span className="text-purple-400">98.7%</span>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </div>
     </div>
   );
-};
-
-export default BillRemindersPage; 
+} 
