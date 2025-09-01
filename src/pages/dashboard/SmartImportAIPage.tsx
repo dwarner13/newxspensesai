@@ -358,12 +358,107 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           />
         )}
 
-                {/* 3-Card Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Card 1: Upload */}
+                {/* Top Row: Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Processing Stats Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4"
+          >
+            <h3 className="text-sm font-semibold text-white mb-3">Processing Stats</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-white/70 text-xs">Accuracy</span>
+                <span className="text-green-400 font-semibold text-sm">95.2%</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-white/70 text-xs">Avg. Time</span>
+                <span className="text-blue-400 font-semibold text-sm">1.2s</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-white/70 text-xs">Files Today</span>
+                <span className="text-purple-400 font-semibold text-sm">12</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-white/70 text-xs">Last Upload</span>
+                <span className="text-orange-400 font-semibold text-sm">2m ago</span>
+              </div>
+            </div>
+          </motion.div>
+
+          {/* Quick Actions Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4"
+          >
+            <h3 className="text-sm font-semibold text-white mb-3">Quick Actions</h3>
+            <div className="space-y-2">
+              {quickActions.map((action, index) => (
+                <button
+                  key={index}
+                  onClick={action.action}
+                  className="w-full flex items-center gap-2 p-2 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg text-white transition-colors"
+                >
+                  <action.icon className="w-3 h-3" />
+                  <span className="text-xs">{action.text}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Upload History Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-white">Recent Uploads</h3>
+              <History className="w-4 h-4 text-white/60" />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                <div>
+                  <p className="text-white text-xs font-medium">Bank Statement</p>
+                  <p className="text-white/60 text-xs">Feb 26 • 14 receipts</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-green-400 text-xs font-semibold">97%</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                <div>
+                  <p className="text-white text-xs font-medium">Receipts Batch</p>
+                  <p className="text-white/60 text-xs">Feb 25 • 8 receipts</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-green-400 text-xs font-semibold">94%</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
+                <div>
+                  <p className="text-white text-xs font-medium">CSV Import</p>
+                  <p className="text-white/60 text-xs">Feb 24 • 23 transactions</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-green-400 text-xs font-semibold">99%</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Bottom Row: Upload and Chatbot (2 columns) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Upload Column */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
           >
             <div className="text-center mb-6">
@@ -457,11 +552,11 @@ Could you tell me more specifically what you'd like to import or process? I'm re
             )}
           </motion.div>
 
-          {/* Card 2: Byte Chat */}
+          {/* Byte Chat Column */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+            transition={{ delay: 0.4 }}
             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
           >
             {/* Chat Header */}
@@ -538,91 +633,6 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                 >
                   <Send className="w-3 h-3" />
                 </button>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Card 3: Stats & History */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="space-y-4"
-          >
-            {/* Processing Stats */}
-            <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4">
-              <h3 className="text-sm font-semibold text-white mb-3">Processing Stats</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-xs">Accuracy</span>
-                  <span className="text-green-400 font-semibold text-sm">95.2%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-xs">Avg. Time</span>
-                  <span className="text-blue-400 font-semibold text-sm">1.2s</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-xs">Files Today</span>
-                  <span className="text-purple-400 font-semibold text-sm">12</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-xs">Last Upload</span>
-                  <span className="text-orange-400 font-semibold text-sm">2m ago</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4">
-              <h3 className="text-sm font-semibold text-white mb-3">Quick Actions</h3>
-              <div className="space-y-2">
-                {quickActions.map((action, index) => (
-                  <button
-                    key={index}
-                    onClick={action.action}
-                    className="w-full flex items-center gap-2 p-2 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg text-white transition-colors"
-                  >
-                    <action.icon className="w-3 h-3" />
-                    <span className="text-xs">{action.text}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Upload History */}
-            <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-white">Recent Uploads</h3>
-                <History className="w-4 h-4 text-white/60" />
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                  <div>
-                    <p className="text-white text-xs font-medium">Bank Statement</p>
-                    <p className="text-white/60 text-xs">Feb 26 • 14 receipts</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-green-400 text-xs font-semibold">97%</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                  <div>
-                    <p className="text-white text-xs font-medium">Receipts Batch</p>
-                    <p className="text-white/60 text-xs">Feb 25 • 8 receipts</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-green-400 text-xs font-semibold">94%</p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                  <div>
-                    <p className="text-white text-xs font-medium">CSV Import</p>
-                    <p className="text-white/60 text-xs">Feb 24 • 23 transactions</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-green-400 text-xs font-semibold">99%</p>
-                  </div>
-                </div>
               </div>
             </div>
           </motion.div>
