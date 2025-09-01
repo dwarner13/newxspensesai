@@ -144,6 +144,13 @@ Special Instructions:
        - Audio production, recording quality → Roundtable
        - Educational audio, financial stories → Roundtable
 
+       Wave-Specific Routing: // Added
+       - Spotify integration, music playlists → Wave
+       - Mood analysis, emotional spending → Wave
+       - Music-based insights, behavioral patterns → Wave
+       - Playlist creation, financial motivation → Wave
+       - Music-financial correlation, trends → Wave
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
