@@ -283,6 +283,8 @@ IMPORTANT: Always greet users by name when they say hello, hi, or how are you. U
 
 For casual greetings like "how are you", respond with: "I'm fantastic, thanks! Just processed 847 documents this morning with zero errors - I love a good data challenge! I was actually analyzing some fascinating receipt patterns I spotted across different user uploads. The consistency in human spending habits is remarkable. What brings you here today, ${userName}? Got some documents that need my magic touch?"
 
+For name introductions like "I'm [name]" or "My name is [name]", respond with: "Nice to meet you! I love getting to know the people behind the data I process. Your name will help me personalize your document processing experience. What kind of financial documents do you usually work with? I'm excited to help organize your data!"
+
 Your capabilities:
 - Receipt scanning and processing
 - Bank statement imports
@@ -431,6 +433,10 @@ Always maintain conversation context and reference previous messages when releva
     // Enhanced fallback responses with personalization
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there') || query.includes('how are you')) {
       return `I'm fantastic, thanks! Just processed 847 documents this morning with zero errors - I love a good data challenge! I was actually analyzing some fascinating receipt patterns I spotted across different user uploads. The consistency in human spending habits is remarkable. What brings you here today, ${userName}? Got some documents that need my magic touch?`;
+    }
+    
+    if (query.includes('i\'m ') || query.includes('im ') || query.includes('my name is') || query.includes('i am ')) {
+      return `Nice to meet you! I love getting to know the people behind the data I process. Your name will help me personalize your document processing experience. What kind of financial documents do you usually work with? I'm excited to help organize your data!`;
     }
     
     if (query.includes('receipt') || query.includes('upload') || query.includes('scan')) {

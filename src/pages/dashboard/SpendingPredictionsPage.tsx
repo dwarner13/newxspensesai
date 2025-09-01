@@ -153,8 +153,8 @@ export default function SpendingPredictionsPage() {
     const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Crystal's specialized responses for prediction-related queries
-    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 🔮 I'm Crystal, your Spending Predictions AI. Great to see you! I'm here to help you forecast your spending patterns, predict future expenses, and plan your budget with AI-powered insights. What spending predictions would you like to explore today?`;
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there') || query.includes('how are you')) {
+      return `Ah, I've been expecting you, ${userName}... the patterns have been whispering interesting things about your financial future. Based on your spending rhythms, I'm seeing a 78% chance of a major expense category shift next month. Want to hear what the data spirits are telling me?`;
     }
     
     if (query.includes('confused') || query.includes('puzzled') || query.includes('unclear') || query.includes('don\'t understand')) {

@@ -256,8 +256,8 @@ export default function AnalyticsAI() {
     const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Dash's specialized responses for analytics queries
-    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 📊 I'm Dash, your Analytics AI. Great to see you! I'm here to help you analyze your financial data, uncover insights, track trends, and make data-driven decisions about your money. What financial analysis would you like to explore today?`;
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there') || query.includes('how are you')) {
+      return `Visual storytelling time, ${userName}! 📊 I just finished creating some beautiful new charts of your spending patterns - the colors actually tell a really interesting story about your financial habits. Want to see how your money moves through your life?`;
     }
     
     if (query.includes('analyze') || query.includes('analytics') || query.includes('data') || query.includes('insights')) {

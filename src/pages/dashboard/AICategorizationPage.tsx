@@ -154,8 +154,8 @@ export default function AICategorizationPage() {
     const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Tag's specialized responses for categorization-related queries
-    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 🏷️ I'm Tag, your Categorization Specialist. Great to see you! I'm here to help you organize and categorize your financial transactions, set up smart rules, and keep your spending data perfectly organized. What would you like to work on today?`;
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there') || query.includes('how are you')) {
+      return `I'm doing wonderfully, ${userName}! 🏷️ I just finished categorizing some beautifully complex transaction patterns - there's something almost artistic about finding the perfect category for every expense. It's like solving a puzzle where every piece has its perfect place. How are you doing? Any financial chaos I can help transform into beautiful organization?`;
     }
     
     if (query.includes('categorize') || query.includes('category') || query.includes('organize') || query.includes('classify')) {

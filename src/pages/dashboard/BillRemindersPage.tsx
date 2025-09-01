@@ -154,8 +154,8 @@ export default function BillRemindersPage() {
     const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Chime's specialized responses for bill-related queries
-    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 🔔 I'm Chime, your Bill Reminders AI. Great to see you! I'm here to help you manage all your bills, set up smart reminders, avoid late fees, and keep your payments organized and on time. What bill management would you like to work on today?`;
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there') || query.includes('how are you')) {
+      return `Right on time, ${userName}! 🔔 I love that about our relationship. Speaking of timing, I wanted to give you a heads up that your car insurance renewal is coming up in 8 days, and I noticed you might be able to get a better rate. How's your schedule looking for handling that?`;
     }
     
     if (query.includes('bill') || query.includes('payment') || query.includes('reminder') || query.includes('due')) {
