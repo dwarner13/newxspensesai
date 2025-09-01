@@ -12,6 +12,7 @@ export default function BossBubble() {
     { role: 'prime', text: 'I\'m ⭐ Prime — the Boss AI. Ask me anything, and I\'ll route you to the right expert.' }
   ]);
   const panelRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   async function logInteraction(userQuery: string, matchKey?: string) {
@@ -28,6 +29,15 @@ export default function BossBubble() {
     }
   }
 
+  // Auto-scroll to bottom when new messages are added
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
   // Create system prompt for Prime
   const createSystemPrompt = () => {
     const employeeList = EMPLOYEES.map(e => 
@@ -39,7 +49,13 @@ export default function BossBubble() {
 Available AI Employees:
 ${employeeList}
 
-Instructions:
+Special Instructions:
+1. For pricing questions: Route to pricing page or suggest checking the pricing section
+2. For account/billing questions: Route to account management or billing features
+3. For feature questions: Match to the appropriate AI employee
+4. For general questions: Provide helpful guidance and suggest relevant employees
+
+General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
 3. Respond naturally and conversationally
@@ -121,7 +137,16 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
       logInteraction(q, match?.key);
       
       if (!match) {
-        setMessages(m => [...m, { role: 'prime', text: 'Try asking about goals, tax, bills, importing receipts, predictions, or categorization.' }]);
+        // Check if it's a pricing question
+        if (q.toLowerCase().includes('price') || q.toLowerCase().includes('cost') || q.toLowerCase().includes('pricing')) {
+          setMessages(m => [...m, { role: 'prime', text: 'For pricing information, I\'ll take you to our pricing page where you can see all our plans and features.' }]);
+          setTimeout(() => {
+            navigate('/pricing');
+            setOpen(false);
+          }, 1500);
+        } else {
+          setMessages(m => [...m, { role: 'prime', text: 'Try asking about goals, tax, bills, importing receipts, predictions, or categorization.' }]);
+        }
       } else {
         const reply = `${match.emoji ?? '🤖'} ${match.name} is best for that.\n→ Opening ${match.name}…`;
         setMessages(m => [...m, { role: 'prime', text: reply }]);
@@ -181,6 +206,7 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         <div className="p-3 flex gap-2 border-t border-white/10">
