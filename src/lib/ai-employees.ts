@@ -355,24 +355,29 @@ export async function routeToEmployee(
     // Simple keyword-based routing (this would be replaced with AI)
     const query = user_query.toLowerCase();
     
-    // Define routing rules
-    const routingRules = [
-      { keywords: ['import', 'upload', 'receipt', 'document'], employee: 'byte' },
-      { keywords: ['goal', 'target', 'save', 'milestone'], employee: 'goalie' },
-      { keywords: ['predict', 'forecast', 'trend', 'future'], employee: 'crystal' },
-      { keywords: ['categorize', 'organize', 'tag', 'label'], employee: 'tag' },
-      { keywords: ['freedom', 'independence', 'fire', 'wealth'], employee: 'liberty' },
-      { keywords: ['bill', 'payment', 'reminder', 'due'], employee: 'chime' },
-      { keywords: ['therapy', 'stress', 'emotion', 'behavior'], employee: 'luna' },
-      { keywords: ['podcast', 'audio', 'story'], employee: 'roundtable' },
-      { keywords: ['music', 'spotify', 'playlist'], employee: 'wave' },
-      { keywords: ['tax', 'deduction', 'irs', 'cra'], employee: 'ledger' },
-      { keywords: ['business', 'insight', 'kpi', 'trend'], employee: 'intelia' },
-      { keywords: ['automate', 'workflow', 'rule'], employee: 'automa' },
-      { keywords: ['chart', 'visualize', 'analytics'], employee: 'dash' },
-      { keywords: ['report', 'export', 'pdf', 'summary'], employee: 'prism' },
-      { keywords: ['advice', 'help', 'question', 'assistant'], employee: 'finley' }
-    ];
+               // Define routing rules
+           const routingRules = [
+             { keywords: ['import', 'upload', 'receipt', 'document'], employee: 'byte' },
+             { keywords: ['budget', 'budgeting', 'spending', 'expense'], employee: 'finley' },
+             { keywords: ['invest', 'investment', 'portfolio', 'stock'], employee: 'finley' },
+             { keywords: ['debt', 'credit', 'loan', 'pay off'], employee: 'finley' },
+             { keywords: ['save', 'saving', 'emergency fund'], employee: 'finley' },
+             { keywords: ['retirement', '401k', 'rrsp', 'pension'], employee: 'finley' },
+             { keywords: ['advice', 'help', 'question', 'assistant', 'financial'], employee: 'finley' },
+             { keywords: ['goal', 'target', 'save', 'milestone'], employee: 'goalie' },
+             { keywords: ['predict', 'forecast', 'trend', 'future'], employee: 'crystal' },
+             { keywords: ['categorize', 'organize', 'tag', 'label'], employee: 'tag' },
+             { keywords: ['freedom', 'independence', 'fire', 'wealth'], employee: 'liberty' },
+             { keywords: ['bill', 'payment', 'reminder', 'due'], employee: 'chime' },
+             { keywords: ['therapy', 'stress', 'emotion', 'behavior'], employee: 'luna' },
+             { keywords: ['podcast', 'audio', 'story'], employee: 'roundtable' },
+             { keywords: ['music', 'spotify', 'playlist'], employee: 'wave' },
+             { keywords: ['tax', 'deduction', 'irs', 'cra'], employee: 'ledger' },
+             { keywords: ['business', 'insight', 'kpi', 'trend'], employee: 'intelia' },
+             { keywords: ['automate', 'workflow', 'rule'], employee: 'automa' },
+             { keywords: ['chart', 'visualize', 'analytics'], employee: 'dash' },
+             { keywords: ['report', 'export', 'pdf', 'summary'], employee: 'prism' }
+           ];
 
     // Find the best match
     let bestMatch = { employee: 'finley', score: 0 };

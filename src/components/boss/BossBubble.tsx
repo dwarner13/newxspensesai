@@ -68,11 +68,18 @@ Special Instructions:
 3. For feature questions: Match to the appropriate AI employee
 4. For general questions: Provide helpful guidance and suggest relevant employees
 
-Byte-Specific Routing:
-- Receipt uploads, document imports, file processing → Byte
-- Bank statement imports, CSV processing → Byte
-- Data extraction, categorization help → Byte
-- File format questions, upload support → Byte
+       Byte-Specific Routing:
+       - Receipt uploads, document imports, file processing → Byte
+       - Bank statement imports, CSV processing → Byte
+       - Data extraction, categorization help → Byte
+       - File format questions, upload support → Byte
+
+       Finley-Specific Routing:
+       - General financial advice, budgeting help → Finley
+       - Investment questions, portfolio advice → Finley
+       - Debt management, credit questions → Finley
+       - Saving strategies, emergency funds → Finley
+       - Retirement planning, financial goals → Finley
 
 General Instructions:
 1. Analyze the user's request carefully
