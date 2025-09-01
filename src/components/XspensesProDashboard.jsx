@@ -82,32 +82,56 @@ export default function XspensesProDashboard() {
           </div>
 
           {/* AI Recommendations */}
-          <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-xl p-4 border border-purple-500/30">
-            <div className="flex items-center gap-3 mb-3">
+          <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-xl p-6 border border-purple-500/30">
+            <div className="flex items-center gap-3 mb-6">
               <Bot className="w-6 h-6 text-purple-400" />
               <h3 className="font-semibold text-white">AI Recommendations</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
-                <Target className="w-5 h-5 text-green-400" />
-                <div>
-                  <div className="text-white text-sm font-medium">Set up Goal Concierge</div>
-                  <div className="text-white/60 text-xs">You're 15% behind on savings goal</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[160px] flex flex-col justify-between bg-gradient-to-br from-green-600 to-emerald-700 hover:shadow-green-500/25">
+                <div className="absolute top-4 right-4">
+                  <Target className="w-8 h-8 text-white/80" />
                 </div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <h4 className="text-lg font-bold text-white">Set up Goal Concierge</h4>
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  </div>
+                  <p className="text-sm text-white/90 leading-relaxed">You're 15% behind on savings goal. Let's get you back on track!</p>
+                </div>
+                <Link to="/dashboard/goal-concierge" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                  Set Goal
+                </Link>
               </div>
-              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
-                <Calculator className="w-5 h-5 text-blue-400" />
-                <div>
-                  <div className="text-white text-sm font-medium">Check Tax Assistant</div>
-                  <div className="text-white/60 text-xs">Tax season approaching</div>
+              <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[160px] flex flex-col justify-between bg-gradient-to-br from-blue-600 to-cyan-700 hover:shadow-blue-500/25">
+                <div className="absolute top-4 right-4">
+                  <Calculator className="w-8 h-8 text-white/80" />
                 </div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <h4 className="text-lg font-bold text-white">Check Tax Assistant</h4>
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  </div>
+                  <p className="text-sm text-white/90 leading-relaxed">Tax season approaching. Get organized early!</p>
+                </div>
+                <Link to="/dashboard/tax-assistant" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                  Review Taxes
+                </Link>
               </div>
-              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
-                <Bell className="w-5 h-5 text-orange-400" />
-                <div>
-                  <div className="text-white text-sm font-medium">Review Bill Reminders</div>
-                  <div className="text-white/60 text-xs">3 bills due this week</div>
+              <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[160px] flex flex-col justify-between bg-gradient-to-br from-orange-600 to-red-700 hover:shadow-orange-500/25">
+                <div className="absolute top-4 right-4">
+                  <Bell className="w-8 h-8 text-white/80" />
                 </div>
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 mb-3">
+                    <h4 className="text-lg font-bold text-white">Review Bill Reminders</h4>
+                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  </div>
+                  <p className="text-sm text-white/90 leading-relaxed">3 bills due this week. Stay on top of payments!</p>
+                </div>
+                <Link to="/dashboard/bill-reminders" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                  Check Bills
+                </Link>
               </div>
             </div>
           </div>
@@ -556,28 +580,7 @@ export default function XspensesProDashboard() {
           </div>
         </section>
 
-        {/* Quick Actions Bar */}
-        <section className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
-          <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link to="/dashboard/smart-import-ai" className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl hover:scale-105 transition-all">
-              <UploadCloud className="w-5 h-5 text-white" />
-              <span className="text-white font-medium">Import Receipt</span>
-            </Link>
-            <Link to="/dashboard/ai-financial-assistant" className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:scale-105 transition-all">
-              <Bot className="w-5 h-5 text-white" />
-              <span className="text-white font-medium">Ask AI</span>
-            </Link>
-            <Link to="/dashboard/goal-concierge" className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl hover:scale-105 transition-all">
-              <Target className="w-5 h-5 text-white" />
-              <span className="text-white font-medium">Set Goal</span>
-            </Link>
-            <Link to="/dashboard/bill-reminders" className="flex items-center gap-3 p-4 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl hover:scale-105 transition-all">
-              <Bell className="w-5 h-5 text-white" />
-              <span className="text-white font-medium">Check Bills</span>
-            </Link>
-          </div>
-        </section>
+
       </div>
     </div>
   );
