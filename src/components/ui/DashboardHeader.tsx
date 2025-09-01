@@ -114,25 +114,21 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
 
   return (
     <header className="mb-8 p-6 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2 rounded-2xl">
-      {/* Page Title and Subtitle - Now visible on both desktop and mobile */}
-      <div className="mb-8">
-        <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent mb-2">
-          {customTitle || pageTitles[location.pathname]?.title || 'Dashboard'}
-        </h1>
-        <p className="text-xl text-white/80">
-          {customSubtitle || pageTitles[location.pathname]?.subtitle || 'Your financial command center'}
-        </p>
-      </div>
-      <div className="flex justify-between items-center">
-        <div className="hidden md:block">
-          {/* Title removed to prevent duplication */}
+      {/* Top Row - Page Title and Action Icons */}
+      <div className="flex justify-between items-start mb-4">
+        {/* Page Title */}
+        <div className="flex-1">
+          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent mb-2">
+            {customTitle || pageTitles[location.pathname]?.title || 'Dashboard'}
+          </h1>
         </div>
-        {/* Desktop Version - Icons on the right side */}
-        <div className="hidden md:flex items-center gap-4">
+        
+        {/* Action Icons - Desktop Version */}
+        <div className="hidden md:flex items-center gap-3 ml-6">
           {/* Spotify Icon */}
-          <button className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200 group">
+          <button className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200 group">
             <svg 
-              className="w-6 h-6 text-slate-300 group-hover:text-green-400 transition-colors duration-200" 
+              className="w-7 h-7 text-slate-300 group-hover:text-green-400 transition-colors duration-200" 
               viewBox="0 0 24 24" 
               fill="currentColor"
             >
@@ -144,12 +140,12 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
           <div className="relative" ref={profileRef}>
             <button 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200 group flex items-center gap-2"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-all duration-200 group flex items-center gap-2"
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-teal-500 rounded-full flex items-center justify-center">
-                <User className="w-5 h-5 text-white" />
+              <div className="w-7 h-7 bg-gradient-to-br from-purple-500 to-teal-500 rounded-full flex items-center justify-center">
+                <User className="w-4 h-4 text-white" />
               </div>
-              <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3 h-3 text-slate-300 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {/* Profile Dropdown Menu */}
@@ -174,8 +170,13 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
             )}
           </div>
         </div>
-        
-        {/* Mobile Version - REMOVED - Icons now in mobile nav menu */}
+      </div>
+      
+      {/* Subtitle */}
+      <div>
+        <p className="text-xl text-white/80">
+          {customSubtitle || pageTitles[location.pathname]?.subtitle || 'Your financial command center'}
+        </p>
       </div>
     </header>
   );

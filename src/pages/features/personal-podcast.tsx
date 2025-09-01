@@ -1,14 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import { 
-  Mic, Play, Headphones, Brain, CheckCircle, Flame, Crown, 
-  Sparkles, Zap, Heart, Target, TrendingUp, AlertTriangle, 
-  MessageCircle, Bot, HeartHandshake, Leaf, Sun, Moon, 
-  CloudRain, Wind, Eye, Coffee, Rocket, Gem, Compass, 
-  Telescope, Lightbulb, ThumbsUp, ThumbsDown, Smile, Frown, 
-  Meh, Rainbow, Star, Award, Clock, BarChart3, PieChart, 
-  ArrowRight, Volume2, VolumeX, ChevronRight, ChevronLeft,
-  Plus, Minus, Settings, Bell, Users, Shield, Lock, Key
+  Mic, Play, Headphones, CheckCircle, Flame, Crown, 
+  Zap, Heart, Star, Clock, ArrowRight, Shield, Lock, Key
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -51,7 +44,6 @@ interface PodcastEpisode {
 }
 
 export default function PersonalPodcastFeaturePage() {
-  const [activeDemo, setActiveDemo] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [currentEpisode, setCurrentEpisode] = useState<PodcastEpisode | null>(null);
@@ -371,21 +363,46 @@ export default function PersonalPodcastFeaturePage() {
               initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
-              className="text-4xl md:text-6xl font-bold text-white mb-8"
+              className="text-4xl md:text-6xl font-bold text-white mb-6"
         >
-              The World's First{' '}
+              Finally, Financial Advice That{' '}
               <span className="text-orange-400 drop-shadow-lg">
-                AI Podcast Theater
+                Actually Gets You
               </span>
         </motion.h1>
         <motion.p
               initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
+              className="text-xl md:text-2xl text-white/90 mb-8 max-w-5xl mx-auto leading-relaxed font-medium"
         >
-              Experience the future of financial storytelling with 12 AI podcasters who know your money story better than anyone. From motivational cheerleaders to brutally honest roasters, get ready for the most engaging financial content ever created. This isn't just a podcast - it's a complete AI-powered financial transformation.
+              12 AI podcasters who know your spending patterns, celebrate your wins, and call out your mistakes - all personalized to your money story
         </motion.p>
+        
+        {/* Social Proof Bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="flex flex-wrap items-center justify-center gap-6 mb-8 text-sm text-white/70"
+        >
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-400 rounded-full border-2 border-white/20"></div>
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full border-2 border-white/20"></div>
+              <div className="w-8 h-8 bg-gradient-to-r from-orange-400 to-red-400 rounded-full border-2 border-white/20"></div>
+            </div>
+            <span>Join 12,000+ users</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-400">★★★★★</span>
+            <span>4.9/5 rating</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-cyan-400">$2,400</span>
+            <span>avg. savings increase</span>
+          </div>
+        </motion.div>
         <motion.div
               initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -394,20 +411,102 @@ export default function PersonalPodcastFeaturePage() {
             >
               <button 
                 onClick={() => setShowPodcastStudio(true)}
-                className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-pink-500 hover:to-orange-500 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+                className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-pink-500 hover:to-orange-500 text-white px-10 py-5 rounded-xl font-bold text-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl flex items-center justify-center gap-3 shadow-lg"
               >
-                <Mic size={24} />
-                Enter AI Podcast Studio
+                <Mic size={28} />
+                Get My First Free Episode
+                <span className="text-sm bg-white/20 px-2 py-1 rounded-full">FREE</span>
               </button>
               <button 
                 onClick={startPodcastGeneration}
-                className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2"
+                className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-lg"
               >
                 <Play size={24} />
-                Generate Sample Episode
+                See How It Works
               </button>
         </motion.div>
+        
+        {/* Urgency Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+          className="mt-8 bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 rounded-xl p-4 max-w-2xl mx-auto"
+        >
+          <div className="flex items-center justify-center gap-2 text-white">
+            <Clock size={20} className="text-red-400" />
+            <span className="font-semibold">Limited Time:</span>
+            <span>First month free for new users - No credit card required</span>
           </div>
+        </motion.div>
+          </div>
+
+          {/* Testimonials Section */}
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="bg-white/5 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
+          >
+            <h3 className="text-2xl font-bold text-white text-center mb-8">
+              💬 What Our Users Are Saying
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white/10 rounded-xl p-6">
+                <div className="flex items-center gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} size={16} className="text-yellow-400 fill-current" />
+                  ))}
+                </div>
+                <p className="text-white/90 text-sm mb-4 italic">
+                  "I've tried every financial app out there, but this is the first one that actually made me WANT to check my spending. The AI podcasters feel like real friends who get me."
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-green-400 to-blue-400 rounded-full"></div>
+                  <div>
+                    <p className="text-white font-semibold text-sm">Sarah M.</p>
+                    <p className="text-white/60 text-xs">Saved $3,200 in 3 months</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white/10 rounded-xl p-6">
+                <div className="flex items-center gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} size={16} className="text-yellow-400 fill-current" />
+                  ))}
+                </div>
+                <p className="text-white/90 text-sm mb-4 italic">
+                  "The roasting episodes are brutal but necessary. Roast Master called out my $400/month coffee habit and I actually laughed while crying. Now I'm debt-free!"
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full"></div>
+                  <div>
+                    <p className="text-white font-semibold text-sm">Mike R.</p>
+                    <p className="text-white/60 text-xs">Paid off $15K debt</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white/10 rounded-xl p-6">
+                <div className="flex items-center gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} size={16} className="text-yellow-400 fill-current" />
+                  ))}
+                </div>
+                <p className="text-white/90 text-sm mb-4 italic">
+                  "I listen to my personalized episodes during my commute. It's like having a financial advisor in my pocket who actually understands my situation."
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-orange-400 to-red-400 rounded-full"></div>
+                  <div>
+                    <p className="text-white font-semibold text-sm">Jessica L.</p>
+                    <p className="text-white/60 text-xs">Built $8K emergency fund</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
 
           {/* AI Team Showcase */}
           <motion.div 
@@ -416,9 +515,14 @@ export default function PersonalPodcastFeaturePage() {
             transition={{ duration: 0.6 }}
             className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
           >
-            <h3 className="text-2xl font-bold text-white text-center mb-8">
-              🤖 Prime's AI Podcast Team
-            </h3>
+            <div className="text-center mb-8">
+              <h3 className="text-2xl font-bold text-white mb-4">
+                🤖 Meet Your AI Financial Dream Team
+              </h3>
+              <p className="text-white/80 max-w-3xl mx-auto">
+                Behind every personalized episode is a sophisticated AI ecosystem that analyzes your spending patterns, understands your goals, and creates content that actually resonates with your financial journey.
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {aiTeam.map((member, index) => (
                 <motion.div
@@ -426,14 +530,14 @@ export default function PersonalPodcastFeaturePage() {
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6, delay: index * 0.1 }}
-                  className="text-center"
+                  className="text-center bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300"
                 >
-                  <div className={`w-16 h-16 bg-gradient-to-r ${member.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                  <div className={`w-16 h-16 bg-gradient-to-r ${member.color} rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg`}>
                     <span className="text-2xl">{member.avatar}</span>
                   </div>
                   <h4 className="text-lg font-bold text-white mb-2">{member.name}</h4>
                   <p className="text-white/70 text-sm mb-2">{member.role}</p>
-                  <p className="text-white/60 text-xs">{member.specialty}</p>
+                  <p className="text-white/60 text-xs leading-relaxed">{member.specialty}</p>
                 </motion.div>
               ))}
             </div>
@@ -451,10 +555,10 @@ export default function PersonalPodcastFeaturePage() {
         >
           <div className="text-center mb-8">
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              🎙️ Live AI Podcast Generation Theater
+              🎙️ See Your Personal Financial Story Come to Life
             </h2>
             <p className="text-lg text-white/80 max-w-3xl mx-auto">
-              Watch as our AI creates a personalized podcast episode just for you. This is where the magic happens!
+              Watch as our AI analyzes your spending patterns and creates a personalized podcast episode in real-time. No generic advice - just your money story, told by AI that actually understands you.
             </p>
           </div>
 
@@ -530,10 +634,10 @@ export default function PersonalPodcastFeaturePage() {
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            🌟 Your Financial Cheerleaders - The Positive Podcasters
+            🌟 Your Personal Financial Cheerleaders
           </h2>
           <p className="text-lg text-white/80 leading-relaxed max-w-4xl mx-auto">
-            Meet the AI hosts who celebrate your wins, motivate your journey, and turn every financial milestone into a victory lap. These positive podcasters are your personal hype squad for financial success, powered by our advanced AI ecosystem.
+            Tired of feeling guilty about your spending? These AI podcasters celebrate your wins, motivate your journey, and turn every financial milestone into a victory lap. They're your personal hype squad that actually understands your money story and makes financial success feel achievable.
           </p>
         </motion.div>
 
@@ -586,10 +690,10 @@ export default function PersonalPodcastFeaturePage() {
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-            🔥 Your Financial Reality Checkers - The Roasting Podcasters
+            🔥 Your Financial Reality Checkers
           </h2>
           <p className="text-lg text-white/80 leading-relaxed max-w-4xl mx-auto">
-            Sometimes you need a reality check, and these AI hosts deliver it with style. The roasting podcasters keep you honest, call out bad decisions, and ensure you never get too comfortable with poor financial habits. They're brutally honest because they care about your financial future.
+            Sometimes you need someone to call out your BS. These AI podcasters deliver the brutal truth with style and humor. They'll roast your $400/month coffee habit, call out your impulse purchases, and make you laugh while they're making you better with money. Tough love that actually works.
           </p>
         </motion.div>
 
@@ -742,26 +846,43 @@ export default function PersonalPodcastFeaturePage() {
           className="bg-gradient-to-r from-orange-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
-            Ready to Experience the Future of Financial Storytelling?
+            Stop Struggling With Generic Financial Advice
           </h2>
           <p className="text-white/80 text-lg mb-6 max-w-2xl mx-auto">
-            Join thousands who've transformed their relationship with money through personalized AI podcasts. Get your first episode free and discover what it feels like to have 12 AI experts who truly understand your financial journey.
+            Join 12,000+ users who've transformed their relationship with money through personalized AI podcasts. Get your first episode free and discover what it feels like to have financial advice that actually gets you.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button 
               onClick={() => setShowPodcastStudio(true)}
-              className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-pink-500 hover:to-orange-500 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+              className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-pink-500 hover:to-orange-500 text-white px-10 py-5 rounded-xl font-bold text-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl flex items-center justify-center gap-3 shadow-lg"
             >
-              <Mic size={24} />
-              Enter AI Podcast Studio
+              <Mic size={28} />
+              Get My First Free Episode
+              <span className="text-sm bg-white/20 px-2 py-1 rounded-full">FREE</span>
             </button>
             <button 
               onClick={startPodcastGeneration}
-              className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2"
+              className="border-2 border-cyan-400 text-cyan-400 hover:bg-cyan-400 hover:text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 flex items-center justify-center gap-2 hover:shadow-lg"
             >
               <Headphones size={24} />
-              Generate Sample Episode
+              See How It Works
             </button>
+          </div>
+          
+          {/* Trust Indicators */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-white/60">
+            <div className="flex items-center gap-2">
+              <Shield size={16} className="text-green-400" />
+              <span>Bank-level security</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Lock size={16} className="text-green-400" />
+              <span>Your data is never shared</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Key size={16} className="text-green-400" />
+              <span>Cancel anytime</span>
+            </div>
           </div>
         </motion.div>
       </div>
