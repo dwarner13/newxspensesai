@@ -290,24 +290,6 @@ Could you tell me more specifically what you'd like to import or process? I'm re
       <DashboardHeader />
       
       <div className="max-w-7xl mx-auto p-6">
-        {/* Context Zone - Top Bar */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8"
-        >
-          <div className="flex items-center gap-4">
-            <div className="text-3xl">📄</div>
-            <div>
-              <h1 className="text-3xl font-bold text-white">Smart Import Workspace</h1>
-              <p className="text-white/70 text-sm">Powered by Byte AI</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md rounded-xl px-4 py-2 border border-white/20">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-green-400 text-sm font-medium">Byte Active</span>
-          </div>
-        </motion.div>
 
         {/* Smart Handoff Components */}
         <SmartHandoffBanner />
@@ -319,313 +301,267 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           />
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Action Zone - Upload Panel (Left/Middle) */}
-          <div className="lg:col-span-3 space-y-6">
-            {/* Upload Hero Section */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-8"
+                {/* 3-Card Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Card 1: Upload */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+          >
+            <div className="text-center mb-6">
+              <UploadCloud className="w-12 h-12 text-blue-400 mx-auto mb-3" />
+              <h2 className="text-xl font-bold text-white mb-2">Upload Documents</h2>
+              <p className="text-white/70 text-sm">Drag and drop or click to browse</p>
+            </div>
+
+            {/* Upload Area */}
+            <div 
+              className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-300 cursor-pointer ${
+                uploadStatus === 'idle' 
+                  ? 'border-blue-400/50 bg-blue-500/5 hover:border-blue-400 hover:bg-blue-500/10' 
+                  : uploadStatus === 'uploading' || uploadStatus === 'processing'
+                  ? 'border-orange-400/50 bg-orange-500/5'
+                  : uploadStatus === 'complete'
+                  ? 'border-green-400/50 bg-green-500/5'
+                  : 'border-red-400/50 bg-red-500/5'
+              }`}
+              onClick={uploadStatus === 'idle' ? handleFileUpload : undefined}
             >
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">Upload Your Documents</h2>
-                <p className="text-white/70">Drag and drop files or click to browse</p>
-              </div>
-
-              {/* Upload Area */}
-              <div 
-                className={`relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 ${
-                  uploadStatus === 'idle' 
-                    ? 'border-blue-400/50 bg-blue-500/5 hover:border-blue-400 hover:bg-blue-500/10' 
-                    : uploadStatus === 'uploading' || uploadStatus === 'processing'
-                    ? 'border-orange-400/50 bg-orange-500/5'
-                    : uploadStatus === 'complete'
-                    ? 'border-green-400/50 bg-green-500/5'
-                    : 'border-red-400/50 bg-red-500/5'
-                }`}
-                onClick={uploadStatus === 'idle' ? handleFileUpload : undefined}
-              >
-                {uploadStatus === 'idle' && (
-                  <>
-                    <UploadCloud className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">Drop files here or click to upload</h3>
-                    <p className="text-white/60 mb-4">Supports: JPG, PNG, PDF, CSV, XLSX, HEIC</p>
-                    <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-medium transition-colors">
-                      Choose Files
-                    </button>
-                  </>
-                )}
-
-                {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
-                  <>
-                    <Loader2 className="w-16 h-16 text-orange-400 mx-auto mb-4 animate-spin" />
-                    <h3 className="text-xl font-semibold text-white mb-2">
-                      {uploadStatus === 'uploading' ? 'Uploading files...' : 'Crunching your numbers with Byte...'}
-                    </h3>
-                    <div className="w-full bg-white/10 rounded-full h-2 mb-4">
-                      <div 
-                        className="bg-orange-400 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${uploadProgress}%` }}
-                      ></div>
-                    </div>
-                    <p className="text-white/60">{uploadProgress}% complete</p>
-                  </>
-                )}
-
-                {uploadStatus === 'complete' && (
-                  <>
-                    <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold text-white mb-2">Upload Complete!</h3>
-                    <p className="text-white/60 mb-4">All files processed successfully</p>
-                    <button 
-                      onClick={resetUpload}
-                      className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-medium transition-colors mr-3"
-                    >
-                      Upload More
-                    </button>
-                    <button className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-xl font-medium transition-colors">
-                      View Results
-                    </button>
-                  </>
-                )}
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept=".jpg,.jpeg,.png,.pdf,.csv,.xlsx,.heic"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-              </div>
-
-              {/* Upload Results */}
-              {uploadResults.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-6 space-y-3"
-                >
-                  <h4 className="text-lg font-semibold text-white">Processing Results</h4>
-                  {uploadResults.map((result, index) => (
-                    <div key={result.id} className="bg-white/5 rounded-xl p-4 border border-white/10">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <FileCheck className="w-5 h-5 text-green-400" />
-                          <div>
-                            <p className="text-white font-medium">{result.name}</p>
-                            <p className="text-white/60 text-sm">{result.transactions} transactions • ${result.amount}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-green-400 font-semibold">{result.accuracy}% accuracy</p>
-                          <p className="text-white/60 text-sm">Processed</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </motion.div>
+              {uploadStatus === 'idle' && (
+                <>
+                  <UploadCloud className="w-8 h-8 text-blue-400 mx-auto mb-3" />
+                  <p className="text-white/80 text-sm mb-3">Choose Files</p>
+                  <p className="text-white/60 text-xs">JPG, PNG, PDF, CSV, XLSX</p>
+                </>
               )}
-            </motion.div>
 
-            {/* AI Chat/Guided Help (Collapsible) */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
-            >
-              {/* Chat Header */}
-              <div className="bg-white/10 px-6 py-4 border-b border-white/10">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="text-xl">📄</div>
-                    <div>
-                      <h3 className="font-semibold text-white">Byte's Guidance</h3>
-                      <p className="text-white/60 text-sm">AI Assistant & Helper</p>
+              {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
+                <>
+                  <Loader2 className="w-8 h-8 text-orange-400 mx-auto mb-3 animate-spin" />
+                  <p className="text-white/80 text-sm mb-2">
+                    {uploadStatus === 'uploading' ? 'Uploading...' : 'Processing...'}
+                  </p>
+                  <div className="w-full bg-white/10 rounded-full h-1.5 mb-2">
+                    <div 
+                      className="bg-orange-400 h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-white/60 text-xs">{uploadProgress}%</p>
+                </>
+              )}
+
+              {uploadStatus === 'complete' && (
+                <>
+                  <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-3" />
+                  <p className="text-white/80 text-sm mb-3">Complete!</p>
+                  <button 
+                    onClick={resetUpload}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Upload More
+                  </button>
+                </>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".jpg,.jpeg,.png,.pdf,.csv,.xlsx,.heic"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
+
+            {/* Upload Results */}
+            {uploadResults.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 space-y-2"
+              >
+                <h4 className="text-sm font-semibold text-white">Results</h4>
+                {uploadResults.map((result, index) => (
+                  <div key={result.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-white text-sm font-medium truncate">{result.name}</p>
+                        <p className="text-white/60 text-xs">{result.transactions} transactions</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-green-400 text-sm font-semibold">{result.accuracy}%</p>
+                      </div>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setIsChatCollapsed(!isChatCollapsed)}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  >
-                    {isChatCollapsed ? <ChevronDown className="w-5 h-5 text-white" /> : <ChevronUp className="w-5 h-5 text-white" />}
-                  </button>
+                ))}
+              </motion.div>
+            )}
+          </motion.div>
+
+          {/* Card 2: Byte Chat */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
+          >
+            {/* Chat Header */}
+            <div className="bg-white/10 px-4 py-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <div className="text-lg">📄</div>
+                <div>
+                  <h3 className="font-semibold text-white text-sm">Byte AI</h3>
+                  <p className="text-white/60 text-xs">Smart Import Assistant</p>
                 </div>
               </div>
+            </div>
 
-              <AnimatePresence>
-                {!isChatCollapsed && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {/* Messages */}
-                    <div className="h-64 overflow-y-auto p-4 space-y-4">
-                      {messages.map((message, index) => (
-                        <motion.div
-                          key={index}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                        >
-                          <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                            message.role === 'user' 
-                              ? 'bg-blue-600 text-white' 
-                              : 'bg-white/10 text-white border border-white/20'
-                          }`}>
-                            <div className="whitespace-pre-wrap text-sm">{message.content}</div>
-                            <div className="text-xs opacity-60 mt-2">
-                              {new Date(message.timestamp).toLocaleTimeString()}
-                            </div>
-                          </div>
-                        </motion.div>
-                      ))}
-                      
-                      {isLoading && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          className="flex justify-start"
-                        >
-                          <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              <span className="text-sm">Byte is thinking...</span>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                      
-                      <div ref={messagesEndRef} />
+            {/* Messages */}
+            <div className="h-64 overflow-y-auto p-4 space-y-3">
+              {messages.map((message, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
+                    message.role === 'user' 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-white/10 text-white border border-white/20'
+                  }`}>
+                    <div className="whitespace-pre-wrap text-xs">{message.content}</div>
+                  </div>
+                </motion.div>
+              ))}
+              
+              {isLoading && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-white/10 text-white border border-white/20 rounded-xl px-3 py-2">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span className="text-xs">Byte is thinking...</span>
                     </div>
+                  </div>
+                </motion.div>
+              )}
+              
+              <div ref={messagesEndRef} />
+            </div>
 
-                    {/* Input Area */}
-                    <div className="p-4 border-t border-white/10">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                          placeholder="Ask Byte for help..."
-                          className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:border-blue-500 text-sm"
-                          disabled={isLoading}
-                        />
-                        <button
-                          onClick={() => sendMessage(input)}
-                          disabled={isLoading || !input.trim()}
-                          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2 transition-colors"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          </div>
+            {/* Input Area */}
+            <div className="p-4 border-t border-white/10">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                  placeholder="Ask Byte..."
+                  className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-blue-500 text-xs"
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={isLoading || !input.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-3 py-2 transition-colors"
+                >
+                  <Send className="w-3 h-3" />
+                </button>
+              </div>
+            </div>
+          </motion.div>
 
-          {/* Support Zone - Stats + History (Right Sidebar) */}
-          <div className="space-y-6">
+          {/* Card 3: Stats & History */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="space-y-4"
+          >
             {/* Processing Stats */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Processing Stats</h3>
-              <div className="space-y-4">
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4">
+              <h3 className="text-sm font-semibold text-white mb-3">Processing Stats</h3>
+              <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-sm">Accuracy Rate</span>
-                  <span className="text-green-400 font-semibold">95.2%</span>
+                  <span className="text-white/70 text-xs">Accuracy</span>
+                  <span className="text-green-400 font-semibold text-sm">95.2%</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-sm">Avg. Processing</span>
-                  <span className="text-blue-400 font-semibold">1.2s</span>
+                  <span className="text-white/70 text-xs">Avg. Time</span>
+                  <span className="text-blue-400 font-semibold text-sm">1.2s</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-sm">Files Today</span>
-                  <span className="text-purple-400 font-semibold">12</span>
+                  <span className="text-white/70 text-xs">Files Today</span>
+                  <span className="text-purple-400 font-semibold text-sm">12</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-white/70 text-sm">Last Upload</span>
-                  <span className="text-orange-400 font-semibold">2 min ago</span>
+                  <span className="text-white/70 text-xs">Last Upload</span>
+                  <span className="text-orange-400 font-semibold text-sm">2m ago</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-              <div className="space-y-3">
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4">
+              <h3 className="text-sm font-semibold text-white mb-3">Quick Actions</h3>
+              <div className="space-y-2">
                 {quickActions.map((action, index) => (
                   <button
                     key={index}
                     onClick={action.action}
-                    className="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
+                    className="w-full flex items-center gap-2 p-2 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg text-white transition-colors"
                   >
-                    <action.icon className="w-4 h-4" />
-                    <span className="text-sm">{action.text}</span>
+                    <action.icon className="w-3 h-3" />
+                    <span className="text-xs">{action.text}</span>
                   </button>
                 ))}
               </div>
-            </motion.div>
+            </div>
 
             {/* Upload History */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">Recent Uploads</h3>
-                <History className="w-5 h-5 text-white/60" />
+            <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-white">Recent Uploads</h3>
+                <History className="w-4 h-4 text-white/60" />
               </div>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
                   <div>
-                    <p className="text-white text-sm font-medium">Bank Statement</p>
+                    <p className="text-white text-xs font-medium">Bank Statement</p>
                     <p className="text-white/60 text-xs">Feb 26 • 14 receipts</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-green-400 text-sm font-semibold">97%</p>
-                    <p className="text-white/60 text-xs">accuracy</p>
+                    <p className="text-green-400 text-xs font-semibold">97%</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
                   <div>
-                    <p className="text-white text-sm font-medium">Receipts Batch</p>
+                    <p className="text-white text-xs font-medium">Receipts Batch</p>
                     <p className="text-white/60 text-xs">Feb 25 • 8 receipts</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-green-400 text-sm font-semibold">94%</p>
-                    <p className="text-white/60 text-xs">accuracy</p>
+                    <p className="text-green-400 text-xs font-semibold">94%</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                <div className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
                   <div>
-                    <p className="text-white text-sm font-medium">CSV Import</p>
+                    <p className="text-white text-xs font-medium">CSV Import</p>
                     <p className="text-white/60 text-xs">Feb 24 • 23 transactions</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-green-400 text-sm font-semibold">99%</p>
-                    <p className="text-white/60 text-xs">accuracy</p>
+                    <p className="text-green-400 text-xs font-semibold">99%</p>
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </div>
+            </div>
+          </motion.div>
         </div>
       </div>
     </div>
