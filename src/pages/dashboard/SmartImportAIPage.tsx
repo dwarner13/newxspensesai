@@ -141,13 +141,70 @@ export default function SmartImportAIPage() {
     }
   };
 
-  const generateByteResponse = async (userQuery: string): Promise<string> => {
-    // Simulate AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    const generateByteResponse = async (userQuery: string): Promise<string> => {
+    try {
+      // Use OpenAI API for intelligent responses
+      const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+      
+      if (!OPENAI_API_KEY) {
+        // Fallback to basic responses if no API key
+        return generateFallbackResponse(userQuery);
+      }
 
+      const systemPrompt = `You are Byte, an AI Smart Import Assistant for financial documents. You help users upload, process, and organize their financial data including receipts, bank statements, and invoices.
+
+Your personality:
+- Helpful and efficient
+- Technical but friendly
+- Focused on document processing and financial data organization
+- Use emojis occasionally but not excessively
+- Keep responses concise but informative
+
+Your capabilities:
+- Receipt scanning and processing
+- Bank statement imports
+- Transaction categorization
+- Data extraction from financial documents
+- Duplicate detection
+- File format support (JPG, PNG, PDF, CSV, XLSX, HEIC)
+- Smart categorization based on user patterns
+
+Always provide actionable advice and be specific about how you can help with their financial document processing needs.`;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userQuery }
+          ],
+          temperature: 0.7,
+          max_tokens: 300
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0]?.message?.content || generateFallbackResponse(userQuery);
+
+    } catch (error) {
+      console.error('Error generating Byte response:', error);
+      return generateFallbackResponse(userQuery);
+    }
+  };
+
+  const generateFallbackResponse = (userQuery: string): string => {
     const query = userQuery.toLowerCase();
-    
-    // Byte's specialized responses for import-related queries
+
+    // Enhanced fallback responses
     if (query.includes('receipt') || query.includes('upload') || query.includes('scan')) {
       return `📄 Great! I can help you upload receipts. Here's how it works:
 
@@ -157,7 +214,7 @@ export default function SmartImportAIPage() {
 
 Would you like to upload a receipt now? I can guide you through the process step by step!`;
     }
-    
+
     if (query.includes('bank statement') || query.includes('csv') || query.includes('statement')) {
       return `🏦 Perfect! Bank statement imports are my specialty. Here's what I can do:
 
@@ -168,7 +225,7 @@ Would you like to upload a receipt now? I can guide you through the process step
 
 What bank do you use? I can provide specific instructions for your bank's format.`;
     }
-    
+
     if (query.includes('categorize') || query.includes('category') || query.includes('organize')) {
       return `🏷️ I love helping with categorization! Here's how my AI works:
 
@@ -179,7 +236,7 @@ What bank do you use? I can provide specific instructions for your bank's format
 
 Would you like me to show you your current categories or help set up custom rules?`;
     }
-    
+
     if (query.includes('help') || query.includes('how') || query.includes('what')) {
       return `🤖 I'm Byte, your Smart Import AI! Here's what I can help you with:
 
@@ -191,7 +248,7 @@ Would you like me to show you your current categories or help set up custom rule
 
 What would you like to work on today? I'm here to make your financial data import process smooth and efficient!`;
     }
-    
+
     if (query.includes('format') || query.includes('supported') || query.includes('file type')) {
       return `📋 Here are the file formats I support:
 
@@ -211,7 +268,7 @@ I'll automatically detect the format and process accordingly. What type of file 
     return `📄 I understand you're asking about "${userQuery}". As your Smart Import AI, I'm here to help with:
 
 • Uploading and processing financial documents
-• Extracting data from receipts and statements  
+• Extracting data from receipts and statements
 • Organizing and categorizing transactions
 • Setting up import workflows
 
@@ -467,6 +524,13 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                   className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-blue-500 text-xs"
                   disabled={isLoading}
                 />
+                <button
+                  onClick={handleFileUpload}
+                  className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-3 py-2 transition-colors"
+                  title="Upload files"
+                >
+                  <UploadCloud className="w-3 h-3" />
+                </button>
                 <button
                   onClick={() => sendMessage(input)}
                   disabled={isLoading || !input.trim()}
