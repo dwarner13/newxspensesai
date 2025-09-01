@@ -81,6 +81,13 @@ Special Instructions:
        - Saving strategies, emergency funds → Finley
        - Retirement planning, financial goals → Finley
 
+       Goalie-Specific Routing: // Added
+       - Goal setting, target planning → Goalie
+       - Progress tracking, milestones → Goalie
+       - Motivation, accountability → Goalie
+       - Timeline planning, deadlines → Goalie
+       - Goal achievement strategies → Goalie
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags

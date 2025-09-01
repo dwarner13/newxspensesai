@@ -24,7 +24,7 @@ import EnhancedDashboardDemo from './components/EnhancedDashboardDemo';
 const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
 const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
 const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
-const AIGoalConcierge = lazy(() => import('./pages/dashboard/AIGoalConcierge'));
+const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 const SpendingPredictionsPage = lazy(() => import('./pages/dashboard/SpendingPredictionsPage'));
 const AICategorizationPage = lazy(() => import('./pages/dashboard/AICategorizationPage'));
 const BillRemindersPage = lazy(() => import('./pages/dashboard/BillRemindersPage'));
@@ -220,7 +220,7 @@ function App() {
                       <Route path="enhanced-demo" element={<EnhancedDashboardDemo />} />
                       <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
                       <Route path="smart-import-ai" element={<SmartImportAIPage />} />
-                      <Route path="goal-concierge" element={<AIGoalConcierge />} />
+                      <Route path="goal-concierge" element={<GoalConciergePage />} />
                       <Route path="spending-predictions" element={<SpendingPredictionsPage />} />
                       <Route path="ai-categorization" element={<AICategorizationPage />} />
                       <Route path="bill-reminders" element={<BillRemindersPage />} />
