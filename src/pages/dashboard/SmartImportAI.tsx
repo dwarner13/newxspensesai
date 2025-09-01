@@ -28,7 +28,7 @@ interface ByteMessage {
   };
 }
 
-export default function SmartImportAIPage() {
+export default function SmartImportAI() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ByteMessage[]>([
     {
@@ -412,4 +412,4 @@ Could you tell me more specifically what you'd like to import or process? I'm re
       </div>
     </div>
   );
-} 
+}
