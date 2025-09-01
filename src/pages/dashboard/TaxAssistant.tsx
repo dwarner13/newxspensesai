@@ -1,669 +1,935 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Upload, FileText, Calculator, Download, AlertTriangle, 
-  CheckCircle, Clock, Receipt,
-  TrendingUp, Send, Bot, FileSpreadsheet, HelpCircle,
-  ExternalLink, ChevronRight, X, BarChart3
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-
+import { 
+  Calculator, 
+  FileText, 
+  Receipt, 
+  Send, 
+  Loader2,
+  DollarSign,
+  Calendar,
+  CheckCircle,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Clock,
+  Users,
+  Building,
+  Home,
+  Car,
+  GraduationCap,
+  Heart,
+  Briefcase,
+  Plane,
+  Coffee,
+  Wifi,
+  Phone,
+  BookOpen,
+  Lightbulb,
+  Shield,
+  Target,
+  BarChart3,
+  Activity,
+  Eye,
+  Zap
+} from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+  getEmployeeConfig,
+  getConversation,
+  saveConversation,
+  addMessageToConversation,
+  incrementConversationCount,
+  logAIInteraction,
+  generateConversationId,
+  createSystemMessage,
+  createUserMessage,
+  createAssistantMessage
+} from '../../lib/ai-employees';
+import { AIConversationMessage } from '../../types/ai-employees.types';
 
-interface TaxTask {
-  id: string;
-  title: string;
-  description: string;
-  completed: boolean;
-  priority: 'high' | 'medium' | 'low';
-  dueDate?: string;
-}
-
-interface ChatMessage {
-  id: string;
-  type: 'user' | 'ai';
-  message: string;
+interface LedgerMessage {
+  role: 'user' | 'ledger' | 'system';
+  content: string;
   timestamp: string;
+  metadata?: {
+    processing_time_ms?: number;
+    tokens_used?: number;
+    model_used?: string;
+  };
 }
 
-interface UploadedFile {
-  id: string;
-  name: string;
-  type: 'receipt' | 'invoice' | 'statement';
-  uploadedAt: string;
-  matched: boolean;
-  category?: string;
-  amount?: number;
-}
-
-interface ExpenseCategory {
-  name: string;
-  amount: number;
-  percentage: number;
-  businessUse?: number;
-}
-
-const TaxAssistant = () => {
-  const [taxProgress, setTaxProgress] = useState(65);
-  const [nextDeadline, setNextDeadline] = useState('March 1 (CRA)');
-  const [chatMessage, setChatMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+export default function TaxAssistant() {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<LedgerMessage[]>([
     {
-      id: '1',
-      type: 'ai',
-      message: "Hello! I'm your TaxBot assistant. I can help you with tax questions, deductions, and organizing your freelancer taxes. What would you like to know?",
+      role: 'ledger',
+      content: "Hello! I'm 📊 Ledger, your Tax Assistant AI! I help you navigate tax preparation, maximize deductions, ensure compliance, and optimize your tax strategy. I can help you understand tax laws, identify deductions, organize records, plan for tax season, and ensure you're getting the most from your tax returns. What tax-related question or task would you like to explore today?",
       timestamp: new Date().toISOString()
     }
   ]);
+  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [dragOver, setDragOver] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [conversationId, setConversationId] = useState('');
+  const [ledgerConfig, setLedgerConfig] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Ensure page starts at the top
+  // Initialize conversation and load Ledger's config
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, []);
+    const initializeLedger = async () => {
+      if (!user?.id) return;
 
-  // Mock data - replace with real data from your app
-  const taxTasks: TaxTask[] = [
-    {
-      id: '1',
-      title: 'Upload Q4 Income Documents',
-      description: 'Upload all income statements from October to December',
-      completed: true,
-      priority: 'high',
-      dueDate: '2024-01-15'
-    },
-    {
-      id: '2',
-      title: 'Categorize Business Expenses',
-      description: 'Review and categorize all business-related expenses',
-      completed: true,
-      priority: 'high',
-      dueDate: '2024-01-20'
-    },
-    {
-      id: '3',
-      title: 'Match Receipts to Transactions',
-      description: 'Link receipts to corresponding bank transactions',
-      completed: false,
-      priority: 'medium',
-      dueDate: '2024-01-25'
-    },
-    {
-      id: '4',
-      title: 'Calculate Home Office Deduction',
-      description: 'Measure workspace and calculate business use percentage',
-      completed: false,
-      priority: 'medium',
-      dueDate: '2024-01-30'
-    },
-    {
-      id: '5',
-      title: 'Review Vehicle Expenses',
-      description: 'Separate personal and business vehicle usage',
-      completed: false,
-      priority: 'low',
-      dueDate: '2024-02-05'
-    }
-  ];
+      const newConversationId = generateConversationId();
+      setConversationId(newConversationId);
 
-  const expenseCategories: ExpenseCategory[] = [
-    { name: 'Office Supplies', amount: 1250, percentage: 15, businessUse: 100 },
-    { name: 'Software Subscriptions', amount: 890, percentage: 11, businessUse: 100 },
-    { name: 'Travel & Meals', amount: 2100, percentage: 25, businessUse: 85 },
-    { name: 'Vehicle Expenses', amount: 1800, percentage: 22, businessUse: 60 },
-    { name: 'Home Office', amount: 1200, percentage: 14, businessUse: 25 },
-    { name: 'Professional Development', amount: 950, percentage: 11, businessUse: 100 },
-    { name: 'Other', amount: 200, percentage: 2, businessUse: 50 }
-  ];
+      // Load Ledger's configuration
+      const config = await getEmployeeConfig('ledger');
+      setLedgerConfig(config);
 
-  const totalIncome = 45000;
-  const totalExpenses = 8190;
-  const netIncome = totalIncome - totalExpenses;
+      // Load existing conversation if any
+      const existingConversation = await getConversation(user.id, 'ledger', newConversationId);
+      if (existingConversation && existingConversation.messages.length > 0) {
+        setMessages(existingConversation.messages as LedgerMessage[]);
+      }
+    };
 
-  const handleSendMessage = async () => {
-    if (!chatMessage.trim()) return;
+    initializeLedger();
+  }, [user?.id]);
 
-    const userMessage = chatMessage;
-    setChatMessage('');
-    setChatHistory(prev => [...prev, { 
-      id: Date.now().toString(),
-      type: 'user', 
-      message: userMessage,
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = async (content: string) => {
+    if (!content.trim() || !user?.id || isLoading) return;
+
+    const userMessage: LedgerMessage = {
+      role: 'user',
+      content: content.trim(),
       timestamp: new Date().toISOString()
-    }]);
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = generateTaxResponse(userMessage);
-      setChatHistory(prev => [...prev, { 
-        id: (Date.now() + 1).toString(),
-        type: 'ai', 
-        message: aiResponse,
+    try {
+      // Save user message to conversation
+      await addMessageToConversation(user.id, 'ledger', conversationId, userMessage as AIConversationMessage);
+
+      // Log the interaction
+      await logAIInteraction(user.id, 'ledger', 'chat', content);
+
+      // Simulate AI response (in real implementation, this would call OpenAI)
+      const startTime = Date.now();
+
+      // Create Ledger's response based on the user's query
+      const ledgerResponse = await generateLedgerResponse(content);
+
+      const processingTime = Date.now() - startTime;
+
+      const ledgerMessage: LedgerMessage = {
+        role: 'ledger',
+        content: ledgerResponse,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          processing_time_ms: processingTime,
+          model_used: 'gpt-4'
+        }
+      };
+
+      setMessages(prev => [...prev, ledgerMessage]);
+
+      // Save Ledger's response to conversation
+      await addMessageToConversation(user.id, 'ledger', conversationId, ledgerMessage as AIConversationMessage);
+
+      // Increment conversation count
+      await incrementConversationCount(user.id, 'ledger');
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage: LedgerMessage = {
+        role: 'ledger',
+        content: "I'm having trouble processing your request right now. Please try again in a moment.",
         timestamp: new Date().toISOString()
-      }]);
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
-  };
-
-  const generateTaxResponse = (message: string): string => {
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('phone') || lowerMessage.includes('bill')) {
-      return "Yes, you can deduct your phone bill if you use it for business purposes. You'll need to determine the business use percentage. For example, if you use your phone 60% for business, you can deduct 60% of your phone bill. Keep detailed records of your business vs personal usage.";
-    }
-    
-    if (lowerMessage.includes('stripe') || lowerMessage.includes('income')) {
-      return "Stripe income should be reported as business income on your T2125 (Canada) or Schedule C (US). Make sure to include all Stripe fees as business expenses. You'll need to provide your Stripe 1099-K form to your accountant.";
-    }
-    
-    if (lowerMessage.includes('home office') || lowerMessage.includes('deduction')) {
-      return "Home office deductions require a dedicated workspace used exclusively for business. You can deduct a portion of rent/mortgage, utilities, and maintenance based on the square footage percentage. Keep photos and measurements of your workspace.";
-    }
-    
-    if (lowerMessage.includes('vehicle') || lowerMessage.includes('car')) {
-      return "Vehicle expenses can be deducted based on business use percentage. You can use either the standard mileage rate or actual expenses method. Keep a detailed log of all business trips including date, destination, and purpose.";
-    }
-    
-    if (lowerMessage.includes('deadline') || lowerMessage.includes('due')) {
-      return "For 2023 taxes: CRA deadline is April 30, 2024 (or June 15 if you're self-employed). IRS deadline is April 15, 2024. Make sure to file on time to avoid penalties and interest.";
-    }
-    
-    return "I can help you with tax deductions, income reporting, deadlines, and organizing your freelancer taxes. What specific question do you have about your tax situation?";
-  };
-
-  const handleFileUpload = (files: FileList | null) => {
-    if (!files) return;
-    
-    const newFiles: UploadedFile[] = Array.from(files).map((file, index) => ({
-      id: Date.now().toString() + index,
-      name: file.name,
-      type: 'receipt',
-      uploadedAt: new Date().toISOString(),
-      matched: false
-    }));
-    
-    setUploadedFiles(prev => [...prev, ...newFiles]);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    handleFileUpload(e.dataTransfer.files);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    // Only scroll to bottom if there are chat messages and it's not the initial load
-    if (chatHistory.length > 1) {
-      scrollToBottom();
-    }
-  }, [chatHistory]);
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'text-red-400';
-      case 'medium': return 'text-yellow-400';
-      case 'low': return 'text-green-400';
-      default: return 'text-gray-400';
     }
   };
 
-  const getPriorityIcon = (priority: string) => {
-    switch (priority) {
-      case 'high': return <AlertTriangle size={16} />;
-      case 'medium': return <Clock size={16} />;
-      case 'low': return <CheckCircle size={16} />;
-      default: return <CheckCircle size={16} />;
+  const generateLedgerResponse = async (userQuery: string): Promise<string> => {
+    // Simulate AI processing delay
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+    const query = userQuery.toLowerCase();
+
+    // Ledger's specialized responses for tax-related queries
+    if (query.includes('deduction') || query.includes('deduct') || query.includes('expense') || query.includes('write-off')) {
+      return `📊 Excellent! Let's explore tax deductions and write-offs to maximize your tax savings. Here's my comprehensive approach to deductions:
+
+**Tax Deduction Framework:**
+
+**1. Business Deductions:**
+• **Home Office** - Deduct portion of rent/mortgage, utilities, internet for workspace
+• **Vehicle Expenses** - Mileage or actual expenses for business use
+• **Equipment & Supplies** - Computers, software, office supplies, furniture
+• **Professional Development** - Courses, certifications, conferences, books
+• **Marketing & Advertising** - Website costs, business cards, promotional materials
+• **Insurance** - Business liability, professional liability, health insurance
+• **Travel & Meals** - Business trips, client meals (50% deductible)
+• **Professional Services** - Legal, accounting, consulting fees
+
+**2. Employment Deductions:**
+• **Unreimbursed Expenses** - Work-related costs not covered by employer
+• **Professional Dues** - Union fees, professional association memberships
+• **Work-Related Education** - Courses that maintain or improve job skills
+• **Tools & Equipment** - Required tools and equipment for your job
+• **Uniforms & Work Clothes** - Specialized clothing required for work
+• **Travel Expenses** - Business travel not reimbursed by employer
+• **Home Office** - If required by employer and not provided workspace
+
+**3. Investment Deductions:**
+• **Investment Interest** - Interest on loans used for investments
+• **Investment Advisory Fees** - Fees paid to financial advisors
+• **Safe Deposit Box** - Rental fees for storing investment documents
+• **Tax Preparation** - Costs for tax preparation and filing
+• **Legal Fees** - Fees related to producing or collecting taxable income
+• **IRA Custodial Fees** - Fees paid from IRA accounts
+
+**4. Education Deductions:**
+• **Student Loan Interest** - Up to $2,500 in interest payments
+• **Tuition & Fees** - Qualified education expenses
+• **Lifetime Learning Credit** - 20% of first $10,000 in qualified expenses
+• **American Opportunity Credit** - Up to $2,500 for first 4 years of college
+• **Education Savings Accounts** - Contributions to 529 plans (state tax benefits)
+
+**5. Health & Medical Deductions:**
+• **Medical Expenses** - Costs exceeding 7.5% of adjusted gross income
+• **Health Savings Account** - Contributions to HSA accounts
+• **Long-term Care Insurance** - Premiums for qualified policies
+• **Prescription Drugs** - Medications and medical supplies
+• **Dental & Vision** - Expenses not covered by insurance
+• **Mental Health** - Therapy, counseling, psychiatric care
+
+**6. Charitable Deductions:**
+• **Cash Donations** - Monetary gifts to qualified organizations
+• **Property Donations** - Clothing, furniture, vehicles, stocks
+• **Volunteer Expenses** - Mileage, supplies, uniforms for volunteer work
+• **Fundraising Events** - Costs for organizing charitable events
+• **Gift Donations** - Gifts to qualified charitable organizations
+
+**7. Homeowner Deductions:**
+• **Mortgage Interest** - Interest on primary and secondary homes
+• **Property Taxes** - State and local property taxes
+• **Home Office** - Business use of home (if self-employed)
+• **Home Improvements** - Medical necessity improvements
+• **Energy Efficiency** - Credits for energy-efficient improvements
+• **Moving Expenses** - Relocation costs for job-related moves
+
+**8. Record-Keeping Requirements:**
+• **Receipts** - Keep all receipts for deductible expenses
+• **Documentation** - Maintain detailed records of business use
+• **Mileage Logs** - Track business miles with dates and purposes
+• **Time Logs** - Record time spent on business activities
+• **Bank Statements** - Maintain separate business accounts
+• **Credit Card Statements** - Use dedicated cards for business expenses
+
+**Pro Tips:**
+• **Keep Detailed Records** - Document everything with receipts and logs
+• **Separate Business & Personal** - Use separate accounts and credit cards
+• **Understand Limits** - Know deduction limits and phase-out thresholds
+• **Consult Professionals** - Get advice from tax professionals for complex situations
+• **Stay Updated** - Tax laws change annually, stay informed
+• **Plan Ahead** - Organize records throughout the year, not just at tax time
+
+What specific type of deduction would you like to explore?`;
     }
+
+    if (query.includes('tax') || query.includes('return') || query.includes('filing') || query.includes('preparation')) {
+      return `📋 Perfect! Let's navigate the tax preparation and filing process to ensure you're maximizing your refund and staying compliant. Here's my comprehensive approach to tax preparation:
+
+**Tax Preparation Framework:**
+
+**1. Pre-Filing Organization:**
+• **Gather Documents** - W-2s, 1099s, receipts, bank statements, investment records
+• **Organize Records** - Sort documents by category (income, deductions, credits)
+• **Review Previous Returns** - Check last year's return for carryover items
+• **Update Personal Info** - Address, dependents, filing status changes
+• **Calculate Estimated Tax** - Determine if you need to make estimated payments
+• **Choose Filing Method** - DIY software, professional preparer, or accountant
+
+**2. Income Documentation:**
+• **Employment Income** - W-2 forms from all employers
+• **Self-Employment** - 1099-NEC forms and business records
+• **Investment Income** - 1099-DIV, 1099-INT, 1099-B forms
+• **Retirement Distributions** - 1099-R forms from IRAs and pensions
+• **Social Security** - SSA-1099 for Social Security benefits
+• **Other Income** - Alimony, gambling winnings, prizes, awards
+
+**3. Deduction Documentation:**
+• **Business Expenses** - Receipts, mileage logs, home office calculations
+• **Medical Expenses** - Bills, insurance statements, prescription receipts
+• **Charitable Contributions** - Receipts, acknowledgment letters, donation records
+• **Education Expenses** - Tuition statements, student loan interest, 1098-T
+• **Homeowner Expenses** - Mortgage interest, property taxes, home office
+• **Investment Expenses** - Advisory fees, safe deposit box, investment interest
+
+**4. Filing Status Options:**
+• **Single** - Unmarried or legally separated
+• **Married Filing Jointly** - Married couples filing together
+• **Married Filing Separately** - Married couples filing separately
+• **Head of Household** - Unmarried with qualifying dependents
+• **Qualifying Widow(er)** - Spouse died within last 2 years with dependents
+
+**5. Tax Credits vs. Deductions:**
+• **Tax Credits** - Direct reduction of tax owed (more valuable)
+  - Child Tax Credit, Earned Income Credit, Education Credits
+  - American Opportunity Credit, Lifetime Learning Credit
+  - Child and Dependent Care Credit, Adoption Credit
+• **Tax Deductions** - Reduction of taxable income
+  - Standard deduction vs. itemized deductions
+  - Above-the-line deductions (adjustments to income)
+  - Below-the-line deductions (itemized deductions)
+
+**6. Filing Options:**
+• **Electronic Filing (e-file)** - Fastest processing, automatic error checking
+• **Paper Filing** - Traditional method, longer processing time
+• **Free File** - Free software for eligible taxpayers
+• **Professional Preparation** - CPA, enrolled agent, or tax preparer
+• **DIY Software** - TurboTax, H&R Block, TaxAct, etc.
+
+**7. Important Deadlines:**
+• **April 15** - Individual tax return due date (or next business day)
+• **October 15** - Extended filing deadline (if extension requested)
+• **Quarterly Payments** - Estimated tax payments for self-employed
+• **State Deadlines** - Vary by state, often same as federal
+• **Extension Requests** - File Form 4868 by April 15 for 6-month extension
+
+**8. Common Filing Mistakes:**
+• **Missing Income** - Forgetting to report all income sources
+• **Incorrect Filing Status** - Choosing wrong status affects tax calculation
+• **Math Errors** - Simple calculation mistakes
+• **Missing Deductions** - Not claiming eligible deductions and credits
+• **Incorrect Bank Info** - Wrong account numbers for direct deposit
+• **Missing Signatures** - Forgetting to sign the return
+
+**Pro Tips:**
+• **Start Early** - Don't wait until the last minute
+• **Use Software** - Tax software catches many common errors
+• **Double-Check Everything** - Review all numbers and information
+• **Keep Copies** - Maintain copies of your return and supporting documents
+• **File Electronically** - Faster processing and fewer errors
+• **Consider Professional Help** - Complex situations may require expert assistance
+
+What specific aspect of tax preparation would you like to explore?`;
+    }
+
+    if (query.includes('compliance') || query.includes('law') || query.includes('regulation') || query.includes('audit')) {
+      return `🛡️ Excellent! Let's ensure you're fully compliant with tax laws and regulations to avoid penalties and audits. Here's my comprehensive approach to tax compliance:
+
+**Tax Compliance Framework:**
+
+**1. Filing Requirements:**
+• **Income Thresholds** - Know when you must file based on income and filing status
+• **Age Requirements** - Special rules for dependents and seniors
+• **Dependent Status** - Rules for claiming and being claimed as dependent
+• **Foreign Income** - Requirements for reporting foreign accounts and income
+• **Self-Employment** - Special filing requirements for business owners
+• **Multiple States** - Filing requirements when living or working in multiple states
+
+**2. Record-Keeping Requirements:**
+• **Income Records** - Keep W-2s, 1099s, and other income documents for 3-7 years
+• **Deduction Records** - Maintain receipts and documentation for all deductions
+• **Business Records** - Separate business and personal expenses with detailed logs
+• **Investment Records** - Track cost basis, sales, and reinvestments
+• **Property Records** - Maintain records of home improvements and property transactions
+• **Digital Records** - Scan and backup important documents electronically
+
+**3. Audit Triggers & Prevention:**
+• **High Deductions** - Unusually high deductions relative to income
+• **Business Losses** - Consistent business losses may trigger scrutiny
+• **Cash Transactions** - Large cash transactions without proper documentation
+• **Home Office** - Excessive home office deductions without proper documentation
+• **Charitable Donations** - Large donations without proper substantiation
+• **Foreign Accounts** - Failure to report foreign financial accounts
+
+**4. Tax Law Updates:**
+• **Annual Changes** - Stay informed about annual tax law changes
+• **Legislation Updates** - Monitor new tax legislation and its impact
+• **IRS Guidance** - Follow IRS notices and guidance documents
+• **Court Decisions** - Understand how court cases affect tax interpretation
+• **State Changes** - Monitor state and local tax law changes
+• **International Updates** - Stay current on international tax developments
+
+**5. Compliance Best Practices:**
+• **Accurate Reporting** - Report all income and claim only legitimate deductions
+• **Proper Documentation** - Maintain detailed records for all transactions
+• **Timely Filing** - File returns and pay taxes by due dates
+• **Honest Communication** - Be truthful in all communications with tax authorities
+• **Professional Consultation** - Seek professional advice for complex situations
+• **Regular Review** - Periodically review tax situation for compliance issues
+
+**6. Common Compliance Issues:**
+• **Underreporting Income** - Failing to report all income sources
+• **Overstating Deductions** - Claiming deductions without proper documentation
+• **Filing Status Errors** - Incorrect filing status affects tax calculation
+• **Dependent Issues** - Incorrectly claiming or failing to claim dependents
+• **Business vs. Hobby** - Distinguishing between business and hobby activities
+• **Foreign Account Reporting** - Failing to report foreign financial accounts
+
+**7. Audit Preparation:**
+• **Organize Records** - Have all documentation readily available
+• **Understand Process** - Know what to expect during an audit
+• **Professional Representation** - Consider hiring a tax professional
+• **Respond Promptly** - Respond to IRS requests within specified timeframes
+• **Be Cooperative** - Provide requested information and documentation
+• **Know Your Rights** - Understand your rights during the audit process
+
+**8. Penalty Avoidance:**
+• **Timely Filing** - File returns by due date to avoid late filing penalties
+• **Accurate Payment** - Pay correct amount by due date to avoid late payment penalties
+• **Estimated Payments** - Make required estimated tax payments
+• **Extension Requests** - File for extension if you can't meet deadline
+• **Payment Plans** - Set up payment plan if you can't pay full amount
+• **Reasonable Cause** - Document reasonable cause for late filing or payment
+
+**9. State & Local Compliance:**
+• **State Filing Requirements** - Understand state-specific filing requirements
+• **Local Taxes** - Be aware of city and county tax obligations
+• **Multi-State Filing** - Handle filing requirements when working in multiple states
+• **State Credits** - Take advantage of state-specific tax credits
+• **Local Deductions** - Understand local tax deduction opportunities
+• **Compliance Deadlines** - Meet state and local filing deadlines
+
+**Pro Tips:**
+• **Stay Informed** - Keep up with tax law changes and updates
+• **Document Everything** - Maintain detailed records for all transactions
+• **Be Conservative** - When in doubt, be conservative in claiming deductions
+• **Seek Professional Help** - Complex situations require expert assistance
+• **Plan Ahead** - Proactive planning helps avoid compliance issues
+• **Regular Review** - Periodically review your tax situation for compliance
+
+What specific aspect of tax compliance would you like to explore?`;
+    }
+
+    if (query.includes('optimization') || query.includes('strategy') || query.includes('planning') || query.includes('minimize')) {
+      return `🎯 Perfect! Let's develop a comprehensive tax optimization strategy to minimize your tax burden and maximize your savings. Here's my approach to tax optimization:
+
+**Tax Optimization Framework:**
+
+**1. Income Timing Strategies:**
+• **Defer Income** - Delay income to future years when tax rates may be lower
+• **Accelerate Deductions** - Take deductions in current year when tax rates are higher
+• **Bunch Deductions** - Group deductions in alternating years to exceed standard deduction
+• **Roth Conversions** - Convert traditional IRA to Roth when tax rates are low
+• **Capital Gains Timing** - Sell investments strategically to manage capital gains
+• **Business Income** - Time business income and expenses for optimal tax impact
+
+**2. Investment Tax Optimization:**
+• **Tax-Loss Harvesting** - Sell losing investments to offset gains
+• **Asset Location** - Place investments in appropriate account types (taxable vs. tax-advantaged)
+• **Dividend Timing** - Consider timing of dividend payments
+• **Municipal Bonds** - Use tax-free municipal bonds for taxable accounts
+• **Index Funds** - Use low-turnover index funds to minimize capital gains
+• **Tax-Efficient Funds** - Choose funds designed for tax efficiency
+
+**3. Retirement Account Optimization:**
+• **Traditional vs. Roth** - Choose based on current vs. future tax rates
+• **Contribution Timing** - Maximize contributions early in year for longer tax-free growth
+• **Required Distributions** - Plan RMDs to minimize tax impact
+• **Roth Conversions** - Strategic conversions during low-income years
+• **Backdoor Roth** - High-income earners can still access Roth benefits
+• **Employer Match** - Maximize employer contributions to retirement plans
+
+**4. Business Tax Optimization:**
+• **Entity Structure** - Choose optimal business structure (LLC, S-Corp, C-Corp)
+• **Expense Timing** - Accelerate or defer business expenses strategically
+• **Equipment Purchases** - Use Section 179 and bonus depreciation
+• **Home Office** - Maximize legitimate home office deductions
+• **Vehicle Deductions** - Choose between mileage and actual expense methods
+• **Retirement Plans** - Establish and maximize business retirement plans
+
+**5. Family Tax Optimization:**
+• **Dependent Planning** - Optimize dependent claims and exemptions
+• **Education Funding** - Use 529 plans and education savings accounts
+• **Gift Tax Strategies** - Annual exclusion gifts and lifetime exemption planning
+• **Estate Planning** - Minimize estate and gift taxes through proper planning
+• **Family Business** - Transfer business interests to family members strategically
+• **Healthcare Savings** - Maximize HSA contributions and usage
+
+**6. Deduction Optimization:**
+• **Itemized vs. Standard** - Choose optimal deduction method each year
+• **Charitable Giving** - Use donor-advised funds and appreciated securities
+• **Medical Expenses** - Bunch medical expenses to exceed 7.5% threshold
+• **State & Local Taxes** - Optimize SALT deduction usage
+• **Home Mortgage** - Optimize mortgage interest deductions
+• **Business Deductions** - Maximize legitimate business expense deductions
+
+**7. Tax Credit Optimization:**
+• **Child Tax Credit** - Maximize child and dependent care credits
+• **Education Credits** - Use American Opportunity and Lifetime Learning credits
+• **Earned Income Credit** - Qualify for EITC if eligible
+• **Saver's Credit** - Get credit for retirement contributions
+• **Energy Credits** - Take advantage of energy efficiency credits
+• **Adoption Credit** - Claim adoption-related expenses
+
+**8. Year-Round Planning:**
+• **Quarterly Reviews** - Review tax situation quarterly
+• **Estimated Payments** - Optimize estimated tax payments
+• **Withholding Adjustments** - Adjust W-4 withholding for optimal cash flow
+• **Documentation** - Maintain organized records throughout year
+• **Professional Consultation** - Regular meetings with tax advisor
+• **Legislation Monitoring** - Stay informed about tax law changes
+
+**9. Long-Term Strategies:**
+• **Tax Bracket Planning** - Plan for current and future tax brackets
+• **Retirement Planning** - Optimize retirement account strategies
+• **Estate Planning** - Minimize estate and inheritance taxes
+• **Business Succession** - Plan for business transfer and tax implications
+• **Investment Planning** - Develop tax-efficient investment strategies
+• **Insurance Planning** - Use life insurance for tax-advantaged wealth transfer
+
+**Pro Tips:**
+• **Start Early** - Tax optimization requires year-round planning
+• **Think Long-Term** - Consider multi-year strategies, not just current year
+• **Stay Flexible** - Be ready to adjust strategies based on changing circumstances
+• **Document Everything** - Maintain detailed records for all optimization strategies
+• **Seek Professional Help** - Complex strategies require expert guidance
+• **Monitor Changes** - Stay informed about tax law changes that affect your strategy
+
+What specific aspect of tax optimization would you like to explore?`;
+    }
+
+    if (query.includes('record') || query.includes('organize') || query.includes('document') || query.includes('receipt')) {
+      return `📁 Excellent! Let's create a comprehensive record-keeping system to ensure you're organized, compliant, and ready for tax season. Here's my approach to financial record organization:
+
+**Record-Keeping Framework:**
+
+**1. Document Categories:**
+• **Income Documents** - W-2s, 1099s, business income, investment income
+• **Expense Receipts** - Business expenses, medical expenses, charitable donations
+• **Investment Records** - Purchase/sale confirmations, dividend statements, cost basis
+• **Property Records** - Home purchase/sale documents, improvement receipts
+• **Tax Returns** - Current and previous year returns with supporting documents
+• **Bank Statements** - Monthly statements for all accounts
+
+**2. Digital Organization System:**
+• **Cloud Storage** - Use secure cloud services for document storage
+• **Folder Structure** - Organize by year, category, and document type
+• **Naming Conventions** - Use consistent file naming for easy searching
+• **Backup Systems** - Multiple backup locations for important documents
+• **Access Control** - Secure access to sensitive financial information
+• **Mobile Access** - Ability to access documents from mobile devices
+
+**3. Physical Organization:**
+• **Filing System** - Use color-coded folders and labels
+• **Storage Location** - Secure, fireproof storage for important documents
+• **Retention Schedule** - Know how long to keep different types of documents
+• **Easy Access** - Organize for quick retrieval when needed
+• **Portable System** - Easy to transport if needed for meetings or audits
+• **Regular Maintenance** - Periodic review and cleanup of old documents
+
+**4. Business Record-Keeping:**
+• **Separate Accounts** - Maintain separate business and personal accounts
+• **Expense Tracking** - Use apps or software to track business expenses
+• **Mileage Logs** - Detailed logs of business travel and vehicle use
+• **Time Tracking** - Record time spent on business activities
+• **Client Records** - Maintain detailed client and project records
+• **Equipment Logs** - Track business equipment purchases and usage
+
+**5. Investment Record-Keeping:**
+• **Purchase Records** - Document all investment purchases with dates and amounts
+• **Sale Records** - Track all sales with proceeds and dates
+• **Dividend Records** - Maintain records of all dividend payments
+• **Reinvestment Records** - Track dividend reinvestments and their cost basis
+• **Account Statements** - Keep monthly or quarterly account statements
+• **Tax Documents** - Maintain all tax-related investment documents
+
+**6. Receipt Management:**
+• **Digital Scanning** - Scan receipts immediately using mobile apps
+• **Categorization** - Organize receipts by expense category
+• **Date Tracking** - Ensure all receipts have clear dates
+• **Purpose Documentation** - Note business purpose on receipts
+• **Backup Copies** - Maintain multiple copies of important receipts
+• **Regular Review** - Periodically review and organize receipts
+
+**7. Retention Guidelines:**
+• **Tax Returns** - Keep for 7 years (statute of limitations)
+• **Supporting Documents** - Keep for 7 years with corresponding returns
+• **Investment Records** - Keep until sold plus 7 years
+• **Property Records** - Keep for entire ownership plus 7 years
+• **Business Records** - Keep for 7 years after business closes
+• **Bank Statements** - Keep for 7 years
+
+**8. Technology Tools:**
+• **Receipt Apps** - Apps for scanning and organizing receipts
+• **Expense Tracking** - Software for tracking business and personal expenses
+• **Document Scanners** - High-quality scanners for important documents
+• **Cloud Services** - Secure cloud storage for document backup
+• **Tax Software** - Software that helps organize tax-related documents
+• **Mobile Apps** - Apps for on-the-go document management
+
+**9. Audit Preparation:**
+• **Complete Documentation** - Ensure all deductions have supporting documentation
+• **Organized Records** - Easy-to-follow organization system
+• **Quick Access** - Ability to quickly locate any requested document
+• **Professional Backup** - Consider professional help for complex situations
+• **Digital Copies** - Maintain digital copies of all important documents
+• **Regular Updates** - Keep records current throughout the year
+
+**Pro Tips:**
+• **Start Early** - Don't wait until tax season to organize records
+• **Be Consistent** - Use consistent organization methods throughout the year
+• **Go Digital** - Convert paper documents to digital format when possible
+• **Regular Maintenance** - Set aside time monthly to organize new documents
+• **Secure Storage** - Use secure, fireproof storage for important documents
+• **Professional Help** - Consider professional organization services for complex situations
+
+What specific aspect of record-keeping would you like to explore?`;
+    }
+
+    if (query.includes('help') || query.includes('advice') || query.includes('guidance') || query.includes('support')) {
+      return `📊 I'm here to help you navigate the complex world of taxes and ensure you're maximizing your savings while staying compliant! Here's how I can support your tax journey:
+
+**My Tax Expertise:**
+📋 **Tax Preparation** - Guide you through the tax filing process
+💰 **Deduction Optimization** - Help you identify and maximize tax deductions
+🛡️ **Compliance Assurance** - Ensure you're following all tax laws and regulations
+📁 **Record Organization** - Help you organize and maintain proper records
+🎯 **Tax Strategy** - Develop optimization strategies to minimize your tax burden
+📈 **Planning & Forecasting** - Plan for current and future tax obligations
+🔍 **Audit Support** - Help you prepare for and navigate tax audits
+📚 **Education & Guidance** - Explain complex tax concepts in simple terms
+
+**How I Can Help:**
+• Guide you through tax preparation and filing processes
+• Identify tax deductions and credits you may be missing
+• Ensure compliance with current tax laws and regulations
+• Help organize and maintain proper financial records
+• Develop tax optimization strategies for your situation
+• Plan for current and future tax obligations
+• Prepare for potential tax audits and examinations
+• Explain complex tax concepts and requirements
+
+**My Approach:**
+I believe everyone deserves to understand their tax obligations and opportunities. I help you navigate the tax system confidently while ensuring you're taking advantage of all available benefits and staying compliant with the law.
+
+**My Promise:**
+I'll help you build a comprehensive tax strategy that maximizes your savings, ensures compliance, and gives you peace of mind throughout the year.
+
+**Pro Tip:** The best tax strategy is one that's planned year-round, not just during tax season!
+
+What specific aspect of tax assistance would you like to explore?`;
+    }
+
+    // Default response for other queries
+    return `📊 I understand you're asking about "${userQuery}". As your Tax Assistant AI, I'm here to help with:
+
+**Tax Topics I Cover:**
+• Tax preparation and filing processes
+• Deduction identification and optimization
+• Tax compliance and legal requirements
+• Record-keeping and documentation
+• Tax strategy and optimization
+• Audit preparation and support
+• Tax planning and forecasting
+• Tax education and guidance
+
+**My Tax Philosophy:**
+Everyone deserves to understand their tax obligations and opportunities. I help you navigate the tax system confidently while ensuring you're taking advantage of all available benefits and staying compliant with the law.
+
+**My Promise:**
+I'll help you build a comprehensive tax strategy that maximizes your savings, ensures compliance, and gives you peace of mind throughout the year.
+
+Could you tell me more specifically what tax topic you'd like to discuss? I'm ready to help you navigate the tax system!`;
   };
+
+  const quickActions = [
+    { icon: Calculator, text: "Find Deductions", action: () => sendMessage("I want to find tax deductions") },
+    { icon: FileText, text: "Tax Preparation", action: () => sendMessage("I want help with tax preparation") },
+    { icon: Shield, text: "Ensure Compliance", action: () => sendMessage("I want to ensure tax compliance") },
+    { icon: Target, text: "Tax Optimization", action: () => sendMessage("I want to optimize my tax strategy") },
+    { icon: Receipt, text: "Organize Records", action: () => sendMessage("I want to organize my tax records") },
+    { icon: BarChart3, text: "Tax Planning", action: () => sendMessage("I want to plan my taxes") }
+  ];
+
+  const taxDeductions = [
+    {
+      category: "Business Expenses",
+      amount: "$12,450",
+      status: "verified",
+      icon: Briefcase
+    },
+    {
+      category: "Home Office",
+      amount: "$3,200",
+      status: "pending",
+      icon: Home
+    },
+    {
+      category: "Vehicle Expenses",
+      amount: "$2,800",
+      status: "verified",
+      icon: Car
+    },
+    {
+      category: "Professional Development",
+      amount: "$1,650",
+      status: "verified",
+      icon: GraduationCap
+    },
+    {
+      category: "Charitable Donations",
+      amount: "$2,100",
+      status: "pending",
+      icon: Heart
+    },
+    {
+      category: "Medical Expenses",
+      amount: "$4,300",
+      status: "verified",
+      icon: Activity
+    }
+  ];
+
+  const ledgerTips = [
+    {
+      icon: Receipt,
+      title: "Keep All Receipts",
+      description: "Document every deductible expense"
+    },
+    {
+      icon: Calendar,
+      title: "File on Time",
+      description: "Avoid penalties and interest charges"
+    },
+    {
+      icon: Shield,
+      title: "Stay Compliant",
+      description: "Follow all tax laws and regulations"
+    },
+    {
+      icon: Target,
+      title: "Plan Year-Round",
+      description: "Don't wait until tax season"
+    }
+  ];
 
   return (
-    <div className="w-full">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-slate-900">
       <DashboardHeader />
 
-      <div className="max-w-7xl mx-auto space-y-8 px-6">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="text-right">
-            <p className="text-white/60 text-sm">Next Deadline</p>
-            <p className="text-white font-semibold">{nextDeadline}</p>
-          </div>
-          <button className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all">
-            <Download size={20} />
-            Export Summary
-          </button>
-        </div>
-
-        <div className="space-y-8">
-          
-          {/* Progress Bar and Next Deadline */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-xl font-bold text-white">Tax Preparation Progress</h3>
-                <p className="text-white/60 text-sm">Track your tax preparation status</p>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold text-white">{taxProgress}%</div>
-                <div className="text-white/60 text-sm">Complete</div>
-              </div>
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Ledger Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-8"
+        >
+          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
+            <div className="text-3xl">📊</div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Ledger</h1>
+              <p className="text-white/70 text-sm">Tax Assistant AI</p>
             </div>
-            
-            <div className="w-full bg-white/20 rounded-full h-3 mb-4">
-              <div 
-                className="bg-gradient-to-r from-green-500 to-blue-600 h-3 rounded-full transition-all duration-500"
-                style={{ width: `${taxProgress}%` }}
-              ></div>
-            </div>
-            
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-white/60">Next Deadline: {nextDeadline}</span>
-              <span className="text-white/60">{taxProgress}/100 tasks completed</span>
+            <div className="flex items-center gap-2 ml-4">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm">AI Active</span>
             </div>
           </div>
+        </motion.div>
 
-          {/* AI Tax Chatbot Panel */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                <Bot size={24} className="text-white" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">Ask TaxBot</h3>
-                <p className="text-white/60 text-sm">Get instant answers to your tax questions</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              {/* Chat History */}
-              <div className="max-h-64 overflow-y-auto space-y-3 bg-black/20 rounded-lg p-4">
-                {chatHistory.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-xs p-3 rounded-lg ${
-                      msg.type === 'user' 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-white/10 text-white'
-                    }`}>
-                      {msg.message}
-                    </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Chat Interface */}
+          <div className="lg:col-span-2">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
+            >
+              {/* Chat Header */}
+              <div className="bg-white/10 px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="text-xl">📊</div>
+                  <div>
+                    <h2 className="font-semibold text-white">Chat with Ledger</h2>
+                    <p className="text-white/60 text-sm">Tax Assistant Specialist</p>
                   </div>
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-white/10 text-white p-3 rounded-lg">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div className="h-96 overflow-y-auto p-4 space-y-4">
+                {messages.map((message, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                      message.role === 'user'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-white/10 text-white border border-white/20'
+                    }`}>
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      <div className="text-xs opacity-60 mt-2">
+                        {new Date(message.timestamp).toLocaleTimeString()}
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
+                ))}
+
+                {isLoading && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex justify-start"
+                  >
+                    <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Ledger is calculating...</span>
+                      </div>
+                    </div>
+                  </motion.div>
                 )}
+
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Chat Input */}
-              <div className="flex space-x-3">
-                <input
-                  type="text"
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  placeholder="Ask about deductions, deadlines, or tax rules..."
-                  className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:border-blue-400"
+              {/* Input Area */}
+              <div className="p-4 border-t border-white/10">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                    placeholder="Ask Ledger about tax deductions, preparation, compliance, optimization, or record-keeping..."
+                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-green-500"
+                    disabled={isLoading}
                   />
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!chatMessage.trim() || isLoading}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-all"
-                >
-                  <Send size={20} />
-                </button>
+                  <button
+                    onClick={() => sendMessage(input)}
+                    disabled={isLoading || !input.trim()}
+                    className="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              
-              {/* Quick Questions */}
-              <div className="flex flex-wrap gap-2">
-                <button 
-                  onClick={() => setChatMessage("Can I deduct my phone bill?")}
-                  className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-sm transition-all"
-                >
-                  Phone bill deduction
-                </button>
-                <button 
-                  onClick={() => setChatMessage("How do I report Stripe income?")}
-                  className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-sm transition-all"
-                >
-                  Stripe income
-                </button>
-                <button 
-                  onClick={() => setChatMessage("What's the home office deduction?")}
-                  className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-sm transition-all"
-                >
-                  Home office
-                </button>
-                <button 
-                  onClick={() => setChatMessage("When are tax deadlines?")}
-                  className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-sm transition-all"
-                >
-                  Tax deadlines
-                </button>
-              </div>
-            </div>
+            </motion.div>
           </div>
 
-          {/* Alerts / To-Do List */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-white">Tax Tasks</h3>
-              <span className="text-white/60 text-sm">{taxTasks.filter(t => !t.completed).length} remaining</span>
-            </div>
-            
-            <div className="space-y-3">
-              {taxTasks.map((task) => (
-                <motion.div
-                  key={task.id}
-                  className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
-                    task.completed 
-                      ? 'bg-green-500/10 border-green-500/20' 
-                      : 'bg-white/5 border-white/10'
-                  }`}
-                  whileHover={{ scale: 1.02 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      task.completed 
-                        ? 'bg-green-500 border-green-500' 
-                        : 'border-white/30'
-                    }`}>
-                      {task.completed && <CheckCircle size={12} className="text-white" />}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-2">
-                        <h4 className={`font-semibold ${task.completed ? 'text-white/60 line-through' : 'text-white'}`}>
-                          {task.title}
-                        </h4>
-                        <span className={getPriorityColor(task.priority)}>
-                          {getPriorityIcon(task.priority)}
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Quick Actions */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Tax Assistant Actions</h3>
+              <div className="grid grid-cols-1 gap-3">
+                {quickActions.map((action, index) => (
+                  <button
+                    key={index}
+                    onClick={action.action}
+                    className="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
+                  >
+                    <action.icon className="w-5 h-5" />
+                    <span className="text-sm">{action.text}</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Tax Deductions */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Your Tax Deductions</h3>
+              <div className="space-y-3">
+                {taxDeductions.map((deduction, index) => (
+                  <div key={index} className="p-3 bg-white/10 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <deduction.icon className="w-4 h-4 text-green-400" />
+                        <span className="text-white text-sm font-medium">{deduction.category}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          deduction.status === 'verified' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                        }`}>
+                          {deduction.status}
                         </span>
                       </div>
-                      <p className={`text-sm ${task.completed ? 'text-white/40' : 'text-white/60'}`}>
-                        {task.description}
-                      </p>
-                      {task.dueDate && (
-                        <p className="text-xs text-white/40 mt-1">
-                          Due: {new Date(task.dueDate).toLocaleDateString()}
-                        </p>
-                      )}
                     </div>
+                    <div className="text-white text-lg font-bold">{deduction.amount}</div>
                   </div>
-                  <button className="text-white/60 hover:text-white transition-colors">
-                    <ChevronRight size={20} />
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-          </div>
+                ))}
+              </div>
+            </motion.div>
 
-          {/* Income & Expense Summary */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Income Summary */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
-                  <TrendingUp size={24} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Income Summary</h3>
-                  <p className="text-white/60 text-sm">Year-to-date earnings</p>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-white/60">Total Income</span>
-                  <span className="text-white font-semibold">${totalIncome.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-white/60">Total Expenses</span>
-                  <span className="text-white font-semibold">${totalExpenses.toLocaleString()}</span>
-                </div>
-                <div className="border-t border-white/20 pt-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-white font-semibold">Net Income</span>
-                    <span className="text-green-400 font-bold text-lg">${netIncome.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Expense Categories */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <BarChart3 size={24} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Expense Categories</h3>
-                  <p className="text-white/60 text-sm">Business expense breakdown</p>
-                </div>
-              </div>
-              
+            {/* Ledger's Tips */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Ledger's Tips</h3>
               <div className="space-y-3">
-                {expenseCategories.map((category) => (
-                  <div key={category.name} className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-white text-sm">{category.name}</span>
-                        <span className="text-white/60 text-xs">{category.percentage}%</span>
-                      </div>
-                      <div className="w-full bg-white/20 rounded-full h-2">
-                        <div 
-                          className="bg-gradient-to-r from-blue-500 to-purple-600 h-2 rounded-full"
-                          style={{ width: `${category.percentage}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-xs text-white/60 mt-1">
-                        <span>${category.amount.toLocaleString()}</span>
-                        {category.businessUse && (
-                          <span>{category.businessUse}% business use</span>
-                        )}
-                      </div>
+                {ledgerTips.map((tip, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 bg-white/10 rounded-lg">
+                    <tip.icon className="w-5 h-5 text-green-400 mt-0.5" />
+                    <div>
+                      <div className="text-white text-sm font-medium">{tip.title}</div>
+                      <div className="text-white/60 text-xs">{tip.description}</div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
+
+            {/* Ledger's Stats */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Ledger's Stats</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Deductions Found</span>
+                  <span className="text-green-400">$26,500</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Tax Savings</span>
+                  <span className="text-blue-400">$6,625</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Compliance Score</span>
+                  <span className="text-purple-400">98.5%</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Records Organized</span>
+                  <span className="text-yellow-400">1,247</span>
+                </div>
+              </div>
+            </motion.div>
           </div>
-
-          {/* Receipt & Document Upload Section */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                <Upload size={24} className="text-white" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">Document Upload</h3>
-                <p className="text-white/60 text-sm">Upload receipts, invoices, and statements</p>
-              </div>
-            </div>
-            
-            <div className="space-y-6">
-              {/* Upload Zone */}
-              <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-all ${
-                  dragOver 
-                    ? 'border-blue-400 bg-blue-500/10' 
-                    : 'border-white/20 hover:border-white/40'
-                }`}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-              >
-                <Upload size={48} className="text-white/60 mx-auto mb-4" />
-                <h4 className="text-white font-semibold mb-2">Drop files here or click to browse</h4>
-                <p className="text-white/60 text-sm mb-4">
-                  Supports PDF, JPG, PNG. Max 10MB per file.
-                </p>
-                <button className="bg-white/20 hover:bg-white/30 text-white px-6 py-2 rounded-lg transition-all">
-                  Browse Files
-                </button>
-              </div>
-
-              {/* Uploaded Files List */}
-              {uploadedFiles.length > 0 && (
-                <div>
-                  <h4 className="text-white font-semibold mb-4">Uploaded Files</h4>
-                  <div className="space-y-2">
-                    {uploadedFiles.map((file) => (
-                      <div key={file.id} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                          <FileText size={20} className="text-white/60" />
-                          <div>
-                            <p className="text-white font-medium">{file.name}</p>
-                            <p className="text-white/60 text-sm">
-                              {new Date(file.uploadedAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            file.matched 
-                              ? 'bg-green-500/20 text-green-400' 
-                              : 'bg-yellow-500/20 text-yellow-400'
-                          }`}>
-                            {file.matched ? 'Matched' : 'Unmatched'}
-                          </span>
-                          <button className="text-white/60 hover:text-white transition-colors">
-                            <X size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Export Section */}
-          <div className="bg-gradient-to-br from-green-600/20 to-blue-600/20 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center">
-                  <FileSpreadsheet size={24} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Export Tax Summary</h3>
-                  <p className="text-white/60 text-sm">Generate reports for your accountant</p>
-                </div>
-              </div>
-              <button className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-all">
-                <Download size={20} />
-                Download Tax Summary
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white/10 rounded-lg p-4">
-                <h4 className="text-white font-semibold mb-2">T2125 (Canada)</h4>
-                <p className="text-white/60 text-sm mb-3">Statement of Business Activities</p>
-                <button className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded text-sm transition-all">
-                  Export PDF
-                </button>
-              </div>
-              
-              <div className="bg-white/10 rounded-lg p-4">
-                <h4 className="text-white font-semibold mb-2">Schedule C (US)</h4>
-                <p className="text-white/60 text-sm mb-3">Profit or Loss From Business</p>
-                <button className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded text-sm transition-all">
-                  Export PDF
-                </button>
-              </div>
-              
-              <div className="bg-white/10 rounded-lg p-4">
-                <h4 className="text-white font-semibold mb-2">CSV Export</h4>
-                <p className="text-white/60 text-sm mb-3">Raw data for spreadsheet</p>
-                <button className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded text-sm transition-all">
-                  Export CSV
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Extra Resources */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center">
-                <HelpCircle size={24} className="text-white" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">Tax Resources</h3>
-                <p className="text-white/60 text-sm">Helpful links and guides</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h4 className="text-white font-semibold">CRA Resources (Canada)</h4>
-                <div className="space-y-2">
-                  <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                    <ExternalLink size={16} />
-                    <span>Freelancer Tax Guide</span>
-                  </a>
-                  <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                    <ExternalLink size={16} />
-                    <span>T2125 Form Instructions</span>
-                  </a>
-                  <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                    <ExternalLink size={16} />
-                    <span>Tax Deadlines Calendar</span>
-                  </a>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <h4 className="text-white font-semibold">IRS Resources (US)</h4>
-                <div className="space-y-2">
-                  <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                    <ExternalLink size={16} />
-                    <span>Self-Employed Tax Guide</span>
-                  </a>
-                  <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                    <ExternalLink size={16} />
-                    <span>Schedule C Instructions</span>
-                  </a>
-                  <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                    <ExternalLink size={16} />
-                    <span>Audit Tips & Best Practices</span>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-
-
         </div>
       </div>
     </div>
   );
-};
-
-export default TaxAssistant; 
+} 

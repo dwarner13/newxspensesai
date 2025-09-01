@@ -151,6 +151,13 @@ Special Instructions:
        - Playlist creation, financial motivation → Wave
        - Music-financial correlation, trends → Wave
 
+       Ledger-Specific Routing: // Added
+       - Tax preparation, deductions, compliance → Ledger
+       - Tax optimization, strategy, planning → Ledger
+       - Record-keeping, documentation, receipts → Ledger
+       - Tax law, regulations, audit support → Ledger
+       - Tax credits, exemptions, filing → Ledger
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
