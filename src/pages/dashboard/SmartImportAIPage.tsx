@@ -100,7 +100,7 @@ Just drag and drop your files or ask me anything!`,
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async (content: string) => {
+    const sendMessage = async (content: string) => {
     if (!content.trim() || !user?.id || isLoading) return;
 
     // Hide welcome message when user starts chatting
@@ -125,29 +125,41 @@ Just drag and drop your files or ask me anything!`,
       // Log the interaction
       await logAIInteraction(user.id, 'byte', 'chat', content);
 
-      // Simulate AI response (in real implementation, this would call OpenAI)
+      // Determine which AI should respond based on the question
+      const query = content.toLowerCase();
+      let respondingAI = 'byte'; // Default to Byte
+      
+      if (query.includes('tag') || query.includes('categor') || query.includes('organize')) {
+        respondingAI = 'tag';
+      } else if (query.includes('ledger') || query.includes('transaction') || query.includes('statement')) {
+        respondingAI = 'ledger';
+      } else if (query.includes('finley') || query.includes('financial') || query.includes('analysis') || query.includes('insight')) {
+        respondingAI = 'finley';
+      }
+
       const startTime = Date.now();
-      
-      // Create Byte's response based on the user's query
-      const byteResponse = await generateByteResponse(content);
-      
+
+      // Generate response from the appropriate AI
+      const aiResponse = await generateAIEmployeeResponse(respondingAI, content);
+
       const processingTime = Date.now() - startTime;
 
-      const byteMessage: ByteMessage = {
-        role: 'byte',
-        content: byteResponse,
+      const aiMessage: ByteMessage = {
+        role: respondingAI as any,
+        content: aiResponse,
         timestamp: new Date().toISOString(),
         metadata: {
           processing_time_ms: processingTime,
-          model_used: 'gpt-3.5-turbo'
+          model_used: 'gpt-4o-mini',
+          ai_employee: respondingAI
         }
       };
 
-      setMessages(prev => [...prev, byteMessage]);
-      
-      // Save Byte's response to conversation
-      await addMessageToConversation(user.id, 'byte', conversationId, byteMessage as AIConversationMessage);
-      
+      setMessages(prev => [...prev, aiMessage]);
+
+      // Save AI response to conversation
+      await addMessageToConversation(user.id, 'byte', conversationId, aiMessage as AIConversationMessage);
+
       // Increment conversation count
       await incrementConversationCount(user.id, 'byte');
 
@@ -220,6 +232,56 @@ Always provide actionable advice and be specific about how you can help with the
 
     } catch (error) {
       console.error('Error generating Byte response:', error);
+      return generateFallbackResponse(userQuery);
+    }
+  };
+
+  const generateAIEmployeeResponse = async (aiKey: string, userQuery: string): Promise<string> => {
+    const ai = aiEmployees[aiKey as keyof typeof aiEmployees];
+    if (!ai) return generateFallbackResponse(userQuery);
+
+    try {
+      const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+      
+      if (!OPENAI_API_KEY) {
+        return generateFallbackResponse(userQuery);
+      }
+
+      const systemPrompts = {
+        tag: `You are Tag, an AI Categorization Specialist. You help users organize and categorize their financial transactions. You're friendly, detail-oriented, and love helping people stay organized.`,
+        ledger: `You are Ledger, a Transaction Processing Expert. You handle bank statements, CSV imports, and transaction data. You're precise, analytical, and focused on data accuracy.`,
+        finley: `You are Finley, a Financial Analysis Assistant. You provide insights, trends, and recommendations based on financial data. You're knowledgeable, helpful, and focused on financial planning.`,
+        byte: `You are Byte, a Smart Import Coordinator. You help users upload and process financial documents, coordinating with the AI team. You're efficient, helpful, and focused on document processing.`
+      };
+
+      const systemPrompt = systemPrompts[aiKey as keyof typeof systemPrompts] || systemPrompts.byte;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userQuery }
+          ],
+          temperature: 0.7,
+          max_tokens: 250
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.choices[0]?.message?.content || generateFallbackResponse(userQuery);
+
+    } catch (error) {
+      console.error(`Error generating ${aiKey} response:`, error);
       return generateFallbackResponse(userQuery);
     }
   };
