@@ -59,36 +59,100 @@ export default function EnhancedDashboardDemo() {
             </div>
           </div>
 
-          {/* Financial Health Score & Quick Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          {/* Smart Overview Grid - 3x3 Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
             {/* Financial Health Score */}
-            <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl p-6 text-center">
-              <div className="text-4xl mb-2">🏆</div>
-              <div className="text-3xl font-bold text-white mb-1">85</div>
-              <div className="text-white/90 text-sm mb-2">Financial Health Score</div>
+            <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-lg p-4 text-center">
+              <div className="text-2xl mb-1">🏆</div>
+              <div className="text-xl font-bold text-white mb-1">85</div>
+              <div className="text-white/90 text-xs mb-1">Financial Health Score</div>
               <div className="text-green-300 text-xs">+5 points this month</div>
             </div>
 
-            {/* Quick Stats */}
-            {[
-              { metric: 'Monthly Spending', value: '$2,847', icon: '💰', color: 'text-green-400', change: '+12%', trend: 'up' },
-              { metric: 'Savings Rate', value: '23%', icon: '🎯', color: 'text-blue-400', change: '+3%', trend: 'up' },
-              { metric: 'Bills Due', value: '3', icon: '📅', color: 'text-orange-400', change: 'This week', trend: 'neutral' }
-            ].map((stat, index) => (
-              <div key={index} className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center">
-                <div className="text-3xl mb-2">{stat.icon}</div>
-                <div className={`text-2xl font-bold ${stat.color} mb-1`}>{stat.value}</div>
-                <div className="text-white/70 text-sm mb-2">{stat.metric}</div>
-                <div className={`text-xs flex items-center justify-center gap-1 ${
-                  stat.trend === 'up' ? 'text-green-400' : 
-                  stat.trend === 'down' ? 'text-red-400' : 'text-orange-400'
-                }`}>
-                  {stat.trend === 'up' && <TrendingUp size={12} />}
-                  {stat.trend === 'down' && <TrendingDown size={12} />}
-                  {stat.change}
-                </div>
+            {/* Monthly Spending */}
+            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 text-center">
+              <div className="text-2xl mb-1">💰</div>
+              <div className="text-lg font-bold text-green-400 mb-1">$2,847</div>
+              <div className="text-white/70 text-xs mb-1">Monthly Spending</div>
+              <div className="text-green-400 text-xs flex items-center justify-center gap-1">
+                <TrendingUp size={10} />
+                +12%
               </div>
-            ))}
+            </div>
+
+            {/* Savings Rate */}
+            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 text-center">
+              <div className="text-2xl mb-1">🎯</div>
+              <div className="text-lg font-bold text-blue-400 mb-1">23%</div>
+              <div className="text-white/70 text-xs mb-1">Savings Rate</div>
+              <div className="text-green-400 text-xs flex items-center justify-center gap-1">
+                <TrendingUp size={10} />
+                +3%
+              </div>
+            </div>
+
+            {/* Bills Due */}
+            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 text-center">
+              <div className="text-2xl mb-1">📅</div>
+              <div className="text-lg font-bold text-orange-400 mb-1">3</div>
+              <div className="text-white/70 text-xs mb-1">Bills Due</div>
+              <div className="text-orange-400 text-xs">This week</div>
+            </div>
+
+            {/* Net Worth */}
+            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 text-center">
+              <div className="text-2xl mb-1">💎</div>
+              <div className="text-lg font-bold text-purple-400 mb-1">$45,230</div>
+              <div className="text-white/70 text-xs mb-1">Net Worth</div>
+              <div className="text-green-400 text-xs flex items-center justify-center gap-1">
+                <TrendingUp size={10} />
+                +8.2%
+              </div>
+            </div>
+
+            {/* Credit Score */}
+            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 text-center">
+              <div className="text-2xl mb-1">📊</div>
+              <div className="text-lg font-bold text-indigo-400 mb-1">742</div>
+              <div className="text-white/70 text-xs mb-1">Credit Score</div>
+              <div className="text-green-400 text-xs flex items-center justify-center gap-1">
+                <TrendingUp size={10} />
+                +15
+              </div>
+            </div>
+
+            {/* Monthly Income */}
+            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 text-center">
+              <div className="text-2xl mb-1">💵</div>
+              <div className="text-lg font-bold text-emerald-400 mb-1">$4,200</div>
+              <div className="text-white/70 text-xs mb-1">Monthly Income</div>
+              <div className="text-green-400 text-xs flex items-center justify-center gap-1">
+                <TrendingUp size={10} />
+                +5.1%
+              </div>
+            </div>
+
+            {/* Debt-to-Income */}
+            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 text-center">
+              <div className="text-2xl mb-1">⚖️</div>
+              <div className="text-lg font-bold text-yellow-400 mb-1">18%</div>
+              <div className="text-white/70 text-xs mb-1">Debt-to-Income</div>
+              <div className="text-green-400 text-xs flex items-center justify-center gap-1">
+                <TrendingDown size={10} />
+                -2%
+              </div>
+            </div>
+
+            {/* Emergency Fund */}
+            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4 border border-white/20 text-center">
+              <div className="text-2xl mb-1">🛡️</div>
+              <div className="text-lg font-bold text-cyan-400 mb-1">$8,500</div>
+              <div className="text-white/70 text-xs mb-1">Emergency Fund</div>
+              <div className="text-green-400 text-xs flex items-center justify-center gap-1">
+                <TrendingUp size={10} />
+                +$200
+              </div>
+            </div>
           </div>
 
           {/* AI Recommendations */}
