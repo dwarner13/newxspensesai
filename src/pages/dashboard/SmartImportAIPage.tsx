@@ -48,6 +48,8 @@ export default function SmartImportAIPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'complete' | 'error'>('idle');
+  const [showChatHistory, setShowChatHistory] = useState(false);
+  const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [uploadResults, setUploadResults] = useState<any[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -99,6 +101,47 @@ Just drag and drop your files or ask me anything!`,
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Load chat history
+  const loadChatHistory = async () => {
+    if (!user?.id) return;
+    
+    try {
+      // This would load from Supabase in a real implementation
+      // For now, we'll create mock history
+      const mockHistory = [
+        {
+          id: 'conv_1',
+          title: 'Receipt Processing Session',
+          lastMessage: 'All receipts processed successfully!',
+          timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
+          messageCount: 12
+        },
+        {
+          id: 'conv_2', 
+          title: 'Bank Statement Analysis',
+          lastMessage: 'Found 3 duplicate transactions',
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+          messageCount: 8
+        },
+        {
+          id: 'conv_3',
+          title: 'Tax Preparation Help',
+          lastMessage: 'Ready for your accountant!',
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+          messageCount: 15
+        }
+      ];
+      
+      setChatHistory(mockHistory);
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadChatHistory();
+  }, [user?.id]);
 
     const sendMessage = async (content: string) => {
     if (!content.trim() || !user?.id || isLoading) return;
@@ -247,11 +290,49 @@ Always provide actionable advice and be specific about how you can help with the
         return generateFallbackResponse(userQuery);
       }
 
+      // Get conversation context (last 5 messages for context)
+      const recentMessages = messages.slice(-5);
+      const conversationContext = recentMessages.map(msg => 
+        `${msg.role === 'user' ? 'User' : aiEmployees[msg.role as keyof typeof aiEmployees]?.name || 'AI'}: ${msg.content}`
+      ).join('\n');
+
       const systemPrompts = {
-        tag: `You are Tag, an AI Categorization Specialist. You help users organize and categorize their financial transactions. You're friendly, detail-oriented, and love helping people stay organized.`,
-        ledger: `You are Ledger, a Transaction Processing Expert. You handle bank statements, CSV imports, and transaction data. You're precise, analytical, and focused on data accuracy.`,
-        finley: `You are Finley, a Financial Analysis Assistant. You provide insights, trends, and recommendations based on financial data. You're knowledgeable, helpful, and focused on financial planning.`,
-        byte: `You are Byte, a Smart Import Coordinator. You help users upload and process financial documents, coordinating with the AI team. You're efficient, helpful, and focused on document processing.`
+        tag: `You are Tag, an AI Categorization Specialist. You help users organize and categorize their financial transactions. You're friendly, detail-oriented, and love helping people stay organized.
+
+You can hand off to other AI employees when needed:
+- For financial analysis and insights → "Let me get Finley to help you with that analysis"
+- For transaction processing → "Let me get Ledger to help you process that data"
+- For business intelligence → "Let me get Intelia to help you with business insights"
+
+Always maintain conversation context and reference previous messages when relevant.`,
+        
+        ledger: `You are Ledger, a Transaction Processing Expert. You handle bank statements, CSV imports, and transaction data. You're precise, analytical, and focused on data accuracy.
+
+You can hand off to other AI employees when needed:
+- For categorization help → "Let me get Tag to help you organize those transactions"
+- For financial analysis → "Let me get Finley to help you analyze those trends"
+- For business intelligence → "Let me get Intelia to help you with business insights"
+
+Always maintain conversation context and reference previous messages when relevant.`,
+        
+        finley: `You are Finley, a Financial Analysis Assistant. You provide insights, trends, and recommendations based on financial data. You're knowledgeable, helpful, and focused on financial planning.
+
+You can hand off to other AI employees when needed:
+- For business intelligence and deeper analysis → "Let me get Intelia to help you with that business intelligence"
+- For transaction processing → "Let me get Ledger to help you process that data"
+- For categorization → "Let me get Tag to help you organize those transactions"
+
+Always maintain conversation context and reference previous messages when relevant.`,
+        
+        byte: `You are Byte, a Smart Import Coordinator. You help users upload and process financial documents, coordinating with the AI team. You're efficient, helpful, and focused on document processing.
+
+You can hand off to other AI employees when needed:
+- For categorization → "Let me get Tag to help you organize those transactions"
+- For transaction processing → "Let me get Ledger to help you process that data"
+- For financial analysis → "Let me get Finley to help you analyze those insights"
+- For business intelligence → "Let me get Intelia to help you with business insights"
+
+Always maintain conversation context and reference previous messages when relevant.`
       };
 
       const systemPrompt = systemPrompts[aiKey as keyof typeof systemPrompts] || systemPrompts.byte;
@@ -266,10 +347,11 @@ Always provide actionable advice and be specific about how you can help with the
           model: 'gpt-4o-mini',
           messages: [
             { role: 'system', content: systemPrompt },
+            { role: 'system', content: `Recent conversation context:\n${conversationContext}` },
             { role: 'user', content: userQuery }
           ],
           temperature: 0.7,
-          max_tokens: 250
+          max_tokens: 300
         })
       });
 
@@ -521,7 +603,39 @@ Could you tell me more specifically what you'd like to import or process? I'm re
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       <DashboardHeader />
       
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="max-w-7xl mx-auto p-6 relative">
+        {/* Chat History Sidebar */}
+        <div className={`fixed right-6 top-24 z-40 transition-all duration-300 ${showChatHistory ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-4 w-80 max-h-[calc(100vh-120px)] overflow-hidden">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-semibold">Chat History</h3>
+              <button
+                onClick={() => setShowChatHistory(false)}
+                className="text-white/60 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="space-y-2 overflow-y-auto max-h-[calc(100vh-200px)]">
+              {chatHistory.map((chat) => (
+                <div
+                  key={chat.id}
+                  className="p-3 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <h4 className="text-white text-sm font-medium">{chat.title}</h4>
+                    <span className="text-white/60 text-xs">{chat.messageCount} msgs</span>
+                  </div>
+                  <p className="text-white/70 text-xs mb-2 line-clamp-2">{chat.lastMessage}</p>
+                  <p className="text-white/50 text-xs">
+                    {new Date(chat.timestamp).toLocaleDateString()} {new Date(chat.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
         {/* Smart Handoff Components */}
         <SmartHandoffBanner />
@@ -639,12 +753,21 @@ Could you tell me more specifically what you'd like to import or process? I'm re
         >
           {/* Chat Header */}
           <div className="bg-white/10 px-4 py-3 border-b border-white/10">
-            <div className="flex items-center gap-2">
-              <div className="text-lg">📄</div>
-              <div>
-                <h3 className="font-semibold text-white text-sm">Byte AI</h3>
-                <p className="text-white/60 text-xs">Smart Import Assistant</p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="text-lg">📄</div>
+                <div>
+                  <h3 className="font-semibold text-white text-sm">Byte AI</h3>
+                  <p className="text-white/60 text-xs">Smart Import Assistant</p>
+                </div>
               </div>
+              <button
+                onClick={() => setShowChatHistory(!showChatHistory)}
+                className="text-white/60 hover:text-white transition-colors p-1"
+                title="Chat History"
+              >
+                <History className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
