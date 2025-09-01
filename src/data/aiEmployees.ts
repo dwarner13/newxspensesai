@@ -14,7 +14,7 @@ export const EMPLOYEES: Employee[] = [
   {
     key: 'prime',
     name: 'Prime',
-    emoji: '⭐',
+    emoji: '👑',
     route: '/dashboard',
     short: 'The Boss AI — your first stop for everything. Routes you to the right expert instantly.',
     learnMorePath: '/ai-employees',

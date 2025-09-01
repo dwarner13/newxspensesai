@@ -9,7 +9,7 @@ export default function BossBubble() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<{ role: 'user'|'prime'|'note'; text: string }[]>([
-    { role: 'prime', text: 'I\'m ⭐ Prime — the Boss AI. Ask me anything, and I\'ll route you to the right expert.' }
+    { role: 'prime', text: 'I\'m 👑 Prime — the Boss AI. Ask me anything, and I\'ll route you to the right expert.' }
   ]);
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -168,7 +168,7 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
         aria-label="Open Prime"
         className="fixed z-[70] bottom-5 right-5 md:bottom-7 md:right-7 rounded-full w-14 h-14 bg-gradient-to-br from-cyan-500 to-fuchsia-500 shadow-lg hover:scale-105 active:scale-95 transition"
       >
-        <span className="text-2xl">⭐</span>
+        <span className="text-2xl">👑</span>
       </button>
 
       {/* Background blur overlay */}
@@ -181,7 +181,7 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
         className={`fixed z-[71] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-sm rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl overflow-hidden transition-all ${open ? 'opacity-100 scale-100' : 'pointer-events-none opacity-0 scale-95'}`}
       >
         <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
-          <div className="text-xl">⭐</div>
+          <div className="text-xl">👑</div>
           <div className="font-semibold text-white">Prime</div>
           <div className="ml-auto text-xs text-white/60">Director</div>
         </div>

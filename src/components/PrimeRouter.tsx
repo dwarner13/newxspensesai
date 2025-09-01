@@ -187,7 +187,7 @@ Always respond as Prime, the helpful AI boss.`;
         <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center">
           <div className="bg-slate-900/95 backdrop-blur-xl rounded-2xl p-8 border border-white/10 shadow-2xl max-w-md mx-4">
             <div className="text-center">
-              <div className="text-4xl mb-4">⭐</div>
+                             <div className="text-4xl mb-4">👑</div>
               <h3 className="text-xl font-bold text-white mb-2">Prime is Routing You</h3>
               <p className="text-white/80 mb-4">Let me find the perfect AI employee for you...</p>
               <div className="flex items-center justify-center gap-2">
