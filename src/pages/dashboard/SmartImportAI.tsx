@@ -135,8 +135,13 @@ export default function SmartImportAI() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
     
     // Byte's specialized responses for import-related queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 📄 I'm Byte, your Smart Import AI. Great to see you! I'm here to help you upload and process your financial documents, extract data from receipts and statements, and organize your financial information automatically. What would you like to import today?`;
+    }
+    
     if (query.includes('receipt') || query.includes('upload') || query.includes('scan')) {
       return `📄 Great! I can help you upload receipts. Here's how it works:
 

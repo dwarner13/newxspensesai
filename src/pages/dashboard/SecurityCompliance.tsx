@@ -246,8 +246,13 @@ export default function SecurityCompliance() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Custodian's specialized responses for security and compliance queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 🛡️ I'm Custodian, your Security & Compliance AI. Great to see you! I'm here to help you protect your financial data, ensure compliance with regulations, and maintain the highest security standards for your financial information. What security or compliance topic would you like to discuss today?`;
+    }
+    
     if (query.includes('security') || query.includes('protect') || query.includes('secure') || query.includes('safety')) {
       return `🛡️ Excellent! Let's build a comprehensive security framework to protect your financial data and assets. Here's my approach to financial security:
 

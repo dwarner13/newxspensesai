@@ -151,8 +151,13 @@ export default function BillRemindersPage() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Chime's specialized responses for bill-related queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 🔔 I'm Chime, your Bill Reminders AI. Great to see you! I'm here to help you manage all your bills, set up smart reminders, avoid late fees, and keep your payments organized and on time. What bill management would you like to work on today?`;
+    }
+    
     if (query.includes('bill') || query.includes('payment') || query.includes('reminder') || query.includes('due')) {
       return `🔔 Excellent! Let's talk about bill management and reminders. Here's my comprehensive approach:
 

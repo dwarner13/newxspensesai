@@ -151,8 +151,13 @@ export default function FinancialTherapistPage() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Luna's specialized responses for therapy-related queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 💙 I'm Luna, your Financial Therapist. Great to see you! I'm here to help you work through financial stress, anxiety, and emotional challenges with money. I provide a safe, supportive space to explore your relationship with finances and develop healthy coping strategies. What's on your mind today?`;
+    }
+    
     if (query.includes('stress') || query.includes('anxiety') || query.includes('worried') || query.includes('overwhelmed')) {
       return `💙 I hear you, and it's completely normal to feel stressed about money. Financial stress affects so many people, and you're not alone in this. Let me help you work through these feelings.
 

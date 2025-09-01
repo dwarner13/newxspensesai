@@ -178,8 +178,13 @@ export default function WorkflowAutomation() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Automa's specialized responses for workflow automation queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 🤖 I'm Automa, your Workflow Automation AI. Great to see you! I'm here to help you create intelligent workflows, automate repetitive financial tasks, and build efficient systems that save you time and reduce errors. What workflow would you like to automate today?`;
+    }
+    
     if (query.includes('workflow') || query.includes('automate') || query.includes('process') || query.includes('rule')) {
       return `🤖 Fantastic! Let's create intelligent workflows that automate your financial tasks and save you time. Here's my comprehensive approach to workflow automation:
 

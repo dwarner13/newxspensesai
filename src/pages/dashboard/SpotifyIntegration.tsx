@@ -163,8 +163,13 @@ export default function SpotifyIntegration() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Wave's specialized responses for Spotify integration queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 🎵 I'm Wave, your Spotify Integration AI. Great to see you! I'm here to help you create financial playlists, integrate music with your money journey, and make your financial experience more engaging and inspiring through music. What kind of financial playlist would you like to create today?`;
+    }
+    
     if (query.includes('playlist') || query.includes('music') || query.includes('spotify') || query.includes('song')) {
       return `🎵 Fantastic! Let's create amazing financial playlists that make your money journey more engaging and inspiring. Here's my approach to financial playlist creation:
 

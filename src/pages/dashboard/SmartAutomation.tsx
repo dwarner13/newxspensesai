@@ -151,8 +151,13 @@ export default function SmartAutomation() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Blitz's specialized responses for automation-related queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! ⚡ I'm Blitz, your Smart Automation AI. Great to see you! I'm here to help you automate your financial workflows, create efficient systems, and save time by handling repetitive tasks automatically. What financial process would you like to automate today?`;
+    }
+    
     if (query.includes('automate') || query.includes('automation') || query.includes('workflow') || query.includes('efficiency')) {
       return `⚡ Fantastic! Let's talk about financial automation and creating efficient workflows. Here's my approach to automating your financial life:
 

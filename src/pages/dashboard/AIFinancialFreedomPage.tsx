@@ -151,8 +151,13 @@ export default function AIFinancialFreedomPage() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Liberty's specialized responses for financial freedom queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 🗽 I'm Liberty, your AI Financial Freedom Coach. Great to see you! I'm here to help you achieve complete financial independence, build wealth, and create the freedom to live life on your terms. What financial freedom goal would you like to work on today?`;
+    }
+    
     if (query.includes('freedom') || query.includes('independence') || query.includes('fire') || query.includes('retire')) {
       return `🗽 Financial freedom is the ultimate goal! Let me guide you on your path to independence. Here's my approach:
 
