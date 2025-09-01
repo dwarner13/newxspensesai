@@ -4,7 +4,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '', // Remove base path for better Netlify compatibility
+  base: '/', // Use relative base path for development
   plugins: [
     react(),
     visualizer({ open: false }), // view bundle size with `npm run build`
@@ -34,13 +34,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 5173,
     open: true,
     host: 'localhost',
-    hmr: false, // Completely disable HMR to stop all updates
+    hmr: true, // Enable HMR for better development experience
     watch: {
       usePolling: false,
-      interval: 5000, // Increase to 5 seconds
+      interval: 1000,
     },
   },
   preview: {
