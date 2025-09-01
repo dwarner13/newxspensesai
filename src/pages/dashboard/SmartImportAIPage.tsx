@@ -49,21 +49,23 @@ export default function SmartImportAIPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'complete' | 'error'>('idle');
   const [uploadResults, setUploadResults] = useState<any[]>([]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showChatAfterUpload, setShowChatAfterUpload] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Initialize conversation and load Byte's config
+  // Initialize conversation and load Byte's config
   useEffect(() => {
     const initializeByte = async () => {
       if (!user?.id) return;
-
+      
       const newConversationId = generateConversationId();
       setConversationId(newConversationId);
-
+      
       // Load Byte's configuration
       const config = await getEmployeeConfig('byte');
       setByteConfig(config);
-
+      
       // Load existing conversation if any
       const existingConversation = await getConversation(user.id, 'byte', newConversationId);
       if (existingConversation && existingConversation.messages.length > 0) {
@@ -163,7 +165,7 @@ Just drag and drop your files or ask me anything!`,
     }
   };
 
-    const generateByteResponse = async (userQuery: string): Promise<string> => {
+  const generateByteResponse = async (userQuery: string): Promise<string> => {
     try {
       // Use OpenAI API for intelligent responses
       const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
@@ -225,7 +227,7 @@ Always provide actionable advice and be specific about how you can help with the
 
   const generateFallbackResponse = (userQuery: string): string => {
     const query = userQuery.toLowerCase();
-
+    
     // Enhanced fallback responses
     if (query.includes('receipt') || query.includes('upload') || query.includes('scan')) {
       return `📄 Great! I can help you upload receipts. Here's how it works:
@@ -236,7 +238,7 @@ Always provide actionable advice and be specific about how you can help with the
 
 Would you like to upload a receipt now? I can guide you through the process step by step!`;
     }
-
+    
     if (query.includes('bank statement') || query.includes('csv') || query.includes('statement')) {
       return `🏦 Perfect! Bank statement imports are my specialty. Here's what I can do:
 
@@ -247,7 +249,7 @@ Would you like to upload a receipt now? I can guide you through the process step
 
 What bank do you use? I can provide specific instructions for your bank's format.`;
     }
-
+    
     if (query.includes('categorize') || query.includes('category') || query.includes('organize')) {
       return `🏷️ I love helping with categorization! Here's how my AI works:
 
@@ -258,7 +260,7 @@ What bank do you use? I can provide specific instructions for your bank's format
 
 Would you like me to show you your current categories or help set up custom rules?`;
     }
-
+    
     if (query.includes('help') || query.includes('how') || query.includes('what')) {
       return `🤖 I'm Byte, your Smart Import AI! Here's what I can help you with:
 
@@ -270,7 +272,7 @@ Would you like me to show you your current categories or help set up custom rule
 
 What would you like to work on today? I'm here to make your financial data import process smooth and efficient!`;
     }
-
+    
     if (query.includes('format') || query.includes('supported') || query.includes('file type')) {
       return `📋 Here are the file formats I support:
 
@@ -290,7 +292,7 @@ I'll automatically detect the format and process accordingly. What type of file 
     return `📄 I understand you're asking about "${userQuery}". As your Smart Import AI, I'm here to help with:
 
 • Uploading and processing financial documents
-• Extracting data from receipts and statements
+• Extracting data from receipts and statements  
 • Organizing and categorizing transactions
 • Setting up import workflows
 
@@ -339,6 +341,10 @@ Could you tell me more specifically what you'd like to import or process? I'm re
         }));
 
         setUploadResults(results);
+
+        // Show chat after upload completes (mobile flow)
+        setShowChatAfterUpload(true);
+        setIsChatOpen(true);
 
         // Trigger multi-AI conversation based on file types
         setTimeout(() => {
@@ -498,9 +504,9 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           </motion.div>
 
           {/* Quick Actions Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4"
           >
@@ -557,19 +563,19 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                 <div className="text-right">
                   <p className="text-green-400 text-xs font-semibold">99%</p>
                 </div>
-              </div>
             </div>
-          </motion.div>
+          </div>
+        </motion.div>
         </div>
 
-        {/* Bottom Row: Upload and Chatbot (2 columns) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-400px)]">
-          {/* Upload Column */}
+                {/* Mobile-First Layout */}
+        <div className="relative">
+          {/* Upload Area - Full width on mobile, half on desktop */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col"
+            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col h-[calc(100vh-400px)] lg:h-[calc(100vh-400px)]"
           >
             <div className="text-center mb-6">
               <UploadCloud className="w-12 h-12 text-blue-400 mx-auto mb-3" />
@@ -648,7 +654,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                 {uploadResults.map((result, index) => (
                   <div key={result.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
                     <div className="flex items-center justify-between">
-                      <div>
+                  <div>
                         <p className="text-white text-sm font-medium truncate">{result.name}</p>
                         <p className="text-white/60 text-xs">{result.transactions} transactions</p>
                       </div>
@@ -662,108 +668,134 @@ Could you tell me more specifically what you'd like to import or process? I'm re
             )}
           </motion.div>
 
-          {/* Byte Chat Column */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden flex flex-col h-full"
-          >
-            {/* Chat Header */}
-            <div className="bg-white/10 px-4 py-3 border-b border-white/10">
+                    {/* Floating Chat Bubble */}
+          {!isChatOpen ? (
+            <motion.button
+              initial={{ opacity: 0, scale: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.5 }}
+              onClick={() => setIsChatOpen(true)}
+              className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-50 transition-colors"
+            >
               <div className="flex items-center gap-2">
                 <div className="text-lg">📄</div>
-                <div>
-                  <h3 className="font-semibold text-white text-sm">Byte AI</h3>
-                  <p className="text-white/60 text-xs">Smart Import Assistant</p>
-                </div>
+                <span className="text-sm font-medium">Byte AI</span>
+                {messages.length > 1 && (
+                  <div className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {messages.length - 1}
+                  </div>
+                )}
               </div>
-            </div>
+            </motion.button>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              className="fixed bottom-6 right-6 bg-white/95 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl z-50 w-80 h-96 flex flex-col"
+            >
+              {/* Chat Header */}
+              <div className="bg-blue-600 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="text-lg">📄</div>
+                  <div>
+                    <h3 className="font-semibold text-sm">Byte AI</h3>
+                    <p className="text-blue-100 text-xs">Smart Import Assistant</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className="text-white/80 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {messages.map((message, index) => {
-                const isUser = message.role === 'user';
-                const isByte = message.role === 'byte';
-                const aiEmployee = aiEmployees[message.role as keyof typeof aiEmployees];
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {messages.map((message, index) => {
+                  const isUser = message.role === 'user';
+                  const isByte = message.role === 'byte';
+                  const aiEmployee = aiEmployees[message.role as keyof typeof aiEmployees];
+                  
+                  return (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
+                        isUser 
+                          ? 'bg-blue-600 text-white' 
+                          : isByte
+                          ? 'bg-gray-100 text-gray-800 border border-gray-200'
+                          : aiEmployee
+                          ? `${aiEmployee.bgColor} text-gray-800 border ${aiEmployee.borderColor}`
+                          : 'bg-gray-100 text-gray-800 border border-gray-200'
+                      }`}>
+                        {!isUser && aiEmployee && (
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm">{aiEmployee.emoji}</span>
+                            <span className={`text-xs font-semibold ${aiEmployee.color}`}>
+                              {aiEmployee.name}
+                            </span>
+                          </div>
+                        )}
+                        <div className="whitespace-pre-wrap text-xs">{message.content}</div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
                 
-                return (
+                {isLoading && (
                   <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex justify-start"
                   >
-                    <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
-                      isUser 
-                        ? 'bg-blue-600 text-white' 
-                        : isByte
-                        ? 'bg-white/10 text-white border border-white/20'
-                        : aiEmployee
-                        ? `${aiEmployee.bgColor} text-white border ${aiEmployee.borderColor}`
-                        : 'bg-white/10 text-white border border-white/20'
-                    }`}>
-                      {!isUser && aiEmployee && (
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm">{aiEmployee.emoji}</span>
-                          <span className={`text-xs font-semibold ${aiEmployee.color}`}>
-                            {aiEmployee.name}
-                          </span>
-                        </div>
-                      )}
-                      <div className="whitespace-pre-wrap text-xs">{message.content}</div>
+                    <div className="bg-gray-100 text-gray-800 border border-gray-200 rounded-xl px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span className="text-xs">Byte is thinking...</span>
+                      </div>
                     </div>
                   </motion.div>
-                );
-              })}
-              
-              {isLoading && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex justify-start"
-                >
-                  <div className="bg-white/10 text-white border border-white/20 rounded-xl px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      <span className="text-xs">Byte is thinking...</span>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-              
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Input Area */}
-            <div className="p-4 border-t border-white/10">
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                  placeholder="Ask Byte anything about your documents..."
-                  className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-500 text-sm"
-                  disabled={isLoading}
-                />
-                <button
-                  onClick={handleFileUpload}
-                  className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-3 transition-colors"
-                  title="Upload files"
-                >
-                  <UploadCloud className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => sendMessage(input)}
-                  disabled={isLoading || !input.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
+                )}
+                
+                <div ref={messagesEndRef} />
               </div>
-            </div>
-          </motion.div>
+
+              {/* Input Area */}
+              <div className="p-4 border-t border-gray-200">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                    placeholder="Ask Byte..."
+                    className="flex-1 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-gray-800 placeholder-gray-500 focus:outline-none focus:border-blue-500 text-xs"
+                    disabled={isLoading}
+                  />
+                  <button
+                    onClick={handleFileUpload}
+                    className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-3 py-2 transition-colors"
+                    title="Upload files"
+                  >
+                    <UploadCloud className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => sendMessage(input)}
+                    disabled={isLoading || !input.trim()}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-3 py-2 transition-colors"
+                  >
+                    <Send className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
       </div>
     </div>
