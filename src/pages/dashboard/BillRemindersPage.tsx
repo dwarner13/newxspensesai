@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import DashboardHeader from '../../components/ui/DashboardHeader';
-import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
+
 
 interface Bill {
   id: string;
@@ -719,14 +719,7 @@ const BillRemindersPage = () => {
               </div>
           </div>
 
-          {/* Specialized Bill Reminder Chatbot */}
-          <SpecializedChatBot
-            name="BillReminderBot"
-            expertise="Bill tracking, reminders, and payment management"
-            avatar="📅"
-            welcomeMessage="Hi! I'm BillReminderBot, your bill management specialist. I can help you track upcoming bills, set payment reminders, manage recurring payments, and ensure you never miss a due date. What bill-related questions do you have today?"
-            color="red"
-          />
+
         </div>
       </div>
     </div>

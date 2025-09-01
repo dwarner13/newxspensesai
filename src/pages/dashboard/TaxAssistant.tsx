@@ -6,7 +6,7 @@ import {
   ExternalLink, ChevronRight, X, BarChart3
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
+
 import DashboardHeader from '../../components/ui/DashboardHeader';
 
 interface TaxTask {

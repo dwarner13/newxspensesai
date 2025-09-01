@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import DashboardHeader from '../../components/ui/DashboardHeader';
-import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
+
 
 
 interface ProfileData {

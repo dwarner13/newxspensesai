@@ -5,7 +5,7 @@ import { getTransactions, updateTransaction, deleteTransaction, getCategories, g
 import { Transaction, TransactionFilter, CategorizationRule } from '../types/database.types';
 import { formatDate } from '../utils/formatters';
 import DateRangePicker from '../components/filters/DateRangePicker';
-import AskAI from '../components/AskAI';
+
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import MobileHeader from '../components/layout/MobileHeader';
@@ -931,8 +931,7 @@ const TransactionsPage = () => {
           </div>
         )}
         
-        {/* AskAI Component */}
-        <AskAI />
+
 
         {/* HighlightAIAssistant Component */}
         <HighlightAIAssistant transactions={transactions} />
