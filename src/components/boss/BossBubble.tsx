@@ -158,6 +158,13 @@ Special Instructions:
        - Tax law, regulations, audit support → Ledger
        - Tax credits, exemptions, filing → Ledger
 
+       Automa-Specific Routing: // Added
+       - Workflow automation, process optimization → Automa
+       - Smart rules, triggers, if-then logic → Automa
+       - System integration, API connections → Automa
+       - Performance monitoring, efficiency tracking → Automa
+       - Custom automation, workflow design → Automa
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
