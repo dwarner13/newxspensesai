@@ -6,7 +6,7 @@ import {
   Play, RefreshCw, CheckCircle, DollarSign, Users,
   Calendar, PieChart, ArrowRight, Upload, Download, 
   Eye, Sparkles, Award, Building2, Car, Utensils, 
-  Briefcase, ShoppingBag, Lightbulb, Rocket
+  Briefcase, ShoppingBag, Lightbulb, Rocket, Shield, Lock, Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
