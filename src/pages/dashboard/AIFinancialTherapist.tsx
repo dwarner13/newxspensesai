@@ -327,6 +327,7 @@ const AIFinancialTherapist: React.FC = () => {
     if (!therapist) return "I'm here to help. Can you tell me more?";
 
     const lowerMessage = userMessage.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
     
     // Contextual responses based on session type
     if (sessionType) {
@@ -343,6 +344,11 @@ const AIFinancialTherapist: React.FC = () => {
       if (responses[sessionType]) {
         return responses[sessionType];
       }
+    }
+    
+    // Greeting responses
+    if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('hey') || lowerMessage.includes('hi there')) {
+      return `Hi ${userName}! 💚 I'm your AI Financial Therapist. I'm here to help you work through any financial stress, anxiety, or emotional challenges you're facing with money. I provide a safe, judgment-free space to explore your relationship with finances. What's on your mind today?`;
     }
     
     // Pattern-based responses
@@ -377,7 +383,7 @@ const AIFinancialTherapist: React.FC = () => {
         return "I love your energy! Every challenge is an opportunity to grow stronger and wiser. You've got this! Let's turn this into a victory. What's one small step you can take right now to move forward?";
       
       default:
-        return "Thank you for sharing that. How can I best support you right now?";
+        return `Hi ${userName}! Thank you for sharing that. How can I best support you right now?`;
     }
   };
 

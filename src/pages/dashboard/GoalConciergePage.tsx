@@ -150,8 +150,13 @@ export default function GoalConciergePage() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Goalie's specialized responses for goal-related queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 🎯 I'm Goalie, your Goal Concierge. Great to see you! I'm here to help you set, track, and achieve your financial goals. Whether it's saving for a house, paying off debt, or building wealth, I'll be your personal goal-setting coach. What financial goal would you like to work on today?`;
+    }
+    
     if (query.includes('goal') || query.includes('target') || query.includes('objective')) {
       return `🎯 Fantastic! Let's talk about setting financial goals. Here's my approach:
 
@@ -379,7 +384,7 @@ What financial goal would you like to work on? I'm ready to be your goal achieve
     }
 
     // Default response for other queries
-    return `🥅 I understand you're asking about "${userQuery}". As your Goal Concierge, I'm here to help with:
+    return `Hi ${userName}! 🥅 I understand you're asking about "${userQuery}". As your Goal Concierge, I'm here to help with:
 
 **Goal-Setting Topics I Cover:**
 • Setting SMART financial goals

@@ -156,8 +156,13 @@ export default function BusinessIntelligence() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Intelia's specialized responses for business intelligence queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 📊 I'm Intelia, your Business Intelligence AI. Great to see you! I'm here to help you analyze your business data, track KPIs, identify trends, and make data-driven decisions that grow your business. What business insights would you like to explore today?`;
+    }
+    
     if (query.includes('kpi') || query.includes('metric') || query.includes('performance') || query.includes('track')) {
       return `📊 Excellent! Let's talk about Key Performance Indicators (KPIs) and business metrics tracking. Here's my approach to measuring and optimizing business performance:
 

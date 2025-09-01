@@ -158,8 +158,13 @@ export default function PersonalPodcast() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Roundtable's specialized responses for podcast and audio content queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 🎙️ I'm Roundtable, your Personal Podcast AI. Great to see you! I'm here to help you create engaging financial podcast content, personalized audio experiences, and educational episodes that make learning about money fun and accessible. What kind of podcast content would you like to create today?`;
+    }
+    
     if (query.includes('podcast') || query.includes('episode') || query.includes('audio') || query.includes('content')) {
       return `🎙️ Fantastic! Let's create engaging podcast content that makes financial education accessible and entertaining. Here's my approach to podcast creation:
 
