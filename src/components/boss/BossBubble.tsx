@@ -95,6 +95,13 @@ Special Instructions:
        - Seasonal spending, holidays → Crystal
        - Savings impact analysis → Crystal
 
+       Luna-Specific Routing: // Added
+       - Financial stress, anxiety → Luna
+       - Emotional support, therapy → Luna
+       - Behavioral coaching, habits → Luna
+       - Money relationship, confidence → Luna
+       - Mindfulness, wellness → Luna
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
