@@ -88,6 +88,13 @@ Special Instructions:
        - Timeline planning, deadlines → Goalie
        - Goal achievement strategies → Goalie
 
+       Crystal-Specific Routing: // Added
+       - Spending predictions, forecasts → Crystal
+       - Trend analysis, patterns → Crystal
+       - Budget alerts, overspending → Crystal
+       - Seasonal spending, holidays → Crystal
+       - Savings impact analysis → Crystal
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
