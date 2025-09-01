@@ -802,6 +802,13 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                     className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-400"
                   />
                   <button
+                    onClick={handleFileUpload}
+                    className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-4 py-3 transition-colors"
+                    title="Upload files"
+                  >
+                    <UploadCloud className="w-5 h-5" />
+                  </button>
+                  <button
                     onClick={() => sendMessage(input)}
                     disabled={isLoading || !input.trim()}
                     className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
