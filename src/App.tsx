@@ -18,7 +18,6 @@ import { BossProvider } from './lib/agents/context';
 // Critical components - load immediately
 import HomePage from './pages/HomePage';
 import XspensesProDashboard from './components/XspensesProDashboard';
-import EnhancedDashboardDemo from './components/EnhancedDashboardDemo';
 
 // Lazy load non-critical components
 const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
@@ -218,7 +217,6 @@ function App() {
                     {/* Dashboard routes with persistent layout - Each route shows its specific page */}
                     <Route path="/dashboard" element={<DashboardLayout />}>
                       <Route index element={<XspensesProDashboard />} />
-                      <Route path="enhanced-demo" element={<EnhancedDashboardDemo />} />
                       <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
                       <Route path="smart-import-ai" element={<SmartImportAIPage />} />
                       <Route path="goal-concierge" element={<GoalConciergePage />} />
