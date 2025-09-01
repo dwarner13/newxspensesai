@@ -82,56 +82,32 @@ export default function XspensesProDashboard() {
           </div>
 
           {/* AI Recommendations */}
-          <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-xl p-6 border border-purple-500/30">
-            <div className="flex items-center gap-3 mb-6">
+          <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-xl p-4 border border-purple-500/30">
+            <div className="flex items-center gap-3 mb-3">
               <Bot className="w-6 h-6 text-purple-400" />
               <h3 className="font-semibold text-white">AI Recommendations</h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[160px] flex flex-col justify-between bg-gradient-to-br from-green-600 to-emerald-700 hover:shadow-green-500/25">
-                <div className="absolute top-4 right-4">
-                  <Target className="w-8 h-8 text-white/80" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                <Target className="w-5 h-5 text-green-400" />
+                <div>
+                  <div className="text-white text-sm font-medium">Set up Goal Concierge</div>
+                  <div className="text-white/60 text-xs">You're 15% behind on savings goal</div>
                 </div>
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-3">
-                    <h4 className="text-lg font-bold text-white">Set up Goal Concierge</h4>
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  </div>
-                  <p className="text-sm text-white/90 leading-relaxed">You're 15% behind on savings goal. Let's get you back on track!</p>
-                </div>
-                <Link to="/dashboard/goal-concierge" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
-                  Set Goal
-                </Link>
               </div>
-              <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[160px] flex flex-col justify-between bg-gradient-to-br from-blue-600 to-cyan-700 hover:shadow-blue-500/25">
-                <div className="absolute top-4 right-4">
-                  <Calculator className="w-8 h-8 text-white/80" />
+              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                <Calculator className="w-5 h-5 text-blue-400" />
+                <div>
+                  <div className="text-white text-sm font-medium">Check Tax Assistant</div>
+                  <div className="text-white/60 text-xs">Tax season approaching</div>
                 </div>
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-3">
-                    <h4 className="text-lg font-bold text-white">Check Tax Assistant</h4>
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  </div>
-                  <p className="text-sm text-white/90 leading-relaxed">Tax season approaching. Get organized early!</p>
-                </div>
-                <Link to="/dashboard/tax-assistant" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
-                  Review Taxes
-                </Link>
               </div>
-              <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[160px] flex flex-col justify-between bg-gradient-to-br from-orange-600 to-red-700 hover:shadow-orange-500/25">
-                <div className="absolute top-4 right-4">
-                  <Bell className="w-8 h-8 text-white/80" />
+              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                <Bell className="w-5 h-5 text-orange-400" />
+                <div>
+                  <div className="text-white text-sm font-medium">Review Bill Reminders</div>
+                  <div className="text-white/60 text-xs">3 bills due this week</div>
                 </div>
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 mb-3">
-                    <h4 className="text-lg font-bold text-white">Review Bill Reminders</h4>
-                    <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  </div>
-                  <p className="text-sm text-white/90 leading-relaxed">3 bills due this week. Stay on top of payments!</p>
-                </div>
-                <Link to="/dashboard/bill-reminders" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
-                  Check Bills
-                </Link>
               </div>
             </div>
           </div>
@@ -154,8 +130,8 @@ export default function XspensesProDashboard() {
             
             {/* Smart Import AI */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-blue-600 to-cyan-700 hover:shadow-blue-500/25">
-              <div className="absolute top-4 right-4">
-                <UploadCloud className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <UploadCloud className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -175,8 +151,8 @@ export default function XspensesProDashboard() {
 
             {/* AI Financial Assistant */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-purple-600 to-indigo-700 hover:shadow-purple-500/25">
-              <div className="absolute top-4 right-4">
-                <Bot className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Bot className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -196,8 +172,8 @@ export default function XspensesProDashboard() {
 
             {/* AI Financial Therapist */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-pink-600 to-rose-700 hover:shadow-pink-500/25">
-              <div className="absolute top-4 right-4">
-                <HeartPulse className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <HeartPulse className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -217,8 +193,8 @@ export default function XspensesProDashboard() {
 
             {/* AI Goal Concierge */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-green-600 to-emerald-700 hover:shadow-green-500/25">
-              <div className="absolute top-4 right-4">
-                <Target className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Target className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -238,8 +214,8 @@ export default function XspensesProDashboard() {
 
             {/* Spending Predictions */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-indigo-600 to-purple-700 hover:shadow-indigo-500/25">
-              <div className="absolute top-4 right-4">
-                <LineChart className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <LineChart className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -259,8 +235,8 @@ export default function XspensesProDashboard() {
 
             {/* AI Categorization */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-orange-600 to-red-700 hover:shadow-orange-500/25">
-              <div className="absolute top-4 right-4">
-                <FileText className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <FileText className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -292,8 +268,8 @@ export default function XspensesProDashboard() {
             
             {/* Bill Reminders */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-yellow-600 to-orange-700 hover:shadow-yellow-500/25">
-              <div className="absolute top-4 right-4">
-                <Bell className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Bell className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -313,8 +289,8 @@ export default function XspensesProDashboard() {
 
             {/* Debt Payoff Planner */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-red-600 to-pink-700 hover:shadow-red-500/25">
-              <div className="absolute top-4 right-4">
-                <CreditCard className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <CreditCard className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -334,8 +310,8 @@ export default function XspensesProDashboard() {
 
             {/* AI Financial Freedom */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-emerald-600 to-teal-700 hover:shadow-emerald-500/25">
-              <div className="absolute top-4 right-4">
-                <Award className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Award className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -367,8 +343,8 @@ export default function XspensesProDashboard() {
             
             {/* Personal Podcast */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-purple-600 to-violet-700 hover:shadow-purple-500/25">
-              <div className="absolute top-4 right-4">
-                <Mic className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Mic className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -388,8 +364,8 @@ export default function XspensesProDashboard() {
 
             {/* Spotify Integration */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-green-500 to-emerald-600 hover:shadow-green-500/25">
-              <div className="absolute top-4 right-4">
-                <Music className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Music className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -409,8 +385,8 @@ export default function XspensesProDashboard() {
 
             {/* Wellness Studio */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-pink-500 to-rose-600 hover:shadow-pink-500/25">
-              <div className="absolute top-4 right-4">
-                <HeartPulse className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <HeartPulse className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -442,8 +418,8 @@ export default function XspensesProDashboard() {
             
             {/* Tax Assistant */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-blue-600 to-indigo-700 hover:shadow-blue-500/25">
-              <div className="absolute top-4 right-4">
-                <Calculator className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Calculator className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -463,8 +439,8 @@ export default function XspensesProDashboard() {
 
             {/* Business Intelligence */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 to-slate-800 hover:shadow-slate-500/25">
-              <div className="absolute top-4 right-4">
-                <Building2 className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Building2 className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -484,8 +460,8 @@ export default function XspensesProDashboard() {
 
             {/* Smart Automation */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-cyan-600 to-blue-700 hover:shadow-cyan-500/25">
-              <div className="absolute top-4 right-4">
-                <Zap className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Zap className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -517,8 +493,8 @@ export default function XspensesProDashboard() {
             
             {/* Analytics */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 to-slate-800 hover:shadow-slate-500/25">
-              <div className="absolute top-4 right-4">
-                <BarChart3 className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <BarChart3 className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -538,8 +514,8 @@ export default function XspensesProDashboard() {
 
             {/* Settings */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 to-slate-800 hover:shadow-slate-500/25">
-              <div className="absolute top-4 right-4">
-                <Settings className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <Settings className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
@@ -559,8 +535,8 @@ export default function XspensesProDashboard() {
 
             {/* Reports */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 to-slate-800 hover:shadow-slate-500/25">
-              <div className="absolute top-4 right-4">
-                <FileText className="w-8 h-8 text-white/80" />
+              <div className="absolute top-3 right-3">
+                <FileText className="w-6 h-6 text-white/80" />
               </div>
               <div className="relative z-10">
                 <div className="flex items-center gap-2 mb-3">
