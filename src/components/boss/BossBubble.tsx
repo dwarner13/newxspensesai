@@ -137,6 +137,13 @@ Special Instructions:
        - Strategic planning, decision making → Intelia
        - Market analysis, competitive intelligence → Intelia
 
+       Roundtable-Specific Routing: // Added
+       - Podcast creation, audio content → Roundtable
+       - Storytelling, narrative creation → Roundtable
+       - Interview planning, guest management → Roundtable
+       - Audio production, recording quality → Roundtable
+       - Educational audio, financial stories → Roundtable
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
