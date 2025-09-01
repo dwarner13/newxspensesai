@@ -3,8 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import { EMPLOYEES, findEmployeeByIntent } from '../../data/aiEmployees';
 import { supabase } from '../../lib/supabase';
 import { chatWithBoss, ChatMessage } from '../../lib/boss/openaiClient';
+import { useAuth } from '../../contexts/AuthContext';
+import { 
+  logAIInteraction, 
+  routeToEmployee, 
+  AIRoutingRequest 
+} from '../../lib/ai-employees';
 
 export default function BossBubble() {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -17,6 +24,7 @@ export default function BossBubble() {
 
   async function logInteraction(userQuery: string, matchKey?: string) {
     try {
+      // Log to both old and new systems for compatibility
       await supabase.from('prime_interactions').insert([
         {
           query: userQuery,
@@ -24,6 +32,11 @@ export default function BossBubble() {
           created_at: new Date().toISOString()
         }
       ]);
+      
+      // Log to new AI employee system
+      if (user?.id) {
+        await logAIInteraction(user.id, 'prime', 'route', userQuery);
+      }
     } catch (e) {
       console.error('Prime logging error:', e);
     }
@@ -54,6 +67,12 @@ Special Instructions:
 2. For account/billing questions: Route to account management or billing features
 3. For feature questions: Match to the appropriate AI employee
 4. For general questions: Provide helpful guidance and suggest relevant employees
+
+Byte-Specific Routing:
+- Receipt uploads, document imports, file processing → Byte
+- Bank statement imports, CSV processing → Byte
+- Data extraction, categorization help → Byte
+- File format questions, upload support → Byte
 
 General Instructions:
 1. Analyze the user's request carefully
@@ -89,7 +108,35 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
     setIsLoading(true);
 
     try {
-      // Try AI-powered understanding first
+      // Enhanced routing with new AI employee system
+      if (user?.id) {
+        // Use new AI employee routing system
+        const routingRequest: AIRoutingRequest = {
+          user_query: q,
+          user_id: user.id,
+          context: { source: 'prime_bubble' }
+        };
+
+        const routingResponse = await routeToEmployee(routingRequest);
+        
+        if (routingResponse && routingResponse.confidence_score > 0.3) {
+          const employeeMatch = EMPLOYEES.find(e => e.key === routingResponse.recommended_employee_key);
+          
+          if (employeeMatch) {
+            const reply = `${employeeMatch.emoji} ${employeeMatch.name} is perfect for that!\n\n${routingResponse.suggested_response || `I'll connect you with ${employeeMatch.name} who specializes in this area.`}`;
+            setMessages(m => [...m, { role: 'prime', text: reply }]);
+            logInteraction(q, employeeMatch.key);
+            
+            setTimeout(() => {
+              navigate(employeeMatch.route);
+              setOpen(false);
+            }, 2000);
+            return;
+          }
+        }
+      }
+
+      // Fallback to AI-powered understanding
       const aiMessages: ChatMessage[] = [
         { role: 'system', content: createSystemPrompt() },
         { role: 'user', content: q }
@@ -232,12 +279,22 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
           </button>
         </div>
 
-        <div className="p-3 grid grid-cols-2 gap-2">
-          {EMPLOYEES.filter(e => e.key !== 'prime').slice(0, 6).map(e => (
-            <Link key={e.key} to={e.route} className="rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-sm">
-              <span className="mr-1">{e.emoji ?? '🤖'}</span>{e.name}
-            </Link>
-          ))}
+        <div className="p-3 border-t border-white/10">
+          <div className="text-xs text-white/60 mb-2">Quick Access:</div>
+          <div className="grid grid-cols-2 gap-2">
+            {/* Prioritize Byte for import-related tasks */}
+            {EMPLOYEES.filter(e => e.key === 'byte').map(e => (
+              <Link key={e.key} to={e.route} className="rounded-lg bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 px-3 py-2 text-sm font-medium">
+                <span className="mr-1">{e.emoji ?? '🤖'}</span>{e.name}
+              </Link>
+            ))}
+            {/* Other employees */}
+            {EMPLOYEES.filter(e => e.key !== 'prime' && e.key !== 'byte').slice(0, 5).map(e => (
+              <Link key={e.key} to={e.route} className="rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-sm">
+                <span className="mr-1">{e.emoji ?? '🤖'}</span>{e.name}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     </>
