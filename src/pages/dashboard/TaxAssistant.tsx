@@ -166,8 +166,13 @@ export default function TaxAssistant() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Ledger's specialized responses for tax-related queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 📊 I'm Ledger, your Tax Processing Expert. Great to see you! I'm here to help you with tax deductions, expense tracking, business expenses, and getting your finances ready for tax season. What would you like to work on today?`;
+    }
+    
     if (query.includes('deduction') || query.includes('deduct') || query.includes('expense') || query.includes('write-off')) {
       return `📊 Excellent! Let's explore tax deductions and write-offs to maximize your tax savings. Here's my comprehensive approach to deductions:
 
@@ -627,7 +632,7 @@ What specific aspect of tax assistance would you like to explore?`;
     }
 
     // Default response for other queries
-    return `📊 I understand you're asking about "${userQuery}". As your Tax Assistant AI, I'm here to help with:
+    return `Hi ${userName}! 📊 I understand you're asking about "${userQuery}". As your Tax Assistant AI, I'm here to help with:
 
 **Tax Topics I Cover:**
 • Tax preparation and filing processes

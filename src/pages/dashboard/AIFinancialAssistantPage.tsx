@@ -149,8 +149,13 @@ export default function AIFinancialAssistantPage() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Finley's specialized responses for financial advice
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 👋 I'm Finley, your Financial Analysis Assistant. Great to see you! I'm here to help you with budgeting, investing, debt management, and all your financial planning needs. What would you like to work on today?`;
+    }
+    
     if (query.includes('budget') || query.includes('budgeting') || query.includes('spending')) {
       return `💰 Great question about budgeting! Here's my approach:
 
@@ -325,7 +330,7 @@ Would you like me to help you create a credit improvement plan?`;
     }
 
     // Default response for other queries
-    return `💼 I understand you're asking about "${userQuery}". As your AI Financial Assistant, I'm here to help with:
+    return `Hi ${userName}! 💼 I understand you're asking about "${userQuery}". As your AI Financial Assistant, I'm here to help with:
 
 **Financial Topics I Cover:**
 • Budgeting and spending optimization

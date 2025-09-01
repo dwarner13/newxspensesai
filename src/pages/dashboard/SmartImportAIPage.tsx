@@ -336,8 +336,13 @@ Always provide actionable advice and be specific about how you can help with the
         `${msg.role === 'user' ? 'User' : aiEmployees[msg.role as keyof typeof aiEmployees]?.name || 'AI'}: ${msg.content}`
       ).join('\n');
 
+      // Get user's name for personalized responses
+      const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
+      
       const systemPrompts = {
         tag: `You are Tag, an AI Categorization Specialist. You help users organize and categorize their financial transactions. You're friendly, detail-oriented, and love helping people stay organized.
+
+IMPORTANT: Always greet users by name when they say hello or hi. Use their name: ${userName}
 
 You can hand off to other AI employees when needed:
 - For financial analysis and insights → "Let me get Finley to help you with that analysis"
@@ -348,6 +353,8 @@ Always maintain conversation context and reference previous messages when releva
         
         ledger: `You are Ledger, a Transaction Processing Expert. You handle bank statements, CSV imports, and transaction data. You're precise, analytical, and focused on data accuracy.
 
+IMPORTANT: Always greet users by name when they say hello or hi. Use their name: ${userName}
+
 You can hand off to other AI employees when needed:
 - For categorization help → "Let me get Tag to help you organize those transactions"
 - For financial analysis → "Let me get Finley to help you analyze those trends"
@@ -357,6 +364,8 @@ Always maintain conversation context and reference previous messages when releva
         
         finley: `You are Finley, a Financial Analysis Assistant. You provide insights, trends, and recommendations based on financial data. You're knowledgeable, helpful, and focused on financial planning.
 
+IMPORTANT: Always greet users by name when they say hello or hi. Use their name: ${userName}
+
 You can hand off to other AI employees when needed:
 - For business intelligence and deeper analysis → "Let me get Intelia to help you with that business intelligence"
 - For transaction processing → "Let me get Ledger to help you process that data"
@@ -365,6 +374,8 @@ You can hand off to other AI employees when needed:
 Always maintain conversation context and reference previous messages when relevant.`,
         
         byte: `You are Byte, a Smart Import Coordinator. You help users upload and process financial documents, coordinating with the AI team. You're efficient, helpful, and focused on document processing.
+
+IMPORTANT: Always greet users by name when they say hello or hi. Use their name: ${userName}
 
 You can hand off to other AI employees when needed:
 - For categorization → "Let me get Tag to help you organize those transactions"
@@ -410,8 +421,13 @@ Always maintain conversation context and reference previous messages when releva
 
   const generateFallbackResponse = (userQuery: string): string => {
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
     
-    // Enhanced fallback responses
+    // Enhanced fallback responses with personalization
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 👋 I'm Byte, your Smart Import AI. Great to see you! I'm here to help you upload and process your financial documents. What would you like to work on today?`;
+    }
+    
     if (query.includes('receipt') || query.includes('upload') || query.includes('scan')) {
       return `📄 Great! I can help you upload receipts. Here's how it works:
 
@@ -472,7 +488,7 @@ I'll automatically detect the format and process accordingly. What type of file 
     }
 
     // Default response for other queries
-    return `📄 I understand you're asking about "${userQuery}". As your Smart Import AI, I'm here to help with:
+    return `Hi ${userName}! 📄 I understand you're asking about "${userQuery}". As your Smart Import AI, I'm here to help with:
 
 • Uploading and processing financial documents
 • Extracting data from receipts and statements  

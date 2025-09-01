@@ -151,8 +151,13 @@ export default function AICategorizationPage() {
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
     const query = userQuery.toLowerCase();
+    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
     // Tag's specialized responses for categorization-related queries
+    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
+      return `Hi ${userName}! 🏷️ I'm Tag, your Categorization Specialist. Great to see you! I'm here to help you organize and categorize your financial transactions, set up smart rules, and keep your spending data perfectly organized. What would you like to work on today?`;
+    }
+    
     if (query.includes('categorize') || query.includes('category') || query.includes('organize') || query.includes('classify')) {
       return `🏷️ Excellent! Let's talk about transaction categorization. Here's how I help organize your financial data:
 
@@ -407,7 +412,7 @@ What specific aspect of transaction categorization would you like to explore?`;
     }
 
     // Default response for other queries
-    return `🏷️ I understand you're asking about "${userQuery}". As your AI Categorization specialist, I'm here to help with:
+    return `Hi ${userName}! 🏷️ I understand you're asking about "${userQuery}". As your AI Categorization specialist, I'm here to help with:
 
 **Categorization Topics I Cover:**
 • Smart transaction categorization and organization
