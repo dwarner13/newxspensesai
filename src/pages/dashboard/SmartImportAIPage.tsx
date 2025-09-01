@@ -24,13 +24,15 @@ import {
 import { AIConversationMessage } from '../../types/ai-employees.types';
 
 interface ByteMessage {
-  role: 'user' | 'byte' | 'system';
+  role: 'user' | 'byte' | 'system' | 'tag' | 'ledger' | 'goalie' | 'finley' | 'luna' | 'sage' | 'blitz' | 'automa' | 'intelia';
   content: string;
   timestamp: string;
   metadata?: {
     processing_time_ms?: number;
     tokens_used?: number;
     model_used?: string;
+    ai_employee?: string;
+    action_type?: string;
   };
 }
 
@@ -279,13 +281,13 @@ Could you tell me more specifically what you'd like to import or process? I'm re
     fileInputRef.current?.click();
   };
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (files && files.length > 0) {
       setIsUploading(true);
       setUploadStatus('uploading');
       setUploadProgress(0);
-      
+
       // Simulate upload progress
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
@@ -303,7 +305,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
         setUploadProgress(100);
         setUploadStatus('complete');
         setIsUploading(false);
-        
+
         // Generate mock results
         const results = Array.from(files).map((file, index) => ({
           id: `file_${index}`,
@@ -315,15 +317,90 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           transactions: Math.floor(Math.random() * 20) + 5,
           amount: Math.floor(Math.random() * 1000) + 100
         }));
-        
+
         setUploadResults(results);
-        
-        // Auto-send success message
+
+        // Trigger multi-AI conversation based on file types
         setTimeout(() => {
-          sendMessage(`I've successfully processed ${files.length} file(s). All documents were categorized with high accuracy!`);
+          triggerMultiAIConversation(files);
         }, 1000);
       }, 3000);
     }
+  };
+
+  const triggerMultiAIConversation = async (files: FileList) => {
+    const fileTypes = Array.from(files).map(file => file.type);
+    const fileNames = Array.from(files).map(file => file.name);
+    
+    // Determine which AI employees should join the conversation
+    const relevantAIs = [];
+    
+    // Check for receipts/images
+    if (fileTypes.some(type => type.startsWith('image/') || fileNames.some(name => name.toLowerCase().includes('receipt')))) {
+      relevantAIs.push('tag'); // Tag handles categorization
+    }
+    
+    // Check for bank statements/CSV
+    if (fileTypes.some(type => type.includes('csv') || type.includes('pdf') || fileNames.some(name => name.toLowerCase().includes('statement')))) {
+      relevantAIs.push('ledger'); // Ledger handles transaction processing
+    }
+    
+    // Check for financial documents
+    if (fileTypes.some(type => type.includes('pdf') || type.includes('xlsx')) || fileNames.some(name => name.toLowerCase().includes('financial'))) {
+      relevantAIs.push('finley'); // Finley handles financial analysis
+    }
+    
+    // Always include Byte for coordination
+    relevantAIs.push('byte');
+    
+    // Remove duplicates
+    const uniqueAIs = [...new Set(relevantAIs)];
+    
+    // Generate AI responses in sequence
+    for (let i = 0; i < uniqueAIs.length; i++) {
+      const aiKey = uniqueAIs[i];
+      const delay = i * 2000; // 2 second delay between each AI response
+      
+      setTimeout(() => {
+        generateAIResponse(aiKey, files, fileNames);
+      }, delay);
+    }
+  };
+
+  const generateAIResponse = async (aiKey: string, files: FileList, fileNames: string[]) => {
+    const ai = aiEmployees[aiKey as keyof typeof aiEmployees];
+    if (!ai) return;
+
+    let response = '';
+    
+    switch (aiKey) {
+      case 'tag':
+        response = `🏷️ Hey there! I'm Tag, your AI Categorizer. I see you've uploaded ${files.length} file(s) - ${fileNames.join(', ')}. Let me analyze these and automatically categorize them for you. I'll make sure everything is properly tagged and organized!`;
+        break;
+      case 'ledger':
+        response = `📊 Hi! I'm Ledger, your Transaction Processor. I've detected some financial documents in your upload. I'll extract all the transaction data, identify duplicates, and make sure everything is properly recorded in your financial ledger.`;
+        break;
+      case 'finley':
+        response = `💼 Hello! I'm Finley, your Financial Assistant. I can see you've uploaded some financial documents. Let me analyze these for any insights, trends, or recommendations that could help with your financial planning.`;
+        break;
+      case 'byte':
+        response = `📄 Perfect! I've coordinated with the team and we're all set to process your ${files.length} file(s). The AI team is now working on your documents - you'll see their updates in this chat as they complete their tasks!`;
+        break;
+      default:
+        response = `🤖 Hi! I'm ${ai.name}, and I'm here to help with your document processing. I'll analyze your uploaded files and provide any relevant insights or actions.`;
+    }
+
+    const aiMessage: ByteMessage = {
+      role: aiKey as any,
+      content: response,
+      timestamp: new Date().toISOString(),
+      metadata: {
+        ai_employee: aiKey,
+        action_type: 'file_processing'
+      }
+    };
+
+    setMessages(prev => [...prev, aiMessage]);
   };
 
   const resetUpload = () => {
@@ -333,6 +410,19 @@ Could you tell me more specifically what you'd like to import or process? I'm re
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  // AI Employee configurations
+  const aiEmployees = {
+    tag: { name: "Tag", emoji: "🏷️", color: "text-purple-400", bgColor: "bg-purple-500/20", borderColor: "border-purple-400/30" },
+    ledger: { name: "Ledger", emoji: "📊", color: "text-blue-400", bgColor: "bg-blue-500/20", borderColor: "border-blue-400/30" },
+    goalie: { name: "Goalie", emoji: "🎯", color: "text-green-400", bgColor: "bg-green-500/20", borderColor: "border-green-400/30" },
+    finley: { name: "Finley", emoji: "💼", color: "text-yellow-400", bgColor: "bg-yellow-500/20", borderColor: "border-yellow-400/30" },
+    luna: { name: "Luna", emoji: "🌙", color: "text-indigo-400", bgColor: "bg-indigo-500/20", borderColor: "border-indigo-400/30" },
+    sage: { name: "Sage", emoji: "🧠", color: "text-orange-400", bgColor: "bg-orange-500/20", borderColor: "border-orange-400/30" },
+    blitz: { name: "Blitz", emoji: "⚡", color: "text-red-400", bgColor: "bg-red-500/20", borderColor: "border-red-400/30" },
+    automa: { name: "Automa", emoji: "🤖", color: "text-cyan-400", bgColor: "bg-cyan-500/20", borderColor: "border-cyan-400/30" },
+    intelia: { name: "Intelia", emoji: "📈", color: "text-pink-400", bgColor: "bg-pink-500/20", borderColor: "border-pink-400/30" }
   };
 
   const quickActions = [
@@ -572,22 +662,40 @@ Could you tell me more specifically what you'd like to import or process? I'm re
 
             {/* Messages */}
             <div className="h-64 overflow-y-auto p-4 space-y-3">
-              {messages.map((message, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
-                    message.role === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-white/10 text-white border border-white/20'
-                  }`}>
-                    <div className="whitespace-pre-wrap text-xs">{message.content}</div>
-                  </div>
-                </motion.div>
-              ))}
+              {messages.map((message, index) => {
+                const isUser = message.role === 'user';
+                const isByte = message.role === 'byte';
+                const aiEmployee = aiEmployees[message.role as keyof typeof aiEmployees];
+                
+                return (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
+                      isUser 
+                        ? 'bg-blue-600 text-white' 
+                        : isByte
+                        ? 'bg-white/10 text-white border border-white/20'
+                        : aiEmployee
+                        ? `${aiEmployee.bgColor} text-white border ${aiEmployee.borderColor}`
+                        : 'bg-white/10 text-white border border-white/20'
+                    }`}>
+                      {!isUser && aiEmployee && (
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm">{aiEmployee.emoji}</span>
+                          <span className={`text-xs font-semibold ${aiEmployee.color}`}>
+                            {aiEmployee.name}
+                          </span>
+                        </div>
+                      )}
+                      <div className="whitespace-pre-wrap text-xs">{message.content}</div>
+                    </div>
+                  </motion.div>
+                );
+              })}
               
               {isLoading && (
                 <motion.div
