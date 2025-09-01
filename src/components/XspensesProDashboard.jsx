@@ -13,7 +13,11 @@ export default function XspensesProDashboard() {
   const [viewMode, setViewMode] = useState('grid');
 
   return (
-    <div className="w-full">
+    <div className="w-full" style={{ 
+      transform: 'translateZ(0)', 
+      WebkitTransform: 'translateZ(0)',
+      contain: 'layout style paint'
+    }}>
       <DashboardHeader />
 
       <div className="max-w-7xl mx-auto space-y-8 p-6">
@@ -50,9 +54,23 @@ export default function XspensesProDashboard() {
           </div>
 
           {/* Smart Overview Grid - 3x3 Layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          <div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"
+            style={{ 
+              contain: 'layout',
+              transform: 'translateZ(0)',
+              WebkitTransform: 'translateZ(0)'
+            }}
+          >
             {/* Financial Health Score */}
-            <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-lg p-4 text-center">
+            <div 
+              className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-lg p-4 text-center"
+              style={{ 
+                transform: 'translateZ(0)',
+                WebkitTransform: 'translateZ(0)',
+                contain: 'layout style paint'
+              }}
+            >
               <div className="text-2xl mb-1">🏆</div>
               <div className="text-xl font-bold text-white mb-1">85</div>
               <div className="text-white/90 text-xs mb-1">Financial Health Score</div>

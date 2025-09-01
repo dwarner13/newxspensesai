@@ -8,6 +8,9 @@
 /* Import the component library */
 @import './component-library.css';
 
+/* Import mobile optimizations */
+@import './mobile-optimizations.css';
+
 /* ========================================
    GLOBAL OVERRIDES AND CUSTOMIZATIONS
    ======================================== */
