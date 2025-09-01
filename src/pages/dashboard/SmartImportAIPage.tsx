@@ -49,8 +49,7 @@ export default function SmartImportAIPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'complete' | 'error'>('idle');
   const [uploadResults, setUploadResults] = useState<any[]>([]);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [showChatAfterUpload, setShowChatAfterUpload] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -342,9 +341,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
 
         setUploadResults(results);
 
-        // Show chat after upload completes (mobile flow)
-        setShowChatAfterUpload(true);
-        setIsChatOpen(true);
+
 
         // Trigger multi-AI conversation based on file types
         setTimeout(() => {
@@ -474,12 +471,213 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           />
         )}
 
-                {/* Top Row: Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        {/* Top Row: Upload Documents */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 mb-6"
+        >
+          <div className="text-center mb-6">
+            <UploadCloud className="w-12 h-12 text-blue-400 mx-auto mb-3" />
+            <h2 className="text-xl font-bold text-white mb-2">Upload Documents</h2>
+            <p className="text-white/70 text-sm">Drag and drop or click to browse</p>
+          </div>
+
+          {/* Upload Area */}
+          <div 
+            className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 cursor-pointer ${
+              uploadStatus === 'idle' 
+                ? 'border-blue-400/50 bg-blue-500/5 hover:border-blue-400 hover:bg-blue-500/10' 
+                : uploadStatus === 'uploading' || uploadStatus === 'processing'
+                ? 'border-orange-400/50 bg-orange-500/5'
+                : uploadStatus === 'complete'
+                ? 'border-green-400/50 bg-green-500/5'
+                : 'border-red-400/50 bg-red-500/5'
+            }`}
+            onClick={uploadStatus === 'idle' ? handleFileUpload : undefined}
+          >
+            {uploadStatus === 'idle' && (
+              <>
+                <UploadCloud className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+                <p className="text-white/80 text-lg mb-3">Choose Files</p>
+                <p className="text-white/60 text-sm">JPG, PNG, PDF, CSV, XLSX</p>
+              </>
+            )}
+
+            {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
+              <>
+                <Loader2 className="w-16 h-16 text-orange-400 mx-auto mb-4 animate-spin" />
+                <p className="text-white/80 text-lg mb-3">
+                  {uploadStatus === 'uploading' ? 'Uploading...' : 'Processing...'}
+                </p>
+                <div className="w-full bg-white/10 rounded-full h-2 mb-3">
+                  <div 
+                    className="bg-orange-400 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+                <p className="text-white/60 text-sm">{uploadProgress}%</p>
+              </>
+            )}
+
+            {uploadStatus === 'complete' && (
+              <>
+                <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
+                <p className="text-white/80 text-lg mb-4">Complete!</p>
+                <button 
+                  onClick={resetUpload}
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Upload More
+                </button>
+              </>
+            )}
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".jpg,.jpeg,.png,.pdf,.csv,.xlsx,.heic"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+          </div>
+
+          {/* Upload Results */}
+          {uploadResults.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-6 space-y-3"
+            >
+              <h4 className="text-sm font-semibold text-white">Results</h4>
+              {uploadResults.map((result, index) => (
+                <div key={result.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white text-sm font-medium truncate">{result.name}</p>
+                      <p className="text-white/60 text-xs">{result.transactions} transactions</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-green-400 text-sm font-semibold">{result.accuracy}%</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </motion.div>
+
+                        {/* Middle Row: Chatbot */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden mb-6"
+        >
+          {/* Chat Header */}
+          <div className="bg-white/10 px-4 py-3 border-b border-white/10">
+            <div className="flex items-center gap-2">
+              <div className="text-lg">📄</div>
+              <div>
+                <h3 className="font-semibold text-white text-sm">Byte AI</h3>
+                <p className="text-white/60 text-xs">Smart Import Assistant</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="h-64 overflow-y-auto p-4 space-y-3">
+            {messages.map((message, index) => {
+              const isUser = message.role === 'user';
+              const isByte = message.role === 'byte';
+              const aiEmployee = aiEmployees[message.role as keyof typeof aiEmployees];
+              
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
+                    isUser 
+                      ? 'bg-blue-600 text-white' 
+                      : isByte
+                      ? 'bg-white/10 text-white border border-white/20'
+                      : aiEmployee
+                      ? `${aiEmployee.bgColor} text-white border ${aiEmployee.borderColor}`
+                      : 'bg-white/10 text-white border border-white/20'
+                  }`}>
+                    {!isUser && aiEmployee && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm">{aiEmployee.emoji}</span>
+                        <span className={`text-xs font-semibold ${aiEmployee.color}`}>
+                          {aiEmployee.name}
+                        </span>
+                      </div>
+                    )}
+                    <div className="whitespace-pre-wrap text-xs">{message.content}</div>
+                  </div>
+                </motion.div>
+              );
+            })}
+            
+            {isLoading && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex justify-start"
+              >
+                <div className="bg-white/10 text-white border border-white/20 rounded-xl px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span className="text-xs">Byte is thinking...</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+            
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input Area */}
+          <div className="p-4 border-t border-white/10">
+            <div className="flex gap-3">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                placeholder="Ask Byte anything about your documents..."
+                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-500 text-sm"
+                disabled={isLoading}
+              />
+              <button
+                onClick={handleFileUpload}
+                className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-3 transition-colors"
+                title="Upload files"
+              >
+                <UploadCloud className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => sendMessage(input)}
+                disabled={isLoading || !input.trim()}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Bottom Row: Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Processing Stats Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4"
           >
             <h3 className="text-sm font-semibold text-white mb-3">Processing Stats</h3>
@@ -504,10 +702,10 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           </motion.div>
 
           {/* Quick Actions Card */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4"
           >
             <h3 className="text-sm font-semibold text-white mb-3">Quick Actions</h3>
@@ -529,7 +727,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+            transition={{ delay: 0.5 }}
             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4"
           >
             <div className="flex items-center justify-between mb-3">
@@ -563,239 +761,9 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                 <div className="text-right">
                   <p className="text-green-400 text-xs font-semibold">99%</p>
                 </div>
+              </div>
             </div>
-          </div>
-        </motion.div>
-        </div>
-
-                {/* Mobile-First Layout */}
-        <div className="relative">
-          {/* Upload Area - Full width on mobile, half on desktop */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 flex flex-col h-[calc(100vh-400px)] lg:h-[calc(100vh-400px)]"
-          >
-            <div className="text-center mb-6">
-              <UploadCloud className="w-12 h-12 text-blue-400 mx-auto mb-3" />
-              <h2 className="text-xl font-bold text-white mb-2">Upload Documents</h2>
-              <p className="text-white/70 text-sm">Drag and drop or click to browse</p>
-            </div>
-
-            {/* Upload Area */}
-            <div 
-              className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-300 cursor-pointer flex-1 flex flex-col justify-center ${
-                uploadStatus === 'idle' 
-                  ? 'border-blue-400/50 bg-blue-500/5 hover:border-blue-400 hover:bg-blue-500/10' 
-                  : uploadStatus === 'uploading' || uploadStatus === 'processing'
-                  ? 'border-orange-400/50 bg-orange-500/5'
-                  : uploadStatus === 'complete'
-                  ? 'border-green-400/50 bg-green-500/5'
-                  : 'border-red-400/50 bg-red-500/5'
-              }`}
-              onClick={uploadStatus === 'idle' ? handleFileUpload : undefined}
-            >
-              {uploadStatus === 'idle' && (
-                <>
-                  <UploadCloud className="w-16 h-16 text-blue-400 mx-auto mb-4" />
-                  <p className="text-white/80 text-lg mb-3">Choose Files</p>
-                  <p className="text-white/60 text-sm">JPG, PNG, PDF, CSV, XLSX</p>
-                </>
-              )}
-
-              {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
-                <>
-                  <Loader2 className="w-16 h-16 text-orange-400 mx-auto mb-4 animate-spin" />
-                  <p className="text-white/80 text-lg mb-3">
-                    {uploadStatus === 'uploading' ? 'Uploading...' : 'Processing...'}
-                  </p>
-                  <div className="w-full bg-white/10 rounded-full h-2 mb-3">
-                    <div 
-                      className="bg-orange-400 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                  </div>
-                  <p className="text-white/60 text-sm">{uploadProgress}%</p>
-                </>
-              )}
-
-              {uploadStatus === 'complete' && (
-                <>
-                  <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-                  <p className="text-white/80 text-lg mb-4">Complete!</p>
-                  <button 
-                    onClick={resetUpload}
-                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg text-sm font-medium transition-colors"
-                  >
-                    Upload More
-                  </button>
-                </>
-              )}
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".jpg,.jpeg,.png,.pdf,.csv,.xlsx,.heic"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </div>
-
-            {/* Upload Results */}
-            {uploadResults.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-4 space-y-2"
-              >
-                <h4 className="text-sm font-semibold text-white">Results</h4>
-                {uploadResults.map((result, index) => (
-                  <div key={result.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
-                    <div className="flex items-center justify-between">
-                  <div>
-                        <p className="text-white text-sm font-medium truncate">{result.name}</p>
-                        <p className="text-white/60 text-xs">{result.transactions} transactions</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-green-400 text-sm font-semibold">{result.accuracy}%</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </motion.div>
-            )}
           </motion.div>
-
-                    {/* Floating Chat Bubble */}
-          {!isChatOpen ? (
-            <motion.button
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.5 }}
-              onClick={() => setIsChatOpen(true)}
-              className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg z-50 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <div className="text-lg">📄</div>
-                <span className="text-sm font-medium">Byte AI</span>
-                {messages.length > 1 && (
-                  <div className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                    {messages.length - 1}
-                  </div>
-                )}
-              </div>
-            </motion.button>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 100 }}
-              className="fixed bottom-6 right-6 bg-white/95 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl z-50 w-80 h-96 flex flex-col"
-            >
-              {/* Chat Header */}
-              <div className="bg-blue-600 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="text-lg">📄</div>
-                  <div>
-                    <h3 className="font-semibold text-sm">Byte AI</h3>
-                    <p className="text-blue-100 text-xs">Smart Import Assistant</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsChatOpen(false)}
-                  className="text-white/80 hover:text-white transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {messages.map((message, index) => {
-                  const isUser = message.role === 'user';
-                  const isByte = message.role === 'byte';
-                  const aiEmployee = aiEmployees[message.role as keyof typeof aiEmployees];
-                  
-                  return (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
-                        isUser 
-                          ? 'bg-blue-600 text-white' 
-                          : isByte
-                          ? 'bg-gray-100 text-gray-800 border border-gray-200'
-                          : aiEmployee
-                          ? `${aiEmployee.bgColor} text-gray-800 border ${aiEmployee.borderColor}`
-                          : 'bg-gray-100 text-gray-800 border border-gray-200'
-                      }`}>
-                        {!isUser && aiEmployee && (
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm">{aiEmployee.emoji}</span>
-                            <span className={`text-xs font-semibold ${aiEmployee.color}`}>
-                              {aiEmployee.name}
-                            </span>
-                          </div>
-                        )}
-                        <div className="whitespace-pre-wrap text-xs">{message.content}</div>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-                
-                {isLoading && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex justify-start"
-                  >
-                    <div className="bg-gray-100 text-gray-800 border border-gray-200 rounded-xl px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                        <span className="text-xs">Byte is thinking...</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-                
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Input Area */}
-              <div className="p-4 border-t border-gray-200">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                    placeholder="Ask Byte..."
-                    className="flex-1 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2 text-gray-800 placeholder-gray-500 focus:outline-none focus:border-blue-500 text-xs"
-                    disabled={isLoading}
-                  />
-                  <button
-                    onClick={handleFileUpload}
-                    className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-3 py-2 transition-colors"
-                    title="Upload files"
-                  >
-                    <UploadCloud className="w-3 h-3" />
-                  </button>
-                  <button
-                    onClick={() => sendMessage(input)}
-                    disabled={isLoading || !input.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-3 py-2 transition-colors"
-                  >
-                    <Send className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
         </div>
       </div>
     </div>
