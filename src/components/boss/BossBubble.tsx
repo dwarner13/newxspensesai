@@ -130,6 +130,13 @@ Special Instructions:
        - Process automation, rules → Blitz
        - Productivity improvement → Blitz
 
+       Intelia-Specific Routing: // Added
+       - Business intelligence, KPI tracking → Intelia
+       - Data analysis, trend analysis → Intelia
+       - Performance optimization, insights → Intelia
+       - Strategic planning, decision making → Intelia
+       - Market analysis, competitive intelligence → Intelia
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags

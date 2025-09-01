@@ -1,693 +1,811 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  Send, Bot, FileSpreadsheet, Download, AlertTriangle, 
-  Brain, ExternalLink,
-  ArrowUpRight, ArrowDownRight, Activity,
-  Target as GoalIcon, Lightbulb, BookOpen, ChevronUp, ChevronDown
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { 
+  Brain, 
+  BarChart3, 
+  TrendingUp, 
+  Send, 
+  Loader2,
+  Target,
+  PieChart,
+  LineChart,
+  Activity,
+  Eye,
+  Lightbulb,
+  Zap,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  DollarSign,
+  Users,
+  ShoppingCart,
+  TrendingDown,
+  ArrowUpRight,
+  ArrowDownRight
+} from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
+import { useAuth } from '../../contexts/AuthContext';
+import {
+  getEmployeeConfig,
+  getConversation,
+  saveConversation,
+  addMessageToConversation,
+  incrementConversationCount,
+  logAIInteraction,
+  generateConversationId,
+  createSystemMessage,
+  createUserMessage,
+  createAssistantMessage
+} from '../../lib/ai-employees';
+import { AIConversationMessage } from '../../types/ai-employees.types';
 
-interface BusinessMetric {
-  id: string;
-  name: string;
-  value: string | number;
-  change: number;
-  changeType: 'increase' | 'decrease' | 'neutral';
-  unit?: string;
-  target?: number;
-}
-
-interface BusinessAlert {
-  id: string;
-  type: 'opportunity' | 'warning' | 'success' | 'info';
-  title: string;
-  message: string;
-  priority: 'high' | 'medium' | 'low';
-  actionable: boolean;
-  actionText?: string;
-}
-
-interface ChatMessage {
-  id: string;
-  type: 'user' | 'ai';
-  message: string;
+interface InteliaMessage {
+  role: 'user' | 'intelia' | 'system';
+  content: string;
   timestamp: string;
+  metadata?: {
+    processing_time_ms?: number;
+    tokens_used?: number;
+    model_used?: string;
+  };
 }
 
-interface BusinessGoal {
-  id: string;
-  name: string;
-  current: number;
-  target: number;
-  unit: string;
-  timeframe: string;
-  progress: number;
-  status: 'on-track' | 'behind' | 'ahead';
-  aiTip?: string;
-}
-
-interface ForecastData {
-  month: string;
-  projectedRevenue: number;
-  projectedExpenses: number;
-  projectedProfit: number;
-}
-
-const BusinessIntelligence = () => {
-  const [chatMessage, setChatMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+export default function BusinessIntelligence() {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<InteliaMessage[]>([
     {
-      id: '1',
-      type: 'ai',
-      message: "Hello! I'm BizBot, your AI business analyst. I can help you analyze your financial performance, track KPIs, optimize cash flow, and provide strategic insights. What would you like to know about your business?",
+      role: 'intelia',
+      content: "Hello! I'm 🧠 Intelia, your Business Intelligence AI! I help you analyze business performance, track KPIs, and gain strategic insights from your financial data. I can help you understand trends, identify opportunities, optimize operations, and make data-driven decisions. What business intelligence insights would you like to explore today?",
       timestamp: new Date().toISOString()
     }
   ]);
+  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showScenarioPlanner, setShowScenarioPlanner] = useState(false);
-  const [scenarioSalesChange, setScenarioSalesChange] = useState(0);
-  const [scenarioExpenseChange, setScenarioExpenseChange] = useState(0);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [conversationId, setConversationId] = useState('');
+  const [inteliaConfig, setInteliaConfig] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Initialize conversation and load Intelia's config
+  useEffect(() => {
+    const initializeIntelia = async () => {
+      if (!user?.id) return;
 
+      const newConversationId = generateConversationId();
+      setConversationId(newConversationId);
 
-  // Mock business data - replace with real data from your app
-  const businessMetrics: BusinessMetric[] = [
-    { id: '1', name: 'Revenue YTD', value: 125000, change: 12.5, changeType: 'increase', unit: '$' },
-    { id: '2', name: 'Profit Margin', value: 18.2, change: -2.1, changeType: 'decrease', unit: '%' },
-    { id: '3', name: 'Cash on Hand', value: 45000, change: 8.3, changeType: 'increase', unit: '$' },
-    { id: '4', name: 'Monthly Burn', value: 8500, change: 5.2, changeType: 'increase', unit: '$' },
-    { id: '5', name: 'Runway', value: 5.3, change: -0.8, changeType: 'decrease', unit: 'months' }
-  ];
+      // Load Intelia's configuration
+      const config = await getEmployeeConfig('intelia');
+      setInteliaConfig(config);
 
-  const businessAlerts: BusinessAlert[] = [
-    {
-      id: '1',
-      type: 'warning',
-      title: 'Client Concentration Risk',
-      message: '70% of your revenue comes from one client. Consider diversifying your customer base.',
-      priority: 'high',
-      actionable: true,
-      actionText: 'View Diversification Strategy'
-    },
-    {
-      id: '2',
-      type: 'opportunity',
-      title: 'Ad Spend Optimization',
-      message: 'Your ad spend is up 30% compared to last month. Review ROI and consider reallocating budget.',
-      priority: 'medium',
-      actionable: true,
-      actionText: 'Analyze Ad Performance'
-    },
-    {
-      id: '3',
-      type: 'info',
-      title: 'Software Cost Increase',
-      message: 'Recurring software expenses have increased 10% this quarter. Review subscriptions.',
-      priority: 'low',
-      actionable: true,
-      actionText: 'Review Subscriptions'
-    },
-    {
-      id: '4',
-      type: 'success',
-      title: 'Cash Flow Improvement',
-      message: 'Net 30 clients are paying 15% faster than last quarter. Great job on collections!',
-      priority: 'medium',
-      actionable: false
-    }
-  ];
+      // Load existing conversation if any
+      const existingConversation = await getConversation(user.id, 'intelia', newConversationId);
+      if (existingConversation && existingConversation.messages.length > 0) {
+        setMessages(existingConversation.messages as InteliaMessage[]);
+      }
+    };
 
-  const businessGoals: BusinessGoal[] = [
-    {
-      id: '1',
-      name: 'Q3 Revenue Target',
-      current: 125000,
-      target: 150000,
-      unit: '$',
-      timeframe: 'Q3 2024',
-      progress: 83,
-      status: 'on-track',
-      aiTip: 'You need $25,000 more in sales this quarter to hit your target. Consider upselling existing clients.'
-    },
-    {
-      id: '2',
-      name: 'Profit Margin Goal',
-      current: 18.2,
-      target: 22,
-      unit: '%',
-      timeframe: 'Q3 2024',
-      progress: 83,
-      status: 'behind',
-      aiTip: 'To reach 22% margin, focus on reducing COGS by 15% or increasing prices by 8%.'
-    },
-    {
-      id: '3',
-      name: 'Customer Acquisition',
-      current: 45,
-      target: 60,
-      unit: 'customers',
-      timeframe: 'Q3 2024',
-      progress: 75,
-      status: 'behind',
-      aiTip: 'You need 15 more customers this quarter. Consider referral programs and partnerships.'
-    }
-  ];
+    initializeIntelia();
+  }, [user?.id]);
 
-  const forecastData: ForecastData[] = [
-    { month: 'Oct', projectedRevenue: 42000, projectedExpenses: 32000, projectedProfit: 10000 },
-    { month: 'Nov', projectedRevenue: 45000, projectedExpenses: 33000, projectedProfit: 12000 },
-    { month: 'Dec', projectedRevenue: 48000, projectedExpenses: 34000, projectedProfit: 14000 }
-  ];
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const handleSendMessage = async () => {
-    if (!chatMessage.trim()) return;
+  const sendMessage = async (content: string) => {
+    if (!content.trim() || !user?.id || isLoading) return;
 
-    const userMessage = chatMessage;
-    setChatMessage('');
-    setChatHistory(prev => [...prev, { 
-      id: Date.now().toString(),
-      type: 'user', 
-      message: userMessage,
+    const userMessage: InteliaMessage = {
+      role: 'user',
+      content: content.trim(),
       timestamp: new Date().toISOString()
-    }]);
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
     setIsLoading(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = generateBizBotResponse(userMessage);
-      setChatHistory(prev => [...prev, { 
-        id: (Date.now() + 1).toString(),
-        type: 'ai', 
-        message: aiResponse,
+    try {
+      // Save user message to conversation
+      await addMessageToConversation(user.id, 'intelia', conversationId, userMessage as AIConversationMessage);
+
+      // Log the interaction
+      await logAIInteraction(user.id, 'intelia', 'chat', content);
+
+      // Simulate AI response (in real implementation, this would call OpenAI)
+      const startTime = Date.now();
+
+      // Create Intelia's response based on the user's query
+      const inteliaResponse = await generateInteliaResponse(content);
+
+      const processingTime = Date.now() - startTime;
+
+      const inteliaMessage: InteliaMessage = {
+        role: 'intelia',
+        content: inteliaResponse,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          processing_time_ms: processingTime,
+          model_used: 'gpt-4'
+        }
+      };
+
+      setMessages(prev => [...prev, inteliaMessage]);
+
+      // Save Intelia's response to conversation
+      await addMessageToConversation(user.id, 'intelia', conversationId, inteliaMessage as AIConversationMessage);
+
+      // Increment conversation count
+      await incrementConversationCount(user.id, 'intelia');
+
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage: InteliaMessage = {
+        role: 'intelia',
+        content: "I'm having trouble processing your request right now. Please try again in a moment.",
         timestamp: new Date().toISOString()
-      }]);
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
-  };
-
-  const generateBizBotResponse = (message: string): string => {
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('cash flow') || lowerMessage.includes('cashflow')) {
-      return "Your current cash flow analysis shows: Monthly burn rate is $8,500 with 5.3 months of runway. To improve cash flow, consider: 1) Negotiate longer payment terms with suppliers, 2) Offer early payment discounts to customers, 3) Reduce monthly burn by 15% through expense optimization. Your current cash position of $45,000 is healthy but could be improved.";
-    }
-    
-    if (lowerMessage.includes('sales target') || lowerMessage.includes('revenue target')) {
-      return "You're currently at $125,000 YTD revenue, which is 83% of your Q3 target of $150,000. You need $25,000 more in sales this quarter to hit your target. Based on your current growth rate of 12.5%, you're on track. Consider: 1) Upselling existing clients (typically 20% success rate), 2) Accelerating new customer acquisition, 3) Increasing average order value by 15%.";
-    }
-    
-    if (lowerMessage.includes('break-even') || lowerMessage.includes('breakeven')) {
-      return "Your break-even analysis: Fixed costs: $8,500/month, Average contribution margin: 18.2%. Break-even point: $46,703 monthly revenue. You're currently above break-even at $125,000 YTD. To improve margins, focus on: 1) Reducing variable costs by 10%, 2) Increasing prices by 5-8%, 3) Optimizing operational efficiency.";
-    }
-    
-    if (lowerMessage.includes('expense') || lowerMessage.includes('cost')) {
-      return "Your top expense categories this quarter: 1) Software subscriptions (25% of expenses), 2) Marketing/advertising (20%), 3) Payroll (35%), 4) Office/operational (20%). Recommendations: 1) Review unused software subscriptions (potential 15% savings), 2) Optimize ad spend ROI (currently 30% increase), 3) Consider remote work to reduce office costs.";
-    }
-    
-    if (lowerMessage.includes('benchmark') || lowerMessage.includes('industry')) {
-      return "Your performance vs industry benchmarks: Profit margin (18.2% vs 15% industry avg) - ABOVE AVERAGE, Revenue growth (12.5% vs 8% industry avg) - ABOVE AVERAGE, Customer concentration (70% from one client) - NEEDS IMPROVEMENT. You're performing well overall, but should diversify your customer base to reduce risk.";
-    }
-    
-    return "I can help you analyze your business performance, track KPIs, optimize cash flow, and provide strategic insights. What specific aspect of your business would you like me to analyze?";
-  };
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    // Only scroll to bottom if there are chat messages and it's not the initial load
-    if (chatHistory.length > 1) {
-      scrollToBottom();
-    }
-  }, [chatHistory]);
-
-  const getChangeIcon = (changeType: string) => {
-    switch (changeType) {
-      case 'increase': return <ArrowUpRight size={16} className="text-green-400" />;
-      case 'decrease': return <ArrowDownRight size={16} className="text-red-400" />;
-      default: return <TrendingUp size={16} className="text-blue-400" />;
     }
   };
 
-  const getChangeColor = (changeType: string) => {
-    switch (changeType) {
-      case 'increase': return 'text-green-400';
-      case 'decrease': return 'text-red-400';
-      default: return 'text-blue-400';
+  const generateInteliaResponse = async (userQuery: string): Promise<string> => {
+    // Simulate AI processing delay
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+    const query = userQuery.toLowerCase();
+
+    // Intelia's specialized responses for business intelligence queries
+    if (query.includes('kpi') || query.includes('metric') || query.includes('performance') || query.includes('track')) {
+      return `📊 Excellent! Let's talk about Key Performance Indicators (KPIs) and business metrics tracking. Here's my approach to measuring and optimizing business performance:
+
+**Essential Business KPIs:**
+
+**1. Financial KPIs:**
+• **Revenue Growth Rate** - Month-over-month and year-over-year growth
+• **Profit Margins** - Gross, operating, and net profit margins
+• **Cash Flow** - Operating cash flow and cash conversion cycle
+• **Customer Acquisition Cost (CAC)** - Cost to acquire new customers
+• **Customer Lifetime Value (CLV)** - Total value of a customer over time
+• **Return on Investment (ROI)** - Return on marketing and operational investments
+
+**2. Operational KPIs:**
+• **Inventory Turnover** - How quickly inventory is sold and replaced
+• **Order Fulfillment Rate** - Percentage of orders delivered on time
+• **Customer Satisfaction Score** - Net Promoter Score (NPS) and reviews
+• **Employee Productivity** - Revenue per employee and efficiency metrics
+• **Process Efficiency** - Time to complete key business processes
+
+**3. Marketing KPIs:**
+• **Conversion Rate** - Website visitors to customers
+• **Customer Acquisition Rate** - New customers per month
+• **Marketing ROI** - Return on marketing spend
+• **Customer Retention Rate** - Percentage of customers who stay
+• **Brand Awareness** - Social media engagement and reach
+
+**4. Sales KPIs:**
+• **Sales Growth** - Monthly and quarterly sales increases
+• **Average Deal Size** - Revenue per transaction
+• **Sales Cycle Length** - Time from lead to close
+• **Win Rate** - Percentage of deals won
+• **Sales Pipeline Value** - Total value of opportunities
+
+**KPI Tracking Best Practices:**
+• **Set SMART Goals** - Specific, Measurable, Achievable, Relevant, Time-bound
+• **Choose Leading Indicators** - Metrics that predict future performance
+• **Track Trends** - Monitor changes over time, not just current values
+• **Set Benchmarks** - Compare against industry standards and competitors
+• **Create Dashboards** - Visualize KPIs for easy monitoring
+• **Review Regularly** - Weekly, monthly, and quarterly KPI reviews
+
+**Pro Tips:**
+• **Focus on actionable metrics** - KPIs that drive decision-making
+• **Avoid vanity metrics** - Numbers that look good but don't impact business
+• **Use relative metrics** - Percentages and ratios over absolute numbers
+• **Segment your data** - Break down KPIs by customer type, product, region
+• **Automate tracking** - Use tools to collect and report KPIs automatically
+
+What specific KPIs would you like to track for your business?`;
     }
+
+    if (query.includes('trend') || query.includes('analysis') || query.includes('pattern') || query.includes('insight')) {
+      return `📈 Fantastic! Let's dive into trend analysis and pattern recognition to uncover valuable business insights. Here's my approach to data analysis:
+
+**Business Trend Analysis Framework:**
+
+**1. Revenue Trends:**
+• **Seasonal Patterns** - Identify peak and slow periods throughout the year
+• **Growth Trajectories** - Linear, exponential, or cyclical growth patterns
+• **Product Performance** - Which products/services drive the most revenue
+• **Customer Segments** - High-value vs. low-value customer trends
+• **Geographic Trends** - Regional performance variations
+
+**2. Customer Behavior Trends:**
+• **Purchase Frequency** - How often customers buy from you
+• **Average Order Value** - Changes in customer spending patterns
+• **Customer Journey** - Path from awareness to purchase to retention
+• **Churn Patterns** - When and why customers leave
+• **Engagement Trends** - Website visits, email opens, social media interaction
+
+**3. Operational Trends:**
+• **Efficiency Metrics** - Time and cost trends for key processes
+• **Quality Metrics** - Error rates, returns, customer complaints
+• **Inventory Patterns** - Stock levels, turnover rates, seasonal demand
+• **Employee Performance** - Productivity trends and skill development
+• **Technology Adoption** - How new tools impact performance
+
+**4. Market Trends:**
+• **Competitive Analysis** - How your performance compares to competitors
+• **Industry Benchmarks** - Your position relative to industry standards
+• **Economic Factors** - Impact of economic conditions on your business
+• **Technology Trends** - How new technologies affect your industry
+• **Regulatory Changes** - Impact of new laws and regulations
+
+**Pattern Recognition Techniques:**
+• **Time Series Analysis** - Identify trends, seasonality, and cycles
+• **Correlation Analysis** - Find relationships between different metrics
+• **Segmentation Analysis** - Group customers by behavior patterns
+• **Predictive Modeling** - Forecast future performance based on historical data
+• **Anomaly Detection** - Identify unusual patterns that need attention
+
+**Insight Generation Process:**
+1. **Data Collection** - Gather comprehensive data from all sources
+2. **Data Cleaning** - Remove errors and inconsistencies
+3. **Exploratory Analysis** - Look for patterns and relationships
+4. **Hypothesis Testing** - Test assumptions about what drives performance
+5. **Action Planning** - Develop strategies based on insights
+6. **Implementation** - Put insights into action
+7. **Monitoring** - Track the impact of changes
+
+**Pro Tips:**
+• **Look for leading indicators** - Metrics that predict future performance
+• **Consider multiple timeframes** - Daily, weekly, monthly, quarterly, yearly
+• **Segment your analysis** - Break down trends by customer type, product, region
+• **Validate your insights** - Test assumptions with additional data
+• **Focus on actionable insights** - Information that drives decision-making
+
+What specific trends or patterns would you like to analyze?`;
+    }
+
+    if (query.includes('optimize') || query.includes('improve') || query.includes('efficiency') || query.includes('performance')) {
+      return `🚀 Excellent! Let's optimize your business performance and improve efficiency. Here's my strategic approach to business optimization:
+
+**Business Performance Optimization Framework:**
+
+**1. Revenue Optimization:**
+• **Pricing Strategy** - Optimize pricing based on value and competition
+• **Product Mix** - Focus on high-margin, high-demand products
+• **Customer Segmentation** - Target high-value customer segments
+• **Sales Process** - Streamline sales cycle and improve conversion rates
+• **Upselling/Cross-selling** - Increase average order value
+
+**2. Cost Optimization:**
+• **Operational Efficiency** - Reduce waste and improve productivity
+• **Supplier Management** - Negotiate better terms and find cost-effective suppliers
+• **Inventory Management** - Optimize stock levels to reduce carrying costs
+• **Technology Investment** - Automate processes to reduce labor costs
+• **Energy and Utilities** - Reduce overhead costs through efficiency
+
+**3. Customer Experience Optimization:**
+• **Customer Journey Mapping** - Identify and fix pain points
+• **Service Quality** - Improve customer satisfaction and retention
+• **Response Times** - Speed up customer service and order fulfillment
+• **Personalization** - Tailor experiences to individual customer preferences
+• **Feedback Loops** - Continuously improve based on customer input
+
+**4. Operational Optimization:**
+• **Process Automation** - Automate repetitive tasks and workflows
+• **Quality Control** - Reduce errors and improve consistency
+• **Supply Chain** - Optimize logistics and reduce delivery times
+• **Employee Training** - Improve skills and productivity
+• **Technology Stack** - Use the right tools for maximum efficiency
+
+**5. Marketing Optimization:**
+• **Channel Performance** - Focus on high-ROI marketing channels
+• **Content Strategy** - Create content that drives engagement and conversions
+• **Customer Acquisition** - Reduce cost per acquisition
+• **Retention Strategies** - Keep customers longer and increase lifetime value
+• **Brand Positioning** - Differentiate from competitors
+
+**Performance Improvement Process:**
+1. **Baseline Assessment** - Measure current performance across all areas
+2. **Gap Analysis** - Identify areas for improvement
+3. **Priority Setting** - Focus on high-impact, low-effort improvements
+4. **Implementation** - Execute improvement strategies
+5. **Monitoring** - Track progress and measure results
+6. **Iteration** - Continuously refine and improve
+
+**Key Performance Indicators for Optimization:**
+• **Revenue per employee** - Measure productivity and efficiency
+• **Customer acquisition cost** - Track marketing efficiency
+• **Customer lifetime value** - Measure long-term customer value
+• **Inventory turnover** - Monitor operational efficiency
+• **Profit margins** - Track overall business health
+
+**Pro Tips:**
+• **Start with quick wins** - Implement easy improvements first
+• **Focus on bottlenecks** - Address the biggest constraints to growth
+• **Measure everything** - Track the impact of all changes
+• **Test and iterate** - Try different approaches and optimize based on results
+• **Involve your team** - Get input from employees who know the processes
+
+What specific area of your business would you like to optimize?`;
+    }
+
+    if (query.includes('report') || query.includes('dashboard') || query.includes('visualize') || query.includes('chart')) {
+      return `📊 Perfect! Let's create powerful business reports and dashboards to visualize your data and track performance. Here's my approach to business reporting:
+
+**Business Intelligence Dashboard Framework:**
+
+**1. Executive Dashboard:**
+• **Revenue Overview** - Monthly, quarterly, and yearly revenue trends
+• **Profitability Metrics** - Gross margin, operating margin, net profit
+• **Key Performance Indicators** - Top 10 most important business metrics
+• **Cash Flow Status** - Current cash position and projections
+• **Growth Metrics** - Customer growth, revenue growth, market share
+
+**2. Sales Dashboard:**
+• **Sales Performance** - Daily, weekly, monthly sales trends
+• **Pipeline Analysis** - Sales funnel and conversion rates
+• **Product Performance** - Top-selling products and categories
+• **Sales Team Metrics** - Individual and team performance
+• **Geographic Performance** - Sales by region and territory
+
+**3. Marketing Dashboard:**
+• **Campaign Performance** - ROI, conversion rates, cost per acquisition
+• **Channel Analysis** - Performance by marketing channel
+• **Customer Acquisition** - New customer trends and sources
+• **Brand Metrics** - Social media engagement, website traffic
+• **Content Performance** - Most effective content and messaging
+
+**4. Operations Dashboard:**
+• **Efficiency Metrics** - Process times, error rates, productivity
+• **Inventory Status** - Stock levels, turnover rates, reorder points
+• **Quality Control** - Defect rates, customer satisfaction scores
+• **Resource Utilization** - Employee productivity, equipment usage
+• **Cost Analysis** - Operational costs and efficiency trends
+
+**5. Customer Dashboard:**
+• **Customer Health** - Satisfaction scores, retention rates, churn
+• **Customer Journey** - Touchpoints and conversion rates
+• **Customer Segmentation** - Performance by customer type
+• **Support Metrics** - Response times, resolution rates, satisfaction
+• **Lifetime Value** - Customer value trends and predictions
+
+**Visualization Best Practices:**
+• **Choose the right chart type** - Bar charts for comparisons, line charts for trends
+• **Use consistent colors** - Color-code by category or performance level
+• **Include context** - Add benchmarks, targets, and historical data
+• **Make it interactive** - Allow users to drill down and explore data
+• **Keep it simple** - Focus on the most important information
+• **Update regularly** - Ensure data is current and relevant
+
+**Report Types:**
+• **Real-time Dashboards** - Live data for immediate decision-making
+• **Daily Reports** - Key metrics updated every day
+• **Weekly Reports** - Detailed analysis and trends
+• **Monthly Reports** - Comprehensive business review
+• **Quarterly Reports** - Strategic analysis and planning
+• **Annual Reports** - Year-end performance and planning
+
+**Pro Tips:**
+• **Start with the basics** - Focus on the most important metrics first
+• **Make it actionable** - Include insights and recommendations
+• **Automate reporting** - Set up automatic report generation and distribution
+• **Customize for users** - Different dashboards for different roles
+• **Include alerts** - Notifications for important changes or issues
+• **Regular reviews** - Update dashboards based on user feedback
+
+What specific reports or dashboards would you like to create?`;
+    }
+
+    if (query.includes('strategy') || query.includes('plan') || query.includes('decision') || query.includes('insight')) {
+      return `🧠 Excellent! Let's develop strategic insights and data-driven decision-making frameworks. Here's my approach to strategic business intelligence:
+
+**Strategic Business Intelligence Framework:**
+
+**1. Market Intelligence:**
+• **Competitive Analysis** - Monitor competitor performance and strategies
+• **Market Trends** - Identify emerging opportunities and threats
+• **Customer Insights** - Understand customer needs and preferences
+• **Industry Benchmarks** - Compare performance to industry standards
+• **Economic Indicators** - Monitor factors affecting your business
+
+**2. Customer Intelligence:**
+• **Customer Segmentation** - Group customers by behavior and value
+• **Customer Journey Mapping** - Understand the path to purchase
+• **Predictive Analytics** - Forecast customer behavior and needs
+• **Churn Analysis** - Identify why customers leave and how to retain them
+• **Lifetime Value Modeling** - Predict long-term customer value
+
+**3. Product Intelligence:**
+• **Product Performance** - Which products drive the most value
+• **Feature Analysis** - What features customers use most
+• **Pricing Optimization** - Optimal pricing based on value and competition
+• **Product Roadmap** - Data-driven product development priorities
+• **Inventory Optimization** - Stock levels based on demand patterns
+
+**4. Operational Intelligence:**
+• **Process Optimization** - Identify bottlenecks and inefficiencies
+• **Resource Allocation** - Optimize staffing and equipment usage
+• **Quality Management** - Monitor and improve product/service quality
+• **Supply Chain Intelligence** - Optimize suppliers and logistics
+• **Risk Management** - Identify and mitigate operational risks
+
+**5. Financial Intelligence:**
+• **Profitability Analysis** - Understand what drives profits
+• **Cash Flow Forecasting** - Predict future cash needs
+• **Investment ROI** - Measure return on marketing and operational investments
+• **Cost Structure Analysis** - Identify cost drivers and optimization opportunities
+• **Financial Risk Assessment** - Monitor financial health and stability
+
+**Strategic Decision-Making Process:**
+1. **Data Collection** - Gather relevant data from all sources
+2. **Analysis** - Apply analytical techniques to understand patterns
+3. **Insight Generation** - Identify key insights and opportunities
+4. **Strategy Development** - Create actionable strategies
+5. **Implementation Planning** - Develop execution plans
+6. **Monitoring** - Track progress and adjust strategies
+7. **Evaluation** - Measure results and learn from outcomes
+
+**Key Strategic Questions:**
+• **Where are we now?** - Current performance and market position
+• **Where do we want to go?** - Strategic goals and objectives
+• **How do we get there?** - Strategies and tactics
+• **What could go wrong?** - Risks and mitigation strategies
+• **How do we measure success?** - KPIs and success metrics
+
+**Pro Tips:**
+• **Focus on actionable insights** - Information that drives decisions
+• **Consider multiple scenarios** - Plan for different possible futures
+• **Involve stakeholders** - Get input from all relevant parties
+• **Regular reviews** - Update strategies based on new data
+• **Learn from failures** - Use setbacks as learning opportunities
+• **Stay agile** - Be ready to adjust strategies quickly
+
+What specific strategic insights would you like to explore?`;
+    }
+
+    if (query.includes('help') || query.includes('advice') || query.includes('guidance') || query.includes('support')) {
+      return `🧠 I'm here to help you unlock the power of business intelligence and make data-driven decisions! Here's how I can support your business intelligence journey:
+
+**My Business Intelligence Expertise:**
+📊 **KPI Tracking** - Monitor and optimize key performance indicators
+📈 **Trend Analysis** - Identify patterns and predict future performance
+🚀 **Performance Optimization** - Improve efficiency and profitability
+📋 **Reporting & Dashboards** - Create powerful visualizations and reports
+🧠 **Strategic Insights** - Develop data-driven strategies and decisions
+🔍 **Data Analysis** - Uncover hidden patterns and opportunities
+📊 **Market Intelligence** - Understand competitors and market trends
+🎯 **Predictive Analytics** - Forecast future performance and trends
+
+**How I Can Help:**
+• Create comprehensive KPI tracking systems
+• Analyze business trends and patterns
+• Optimize performance across all business areas
+• Design powerful dashboards and reports
+• Develop strategic insights and recommendations
+• Conduct competitive and market analysis
+• Build predictive models for forecasting
+• Identify optimization opportunities
+
+**My Approach:**
+I believe every business decision should be backed by data and insights. I help you transform raw data into actionable intelligence that drives growth and profitability.
+
+**My Promise:**
+I'll help you build a comprehensive business intelligence system that gives you the insights you need to make better decisions, optimize performance, and achieve your business goals.
+
+**Pro Tip:** The best business intelligence doesn't just tell you what happened—it tells you what to do next!
+
+What specific aspect of business intelligence would you like to explore?`;
+    }
+
+    // Default response for other queries
+    return `🧠 I understand you're asking about "${userQuery}". As your Business Intelligence AI, I'm here to help with:
+
+**Business Intelligence Topics I Cover:**
+• KPI tracking and performance monitoring
+• Trend analysis and pattern recognition
+• Business performance optimization
+• Strategic insights and decision-making
+• Data visualization and reporting
+• Market intelligence and competitive analysis
+• Predictive analytics and forecasting
+• Operational efficiency analysis
+
+**My Business Intelligence Philosophy:**
+Data is only valuable when it leads to insights, and insights are only valuable when they lead to action. I help you transform data into strategic intelligence that drives business growth.
+
+**My Promise:**
+I'll help you build a comprehensive business intelligence system that gives you the insights you need to make better decisions, optimize performance, and achieve your business goals.
+
+Could you tell me more specifically what business intelligence topic you'd like to discuss? I'm ready to help you unlock the power of your data!`;
   };
 
-  const getAlertColor = (type: string) => {
-    switch (type) {
-      case 'opportunity': return 'bg-blue-500/20 border-blue-500/30';
-      case 'warning': return 'bg-yellow-500/20 border-yellow-500/30';
-      case 'success': return 'bg-green-500/20 border-green-500/30';
-      case 'info': return 'bg-purple-500/20 border-purple-500/30';
-      default: return 'bg-gray-500/20 border-gray-500/30';
-    }
-  };
+  const quickActions = [
+    { icon: BarChart3, text: "Track KPIs", action: () => sendMessage("I want to track key performance indicators") },
+    { icon: TrendingUp, text: "Analyze Trends", action: () => sendMessage("I want to analyze business trends") },
+    { icon: Target, text: "Optimize Performance", action: () => sendMessage("I want to optimize business performance") },
+    { icon: PieChart, text: "Create Reports", action: () => sendMessage("I want to create business reports and dashboards") },
+    { icon: Brain, text: "Strategic Insights", action: () => sendMessage("I want strategic business insights") },
+    { icon: Activity, text: "Data Analysis", action: () => sendMessage("I want to analyze business data") }
+  ];
 
-  const getGoalStatusColor = (status: string) => {
-    switch (status) {
-      case 'on-track': return 'text-green-400';
-      case 'behind': return 'text-red-400';
-      case 'ahead': return 'text-blue-400';
-      default: return 'text-gray-400';
+  const businessInsights = [
+    {
+      icon: TrendingUp,
+      title: "Revenue Growth",
+      value: "+23.5%",
+      change: "+5.2%",
+      trend: "up",
+      description: "Year-over-year growth"
+    },
+    {
+      icon: Users,
+      title: "Customer Acquisition",
+      value: "1,247",
+      change: "+12.3%",
+      trend: "up",
+      description: "New customers this month"
+    },
+    {
+      icon: DollarSign,
+      title: "Average Order Value",
+      value: "$156",
+      change: "+8.7%",
+      trend: "up",
+      description: "Per transaction"
+    },
+    {
+      icon: ShoppingCart,
+      title: "Conversion Rate",
+      value: "3.2%",
+      change: "-0.5%",
+      trend: "down",
+      description: "Website visitors to customers"
     }
-  };
+  ];
+
+  const inteliaTips = [
+    {
+      icon: Eye,
+      title: "Focus on Actionable Metrics",
+      description: "Track KPIs that drive decisions"
+    },
+    {
+      icon: Lightbulb,
+      title: "Look for Patterns",
+      description: "Identify trends and correlations"
+    },
+    {
+      icon: Zap,
+      title: "Automate Reporting",
+      description: "Set up automatic data collection"
+    },
+    {
+      icon: AlertTriangle,
+      title: "Monitor Anomalies",
+      description: "Watch for unusual patterns"
+    }
+  ];
 
   return (
-    <div className="w-full">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <DashboardHeader />
-      
-      {/* Content Area with Enhanced Styling */}
-      <div className="max-w-7xl mx-auto space-y-8">
-        
-        {/* Action Buttons */}
-        <div className="flex items-center gap-4 mb-8">
-        <button className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 transition-all">
-          <Download size={20} />
-          Export Report
-        </button>
-      </div>
 
-      <div className="space-y-8">
-            
-            {/* Business Health Overview */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
-                  <Activity size={24} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Business Health Overview</h3>
-                  <p className="text-white/60 text-sm">Key performance indicators and financial metrics</p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {businessMetrics.map((metric) => (
-                  <div key={metric.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-white/60 text-sm">{metric.name}</span>
-                      {getChangeIcon(metric.changeType)}
-                    </div>
-                    <div className="text-2xl font-bold text-white mb-1">
-                      {metric.unit}{typeof metric.value === 'number' ? metric.value.toLocaleString() : metric.value}
-                    </div>
-                    <div className={`text-sm ${getChangeColor(metric.changeType)}`}>
-                      {metric.change > 0 ? '+' : ''}{metric.change}% from last period
-                    </div>
-                  </div>
-                ))}
-              </div>
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Intelia Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-8"
+        >
+          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
+            <div className="text-3xl">🧠</div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Intelia</h1>
+              <p className="text-white/70 text-sm">Business Intelligence AI</p>
             </div>
+            <div className="flex items-center gap-2 ml-4">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm">AI Active</span>
+            </div>
+          </div>
+        </motion.div>
 
-            {/* Alerts & Opportunities */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-r from-yellow-500 to-orange-600 rounded-full flex items-center justify-center">
-                  <AlertTriangle size={24} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Alerts & Opportunities</h3>
-                  <p className="text-white/60 text-sm">AI-generated insights and actionable recommendations</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Chat Interface */}
+          <div className="lg:col-span-2">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
+            >
+              {/* Chat Header */}
+              <div className="bg-white/10 px-6 py-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="text-xl">🧠</div>
+                  <div>
+                    <h2 className="font-semibold text-white">Chat with Intelia</h2>
+                    <p className="text-white/60 text-sm">Business Intelligence Specialist</p>
+                  </div>
                 </div>
               </div>
-              
-              <div className="space-y-4">
-                {businessAlerts.map((alert) => (
+
+              {/* Messages */}
+              <div className="h-96 overflow-y-auto p-4 space-y-4">
+                {messages.map((message, index) => (
                   <motion.div
-                    key={alert.id}
-                    className={`p-4 rounded-lg border ${getAlertColor(alert.type)}`}
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ duration: 0.2 }}
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <h4 className="font-semibold text-white">{alert.title}</h4>
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            alert.priority === 'high' ? 'bg-red-500/20 text-red-400' :
-                            alert.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                            'bg-green-500/20 text-green-400'
-                          }`}>
-                            {alert.priority}
-                          </span>
-                        </div>
-                        <p className="text-white/80 text-sm">{alert.message}</p>
-                        {alert.actionable && alert.actionText && (
-                          <button className="mt-3 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors">
-                            {alert.actionText} →
-                          </button>
-                        )}
+                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                      message.role === 'user'
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white/10 text-white border border-white/20'
+                    }`}>
+                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      <div className="text-xs opacity-60 mt-2">
+                        {new Date(message.timestamp).toLocaleTimeString()}
                       </div>
                     </div>
                   </motion.div>
                 ))}
-              </div>
-            </div>
 
-            {/* AI Business Analyst Chatbot */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <Bot size={24} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Ask BizBot: Your Business Analyst</h3>
-                  <p className="text-white/60 text-sm">Get AI-powered business insights and strategic advice</p>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                {/* Chat History */}
-                <div className="max-h-64 overflow-y-auto space-y-3 bg-black/20 rounded-lg p-4">
-                  {chatHistory.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-xs p-3 rounded-lg ${
-                        msg.type === 'user' 
-                          ? 'bg-blue-500 text-white' 
-                          : 'bg-white/10 text-white'
-                      }`}>
-                        {msg.message}
+                {isLoading && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex justify-start"
+                  >
+                    <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Intelia is analyzing...</span>
                       </div>
                     </div>
-                  ))}
-                  {isLoading && (
-                    <div className="flex justify-start">
-                      <div className="bg-white/10 text-white p-3 rounded-lg">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-white/60 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
+                  </motion.div>
+                )}
 
-                {/* Chat Input */}
-                <div className="flex space-x-3">
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input Area */}
+              <div className="p-4 border-t border-white/10">
+                <div className="flex gap-2">
                   <input
                     type="text"
-                    value={chatMessage}
-                    onChange={(e) => setChatMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="Ask about cash flow, sales targets, expenses..."
-                    className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:border-blue-400"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                    placeholder="Ask Intelia about KPIs, trends, optimization, reports, or strategic insights..."
+                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+                    disabled={isLoading}
                   />
                   <button
-                    onClick={handleSendMessage}
-                    disabled={!chatMessage.trim() || isLoading}
-                    className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-all"
+                    onClick={() => sendMessage(input)}
+                    disabled={isLoading || !input.trim()}
+                    className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
                   >
-                    <Send size={20} />
-                  </button>
-                </div>
-                
-                {/* Quick Questions */}
-                <div className="flex flex-wrap gap-2">
-                  <button 
-                    onClick={() => setChatMessage("How can I improve my cash flow?")}
-                    className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-sm transition-all"
-                  >
-                    Cash flow tips
-                  </button>
-                  <button 
-                    onClick={() => setChatMessage("Am I on track to hit my sales target?")}
-                    className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-sm transition-all"
-                  >
-                    Sales target
-                  </button>
-                  <button 
-                    onClick={() => setChatMessage("What's my break-even point?")}
-                    className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-sm transition-all"
-                  >
-                    Break-even
-                  </button>
-                  <button 
-                    onClick={() => setChatMessage("Which expenses can I reduce?")}
-                    className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-sm transition-all"
-                  >
-                    Expense reduction
-                  </button>
-                  <button 
-                    onClick={() => setChatMessage("How do I compare to industry benchmarks?")}
-                    className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-full text-sm transition-all"
-                  >
-                    Industry benchmarks
+                    <Send className="w-5 h-5" />
                   </button>
                 </div>
               </div>
-            </div>
+            </motion.div>
+          </div>
 
-            {/* Business Trends & Forecasting */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Revenue & Expense Trends */}
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center">
-                    <TrendingUp size={24} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">Business Trends</h3>
-                    <p className="text-white/60 text-sm">Revenue and expense analysis</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
-                    <span className="text-white/60">Revenue Growth</span>
-                    <span className="text-green-400 font-semibold">+12.5%</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
-                    <span className="text-white/60">Expense Growth</span>
-                    <span className="text-red-400 font-semibold">+8.2%</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
-                    <span className="text-white/60">Profit Margin</span>
-                    <span className="text-blue-400 font-semibold">18.2%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* AI Forecasting */}
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-                <div className="flex items-center space-x-3 mb-6">
-                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center">
-                    <Brain size={24} className="text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">AI Forecasting</h3>
-                    <p className="text-white/60 text-sm">Next 90 days projection</p>
-                  </div>
-                </div>
-                
-                <div className="space-y-3">
-                  {forecastData.map((forecast) => (
-                    <div key={forecast.month} className="flex justify-between items-center p-3 bg-white/5 rounded-lg">
-                      <span className="text-white/60">{forecast.month}</span>
-                      <div className="text-right">
-                        <div className="text-white font-semibold">${forecast.projectedProfit.toLocaleString()}</div>
-                        <div className="text-white/60 text-xs">Profit</div>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  <button 
-                    onClick={() => setShowScenarioPlanner(!showScenarioPlanner)}
-                    className="w-full bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-all flex items-center justify-between"
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Quick Actions */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Business Intelligence Actions</h3>
+              <div className="grid grid-cols-1 gap-3">
+                {quickActions.map((action, index) => (
+                  <button
+                    key={index}
+                    onClick={action.action}
+                    className="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
                   >
-                    <span>Scenario Planner</span>
-                    {showScenarioPlanner ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <action.icon className="w-5 h-5" />
+                    <span className="text-sm">{action.text}</span>
                   </button>
-                  
-                  {showScenarioPlanner && (
-                    <div className="space-y-3 p-4 bg-white/5 rounded-lg">
-                      <div>
-                        <label className="text-white/60 text-sm">Sales Change (%)</label>
-                        <input
-                          type="number"
-                          value={scenarioSalesChange}
-                          onChange={(e) => setScenarioSalesChange(Number(e.target.value))}
-                          className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white mt-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-white/60 text-sm">Expense Change (%)</label>
-                        <input
-                          type="number"
-                          value={scenarioExpenseChange}
-                          onChange={(e) => setScenarioExpenseChange(Number(e.target.value))}
-                          className="w-full bg-white/10 border border-white/20 rounded px-3 py-2 text-white mt-1"
-                        />
-                      </div>
-                      <div className="text-center p-3 bg-white/10 rounded">
-                        <div className="text-white font-semibold">
-                          Projected Impact: ${(125000 * (1 + scenarioSalesChange/100) - 8500 * (1 + scenarioExpenseChange/100)).toLocaleString()}
-                        </div>
-                        <div className="text-white/60 text-sm">Monthly Revenue</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                ))}
               </div>
-            </div>
+            </motion.div>
 
-            {/* Goal Tracking & Recommendations */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-red-600 rounded-full flex items-center justify-center">
-                  <GoalIcon size={24} className="text-white" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Goal Tracking & Recommendations</h3>
-                  <p className="text-white/60 text-sm">Track progress and get AI-powered tips</p>
-                </div>
-              </div>
-              
+            {/* Business Insights */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Key Business Insights</h3>
               <div className="space-y-4">
-                {businessGoals.map((goal) => (
-                  <div key={goal.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <h4 className="font-semibold text-white">{goal.name}</h4>
-                        <p className="text-white/60 text-sm">{goal.timeframe}</p>
+                {businessInsights.map((insight, index) => (
+                  <div key={index} className="p-3 bg-white/10 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <insight.icon className="w-4 h-4 text-purple-400" />
+                        <span className="text-white text-sm font-medium">{insight.title}</span>
                       </div>
-                      <div className="text-right">
-                        <div className={`font-semibold ${getGoalStatusColor(goal.status)}`}>
-                          {goal.current.toLocaleString()}{goal.unit} / {goal.target.toLocaleString()}{goal.unit}
-                        </div>
-                        <div className="text-white/60 text-sm">{goal.progress}% complete</div>
+                      <div className="flex items-center gap-1">
+                        {insight.trend === 'up' ? (
+                          <ArrowUpRight className="w-4 h-4 text-green-400" />
+                        ) : (
+                          <ArrowDownRight className="w-4 h-4 text-red-400" />
+                        )}
+                        <span className={`text-xs ${insight.trend === 'up' ? 'text-green-400' : 'text-red-400'}`}>
+                          {insight.change}
+                        </span>
                       </div>
                     </div>
-                    
-                    <div className="w-full bg-white/20 rounded-full h-2 mb-3">
-                      <div 
-                        className="bg-gradient-to-r from-green-500 to-blue-600 h-2 rounded-full transition-all duration-500"
-                        style={{ width: `${goal.progress}%` }}
-                      ></div>
-                    </div>
-                    
-                    {goal.aiTip && (
-                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                        <div className="flex items-start space-x-2">
-                          <Lightbulb size={16} className="text-blue-400 mt-0.5 flex-shrink-0" />
-                          <p className="text-blue-300 text-sm">{goal.aiTip}</p>
-                        </div>
-                      </div>
-                    )}
+                    <div className="text-white text-lg font-bold">{insight.value}</div>
+                    <div className="text-white/60 text-xs">{insight.description}</div>
                   </div>
                 ))}
               </div>
-            </div>
+            </motion.div>
 
-            {/* Export & Reports */}
-            <div className="bg-gradient-to-br from-green-600/20 to-blue-600/20 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center">
-                    <FileSpreadsheet size={24} className="text-white" />
+            {/* Intelia's Tips */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Intelia's Tips</h3>
+              <div className="space-y-3">
+                {inteliaTips.map((tip, index) => (
+                  <div key={index} className="flex items-start gap-3 p-3 bg-white/10 rounded-lg">
+                    <tip.icon className="w-5 h-5 text-purple-400 mt-0.5" />
+                    <div>
+                      <div className="text-white text-sm font-medium">{tip.title}</div>
+                      <div className="text-white/60 text-xs">{tip.description}</div>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">Export & Reports</h3>
-                    <p className="text-white/60 text-sm">Generate comprehensive business reports</p>
-                  </div>
-                </div>
-                <button className="bg-gradient-to-r from-green-500 to-blue-600 hover:from-green-600 hover:to-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-all">
-                  <Download size={20} />
-                  Download Business Summary
-                </button>
+                ))}
               </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white/10 rounded-lg p-4">
-                  <h4 className="text-white font-semibold mb-2">Financial Summary</h4>
-                  <p className="text-white/60 text-sm mb-3">KPI overview and performance metrics</p>
-                  <button className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded text-sm transition-all">
-                    Export PDF
-                  </button>
-                </div>
-                
-                <div className="bg-white/10 rounded-lg p-4">
-                  <h4 className="text-white font-semibold mb-2">Business Plan</h4>
-                  <p className="text-white/60 text-sm mb-3">Strategic analysis and recommendations</p>
-                  <button className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded text-sm transition-all">
-                    Export PDF
-                  </button>
-                </div>
-                
-                <div className="bg-white/10 rounded-lg p-4">
-                  <h4 className="text-white font-semibold mb-2">CSV Data</h4>
-                  <p className="text-white/60 text-sm mb-3">Raw data for spreadsheet analysis</p>
-                  <button className="bg-white/20 hover:bg-white/30 text-white px-3 py-1 rounded text-sm transition-all">
-                    Export CSV
-                  </button>
-                </div>
-              </div>
-            </div>
+            </motion.div>
 
-            {/* Resources & Tips */}
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full flex items-center justify-center">
-                  <BookOpen size={24} className="text-white" />
+            {/* Intelia's Stats */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
+              <h3 className="text-lg font-semibold text-white mb-4">Intelia's Stats</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Insights Generated</span>
+                  <span className="text-purple-400">2,847</span>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-white">Resources & Tips</h3>
-                  <p className="text-white/60 text-sm">Helpful guides and industry benchmarks</p>
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">KPIs Tracked</span>
+                  <span className="text-green-400">156</span>
                 </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h4 className="text-white font-semibold">Business Benchmarks</h4>
-                  <div className="space-y-2">
-                    <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                      <ExternalLink size={16} />
-                      <span>SBA Small Business Benchmarks</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                      <ExternalLink size={16} />
-                      <span>Industry Performance Standards</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                      <ExternalLink size={16} />
-                      <span>Profit Margin Calculator</span>
-                    </a>
-                  </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Accuracy Rate</span>
+                  <span className="text-blue-400">96.8%</span>
                 </div>
-                
-                <div className="space-y-4">
-                  <h4 className="text-white font-semibold">Business Guides</h4>
-                  <div className="space-y-2">
-                    <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                      <ExternalLink size={16} />
-                      <span>Cash Flow Management</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                      <ExternalLink size={16} />
-                      <span>Pricing Strategy Guide</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors">
-                      <ExternalLink size={16} />
-                      <span>Business Loan Preparation</span>
-                    </a>
-                  </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-white/70">Reports Created</span>
+                  <span className="text-yellow-400">892</span>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         </div>
       </div>
+    </div>
   );
-};
-
-export default BusinessIntelligence; 
+} 
