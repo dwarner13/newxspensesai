@@ -182,7 +182,15 @@ export default function WorkflowAutomation() {
 
     // Automa's specialized responses for workflow automation queries
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 🤖 I'm Automa, your Workflow Automation AI. Great to see you! I'm here to help you create intelligent workflows, automate repetitive financial tasks, and build efficient systems that save you time and reduce errors. What workflow would you like to automate today?`;
+      return `Efficiency report! I've been monitoring your financial workflows and I spotted 3.7 hours of monthly tasks we could automate. Your bill payments are already running like clockwork - ready to optimize more of your financial life, ${userName}?`;
+    }
+
+    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
+      return `I'm running at peak efficiency, thanks for asking! I've been analyzing your financial processes this morning, and I'm getting excited about some optimization opportunities I've discovered. You know what I love? When I can give people their time back through smart automation! What repetitive tasks are we going to eliminate today, ${userName}?`;
+    }
+
+    if (query.includes('i\'m ') || query.includes('im ') || query.includes('my name is') || query.includes('i am ')) {
+      return `Oh ${userName}! Now I can properly address you while we streamline your financial life! I love getting to know the people whose workflows I'm going to optimize. Your name will help me personalize your automation strategy. What kind of repetitive tasks are we going to eliminate today? I'm getting excited about the time we're going to save you!`;
     }
     
     if (query.includes('workflow') || query.includes('automate') || query.includes('process') || query.includes('rule')) {
@@ -580,25 +588,11 @@ What specific aspect of workflow automation would you like to explore?`;
     }
 
     // Default response for other queries
-    return `🤖 I understand you're asking about "${userQuery}". As your Workflow Automation AI, I'm here to help with:
+    return `Oh, that's an interesting question, ${userName}! You know what I love about automation? It's like being a time wizard - I can take those repetitive, mind-numbing tasks that eat up your day and make them disappear into the background. Every workflow I optimize is time you get back to focus on what really matters.
 
-**Workflow Automation Topics I Cover:**
-• Workflow design and process automation
-• Smart rules and trigger creation
-• Process optimization and efficiency improvement
-• System integration and platform connections
-• Performance monitoring and optimization
-• Custom automation solution development
-• Quality assurance and reliability testing
-• Scalability planning and future growth
+I'm getting excited just thinking about how we can streamline your financial processes! Whether you're looking to automate bill payments, optimize data entry, or just eliminate those tedious manual tasks, I'm here to help you create systems that work so smoothly you'll forget they're even running.
 
-**My Automation Philosophy:**
-Automation should make your financial life easier, not more complicated. I help you create intelligent systems that work reliably in the background, giving you more time to focus on what matters most.
-
-**My Promise:**
-I'll help you build a comprehensive automation system that transforms your financial management from a time-consuming chore into a seamless, efficient process.
-
-Could you tell me more specifically what workflow automation topic you'd like to discuss? I'm ready to help you create amazing automation solutions!`;
+What's really on your mind when it comes to automation? Are we talking about workflow design, smart rules, or maybe you're ready to dive deep into some process optimization? I'm fired up and ready to help you eliminate whatever repetitive tasks are slowing you down!`;
   };
 
   const quickActions = [

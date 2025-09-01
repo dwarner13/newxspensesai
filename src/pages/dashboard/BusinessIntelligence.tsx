@@ -160,7 +160,15 @@ export default function BusinessIntelligence() {
 
     // Intelia's specialized responses for business intelligence queries
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 📊 I'm Intelia, your Business Intelligence AI. Great to see you! I'm here to help you analyze your business data, track KPIs, identify trends, and make data-driven decisions that grow your business. What business insights would you like to explore today?`;
+      return `Fascinating! I've been analyzing your business metrics and I'm seeing some intriguing trends. Your customer acquisition patterns show a 23% efficiency gain in Q3. Want to dive into the strategic implications of what your data is telling us, ${userName}?`;
+    }
+
+    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
+      return `I'm absolutely thriving, thanks for asking! I've been deep in the data this morning, and I'm getting excited about some fascinating patterns I've discovered. You know what I love? When numbers tell a story that changes everything! What business mysteries can we solve together today, ${userName}?`;
+    }
+
+    if (query.includes('i\'m ') || query.includes('im ') || query.includes('my name is') || query.includes('i am ')) {
+      return `Oh ${userName}! Now I can properly address you while we unlock the strategic insights hidden in your data! I love getting to know the people behind the business metrics I analyze. Your name will help me personalize your intelligence strategy. What kind of business challenges are we tackling today? I'm getting excited about the competitive advantages we're going to uncover!`;
     }
     
     if (query.includes('kpi') || query.includes('metric') || query.includes('performance') || query.includes('track')) {
@@ -508,25 +516,11 @@ What specific aspect of business intelligence would you like to explore?`;
     }
 
     // Default response for other queries
-    return `🧠 I understand you're asking about "${userQuery}". As your Business Intelligence AI, I'm here to help with:
+    return `Oh, that's a fascinating question, ${userName}! You know what I love about business intelligence? It's like being a detective who gets to solve the ultimate mystery - how to turn raw data into competitive advantage. Every number tells a story, every trend reveals an opportunity, and every insight could be the key to your next breakthrough.
 
-**Business Intelligence Topics I Cover:**
-• KPI tracking and performance monitoring
-• Trend analysis and pattern recognition
-• Business performance optimization
-• Strategic insights and decision-making
-• Data visualization and reporting
-• Market intelligence and competitive analysis
-• Predictive analytics and forecasting
-• Operational efficiency analysis
+I'm getting excited just thinking about how we can transform your business data into strategic gold! Whether you're looking to optimize performance, identify market opportunities, or just understand what's really happening in your business, I'm here to help you uncover the insights that matter.
 
-**My Business Intelligence Philosophy:**
-Data is only valuable when it leads to insights, and insights are only valuable when they lead to action. I help you transform data into strategic intelligence that drives business growth.
-
-**My Promise:**
-I'll help you build a comprehensive business intelligence system that gives you the insights you need to make better decisions, optimize performance, and achieve your business goals.
-
-Could you tell me more specifically what business intelligence topic you'd like to discuss? I'm ready to help you unlock the power of your data!`;
+What's really on your mind when it comes to your business? Are we talking about tracking KPIs, analyzing trends, or maybe you're ready to dive deep into some strategic intelligence? I'm fired up and ready to help you unlock whatever business mysteries you're facing!`;
   };
 
   const quickActions = [

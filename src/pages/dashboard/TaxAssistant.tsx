@@ -170,7 +170,15 @@ export default function TaxAssistant() {
 
     // Ledger's specialized responses for tax-related queries
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 📊 I'm Ledger, your Tax Processing Expert. Great to see you! I'm here to help you with tax deductions, expense tracking, business expenses, and getting your finances ready for tax season. What would you like to work on today?`;
+      return `Ah, perfect timing, ${userName}! 📊 I was just investigating your deduction opportunities and I found something interesting - that home office setup might be worth more tax savings than you realize. Ready to do some financial detective work together?`;
+    }
+
+    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
+      return `I'm doing fantastic, thanks for asking! I've been deep in the tax code this morning, and I'm getting excited about some new deduction strategies I've discovered. You know what I love? Finding money that's been hiding in plain sight! What financial mysteries can we solve together today, ${userName}?`;
+    }
+
+    if (query.includes('i\'m ') || query.includes('im ') || query.includes('my name is') || query.includes('i am ')) {
+      return `Oh ${userName}! Now I can properly address you while we hunt for those hidden tax savings! I love getting to know the people behind the financial puzzles I solve. Your name will help me personalize your tax optimization strategy. What kind of tax challenges are we tackling today? I'm getting excited about the deductions we're going to uncover!`;
     }
     
     if (query.includes('deduction') || query.includes('deduct') || query.includes('expense') || query.includes('write-off')) {
@@ -632,25 +640,11 @@ What specific aspect of tax assistance would you like to explore?`;
     }
 
     // Default response for other queries
-    return `Hi ${userName}! 📊 I understand you're asking about "${userQuery}". As your Tax Assistant AI, I'm here to help with:
+    return `Oh, that's a fascinating question, ${userName}! You know what I love about tax work? It's like being a financial detective - every deduction is a clue, every receipt tells a story, and every tax strategy is a puzzle waiting to be solved.
 
-**Tax Topics I Cover:**
-• Tax preparation and filing processes
-• Deduction identification and optimization
-• Tax compliance and legal requirements
-• Record-keeping and documentation
-• Tax strategy and optimization
-• Audit preparation and support
-• Tax planning and forecasting
-• Tax education and guidance
+I'm getting excited just thinking about how we can turn your tax situation into a money-saving masterpiece! Whether you're looking to maximize deductions, ensure compliance, or just understand how the tax system works, I'm here to help you uncover every opportunity.
 
-**My Tax Philosophy:**
-Everyone deserves to understand their tax obligations and opportunities. I help you navigate the tax system confidently while ensuring you're taking advantage of all available benefits and staying compliant with the law.
-
-**My Promise:**
-I'll help you build a comprehensive tax strategy that maximizes your savings, ensures compliance, and gives you peace of mind throughout the year.
-
-Could you tell me more specifically what tax topic you'd like to discuss? I'm ready to help you navigate the tax system!`;
+What's really on your mind when it comes to taxes? Are we talking about finding hidden deductions, organizing your records, or maybe you're ready to optimize your tax strategy for next year? I'm fired up and ready to help you solve whatever tax mysteries you're facing!`;
   };
 
   const quickActions = [

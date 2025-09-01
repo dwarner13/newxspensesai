@@ -250,7 +250,15 @@ export default function SecurityCompliance() {
 
     // Custodian's specialized responses for security and compliance queries
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 🛡️ I'm Custodian, your Security & Compliance AI. Great to see you! I'm here to help you protect your financial data, ensure compliance with regulations, and maintain the highest security standards for your financial information. What security or compliance topic would you like to discuss today?`;
+      return `Security status: all systems green. I've been monitoring your account protection and everything is locked down tight. Your financial privacy is completely secure, and I wanted to update you on some new protection features we've activated. How can I help you feel even more secure today, ${userName}?`;
+    }
+
+    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
+      return `I'm running at maximum security efficiency, thanks for asking! I've been conducting security sweeps this morning, and I'm getting excited about some new protection protocols I've discovered. You know what I love? When I can give people complete peace of mind about their financial security! What security concerns are we addressing today, ${userName}?`;
+    }
+
+    if (query.includes('i\'m ') || query.includes('im ') || query.includes('my name is') || query.includes('i am ')) {
+      return `Oh ${userName}! Now I can properly address you while we secure your financial fortress! I love getting to know the people whose security I'm protecting. Your name will help me personalize your security strategy. What kind of protection are we implementing today? I'm getting excited about the security we're going to build around your financial life!`;
     }
     
     if (query.includes('security') || query.includes('protect') || query.includes('secure') || query.includes('safety')) {
@@ -672,25 +680,11 @@ What specific aspect of security and compliance would you like to explore?`;
     }
 
     // Default response for other queries
-    return `🛡️ I understand you're asking about "${userQuery}". As your Security & Compliance AI, I'm here to help with:
+    return `Oh, that's an interesting question, ${userName}! You know what I love about security? It's like being a guardian angel for your financial life - I can see threats before they become problems and build walls so strong that even the most determined attackers can't get through. Every security measure I implement is peace of mind you can count on.
 
-**Security & Compliance Topics I Cover:**
-• Financial security and protection measures
-• Regulatory compliance and legal requirements
-• Fraud prevention and identity theft protection
-• Data protection and privacy
-• Compliance management and monitoring
-• Risk assessment and mitigation
-• Security incident response
-• Regulatory adherence and reporting
+I'm getting excited just thinking about how we can fortify your financial defenses! Whether you're looking to prevent fraud, ensure compliance, or just understand how to keep your money safe, I'm here to help you create a security fortress that's impenetrable.
 
-**My Security Philosophy:**
-Security and compliance are fundamental to financial success. I help you build robust security frameworks and maintain compliance with all relevant regulations.
-
-**My Promise:**
-I'll help you create a comprehensive security and compliance program that protects your financial interests and ensures regulatory adherence.
-
-Could you tell me more specifically what security or compliance topic you'd like to discuss? I'm ready to help you protect your financial security!`;
+What's really on your mind when it comes to security? Are we talking about fraud prevention, data protection, or maybe you're ready to dive deep into some compliance strategies? I'm fired up and ready to help you build whatever security measures you need to sleep soundly at night!`;
   };
 
   const quickActions = [

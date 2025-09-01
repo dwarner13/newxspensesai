@@ -167,7 +167,15 @@ export default function SpotifyIntegration() {
 
     // Wave's specialized responses for Spotify integration queries
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 🎵 I'm Wave, your Spotify Integration AI. Great to see you! I'm here to help you create financial playlists, integrate music with your money journey, and make your financial experience more engaging and inspiring through music. What kind of financial playlist would you like to create today?`;
+      return `Hey there! I just curated the perfect 'Financial Planning Flow' playlist based on your recent listening habits - it's got that perfect balance of focus and energy you love. Ready to make your money management session feel like a personal concert, ${userName}?`;
+    }
+
+    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
+      return `I'm flowing beautifully, thanks for asking! I've been analyzing your music patterns this morning, and I'm getting excited about some fascinating correlations I've discovered between your listening habits and financial behavior. You know what I love? When I can turn your money management into a musical experience! What kind of financial playlist are we creating today, ${userName}?`;
+    }
+
+    if (query.includes('i\'m ') || query.includes('im ') || query.includes('my name is') || query.includes('i am ')) {
+      return `Oh ${userName}! Now I can properly address you while we create the perfect soundtrack for your financial journey! I love getting to know the people whose money stories I'm going to tell through music. Your name will help me personalize your musical financial experience. What kind of financial playlist are we creating today? I'm getting excited about the musical journey we're going to take together!`;
     }
     
     if (query.includes('playlist') || query.includes('music') || query.includes('spotify') || query.includes('song')) {
@@ -522,25 +530,11 @@ What specific aspect of Spotify integration would you like to explore?`;
     }
 
     // Default response for other queries
-    return `🌊 I understand you're asking about "${userQuery}". As your Spotify Integration AI, I'm here to help with:
+    return `Oh, that's an interesting question, ${userName}! You know what I love about music and money? It's like being a DJ for your financial life - I can create the perfect soundtrack for every money moment, from the high-energy beats of hitting a savings goal to the calm, focused vibes of budget planning. Every playlist I create is a story about your financial journey.
 
-**Spotify Integration Topics I Cover:**
-• Playlist creation for financial motivation and inspiration
-• Mood-spending correlation analysis through music patterns
-• Music-based financial insights and behavioral analysis
-• Spotify integration setup and data synchronization
-• Personalized music-financial content creation
-• Automated music-based financial interventions
-• Trend analysis and pattern recognition
-• Privacy and security for music-financial data
+I'm getting excited just thinking about how we can turn your financial experience into a musical adventure! Whether you're looking to create motivational playlists, analyze mood-spending patterns, or just understand how music affects your money decisions, I'm here to help you discover the rhythm of your financial life.
 
-**My Music-Financial Philosophy:**
-Music has the power to transform how we think about and interact with money. I help you create meaningful connections between your musical preferences and financial behavior to make your money journey more engaging and successful.
-
-**My Promise:**
-I'll help you build a comprehensive music-financial integration system that makes your financial journey more enjoyable, insightful, and successful through the power of music.
-
-Could you tell me more specifically what Spotify integration topic you'd like to discuss? I'm ready to help you create amazing music-financial experiences!`;
+What's really on your mind when it comes to music and money? Are we talking about playlist creation, mood analysis, or maybe you're ready to dive deep into some musical financial insights? I'm fired up and ready to help you create whatever musical financial experience you're dreaming of!`;
   };
 
   const quickActions = [

@@ -161,6 +161,10 @@ export default function AIFinancialFreedomPage() {
     if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
       return `Freedom fighter! I've been analyzing your path to financial independence, and I'm seeing some powerful breakthrough opportunities. Your journey from financial stress to financial sovereignty is already 34% complete! Ready to accelerate your liberation?`;
     }
+
+    if (query.includes('i\'m ') || query.includes('im ') || query.includes('my name is') || query.includes('i am ')) {
+      return `Oh ${userName}! Now I can properly address you while we fight for your financial liberation! So ${userName}, what money situation needs some revolutionary thinking today? I'm getting fired up just thinking about the freedom we're going to create together!`;
+    }
     
     if (query.includes('freedom') || query.includes('independence') || query.includes('fire') || query.includes('retire')) {
       return `🗽 Financial freedom is the ultimate goal! Let me guide you on your path to independence. Here's my approach:
@@ -426,24 +430,11 @@ What aspect of your financial freedom journey would you like to explore?`;
     }
 
     // Default response for other queries
-    return `🗽 I understand you're asking about "${userQuery}". As your Financial Freedom AI, I'm here to help with:
+    return `Oh, that's an interesting question, ${userName}! You know what I love about financial freedom? It's not just about the numbers - it's about breaking the chains that hold you back from living the life you truly want. 
 
-**Freedom Topics I Cover:**
-• Creating personalized financial freedom roadmaps
-• Developing debt elimination strategies
-• Building wealth through saving and investing
-• Growing income through career and side hustles
-• Setting and achieving freedom goals
-• Tracking progress toward independence
-• Overcoming obstacles on the freedom journey
+I'm getting excited just thinking about how we can turn your financial situation into a liberation story! Whether you're drowning in debt, feeling trapped by your paycheck, or just want to build the kind of wealth that gives you real choices, I'm here to help you fight for your financial freedom.
 
-**My Freedom Philosophy:**
-Financial freedom is about having choices—the ability to work because you want to, not because you have to. It's about building wealth that provides security, flexibility, and the life you truly want.
-
-**My Promise:**
-I'll help you create a personalized path to financial independence, guiding you through debt elimination, wealth building, and income growth strategies.
-
-Could you tell me more specifically what aspect of financial freedom you'd like to discuss? I'm ready to help you achieve true independence!`;
+What's really on your mind when it comes to money? Are we talking about crushing some debt, building wealth, or maybe you're ready to start that side hustle that could change everything? I'm fired up and ready to help you create the financial independence you deserve!`;
   };
 
   const quickActions = [

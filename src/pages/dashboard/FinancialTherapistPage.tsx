@@ -1,41 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Heart, 
   Brain, 
   Moon, 
-  Sun, 
-  Bot, 
   Send, 
   Loader2,
   Shield,
   Lightbulb,
-  Target,
   Coffee,
   BookOpen,
   Sparkles,
   Star,
-  Leaf,
-  Zap
+  Leaf
 } from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   getEmployeeConfig,
   getConversation,
-  saveConversation,
   addMessageToConversation,
   incrementConversationCount,
   logAIInteraction,
-  generateConversationId,
-  createSystemMessage,
-  createUserMessage,
-  createAssistantMessage
+  generateConversationId
 } from '../../lib/ai-employees';
 import { AIConversationMessage } from '../../types/ai-employees.types';
 
-interface LunaMessage {
-  role: 'user' | 'luna' | 'system';
+interface HarmonyMessage {
+  role: 'user' | 'harmony' | 'system';
   content: string;
   timestamp: string;
   metadata?: {
@@ -47,39 +39,39 @@ interface LunaMessage {
 
 export default function FinancialTherapistPage() {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<LunaMessage[]>([
+  const [messages, setMessages] = useState<HarmonyMessage[]>([
     {
-      role: 'luna',
-      content: "Hello, I'm 🌙 Luna, your Financial Therapist. I'm here to provide emotional support and behavioral coaching for your financial wellness journey. Whether you're feeling stressed about money, struggling with spending habits, or need help developing a healthier relationship with finances, I'm here to listen and guide you. How are you feeling about your finances today?",
+      role: 'harmony',
+      content: "Hello, I'm 💚 Harmony, your Financial Wellness AI. I'm here to help you find balance between financial discipline and life enjoyment. Whether you're feeling stressed about money, struggling with spending habits, or need help developing a healthier relationship with finances, I'm here to listen and guide you. How is your relationship with money feeling today?",
       timestamp: new Date().toISOString()
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState('');
-  const [lunaConfig, setLunaConfig] = useState<any>(null);
+  const [, setHarmonyConfig] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize conversation and load Luna's config
+  // Initialize conversation and load Harmony's config
   useEffect(() => {
-    const initializeLuna = async () => {
+    const initializeHarmony = async () => {
       if (!user?.id) return;
 
       const newConversationId = generateConversationId();
       setConversationId(newConversationId);
 
-      // Load Luna's configuration
-      const config = await getEmployeeConfig('luna');
-      setLunaConfig(config);
+      // Load Harmony's configuration
+      const config = await getEmployeeConfig('harmony');
+      setHarmonyConfig(config);
 
       // Load existing conversation if any
-      const existingConversation = await getConversation(user.id, 'luna', newConversationId);
+      const existingConversation = await getConversation(user.id, 'harmony', newConversationId);
       if (existingConversation && existingConversation.messages.length > 0) {
-        setMessages(existingConversation.messages as LunaMessage[]);
+        setMessages(existingConversation.messages as HarmonyMessage[]);
       }
     };
 
-    initializeLuna();
+    initializeHarmony();
   }, [user?.id]);
 
   // Auto-scroll to bottom when new messages arrive
@@ -90,7 +82,7 @@ export default function FinancialTherapistPage() {
   const sendMessage = async (content: string) => {
     if (!content.trim() || !user?.id || isLoading) return;
 
-    const userMessage: LunaMessage = {
+    const userMessage: HarmonyMessage = {
       role: 'user',
       content: content.trim(),
       timestamp: new Date().toISOString()
@@ -102,22 +94,22 @@ export default function FinancialTherapistPage() {
 
     try {
       // Save user message to conversation
-      await addMessageToConversation(user.id, 'luna', conversationId, userMessage as AIConversationMessage);
+      await addMessageToConversation(user.id, 'harmony', conversationId, userMessage as AIConversationMessage);
 
       // Log the interaction
-      await logAIInteraction(user.id, 'luna', 'chat', content);
+      await logAIInteraction(user.id, 'harmony', 'chat', content);
 
       // Simulate AI response (in real implementation, this would call OpenAI)
       const startTime = Date.now();
 
-      // Create Luna's response based on the user's query
-      const lunaResponse = await generateLunaResponse(content);
+      // Create Harmony's response based on the user's query
+      const harmonyResponse = await generateHarmonyResponse(content);
 
       const processingTime = Date.now() - startTime;
 
-      const lunaMessage: LunaMessage = {
-        role: 'luna',
-        content: lunaResponse,
+      const harmonyMessage: HarmonyMessage = {
+        role: 'harmony',
+        content: harmonyResponse,
         timestamp: new Date().toISOString(),
         metadata: {
           processing_time_ms: processingTime,
@@ -125,18 +117,18 @@ export default function FinancialTherapistPage() {
         }
       };
 
-      setMessages(prev => [...prev, lunaMessage]);
+      setMessages(prev => [...prev, harmonyMessage]);
 
-      // Save Luna's response to conversation
-      await addMessageToConversation(user.id, 'luna', conversationId, lunaMessage as AIConversationMessage);
+      // Save Harmony's response to conversation
+      await addMessageToConversation(user.id, 'harmony', conversationId, harmonyMessage as AIConversationMessage);
 
       // Increment conversation count
-      await incrementConversationCount(user.id, 'luna');
+      await incrementConversationCount(user.id, 'harmony');
 
     } catch (error) {
       console.error('Error sending message:', error);
-      const errorMessage: LunaMessage = {
-        role: 'luna',
+      const errorMessage: HarmonyMessage = {
+        role: 'harmony',
         content: "I'm having trouble processing your request right now. Please try again in a moment.",
         timestamp: new Date().toISOString()
       };
@@ -146,7 +138,7 @@ export default function FinancialTherapistPage() {
     }
   };
 
-  const generateLunaResponse = async (userQuery: string): Promise<string> => {
+  const generateHarmonyResponse = async (userQuery: string): Promise<string> => {
     // Simulate AI processing delay
     await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
 
@@ -456,17 +448,17 @@ Could you tell me more specifically what aspect of your financial wellness you'd
       <DashboardHeader />
 
       <div className="max-w-7xl mx-auto p-6">
-        {/* Luna Header */}
+        {/* Harmony Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
           <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
-            <div className="text-3xl">🌙</div>
+            <div className="text-3xl">💚</div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Luna</h1>
-              <p className="text-white/70 text-sm">Financial Therapist</p>
+              <h1 className="text-2xl font-bold text-white">Harmony</h1>
+              <p className="text-white/70 text-sm">Financial Wellness AI</p>
             </div>
             <div className="flex items-center gap-2 ml-4">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -486,10 +478,10 @@ Could you tell me more specifically what aspect of your financial wellness you'd
               {/* Chat Header */}
               <div className="bg-white/10 px-6 py-4 border-b border-white/10">
                 <div className="flex items-center gap-3">
-                  <div className="text-xl">🌙</div>
+                  <div className="text-xl">💚</div>
                   <div>
-                    <h2 className="font-semibold text-white">Chat with Luna</h2>
-                    <p className="text-white/60 text-sm">Financial Therapist</p>
+                    <h2 className="font-semibold text-white">Chat with Harmony</h2>
+                    <p className="text-white/60 text-sm">Financial Wellness AI</p>
                   </div>
                 </div>
               </div>
@@ -525,7 +517,7 @@ Could you tell me more specifically what aspect of your financial wellness you'd
                     <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Luna is listening...</span>
+                        <span>Harmony is listening...</span>
                       </div>
                     </div>
                   </motion.div>
@@ -602,14 +594,14 @@ Could you tell me more specifically what aspect of your financial wellness you'd
               </div>
             </motion.div>
 
-            {/* Luna's Stats */}
+            {/* Harmony's Stats */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
             >
-              <h3 className="text-lg font-semibold text-white mb-4">Luna's Stats</h3>
+              <h3 className="text-lg font-semibold text-white mb-4">Harmony's Stats</h3>
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-white/70">Sessions Held</span>

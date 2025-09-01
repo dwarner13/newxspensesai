@@ -183,7 +183,7 @@ Just drag and drop your files or ask me anything!`,
     }
   };
 
-    const sendMessage = async (content: string) => {
+  const sendMessage = async (content: string) => {
     if (!content.trim() || !user?.id || isLoading) return;
 
     // Hide welcome message when user starts chatting
@@ -221,10 +221,10 @@ Just drag and drop your files or ask me anything!`,
       }
 
       const startTime = Date.now();
-
+      
       // Generate response from the appropriate AI
       const aiResponse = await generateAIEmployeeResponse(respondingAI, content);
-
+      
       const processingTime = Date.now() - startTime;
 
       const aiMessage: ByteMessage = {
@@ -239,10 +239,10 @@ Just drag and drop your files or ask me anything!`,
       };
 
       setMessages(prev => [...prev, aiMessage]);
-
+      
       // Save AI response to conversation
       await addMessageToConversation(user.id, 'byte', conversationId, aiMessage as AIConversationMessage);
-
+      
       // Increment conversation count
       await incrementConversationCount(user.id, 'byte');
 
@@ -836,9 +836,9 @@ Could you tell me more specifically what you'd like to import or process? I'm re
         {!isMobile && (
           <>
             {/* Top Row: Upload Documents */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 mb-6"
             >
           <div className="text-center mb-6">
@@ -918,14 +918,14 @@ Could you tell me more specifically what you'd like to import or process? I'm re
               {uploadResults.map((result, index) => (
                 <div key={result.id} className="bg-white/5 rounded-lg p-3 border border-white/10">
                   <div className="flex items-center justify-between">
-                    <div>
+            <div>
                       <p className="text-white text-sm font-medium truncate">{result.name}</p>
                       <p className="text-white/60 text-xs">{result.transactions} transactions</p>
-                    </div>
+            </div>
                     <div className="text-right">
                       <p className="text-green-400 text-sm font-semibold">{result.accuracy}%</p>
-                    </div>
-                  </div>
+            </div>
+          </div>
                 </div>
               ))}
             </motion.div>
@@ -933,21 +933,21 @@ Could you tell me more specifically what you'd like to import or process? I'm re
         </motion.div>
 
                         {/* Middle Row: Chatbot */}
-        <motion.div
+            <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
           className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden mb-6"
-        >
-          {/* Chat Header */}
+            >
+              {/* Chat Header */}
           <div className="bg-white/10 px-4 py-3 border-b border-white/10">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="text-lg">📄</div>
-                <div>
+                  <div>
                   <h3 className="font-semibold text-white text-sm">Byte AI</h3>
                   <p className="text-white/60 text-xs">Smart Import Assistant</p>
-                </div>
+                  </div>
               </div>
               <button
                 onClick={() => setShowChatHistory(!showChatHistory)}
@@ -956,10 +956,10 @@ Could you tell me more specifically what you'd like to import or process? I'm re
               >
                 <History className="w-4 h-4" />
               </button>
-            </div>
-          </div>
+                </div>
+              </div>
 
-          {/* Messages */}
+              {/* Messages */}
           <div className="h-64 overflow-y-auto p-4 space-y-3">
             {messages.map((message, index) => {
               const isUser = message.role === 'user';
@@ -967,21 +967,21 @@ Could you tell me more specifically what you'd like to import or process? I'm re
               const aiEmployee = aiEmployees[message.role as keyof typeof aiEmployees];
               
               return (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
                   className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-                >
+                  >
                   <div className={`max-w-[85%] rounded-xl px-3 py-2 ${
                     isUser 
-                      ? 'bg-blue-600 text-white' 
+                        ? 'bg-blue-600 text-white' 
                       : isByte
                       ? 'bg-white/10 text-white border border-white/20'
                       : aiEmployee
                       ? `${aiEmployee.bgColor} text-white border ${aiEmployee.borderColor}`
-                      : 'bg-white/10 text-white border border-white/20'
-                  }`}>
+                        : 'bg-white/10 text-white border border-white/20'
+                    }`}>
                     {!isUser && aiEmployee && (
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm">{aiEmployee.emoji}</span>
@@ -991,41 +991,41 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                       </div>
                     )}
                     <div className="whitespace-pre-wrap text-xs">{message.content}</div>
-                  </div>
-                </motion.div>
+                    </div>
+                  </motion.div>
               );
             })}
-            
-            {isLoading && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex justify-start"
-              >
+                
+                {isLoading && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex justify-start"
+                  >
                 <div className="bg-white/10 text-white border border-white/20 rounded-xl px-3 py-2">
-                  <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
                     <Loader2 className="w-3 h-3 animate-spin" />
                     <span className="text-xs">Byte is thinking...</span>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-            
-            <div ref={messagesEndRef} />
-          </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+                
+                <div ref={messagesEndRef} />
+              </div>
 
-          {/* Input Area */}
-          <div className="p-4 border-t border-white/10">
+              {/* Input Area */}
+              <div className="p-4 border-t border-white/10">
             <div className="flex gap-3">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
                 placeholder="Ask Byte anything about your documents..."
                 className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-500 text-sm"
-                disabled={isLoading}
-              />
+                    disabled={isLoading}
+                  />
               <button
                 onClick={handleFileUpload}
                 className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-3 transition-colors"
@@ -1033,28 +1033,28 @@ Could you tell me more specifically what you'd like to import or process? I'm re
               >
                 <UploadCloud className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => sendMessage(input)}
-                disabled={isLoading || !input.trim()}
+                  <button
+                    onClick={() => sendMessage(input)}
+                    disabled={isLoading || !input.trim()}
                 className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
-              >
+                  >
                 <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        </motion.div>
+                  </button>
+                </div>
+              </div>
+            </motion.div>
 
         {/* Bottom Row: Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Processing Stats Card */}
-          <motion.div
+            <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4"
           >
             <h3 className="text-sm font-semibold text-white mb-3">Processing Stats</h3>
-            <div className="space-y-3">
+              <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-white/70 text-xs">Accuracy</span>
                 <span className="text-green-400 font-semibold text-sm">95.2%</span>
@@ -1083,21 +1083,21 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           >
             <h3 className="text-sm font-semibold text-white mb-3">Quick Actions</h3>
             <div className="space-y-2">
-              {quickActions.map((action, index) => (
-                <button
-                  key={index}
-                  onClick={action.action}
+                {quickActions.map((action, index) => (
+                  <button
+                    key={index}
+                    onClick={action.action}
                   className="w-full flex items-center gap-2 p-2 bg-white/10 hover:bg-white/15 border border-white/20 rounded-lg text-white transition-colors"
-                >
+                  >
                   <action.icon className="w-3 h-3" />
                   <span className="text-xs">{action.text}</span>
-                </button>
-              ))}
-            </div>
-          </motion.div>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
 
           {/* Upload History Card */}
-          <motion.div
+            <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
@@ -1228,7 +1228,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
             </motion.div>
 
             {/* Mobile Stats Section */}
-            <motion.div
+            <motion.div 
               data-mobile-stats
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1266,9 +1266,9 @@ Could you tell me more specifically what you'd like to import or process? I'm re
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-              >
+              transition={{ delay: 0.2 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
+            >
                 <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
                 <div className="grid grid-cols-2 gap-3">
                   {quickActions.map((action, index) => (
@@ -1295,25 +1295,25 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                   <h3 className="text-lg font-semibold text-white">Recent Uploads</h3>
                   <History className="w-5 h-5 text-white/60" />
                 </div>
-                <div className="space-y-3">
+              <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                     <div>
                       <p className="text-white text-sm font-medium">Bank Statement</p>
                       <p className="text-white/60 text-xs">Feb 26 • 14 receipts</p>
-                    </div>
+                </div>
                     <div className="text-right">
                       <p className="text-green-400 text-sm font-semibold">97%</p>
-                    </div>
-                  </div>
+                </div>
+                </div>
                   <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                     <div>
                       <p className="text-white text-sm font-medium">Receipts Batch</p>
                       <p className="text-white/60 text-xs">Feb 25 • 8 receipts</p>
-                    </div>
+              </div>
                     <div className="text-right">
                       <p className="text-green-400 text-sm font-semibold">94%</p>
-                    </div>
-                  </div>
+          </div>
+        </div>
                 </div>
               </motion.div>
             </motion.div>
