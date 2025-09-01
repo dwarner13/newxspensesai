@@ -5,12 +5,281 @@ import {
   UploadCloud, Bot, HeartPulse, Target, LineChart, Bell, 
   PiggyBank, Crown, Mic, Music, FileText, BarChart3, 
   Zap, Activity, Settings, User, Play, TrendingUp, Users, Award, Star,
-  Calculator, Building2, CreditCard, Eye, Sparkles, TrendingDown, DollarSign
+  Calculator, Building2, CreditCard, Eye, Sparkles, TrendingDown, DollarSign, GripVertical
 } from 'lucide-react';
 import DashboardHeader from './ui/DashboardHeader';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// Sortable Card Component
+function SortableCard({ id, children, viewMode }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative group ${viewMode === 'grid' ? 'cursor-grab active:cursor-grabbing' : ''}`}
+    >
+      {viewMode === 'grid' && (
+        <div
+          {...attributes}
+          {...listeners}
+          className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 rounded-md bg-black/20 backdrop-blur-sm"
+        >
+          <GripVertical className="w-4 h-4 text-white/60" />
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
 
 export default function XspensesProDashboard() {
   const [viewMode, setViewMode] = useState('grid');
+  
+  // Define the initial order of cards
+  const [cardOrder, setCardOrder] = useState([
+    'financial-health',
+    'monthly-spending',
+    'savings-rate',
+    'bills-due',
+    'net-worth',
+    'credit-score',
+    'monthly-income',
+    'debt-to-income',
+    'emergency-fund'
+  ]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function handleDragEnd(event) {
+    const { active, over } = event;
+
+    if (active.id !== over.id) {
+      setCardOrder((items) => {
+        const oldIndex = items.indexOf(active.id);
+        const newIndex = items.indexOf(over.id);
+
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  }
+
+  // Card data structure
+  const cardData = {
+    'financial-health': {
+      title: 'Financial Health Score',
+      value: '85',
+      icon: '🏆',
+      trend: '+5 points this month',
+      trendIcon: <TrendingUp size={12} />,
+      bgClass: 'bg-gradient-to-br from-emerald-500 via-green-600 to-emerald-700',
+      borderClass: 'border-emerald-400/20',
+      valueColor: 'text-white',
+      trendColor: 'text-white',
+      trendBg: 'bg-white/20'
+    },
+    'monthly-spending': {
+      title: 'Monthly Spending',
+      value: '$2,847',
+      icon: '💰',
+      trend: '+12%',
+      trendIcon: <TrendingUp size={12} />,
+      bgClass: 'bg-gradient-to-br from-slate-800/80 via-slate-700/60 to-slate-800/80',
+      borderClass: 'border-slate-600/30',
+      valueColor: 'text-green-400',
+      trendColor: 'text-green-400',
+      trendBg: 'bg-green-500/20',
+      iconBg: 'bg-green-500/20'
+    },
+    'savings-rate': {
+      title: 'Savings Rate',
+      value: '23%',
+      icon: '🎯',
+      trend: '+3%',
+      trendIcon: <TrendingUp size={12} />,
+      bgClass: 'bg-gradient-to-br from-blue-500/20 via-blue-600/30 to-blue-700/20',
+      borderClass: 'border-blue-400/30',
+      valueColor: 'text-blue-400',
+      trendColor: 'text-green-400',
+      trendBg: 'bg-green-500/20',
+      iconBg: 'bg-blue-500/20'
+    },
+    'bills-due': {
+      title: 'Bills Due',
+      value: '3',
+      icon: '📅',
+      trend: 'This week',
+      trendIcon: null,
+      bgClass: 'bg-gradient-to-br from-orange-500/20 via-orange-600/30 to-orange-700/20',
+      borderClass: 'border-orange-400/30',
+      valueColor: 'text-orange-400',
+      trendColor: 'text-orange-400',
+      trendBg: 'bg-orange-500/20',
+      iconBg: 'bg-orange-500/20'
+    },
+    'net-worth': {
+      title: 'Net Worth',
+      value: '$45,230',
+      icon: '💎',
+      trend: '+8.2%',
+      trendIcon: <TrendingUp size={12} />,
+      bgClass: 'bg-gradient-to-br from-purple-500/20 via-purple-600/30 to-purple-700/20',
+      borderClass: 'border-purple-400/30',
+      valueColor: 'text-purple-400',
+      trendColor: 'text-green-400',
+      trendBg: 'bg-green-500/20',
+      iconBg: 'bg-purple-500/20'
+    },
+    'credit-score': {
+      title: 'Credit Score',
+      value: '742',
+      icon: '📊',
+      trend: '+15',
+      trendIcon: <TrendingUp size={12} />,
+      bgClass: 'bg-gradient-to-br from-indigo-500/20 via-indigo-600/30 to-indigo-700/20',
+      borderClass: 'border-indigo-400/30',
+      valueColor: 'text-indigo-400',
+      trendColor: 'text-green-400',
+      trendBg: 'bg-green-500/20',
+      iconBg: 'bg-indigo-500/20'
+    },
+    'monthly-income': {
+      title: 'Monthly Income',
+      value: '$4,200',
+      icon: '💵',
+      trend: '+5.1%',
+      trendIcon: <TrendingUp size={12} />,
+      bgClass: 'bg-gradient-to-br from-emerald-500/20 via-emerald-600/30 to-emerald-700/20',
+      borderClass: 'border-emerald-400/30',
+      valueColor: 'text-emerald-400',
+      trendColor: 'text-green-400',
+      trendBg: 'bg-green-500/20',
+      iconBg: 'bg-emerald-500/20'
+    },
+    'debt-to-income': {
+      title: 'Debt-to-Income',
+      value: '18%',
+      icon: '⚖️',
+      trend: '-2%',
+      trendIcon: <TrendingDown size={12} />,
+      bgClass: 'bg-gradient-to-br from-yellow-500/20 via-yellow-600/30 to-yellow-700/20',
+      borderClass: 'border-yellow-400/30',
+      valueColor: 'text-yellow-400',
+      trendColor: 'text-green-400',
+      trendBg: 'bg-green-500/20',
+      iconBg: 'bg-yellow-500/20'
+    },
+    'emergency-fund': {
+      title: 'Emergency Fund',
+      value: '$8,500',
+      icon: '🛡️',
+      trend: '+$200',
+      trendIcon: <TrendingUp size={12} />,
+      bgClass: 'bg-gradient-to-br from-cyan-500/20 via-cyan-600/30 to-cyan-700/20',
+      borderClass: 'border-cyan-400/30',
+      valueColor: 'text-cyan-400',
+      trendColor: 'text-green-400',
+      trendBg: 'bg-green-500/20',
+      iconBg: 'bg-cyan-500/20'
+    }
+  };
+
+  // Render card component
+  const renderCard = (cardId, isSortable = false) => {
+    const card = cardData[cardId];
+    if (!card) return null;
+
+    const cardContent = (
+      <div 
+        className={`${card.bgClass} backdrop-blur-xl rounded-2xl p-6 border ${card.borderClass} shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
+          viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
+        }`}
+        style={{ 
+          transform: 'translateZ(0)',
+          WebkitTransform: 'translateZ(0)',
+          contain: 'layout style paint'
+        }}
+      >
+        {viewMode === 'grid' ? (
+          <>
+            <div className="flex justify-center mb-3">
+              <div className={`p-3 ${card.iconBg || 'bg-white/20'} rounded-xl backdrop-blur-sm`}>
+                <div className="text-3xl">{card.icon}</div>
+              </div>
+            </div>
+            <div className={`text-3xl font-bold ${card.valueColor} mb-2 tracking-tight`}>{card.value}</div>
+            <div className="text-slate-300 text-sm font-medium mb-2">{card.title}</div>
+            <div className={`inline-flex items-center gap-1 px-3 py-1 ${card.trendBg} rounded-full text-xs font-medium ${card.trendColor}`}>
+              {card.trendIcon}
+              {card.trend}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center gap-4">
+              <div className={`p-3 ${card.iconBg || 'bg-white/20'} rounded-xl backdrop-blur-sm`}>
+                <div className="text-2xl">{card.icon}</div>
+              </div>
+              <div>
+                <div className="text-lg font-bold text-white">{card.title}</div>
+                <div className={`${card.trendColor} text-sm flex items-center gap-1`}>
+                  {card.trendIcon}
+                  {card.trend}
+                </div>
+              </div>
+            </div>
+            <div className={`text-3xl font-bold ${card.valueColor}`}>{card.value}</div>
+          </>
+        )}
+      </div>
+    );
+
+    if (isSortable) {
+      return (
+        <SortableCard key={cardId} id={cardId} viewMode={viewMode}>
+          {cardContent}
+        </SortableCard>
+      );
+    }
+
+    return cardContent;
+  };
 
   return (
     <div className="w-full" style={{ 
@@ -59,350 +328,37 @@ export default function XspensesProDashboard() {
           </div>
 
           {/* Smart Overview - Dynamic Layout */}
-          <div 
-            className={`${viewMode === 'grid' 
-              ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' 
-              : 'flex flex-col gap-3'
-            } mb-8`}
-            style={{ 
-              contain: 'layout',
-              transform: 'translateZ(0)',
-              WebkitTransform: 'translateZ(0)'
-            }}
-          >
-            {/* Financial Health Score */}
+          {viewMode === 'grid' ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={cardOrder} strategy={rectSortingStrategy}>
+                <div 
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8"
+                  style={{ 
+                    contain: 'layout',
+                    transform: 'translateZ(0)',
+                    WebkitTransform: 'translateZ(0)'
+                  }}
+                >
+                  {cardOrder.map((cardId) => renderCard(cardId, true))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
             <div 
-              className={`bg-gradient-to-br from-emerald-500 via-green-600 to-emerald-700 rounded-2xl p-6 border border-emerald-400/20 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
-                viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
-              }`}
+              className="flex flex-col gap-3 mb-8"
               style={{ 
+                contain: 'layout',
                 transform: 'translateZ(0)',
-                WebkitTransform: 'translateZ(0)',
-                contain: 'layout style paint'
+                WebkitTransform: 'translateZ(0)'
               }}
             >
-              {viewMode === 'grid' ? (
-                <>
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-3xl">🏆</div>
-                    </div>
-                  </div>
-                  <div className="text-4xl font-bold text-white mb-2 tracking-tight">85</div>
-                  <div className="text-white/90 text-sm font-medium mb-2">Financial Health Score</div>
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-white/20 rounded-full text-xs font-medium text-white">
-                    <TrendingUp size={12} />
-                    +5 points this month
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-2xl">🏆</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-white">Financial Health Score</div>
-                      <div className="text-white/80 text-sm">+5 points this month</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-white">85</div>
-                </>
-              )}
+              {cardOrder.map((cardId) => renderCard(cardId, false))}
             </div>
-
-            {/* Monthly Spending */}
-            <div className={`bg-gradient-to-br from-slate-800/80 via-slate-700/60 to-slate-800/80 backdrop-blur-xl rounded-2xl p-6 border border-slate-600/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
-              viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
-            }`}>
-              {viewMode === 'grid' ? (
-                <>
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-green-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-3xl">💰</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-green-400 mb-2 tracking-tight">$2,847</div>
-                  <div className="text-slate-300 text-sm font-medium mb-2">Monthly Spending</div>
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-xs font-medium text-green-400">
-                    <TrendingUp size={12} />
-                    +12%
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-green-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-2xl">💰</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-white">Monthly Spending</div>
-                      <div className="text-green-400 text-sm flex items-center gap-1">
-                        <TrendingUp size={12} />
-                        +12%
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-green-400">$2,847</div>
-                </>
-              )}
-            </div>
-
-            {/* Savings Rate */}
-            <div className={`bg-gradient-to-br from-blue-500/20 via-blue-600/30 to-blue-700/20 backdrop-blur-xl rounded-2xl p-6 border border-blue-400/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
-              viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
-            }`}>
-              {viewMode === 'grid' ? (
-                <>
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-blue-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-3xl">🎯</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-blue-400 mb-2 tracking-tight">23%</div>
-                  <div className="text-slate-300 text-sm font-medium mb-2">Savings Rate</div>
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-xs font-medium text-green-400">
-                    <TrendingUp size={12} />
-                    +3%
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-blue-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-2xl">🎯</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-white">Savings Rate</div>
-                      <div className="text-green-400 text-sm flex items-center gap-1">
-                        <TrendingUp size={12} />
-                        +3%
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-blue-400">23%</div>
-                </>
-              )}
-            </div>
-
-            {/* Bills Due */}
-            <div className={`bg-gradient-to-br from-orange-500/20 via-orange-600/30 to-orange-700/20 backdrop-blur-xl rounded-2xl p-6 border border-orange-400/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
-              viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
-            }`}>
-              {viewMode === 'grid' ? (
-                <>
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-orange-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-3xl">📅</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-orange-400 mb-2 tracking-tight">3</div>
-                  <div className="text-slate-300 text-sm font-medium mb-2">Bills Due</div>
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-orange-500/20 rounded-full text-xs font-medium text-orange-400">
-                    This week
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-orange-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-2xl">📅</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-white">Bills Due</div>
-                      <div className="text-orange-400 text-sm">This week</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-orange-400">3</div>
-                </>
-              )}
-            </div>
-
-            {/* Net Worth */}
-            <div className={`bg-gradient-to-br from-purple-500/20 via-purple-600/30 to-purple-700/20 backdrop-blur-xl rounded-2xl p-6 border border-purple-400/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
-              viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
-            }`}>
-              {viewMode === 'grid' ? (
-                <>
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-purple-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-3xl">💎</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-purple-400 mb-2 tracking-tight">$45,230</div>
-                  <div className="text-slate-300 text-sm font-medium mb-2">Net Worth</div>
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-xs font-medium text-green-400">
-                    <TrendingUp size={12} />
-                    +8.2%
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-purple-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-2xl">💎</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-white">Net Worth</div>
-                      <div className="text-green-400 text-sm flex items-center gap-1">
-                        <TrendingUp size={12} />
-                        +8.2%
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-purple-400">$45,230</div>
-                </>
-              )}
-            </div>
-
-            {/* Credit Score */}
-            <div className={`bg-gradient-to-br from-indigo-500/20 via-indigo-600/30 to-indigo-700/20 backdrop-blur-xl rounded-2xl p-6 border border-indigo-400/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
-              viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
-            }`}>
-              {viewMode === 'grid' ? (
-                <>
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-indigo-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-3xl">📊</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-indigo-400 mb-2 tracking-tight">742</div>
-                  <div className="text-slate-300 text-sm font-medium mb-2">Credit Score</div>
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-xs font-medium text-green-400">
-                    <TrendingUp size={12} />
-                    +15
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-indigo-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-2xl">📊</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-white">Credit Score</div>
-                      <div className="text-green-400 text-sm flex items-center gap-1">
-                        <TrendingUp size={12} />
-                        +15
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-indigo-400">742</div>
-                </>
-              )}
-            </div>
-
-            {/* Monthly Income */}
-            <div className={`bg-gradient-to-br from-emerald-500/20 via-emerald-600/30 to-emerald-700/20 backdrop-blur-xl rounded-2xl p-6 border border-emerald-400/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
-              viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
-            }`}>
-              {viewMode === 'grid' ? (
-                <>
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-emerald-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-3xl">💵</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-emerald-400 mb-2 tracking-tight">$4,200</div>
-                  <div className="text-slate-300 text-sm font-medium mb-2">Monthly Income</div>
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-xs font-medium text-green-400">
-                    <TrendingUp size={12} />
-                    +5.1%
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-emerald-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-2xl">💵</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-white">Monthly Income</div>
-                      <div className="text-green-400 text-sm flex items-center gap-1">
-                        <TrendingUp size={12} />
-                        +5.1%
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-emerald-400">$4,200</div>
-                </>
-              )}
-            </div>
-
-            {/* Debt-to-Income */}
-            <div className={`bg-gradient-to-br from-yellow-500/20 via-yellow-600/30 to-yellow-700/20 backdrop-blur-xl rounded-2xl p-6 border border-yellow-400/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
-              viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
-            }`}>
-              {viewMode === 'grid' ? (
-                <>
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-yellow-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-3xl">⚖️</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-yellow-400 mb-2 tracking-tight">18%</div>
-                  <div className="text-slate-300 text-sm font-medium mb-2">Debt-to-Income</div>
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-xs font-medium text-green-400">
-                    <TrendingDown size={12} />
-                    -2%
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-yellow-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-2xl">⚖️</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-white">Debt-to-Income</div>
-                      <div className="text-green-400 text-sm flex items-center gap-1">
-                        <TrendingDown size={12} />
-                        -2%
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-yellow-400">18%</div>
-                </>
-              )}
-            </div>
-
-            {/* Emergency Fund */}
-            <div className={`bg-gradient-to-br from-cyan-500/20 via-cyan-600/30 to-cyan-700/20 backdrop-blur-xl rounded-2xl p-6 border border-cyan-400/30 shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] ${
-              viewMode === 'grid' ? 'text-center' : 'flex items-center justify-between'
-            }`}>
-              {viewMode === 'grid' ? (
-                <>
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-cyan-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-3xl">🛡️</div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-cyan-400 mb-2 tracking-tight">$8,500</div>
-                  <div className="text-slate-300 text-sm font-medium mb-2">Emergency Fund</div>
-                  <div className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 rounded-full text-xs font-medium text-green-400">
-                    <TrendingUp size={12} />
-                    +$200
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-cyan-500/20 rounded-xl backdrop-blur-sm">
-                      <div className="text-2xl">🛡️</div>
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold text-white">Emergency Fund</div>
-                      <div className="text-green-400 text-sm flex items-center gap-1">
-                        <TrendingUp size={12} />
-                        +$200
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-cyan-400">$8,500</div>
-                </>
-              )}
-            </div>
-          </div>
+          )}
 
           {/* AI Recommendations */}
           <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-xl p-4 border border-purple-500/30">
