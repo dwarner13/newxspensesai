@@ -109,6 +109,13 @@ Special Instructions:
        - Bulk categorization, automation → Tag
        - Data organization, classification → Tag
 
+       Liberty-Specific Routing: // Added
+       - Financial freedom, independence → Liberty
+       - Debt elimination, payoff strategies → Liberty
+       - Wealth building, investment → Liberty
+       - Income growth, side hustles → Liberty
+       - Freedom planning, roadmaps → Liberty
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
