@@ -155,7 +155,11 @@ export default function AIFinancialFreedomPage() {
 
     // Liberty's specialized responses for financial freedom queries
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 🗽 I'm Liberty, your AI Financial Freedom Coach. Great to see you! I'm here to help you achieve complete financial independence, build wealth, and create the freedom to live life on your terms. What financial freedom goal would you like to work on today?`;
+      return `Freedom fighter, ${userName}! 🗽 I've been analyzing your path to financial independence, and I'm seeing some powerful breakthrough opportunities. Your journey from financial stress to financial sovereignty is already 34% complete! Ready to accelerate your liberation?`;
+    }
+    
+    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
+      return `Freedom fighter! I've been analyzing your path to financial independence, and I'm seeing some powerful breakthrough opportunities. Your journey from financial stress to financial sovereignty is already 34% complete! Ready to accelerate your liberation?`;
     }
     
     if (query.includes('freedom') || query.includes('independence') || query.includes('fire') || query.includes('retire')) {

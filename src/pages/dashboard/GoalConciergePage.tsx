@@ -154,7 +154,11 @@ export default function GoalConciergePage() {
 
     // Goalie's specialized responses for goal-related queries
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 🎯 I'm Goalie, your Goal Concierge. Great to see you! I'm here to help you set, track, and achieve your financial goals. Whether it's saving for a house, paying off debt, or building wealth, I'll be your personal goal-setting coach. What financial goal would you like to work on today?`;
+      return `Champion, ${userName}! 🥅 Perfect timing - I was just reviewing your goal strategy and I spotted three quick wins we can knock out this week. Your emergency fund game is getting stronger every day! What victory are we targeting next?`;
+    }
+    
+    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
+      return `Champion! Perfect timing - I was just reviewing your goal strategy and I spotted three quick wins we can knock out this week. Your emergency fund game is getting stronger every day! What victory are we targeting next?`;
     }
     
     if (query.includes('goal') || query.includes('target') || query.includes('objective')) {

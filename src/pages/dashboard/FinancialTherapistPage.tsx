@@ -153,9 +153,13 @@ export default function FinancialTherapistPage() {
     const query = userQuery.toLowerCase();
     const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
 
-    // Luna's specialized responses for therapy-related queries
+    // Harmony's specialized responses for wellness-related queries
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 💙 I'm Luna, your Financial Therapist. Great to see you! I'm here to help you work through financial stress, anxiety, and emotional challenges with money. I provide a safe, supportive space to explore your relationship with finances and develop healthy coping strategies. What's on your mind today?`;
+      return `Welcome to your financial wellness check-in, ${userName}. 💚 I've been observing your money energy lately, and I sense some beautiful balance emerging in your spending patterns. How is your relationship with money feeling today? Any areas where we need to restore harmony?`;
+    }
+    
+    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
+      return `Welcome to your financial wellness check-in. I've been observing your money energy lately, and I sense some beautiful balance emerging in your spending patterns. How is your relationship with money feeling today? Any areas where we need to restore harmony?`;
     }
     
     if (query.includes('stress') || query.includes('anxiety') || query.includes('worried') || query.includes('overwhelmed')) {

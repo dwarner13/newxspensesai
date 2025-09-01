@@ -31,7 +31,7 @@ export const EMPLOYEES: Employee[] = [
   { key: 'chime',   name: 'Chime',   emoji: '🔔', route: '/dashboard/bill-reminders',         short: 'Never miss a bill.',                         learnMorePath: '/features/automation',               tags: ['reminder','bill','due','notify'] },
 
   // === Wellness / Audio ===
-  { key: 'luna',    name: 'Luna',    emoji: '🌙', route: '/dashboard/financial-therapist',    short: 'Emotional support for money habits.',        learnMorePath: '/features/ai-therapist',             tags: ['therapy','emotions','behavior','stress'] },
+  { key: 'harmony', name: 'Harmony', emoji: '💚', route: '/dashboard/financial-therapist',    short: 'Financial wellness and life balance.',        learnMorePath: '/features/ai-therapist',             tags: ['wellness','balance','mindfulness','harmony'] },
   { key: 'roundtable', name: 'The Roundtable', emoji: '🎙️', route: '/dashboard/personal-podcast', short: 'Weekly AI-generated financial podcast.', learnMorePath: '/features/personal-podcast',         tags: ['podcast','audio','story','recap'] },
   { key: 'wave',    name: 'Wave',    emoji: '🌊', route: '/dashboard/spotify-integration',    short: 'Music + focus playlists in your flow.',      learnMorePath: '/features/spotify-integration',      tags: ['music','spotify','focus','player'] },
 

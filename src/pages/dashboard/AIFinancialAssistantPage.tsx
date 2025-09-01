@@ -153,7 +153,11 @@ export default function AIFinancialAssistantPage() {
 
     // Finley's specialized responses for financial advice
     if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 👋 I'm Finley, your Financial Analysis Assistant. Great to see you! I'm here to help you with budgeting, investing, debt management, and all your financial planning needs. What would you like to work on today?`;
+      return `Hey there, ${userName}! 👋 I'm doing great - I was just running some projections on compound interest scenarios (I know, I'm a finance nerd!). I've been thinking about your financial goals since we last talked. How's your day going? Anything money-related on your mind, or just saying hello?`;
+    }
+    
+    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
+      return `Hey there! I'm doing great - I was just running some projections on compound interest scenarios (I know, I'm a finance nerd!). I've been thinking about your financial goals since we last talked. How's your day going? Anything money-related on your mind, or just saying hello?`;
     }
     
     if (query.includes('budget') || query.includes('budgeting') || query.includes('spending')) {

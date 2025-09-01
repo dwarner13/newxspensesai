@@ -157,6 +157,10 @@ export default function SpendingPredictionsPage() {
       return `Hi ${userName}! 🔮 I'm Crystal, your Spending Predictions AI. Great to see you! I'm here to help you forecast your spending patterns, predict future expenses, and plan your budget with AI-powered insights. What spending predictions would you like to explore today?`;
     }
     
+    if (query.includes('confused') || query.includes('puzzled') || query.includes('unclear') || query.includes('don\'t understand')) {
+      return `Okay, this spending pattern has me completely puzzled. I'm seeing data points that don't fit any model I know - it's like your financial behavior is writing poetry instead of following logical patterns. Can you help me understand what's happening here?`;
+    }
+    
     if (query.includes('predict') || query.includes('forecast') || query.includes('future')) {
       return `🔮 Excellent! Let's talk about spending predictions. Here's how I analyze and forecast:
 
