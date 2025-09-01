@@ -171,9 +171,14 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
         <span className="text-2xl">⭐</span>
       </button>
 
+      {/* Background blur overlay */}
+      {open && (
+        <div className="fixed inset-0 z-[70] bg-black/20 backdrop-blur-sm" onClick={() => setOpen(false)} />
+      )}
+      
       <div
         ref={panelRef}
-        className={`fixed z-[71] right-5 bottom-24 md:right-7 md:bottom-28 w-[92vw] max-w-sm rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl overflow-hidden transition-all ${open ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2'}`}
+        className={`fixed z-[71] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-sm rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-xl shadow-2xl overflow-hidden transition-all ${open ? 'opacity-100 scale-100' : 'pointer-events-none opacity-0 scale-95'}`}
       >
         <div className="px-4 py-3 border-b border-white/10 flex items-center gap-2">
           <div className="text-xl">⭐</div>
