@@ -165,6 +165,20 @@ Special Instructions:
        - Performance monitoring, efficiency tracking → Automa
        - Custom automation, workflow design → Automa
 
+       Dash-Specific Routing: // Added
+       - Analytics, data analysis, insights → Dash
+       - Performance metrics, KPIs, trends → Dash
+       - Financial reporting, dashboards → Dash
+       - Comparative analysis, benchmarking → Dash
+       - Predictive analytics, forecasting → Dash
+
+       Custodian-Specific Routing: // Added
+       - Security, data protection, fraud prevention → Custodian
+       - Compliance, regulations, legal requirements → Custodian
+       - Identity theft, phishing, scams → Custodian
+       - Encryption, privacy, backup → Custodian
+       - Risk assessment, incident response → Custodian
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
