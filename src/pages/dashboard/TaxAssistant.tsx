@@ -659,14 +659,7 @@ const TaxAssistant = () => {
             </div>
           </div>
 
-          {/* Specialized Tax Assistant Chatbot */}
-          <SpecializedChatBot
-            name="TaxBot"
-            expertise="CRA/IRS tax help for freelancers, small business, deduction optimization"
-            avatar="🧮"
-            welcomeMessage="Hi! I'm TaxBot, your tax preparation specialist. I can help you with CRA/IRS tax questions, identify deductions, organize your documents, and optimize your tax strategy for freelancers and small businesses. What tax-related questions do you have today?"
-            color="green"
-          />
+
         </div>
       </div>
     </div>

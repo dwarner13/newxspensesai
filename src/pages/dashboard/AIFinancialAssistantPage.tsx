@@ -40,7 +40,7 @@ import DashboardHeader from '../../components/ui/DashboardHeader';
 import { aiCategorizer } from '../../utils/aiCategorizer';
 import { supabase } from '../../lib/supabase';
 
-import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
+
 
 interface FinancialDocument {
   id: string;
@@ -601,14 +601,7 @@ const AIFinancialAssistantPage = () => {
             </div>
           </main>
           
-          {/* Specialized AI Financial Assistant Chatbot */}
-          <SpecializedChatBot
-            name="AIFinancialAssistantBot"
-            expertise="General financial guidance, analysis, answering money questions"
-            avatar="🤖"
-            welcomeMessage="Hey there! 👋 I'm your AI Financial Assistant. I can help you with money questions, budgeting, investing, and more. What would you like to know about your finances today?"
-            color="indigo"
-          />
+
         </div>
 
         {/* Hidden file input */}

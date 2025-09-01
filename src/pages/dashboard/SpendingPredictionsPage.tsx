@@ -9,7 +9,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
-import SpecializedChatBot from '../../components/chat/SpecializedChatBot';
+
 import DashboardHeader from '../../components/ui/DashboardHeader';
 
 interface Prediction {
@@ -543,14 +543,7 @@ const SpendingPredictionsPage = () => {
             </div>
           </div>
           
-          {/* Specialized Spending Predictions Chatbot */}
-          <SpecializedChatBot
-            name="SpendingPredictionsBot"
-            expertise="Forecasting expenses, trend analysis, and alerts"
-            avatar="📊"
-            welcomeMessage="Hi! I'm SpendingPredictionsBot, your spending forecast specialist. I can help you predict future expenses, analyze spending trends, identify potential budget issues, and provide early warnings about upcoming costs. What would you like to know about your spending patterns?"
-            color="orange"
-          />
+
         </div>
       </div>
     </div>
