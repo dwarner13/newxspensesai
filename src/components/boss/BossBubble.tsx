@@ -102,6 +102,13 @@ Special Instructions:
        - Money relationship, confidence → Luna
        - Mindfulness, wellness → Luna
 
+       Tag-Specific Routing: // Added
+       - Transaction categorization, organization → Tag
+       - Custom categories, rules → Tag
+       - Categorization accuracy, improvement → Tag
+       - Bulk categorization, automation → Tag
+       - Data organization, classification → Tag
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
