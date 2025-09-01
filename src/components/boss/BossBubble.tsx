@@ -123,6 +123,13 @@ Special Instructions:
        - Bill organization, management → Chime
        - Payment scheduling, budgeting → Chime
 
+       Blitz-Specific Routing: // Added
+       - Automation, workflow creation → Blitz
+       - System integration, API connections → Blitz
+       - Time optimization, efficiency → Blitz
+       - Process automation, rules → Blitz
+       - Productivity improvement → Blitz
+
 General Instructions:
 1. Analyze the user's request carefully
 2. Match it to the most appropriate AI employee based on their description and tags
