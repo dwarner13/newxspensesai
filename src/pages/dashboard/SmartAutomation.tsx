@@ -16,7 +16,7 @@ import {
   Lightbulb,
   Cpu,
   Workflow,
-  Automation
+  Cog
 } from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
 import { useAuth } from '../../contexts/AuthContext';
@@ -460,7 +460,7 @@ Could you tell me more specifically what automation topic you'd like to discuss?
     { icon: Zap, text: "Create Rules", action: () => sendMessage("I want to create automation rules") },
     { icon: Workflow, text: "Design Workflows", action: () => sendMessage("I want to design efficient workflows") },
     { icon: Clock, text: "Save Time", action: () => sendMessage("I want to save time with automation") },
-    { icon: Automation, text: "Set Up Automation", action: () => sendMessage("I want to set up financial automation") },
+    { icon: Cog, text: "Set Up Automation", action: () => sendMessage("I want to set up financial automation") },
     { icon: Cpu, text: "System Integration", action: () => sendMessage("I want to integrate my financial tools") },
     { icon: Target, text: "Process Optimization", action: () => sendMessage("I want to optimize my financial processes") }
   ];

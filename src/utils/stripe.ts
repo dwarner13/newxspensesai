@@ -163,7 +163,8 @@ export const getPlanFeatures = (planName: string): string[] => {
         'PDF/CSV export',
         'Gamification + reports',
         'Email support',
-        'Advanced analytics'
+        'Advanced analytics',
+        'Personal podcast episodes (5/month)'
       ];
     case 'elite':
       return [
@@ -172,7 +173,9 @@ export const getPlanFeatures = (planName: string): string[] => {
         'Custom rules + automation',
         'Priority support',
         'Early feature access',
-        'White-label options'
+        'White-label options',
+        'Unlimited personal podcasts',
+        'Custom podcast themes'
       ];
     case 'lifetime':
       return [

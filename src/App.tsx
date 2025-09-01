@@ -32,6 +32,7 @@ const DebtPayoffPlannerPage = lazy(() => import('./pages/dashboard/DebtPayoffPla
 const FinancialTherapistPage = lazy(() => import('./pages/dashboard/FinancialTherapistPage'));
 const TherapistDemoPage = lazy(() => import('./pages/dashboard/TherapistDemoPage'));
 const PersonalPodcastPage = lazy(() => import('./pages/dashboard/PersonalPodcastPage'));
+const PodcastDashboard = lazy(() => import('./pages/PodcastDashboard'));
 const TaxAssistant = lazy(() => import('./pages/features/tax-assistant'));
 const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
 const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
@@ -228,6 +229,7 @@ function App() {
                       <Route path="ai-financial-freedom" element={<AIFinancialFreedomFeaturePage />} />
                       <Route path="therapist-demo" element={<TherapistDemoPage />} />
                       <Route path="personal-podcast" element={<PersonalPodcastPage />} />
+                      <Route path="podcast" element={<PodcastDashboard />} />
 
                       <Route path="smart-automation" element={<SmartAutomation />} />
                       <Route path="analytics" element={<Analytics />} />

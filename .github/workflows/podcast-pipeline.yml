@@ -1,0 +1,194 @@
+name: Podcast Pipeline CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/components/podcast/**'
+      - 'src/pages/PodcastDashboard.tsx'
+      - 'src/lib/podcast*.ts'
+      - 'src/types/podcast.types.ts'
+      - 'supabase/migrations/*podcast*.sql'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/components/podcast/**'
+      - 'src/pages/PodcastDashboard.tsx'
+      - 'src/lib/podcast*.ts'
+      - 'src/types/podcast.types.ts'
+      - 'supabase/migrations/*podcast*.sql'
+
+jobs:
+  test-podcast-frontend:
+    name: Test Podcast Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Run TypeScript checks
+      run: npx tsc --noEmit --project tsconfig.json
+    
+    - name: Run ESLint on podcast files
+      run: npx eslint src/components/podcast/ src/pages/PodcastDashboard.tsx src/lib/podcast*.ts src/types/podcast.types.ts
+    
+    - name: Run unit tests for podcast components
+      run: npm test -- --testPathPattern="podcast" --coverage
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/lcov.info
+        flags: podcast-frontend
+        name: podcast-frontend-coverage
+
+  test-podcast-backend:
+    name: Test Podcast Backend
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install Python dependencies
+      run: |
+        cd ai-backend
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Run podcast backend tests
+      run: |
+        cd ai-backend
+        python -m pytest tests/test_podcast.py --cov=podcast_generator --cov=audio_processor --cov-report=xml
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: ai-backend/coverage.xml
+        flags: podcast-backend
+        name: podcast-backend-coverage
+
+  test-database-migrations:
+    name: Test Database Migrations
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Supabase CLI
+      uses: supabase/setup-cli@v1
+      with:
+        version: latest
+    
+    - name: Test migration syntax
+      run: |
+        cd supabase
+        supabase db lint
+
+  build-podcast-frontend:
+    name: Build Podcast Frontend
+    runs-on: ubuntu-latest
+    needs: [test-podcast-frontend, test-podcast-backend, test-database-migrations]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build application
+      run: npm run build
+      env:
+        VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: podcast-frontend-build
+        path: dist/
+
+  deploy-podcast-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: build-podcast-frontend
+    if: github.ref == 'refs/heads/develop'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: podcast-frontend-build
+        path: dist/
+    
+    - name: Deploy to Vercel (Staging)
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        vercel-args: '--prod'
+
+  deploy-podcast-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-podcast-frontend
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download build artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: podcast-frontend-build
+        path: dist/
+    
+    - name: Deploy to Vercel (Production)
+      uses: amondnet/vercel-action@v25
+      with:
+        vercel-token: ${{ secrets.VERCEL_TOKEN }}
+        vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+        vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+        vercel-args: '--prod'
+
+  notify-podcast-deployment:
+    name: Notify Podcast Deployment
+    runs-on: ubuntu-latest
+    needs: [deploy-podcast-staging, deploy-podcast-production]
+    if: always()
+    
+    steps:
+    - name: Notify Slack
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#podcast-pipeline'
+        text: |
+          Podcast Pipeline Deployment Status: ${{ job.status }}
+          Branch: ${{ github.ref }}
+          Commit: ${{ github.sha }}
+          Author: ${{ github.actor }}
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

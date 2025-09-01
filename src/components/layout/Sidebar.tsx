@@ -26,7 +26,8 @@ import {
   Bell,
   CreditCard,
   Award,
-  Building2
+  Building2,
+  Headphones
 } from 'lucide-react';
 import Logo from '../common/Logo';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -339,6 +340,21 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
             >
               <Mic size={20} className="flex-shrink-0 text-white/90" />
               {shouldShowLabels && <span className="font-medium text-white/90">Personal Podcast</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/podcast" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Headphones size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Podcast Dashboard</span>}
             </NavLink>
           </li>
           <li>

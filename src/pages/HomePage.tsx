@@ -126,11 +126,11 @@ const HomePage = () => {
     {
       id: 'personal-podcast',
       title: 'AI Personal Podcast',
-      description: 'Personalized podcasts about YOUR financial journey',
-      icon: '🎧',
+      description: 'Your AI employees create personalized financial podcasts about YOUR money story',
+      icon: '🎙️',
       color: 'from-orange-500 to-red-500',
       link: '/features/personal-podcast',
-      aiEmployee: 'Crystal'
+      aiEmployee: 'Prime, Goalie, Crystal, Blitz'
     },
     {
       id: 'spotify-integration',
@@ -180,6 +180,24 @@ const HomePage = () => {
       savings: '$1,800',
       testimonial: 'Crystal predicted my spending patterns and helped me save $1,800 this quarter!',
       aiEmployee: 'Crystal'
+    },
+    {
+      id: '5',
+      name: 'Emma T.',
+      role: 'Financial Analyst',
+      avatar: 'ET',
+      savings: '$5,200',
+      testimonial: 'The personal podcasts are incredible! I listen while commuting and feel so much more connected to my finances.',
+      aiEmployee: 'Prime, Goalie, Crystal, Blitz'
+    },
+    {
+      id: '6',
+      name: 'Alex R.',
+      role: 'Entrepreneur',
+      avatar: 'AR',
+      savings: '$3,800',
+      testimonial: 'Goalie\'s motivational episodes keep me on track with my goals. It\'s like having a personal financial coach!',
+      aiEmployee: 'Goalie'
     }
   ];
 

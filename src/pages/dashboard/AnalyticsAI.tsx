@@ -36,7 +36,7 @@ import {
   Eye as EyeIcon,
   Cpu,
   Workflow,
-  Automation,
+  Cog,
   RefreshCw,
   Plus,
   Edit3,
@@ -60,9 +60,56 @@ import {
   Play,
   Pause,
   SkipForward,
-  SkipBack
+  SkipBack,
+  Bot,
+  MessageSquare,
+  Star,
+  Crown,
+  Zap as ZapIcon,
+  TrendingUp as TrendingUpIcon,
+  Users as UsersIcon,
+  Award,
+  Trophy,
+  Medal,
+  Badge,
+  Sparkles,
+  Rocket,
+  Target as TargetIcon2,
+  BarChart3 as BarChart3Icon2,
+  Activity as ActivityIcon2,
+  Eye as EyeIcon2,
+  Brain as BrainIcon,
+  Lightbulb as LightbulbIcon,
+  Cpu as CpuIcon,
+  Workflow as WorkflowIcon,
+  Automation as AutomationIcon,
+  RefreshCw as RefreshCwIcon,
+  Plus as PlusIcon,
+  Edit3 as Edit3Icon,
+  Trash2 as Trash2Icon,
+  Calendar as CalendarIcon,
+  DollarSign as DollarSignIcon,
+  CreditCard as CreditCardIcon,
+  Receipt as ReceiptIcon,
+  FileText as FileTextIcon,
+  Database as DatabaseIcon,
+  Filter as FilterIcon,
+  Search as SearchIcon,
+  Download as DownloadIcon,
+  Share2 as Share2Icon,
+  Settings as SettingsIcon,
+  Info as InfoIcon,
+  HelpCircle as HelpCircleIcon,
+  Maximize2 as Maximize2Icon,
+  Minimize2 as Minimize2Icon,
+  RotateCcw as RotateCcwIcon,
+  Play as PlayIcon,
+  Pause as PauseIcon,
+  SkipForward as SkipForwardIcon,
+  SkipBack as SkipBackIcon
 } from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
+import FileUpload from '../../components/ui/FileUpload';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   getEmployeeConfig,
@@ -102,6 +149,7 @@ export default function AnalyticsAI() {
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState('');
   const [dashConfig, setDashConfig] = useState<any>(null);
+  const [showFileUpload, setShowFileUpload] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Initialize conversation and load Dash's config
@@ -130,6 +178,16 @@ export default function AnalyticsAI() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleFileUpload = async (files: File[]) => {
+    if (!user?.id || isLoading) return;
+    
+    // Create a message about the uploaded files
+    const fileNames = files.map(f => f.name).join(', ');
+    const uploadMessage = `I've uploaded ${files.length} file(s): ${fileNames}. Please analyze these files and provide insights.`;
+    
+    await sendMessage(uploadMessage);
+  };
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || !user?.id || isLoading) return;
@@ -810,6 +868,288 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
     }
   ];
 
+  // AI Team Analytics Data
+  const aiEmployees = [
+    {
+      id: 'prime',
+      name: 'Prime',
+      emoji: '👑',
+      role: 'Boss AI',
+      expertise: 'General Management & Routing',
+      usage: 156,
+      rating: 4.9,
+      status: 'active',
+      color: 'yellow',
+      icon: Crown
+    },
+    {
+      id: 'byte',
+      name: 'Byte',
+      emoji: '📄',
+      role: 'Smart Import AI',
+      expertise: 'Data Import & Processing',
+      usage: 89,
+      rating: 4.7,
+      status: 'active',
+      color: 'blue',
+      icon: FileText
+    },
+    {
+      id: 'finley',
+      name: 'Finley',
+      emoji: '💼',
+      role: 'Financial Assistant',
+      expertise: 'Financial Advice & Planning',
+      usage: 234,
+      rating: 4.8,
+      status: 'active',
+      color: 'green',
+      icon: Briefcase
+    },
+    {
+      id: 'goalie',
+      name: 'Goalie',
+      emoji: '🥅',
+      role: 'Goal Concierge',
+      expertise: 'Goal Setting & Achievement',
+      usage: 67,
+      rating: 4.6,
+      status: 'active',
+      color: 'purple',
+      icon: Target
+    },
+    {
+      id: 'crystal',
+      name: 'Crystal',
+      emoji: '🔮',
+      role: 'Spending Predictions AI',
+      expertise: 'Forecasting & Predictions',
+      usage: 123,
+      rating: 4.5,
+      status: 'active',
+      color: 'pink',
+      icon: Crystal
+    },
+    {
+      id: 'luna',
+      name: 'Luna',
+      emoji: '🌙',
+      role: 'Financial Therapist',
+      expertise: 'Emotional Support & Wellness',
+      usage: 45,
+      rating: 4.9,
+      status: 'active',
+      color: 'indigo',
+      icon: Heart
+    },
+    {
+      id: 'tag',
+      name: 'Tag',
+      emoji: '🏷️',
+      role: 'AI Categorization',
+      expertise: 'Data Organization & Categorization',
+      usage: 178,
+      rating: 4.7,
+      status: 'active',
+      color: 'orange',
+      icon: Tag
+    },
+    {
+      id: 'liberty',
+      name: 'Liberty',
+      emoji: '🗽',
+      role: 'Financial Freedom AI',
+      expertise: 'Independence & Freedom Strategies',
+      usage: 34,
+      rating: 4.8,
+      status: 'active',
+      color: 'red',
+      icon: Flag
+    },
+    {
+      id: 'chime',
+      name: 'Chime',
+      emoji: '🔔',
+      role: 'Bill Reminder',
+      expertise: 'Payment Management & Reminders',
+      usage: 156,
+      rating: 4.6,
+      status: 'active',
+      color: 'yellow',
+      icon: Bell
+    },
+    {
+      id: 'blitz',
+      name: 'Blitz',
+      emoji: '⚡',
+      role: 'Smart Automation',
+      expertise: 'Workflow Automation & Optimization',
+      usage: 78,
+      rating: 4.7,
+      status: 'active',
+      color: 'blue',
+      icon: Zap
+    },
+    {
+      id: 'intelia',
+      name: 'Intelia',
+      emoji: '🧠',
+      role: 'Business Intelligence AI',
+      expertise: 'Strategic Insights & Analysis',
+      usage: 92,
+      rating: 4.8,
+      status: 'active',
+      color: 'purple',
+      icon: Brain
+    },
+    {
+      id: 'roundtable',
+      name: 'The Roundtable',
+      emoji: '🎙️',
+      role: 'Personal Podcast AI',
+      expertise: 'Audio Content & Communication',
+      usage: 23,
+      rating: 4.4,
+      status: 'active',
+      color: 'green',
+      icon: Mic
+    },
+    {
+      id: 'wave',
+      name: 'Wave',
+      emoji: '🌊',
+      role: 'Spotify Integration AI',
+      expertise: 'Music-Financial Insights',
+      usage: 56,
+      rating: 4.3,
+      status: 'active',
+      color: 'teal',
+      icon: Music
+    },
+    {
+      id: 'ledger',
+      name: 'Ledger',
+      emoji: '📊',
+      role: 'Tax Assistant AI',
+      expertise: 'Tax Preparation & Compliance',
+      usage: 89,
+      rating: 4.7,
+      status: 'active',
+      color: 'gray',
+      icon: Calculator
+    },
+    {
+      id: 'automa',
+      name: 'Automa',
+      emoji: '🤖',
+      role: 'Workflow Automation AI',
+      expertise: 'Process Optimization & Automation',
+      usage: 67,
+      rating: 4.6,
+      status: 'active',
+      color: 'indigo',
+      icon: Workflow
+    },
+    {
+      id: 'dash',
+      name: 'Dash',
+      emoji: '📈',
+      role: 'Analytics AI',
+      expertise: 'Data Analysis & Insights',
+      usage: 145,
+      rating: 4.9,
+      status: 'active',
+      color: 'blue',
+      icon: BarChart3
+    },
+    {
+      id: 'custodian',
+      name: 'Custodian',
+      emoji: '🛡️',
+      role: 'Security & Compliance AI',
+      expertise: 'Security & Regulatory Compliance',
+      usage: 34,
+      rating: 4.8,
+      status: 'active',
+      color: 'emerald',
+      icon: Shield
+    }
+  ];
+
+  const aiTeamStats = [
+    {
+      name: "Total AI Employees",
+      value: "17",
+      change: "+0",
+      trend: "stable",
+      icon: Users
+    },
+    {
+      name: "Active Conversations",
+      value: "1,847",
+      change: "+12.3%",
+      trend: "up",
+      icon: MessageSquare
+    },
+    {
+      name: "Average Rating",
+      value: "4.7/5.0",
+      change: "+0.1",
+      trend: "up",
+      icon: Star
+    },
+    {
+      name: "Team Efficiency",
+      value: "94.2%",
+      change: "+2.1%",
+      trend: "up",
+      icon: TrendingUp
+    }
+  ];
+
+  const topPerformers = aiEmployees
+    .sort((a, b) => b.usage - a.usage)
+    .slice(0, 5);
+
+  const aiCategories = [
+    {
+      name: "Financial Management",
+      count: 6,
+      color: "blue",
+      employees: ["Prime", "Finley", "Goalie", "Crystal", "Liberty", "Ledger"]
+    },
+    {
+      name: "Data & Analytics",
+      count: 4,
+      color: "purple",
+      employees: ["Byte", "Tag", "Dash", "Intelia"]
+    },
+    {
+      name: "Automation & Efficiency",
+      count: 3,
+      color: "green",
+      employees: ["Blitz", "Automa", "Chime"]
+    },
+    {
+      name: "Wellness & Support",
+      count: 2,
+      color: "pink",
+      employees: ["Luna", "Roundtable"]
+    },
+    {
+      name: "Security & Compliance",
+      count: 1,
+      color: "emerald",
+      employees: ["Custodian"]
+    },
+    {
+      name: "Integration & Media",
+      count: 1,
+      color: "orange",
+      employees: ["Wave"]
+    }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
       <DashboardHeader />
@@ -893,27 +1233,54 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Area */}
-              <div className="p-4 border-t border-white/10">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                    placeholder="Ask Dash about analytics, trends, metrics, insights, or reports..."
-                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-500"
-                    disabled={isLoading}
-                  />
-                  <button
-                    onClick={() => sendMessage(input)}
-                    disabled={isLoading || !input.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
-                  >
-                    <Send className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+                             {/* Input Area */}
+               <div className="p-4 border-t border-white/10">
+                 <div className="flex gap-2">
+                   <button
+                     onClick={() => setShowFileUpload(!showFileUpload)}
+                     className="p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
+                     title="Upload files"
+                   >
+                     <Paperclip className="w-5 h-5" />
+                   </button>
+                   <input
+                     type="text"
+                     value={input}
+                     onChange={(e) => setInput(e.target.value)}
+                     onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                     placeholder="Ask Dash about analytics, trends, metrics, insights, or reports..."
+                     className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-500"
+                     disabled={isLoading}
+                   />
+                   <button
+                     onClick={() => sendMessage(input)}
+                     disabled={isLoading || !input.trim()}
+                     className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
+                   >
+                     <Send className="w-5 h-5" />
+                   </button>
+                 </div>
+                 
+                 {/* File Upload Area */}
+                 <AnimatePresence>
+                   {showFileUpload && (
+                     <motion.div
+                       initial={{ opacity: 0, height: 0 }}
+                       animate={{ opacity: 1, height: 'auto' }}
+                       exit={{ opacity: 0, height: 0 }}
+                       className="mt-4 pt-4 border-t border-white/10"
+                     >
+                       <FileUpload
+                         onFileUpload={handleFileUpload}
+                         acceptedTypes={['image/*', 'application/pdf', 'text/csv', '.xlsx', '.xls', 'application/json']}
+                         maxFiles={5}
+                         maxSize={10}
+                         disabled={isLoading}
+                       />
+                     </motion.div>
+                   )}
+                 </AnimatePresence>
+               </div>
             </motion.div>
           </div>
 
