@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
 import { useAuth } from '../../contexts/AuthContext';
+import SmartHandoffBanner from '../../components/ai/SmartHandoffBanner';
+import SmartWelcomeMessage from '../../components/ai/SmartWelcomeMessage';
 import {
   getEmployeeConfig,
   getConversation,
@@ -43,13 +45,8 @@ interface FinleyMessage {
 
 export default function AIFinancialAssistantPage() {
   const { user } = useAuth();
-  const [messages, setMessages] = useState<FinleyMessage[]>([
-    {
-      role: 'finley',
-      content: "Hi! I'm 💼 Finley, your AI Financial Assistant. I provide personalized financial advice, budgeting tips, and answer all your money questions. Whether you need help with budgeting, investing, debt management, or general financial guidance, I'm here to help! What financial topic would you like to discuss today?",
-      timestamp: new Date().toISOString()
-    }
-  ]);
+  const [messages, setMessages] = useState<FinleyMessage[]>([]);
+  const [showWelcomeMessage, setShowWelcomeMessage] = useState(true);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState('');
@@ -85,6 +82,11 @@ export default function AIFinancialAssistantPage() {
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || !user?.id || isLoading) return;
+
+    // Hide welcome message when user starts chatting
+    if (showWelcomeMessage) {
+      setShowWelcomeMessage(false);
+    }
 
     const userMessage: FinleyMessage = {
       role: 'user',
@@ -396,6 +398,16 @@ Could you tell me more specifically what financial topic you'd like to discuss? 
             </div>
           </div>
         </motion.div>
+
+        {/* Smart Handoff Components */}
+        <SmartHandoffBanner />
+        {showWelcomeMessage && (
+          <SmartWelcomeMessage 
+            employeeName="Finley" 
+            employeeEmoji="💼"
+            defaultMessage="Hi! I'm 💼 Finley, your AI Financial Assistant. I provide personalized financial advice, budgeting tips, and answer all your money questions. Whether you need help with budgeting, investing, debt management, or general financial guidance, I'm here to help! What financial topic would you like to discuss today?"
+          />
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Chat Interface */}

@@ -9,6 +9,10 @@ import {
   routeToEmployee, 
   AIRoutingRequest 
 } from '../../lib/ai-employees';
+import { 
+  createSmartHandoff, 
+  SmartHandoffRequest 
+} from '../../lib/smartHandoff';
 
 export default function BossBubble() {
   const { user } = useAuth();
@@ -213,9 +217,41 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
     setIsLoading(true);
 
     try {
-      // Enhanced routing with new AI employee system
+      // Enhanced routing with smart handoff system
       if (user?.id) {
-        // Use new AI employee routing system
+        // Create smart handoff with context
+        const handoffRequest: SmartHandoffRequest = {
+          user_id: user.id,
+          original_question: q,
+          user_context: {
+            source: 'prime_bubble',
+            timestamp: new Date().toISOString(),
+            user_agent: navigator.userAgent
+          }
+        };
+
+        const handoffResponse = await createSmartHandoff(handoffRequest);
+        
+        if (handoffResponse && handoffResponse.success) {
+          const employeeMatch = EMPLOYEES.find(e => e.key === handoffResponse.employee_key);
+          
+          if (employeeMatch) {
+            const reply = `${employeeMatch.emoji} ${employeeMatch.name} is perfect for that!\n\nI'll connect you with ${employeeMatch.name} who specializes in this area. They'll have all the context from your question.`;
+            setMessages(m => [...m, { role: 'prime', text: reply }]);
+            logInteraction(q, employeeMatch.key);
+            
+            // Store handoff ID in session storage for the AI employee to retrieve
+            sessionStorage.setItem('current_handoff_id', handoffResponse.handoff_id);
+            
+            setTimeout(() => {
+              navigate(employeeMatch.route);
+              setOpen(false);
+            }, 2000);
+            return;
+          }
+        }
+
+        // Fallback to original routing system
         const routingRequest: AIRoutingRequest = {
           user_query: q,
           user_id: user.id,
