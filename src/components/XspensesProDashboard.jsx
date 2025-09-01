@@ -4,52 +4,129 @@ import { Link } from 'react-router-dom';
 import { 
   UploadCloud, Bot, HeartPulse, Target, LineChart, Bell, 
   PiggyBank, Crown, Mic, Music, FileText, BarChart3, 
-  Zap, Activity, Settings, User, Play, TrendingUp, Users, Award, Star
+  Zap, Activity, Settings, User, Play, TrendingUp, Users, Award, Star,
+  Calculator, Building2, CreditCard, Eye, Sparkles, TrendingDown, DollarSign
 } from 'lucide-react';
 import DashboardHeader from './ui/DashboardHeader';
 
 export default function XspensesProDashboard() {
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [viewMode, setViewMode] = useState('grid');
 
   return (
     <div className="w-full">
       <DashboardHeader />
 
-      {/* Main Dashboard Content */}
       <div className="max-w-7xl mx-auto space-y-8 p-6">
         
-        {/* Welcome Section */}
-        <section>
-          <div className="flex items-center gap-3 mb-6">
-            <Crown className="w-8 h-8 text-yellow-400" />
-            <h2 className="text-2xl font-bold text-white">Welcome to Your Financial Dashboard</h2>
+        {/* Smart Overview Section */}
+        <section className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 rounded-2xl p-6 border border-purple-500/20">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-8 h-8 text-yellow-400" />
+              <h2 className="text-2xl font-bold text-white">Smart Overview</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  viewMode === 'grid' 
+                    ? 'bg-purple-500 text-white' 
+                    : 'bg-white/10 text-white/70 hover:bg-white/20'
+                }`}
+              >
+                Grid
+              </button>
+              <button 
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  viewMode === 'list' 
+                    ? 'bg-purple-500 text-white' 
+                    : 'bg-white/10 text-white/70 hover:bg-white/20'
+                }`}
+              >
+                List
+              </button>
+            </div>
           </div>
-          
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+
+          {/* Financial Health Score & Quick Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            {/* Financial Health Score */}
+            <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl p-6 text-center">
+              <div className="text-4xl mb-2">🏆</div>
+              <div className="text-3xl font-bold text-white mb-1">85</div>
+              <div className="text-white/90 text-sm mb-2">Financial Health Score</div>
+              <div className="text-green-300 text-xs">+5 points this month</div>
+            </div>
+
+            {/* Quick Stats */}
             {[
-              { metric: 'Total Expenses', value: '$2,847', icon: '💰', color: 'text-green-400', change: '+12%' },
-              { metric: 'Categories', value: '24', icon: '🏷️', color: 'text-blue-400', change: '+3' },
-              { metric: 'This Month', value: '$847', icon: '📊', color: 'text-purple-400', change: '+8%' },
-              { metric: 'Savings Goal', value: '75%', icon: '🎯', color: 'text-cyan-400', change: '+5%' }
+              { metric: 'Monthly Spending', value: '$2,847', icon: '💰', color: 'text-green-400', change: '+12%', trend: 'up' },
+              { metric: 'Savings Rate', value: '23%', icon: '🎯', color: 'text-blue-400', change: '+3%', trend: 'up' },
+              { metric: 'Bills Due', value: '3', icon: '📅', color: 'text-orange-400', change: 'This week', trend: 'neutral' }
             ].map((stat, index) => (
               <div key={index} className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center">
                 <div className="text-3xl mb-2">{stat.icon}</div>
                 <div className={`text-2xl font-bold ${stat.color} mb-1`}>{stat.value}</div>
                 <div className="text-white/70 text-sm mb-2">{stat.metric}</div>
-                <div className="text-green-400 text-xs">{stat.change} from last month</div>
+                <div className={`text-xs flex items-center justify-center gap-1 ${
+                  stat.trend === 'up' ? 'text-green-400' : 
+                  stat.trend === 'down' ? 'text-red-400' : 'text-orange-400'
+                }`}>
+                  {stat.trend === 'up' && <TrendingUp size={12} />}
+                  {stat.trend === 'down' && <TrendingDown size={12} />}
+                  {stat.change}
+                </div>
               </div>
             ))}
           </div>
+
+          {/* AI Recommendations */}
+          <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-xl p-4 border border-purple-500/30">
+            <div className="flex items-center gap-3 mb-3">
+              <Bot className="w-6 h-6 text-purple-400" />
+              <h3 className="font-semibold text-white">AI Recommendations</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                <Target className="w-5 h-5 text-green-400" />
+                <div>
+                  <div className="text-white text-sm font-medium">Set up Goal Concierge</div>
+                  <div className="text-white/60 text-xs">You're 15% behind on savings goal</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                <Calculator className="w-5 h-5 text-blue-400" />
+                <div>
+                  <div className="text-white text-sm font-medium">Check Tax Assistant</div>
+                  <div className="text-white/60 text-xs">Tax season approaching</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-white/10 rounded-lg">
+                <Bell className="w-5 h-5 text-orange-400" />
+                <div>
+                  <div className="text-white text-sm font-medium">Review Bill Reminders</div>
+                  <div className="text-white/60 text-xs">3 bills due this week</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
 
-        {/* AI Tools Section */}
+        {/* Personal Finance AI Section */}
         <section>
           <div className="flex items-center gap-3 mb-6">
             <Bot className="w-8 h-8 text-purple-400" />
-            <h2 className="text-2xl font-bold text-white">AI-Powered Tools</h2>
+            <h2 className="text-2xl font-bold text-white">Personal Finance AI</h2>
+            <div className="ml-auto flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm">AI Active</span>
+            </div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          
+          <div className={`grid gap-6 ${
+            viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1'
+          }`}>
             
             {/* Smart Import AI */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-blue-600 to-cyan-700 hover:shadow-blue-500/25">
@@ -57,8 +134,15 @@ export default function XspensesProDashboard() {
                 <UploadCloud className="w-8 h-8 text-white/80" />
               </div>
               <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-3 text-white">Smart Import AI</h3>
-                <p className="text-sm text-white/90 leading-relaxed">Upload receipts and bank statements. Our AI automatically categorizes and organizes your expenses.</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Smart Import AI</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Upload receipts and bank statements. Our AI automatically categorizes and organizes your expenses.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Last used: 2 hours ago</span>
+                  <span>247 documents processed</span>
+                </div>
               </div>
               <Link to="/dashboard/smart-import-ai" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Import Now
@@ -71,22 +155,57 @@ export default function XspensesProDashboard() {
                 <Bot className="w-8 h-8 text-white/80" />
               </div>
               <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-3 text-white">AI Financial Assistant</h3>
-                <p className="text-sm text-white/90 leading-relaxed">Get personalized financial advice and insights from our AI assistant.</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">AI Financial Assistant</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Get personalized financial advice and insights from our AI assistant.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Available 24/7</span>
+                  <span>99.7% accuracy</span>
+                </div>
               </div>
               <Link to="/dashboard/ai-financial-assistant" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Chat Now
               </Link>
             </div>
 
-            {/* Goal Concierge */}
+            {/* AI Financial Therapist */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-pink-600 to-rose-700 hover:shadow-pink-500/25">
+              <div className="absolute top-4 right-4">
+                <HeartPulse className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">AI Financial Therapist</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Emotional and behavioral coaching to improve your financial wellness.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Last session: 3 days ago</span>
+                  <span>Stress level: Low</span>
+                </div>
+              </div>
+              <Link to="/dashboard/financial-therapist" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Start Session
+              </Link>
+            </div>
+
+            {/* AI Goal Concierge */}
             <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-green-600 to-emerald-700 hover:shadow-green-500/25">
               <div className="absolute top-4 right-4">
                 <Target className="w-8 h-8 text-white/80" />
               </div>
               <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-3 text-white">Goal Concierge</h3>
-                <p className="text-sm text-white/90 leading-relaxed">Set and track your financial goals with AI-powered insights and recommendations.</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">AI Goal Concierge</h3>
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Set and track your financial goals with AI-powered insights and recommendations.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>3 active goals</span>
+                  <span>75% completion</span>
+                </div>
               </div>
               <Link to="/dashboard/goal-concierge" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Set Goals
@@ -99,8 +218,15 @@ export default function XspensesProDashboard() {
                 <LineChart className="w-8 h-8 text-white/80" />
               </div>
               <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-3 text-white">Spending Predictions</h3>
-                <p className="text-sm text-white/90 leading-relaxed">AI-powered spending forecasts and trend analysis to help you plan better.</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Spending Predictions</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">AI-powered spending forecasts and trend analysis to help you plan better.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Next month: $3,200</span>
+                  <span>94% confidence</span>
+                </div>
               </div>
               <Link to="/dashboard/spending-predictions" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 View Predictions
@@ -108,65 +234,347 @@ export default function XspensesProDashboard() {
             </div>
 
             {/* AI Categorization */}
-            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-pink-600 to-rose-700 hover:shadow-pink-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-orange-600 to-red-700 hover:shadow-orange-500/25">
               <div className="absolute top-4 right-4">
                 <FileText className="w-8 h-8 text-white/80" />
               </div>
               <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-3 text-white">AI Categorization</h3>
-                <p className="text-sm text-white/90 leading-relaxed">Automatic transaction categorization with smart rules and learning capabilities.</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">AI Categorization</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Automatic transaction categorization with smart rules and learning capabilities.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>24 categories</span>
+                  <span>99.2% accuracy</span>
+                </div>
               </div>
               <Link to="/dashboard/ai-categorization" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Manage Categories
               </Link>
             </div>
+          </div>
+        </section>
 
+        {/* Expense & Planning Tools Section */}
+        <section>
+          <div className="flex items-center gap-3 mb-6">
+            <CreditCard className="w-8 h-8 text-green-400" />
+            <h2 className="text-2xl font-bold text-white">Expense & Planning Tools</h2>
+          </div>
+          <div className={`grid gap-6 ${
+            viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1'
+          }`}>
+            
             {/* Bill Reminders */}
-            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-orange-600 to-red-700 hover:shadow-orange-500/25">
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-yellow-600 to-orange-700 hover:shadow-yellow-500/25">
               <div className="absolute top-4 right-4">
                 <Bell className="w-8 h-8 text-white/80" />
               </div>
               <div className="relative z-10">
-                <h3 className="text-xl font-bold mb-3 text-white">Bill Reminders</h3>
-                <p className="text-sm text-white/90 leading-relaxed">Never miss a payment with smart bill tracking and automated reminders.</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Bill Reminder System</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Never miss a payment with smart bill tracking and automated reminders.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>3 bills due this week</span>
+                  <span>100% on-time rate</span>
+                </div>
               </div>
               <Link to="/dashboard/bill-reminders" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
                 Manage Bills
               </Link>
             </div>
+
+            {/* Debt Payoff Planner */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-red-600 to-pink-700 hover:shadow-red-500/25">
+              <div className="absolute top-4 right-4">
+                <CreditCard className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Debt Payoff Planner</h3>
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Strategic debt payoff planning with AI-powered recommendations and tracking.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>2 active plans</span>
+                  <span>45% debt reduction</span>
+                </div>
+              </div>
+              <Link to="/dashboard/debt-payoff-planner" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Plan Payoff
+              </Link>
+            </div>
+
+            {/* AI Financial Freedom */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-emerald-600 to-teal-700 hover:shadow-emerald-500/25">
+              <div className="absolute top-4 right-4">
+                <Award className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">AI Financial Freedom</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Path to financial independence with AI-guided strategies and milestones.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>12 years to FIRE</span>
+                  <span>67% progress</span>
+                </div>
+              </div>
+              <Link to="/dashboard/ai-financial-freedom" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Start Journey
+              </Link>
+            </div>
           </div>
         </section>
 
-        {/* Quick Actions */}
+        {/* Audio Entertainment Section */}
         <section>
           <div className="flex items-center gap-3 mb-6">
-            <Zap className="w-8 h-8 text-yellow-400" />
-            <h2 className="text-2xl font-bold text-white">Quick Actions</h2>
+            <Music className="w-8 h-8 text-cyan-400" />
+            <h2 className="text-2xl font-bold text-white">Audio Entertainment</h2>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link to="/dashboard/analytics" className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 hover:bg-white/15 transition-all group">
-              <div className="flex items-center gap-3">
-                <BarChart3 className="w-6 h-6 text-blue-400" />
-                <span className="text-white font-medium">Analytics</span>
+          <div className={`grid gap-6 ${
+            viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1'
+          }`}>
+            
+            {/* Personal Podcast */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-purple-600 to-violet-700 hover:shadow-purple-500/25">
+              <div className="absolute top-4 right-4">
+                <Mic className="w-8 h-8 text-white/80" />
               </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Personal Podcast</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">AI-generated podcasts about your financial journey and money story.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Last episode: 2 days ago</span>
+                  <span>24 episodes total</span>
+                </div>
+              </div>
+              <Link to="/dashboard/personal-podcast" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Listen Now
+              </Link>
+            </div>
+
+            {/* Spotify Integration */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-green-500 to-emerald-600 hover:shadow-green-500/25">
+              <div className="absolute top-4 right-4">
+                <Music className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Spotify Integration</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Curated playlists for focus, relaxation, and financial motivation.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Connected</span>
+                  <span>8 playlists</span>
+                </div>
+              </div>
+              <Link to="/dashboard/spotify-integration" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Connect
+              </Link>
+            </div>
+
+            {/* Wellness Studio */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-pink-500 to-rose-600 hover:shadow-pink-500/25">
+              <div className="absolute top-4 right-4">
+                <HeartPulse className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Wellness Studio</h3>
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Financial wellness tools and mindfulness practices for better money habits.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Last session: 1 week ago</span>
+                  <span>Stress level: Low</span>
+                </div>
+              </div>
+              <Link to="/dashboard/wellness-studio" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Enter Studio
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Tax, Business & Automation Section */}
+        <section>
+          <div className="flex items-center gap-3 mb-6">
+            <Building2 className="w-8 h-8 text-indigo-400" />
+            <h2 className="text-2xl font-bold text-white">Tax, Business & Automation</h2>
+          </div>
+          <div className={`grid gap-6 ${
+            viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1'
+          }`}>
+            
+            {/* Tax Assistant */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-blue-600 to-indigo-700 hover:shadow-blue-500/25">
+              <div className="absolute top-4 right-4">
+                <Calculator className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Tax Assistant</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Tax answers and optimization guidance for freelancers and businesses.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Tax season ready</span>
+                  <span>98% accuracy</span>
+                </div>
+              </div>
+              <Link to="/dashboard/tax-assistant" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Get Help
+              </Link>
+            </div>
+
+            {/* Business Intelligence */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 to-slate-800 hover:shadow-slate-500/25">
+              <div className="absolute top-4 right-4">
+                <Building2 className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Business Intelligence</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Trends and insights for business growth and expense optimization.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>12 insights this month</span>
+                  <span>Revenue +8%</span>
+                </div>
+              </div>
+              <Link to="/dashboard/business-intelligence" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                View Insights
+              </Link>
+            </div>
+
+            {/* Smart Automation */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-cyan-600 to-blue-700 hover:shadow-cyan-500/25">
+              <div className="absolute top-4 right-4">
+                <Zap className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Smart Automation</h3>
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Automate repetitive tasks and workflows for better efficiency.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>5 active workflows</span>
+                  <span>Time saved: 12h/week</span>
+                </div>
+              </div>
+              <Link to="/dashboard/smart-automation" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Configure
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Tools Section */}
+        <section>
+          <div className="flex items-center gap-3 mb-6">
+            <Settings className="w-8 h-8 text-slate-400" />
+            <h2 className="text-2xl font-bold text-white">Tools</h2>
+          </div>
+          <div className={`grid gap-6 ${
+            viewMode === 'grid' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1'
+          }`}>
+            
+            {/* Analytics */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 to-slate-800 hover:shadow-slate-500/25">
+              <div className="absolute top-4 right-4">
+                <BarChart3 className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Analytics</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Comprehensive financial analytics and reporting dashboard.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Last updated: 1 hour ago</span>
+                  <span>15 reports available</span>
+                </div>
+              </div>
+              <Link to="/dashboard/analytics" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                View Reports
+              </Link>
+            </div>
+
+            {/* Settings */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 to-slate-800 hover:shadow-slate-500/25">
+              <div className="absolute top-4 right-4">
+                <Settings className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Settings</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Configure your account, preferences, and security settings.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Account verified</span>
+                  <span>2FA enabled</span>
+                </div>
+              </div>
+              <Link to="/dashboard/settings" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Configure
+              </Link>
+            </div>
+
+            {/* Reports */}
+            <div className="group relative overflow-hidden rounded-2xl p-6 shadow-2xl hover:scale-[1.02] transition-all duration-300 min-h-[200px] flex flex-col justify-between bg-gradient-to-br from-slate-600 to-slate-800 hover:shadow-slate-500/25">
+              <div className="absolute top-4 right-4">
+                <FileText className="w-8 h-8 text-white/80" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-xl font-bold text-white">Reports</h3>
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <p className="text-sm text-white/90 leading-relaxed mb-4">Generate and export detailed financial reports and summaries.</p>
+                <div className="flex items-center justify-between text-xs text-white/70 mb-3">
+                  <span>Last report: 3 days ago</span>
+                  <span>PDF export ready</span>
+                </div>
+              </div>
+              <Link to="/dashboard/reports" className="relative z-10 bg-white/20 backdrop-blur-md border-none text-white py-2 px-4 rounded-xl text-sm font-semibold cursor-pointer transition-all hover:bg-white/30 hover:-translate-y-1 self-start hover:shadow-lg">
+                Generate
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* Quick Actions Bar */}
+        <section className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
+          <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Link to="/dashboard/smart-import-ai" className="flex items-center gap-3 p-4 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl hover:scale-105 transition-all">
+              <UploadCloud className="w-5 h-5 text-white" />
+              <span className="text-white font-medium">Import Receipt</span>
             </Link>
-            <Link to="/dashboard/reports" className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 hover:bg-white/15 transition-all group">
-              <div className="flex items-center gap-3">
-                <FileText className="w-6 h-6 text-green-400" />
-                <span className="text-white font-medium">Reports</span>
-              </div>
+            <Link to="/dashboard/ai-financial-assistant" className="flex items-center gap-3 p-4 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:scale-105 transition-all">
+              <Bot className="w-5 h-5 text-white" />
+              <span className="text-white font-medium">Ask AI</span>
             </Link>
-            <Link to="/dashboard/settings" className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 hover:bg-white/15 transition-all group">
-              <div className="flex items-center gap-3">
-                <Settings className="w-6 h-6 text-purple-400" />
-                <span className="text-white font-medium">Settings</span>
-              </div>
+            <Link to="/dashboard/goal-concierge" className="flex items-center gap-3 p-4 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl hover:scale-105 transition-all">
+              <Target className="w-5 h-5 text-white" />
+              <span className="text-white font-medium">Set Goal</span>
             </Link>
-            <Link to="/dashboard/spotify-integration" className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20 hover:bg-white/15 transition-all group">
-              <div className="flex items-center gap-3">
-                <Music className="w-6 h-6 text-green-400" />
-                <span className="text-white font-medium">Music</span>
-              </div>
+            <Link to="/dashboard/bill-reminders" className="flex items-center gap-3 p-4 bg-gradient-to-r from-orange-600 to-red-600 rounded-xl hover:scale-105 transition-all">
+              <Bell className="w-5 h-5 text-white" />
+              <span className="text-white font-medium">Check Bills</span>
             </Link>
           </div>
         </section>

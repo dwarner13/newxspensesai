@@ -3,3 +3,13 @@
 [33m94b5c8f[m Update dashboard styling and fix JSX syntax errors - Reports page dark theme, card consistency, and component fixes
 [33ma4e2fd0[m Fix double icons issue: Remove mobile icons from DashboardHeader, move to mobile nav menu only
 [33m290a3b1[m Fix mobile menu showing on desktop - add responsive CSS and component logic
+[33m65e25e0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Revert dashboard: remove Prime's AI Empire Command Center, restore clean financial dashboard
+[33m3f06771[m Enhance favicon and social sharing metadata for better brand presence
+[33m4b23841[m Change Prime Boss icon from star to crown emoji 👑
+[33m5a2e51a[m Fix Prime bot positioning: center on screen and add background blur
+[33m9091904[m Fix Prime chat: add auto-scroll and improve pricing question handling
+[33mb0c34ab[m Fix PrimeRouter - only intercept actual CTA buttons, not navigation links
+[33m85f991f[m Enhance PrimeRouter with authentication-aware routing - unauthenticated users sent to signup first
+[33md4013fa[m Add PrimeRouter - automatically routes all marketing CTAs through Prime for smart navigation
+[33m959224f[m Make Prime smarter with OpenAI integration - AI-powered intent understanding with keyword fallback
+[33m4613e4a[m Enhance BossBubble with Supabase logging - track user queries and employee matches
