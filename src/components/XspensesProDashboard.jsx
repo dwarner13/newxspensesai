@@ -4,7 +4,7 @@ import {
   UploadCloud, Bot, HeartPulse, Target, LineChart, Bell, 
   PiggyBank, Crown, Mic, Music, FileText, BarChart3, 
   Zap, Activity, Settings, User, Play, TrendingUp, Users, Award, Star,
-  Calculator, Building2, CreditCard, Eye, Sparkles, TrendingDown, DollarSign, GripVertical
+  Calculator, Building2, CreditCard, Eye, Sparkles, TrendingDown, Banknote, GripVertical
 } from 'lucide-react';
 import DashboardHeader from './ui/DashboardHeader';
 import { ConnectedDashboard } from './dashboard/ConnectedDashboard';

@@ -27,7 +27,8 @@ import {
   CreditCard,
   Award,
   Building2,
-  Headphones
+  Headphones,
+  Banknote
 } from 'lucide-react';
 import Logo from '../common/Logo';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -506,7 +507,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               style={{ minHeight: '48px' }}
               onClick={() => isMobileOpen && setIsMobileOpen(false)}
             >
-              <DollarSign size={20} className="flex-shrink-0 text-white/90" />
+              <Banknote size={20} className="flex-shrink-0 text-white/90" />
               {shouldShowLabels && <span className="font-medium text-white/90">Reality Checker</span>}
             </NavLink>
           </li>
