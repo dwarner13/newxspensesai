@@ -21,7 +21,17 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
 
   useEffect(() => {
     if (isOpen) {
-      startProcessing();
+      // Reset state when modal opens
+      setCurrentStep(0);
+      setProcessingSteps([]);
+      setByteMessages([]);
+      setIsProcessing(false);
+      setShowDownload(false);
+      
+      // Start processing after a brief delay
+      setTimeout(() => {
+        startProcessing();
+      }, 100);
     }
   }, [isOpen]);
 
@@ -40,11 +50,11 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
       setByteMessages(result.byteMessages);
       setShowDownload(true);
       
-      // Complete processing
+      // Complete processing - wait longer before auto-closing
       setTimeout(() => {
-        onComplete(result);
         setIsProcessing(false);
-      }, 1000);
+        // Don't auto-close, let user click "View Results"
+      }, 2000);
       
     } catch (error) {
       console.error('Processing error:', error);
@@ -86,12 +96,13 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
               <p className="text-sm text-slate-400">Processing: {fileName}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-slate-400" />
-          </button>
+                     <button
+             onClick={onClose}
+             className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
+             disabled={isProcessing}
+           >
+             <X className="w-5 h-5 text-slate-400" />
+           </button>
         </div>
 
         {/* Content */}
@@ -197,11 +208,22 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
         <div className="p-6 border-t border-slate-700">
           <div className="flex items-center justify-between">
             <div className="text-sm text-slate-400">
-              {isProcessing ? 'Processing your document...' : 'Processing complete!'}
+              {isProcessing ? 'Processing your document...' : 'Processing complete! Ready to view results.'}
             </div>
             {!isProcessing && (
               <button
-                onClick={onClose}
+                onClick={() => {
+                  onComplete({
+                    success: true,
+                    transactions: [],
+                    processingSteps: [],
+                    byteMessages: [],
+                    totalProcessed: 30,
+                    categoriesFound: [],
+                    insights: []
+                  });
+                  onClose();
+                }}
                 className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg transition-colors"
               >
                 View Results
