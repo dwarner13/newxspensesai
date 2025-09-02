@@ -28,7 +28,9 @@ import {
   Award,
   Building2,
   Headphones,
-  Banknote
+  Banknote,
+  Star,
+  Sparkles
 } from 'lucide-react';
 import Logo from '../common/Logo';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -171,7 +173,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
         {/* CORE AI TOOLS */}
         {shouldShowLabels && (
           <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-            Core AI Tools
+            AI Workspace
           </div>
         )}
         <ul className="space-y-1 mb-4">
@@ -187,7 +189,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               onClick={() => isMobileOpen && setIsMobileOpen(false)}
             >
               <Upload size={20} className="flex-shrink-0 text-white/90" />
-              {shouldShowLabels && <span className="font-medium text-white/90">Smart Import AI</span>}
+              {shouldShowLabels && <span className="font-medium text-white/90">Byte's Workspace</span>}
             </NavLink>
           </li>
           <li>
@@ -202,7 +204,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               onClick={() => isMobileOpen && setIsMobileOpen(false)}
             >
               <Bot size={20} className="flex-shrink-0 text-white/90" />
-              {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Assistant</span>}
+              {shouldShowLabels && <span className="font-medium text-white/90">AI Chat Assistant</span>}
             </NavLink>
           </li>
           <li>
@@ -217,7 +219,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               onClick={() => isMobileOpen && setIsMobileOpen(false)}
             >
               <Brain size={20} className="flex-shrink-0 text-white/90" />
-              {shouldShowLabels && <span className="font-medium text-white/90">AI Categorization</span>}
+              {shouldShowLabels && <span className="font-medium text-white/90">Smart Categories</span>}
             </NavLink>
           </li>
           <li>
@@ -386,6 +388,105 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
             >
               <Music size={20} className="flex-shrink-0 text-white/90" />
               {shouldShowLabels && <span className="font-medium text-white/90">Spotify Integration</span>}
+            </NavLink>
+          </li>
+        </ul>
+
+        {/* FINANCIAL CHEERLEADERS */}
+        {shouldShowLabels && (
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
+            Financial Cheerleaders
+          </div>
+        )}
+        <ul className="space-y-1 mb-4">
+          <li>
+            <NavLink 
+              to="/dashboard/spark" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Zap size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Spark</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/wisdom" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Brain size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Wisdom</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/serenity" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Heart size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Serenity</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/fortune" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Star size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Fortune</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/nova" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Sparkles size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Nova</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/harmony" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Music size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Harmony</span>}
             </NavLink>
           </li>
         </ul>

@@ -710,13 +710,6 @@ Could you tell me more specifically what you'd like to import or process? I'm re
 
         {/* Smart Handoff Components */}
         <SmartHandoffBanner />
-        {showWelcomeMessage && !isMobile && (
-          <SmartWelcomeMessage 
-            employeeName="Byte" 
-            employeeEmoji="📄"
-            defaultMessage="Hi! I'm 📄 Byte, your Smart Import AI. I'm ready to help you upload and process your financial documents. What would you like to import today?"
-          />
-        )}
 
         {/* Mobile Chat Hero View */}
         {isMobile && mobileView === 'chat' && (
@@ -835,10 +828,26 @@ Could you tell me more specifically what you'd like to import or process? I'm re
         {/* Desktop Layout - Hidden on Mobile */}
         {!isMobile && (
           <>
-            {/* Top Row: Upload Documents */}
+            {/* Byte's Focused Greeting - Primary Welcome */}
+            {showWelcomeMessage && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mb-6"
+              >
+                <SmartWelcomeMessage 
+                  employeeName="Byte" 
+                  employeeEmoji="📄"
+                  defaultMessage="Hi! I'm 📄 Byte, your Smart Import AI. I'm ready to help you upload and process your financial documents. What would you like to import today?"
+                />
+              </motion.div>
+            )}
+
+            {/* Primary Upload Area - Dominant Visual Element */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 mb-6"
             >
           <div className="text-center mb-6">
@@ -932,7 +941,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
           )}
         </motion.div>
 
-                        {/* Middle Row: Chatbot */}
+            {/* Chat Interface - Natural Workflow Progression */}
             <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1044,7 +1053,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
               </div>
             </motion.div>
 
-        {/* Bottom Row: Stats Cards */}
+            {/* Secondary Information Panel - Supporting Information */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Processing Stats Card */}
             <motion.div 

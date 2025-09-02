@@ -186,10 +186,10 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
     {
       id: 'smart-import',
       title: 'Smart Import AI',
-      description: 'Upload receipts and bank statements. Our AI automatically categorizes and organizes your expenses.',
+      description: 'Upload receipts and bank statements. Byte processes them instantly and you can chat about your data in real-time.',
       icon: <Upload className="w-6 h-6" />,
       stats: { lastUsed: "2 hours ago", documentsProcessed: 247 },
-      buttonText: 'Import Now',
+      buttonText: 'Import & Chat',
       onClick: handleImportNow,
       color: 'from-blue-500 to-blue-600',
       isLoading: isProcessing && processingStatus.includes('Byte')
@@ -197,7 +197,7 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
     {
       id: 'financial-assistant',
       title: 'AI Financial Assistant',
-      description: 'Get personalized financial advice and insights from our AI assistant.',
+      description: 'Chat with our AI assistant for personalized financial advice, insights, and real-time analysis of your data.',
       icon: <MessageCircle className="w-6 h-6" />,
       stats: { available: "24/7", accuracy: "99.7%" },
       buttonText: 'Chat Now',
@@ -207,7 +207,7 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
     {
       id: 'financial-therapist',
       title: 'AI Financial Therapist',
-      description: 'Emotional and behavioral coaching to improve your financial wellness.',
+      description: 'Emotional and behavioral coaching to improve your financial wellness. Chat about money stress and get support.',
       icon: <Heart className="w-6 h-6" />,
       stats: { lastSession: "3 days ago", stressLevel: "Low" },
       buttonText: 'Start Session',
@@ -267,10 +267,10 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
     {
       id: 'categorization',
       title: 'Smart Categorization',
-      description: 'Intelligent transaction categorization and spending pattern analysis.',
+      description: 'Chat with our AI to manage categories, review auto-categorization, and get insights on your spending patterns.',
       icon: <FileText className="w-6 h-6" />,
       stats: { accuracy: "98.3%", categories: 24 },
-      buttonText: 'Manage Categories',
+      buttonText: 'Chat & Manage',
       onClick: handleManageCategories,
       color: 'from-cyan-500 to-cyan-600'
     }
@@ -330,92 +330,204 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
         </motion.div>
       )}
 
-      {/* AI Employee Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {aiEmployeeCards.map((card, index) => (
-          <motion.div
-            key={card.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className={`w-12 h-12 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center text-white`}>
-                {card.icon}
-              </div>
-              <div className="text-right">
-                {Object.entries(card.stats).map(([key, value]) => (
-                  <div key={key} className="text-xs text-white/60">
-                    {key}: <span className="text-white/90">{value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <h3 className="text-white font-semibold text-lg mb-2">{card.title}</h3>
-            <p className="text-white/70 text-sm mb-4">{card.description}</p>
-            
-            <button
-              onClick={card.onClick}
-              disabled={card.isLoading}
-              className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+      {/* Core AI Tools Section */}
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white mb-2">Core AI Tools</h2>
+          <p className="text-white/60 text-sm">Essential AI-powered features for your financial management</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {aiEmployeeCards.slice(0, 3).map((card, index) => (
+            <motion.div
+              key={card.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
             >
-              {card.isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <span>{card.buttonText}</span>
-              )}
-            </button>
-          </motion.div>
-        ))}
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-12 h-12 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center text-white`}>
+                  {card.icon}
+                </div>
+                <div className="text-right">
+                  {Object.entries(card.stats).map(([key, value]) => (
+                    <div key={key} className="text-xs text-white/60">
+                      {key}: <span className="text-white/90">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <h3 className="text-white font-semibold text-lg mb-2">{card.title}</h3>
+              <p className="text-white/70 text-sm mb-4">{card.description}</p>
+              
+              <button
+                onClick={card.onClick}
+                disabled={card.isLoading}
+                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+              >
+                {card.isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>{card.buttonText}</span>
+                )}
+              </button>
+            </motion.div>
+          ))}
+        </div>
       </div>
 
-      {/* Entertainment Features */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {entertainmentFeatures.map((feature, index) => (
-          <motion.div
-            key={feature.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: (aiEmployeeCards.length + index) * 0.1 }}
-            className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className={`w-12 h-12 bg-gradient-to-r ${feature.color} rounded-xl flex items-center justify-center text-white`}>
-                {feature.icon}
-              </div>
-              <div className="text-right">
-                {Object.entries(feature.stats).map(([key, value]) => (
-                  <div key={key} className="text-xs text-white/60">
-                    {key}: <span className="text-white/90">{value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            <h3 className="text-white font-semibold text-lg mb-2">{feature.title}</h3>
-            <p className="text-white/70 text-sm mb-4">{feature.description}</p>
-            
-            <button
-              onClick={feature.onClick}
-              disabled={feature.isLoading}
-              className={`w-full bg-gradient-to-r ${feature.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+      {/* Planning & Analysis Section */}
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white mb-2">Planning & Analysis</h2>
+          <p className="text-white/60 text-sm">Advanced tools for financial planning and strategic analysis</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {aiEmployeeCards.slice(3, 6).map((card, index) => (
+            <motion.div
+              key={card.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: (index + 3) * 0.1 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
             >
-              {feature.isLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <span>{feature.buttonText}</span>
-              )}
-            </button>
-          </motion.div>
-        ))}
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-12 h-12 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center text-white`}>
+                  {card.icon}
+                </div>
+                <div className="text-right">
+                  {Object.entries(card.stats).map(([key, value]) => (
+                    <div key={key} className="text-xs text-white/60">
+                      {key}: <span className="text-white/90">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <h3 className="text-white font-semibold text-lg mb-2">{card.title}</h3>
+              <p className="text-white/70 text-sm mb-4">{card.description}</p>
+              
+              <button
+                onClick={card.onClick}
+                disabled={card.isLoading}
+                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+              >
+                {card.isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>{card.buttonText}</span>
+                )}
+              </button>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Additional Tools Section */}
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white mb-2">Additional Tools</h2>
+          <p className="text-white/60 text-sm">Specialized tools for advanced financial management</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {aiEmployeeCards.slice(6).map((card, index) => (
+            <motion.div
+              key={card.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: (index + 6) * 0.1 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-12 h-12 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center text-white`}>
+                  {card.icon}
+                </div>
+                <div className="text-right">
+                  {Object.entries(card.stats).map(([key, value]) => (
+                    <div key={key} className="text-xs text-white/60">
+                      {key}: <span className="text-white/90">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <h3 className="text-white font-semibold text-lg mb-2">{card.title}</h3>
+              <p className="text-white/70 text-sm mb-4">{card.description}</p>
+              
+              <button
+                onClick={card.onClick}
+                disabled={card.isLoading}
+                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+              >
+                {card.isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>{card.buttonText}</span>
+                )}
+              </button>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Entertainment Section */}
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-white mb-2">Entertainment</h2>
+          <p className="text-white/60 text-sm">Fun and engaging features to make finance enjoyable</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {entertainmentFeatures.map((feature, index) => (
+            <motion.div
+              key={feature.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: (aiEmployeeCards.length + index) * 0.1 }}
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-12 h-12 bg-gradient-to-r ${feature.color} rounded-xl flex items-center justify-center text-white`}>
+                  {feature.icon}
+                </div>
+                <div className="text-right">
+                  {Object.entries(feature.stats).map(([key, value]) => (
+                    <div key={key} className="text-xs text-white/60">
+                      {key}: <span className="text-white/90">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <h3 className="text-white font-semibold text-lg mb-2">{feature.title}</h3>
+              <p className="text-white/70 text-sm mb-4">{feature.description}</p>
+              
+              <button
+                onClick={feature.onClick}
+                disabled={feature.isLoading}
+                className={`w-full bg-gradient-to-r ${feature.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+              >
+                {feature.isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>{feature.buttonText}</span>
+                )}
+              </button>
+            </motion.div>
+          ))}
+        </div>
       </div>
 
       {/* Chat Interface */}
