@@ -844,8 +844,18 @@ function OriginalDashboard() {
             </div>
           </div>
         </section>
+      </div>
+    </div>
+  );
+}
 
-
+// Keep the original dashboard as a backup component
+function OriginalDashboard() {
+  return (
+    <div className="max-w-7xl mx-auto space-y-8 p-6">
+      {/* Original Smart Overview Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Smart Overview Cards */}
       </div>
     </div>
   );
