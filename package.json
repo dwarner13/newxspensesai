@@ -3,6 +3,13 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=18.12.0",
+    "npm": ">=8.0.0"
+  },
+  "overrides": {
+    "path-scurry": "^1.11.1"
+  },
   "scripts": {
     "dev": "vite",
     "build": "rimraf dist && vite build && copyfiles public/_redirects dist/",
