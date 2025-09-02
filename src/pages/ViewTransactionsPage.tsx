@@ -37,29 +37,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAtom } from 'jotai';
 import { mockModeAtom } from '../utils/mockState';
 import { mockDashboardData } from '../utils/mockDashboardData';
+import { mockTransactions, mockCategories, MockTransaction } from '../data/mockTransactionData';
 import PageHeader from '../components/layout/PageHeader';
 import TransactionDetailModal from '../components/transactions/TransactionDetailModal';
 import CategoryBreakdownChart from '../components/transactions/CategoryBreakdownChart';
 import AIConfidenceIndicator from '../components/transactions/AIConfidenceIndicator';
 import toast from 'react-hot-toast';
 
-interface Transaction {
-  id: string;
-  date: string;
-  description: string;
-  amount: number;
-  type: 'Debit' | 'Credit';
-  category: string;
-  subcategory?: string;
-  file_name: string;
-  hash_id: string;
-  created_at: string;
-  categorization_source: 'ai' | 'manual' | 'memory';
-  receipt_url?: string;
-  ai_confidence?: number;
-  payment_method?: string;
-  vendor?: string;
-}
+// Use MockTransaction interface from mockTransactionData
+type Transaction = MockTransaction;
 
 interface CategoryStats {
   category: string;
@@ -72,9 +58,9 @@ interface CategoryStats {
 
 const ViewTransactionsPage: React.FC = () => {
   const [mockMode] = useAtom(mockModeAtom);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>(mockTransactions);
+  const [loading, setLoading] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -272,7 +258,7 @@ const ViewTransactionsPage: React.FC = () => {
   };
 
   const getCategories = () => {
-    const categories = Array.from(new Set(transactions.map(tx => tx.category)));
+    const categories = mockCategories.map(c => c.name);
     return ['All', ...categories.sort()];
   };
 

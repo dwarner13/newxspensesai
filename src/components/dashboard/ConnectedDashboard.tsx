@@ -19,7 +19,9 @@ import {
 import { UniversalAIController } from '../../services/UniversalAIController';
 import { UniversalChatInterface } from '../chat/UniversalChatInterface';
 import { MobileChatInterface } from '../chat/MobileChatInterface';
+import { MockProcessingModal } from '../upload/MockProcessingModal';
 import { useAuth } from '../../contexts/AuthContext';
+import { ProcessingResult } from '../../services/MockDocumentProcessor';
 
 interface ConnectedDashboardProps {
   className?: string;
@@ -33,6 +35,8 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
   const [processingStatus, setProcessingStatus] = useState('');
   const [showNotification, setShowNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const [processingFileName, setProcessingFileName] = useState('');
 
   useEffect(() => {
     if (showNotification) {
@@ -56,9 +60,6 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
   const handleImportNow = async () => {
     if (!user) return;
     
-    setIsProcessing(true);
-    setProcessingStatus('Preparing document upload...');
-    
     // Create file input programmatically
     const input = document.createElement('input');
     input.type = 'file';
@@ -69,42 +70,28 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
       const files = Array.from((event.target as HTMLInputElement).files || []);
       
       if (files.length === 0) {
-        setIsProcessing(false);
         return;
       }
       
-      try {
-        // Show Byte's personality while processing
-        setProcessingStatus(`Byte is excited to process ${files.length} documents!`);
-        
-        const byteResponse = await aiController.chatWithEmployee(
-          'smart-import', 
-          `I'm about to process ${files.length} documents: ${files.map(f => f.name).join(', ')}`, 
-          user.id
-        );
-        
-        // Display Byte's excited response
-        showNotification({ type: 'success', message: `Byte: ${byteResponse.response}` });
-        
-        // Process each document
-        for (let i = 0; i < files.length; i++) {
-          setProcessingStatus(`Processing ${files[i].name}... (${i + 1}/${files.length})`);
-          await processDocumentWithPersonality(files[i], user.id);
-        }
-        
-        setProcessingStatus('All documents processed successfully!');
-        showNotification({ type: 'success', message: 'All documents have been processed by Byte!' });
-        
-      } catch (error) {
-        console.error('Document processing error:', error);
-        showNotification({ type: 'error', message: 'Error processing documents. Please try again.' });
-      } finally {
-        setIsProcessing(false);
-        setProcessingStatus('');
-      }
+      // Show mock processing modal for the first file
+      const firstFile = files[0];
+      setProcessingFileName(firstFile.name);
+      setShowProcessingModal(true);
     };
     
     input.click();
+  };
+
+  // Handle processing completion
+  const handleProcessingComplete = (result: ProcessingResult) => {
+    setShowProcessingModal(false);
+    showNotification({ 
+      type: 'success', 
+      message: `Byte processed ${result.totalProcessed} transactions! Check the transactions page to view them.` 
+    });
+    
+    // You could also update dashboard metrics here
+    // updateDashboardMetrics(result);
   };
 
   // AI Financial Assistant Connection
@@ -445,6 +432,14 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
           />
         )
       )}
+
+      {/* Mock Processing Modal */}
+      <MockProcessingModal
+        isOpen={showProcessingModal}
+        onClose={() => setShowProcessingModal(false)}
+        onComplete={handleProcessingComplete}
+        fileName={processingFileName}
+      />
     </div>
   );
 }
