@@ -1,33 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import {
-  getPodcastEpisodes,
-  getPodcastAnalytics,
-  getPodcastPreferences,
-  createOrUpdatePodcastPreferences,
-  getDefaultPodcastPreferences
-} from '../lib/podcast';
-import { 
-  generateWeeklyPodcast, 
-  generateMonthlyPodcast, 
-  generateGoalProgressPodcast, 
-  generateAutomationPodcast 
-} from '../lib/podcastGenerator';
-import { PodcastEpisode, PodcastAnalytics, PodcastPreferences } from '../types/podcast.types';
+import { UniversalAIController } from '../services/UniversalAIController';
 import { useAuth } from '../contexts/AuthContext';
 
 // Components
-import PodcastEpisodeCard from '../components/podcast/PodcastEpisodeCard';
 import PodcastGenerationPanel from '../components/podcast/PodcastGenerationPanel';
-import PodcastPreferencesPanel from '../components/podcast/PodcastPreferencesPanel';
 import PodcastAnalyticsPanel from '../components/podcast/PodcastAnalyticsPanel';
 import PodcastAudioPlayer from '../components/podcast/PodcastAudioPlayer';
+import { EpisodeHistory } from '../components/podcast/EpisodeHistory';
+import { PodcastPreferences } from '../components/podcast/PodcastPreferences';
 
 const PodcastDashboard: React.FC = () => {
   const { user } = useAuth();
-  const [episodes, setEpisodes] = useState<PodcastEpisode[]>([]);
-  const [analytics, setAnalytics] = useState<PodcastAnalytics | null>(null);
-  const [preferences, setPreferences] = useState<PodcastPreferences | null>(null);
-  const [selectedEpisode, setSelectedEpisode] = useState<PodcastEpisode | null>(null);
+  const [aiController] = useState(new UniversalAIController());
+  const [episodes, setEpisodes] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [preferences, setPreferences] = useState<any>(null);
+  const [selectedEpisode, setSelectedEpisode] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'episodes' | 'generate' | 'preferences' | 'analytics'>('episodes');
@@ -38,28 +26,32 @@ const PodcastDashboard: React.FC = () => {
     }
   }, [user]);
 
-    const loadPodcastData = async () => {
+  const loadPodcastData = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
-      const [episodesData, analyticsData, preferencesData] = await Promise.all([
-        getPodcastEpisodes(user.id),
-        getPodcastAnalytics(user.id),
-        getPodcastPreferences(user.id)
+      const [episodesData, preferencesData] = await Promise.all([
+        aiController.getUserEpisodes(user.id, 50),
+        aiController.getUserPodcastPreferences(user.id)
       ]);
 
       setEpisodes(episodesData);
-      setAnalytics(analyticsData);
+      setPreferences(preferencesData);
       
-      // Create default preferences if none exist
-      if (!preferencesData) {
-        const defaultPrefs = getDefaultPodcastPreferences(user.id);
-        const createdPrefs = await createOrUpdatePodcastPreferences(defaultPrefs);
-        setPreferences(createdPrefs);
-      } else {
-        setPreferences(preferencesData);
-      }
+      // Calculate basic analytics
+      const totalEpisodes = episodesData.length;
+      const totalListens = episodesData.reduce((sum: number, ep: any) => sum + (ep.listen_count || 0), 0);
+      const averageRating = episodesData.length > 0 
+        ? episodesData.reduce((sum: number, ep: any) => sum + (ep.rating || 0), 0) / episodesData.length 
+        : 0;
+      
+      setAnalytics({
+        total_episodes: totalEpisodes,
+        total_listens: totalListens,
+        average_rating: averageRating,
+        average_completion_rate: 0.85 // Mock data
+      });
     } catch (error) {
       console.error('Error loading podcast data:', error);
     } finally {
@@ -67,35 +59,18 @@ const PodcastDashboard: React.FC = () => {
     }
   };
 
-  const handleGeneratePodcast = async (episodeType: string) => {
+  const handleGeneratePodcast = async (podcasterId: string, timeframe: string = '7days') => {
     if (!user || isGenerating) return;
     
     try {
       setIsGenerating(true);
-      let result;
-      
-      switch (episodeType) {
-        case 'weekly':
-          result = await generateWeeklyPodcast(user.id);
-          break;
-        case 'monthly':
-          result = await generateMonthlyPodcast(user.id);
-          break;
-        case 'goals':
-          result = await generateGoalProgressPodcast(user.id);
-          break;
-        case 'automation':
-          result = await generateAutomationPodcast(user.id);
-          break;
-        default:
-          throw new Error('Invalid episode type');
-      }
+      const result = await aiController.generatePodcastEpisode(user.id, podcasterId, timeframe);
       
       // Refresh episodes list
       await loadPodcastData();
       
       // Show success message
-      console.log('Podcast generation started:', result);
+      console.log('Podcast generation completed:', result);
     } catch (error) {
       console.error('Error generating podcast:', error);
     } finally {
@@ -103,39 +78,19 @@ const PodcastDashboard: React.FC = () => {
     }
   };
 
-  const handlePreferencesUpdate = async (updatedPreferences: Partial<PodcastPreferences>) => {
-    if (!user || !preferences) return;
-    
-    try {
-      const updated = await createOrUpdatePodcastPreferences({
-        ...preferences,
-        ...updatedPreferences
-      });
-      setPreferences(updated);
-    } catch (error) {
-      console.error('Error updating preferences:', error);
-    }
-  };
-
-  const handleEpisodeSelect = (episode: PodcastEpisode) => {
+  const handleEpisodeSelect = (episode: any) => {
     setSelectedEpisode(episode);
-  };
-
-  const handleEpisodeDelete = async (episodeId: string) => {
-    // TODO: Implement episode deletion
-    console.log('Delete episode:', episodeId);
-    await loadPodcastData();
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-orange-900 to-slate-900 p-6">
         <div className="max-w-7xl mx-auto">
           <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/4 mb-6"></div>
+            <div className="h-8 bg-white/10 rounded w-1/4 mb-6"></div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="h-64 bg-gray-200 rounded-lg"></div>
+                <div key={i} className="h-64 bg-white/10 rounded-lg"></div>
               ))}
             </div>
           </div>
@@ -145,29 +100,29 @@ const PodcastDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-orange-900 to-slate-900">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white/5 backdrop-blur-md border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">🎙️ Personal Podcast</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-3xl font-bold text-white">🎙️ Personal Podcast</h1>
+              <p className="text-white/70 mt-1">
                 Your AI employees create personalized financial podcasts just for you
               </p>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">
-                <div className="text-2xl font-bold text-indigo-600">
+                <div className="text-2xl font-bold text-orange-400">
                   {analytics?.total_episodes || 0}
                 </div>
-                <div className="text-sm text-gray-500">Total Episodes</div>
+                <div className="text-sm text-white/60">Total Episodes</div>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold text-green-400">
                   {Math.round((analytics?.average_completion_rate || 0) * 100)}%
                 </div>
-                <div className="text-sm text-gray-500">Avg. Completion</div>
+                <div className="text-sm text-white/60">Avg. Completion</div>
               </div>
             </div>
           </div>
@@ -205,46 +160,7 @@ const PodcastDashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Episodes Tab */}
         {activeTab === 'episodes' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Your Episodes</h2>
-              <button
-                onClick={() => setActiveTab('generate')}
-                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-              >
-                Generate New Episode
-              </button>
-            </div>
-            
-            {episodes.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-4">🎙️</div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  No episodes yet
-                </h3>
-                <p className="text-gray-600 mb-6">
-                  Generate your first personalized financial podcast to get started!
-                </p>
-                <button
-                  onClick={() => setActiveTab('generate')}
-                  className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  Generate Your First Episode
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {episodes.map((episode) => (
-                  <PodcastEpisodeCard
-                    key={episode.id}
-                    episode={episode}
-                    onSelect={handleEpisodeSelect}
-                    onDelete={handleEpisodeDelete}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          <EpisodeHistory userId={user?.id || ''} aiController={aiController} />
         )}
 
         {/* Generate Tab */}
@@ -258,10 +174,7 @@ const PodcastDashboard: React.FC = () => {
 
         {/* Preferences Tab */}
         {activeTab === 'preferences' && (
-          <PodcastPreferencesPanel
-            preferences={preferences}
-            onUpdate={handlePreferencesUpdate}
-          />
+          <PodcastPreferences userId={user?.id || ''} aiController={aiController} />
         )}
 
         {/* Analytics Tab */}

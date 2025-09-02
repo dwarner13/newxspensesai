@@ -8,6 +8,7 @@ import {
   Calculator, Building2, CreditCard, Eye, Sparkles, TrendingDown, DollarSign, GripVertical
 } from 'lucide-react';
 import DashboardHeader from './ui/DashboardHeader';
+import { ConnectedDashboard } from './dashboard/ConnectedDashboard';
 import {
   DndContext,
   closestCenter,
@@ -288,8 +289,17 @@ export default function XspensesProDashboard() {
       contain: 'layout style paint'
     }}>
       <DashboardHeader />
+      <div className="max-w-7xl mx-auto p-6">
+        <ConnectedDashboard />
+      </div>
+    </div>
+  );
+}
 
-      <div className="max-w-7xl mx-auto space-y-8 p-6">
+// Keep the original dashboard as a backup component
+function OriginalDashboard() {
+  return (
+    <div className="max-w-7xl mx-auto space-y-8 p-6">
         
         {/* Smart Overview Section */}
         <section className="bg-gradient-to-br from-slate-900/90 via-purple-900/40 to-slate-900/90 rounded-3xl p-8 border border-slate-700/50 shadow-2xl backdrop-blur-xl">
