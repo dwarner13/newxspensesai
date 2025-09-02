@@ -22,6 +22,7 @@ import { MobileChatInterface } from '../chat/MobileChatInterface';
 import { MockProcessingModal } from '../upload/MockProcessingModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { ProcessingResult } from '../../services/MockDocumentProcessor';
+import { useNavigate } from 'react-router-dom';
 
 interface ConnectedDashboardProps {
   className?: string;
@@ -29,6 +30,7 @@ interface ConnectedDashboardProps {
 
 export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [aiController] = useState(new UniversalAIController());
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -87,11 +89,13 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
     setShowProcessingModal(false);
     showNotification({ 
       type: 'success', 
-      message: `Byte processed ${result.totalProcessed} transactions! Check the transactions page to view them.` 
+      message: `Byte processed ${result.totalProcessed} transactions! Redirecting to transactions page...` 
     });
     
-    // You could also update dashboard metrics here
-    // updateDashboardMetrics(result);
+    // Navigate to transactions page after a short delay
+    setTimeout(() => {
+      navigate('/dashboard/transactions');
+    }, 1500);
   };
 
   // AI Financial Assistant Connection
