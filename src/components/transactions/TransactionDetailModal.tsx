@@ -7,7 +7,7 @@ import {
   Save, 
   Calendar, 
   Tag, 
-  DollarSign, 
+  Banknote, 
   CreditCard, 
   FileText, 
   Brain, 
@@ -160,7 +160,7 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
           <div className="flex items-center justify-between p-6 border-b border-slate-700">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-slate-700 rounded-lg">
-                <DollarSign className="w-6 h-6 text-orange-500" />
+                <Banknote className="w-6 h-6 text-orange-500" />
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">Transaction Details</h2>

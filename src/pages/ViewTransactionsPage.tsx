@@ -14,7 +14,7 @@ import {
   Settings, 
   Eye, 
   Receipt, 
-  DollarSign,
+  Banknote,
   Search,
   SortAsc,
   SortDesc,

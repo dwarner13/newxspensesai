@@ -38,6 +38,7 @@ const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
 const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const ViewTransactionsPage = lazy(() => import('./pages/ViewTransactionsPage'));
 const AIFinancialFreedomPage = lazy(() => import('./pages/dashboard/AIFinancialFreedomPage'));
 const AIFinancialFreedomFeaturePage = lazy(() => import('./pages/features/ai-financial-freedom'));
 const AIEmployees = lazy(() => import('./pages/AIEmployees'));
@@ -233,6 +234,7 @@ function App() {
                       <Route path="analytics" element={<Analytics />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="reports" element={<ReportsPage />} />
+                      <Route path="transactions" element={<ViewTransactionsPage />} />
                       <Route path="spotify-integration" element={<SpotifyIntegration />} />
                       <Route path="spotify-integration-new" element={<SpotifyIntegration />} />
                       <Route path="wellness-studio" element={<WellnessStudioPage />} />
