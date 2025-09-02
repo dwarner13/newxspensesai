@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { UniversalAIController } from '../../services/UniversalAIController';
 import { UniversalChatInterface } from '../chat/UniversalChatInterface';
+import { MobileChatInterface } from '../chat/MobileChatInterface';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface ConnectedDashboardProps {
@@ -31,6 +32,7 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
   const [showNotification, setShowNotification] = useState<{type: 'success' | 'error', message: string} | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (showNotification) {
@@ -38,6 +40,17 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
       return () => clearTimeout(timer);
     }
   }, [showNotification]);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Smart Import AI Connection
   const handleImportNow = async () => {
@@ -416,12 +429,21 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
 
       {/* Chat Interface */}
       {activeChat && (
-        <UniversalChatInterface
-          employeeId={activeChat}
-          aiController={aiController}
-          userId={user?.id || ''}
-          onClose={() => setActiveChat(null)}
-        />
+        isMobile ? (
+          <MobileChatInterface
+            employeeId={activeChat}
+            aiController={aiController}
+            userId={user?.id || ''}
+            onClose={() => setActiveChat(null)}
+          />
+        ) : (
+          <UniversalChatInterface
+            employeeId={activeChat}
+            aiController={aiController}
+            userId={user?.id || ''}
+            onClose={() => setActiveChat(null)}
+          />
+        )
       )}
     </div>
   );

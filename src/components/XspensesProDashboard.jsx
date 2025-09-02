@@ -83,12 +83,12 @@ export default function XspensesProDashboard() {
   };
 
   const cardData = {
-    balance: {
-      title: 'Total Balance',
-      value: '$12,847',
-      icon: '💰',
-      trend: '+2.4%',
-      trendIcon: <TrendingUp className="w-3 h-3" />,
+    smartImport: {
+      title: 'Smart Import AI',
+      value: '247 docs',
+      icon: '📤',
+      trend: '2 hours ago',
+      trendIcon: <UploadCloud className="w-3 h-3" />,
       bgClass: 'bg-gradient-to-br from-green-600 to-emerald-700',
       borderClass: 'border-green-500/30',
       valueColor: 'text-white',
@@ -96,12 +96,12 @@ export default function XspensesProDashboard() {
       trendBg: 'bg-green-500/20',
       iconBg: 'bg-green-500/20'
     },
-    income: {
-      title: 'Monthly Income',
-      value: '$4,200',
-      icon: '📈',
-      trend: '+5.2%',
-      trendIcon: <TrendingUp className="w-3 h-3" />,
+    financialAssistant: {
+      title: 'AI Financial Assistant',
+      value: '99.7%',
+      icon: '🤖',
+      trend: '24/7',
+      trendIcon: <Bot className="w-3 h-3" />,
       bgClass: 'bg-gradient-to-br from-blue-600 to-indigo-700',
       borderClass: 'border-blue-500/30',
       valueColor: 'text-white',
@@ -109,25 +109,25 @@ export default function XspensesProDashboard() {
       trendBg: 'bg-blue-500/20',
       iconBg: 'bg-blue-500/20'
     },
-    expenses: {
-      title: 'Monthly Expenses',
-      value: '$2,847',
-      icon: '💸',
-      trend: '-1.8%',
-      trendIcon: <TrendingDown className="w-3 h-3" />,
-      bgClass: 'bg-gradient-to-br from-red-600 to-rose-700',
-      borderClass: 'border-red-500/30',
+    financialTherapist: {
+      title: 'AI Financial Therapist',
+      value: 'Low',
+      icon: '💖',
+      trend: '3 days ago',
+      trendIcon: <HeartPulse className="w-3 h-3" />,
+      bgClass: 'bg-gradient-to-br from-pink-600 to-rose-700',
+      borderClass: 'border-pink-500/30',
       valueColor: 'text-white',
-      trendColor: 'text-red-300',
-      trendBg: 'bg-red-500/20',
-      iconBg: 'bg-red-500/20'
+      trendColor: 'text-pink-300',
+      trendBg: 'bg-pink-500/20',
+      iconBg: 'bg-pink-500/20'
     },
-    savings: {
-      title: 'Savings Rate',
-      value: '32%',
-      icon: '🏦',
-      trend: '+3.1%',
-      trendIcon: <TrendingUp className="w-3 h-3" />,
+    goalConcierge: {
+      title: 'AI Goal Concierge',
+      value: '3 goals',
+      icon: '🎯',
+      trend: '87%',
+      trendIcon: <Target className="w-3 h-3" />,
       bgClass: 'bg-gradient-to-br from-purple-600 to-violet-700',
       borderClass: 'border-purple-500/30',
       valueColor: 'text-white',
@@ -135,12 +135,12 @@ export default function XspensesProDashboard() {
       trendBg: 'bg-purple-500/20',
       iconBg: 'bg-purple-500/20'
     },
-    investments: {
-      title: 'Investments',
-      value: '$8,420',
+    spendingPredictions: {
+      title: 'Spending Predictions',
+      value: '94%',
       icon: '📊',
-      trend: '+7.3%',
-      trendIcon: <TrendingUp className="w-3 h-3" />,
+      trend: '156 pred',
+      trendIcon: <LineChart className="w-3 h-3" />,
       bgClass: 'bg-gradient-to-br from-yellow-600 to-orange-700',
       borderClass: 'border-yellow-500/30',
       valueColor: 'text-white',
@@ -148,18 +148,18 @@ export default function XspensesProDashboard() {
       trendBg: 'bg-yellow-500/20',
       iconBg: 'bg-yellow-500/20'
     },
-    debt: {
-      title: 'Total Debt',
-      value: '$3,200',
-      icon: '💳',
-      trend: '-12.5%',
+    debtElimination: {
+      title: 'Debt Elimination',
+      value: '$12,847',
+      icon: '⚡',
+      trend: '18 months',
       trendIcon: <TrendingDown className="w-3 h-3" />,
-      bgClass: 'bg-gradient-to-br from-slate-600 to-gray-700',
-      borderClass: 'border-slate-500/30',
+      bgClass: 'bg-gradient-to-br from-red-600 to-rose-700',
+      borderClass: 'border-red-500/30',
       valueColor: 'text-white',
-      trendColor: 'text-slate-300',
-      trendBg: 'bg-slate-500/20',
-      iconBg: 'bg-slate-500/20'
+      trendColor: 'text-red-300',
+      trendBg: 'bg-red-500/20',
+      iconBg: 'bg-red-500/20'
     }
   };
 

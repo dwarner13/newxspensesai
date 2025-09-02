@@ -167,10 +167,10 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
           </li>
         </ul>
 
-        {/* Personal Finance AI */}
+        {/* CORE AI TOOLS */}
         {shouldShowLabels && (
           <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-            Personal Finance AI
+            Core AI Tools
           </div>
         )}
         <ul className="space-y-1 mb-4">
@@ -206,7 +206,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
           </li>
           <li>
             <NavLink 
-              to="/dashboard/financial-therapist" 
+              to="/dashboard/ai-categorization" 
               className={({ isActive }) => 
                 `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
@@ -215,10 +215,34 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               style={{ minHeight: '48px' }}
               onClick={() => isMobileOpen && setIsMobileOpen(false)}
             >
-              <Heart size={20} className="flex-shrink-0 text-white/90" />
-              {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Therapist</span>}
+              <Brain size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">AI Categorization</span>}
             </NavLink>
           </li>
+          <li>
+            <NavLink 
+              to="/dashboard/transactions" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <FileText size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Transactions</span>}
+            </NavLink>
+          </li>
+        </ul>
+
+        {/* PLANNING & ANALYSIS */}
+        {shouldShowLabels && (
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
+            Planning & Analysis
+          </div>
+        )}
+        <ul className="space-y-1 mb-4">
           <li>
             <NavLink 
               to="/dashboard/goal-concierge" 
@@ -251,45 +275,6 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
           </li>
           <li>
             <NavLink 
-              to="/dashboard/ai-categorization" 
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-              style={{ minHeight: '48px' }}
-              onClick={() => isMobileOpen && setIsMobileOpen(false)}
-            >
-              <Brain size={20} className="flex-shrink-0 text-white/90" />
-              {shouldShowLabels && <span className="font-medium text-white/90">AI Categorization</span>}
-            </NavLink>
-          </li>
-        </ul>
-
-        {/* 💳 Expense & Planning Tools */}
-        {shouldShowLabels && (
-          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-            💳 Expense & Planning Tools
-          </div>
-        )}
-        <ul className="space-y-1 mb-4">
-          <li>
-            <NavLink 
-              to="/dashboard/bill-reminders" 
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-              style={{ minHeight: '48px' }}
-              onClick={() => isMobileOpen && setIsMobileOpen(false)}
-            >
-              <Bell size={20} className="flex-shrink-0 text-white/90" />
-              {shouldShowLabels && <span className="font-medium text-white/90">Bill Reminder System</span>}
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
               to="/dashboard/debt-payoff-planner" 
               className={({ isActive }) => 
                 `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
@@ -318,12 +303,27 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Freedom</span>}
             </NavLink>
           </li>
+          <li>
+            <NavLink 
+              to="/dashboard/bill-reminders" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Bell size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Bill Reminder System</span>}
+            </NavLink>
+          </li>
         </ul>
 
-        {/* Audio Entertainment */}
+        {/* ENTERTAINMENT & WELLNESS */}
         {shouldShowLabels && (
           <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-            Audio Entertainment
+            Entertainment & Wellness
           </div>
         )}
         <ul className="space-y-1 mb-4">
@@ -344,7 +344,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
           </li>
           <li>
             <NavLink 
-              to="/dashboard/spotify-integration" 
+              to="/dashboard/financial-therapist" 
               className={({ isActive }) => 
                 `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
@@ -353,8 +353,8 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               style={{ minHeight: '48px' }}
               onClick={() => isMobileOpen && setIsMobileOpen(false)}
             >
-              <Music size={20} className="flex-shrink-0 text-white/90" />
-              {shouldShowLabels && <span className="font-medium text-white/90">Spotify Integration</span>}
+              <Heart size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">AI Financial Therapist</span>}
             </NavLink>
           </li>
           <li>
@@ -372,12 +372,27 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               {shouldShowLabels && <span className="font-medium text-white/90">Wellness Studio</span>}
             </NavLink>
           </li>
+          <li>
+            <NavLink 
+              to="/dashboard/spotify-integration" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Music size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Spotify Integration</span>}
+            </NavLink>
+          </li>
         </ul>
 
-        {/* Tax Assistant, Business Intelligence, Smart Automation */}
+        {/* BUSINESS & TAX */}
         {shouldShowLabels && (
           <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-            Tax, Business & Automation
+            Business & Tax
           </div>
         )}
         <ul className="space-y-1 mb-4">
@@ -428,10 +443,109 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
           </li>
         </ul>
 
-        {/* Tools */}
+        {/* GET ROASTED */}
         {shouldShowLabels && (
           <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-            Tools
+            Get Roasted
+          </div>
+        )}
+        <ul className="space-y-1 mb-4">
+          <li>
+            <NavLink 
+              to="/dashboard/roast-master" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Zap size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Roast Master</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/savage-sally" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Zap size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Savage Sally</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/truth-bomber" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Zap size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Truth Bomber</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/reality-checker" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <DollarSign size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Reality Checker</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/savage-sam" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Zap size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Savage Sam</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/roast-queen" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Zap size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Roast Queen</span>}
+            </NavLink>
+          </li>
+        </ul>
+
+        {/* TOOLS & SETTINGS */}
+        {shouldShowLabels && (
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
+            Tools & Settings
           </div>
         )}
         <ul className="space-y-1 mb-4">
