@@ -10,7 +10,7 @@ import {
   CheckCircle, 
   Sparkles,
   Heart,
-  DollarSign,
+  Banknote,
   Calculator,
   Building2,
   Zap,

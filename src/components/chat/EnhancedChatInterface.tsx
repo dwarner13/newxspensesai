@@ -4,7 +4,7 @@ import {
   X, Send, Loader2, Mic, Upload, Camera, FileText, 
   Paperclip, Image, FileSpreadsheet, File, AlertCircle,
   CheckCircle, Sparkles, Heart, Target, TrendingUp, 
-  DollarSign, Zap, Brain, Award, Calculator, Building2,
+  Banknote, Zap, Brain, Award, Calculator, Building2,
   Music, Headphones, Eye, EyeOff, Volume2, VolumeX
 } from 'lucide-react';
 import { UniversalAIController } from '../../services/UniversalAIController';
@@ -84,7 +84,7 @@ const employeePersonalities: Record<string, EmployeePersonality> = {
     id: 'financial-assistant',
     name: 'Finley',
     specialty: 'AI Financial Assistant',
-    icon: <DollarSign className="w-5 h-5" />,
+    icon: <Banknote className="w-5 h-5" />,
     color: 'from-blue-500 to-indigo-600',
     greeting: "Hey there! I'm Finley, your always-on financial sidekick. What money questions can I help you tackle today?",
     quickActions: [
