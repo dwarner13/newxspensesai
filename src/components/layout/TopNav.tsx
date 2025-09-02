@@ -8,7 +8,7 @@ import {
   Settings, 
   LogOut,
   HelpCircle,
-  DollarSign,
+  Banknote,
   Moon,
   Sun
 } from 'lucide-react';
@@ -156,7 +156,7 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
                   <div className={`px-4 py-3 hover:${darkMode ? 'bg-gray-700' : 'bg-gray-50'} transition-colors cursor-pointer`}>
                     <div className="flex items-start">
                       <div className={`w-8 h-8 rounded-full ${darkMode ? 'bg-primary-700' : 'bg-primary-100'} flex items-center justify-center mr-3`}>
-                        <DollarSign size={16} className={darkMode ? 'text-primary-300' : 'text-primary-600'} />
+                        <Banknote size={16} className={darkMode ? 'text-primary-300' : 'text-primary-600'} />
                       </div>
                       <div>
                         <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>New transaction categorized</p>
@@ -285,7 +285,7 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
                     } transition-colors`}
                     onClick={() => setIsUserMenuOpen(false)}
                   >
-                    <DollarSign size={16} className="mr-3" />
+                    <Banknote size={16} className="mr-3" />
                     Pricing Plans
                   </Link>
                   <div className={`border-t my-1 ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}></div>

@@ -6,7 +6,7 @@ import {
   LogOut, 
   User, 
   Settings, 
-  DollarSign, 
+  Banknote, 
   Search,
   Moon,
   Sun,
@@ -261,7 +261,7 @@ const Header = ({
                       } transition-colors`}
                       onClick={() => setIsUserMenuOpen(false)}
                     >
-                      <DollarSign size={16} className="mr-3" />
+                      <Banknote size={16} className="mr-3" />
                       Pricing Plans
                     </Link>
                     <div className={`border-t my-1 ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}></div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart3, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Banknote } from 'lucide-react';
 
 const AnalyticsCard = () => {
   const monthlyData = {
@@ -40,7 +40,7 @@ const AnalyticsCard = () => {
         </div>
         <div className="bg-white/5 rounded-lg p-3 text-center">
           <div className="flex items-center justify-center gap-1 text-blue-400 mb-1">
-            <DollarSign size={12} />
+            <Banknote size={12} />
             <span className="text-xs">Savings</span>
           </div>
           <p className="text-lg font-bold text-white">${monthlyData.savings.toLocaleString()}</p>
