@@ -1,4 +1,8 @@
 import { Transaction } from '../types/database.types';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set up PDF.js worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface OpenAITransaction {
   date: string;
@@ -51,28 +55,52 @@ async function extractTextFromPDF(file: File): Promise<string> {
     // Convert file to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
     
-    // For browser-based PDF parsing, we'll use a fallback approach
-    // In production, you'd use a more robust solution like pdf.js or a server-side parser
+    // Load the PDF document using PDF.js
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
-    // First attempt: Try to read as text (works for some PDFs)
-    const text = await readAsText(file);
+    let fullText = '';
     
-    // If we got meaningful text, return it
-    if (text && text.length > 100 && text.includes(' ')) {
-      return text;
+    // Extract text from all pages
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      
+      // Combine all text items from the page
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      
+      fullText += pageText + '\n';
     }
     
-    // Otherwise, use our fallback parser
-    return await fallbackPDFParsing(file);
+    // Clean up the text
+    const cleanedText = fullText
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .replace(/\n\s*\n/g, '\n') // Remove empty lines
+      .trim();
+    
+    if (!cleanedText || cleanedText.length < 50) {
+      throw new Error('Could not extract sufficient text from PDF. The file may be image-based or corrupted.');
+    }
+    
+    console.log('Successfully extracted text from PDF:', cleanedText.substring(0, 200) + '...');
+    return cleanedText;
+    
   } catch (error) {
-    console.error('Text extraction error:', error);
+    console.error('PDF.js extraction error:', error);
     
-    // Try fallback method if primary method fails
+    // Fallback to simple text reading for some PDFs
     try {
-      return await fallbackPDFParsing(file);
+      const text = await readAsText(file);
+      if (text && text.length > 100 && text.includes(' ')) {
+        console.log('Fallback text extraction successful');
+        return text;
+      }
     } catch (fallbackError) {
-      throw new Error('Could not extract text from PDF. The file may be password-protected, corrupted, or contain only images.');
+      console.error('Fallback extraction also failed:', fallbackError);
     }
+    
+    throw new Error('Could not extract text from PDF. The file may be password-protected, corrupted, or contain only images.');
   }
 }
 
@@ -85,40 +113,7 @@ async function readAsText(file: File): Promise<string> {
   });
 }
 
-async function fallbackPDFParsing(file: File): Promise<string> {
-  // This is a placeholder for a more robust PDF parsing solution
-  // In a production app, you would:
-  // 1. Use pdf.js in the browser
-  // 2. Or send the PDF to a server-side function that uses a proper PDF parser
-  
-  // For now, we'll simulate PDF text extraction with realistic bank statement content
-  await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate processing time
-  
-  return `
-BANK STATEMENT
-Account Number: ****1234
-Statement Period: November 1, 2024 - November 30, 2024
 
-TRANSACTIONS:
-Date        Description                     Amount      Type
-11/01/2024  PAYROLL DEPOSIT                +2,500.00   CREDIT
-11/02/2024  GROCERY STORE #123             -85.47      DEBIT
-11/03/2024  STARBUCKS #456                 -5.75       DEBIT
-11/05/2024  AMAZON.COM                     -129.99     DEBIT
-11/07/2024  SHELL GAS STATION              -45.20      DEBIT
-11/10/2024  RESTAURANT ABC                 -67.89      DEBIT
-11/12/2024  ATM WITHDRAWAL                 -100.00     DEBIT
-11/15/2024  PAYROLL DEPOSIT                +2,500.00   CREDIT
-11/18/2024  ELECTRIC COMPANY               -125.50     DEBIT
-11/20/2024  NETFLIX SUBSCRIPTION           -15.99      DEBIT
-11/22/2024  GROCERY STORE #123             -92.34      DEBIT
-11/25/2024  COFFEE SHOP                    -4.25       DEBIT
-11/28/2024  ONLINE TRANSFER                -500.00     DEBIT
-11/30/2024  INTEREST EARNED                +2.15       CREDIT
-
-ENDING BALANCE: $3,930.82
-  `;
-}
 
 async function parseTransactionsWithAI(pdfText: string): Promise<OpenAITransaction[]> {
   const openAIKey = import.meta.env.VITE_OPENAI_API_KEY;

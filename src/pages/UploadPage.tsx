@@ -4,6 +4,7 @@ import { File, FileText, Upload, Check, AlertTriangle, Brain, Zap, Camera, Recei
 import toast from 'react-hot-toast';
 import FileUploader from '../components/upload/FileUploader';
 import AICategorizationStatus from '../components/upload/AICategorizationStatus';
+import ByteProcessingModal from '../components/upload/ByteProcessingModal';
 import { parseCSVWithAI } from '../utils/enhancedCsvParser';
 import { parsePDF } from '../utils/pdfParser';
 import { generateTransactionHash } from '../utils/hashGenerator';
@@ -20,7 +21,7 @@ const UploadPage = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [parseProgress, setParseProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState<'idle' | 'uploading' | 'parsing' | 'ai-processing' | 'saving' | 'complete' | 'error'>('idle');
+  const [currentStep, setCurrentStep] = useState<'idle' | 'uploading' | 'parsing' | 'ai-processing' | 'saving' | 'complete' | 'error' | 'orchestration'>('idle');
   const [parsedData, setParsedData] = useState<ParsedFileData | null>(null);
   const [processingMessage, setProcessingMessage] = useState('');
   const [aiStatus, setAiStatus] = useState({
@@ -31,7 +32,45 @@ const UploadPage = () => {
     totalCount: 0,
     message: ''
   });
+  const [showByteModal, setShowByteModal] = useState(false);
+  const [orchestrationResult, setOrchestrationResult] = useState<any>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const navigate = useNavigate();
+
+  // Byte Modal Handlers
+  const handleByteModalComplete = (result: any) => {
+    setOrchestrationResult(result);
+    setShowByteModal(false);
+    
+    if (result.view === 'story') {
+      // Navigate to story view
+      navigate('/dashboard', { state: { showStory: true, storyData: result } });
+    } else if (result.view === 'podcasts') {
+      // Navigate to podcast view
+      navigate('/dashboard', { state: { showPodcasts: true, podcastData: result } });
+    } else {
+      // Default: show transactions
+      setCurrentStep('complete');
+      setParsedData({
+        transactions: result.executiveSummary.keyMetrics.documentsProcessed || 0,
+        fileName: uploadedFiles[0]?.name || 'Unknown',
+        fileType: 'pdf' as const
+      });
+    }
+    
+    toast.success('🎉 Your financial story is ready!');
+  };
+
+  const handleByteModalError = (error: string) => {
+    setShowByteModal(false);
+    setCurrentStep('error');
+    toast.error(error);
+  };
+
+  const handleByteModalClose = () => {
+    setShowByteModal(false);
+    setCurrentStep('idle');
+  };
 
   const handleFileUpload = async (files: File[]) => {
     if (files.length === 0) return;
@@ -42,6 +81,18 @@ const UploadPage = () => {
         throw new Error('Please log in to upload files.');
       }
 
+      // Check if we should use the new orchestration system
+      const useOrchestration = files.length === 1 && (files[0].type.includes('pdf') || files[0].name.toLowerCase().endsWith('.csv'));
+      
+      if (useOrchestration) {
+        // Use the new Byte Processing Modal with Orchestration
+        setUploadedFiles(files);
+        setShowByteModal(true);
+        setCurrentStep('orchestration');
+        return;
+      }
+
+      // Fall back to existing upload flow
       setIsUploading(true);
       setCurrentStep('uploading');
       setUploadProgress(0);
@@ -481,6 +532,16 @@ const UploadPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Byte Processing Modal */}
+      {showByteModal && (
+        <ByteProcessingModal
+          files={uploadedFiles}
+          onComplete={handleByteModalComplete}
+          onError={handleByteModalError}
+          onClose={handleByteModalClose}
+        />
+      )}
     </div>
   );
 };
