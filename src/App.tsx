@@ -14,6 +14,8 @@ import { PersonalPodcastProvider } from './contexts/PersonalPodcastContext';
 import { AIFinancialAssistantProvider } from './contexts/AIFinancialAssistantContext';
 import { UserProvider } from './contexts/UserContext';
 import { BossProvider } from './lib/agents/context';
+import MobileRevolution from './components/mobile/MobileRevolution';
+import { useMobileRevolution } from './hooks/useMobileRevolution';
 
 // Critical components - load immediately
 import HomePage from './pages/HomePage';
@@ -151,6 +153,7 @@ function ScrollToTop() {
 function App() {
   const [therapistTrigger] = useAtom(therapistTriggerAtom);
   const [isTherapistModalOpen] = useAtom(isTherapistModalOpenAtom);
+  const mobileRevolution = useMobileRevolution();
   
   return (
     <BossProvider>
@@ -160,6 +163,18 @@ function App() {
             <AIFinancialAssistantProvider>
               <UserProvider>
                 <ScrollToTop />
+                <MobileRevolution 
+                  currentView={mobileRevolution.currentView}
+                  onViewChange={mobileRevolution.handleViewChange}
+                  onUpload={mobileRevolution.handleUpload}
+                  isProcessing={mobileRevolution.isProcessing}
+                  transactionCount={mobileRevolution.transactionCount}
+                  discoveries={mobileRevolution.discoveries}
+                  activeEmployee={mobileRevolution.activeEmployee}
+                  notifications={mobileRevolution.notifications}
+                  onEmployeeSelect={mobileRevolution.handleEmployeeSelect}
+                  onStoryAction={mobileRevolution.handleStoryAction}
+                />
                 <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
                   <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
