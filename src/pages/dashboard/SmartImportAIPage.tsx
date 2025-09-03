@@ -6,6 +6,7 @@ import {
   Eye, X, ChevronDown, ChevronUp, History, TrendingUp, FileCheck
 } from 'lucide-react';
 
+import DashboardHeader from '../../components/ui/DashboardHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import SmartHandoffBanner from '../../components/ai/SmartHandoffBanner';
 import SmartWelcomeMessage from '../../components/ai/SmartWelcomeMessage';
@@ -736,6 +737,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
 
   return (
     <div className="w-full">
+      <DashboardHeader />
       <div className="max-w-7xl mx-auto p-6 relative">
         {/* Chat History Sidebar */}
         <div className={`fixed right-6 top-24 z-40 transition-all duration-300 ${showChatHistory ? 'translate-x-0' : 'translate-x-full'}`} style={{ pointerEvents: showChatHistory ? 'auto' : 'none' }}>

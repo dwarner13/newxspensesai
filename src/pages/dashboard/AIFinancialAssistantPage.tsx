@@ -15,6 +15,7 @@ import {
   BookOpen
 } from 'lucide-react';
 
+import DashboardHeader from '../../components/ui/DashboardHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import SmartHandoffBanner from '../../components/ai/SmartHandoffBanner';
 import SmartWelcomeMessage from '../../components/ai/SmartWelcomeMessage';
@@ -391,6 +392,7 @@ Could you tell me more specifically what financial topic you'd like to discuss? 
 
   return (
     <div className="w-full">
+      <DashboardHeader />
       <div className="max-w-7xl mx-auto p-6">
         {/* Finley Header */}
         <motion.div

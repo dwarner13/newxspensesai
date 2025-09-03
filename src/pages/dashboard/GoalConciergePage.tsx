@@ -18,6 +18,7 @@ import {
   DollarSign
 } from 'lucide-react';
 
+import DashboardHeader from '../../components/ui/DashboardHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   getEmployeeConfig,
@@ -447,6 +448,7 @@ Could you tell me more specifically what goal-related topic you'd like to discus
 
   return (
     <div className="w-full">
+      <DashboardHeader />
       <div className="max-w-7xl mx-auto p-6">
         {/* Goalie Header */}
         <motion.div
