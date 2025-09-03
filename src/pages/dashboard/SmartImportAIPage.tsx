@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   UploadCloud, FileText, Image, FileSpreadsheet, Bot, Send, Loader2,
@@ -37,11 +38,13 @@ interface ByteMessage {
     file_count?: number;
     file_names?: string[];
     progress?: number;
+    show_view_results_button?: boolean;
   };
 }
 
 export default function SmartImportAIPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState<ByteMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -699,6 +702,23 @@ Could you tell me more specifically what you'd like to import or process? I'm re
     };
 
     setMessages(prev => [...prev, aiMessage]);
+
+    // Add "View Results" button after the last AI response (Byte's response)
+    if (aiKey === 'byte') {
+      setTimeout(() => {
+        const viewResultsMessage: ByteMessage = {
+          role: 'byte',
+          content: `🎉 **Processing Complete!** Your documents have been successfully processed by our AI team. Click below to view your results and see all the extracted transactions and insights!`,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            ai_employee: 'byte',
+            action_type: 'view_results_prompt',
+            show_view_results_button: true
+          }
+        };
+        setMessages(prev => [...prev, viewResultsMessage]);
+      }, 2000); // 2 second delay after Byte's response
+    }
   };
 
   const resetUpload = () => {
@@ -840,6 +860,19 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                             </div>
                           )}
                           <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                          
+                          {/* View Results Button */}
+                          {message.metadata?.show_view_results_button && (
+                            <div className="mt-3">
+                              <button
+                                onClick={() => navigate('/dashboard/transactions')}
+                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                              >
+                                <span>📊</span>
+                                View Results
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </motion.div>
                     );
@@ -1075,6 +1108,19 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                       </div>
                     )}
                     <div className="whitespace-pre-wrap text-xs">{message.content}</div>
+                    
+                    {/* View Results Button */}
+                    {message.metadata?.show_view_results_button && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() => navigate('/dashboard/transactions')}
+                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
+                        >
+                          <span>📊</span>
+                          View Results
+                        </button>
+                      </div>
+                    )}
                     </div>
                   </motion.div>
               );
