@@ -37,8 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Create bypass user for development
       const bypassUser = {
         id: 'bypass-user-123',
-        email: 'bypass@example.com',
-        full_name: 'Bypass User',
+        email: 'demo@example.com',
+        full_name: 'Demo User',
         aud: 'authenticated',
         role: 'authenticated',
         exp: Date.now() + 86400000, // 24 hours from now
@@ -68,8 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('🔍 AuthContext: Supabase not available, using bypass');
           const bypassUser = {
             id: 'bypass-user-123',
-            email: 'bypass@example.com',
-            full_name: 'Bypass User',
+            email: 'demo@example.com',
+            full_name: 'Demo User',
             aud: 'authenticated',
             role: 'authenticated',
             exp: Date.now() + 86400000,

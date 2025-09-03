@@ -17,7 +17,7 @@ import {
   Clock,
   DollarSign
 } from 'lucide-react';
-import DashboardHeader from '../../components/ui/DashboardHeader';
+
 import { useAuth } from '../../contexts/AuthContext';
 import {
   getEmployeeConfig,
@@ -440,10 +440,13 @@ Could you tell me more specifically what goal-related topic you'd like to discus
     }
   ];
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-orange-900 to-slate-900">
-      <DashboardHeader />
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
+  return (
+    <div className="w-full">
       <div className="max-w-7xl mx-auto p-6">
         {/* Goalie Header */}
         <motion.div

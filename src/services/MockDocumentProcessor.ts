@@ -1,4 +1,5 @@
 import { mockTransactions, mockProcessingSteps, MockTransaction } from '../data/mockTransactionData';
+import { Transaction } from '../types/database.types';
 
 export interface ProcessingStep {
   step: number;
@@ -10,7 +11,7 @@ export interface ProcessingStep {
 
 export interface ProcessingResult {
   success: boolean;
-  transactions: MockTransaction[];
+  transactions: Transaction[];
   processingSteps: ProcessingStep[];
   byteMessages: string[];
   totalProcessed: number;
@@ -19,6 +20,8 @@ export interface ProcessingResult {
 }
 
 export class MockDocumentProcessor {
+  private lastProcessedData: ProcessingResult | null = null;
+  
   private bytePersonality = {
     greetings: [
       "Ooh, what document treasure did you bring me today? I'm practically bouncing with excitement to organize this beautiful data!",
@@ -50,9 +53,27 @@ export class MockDocumentProcessor {
     ]
   };
 
+  private convertMockToTransaction(mockTxn: MockTransaction): Transaction {
+    return {
+      id: mockTxn.id,
+      created_at: new Date().toISOString(),
+      user_id: 'mock-user-id',
+      date: mockTxn.date,
+      description: mockTxn.description,
+      amount: mockTxn.amount,
+      type: mockTxn.type === 'debit' ? 'Debit' : 'Credit',
+      category: mockTxn.category,
+      subcategory: mockTxn.subcategory || null,
+      file_name: 'processed-document.csv',
+      hash_id: `mock-hash-${mockTxn.id}`,
+      categorization_source: 'ai',
+      receipt_url: null
+    };
+  }
+
   async processDocument(file: File): Promise<ProcessingResult> {
     // Simulate processing time
-    await this.delay(2000);
+    await this.delay(1000);
 
     const byteMessages: string[] = [];
     const processingSteps: ProcessingStep[] = [...mockProcessingSteps];
@@ -60,22 +81,22 @@ export class MockDocumentProcessor {
     // Add Byte's personality messages
     byteMessages.push(this.getRandomMessage(this.bytePersonality.greetings));
     
-    // Simulate step-by-step processing
+    // Simulate step-by-step processing (but don't set status here - let the UI handle it)
     for (let i = 0; i < processingSteps.length; i++) {
-      processingSteps[i].status = 'processing';
-      await this.delay(800);
+      processingSteps[i].status = 'pending'; // Start as pending
       
       if (i === 2) { // Transaction parsing step
         byteMessages.push(this.getRandomMessage(this.bytePersonality.processing));
       }
-      
-      processingSteps[i].status = 'completed';
     }
 
     // Add completion message
     byteMessages.push(this.getRandomMessage(this.bytePersonality.completion));
     byteMessages.push(this.getRandomMessage(this.bytePersonality.insights));
 
+    // Convert mock transactions to proper Transaction format
+    const transactions = mockTransactions.map(txn => this.convertMockToTransaction(txn));
+    
     // Calculate insights
     const categoriesFound = [...new Set(mockTransactions.map(t => t.category))];
     const totalProcessed = mockTransactions.length;
@@ -88,15 +109,20 @@ export class MockDocumentProcessor {
       `AI categorization confidence: ${this.getAverageConfidence()}%`
     ];
 
-    return {
+    const result = {
       success: true,
-      transactions: mockTransactions,
+      transactions,
       processingSteps,
       byteMessages,
       totalProcessed,
       categoriesFound,
       insights
     };
+
+    // Store the processed data for later retrieval
+    this.lastProcessedData = result;
+    
+    return result;
   }
 
   private getRandomMessage(messages: string[]): string {
@@ -129,6 +155,11 @@ export class MockDocumentProcessor {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Get the last processed data
+  getLastProcessedData(): ProcessingResult | null {
+    return this.lastProcessedData;
   }
 
   // Generate sample CSV content for download

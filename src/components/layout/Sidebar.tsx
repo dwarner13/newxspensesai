@@ -189,7 +189,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
               onClick={() => isMobileOpen && setIsMobileOpen(false)}
             >
               <Upload size={20} className="flex-shrink-0 text-white/90" />
-              {shouldShowLabels && <span className="font-medium text-white/90">Byte's Workspace</span>}
+              {shouldShowLabels && <span className="font-medium text-white/90">Smart Import AI</span>}
             </NavLink>
           </li>
           <li>

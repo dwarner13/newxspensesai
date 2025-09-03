@@ -30,6 +30,7 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
   const [showChat, setShowChat] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [overallProgress, setOverallProgress] = useState(0);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +60,14 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
+  // Auto-scroll processing content to bottom
+  useEffect(() => {
+    const contentArea = document.querySelector('.processing-content-area');
+    if (contentArea) {
+      contentArea.scrollTop = contentArea.scrollHeight;
+    }
+  }, [byteMessages, processingSteps]);
+
   const startProcessing = async () => {
     setIsProcessing(true);
     setCurrentStep(0);
@@ -68,16 +77,62 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
     try {
       // Create a mock file for processing
       const mockFile = new File(['mock content'], fileName, { type: 'text/csv' });
+      
+      // Get the processing steps but don't set them all at once
       const result = await processor.processDocument(mockFile);
       
-      setProcessingSteps(result.processingSteps);
-      setByteMessages(result.byteMessages);
+      // Process steps one by one with delays to show the action
+      for (let i = 0; i < result.processingSteps.length; i++) {
+        const step = result.processingSteps[i];
+        
+        // Update overall progress
+        const progress = ((i + 1) / result.processingSteps.length) * 100;
+        setOverallProgress(progress);
+        
+        // Add the step to the list
+        setProcessingSteps(prev => [...prev, { ...step, status: 'processing' }]);
+        
+        // Add Byte's message for this step
+        if (result.byteMessages[i]) {
+          setByteMessages(prev => [...prev, result.byteMessages[i]]);
+        }
+        
+        // Show processing animation for longer
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Mark step as completed with dramatic effect
+        setProcessingSteps(prev => 
+          prev.map((s, idx) => 
+            idx === i ? { ...s, status: 'completed' } : s
+          )
+        );
+        
+        // Add a completion message for this step
+        const stepCompletionMessages = [
+          `✅ ${step.title} completed successfully!`,
+          `🎉 ${step.title} is now finished!`,
+          `✨ ${step.title} has been processed!`,
+          `🚀 ${step.title} is complete!`
+        ];
+        const randomMessage = stepCompletionMessages[Math.floor(Math.random() * stepCompletionMessages.length)];
+        setByteMessages(prev => [...prev, randomMessage]);
+        
+        // Wait before moving to next step
+        await new Promise(resolve => setTimeout(resolve, 1200));
+      }
+      
+      // Add remaining Byte messages
+      const remainingMessages = result.byteMessages.slice(result.processingSteps.length);
+      for (const message of remainingMessages) {
+        setByteMessages(prev => [...prev, message]);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
       setShowDownload(true);
       
-      // Complete processing - wait longer before auto-closing
+      // Complete processing
       setTimeout(() => {
         setIsProcessing(false);
-        // Don't auto-close, let user click "View Results"
       }, 2000);
       
     } catch (error) {
@@ -97,6 +152,85 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+  };
+
+  const downloadSamplePDF = () => {
+    // Generate PDF content using jsPDF or similar library
+    // For now, we'll create a simple text-based PDF-like structure
+    const pdfContent = generateSamplePDFContent();
+    const blob = new Blob([pdfContent], { type: 'application/pdf' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sample-bank-statement.pdf';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
+  const generateSamplePDFContent = () => {
+    // This is a simplified PDF content generation
+    // In a real implementation, you'd use a library like jsPDF
+    const csvContent = processor.generateSampleCSV();
+    const pdfHeader = `%PDF-1.4
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+/Type /Pages
+/Kids [3 0 R]
+/Count 1
+>>
+endobj
+
+3 0 obj
+<<
+/Type /Page
+/Parent 2 0 R
+/MediaBox [0 0 612 792]
+/Contents 4 0 R
+>>
+endobj
+
+4 0 obj
+<<
+/Length 200
+>>
+stream
+BT
+/F1 12 Tf
+50 750 Td
+(Sample Bank Statement) Tj
+/F1 10 Tf
+50 720 Td
+${csvContent.split('\n').map(line => `(${line}) Tj 0 -15 Td`).join('\n')}
+ET
+endstream
+endobj
+
+xref
+0 5
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000184 00000 n 
+trailer
+<<
+/Size 5
+/Root 1 0 R
+>>
+startxref
+300
+%%EOF`;
+    
+    return pdfHeader;
   };
 
   const sendChatMessage = async () => {
@@ -220,10 +354,24 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
             <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
               <FileText className="w-6 h-6 text-white" />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-white">Byte's Document Processing</h2>
-              <p className="text-sm text-slate-400">Processing: {fileName}</p>
-            </div>
+                         <div>
+               <h2 className="text-xl font-bold text-white">Byte's Document Processing</h2>
+               <p className="text-sm text-slate-400">Processing: {fileName}</p>
+               {isProcessing && (
+                 <div className="mt-2">
+                   <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                     <span>Overall Progress</span>
+                     <span>{Math.round(overallProgress)}%</span>
+                   </div>
+                   <div className="w-full bg-slate-700 rounded-full h-1.5">
+                     <div 
+                       className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                       style={{ width: `${overallProgress}%` }}
+                     />
+                   </div>
+                 </div>
+               )}
+             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -247,8 +395,8 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
 
         {/* Content */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Left Column - Processing Results */}
-          <div className="flex-1 p-6 space-y-6 overflow-y-auto">
+                     {/* Left Column - Processing Results */}
+           <div className="flex-1 p-6 space-y-6 overflow-y-auto processing-content-area">
           {/* Byte's Messages */}
           <AnimatePresence>
             {byteMessages.map((message, index) => (
@@ -329,18 +477,27 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
               animate={{ opacity: 1, y: 0 }}
               className="bg-slate-700/50 border border-slate-600 rounded-lg p-4"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium text-white">Want to try with your own data?</h4>
-                  <p className="text-sm text-slate-400">Download our sample CSV to see how it works</p>
+              <div>
+                <h4 className="font-medium text-white mb-3">Want to try with your own data?</h4>
+                <p className="text-sm text-slate-400 mb-4">Download our sample files to see how it works</p>
+                
+                <div className="flex gap-3">
+                  <button
+                    onClick={downloadSampleCSV}
+                    className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download CSV
+                  </button>
+                  
+                  <button
+                    onClick={downloadSamplePDF}
+                    className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download PDF
+                  </button>
                 </div>
-                <button
-                  onClick={downloadSampleCSV}
-                  className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  Download Sample
-                </button>
               </div>
             </motion.div>
           )}
@@ -470,14 +627,16 @@ export function MockProcessingModal({ isOpen, onClose, onComplete, fileName }: M
             {!isProcessing && (
               <button
                 onClick={() => {
+                  // Pass the actual processed data from the processor
+                  const processedData = processor.getLastProcessedData();
                   onComplete({
                     success: true,
-                    transactions: [],
-                    processingSteps: [],
-                    byteMessages: [],
-                    totalProcessed: 30,
-                    categoriesFound: [],
-                    insights: []
+                    transactions: processedData?.transactions || [],
+                    processingSteps: processedData?.processingSteps || [],
+                    byteMessages: processedData?.byteMessages || [],
+                    totalProcessed: processedData?.totalProcessed || 30,
+                    categoriesFound: processedData?.categoriesFound || [],
+                    insights: processedData?.insights || []
                   });
                   onClose();
                 }}

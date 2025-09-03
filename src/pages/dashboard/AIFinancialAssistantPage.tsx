@@ -14,7 +14,7 @@ import {
   Lightbulb,
   BookOpen
 } from 'lucide-react';
-import DashboardHeader from '../../components/ui/DashboardHeader';
+
 import { useAuth } from '../../contexts/AuthContext';
 import SmartHandoffBanner from '../../components/ai/SmartHandoffBanner';
 import SmartWelcomeMessage from '../../components/ai/SmartWelcomeMessage';
@@ -74,6 +74,11 @@ export default function AIFinancialAssistantPage() {
 
     initializeFinley();
   }, [user?.id]);
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -385,9 +390,7 @@ Could you tell me more specifically what financial topic you'd like to discuss? 
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-slate-900">
-      <DashboardHeader />
-
+    <div className="w-full">
       <div className="max-w-7xl mx-auto p-6">
         {/* Finley Header */}
         <motion.div

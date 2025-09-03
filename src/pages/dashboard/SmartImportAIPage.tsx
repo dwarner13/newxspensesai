@@ -5,7 +5,7 @@ import {
   CheckCircle, AlertTriangle, Lightbulb, BarChart3, Clock, Download,
   Eye, X, ChevronDown, ChevronUp, History, TrendingUp, FileCheck
 } from 'lucide-react';
-import DashboardHeader from '../../components/ui/DashboardHeader';
+
 import { useAuth } from '../../contexts/AuthContext';
 import SmartHandoffBanner from '../../components/ai/SmartHandoffBanner';
 import SmartWelcomeMessage from '../../components/ai/SmartWelcomeMessage';
@@ -33,6 +33,9 @@ interface ByteMessage {
     model_used?: string;
     ai_employee?: string;
     action_type?: string;
+    file_count?: number;
+    file_names?: string[];
+    progress?: number;
   };
 }
 
@@ -48,7 +51,7 @@ export default function SmartImportAIPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'complete' | 'error'>('idle');
-  const [showChatHistory, setShowChatHistory] = useState(false);
+  const [showChatHistory, setShowChatHistory] = useState(false); // Hidden by default
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [uploadResults, setUploadResults] = useState<any[]>([]);
   const [isMobile, setIsMobile] = useState(false);
@@ -520,15 +523,58 @@ Could you tell me more specifically what you'd like to import or process? I'm re
       setUploadStatus('uploading');
       setUploadProgress(0);
 
-      // Simulate upload progress
+      // Add upload start message to chat
+      const fileNames = Array.from(files).map(file => file.name);
+      const uploadStartMessage: ByteMessage = {
+        role: 'user',
+        content: `📤 Uploading ${files.length} file(s): ${fileNames.join(', ')}`,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          action_type: 'file_upload_start',
+          file_count: files.length,
+          file_names: fileNames
+        }
+      };
+      setMessages(prev => [...prev, uploadStartMessage]);
+
+      // Add Byte's upload confirmation message
+      const byteUploadMessage: ByteMessage = {
+        role: 'byte',
+        content: `📄 Great! I can see you're uploading ${files.length} file(s). Let me start processing these right away. I'll coordinate with our AI team to extract all the important information from your documents.`,
+        timestamp: new Date().toISOString(),
+        metadata: {
+          ai_employee: 'byte',
+          action_type: 'upload_confirmation'
+        }
+      };
+      setMessages(prev => [...prev, byteUploadMessage]);
+
+      // Simulate upload progress with chat updates
       const progressInterval = setInterval(() => {
         setUploadProgress(prev => {
-          if (prev >= 90) {
+          const newProgress = prev + 10;
+          
+          // Add progress update message every 30%
+          if (newProgress % 30 === 0 && newProgress <= 90) {
+            const progressMessage: ByteMessage = {
+              role: 'byte',
+              content: `⏳ Upload progress: ${newProgress}% complete...`,
+              timestamp: new Date().toISOString(),
+              metadata: {
+                ai_employee: 'byte',
+                action_type: 'upload_progress',
+                progress: newProgress
+              }
+            };
+            setMessages(prev => [...prev, progressMessage]);
+          }
+          
+          if (newProgress >= 90) {
             clearInterval(progressInterval);
             setUploadStatus('processing');
             return 90;
           }
-          return prev + 10;
+          return newProgress;
         });
       }, 200);
 
@@ -537,6 +583,19 @@ Could you tell me more specifically what you'd like to import or process? I'm re
         setUploadProgress(100);
         setUploadStatus('complete');
         setIsUploading(false);
+
+        // Add processing complete message
+        const processingCompleteMessage: ByteMessage = {
+          role: 'byte',
+          content: `✅ Upload complete! All ${files.length} file(s) have been processed successfully. I'm now coordinating with our AI team to analyze your documents and extract the relevant information.`,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            ai_employee: 'byte',
+            action_type: 'upload_complete',
+            file_count: files.length
+          }
+        };
+        setMessages(prev => [...prev, processingCompleteMessage]);
 
         // Generate mock results
         const results = Array.from(files).map((file, index) => ({
@@ -670,13 +729,16 @@ Could you tell me more specifically what you'd like to import or process? I'm re
     { icon: Image, text: "Scan Receipt", action: () => sendMessage("I want to scan a receipt with my camera") }
   ];
 
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      <DashboardHeader />
-      
+    <div className="w-full">
       <div className="max-w-7xl mx-auto p-6 relative">
         {/* Chat History Sidebar */}
-        <div className={`fixed right-6 top-24 z-40 transition-all duration-300 ${showChatHistory ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className={`fixed right-6 top-24 z-40 transition-all duration-300 ${showChatHistory ? 'translate-x-0' : 'translate-x-full'}`} style={{ pointerEvents: showChatHistory ? 'auto' : 'none' }}>
           <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-4 w-80 max-h-[calc(100vh-120px)] overflow-hidden">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-white font-semibold">Chat History</h3>
@@ -807,10 +869,19 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                   />
                   <button
                     onClick={handleFileUpload}
-                    className="bg-green-600 hover:bg-green-700 text-white rounded-xl px-4 py-3 transition-colors"
-                    title="Upload files"
+                    disabled={isUploading}
+                    className={`rounded-xl px-4 py-3 transition-colors ${
+                      isUploading 
+                        ? 'bg-orange-600 text-white cursor-not-allowed' 
+                        : 'bg-green-600 hover:bg-green-700 text-white'
+                    }`}
+                    title={isUploading ? "Uploading..." : "Upload files"}
                   >
-                    <UploadCloud className="w-5 h-5" />
+                    {isUploading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <UploadCloud className="w-5 h-5" />
+                    )}
                   </button>
                   <button
                     onClick={() => sendMessage(input)}
@@ -955,7 +1026,9 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                 <div className="text-lg">📄</div>
                   <div>
                   <h3 className="font-semibold text-white text-sm">Byte AI</h3>
-                  <p className="text-white/60 text-xs">Smart Import Assistant</p>
+                  <p className="text-white/60 text-xs">
+                    {isUploading ? `Uploading... ${uploadProgress}%` : "Smart Import Assistant"}
+                  </p>
                   </div>
               </div>
               <button
@@ -1019,6 +1092,29 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                     </div>
                   </motion.div>
                 )}
+
+                {/* File Upload Progress Indicator */}
+                {isUploading && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex justify-start"
+                  >
+                    <div className="bg-blue-600/20 text-white border border-blue-500/30 rounded-xl px-3 py-2 max-w-[85%]">
+                      <div className="flex items-center gap-2 mb-2">
+                        <UploadCloud className="w-3 h-3 animate-pulse" />
+                        <span className="text-xs font-medium">Uploading files...</span>
+                      </div>
+                      <div className="w-full bg-white/20 rounded-full h-1.5 mb-1">
+                        <div 
+                          className="bg-blue-400 h-1.5 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                      <span className="text-xs text-white/70">{uploadProgress}% complete</span>
+                    </div>
+                  </motion.div>
+                )}
                 
                 <div ref={messagesEndRef} />
               </div>
@@ -1037,10 +1133,19 @@ Could you tell me more specifically what you'd like to import or process? I'm re
                   />
               <button
                 onClick={handleFileUpload}
-                className="bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-3 transition-colors"
-                title="Upload files"
+                disabled={isUploading}
+                className={`rounded-lg px-4 py-3 transition-colors ${
+                  isUploading 
+                    ? 'bg-orange-600 text-white cursor-not-allowed' 
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
+                title={isUploading ? "Uploading..." : "Upload files"}
               >
-                <UploadCloud className="w-4 h-4" />
+                {isUploading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <UploadCloud className="w-4 h-4" />
+                )}
               </button>
                   <button
                     onClick={() => sendMessage(input)}
