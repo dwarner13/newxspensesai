@@ -1,0 +1,569 @@
+/**
+ * XSPENSESAI DESKTOP REVOLUTION STYLES
+ * Transforms static dashboard into living command center
+ * 
+ * CRITICAL: Only applies on desktop screens > 1200px
+ * Mobile and tablet experiences remain unchanged
+ */
+
+/* ================================================================================
+   DESKTOP DETECTION & BASE STYLES
+   ================================================================================ */
+
+/* Only apply these styles on desktop screens */
+@media only screen and (min-width: 1201px) {
+  
+  /* ================================================================================
+     DESKTOP REVOLUTION CONTAINER
+     ================================================================================ */
+  
+  .desktop-revolution-container {
+    position: relative;
+    z-index: 10;
+  }
+
+  /* ================================================================================
+     DISCOVERY TICKER STYLES
+     ================================================================================ */
+  
+  .discovery-ticker {
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    padding: 1rem 2rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    margin-bottom: 2rem;
+  }
+  
+  .ticker-content {
+    display: flex;
+    white-space: nowrap;
+    animation: ticker 20s linear infinite;
+  }
+  
+  .ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-right: 3rem;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+  
+  .ticker-icon {
+    font-size: 1.1rem;
+  }
+  
+  @keyframes ticker {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+
+  /* ================================================================================
+     HERO SECTION STYLES
+     ================================================================================ */
+  
+  .hero-section {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2rem 3rem;
+    margin: 2rem 3rem;
+    border-radius: 20px;
+    position: relative;
+    overflow: hidden;
+    min-height: 150px;
+    transition: all 0.5s ease;
+  }
+  
+  .hero-background {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: inherit;
+    opacity: 0.1;
+  }
+  
+  .hero-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+  }
+  
+  .hero-employee {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    width: 100%;
+  }
+  
+  .hero-avatar {
+    width: 80px;
+    height: 80px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  .hero-message {
+    flex: 1;
+  }
+  
+  .hero-title {
+    color: white;
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    line-height: 1.2;
+  }
+  
+  .hero-subtitle {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+    line-height: 1.4;
+  }
+  
+  .hero-action {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 25px;
+    padding: 0.75rem 2rem;
+    color: white;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+  }
+  
+  .hero-action:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+  }
+  
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* ================================================================================
+     EMPLOYEE SIDEBAR STYLES
+     ================================================================================ */
+  
+  .employee-sidebar {
+    width: 300px;
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.02);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1.5rem 1rem;
+    overflow-y: auto;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+  
+  .employee-sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .sidebar-title {
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  
+  .sidebar-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .sidebar-action-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 0.5rem;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .sidebar-action-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+  }
+  
+  .employee-section {
+    margin-bottom: 2rem;
+  }
+  
+  .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .employee-count {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.2rem 0.5rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+  }
+  
+  .employee-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  
+  .employee-list-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
+  
+  .employee-avatar {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+  
+  .status-indicator {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid #1a1a2e;
+  }
+  
+  .status-online {
+    background: #00ff88;
+    animation: pulse 2s infinite;
+  }
+  
+  .status-away {
+    background: #ffaa00;
+  }
+  
+  .status-offline {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  .employee-info {
+    flex: 1;
+  }
+  
+  .employee-name {
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+  }
+  
+  .employee-activity {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.8rem;
+  }
+  
+  .follow-btn {
+    background: #3b82f6;
+    border: none;
+    border-radius: 15px;
+    padding: 0.4rem 0.8rem;
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .follow-btn:hover {
+    background: #2563eb;
+  }
+  
+  .show-more-btn {
+    width: 100%;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.75rem;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .show-more-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+  }
+
+  /* ================================================================================
+     LIVE ACTIVITY FEED STYLES
+     ================================================================================ */
+  
+  .activity-feed-section {
+    margin-top: 3rem;
+    padding: 2rem 3rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  
+  .activity-feed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+  
+  .activity-feed-title {
+    color: white;
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: 0;
+  }
+  
+  .live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #00ff88;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  
+  .activity-indicator {
+    width: 8px;
+    height: 8px;
+    background: #00ff88;
+    border-radius: 50%;
+    animation: pulse 1s infinite;
+  }
+  
+  .activity-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+  
+  .activity-card {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+  }
+  
+  .activity-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+  }
+  
+  .activity-avatar {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+  }
+  
+  .activity-details {
+    flex: 1;
+  }
+  
+  .activity-message {
+    color: white;
+    font-size: 0.9rem;
+    margin-bottom: 0.3rem;
+  }
+  
+  .activity-time {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.8rem;
+  }
+
+  /* ================================================================================
+     ACHIEVEMENT POPUP STYLES
+     ================================================================================ */
+  
+  .achievement-popup {
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    background: linear-gradient(135deg, #ffd700, #ffed4e);
+    color: #1a1a2e;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+    animation: slideInRight 0.5s ease, slideOutRight 0.5s ease 3.5s forwards;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    max-width: 300px;
+  }
+  
+  .achievement-icon {
+    font-size: 1.5rem;
+  }
+  
+  .achievement-content {
+    flex: 1;
+  }
+  
+  .achievement-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 0.2rem;
+  }
+  
+  .achievement-description {
+    font-size: 0.8rem;
+    opacity: 0.8;
+  }
+  
+  @keyframes slideInRight {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+  }
+  
+  @keyframes slideOutRight {
+    from { transform: translateX(0); }
+    to { transform: translateX(100%); }
+  }
+
+  /* ================================================================================
+     ANIMATIONS
+     ================================================================================ */
+  
+  @keyframes pulse {
+    0%, 100% { 
+      opacity: 1; 
+      transform: scale(1); 
+    }
+    50% { 
+      opacity: 0.7; 
+      transform: scale(1.05); 
+    }
+  }
+  
+  .animated-slide-in {
+    animation: slideIn 0.3s ease;
+  }
+  
+  @keyframes slideIn {
+    from { 
+      opacity: 0; 
+      transform: translateY(10px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+
+  /* ================================================================================
+     RESPONSIVE ADJUSTMENTS
+     ================================================================================ */
+  
+  @media only screen and (max-width: 1400px) {
+    .employee-sidebar {
+      width: 250px;
+    }
+    
+    .hero-section {
+      margin: 2rem 1rem;
+      padding: 1.5rem 2rem;
+    }
+    
+    .activity-feed-section {
+      padding: 1.5rem 2rem;
+    }
+  }
+}
+
+/* ================================================================================
+   MOBILE/TABLET HIDDEN - CRITICAL SAFETY
+   ================================================================================ */
+
+/* Ensure desktop components are completely hidden on mobile/tablet */
+@media only screen and (max-width: 1200px) {
+  .desktop-revolution-container,
+  .discovery-ticker,
+  .hero-section,
+  .employee-sidebar,
+  .activity-feed-section,
+  .achievement-popup {
+    display: none !important;
+  }
+}
+
+/* ================================================================================
+   ACCESSIBILITY
+   ================================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ================================================================================
+   DARK MODE COMPATIBILITY
+   ================================================================================ */
+
+/* Desktop revolution works with existing dark mode */
+@media (prefers-color-scheme: dark) {
+  .employee-sidebar {
+    background: rgba(0, 0, 0, 0.3);
+  }
+  
+  .activity-feed-section {
+    background: rgba(0, 0, 0, 0.2);
+  }
+}
