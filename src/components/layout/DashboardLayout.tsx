@@ -5,6 +5,7 @@ import MobileSidebar from "./MobileSidebar";
 import BottomNav from "./BottomNav";
 import Logo from "../common/Logo";
 import AITeamSidebar from "./AITeamSidebar";
+import DashboardHeader from "../ui/DashboardHeader";
 
 
 
@@ -74,6 +75,11 @@ export default function DashboardLayout() {
           <Sidebar isMobileOpen={open} setIsMobileOpen={setOpen} />
         </MobileSidebar>
 
+        {/* Full width header for all dashboard pages */}
+        <div className="w-full">
+          <DashboardHeader />
+        </div>
+        
         {/* Main content and AI Team Sidebar */}
         <div className="flex-1 flex h-screen overflow-hidden">
           <main className="flex-1 overflow-y-auto dashboard-main-content">

@@ -6,7 +6,6 @@ import {
   Zap, Activity, Settings, User, Play, TrendingUp, Users, Award, Star,
   Calculator, Building2, CreditCard, Eye, Sparkles, TrendingDown, Banknote, GripVertical
 } from 'lucide-react';
-import DashboardHeader from './ui/DashboardHeader';
 import { ConnectedDashboard } from './dashboard/ConnectedDashboard';
 // import DesktopRevolution from './desktop/DesktopRevolution';
 // import { useDesktopRevolution } from '../hooks/useDesktopRevolution';
@@ -232,16 +231,9 @@ export default function XspensesProDashboard() {
       WebkitTransform: 'translateZ(0)',
       contain: 'layout style paint'
     }}>
-      {/* Full width header that spans entire screen width */}
-      <div className="w-full -mx-8">
-        <DashboardHeader />
-      </div>
-      
-      {/* Main content with proper scrolling */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto p-6">
-          <ConnectedDashboard />
-        </div>
+      {/* Main content */}
+      <div className="max-w-7xl mx-auto p-6">
+        <ConnectedDashboard />
       </div>
     </div>
   );
