@@ -30,6 +30,30 @@ const AITeamSidebar: React.FC = () => {
       ]
     },
     {
+      id: 'core',
+      title: 'CORE AI EMPLOYEES',
+      isCollapsed: false,
+      employees: [
+        { id: 'finley', name: 'Finley', emoji: '💼', status: 'online', activity: 'Personal Finance AI', category: 'core' },
+        { id: 'byte', name: 'Byte', emoji: '📄', status: 'online', activity: 'Smart Import AI', category: 'core' },
+        { id: 'goalie', name: 'Goalie', emoji: '🥅', status: 'online', activity: 'AI Goal Concierge', category: 'core' },
+        { id: 'crystal', name: 'Crystal', emoji: '🔮', status: 'away', activity: 'Spending Predictions', category: 'core' },
+        { id: 'tag', name: 'Tag', emoji: '🏷️', status: 'online', activity: 'AI Categorization', category: 'core' },
+        { id: 'liberty', name: 'Liberty', emoji: '🗽', status: 'online', activity: 'AI Financial Freedom', category: 'core' },
+        { id: 'chime', name: 'Chime', emoji: '🔔', status: 'online', activity: 'Bill Reminder System', category: 'core' },
+        { id: 'blitz', name: 'Blitz', emoji: '⚡', status: 'online', activity: 'Debt Payoff Planner', category: 'core' },
+        { id: 'dj-zen', name: 'DJ Zen', emoji: '🎧', status: 'away', activity: 'Audio Entertainment', category: 'core' },
+        { id: 'roundtable', name: 'The Roundtable', emoji: '🎙️', status: 'online', activity: 'Personal Podcast', category: 'core' },
+        { id: 'ledger', name: 'Ledger', emoji: '📊', status: 'online', activity: 'Tax Assistant', category: 'core' },
+        { id: 'intelia', name: 'Intelia', emoji: '🧠', status: 'online', activity: 'Business Intelligence', category: 'core' },
+        { id: 'automa', name: 'Automa', emoji: '⚙️', status: 'away', activity: 'Smart Automation', category: 'core' },
+        { id: 'dash', name: 'Dash', emoji: '📈', status: 'online', activity: 'Analytics', category: 'core' },
+        { id: 'custodian', name: 'Custodian', emoji: '🔐', status: 'online', activity: 'Settings', category: 'core' },
+        { id: 'wave', name: 'Wave', emoji: '🌊', status: 'away', activity: 'Spotify Integration', category: 'core' },
+        { id: 'harmony-studio', name: 'Harmony', emoji: '🎵', status: 'online', activity: 'Financial Wellness Studio', category: 'core' }
+      ]
+    },
+    {
       id: 'cheerleaders',
       title: 'FINANCIAL CHEERLEADERS',
       isCollapsed: false,
@@ -53,30 +77,6 @@ const AITeamSidebar: React.FC = () => {
         { id: 'reality-checker', name: 'Reality Checker', emoji: '🔍', status: 'online', activity: 'Analytical & Critical', category: 'roasters' },
         { id: 'savage-sam', name: 'Savage Sam', emoji: '😈', status: 'online', activity: 'Devilishly Honest', category: 'roasters' },
         { id: 'roast-queen', name: 'Roast Queen', emoji: '👑', status: 'away', activity: 'Regally Savage', category: 'roasters' }
-      ]
-    },
-    {
-      id: 'core',
-      title: 'CORE AI EMPLOYEES',
-      isCollapsed: false,
-      employees: [
-        { id: 'finley', name: 'Finley', emoji: '💼', status: 'online', activity: 'Personal Finance AI', category: 'core' },
-        { id: 'byte', name: 'Byte', emoji: '📄', status: 'online', activity: 'Smart Import AI', category: 'core' },
-        { id: 'goalie', name: 'Goalie', emoji: '🥅', status: 'online', activity: 'AI Goal Concierge', category: 'core' },
-        { id: 'crystal', name: 'Crystal', emoji: '🔮', status: 'away', activity: 'Spending Predictions', category: 'core' },
-        { id: 'tag', name: 'Tag', emoji: '🏷️', status: 'online', activity: 'AI Categorization', category: 'core' },
-        { id: 'liberty', name: 'Liberty', emoji: '🗽', status: 'online', activity: 'AI Financial Freedom', category: 'core' },
-        { id: 'chime', name: 'Chime', emoji: '🔔', status: 'online', activity: 'Bill Reminder System', category: 'core' },
-        { id: 'blitz', name: 'Blitz', emoji: '⚡', status: 'online', activity: 'Debt Payoff Planner', category: 'core' },
-        { id: 'dj-zen', name: 'DJ Zen', emoji: '🎧', status: 'away', activity: 'Audio Entertainment', category: 'core' },
-        { id: 'roundtable', name: 'The Roundtable', emoji: '🎙️', status: 'online', activity: 'Personal Podcast', category: 'core' },
-        { id: 'ledger', name: 'Ledger', emoji: '📊', status: 'online', activity: 'Tax Assistant', category: 'core' },
-        { id: 'intelia', name: 'Intelia', emoji: '🧠', status: 'online', activity: 'Business Intelligence', category: 'core' },
-        { id: 'automa', name: 'Automa', emoji: '⚙️', status: 'away', activity: 'Smart Automation', category: 'core' },
-        { id: 'dash', name: 'Dash', emoji: '📈', status: 'online', activity: 'Analytics', category: 'core' },
-        { id: 'custodian', name: 'Custodian', emoji: '🔐', status: 'online', activity: 'Settings', category: 'core' },
-        { id: 'wave', name: 'Wave', emoji: '🌊', status: 'away', activity: 'Spotify Integration', category: 'core' },
-        { id: 'harmony-studio', name: 'Harmony', emoji: '🎵', status: 'online', activity: 'Financial Wellness Studio', category: 'core' }
       ]
     }
   ]);
