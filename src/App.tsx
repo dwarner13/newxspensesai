@@ -26,6 +26,7 @@ const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
 const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
 const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
+const ThreeColumnDashboardDemo = lazy(() => import('./components/layout/ThreeColumnDashboardDemo'));
 const SpendingPredictionsPage = lazy(() => import('./pages/dashboard/SpendingPredictionsPage'));
 const AICategorizationPage = lazy(() => import('./pages/dashboard/AICategorizationPage'));
 const BillRemindersPage = lazy(() => import('./pages/dashboard/BillRemindersPage'));
@@ -233,6 +234,7 @@ function App() {
                     {/* Dashboard routes with persistent layout - Each route shows its specific page */}
                     <Route path="/dashboard" element={<DashboardLayout />}>
                       <Route index element={<XspensesProDashboard />} />
+                      <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} />
                       <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
                       <Route path="smart-import-ai" element={<SmartImportAIPage />} />
                       <Route path="goal-concierge" element={<GoalConciergePage />} />
