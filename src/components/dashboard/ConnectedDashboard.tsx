@@ -26,9 +26,10 @@ import { useNavigate } from 'react-router-dom';
 
 interface ConnectedDashboardProps {
   className?: string;
+  isSidebarCollapsed?: boolean;
 }
 
-export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) {
+export function ConnectedDashboard({ className = '', isSidebarCollapsed = false }: ConnectedDashboardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [aiController] = useState(new UniversalAIController());
@@ -336,8 +337,8 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
           <h2 className="text-xl font-bold text-white mb-2">Core AI Tools</h2>
           <p className="text-white/60 text-sm">Essential AI-powered features for your financial management</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {aiEmployeeCards.slice(0, 3).map((card, index) => (
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
+          {aiEmployeeCards.slice(0, isSidebarCollapsed ? 3 : 2).map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
