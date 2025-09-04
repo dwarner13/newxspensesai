@@ -331,22 +331,22 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
       )}
 
       {/* Core AI Tools Section */}
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Core AI Tools</h2>
+          <h2 className="text-xl font-bold text-white mb-2">Core AI Tools</h2>
           <p className="text-white/60 text-sm">Essential AI-powered features for your financial management</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {aiEmployeeCards.slice(0, 3).map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center text-white`}>
+              <div className="flex items-start justify-between mb-3">
+                <div className={`w-10 h-10 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
                 <div className="text-right">
@@ -358,13 +358,13 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
                 </div>
               </div>
               
-              <h3 className="text-white font-semibold text-lg mb-2">{card.title}</h3>
-              <p className="text-white/70 text-sm mb-4">{card.description}</p>
+              <h3 className="text-white font-semibold text-base mb-2">{card.title}</h3>
+              <p className="text-white/70 text-sm mb-3">{card.description}</p>
               
               <button
                 onClick={card.onClick}
                 disabled={card.isLoading}
-                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm`}
               >
                 {card.isLoading ? (
                   <>
