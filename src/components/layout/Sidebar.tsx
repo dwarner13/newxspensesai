@@ -93,6 +93,11 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
     }
   }, [location.pathname]);
 
+  // Ensure shouldShowLabels is properly set based on collapsed state
+  useEffect(() => {
+    setShouldShowLabels(!isCollapsed || isMobileOpen);
+  }, [isCollapsed, isMobileOpen]);
+
   // Force scroll restoration on every render for dashboard routes
   useEffect(() => {
     if (location.pathname.startsWith('/dashboard')) {
@@ -108,11 +113,13 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
   }, [location.pathname]);
 
   const toggleSidebar = () => {
-    setIsCollapsed(!isCollapsed);
+    const newCollapsedState = !isCollapsed;
+    setIsCollapsed(newCollapsedState);
+    setShouldShowLabels(!newCollapsedState);
   };
 
   // Show labels if not collapsed OR if mobile is open
-  // const shouldShowLabels = !isCollapsed || isMobileOpen; // This line is now redundant due to the new logic
+  const shouldShowLabels = !isCollapsed || isMobileOpen;
 
   return (
     <aside className="h-full flex flex-col bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20" ref={sidebarRef}>
