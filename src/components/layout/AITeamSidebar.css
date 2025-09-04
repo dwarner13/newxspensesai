@@ -60,6 +60,9 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(0, 0, 0, 0.1);
   margin-bottom: 8px;
+  height: 50%;
+  display: flex;
+  flex-direction: column;
 }
 
 .section-label {
@@ -88,7 +91,7 @@
 
 .activity-list {
   padding: 0 20px;
-  max-height: 120px;
+  flex: 1;
   overflow-y: auto;
 }
 
@@ -123,7 +126,7 @@
 
 /* Team Sections Container - Compact with separate scroll */
 .team-sections-container {
-  flex: 1;
+  height: 50%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -163,15 +166,15 @@
 }
 
 .section-title {
-  font-size: 0.625rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
   gap: 6px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .section-content {

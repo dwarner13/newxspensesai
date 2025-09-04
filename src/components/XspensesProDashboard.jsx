@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import DashboardHeader from './ui/DashboardHeader';
 import { ConnectedDashboard } from './dashboard/ConnectedDashboard';
-import DesktopRevolution from './desktop/DesktopRevolution';
-import { useDesktopRevolution } from '../hooks/useDesktopRevolution';
+// import DesktopRevolution from './desktop/DesktopRevolution';
+// import { useDesktopRevolution } from '../hooks/useDesktopRevolution';
 import {
   DndContext,
   closestCenter,
@@ -64,7 +64,7 @@ export default function XspensesProDashboard() {
   const [cardOrder, setCardOrder] = useState([
     'balance', 'income', 'expenses', 'savings', 'investments', 'debt'
   ]);
-  const desktopRevolution = useDesktopRevolution();
+  // const desktopRevolution = useDesktopRevolution();
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -233,7 +233,7 @@ export default function XspensesProDashboard() {
       contain: 'layout style paint'
     }}>
       <DashboardHeader />
-      <DesktopRevolution isDesktop={desktopRevolution.isDesktop} />
+      {/* <DesktopRevolution isDesktop={desktopRevolution.isDesktop} /> */}
       <div className="max-w-7xl mx-auto p-6">
         <ConnectedDashboard />
       </div>
