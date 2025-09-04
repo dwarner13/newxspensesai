@@ -489,10 +489,10 @@
    ================================================================================ */
 
 .right-sidebar {
-  width: 320px;
+  width: 280px;
   background: rgba(255, 255, 255, 0.02);
   border-left: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 1.5rem 0;
+  padding: 0;
   overflow-y: auto;
   flex-shrink: 0;
   backdrop-filter: blur(10px);
@@ -658,7 +658,7 @@
 
   .right-sidebar {
     position: fixed;
-    right: -320px;
+    right: -280px;
     top: 0;
     height: 100vh;
     z-index: 1001;

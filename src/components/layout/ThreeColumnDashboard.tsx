@@ -14,6 +14,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import AITeamSidebar from './AITeamSidebar';
 import './ThreeColumnDashboard.css';
 
 interface ThreeColumnDashboardProps {
@@ -315,48 +316,14 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
           {children}
         </main>
 
-        {/* RIGHT SIDEBAR */}
+        {/* RIGHT SIDEBAR - AI TEAM */}
         <motion.aside 
           className={`right-sidebar ${isTabletSidebarOpen ? 'tablet-open' : ''}`}
           initial={{ x: 320 }}
           animate={{ x: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
         >
-          <div className="sidebar-header">
-            <div className="sidebar-title">Your AI Team</div>
-            <div className="sidebar-controls">
-              <button className="control-btn">🔍</button>
-              <button className="control-btn">⚙️</button>
-            </div>
-          </div>
-
-          <div className="employee-section">
-            <div className="section-label">
-              <span className="section-name">Following</span>
-              <span className="section-count">{aiTeam.length}</span>
-            </div>
-
-            {aiTeam.map((employee, index) => (
-              <motion.div
-                key={index}
-                className="employee-item"
-                whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <div className="employee-avatar">
-                  {employee.avatar}
-                  <div className={`status-dot ${
-                    employee.online === true ? 'status-online' : 
-                    employee.online === 'away' ? 'status-away' : 'status-offline'
-                  }`}></div>
-                </div>
-                <div className="employee-info">
-                  <div className="employee-name">{employee.name}</div>
-                  <div className="employee-status">{employee.status}</div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+          <AITeamSidebar />
         </motion.aside>
       </div>
     </div>
