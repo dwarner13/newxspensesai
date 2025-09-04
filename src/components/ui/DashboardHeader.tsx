@@ -113,7 +113,7 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
       };
 
   return (
-    <header className="mb-8 p-6 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2 rounded-2xl">
+    <header className="w-full mb-8 p-6 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2">
       {/* Top Row - Page Title and Action Icons */}
       <div className="flex justify-between items-start mb-4">
         {/* Page Title */}

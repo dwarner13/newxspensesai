@@ -74,16 +74,27 @@ export default function DashboardLayout() {
           <Sidebar isMobileOpen={open} setIsMobileOpen={setOpen} />
         </MobileSidebar>
 
-        {/* Main content - Independent scrolling container */}
-        <div className="flex-1 flex h-screen overflow-hidden">
-          <main className="flex-1 overflow-y-auto px-8 py-8 dashboard-main-content">
+        {/* Full width content area */}
+        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+          {/* Header that spans full width */}
+          <div className="hidden lg:block">
             <Outlet />
-          </main>
+          </div>
           
-          {/* AI Team Sidebar */}
-          <aside className="hidden lg:block w-[280px] shrink-0">
-            <AITeamSidebar />
-          </aside>
+          {/* Main content and AI Team Sidebar row */}
+          <div className="flex-1 flex overflow-hidden">
+            <main className="flex-1 overflow-y-auto px-8 py-8 dashboard-main-content">
+              {/* Mobile header */}
+              <div className="lg:hidden">
+                <Outlet />
+              </div>
+            </main>
+            
+            {/* AI Team Sidebar */}
+            <aside className="hidden lg:block w-[280px] shrink-0">
+              <AITeamSidebar />
+            </aside>
+          </div>
         </div>
 
               {/* Bottom tabs (mobile only) */}

@@ -232,8 +232,12 @@ export default function XspensesProDashboard() {
       WebkitTransform: 'translateZ(0)',
       contain: 'layout style paint'
     }}>
-      <DashboardHeader />
-      {/* <DesktopRevolution isDesktop={desktopRevolution.isDesktop} /> */}
+      {/* Full width header */}
+      <div className="w-full">
+        <DashboardHeader />
+      </div>
+      
+      {/* Main content with max width */}
       <div className="max-w-7xl mx-auto p-6">
         <ConnectedDashboard />
       </div>
