@@ -9,6 +9,7 @@ import Logo from "../common/Logo";
 
 export default function DashboardLayout() {
   const [open, setOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const location = useLocation();
 
   // Add dashboard-page class to body when this component mounts
@@ -31,9 +32,16 @@ export default function DashboardLayout() {
   return (
     <>
       <div className="dashboard-layout min-h-screen bg-[#0f172a] text-white lg:flex" data-page="dashboard">
-        {/* Desktop sidebar - Fixed width, no margin */}
-        <aside className="hidden lg:block w-[300px] shrink-0 border-r border-purple-500/20 bg-[rgba(15,23,42,0.95)]">
-          <Sidebar isMobileOpen={false} setIsMobileOpen={() => {}} />
+        {/* Desktop sidebar - Dynamic width based on collapsed state */}
+        <aside className={`hidden lg:block shrink-0 border-r border-purple-500/20 bg-[rgba(15,23,42,0.95)] transition-all duration-300 ${
+          isSidebarCollapsed ? 'w-[80px]' : 'w-[300px]'
+        }`}>
+          <Sidebar 
+            isMobileOpen={false} 
+            setIsMobileOpen={() => {}} 
+            isCollapsed={isSidebarCollapsed}
+            setIsCollapsed={setIsSidebarCollapsed}
+          />
         </aside>
 
         {/* Mobile top bar */}

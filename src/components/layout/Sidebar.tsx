@@ -36,9 +36,23 @@ import Logo from '../common/Logo';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from "../../contexts/UserContext";
 
-export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpen: boolean; setIsMobileOpen: (open: boolean) => void }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+export default function Sidebar({ 
+  isMobileOpen, 
+  setIsMobileOpen, 
+  isCollapsed, 
+  setIsCollapsed 
+}: { 
+  isMobileOpen: boolean; 
+  setIsMobileOpen: (open: boolean) => void;
+  isCollapsed?: boolean;
+  setIsCollapsed?: (collapsed: boolean) => void;
+}) {
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
   const [shouldShowLabels, setShouldShowLabels] = useState(true);
+  
+  // Use external collapsed state if provided, otherwise use internal
+  const collapsedState = isCollapsed !== undefined ? isCollapsed : internalCollapsed;
+  const setCollapsedState = setIsCollapsed || setInternalCollapsed;
   const sidebarRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const user = useUser();
@@ -95,8 +109,8 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
 
   // Ensure shouldShowLabels is properly set based on collapsed state
   useEffect(() => {
-    setShouldShowLabels(!isCollapsed || isMobileOpen);
-  }, [isCollapsed, isMobileOpen]);
+    setShouldShowLabels(!collapsedState || isMobileOpen);
+  }, [collapsedState, isMobileOpen]);
 
   // Force scroll restoration on every render for dashboard routes
   useEffect(() => {
@@ -113,8 +127,8 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
   }, [location.pathname]);
 
   const toggleSidebar = () => {
-    const newCollapsedState = !isCollapsed;
-    setIsCollapsed(newCollapsedState);
+    const newCollapsedState = !collapsedState;
+    setCollapsedState(newCollapsedState);
     setShouldShowLabels(!newCollapsedState);
   };
 
@@ -145,7 +159,7 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
                   className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
                   style={{ minHeight: '44px', minWidth: '44px' }}
                 >
-                  {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                  {collapsedState ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
                 </button>
               )}
             </div>
