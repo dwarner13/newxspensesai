@@ -24,7 +24,7 @@ import XspensesProDashboard from './components/XspensesProDashboard';
 // Lazy load non-critical components
 const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
 const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
-const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
+// const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage')); // Temporarily disabled
 const ByteLabPage = lazy(() => import('./components/pages/ByteLabPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 const ThreeColumnDashboardDemo = lazy(() => import('./components/layout/ThreeColumnDashboardDemo'));
