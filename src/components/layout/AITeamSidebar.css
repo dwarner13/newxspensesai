@@ -248,6 +248,46 @@
   line-height: 1.2;
 }
 
+.employee-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.action-btn {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.action-btn.following {
+  background: rgba(0, 255, 136, 0.1);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.3);
+}
+
+.action-btn.following:hover {
+  background: rgba(0, 255, 136, 0.2);
+  border-color: rgba(0, 255, 136, 0.5);
+}
+
+.action-btn.hire {
+  background: rgba(255, 170, 0, 0.1);
+  color: #ffaa00;
+  border: 1px solid rgba(255, 170, 0, 0.3);
+}
+
+.action-btn.hire:hover {
+  background: rgba(255, 170, 0, 0.2);
+  border-color: rgba(255, 170, 0, 0.5);
+}
+
 /* Scrollbar */
 .ai-team-sidebar::-webkit-scrollbar,
 .activity-list::-webkit-scrollbar,

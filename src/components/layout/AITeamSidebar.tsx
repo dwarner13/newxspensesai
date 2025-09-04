@@ -106,6 +106,19 @@ const AITeamSidebar: React.FC = () => {
     }
   };
 
+  const handleEmployeeAction = (employeeId: string, status: string) => {
+    if (status === 'online') {
+      // Employee is already following/active
+      console.log(`Unfollowing ${employeeId}`);
+      // Here you would implement the unfollow logic
+    } else {
+      // Employee needs to be hired
+      console.log(`Hiring ${employeeId}`);
+      // Here you would implement the hire logic
+      // This could open a modal, redirect to a service page, etc.
+    }
+  };
+
   return (
     <div className="ai-team-sidebar">
       {/* Header */}
@@ -196,6 +209,14 @@ const AITeamSidebar: React.FC = () => {
                         <div className="employee-info">
                           <div className="employee-name">{employee.name}</div>
                           <div className="employee-activity">{employee.activity}</div>
+                        </div>
+                        <div className="employee-actions">
+                          <button 
+                            className={`action-btn ${employee.status === 'online' ? 'following' : 'hire'}`}
+                            onClick={() => handleEmployeeAction(employee.id, employee.status)}
+                          >
+                            {employee.status === 'online' ? 'Following' : 'Hire'}
+                          </button>
                         </div>
                       </motion.div>
                     ))}
