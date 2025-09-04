@@ -118,9 +118,6 @@ export default function Sidebar({ isMobileOpen, setIsMobileOpen }: { isMobileOpe
     setShouldShowLabels(!newCollapsedState);
   };
 
-  // Show labels if not collapsed OR if mobile is open
-  const shouldShowLabels = !isCollapsed || isMobileOpen;
-
   return (
     <aside className="h-full flex flex-col bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20" ref={sidebarRef}>
               {/* Header with Logo - Professional Design */}
