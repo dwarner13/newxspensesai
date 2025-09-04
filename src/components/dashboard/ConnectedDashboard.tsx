@@ -358,7 +358,7 @@ export function ConnectedDashboard({ className = '' }: ConnectedDashboardProps) 
                 </div>
               </div>
               
-              <h3 className="text-white font-semibold text-base mb-2">{card.title}</h3>
+                             <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>{card.title}</h3>
               <p className="text-white/70 text-sm mb-3">{card.description}</p>
               
               <button
