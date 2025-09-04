@@ -10,7 +10,9 @@ import {
   Search,
   Moon,
   Sun,
-  HelpCircle
+  HelpCircle,
+  Bell,
+  Music
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
@@ -38,6 +40,32 @@ const Header = ({
   const bellRef = useRef<HTMLButtonElement>(null);
   const userButtonRef = useRef<HTMLButtonElement>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [notifications, setNotifications] = useState([
+    {
+      id: 1,
+      title: "New transaction categorized",
+      message: "Byte processed your bank statement",
+      timestamp: "2 minutes ago",
+      read: false,
+      type: "success"
+    },
+    {
+      id: 2,
+      title: "Savings goal reached!",
+      message: "Congratulations! You've hit your monthly savings target",
+      timestamp: "1 hour ago",
+      read: false,
+      type: "achievement"
+    },
+    {
+      id: 3,
+      title: "Bill reminder",
+      message: "Your credit card payment is due in 3 days",
+      timestamp: "3 hours ago",
+      read: true,
+      type: "reminder"
+    }
+  ]);
   
   const getPageTitle = () => {
     switch(location.pathname) {
@@ -95,6 +123,24 @@ const Header = ({
       toast.error('Failed to sign out');
     }
   };
+
+  const markNotificationAsRead = (id: number) => {
+    setNotifications(prev => 
+      prev.map(notification => 
+        notification.id === id 
+          ? { ...notification, read: true }
+          : notification
+      )
+    );
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => 
+      prev.map(notification => ({ ...notification, read: true }))
+    );
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -157,36 +203,94 @@ const Header = ({
           </div>
         </div>
         
-        <div className="flex items-center space-x-4">
-          {/* Notifications - Temporarily Disabled */}
+        <div className="flex items-center space-x-3">
+          {/* Notifications Bell */}
           <div className="relative">
-            <div 
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 relative cursor-help"
-              title="Notifications coming soon"
+            <button
+              ref={bellRef}
+              onClick={() => {
+                setIsNotificationsOpen(!isNotificationsOpen);
+                setIsUserMenuOpen(false);
+              }}
+              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all duration-200"
+              aria-label="Notifications"
             >
-              <HelpCircle size={20} />
-            </div>
-          </div>
-          
-          {toggleDarkMode && (
-            <button 
-              onClick={toggleDarkMode}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              aria-label="Toggle dark mode"
-            >
-              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+              <Bell size={20} className="text-white/80" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  {unreadCount}
+                </span>
+              )}
             </button>
-          )}
-          
-          {/* AI Assistant */}
+
+            <AnimatePresence>
+              {isNotificationsOpen && (
+                <motion.div
+                  ref={notificationsRef}
+                  initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute right-0 mt-2 w-80 rounded-xl shadow-lg border border-white/10 bg-[rgba(15,23,42,0.95)] backdrop-blur-md py-2 z-50"
+                >
+                  <div className="px-4 py-3 border-b border-white/10">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-white font-semibold">Notifications</h3>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={markAllAsRead}
+                          className="text-xs text-blue-400 hover:text-blue-300"
+                        >
+                          Mark all as read
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-white/60">
+                        No notifications
+                      </div>
+                    ) : (
+                      notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          onClick={() => markNotificationAsRead(notification.id)}
+                          className={`px-4 py-3 hover:bg-white/5 cursor-pointer transition-colors ${
+                            !notification.read ? 'bg-blue-500/10 border-l-2 border-blue-500' : ''
+                          }`}
+                        >
+                          <div className="flex items-start space-x-3">
+                            <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${
+                              notification.type === 'success' ? 'bg-green-500' :
+                              notification.type === 'achievement' ? 'bg-yellow-500' :
+                              'bg-orange-500'
+                            }`} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-sm font-medium">{notification.title}</p>
+                              <p className="text-white/70 text-xs mt-1">{notification.message}</p>
+                              <p className="text-white/50 text-xs mt-1">{notification.timestamp}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Spotify Icon */}
           <button 
-            className={`w-8 h-8 rounded-full flex items-center justify-center ${darkMode ? 'bg-primary-600' : 'bg-green-400'}`}
-            aria-label="AI Assistant"
+            className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center transition-all duration-200"
+            aria-label="Spotify Integration"
           >
-            <span className="text-white text-sm">🤖</span>
+            <Music size={20} className="text-white/80" />
           </button>
           
-          {/* User Menu */}
+          {/* Profile Icon */}
           <div className="relative">
             <button
               ref={userButtonRef}
@@ -194,15 +298,10 @@ const Header = ({
                 setIsUserMenuOpen(!isUserMenuOpen);
                 setIsNotificationsOpen(false);
               }}
-              className={`flex items-center space-x-2 ${darkMode ? 'text-white' : 'text-gray-700'} hover:${darkMode ? 'text-gray-300' : 'text-gray-900'} focus:outline-none`}
+              className="w-10 h-10 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 flex items-center justify-center transition-all duration-200"
               aria-label="User menu"
             >
-              <div className={`w-8 h-8 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center`}>
-                <User size={16} className={darkMode ? 'text-gray-300' : 'text-gray-600'} />
-              </div>
-              <span className="hidden md:block text-sm font-medium">
-                {user?.email?.split('@')[0] || 'User'}
-              </span>
+              <User size={20} className="text-white" />
             </button>
 
             <AnimatePresence>
