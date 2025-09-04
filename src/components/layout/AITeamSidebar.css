@@ -63,6 +63,7 @@
   height: 50%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .section-label {
@@ -93,6 +94,7 @@
   padding: 0 20px;
   flex: 1;
   overflow-y: auto;
+  max-height: calc(50vh - 80px);
 }
 
 .activity-item {
@@ -136,6 +138,7 @@
   flex: 1;
   overflow-y: auto;
   padding: 8px 0;
+  max-height: calc(50vh - 60px);
 }
 
 /* Team Sections */
