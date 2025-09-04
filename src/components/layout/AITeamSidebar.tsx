@@ -39,7 +39,7 @@ const AITeamSidebar: React.FC = () => {
         { id: 'serenity', name: 'Serenity', emoji: '🌙', status: 'away', activity: 'Empathetic & Supportive', category: 'cheerleaders' },
         { id: 'fortune', name: 'Fortune', emoji: '💰', status: 'online', activity: 'Direct & Honest', category: 'cheerleaders' },
         { id: 'nova', name: 'Nova', emoji: '🌱', status: 'online', activity: 'Creative & Innovative', category: 'cheerleaders' },
-        { id: 'harmony', name: 'Harmony', emoji: '🧘', status: 'away', activity: 'Mindful & Balanced', category: 'cheerleaders' }
+        { id: 'harmony-cheer', name: 'Harmony', emoji: '🧘', status: 'away', activity: 'Mindful & Balanced', category: 'cheerleaders' }
       ]
     },
     {
@@ -121,30 +121,7 @@ const AITeamSidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent History */}
-      <div className="history-section">
-        <div className="section-label">
-          <span className="section-name">Recent History</span>
-          <span className="section-count">{recentHistory.length}</span>
-        </div>
-        
-        <div className="history-list">
-          {recentHistory.map((item) => (
-            <motion.div
-              key={item.id}
-              className="history-item"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <div className="history-timestamp">{item.timestamp}</div>
-              <div className="history-activity">{item.activity}</div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* AI Team Sections */}
+      {/* AI Team Sections - Now on Top */}
       <div className="team-sections">
         {sections.map((section) => (
           <div key={section.id} className="team-section">
@@ -203,6 +180,29 @@ const AITeamSidebar: React.FC = () => {
             </AnimatePresence>
           </div>
         ))}
+      </div>
+
+      {/* Recent History - Now Below */}
+      <div className="history-section">
+        <div className="section-label">
+          <span className="section-name">Recent History</span>
+          <span className="section-count">{recentHistory.length}</span>
+        </div>
+        
+        <div className="history-list">
+          {recentHistory.map((item) => (
+            <motion.div
+              key={item.id}
+              className="history-item"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="history-timestamp">{item.timestamp}</div>
+              <div className="history-activity">{item.activity}</div>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </div>
   );
