@@ -134,34 +134,35 @@ export default function Sidebar({
 
   return (
     <aside className="h-full flex flex-col bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20" ref={sidebarRef}>
-      {/* Toggle Button - Always Visible */}
-      {!isMobileOpen && (
-        <div className="sticky top-0 z-10 flex justify-end p-2 border-b border-white/10 backdrop-blur-md bg-[rgba(15,23,42,0.95)]">
-          <button 
-            onClick={toggleSidebar}
-            className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
-            style={{ minHeight: '44px', minWidth: '44px' }}
-          >
-            {collapsedState ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-          </button>
-        </div>
-      )}
-
-      {/* Header with Logo - Professional Design */}
-      <div className={`sticky top-12 border-b border-white/10 backdrop-blur-md bg-[rgba(15,23,42,0.95)] ${shouldShowLabels && !isMobileOpen ? 'p-6' : 'h-0 overflow-hidden'}`}>
+      {/* Header with Logo and Toggle Button */}
+      <div className="sticky top-0 border-b border-white/10 backdrop-blur-md bg-[rgba(15,23,42,0.95)] p-4">
         <div className="flex items-center justify-between">
-          {shouldShowLabels && !isMobileOpen && (
+          {shouldShowLabels && !isMobileOpen ? (
+            // Expanded state - Logo with text and toggle button
             <div className="flex items-center gap-4 flex-1">
               <Logo size="lg" showText={false} />
               <div>
                 <span className="font-bold text-xl leading-tight tracking-tight text-white">XspensesAI</span>
               </div>
             </div>
-          )}
-          {!shouldShowLabels && (
+          ) : (
+            // Collapsed state - Just the crown logo
             <div className="flex items-center justify-center flex-1">
-              <Logo size="md" showText={false} />
+              <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center text-xl">
+                👑
+              </div>
             </div>
+          )}
+          
+          {/* Toggle Button - Always visible */}
+          {!isMobileOpen && (
+            <button 
+              onClick={toggleSidebar}
+              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
+              style={{ minHeight: '44px', minWidth: '44px' }}
+            >
+              {collapsedState ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+            </button>
           )}
         </div>
       </div>
