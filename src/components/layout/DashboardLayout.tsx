@@ -80,8 +80,8 @@ export default function DashboardLayout() {
             <Outlet />
           </main>
           
-          {/* AI Team Sidebar */}
-          <aside className="hidden lg:block w-[280px] shrink-0">
+          {/* AI Team Sidebar - Always visible on desktop */}
+          <aside className="hidden lg:block w-[280px] shrink-0 bg-[rgba(15,23,42,0.95)] border-l border-white/10">
             <AITeamSidebar />
           </aside>
         </div>

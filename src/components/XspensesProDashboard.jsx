@@ -227,7 +227,7 @@ export default function XspensesProDashboard() {
   };
 
   return (
-    <div className="w-full h-full" style={{ 
+    <div className="w-full" style={{ 
       transform: 'translateZ(0)', 
       WebkitTransform: 'translateZ(0)',
       contain: 'layout style paint'
@@ -237,11 +237,9 @@ export default function XspensesProDashboard() {
         <DashboardHeader />
       </div>
       
-      {/* Main content with proper scrolling */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-7xl mx-auto p-6">
-          <ConnectedDashboard />
-        </div>
+      {/* Main content */}
+      <div className="max-w-7xl mx-auto p-6">
+        <ConnectedDashboard />
       </div>
     </div>
   );
