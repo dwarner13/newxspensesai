@@ -174,58 +174,61 @@ const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({
         </div>
       </div>
 
-      {/* Following Section */}
-      <div className="employee-section">
-        <div className="section-header">
-          <span>FOLLOWING</span>
-          <span className="employee-count">{following.length}</span>
-        </div>
-        <div className="following-list">
-          {following.map((employee, index) => (
-            <div key={index} className="employee-list-item">
-              <div className="employee-avatar">
-                {employee.avatar}
-                <div className={`status-indicator ${
-                  employee.online === true ? 'status-online' : 
-                  employee.online === 'away' ? 'status-away' : 'status-offline'
-                }`}></div>
+      {/* Scrollable Content */}
+      <div className="employee-sidebar-content">
+        {/* Following Section */}
+        <div className="employee-section">
+          <div className="section-header">
+            <span>FOLLOWING</span>
+            <span className="employee-count">{following.length}</span>
+          </div>
+          <div className="following-list">
+            {following.map((employee, index) => (
+              <div key={index} className="employee-list-item">
+                <div className="employee-avatar">
+                  {employee.avatar}
+                  <div className={`status-indicator ${
+                    employee.online === true ? 'status-online' : 
+                    employee.online === 'away' ? 'status-away' : 'status-offline'
+                  }`}></div>
+                </div>
+                <div className="employee-info">
+                  <div className="employee-name">{employee.name}</div>
+                  <div className="employee-activity">{employee.status}</div>
+                </div>
               </div>
-              <div className="employee-info">
-                <div className="employee-name">{employee.name}</div>
-                <div className="employee-activity">{employee.status}</div>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Discover Section */}
-      <div className="discover-section">
-        <div className="section-header">
-          <span>DISCOVER MORE</span>
-          <span className="employee-count">{discover.length}</span>
-        </div>
-        <div className="discover-list">
-          {discover.map((employee, index) => (
-            <div key={index} className="employee-list-item">
-              <div className="employee-avatar">
-                {employee.avatar}
-                <div className="status-indicator status-offline"></div>
+        {/* Discover Section */}
+        <div className="discover-section">
+          <div className="section-header">
+            <span>DISCOVER MORE</span>
+            <span className="employee-count">{discover.length}</span>
+          </div>
+          <div className="discover-list">
+            {discover.map((employee, index) => (
+              <div key={index} className="employee-list-item">
+                <div className="employee-avatar">
+                  {employee.avatar}
+                  <div className="status-indicator status-offline"></div>
+                </div>
+                <div className="employee-info">
+                  <div className="employee-name">{employee.name}</div>
+                  <div className="employee-activity">{employee.status}</div>
+                </div>
+                <button 
+                  className="follow-btn"
+                  onClick={() => onEmployeeFollow(employee.name)}
+                >
+                  Follow
+                </button>
               </div>
-              <div className="employee-info">
-                <div className="employee-name">{employee.name}</div>
-                <div className="employee-activity">{employee.status}</div>
-              </div>
-              <button 
-                className="follow-btn"
-                onClick={() => onEmployeeFollow(employee.name)}
-              >
-                Follow
-              </button>
-            </div>
-          ))}
+            ))}
+          </div>
+          <button className="show-more-btn">Show More Employees...</button>
         </div>
-        <button className="show-more-btn">Show More Employees...</button>
       </div>
     </div>
   );
@@ -350,7 +353,7 @@ const WorkspaceLayout: React.FC<WorkspaceLayoutProps> = ({
         <div 
           className="main-content"
           style={{ 
-            marginRight: employeeSidebarOpen ? '300px' : '0',
+            marginRight: employeeSidebarOpen ? '320px' : '0',
             marginLeft: activityStreamOpen ? '320px' : '0'
           }}
         >

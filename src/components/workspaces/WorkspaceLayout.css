@@ -302,185 +302,281 @@
 }
 
 /* ================================================================================
-   TOGGLEABLE EMPLOYEE SIDEBAR
+   TOGGLEABLE EMPLOYEE SIDEBAR - ENHANCED DESIGN
    ================================================================================ */
 
 .employee-sidebar {
   position: fixed;
-  right: -300px;
-  transition: right 0.3s ease;
-  width: 300px;
+  right: -320px;
+  transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 320px;
   height: calc(100vh - 60px);
   top: 60px;
-  background: rgba(255, 255, 255, 0.02);
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 1.5rem 1rem;
-  overflow-y: auto;
+  background: linear-gradient(135deg, rgba(30, 30, 50, 0.95), rgba(20, 20, 40, 0.95));
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0;
+  overflow: hidden;
   z-index: 100;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(20px);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.3);
 }
 
 .employee-sidebar.open {
   right: 0;
 }
 
+.employee-sidebar-content {
+  height: calc(100% - 80px);
+  overflow-y: auto;
+  padding-bottom: 1rem;
+}
+
+.employee-sidebar-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.employee-sidebar-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+}
+
+.employee-sidebar-content::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.3), rgba(118, 75, 162, 0.3));
+  border-radius: 3px;
+  transition: all 0.3s ease;
+}
+
+.employee-sidebar-content::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.5), rgba(118, 75, 162, 0.5));
+}
+
 .employee-sidebar-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 1.5rem 1.5rem 1rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
+}
+
+.employee-sidebar-header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
 }
 
 .sidebar-title {
   color: white;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 1.5px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .sidebar-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
 }
 
 .sidebar-action-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 6px;
-  padding: 0.5rem;
-  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  padding: 0.6rem;
+  color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
 .sidebar-action-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .employee-section {
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
+  padding: 0 1.5rem;
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.8rem;
+  margin-bottom: 1.25rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
 }
 
 .employee-count {
-  background: rgba(255, 255, 255, 0.1);
-  padding: 0.2rem 0.5rem;
-  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
+  padding: 0.3rem 0.8rem;
+  border-radius: 12px;
   font-size: 0.7rem;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
 }
 
 .employee-list-item {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
-  transition: all 0.2s ease;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.employee-list-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
 .employee-list-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.employee-list-item:hover::before {
+  opacity: 1;
 }
 
 .employee-avatar {
   position: relative;
-  width: 40px;
-  height: 40px;
-  background: rgba(255, 255, 255, 0.1);
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.employee-list-item:hover .employee-avatar {
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
 }
 
 .status-indicator {
   position: absolute;
-  bottom: -2px;
-  right: -2px;
-  width: 12px;
-  height: 12px;
+  bottom: -3px;
+  right: -3px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  border: 2px solid #1a1a2e;
+  border: 3px solid rgba(30, 30, 50, 0.95);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .status-online {
-  background: #00ff88;
+  background: linear-gradient(135deg, #00ff88, #00cc6a);
   animation: pulse 2s infinite;
 }
 
 .status-away {
-  background: #ffaa00;
+  background: linear-gradient(135deg, #ffaa00, #ff8800);
 }
 
 .status-offline {
-  background: rgba(255, 255, 255, 0.3);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.2));
 }
 
 .employee-info {
   flex: 1;
+  min-width: 0;
 }
 
 .employee-name {
   color: white;
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 600;
-  margin-bottom: 0.2rem;
+  margin-bottom: 0.3rem;
+  line-height: 1.2;
 }
 
 .employee-activity {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.85rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .follow-btn {
-  background: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
   border: none;
-  border-radius: 15px;
-  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  padding: 0.5rem 1rem;
   color: white;
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  flex-shrink: 0;
 }
 
 .follow-btn:hover {
-  background: #2563eb;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
 }
 
 .show-more-btn {
   width: 100%;
-  background: rgba(255, 255, 255, 0.05);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  padding: 0.75rem;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.8rem;
+  border-radius: 12px;
+  padding: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  margin-top: 1rem;
 }
 
 .show-more-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
   color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 /* ================================================================================
