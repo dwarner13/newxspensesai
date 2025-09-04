@@ -33,6 +33,7 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTabletSidebarOpen, setIsTabletSidebarOpen] = useState(false);
+  const [isLeftSidebarCollapsed, setIsLeftSidebarCollapsed] = useState(false);
 
   // Discovery ticker data
   const discoveryItems = [
@@ -116,6 +117,10 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
     setIsTabletSidebarOpen(!isTabletSidebarOpen);
   };
 
+  const handleLeftSidebarToggle = () => {
+    setIsLeftSidebarCollapsed(!isLeftSidebarCollapsed);
+  };
+
   return (
     <div className="three-column-dashboard">
       {/* Mobile Menu Overlay */}
@@ -147,7 +152,7 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
       <div className="dashboard-container">
         {/* LEFT SIDEBAR */}
         <motion.aside 
-          className={`left-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}
+          className={`left-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''} ${isLeftSidebarCollapsed ? 'collapsed' : ''}`}
           initial={{ x: -360 }}
           animate={{ x: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -155,6 +160,12 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
           <div className="logo-section">
             <div className="logo-icon">👑</div>
             <div className="logo-text">XspensesAI</div>
+            <button 
+              className="sidebar-toggle-btn"
+              onClick={handleLeftSidebarToggle}
+            >
+              {isLeftSidebarCollapsed ? '→' : '←'}
+            </button>
           </div>
 
           <button 
@@ -167,19 +178,19 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
 
           <div className="sidebar-section">
             <div className="section-title">AI Workspace</div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/smart-import-ai')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/smart-import-ai')} data-tooltip="Smart Import AI">
               <span>📤</span>
               <span>Smart Import AI</span>
             </div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/ai-financial-assistant')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/ai-financial-assistant')} data-tooltip="AI Chat Assistant">
               <span>💬</span>
               <span>AI Chat Assistant</span>
             </div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/smart-categories')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/smart-categories')} data-tooltip="Smart Categories">
               <span>🏷️</span>
               <span>Smart Categories</span>
             </div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/transactions')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/transactions')} data-tooltip="Transactions">
               <span>📄</span>
               <span>Transactions</span>
             </div>
@@ -187,19 +198,19 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
 
           <div className="sidebar-section">
             <div className="section-title">Planning & Analysis</div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/bill-reminder')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/bill-reminder')} data-tooltip="Bill Reminder">
               <span>🔔</span>
               <span>Bill Reminder</span>
             </div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/debt-planner')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/debt-planner')} data-tooltip="Debt Payoff Planner">
               <span>💳</span>
               <span>Debt Payoff Planner</span>
             </div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/goal-concierge')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/goal-concierge')} data-tooltip="AI Goal Concierge">
               <span>🎯</span>
               <span>AI Goal Concierge</span>
             </div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/financial-freedom')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/financial-freedom')} data-tooltip="AI Financial Freedom">
               <span>🗽</span>
               <span>AI Financial Freedom</span>
             </div>
@@ -207,15 +218,15 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
 
           <div className="sidebar-section">
             <div className="section-title">Audio Entertainment</div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/personal-podcast')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/personal-podcast')} data-tooltip="Personal Podcast">
               <span>🎙️</span>
               <span>Personal Podcast</span>
             </div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/spotify-integration')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/spotify-integration')} data-tooltip="Spotify Integration">
               <span>🎵</span>
               <span>Spotify Integration</span>
             </div>
-            <div className="sidebar-item" onClick={() => navigate('/dashboard/wellness-studio')}>
+            <div className="sidebar-item" onClick={() => navigate('/dashboard/wellness-studio')} data-tooltip="Wellness Studio">
               <span>🧘</span>
               <span>Wellness Studio</span>
             </div>
@@ -233,7 +244,7 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
         </motion.aside>
 
         {/* MAIN CONTENT */}
-        <main className="main-content">
+        <main className={`main-content ${isLeftSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
           <div className="content-header">
             <h1 className="page-title">FinTech Entertainment Platform</h1>
             <p className="page-subtitle">Welcome back, John! Here's your financial overview.</p>
