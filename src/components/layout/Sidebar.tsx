@@ -134,37 +134,37 @@ export default function Sidebar({
 
   return (
     <aside className="h-full flex flex-col bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20" ref={sidebarRef}>
-              {/* Header with Logo - Professional Design */}
-                      {/* Header with Logo - Professional Design */}
-        <div className={`sticky top-0 border-b border-white/10 backdrop-blur-md bg-[rgba(15,23,42,0.95)] ${shouldShowLabels && !isMobileOpen ? 'p-6' : 'h-0 overflow-hidden'}`}>
-          <div className="flex items-center justify-between">
-            {shouldShowLabels && !isMobileOpen && (
-              <div className="flex items-center gap-4 flex-1">
-                <Logo size="lg" showText={false} />
-                <div>
-                  <span className="font-bold text-xl leading-tight tracking-tight text-white">XspensesAI</span>
-                </div>
-              </div>
-            )}
-            {!shouldShowLabels && (
-              <div className="flex items-center justify-center flex-1">
-                <Logo size="md" showText={false} />
-              </div>
-            )}
-            <div className="flex items-center gap-3">
-              {/* Collapse Toggle Button - Only show on desktop */}
-              {!isMobileOpen && (
-                <button 
-                  onClick={toggleSidebar}
-                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
-                  style={{ minHeight: '44px', minWidth: '44px' }}
-                >
-                  {collapsedState ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-                </button>
-              )}
-            </div>
-          </div>
+      {/* Toggle Button - Always Visible */}
+      {!isMobileOpen && (
+        <div className="sticky top-0 z-10 flex justify-end p-2 border-b border-white/10 backdrop-blur-md bg-[rgba(15,23,42,0.95)]">
+          <button 
+            onClick={toggleSidebar}
+            className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
+            style={{ minHeight: '44px', minWidth: '44px' }}
+          >
+            {collapsedState ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+          </button>
         </div>
+      )}
+
+      {/* Header with Logo - Professional Design */}
+      <div className={`sticky top-12 border-b border-white/10 backdrop-blur-md bg-[rgba(15,23,42,0.95)] ${shouldShowLabels && !isMobileOpen ? 'p-6' : 'h-0 overflow-hidden'}`}>
+        <div className="flex items-center justify-between">
+          {shouldShowLabels && !isMobileOpen && (
+            <div className="flex items-center gap-4 flex-1">
+              <Logo size="lg" showText={false} />
+              <div>
+                <span className="font-bold text-xl leading-tight tracking-tight text-white">XspensesAI</span>
+              </div>
+            </div>
+          )}
+          {!shouldShowLabels && (
+            <div className="flex items-center justify-center flex-1">
+              <Logo size="md" showText={false} />
+            </div>
+          )}
+        </div>
+      </div>
 
               {/* Navigation with Independent Scrolling */}
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
