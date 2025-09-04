@@ -121,86 +121,88 @@ const AITeamSidebar: React.FC = () => {
         </div>
       </div>
 
-      {/* AI Team Sections - Now on Top */}
-      <div className="team-sections">
-        {sections.map((section) => (
-          <div key={section.id} className="team-section">
-            <motion.button
-              className="section-header"
-              onClick={() => toggleSection(section.id)}
-              whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <div className="section-title">
-                {section.title}
-                <span className="section-count">{section.employees.length}</span>
-              </div>
-              <motion.div
-                animate={{ rotate: section.isCollapsed ? 0 : 90 }}
-                transition={{ duration: 0.2 }}
-              >
-                <ChevronRight size={16} />
-              </motion.div>
-            </motion.button>
-
-            <AnimatePresence>
-              {!section.isCollapsed && (
-                <motion.div
-                  className="section-content"
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.3, ease: 'easeInOut' }}
-                >
-                  {section.employees.map((employee) => (
-                    <motion.div
-                      key={employee.id}
-                      className="employee-item"
-                      whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
-                      whileTap={{ scale: 0.98 }}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <div className="employee-avatar">
-                        {employee.emoji}
-                        <div 
-                          className="status-dot"
-                          style={{ backgroundColor: getStatusColor(employee.status) }}
-                        />
-                      </div>
-                      <div className="employee-info">
-                        <div className="employee-name">{employee.name}</div>
-                        <div className="employee-activity">{employee.activity}</div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        ))}
-      </div>
-
-      {/* Recent History - Now Below */}
-      <div className="history-section">
+      {/* Recent Activity - Now at the top and always visible */}
+      <div className="recent-activity-section">
         <div className="section-label">
-          <span className="section-name">Recent History</span>
+          <span className="section-name">Live Activity</span>
           <span className="section-count">{recentHistory.length}</span>
         </div>
         
-        <div className="history-list">
+        <div className="activity-list">
           {recentHistory.map((item) => (
             <motion.div
               key={item.id}
-              className="history-item"
+              className="activity-item"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="history-timestamp">{item.timestamp}</div>
-              <div className="history-activity">{item.activity}</div>
+              <div className="activity-timestamp">{item.timestamp}</div>
+              <div className="activity-text">{item.activity}</div>
             </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* AI Team Sections - Compact with separate scroll */}
+      <div className="team-sections-container">
+        <div className="team-sections">
+          {sections.map((section) => (
+            <div key={section.id} className="team-section">
+              <motion.button
+                className="section-header"
+                onClick={() => toggleSection(section.id)}
+                whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <div className="section-title">
+                  {section.title}
+                  <span className="section-count">{section.employees.length}</span>
+                </div>
+                <motion.div
+                  animate={{ rotate: section.isCollapsed ? 0 : 90 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronRight size={16} />
+                </motion.div>
+              </motion.button>
+
+              <AnimatePresence>
+                {!section.isCollapsed && (
+                  <motion.div
+                    className="section-content"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  >
+                    {section.employees.map((employee) => (
+                      <motion.div
+                        key={employee.id}
+                        className="employee-item"
+                        whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
+                        whileTap={{ scale: 0.98 }}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        <div className="employee-avatar">
+                          {employee.emoji}
+                          <div 
+                            className="status-dot"
+                            style={{ backgroundColor: getStatusColor(employee.status) }}
+                          />
+                        </div>
+                        <div className="employee-info">
+                          <div className="employee-name">{employee.name}</div>
+                          <div className="employee-activity">{employee.activity}</div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           ))}
         </div>
       </div>
