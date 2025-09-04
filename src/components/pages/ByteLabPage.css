@@ -1,0 +1,480 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.byte-lab-page {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #ffffff;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.page-container {
+  display: flex;
+  height: 100vh;
+}
+
+/* Main Workspace - Byte's Domain */
+.main-workspace {
+  flex: 1;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Byte's Header Section */
+.byte-header {
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  padding: 2rem 3rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.byte-intro {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+
+.byte-main-avatar {
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+}
+
+.byte-greeting {
+  flex: 1;
+}
+
+.page-title {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(90deg, #00ff88, #00d4ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.5rem;
+}
+
+.page-subtitle {
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 1rem;
+}
+
+.byte-stats-row {
+  display: flex;
+  gap: 2rem;
+}
+
+.byte-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stat-value {
+  color: #00ff88;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+/* Main Content Grid */
+.workspace-content {
+  padding: 2rem 3rem;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 2rem;
+}
+
+/* Upload Zone - Lab Style */
+.upload-lab {
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px dashed rgba(102, 126, 234, 0.3);
+  border-radius: 20px;
+  padding: 2rem;
+  min-height: 400px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.upload-lab:hover {
+  border-color: rgba(102, 126, 234, 0.6);
+  background: rgba(102, 126, 234, 0.05);
+}
+
+.upload-lab.drag-over {
+  border-color: #00ff88;
+  background: rgba(0, 255, 136, 0.1);
+  transform: scale(1.02);
+}
+
+.upload-lab.active {
+  border-color: #00ff88;
+  background: rgba(0, 255, 136, 0.05);
+}
+
+.lab-equipment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.beaker-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.upload-message {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.upload-detail {
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.quick-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.upload-option {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.upload-option:hover {
+  background: rgba(100, 150, 255, 0.1);
+  border-color: rgba(100, 150, 255, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Recent Processing Feed */
+.processing-feed {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.feed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.feed-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.processing-item {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.processing-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #00ff88;
+}
+
+.doc-icon {
+  width: 40px;
+  height: 40px;
+  background: rgba(102, 126, 234, 0.2);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+}
+
+.doc-info {
+  flex: 1;
+}
+
+.doc-name {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.doc-stats {
+  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.byte-comment {
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 8px;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Right Panel - Byte's Stats */
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.byte-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+.card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.achievement {
+  background: rgba(255, 215, 0, 0.1);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.achievement:hover {
+  transform: scale(1.05);
+  background: rgba(255, 215, 0, 0.15);
+}
+
+.achievement.locked {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  opacity: 0.5;
+}
+
+.achievement-icon {
+  font-size: 1.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.achievement-label {
+  font-size: 0.625rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pattern-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pattern-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(0, 255, 136, 0.05);
+  border: 1px solid rgba(0, 255, 136, 0.1);
+  border-radius: 8px;
+}
+
+.pattern-icon {
+  color: #00ff88;
+}
+
+.pattern-text {
+  font-size: 0.875rem;
+}
+
+/* Live Chat with Byte */
+.byte-chat {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  cursor: pointer;
+  box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+  transition: all 0.2s;
+  z-index: 1000;
+}
+
+.byte-chat:hover {
+  transform: scale(1.1);
+}
+
+.chat-bubble {
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  background: rgba(102, 126, 234, 0.9);
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Progress Bar */
+.progress-indicator {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.progress-label {
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.progress-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00ff88, #00d4ff);
+  border-radius: 4px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .workspace-content {
+    grid-template-columns: 1fr;
+    padding: 1rem;
+  }
+  
+  .byte-header {
+    padding: 1rem;
+  }
+  
+  .byte-intro {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
+  }
+  
+  .byte-main-avatar {
+    width: 80px;
+    height: 80px;
+    font-size: 2.5rem;
+  }
+  
+  .page-title {
+    font-size: 2rem;
+  }
+  
+  .byte-stats-row {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .quick-upload-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .achievement-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .byte-chat {
+    bottom: 1rem;
+    right: 1rem;
+    width: 50px;
+    height: 50px;
+    font-size: 1.25rem;
+  }
+  
+  .chat-bubble {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .workspace-content {
+    padding: 0.5rem;
+  }
+  
+  .byte-header {
+    padding: 0.5rem;
+  }
+  
+  .page-title {
+    font-size: 1.5rem;
+  }
+  
+  .upload-lab {
+    padding: 1rem;
+    min-height: 300px;
+  }
+  
+  .beaker-icon {
+    font-size: 3rem;
+  }
+  
+  .upload-message {
+    font-size: 1.25rem;
+  }
+}
