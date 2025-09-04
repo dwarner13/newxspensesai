@@ -146,10 +146,20 @@ export default function Sidebar({
               </div>
             </div>
           ) : (
-            // Collapsed state - Just the crown logo
+            // Collapsed state - Detailed crown logo
             <div className="flex items-center justify-center flex-1">
-              <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center text-xl">
-                👑
+              <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg flex items-center justify-center">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M5 16L3 14L7 12L5 16Z" fill="#FFD700" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M19 16L21 14L17 12L19 16Z" fill="#FFD700" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M12 20L10 18L14 16L12 20Z" fill="#FFD700" stroke="#000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <circle cx="12" cy="8" r="2" fill="#00BFFF" stroke="#000" strokeWidth="1"/>
+                  <circle cx="8" cy="10" r="1.5" fill="#FF69B4" stroke="#000" strokeWidth="1"/>
+                  <circle cx="16" cy="10" r="1.5" fill="#FF69B4" stroke="#000" strokeWidth="1"/>
+                  <circle cx="10" cy="12" r="1" fill="#FFD700" stroke="#000" strokeWidth="0.8"/>
+                  <circle cx="14" cy="12" r="1" fill="#FFD700" stroke="#000" strokeWidth="0.8"/>
+                  <rect x="6" y="18" width="12" height="2" rx="1" fill="#FFD700" stroke="#000" strokeWidth="1.5"/>
+                </svg>
               </div>
             </div>
           )}
