@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import MobileSidebar from "./MobileSidebar";
 import BottomNav from "./BottomNav";
 import Logo from "../common/Logo";
+import AITeamSidebar from "./AITeamSidebar";
 
 
 
@@ -74,10 +75,15 @@ export default function DashboardLayout() {
         </MobileSidebar>
 
         {/* Main content - Independent scrolling container */}
-        <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <div className="flex-1 flex h-screen overflow-hidden">
           <main className="flex-1 overflow-y-auto px-8 py-8 dashboard-main-content">
             <Outlet />
           </main>
+          
+          {/* AI Team Sidebar */}
+          <aside className="hidden lg:block w-[280px] shrink-0">
+            <AITeamSidebar />
+          </aside>
         </div>
 
               {/* Bottom tabs (mobile only) */}
