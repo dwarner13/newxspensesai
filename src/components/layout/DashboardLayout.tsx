@@ -74,7 +74,7 @@ export default function DashboardLayout() {
           <Sidebar isMobileOpen={open} setIsMobileOpen={setOpen} />
         </MobileSidebar>
 
-        {/* Main content - Independent scrolling container */}
+        {/* Main content and AI Team Sidebar */}
         <div className="flex-1 flex h-screen overflow-hidden">
           <main className="flex-1 overflow-y-auto dashboard-main-content">
             <Outlet />

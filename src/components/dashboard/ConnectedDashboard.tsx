@@ -344,10 +344,10 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300"
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-3 hover:bg-white/10 transition-all duration-300"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-10 h-10 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center text-white`}>
+              <div className="flex items-start justify-between mb-2">
+                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
                 <div className="text-right">
