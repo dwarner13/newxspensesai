@@ -14,7 +14,8 @@ import {
   BarChart3,
   Settings,
   Play,
-  Loader2
+  Loader2,
+  Tag
 } from 'lucide-react';
 import { UniversalAIController } from '../../services/UniversalAIController';
 import { UniversalChatInterface } from '../chat/UniversalChatInterface';
@@ -206,6 +207,16 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       color: 'from-green-500 to-green-600'
     },
     {
+      id: 'smart-categorization',
+      title: 'Smart Categorization',
+      description: 'Automatically categorize your transactions with AI. Learn from your corrections and improve over time.',
+      icon: <Tag className="w-6 h-6" />,
+      stats: { accuracy: "96%", categoriesLearned: 47 },
+      buttonText: 'Categorize Now',
+      onClick: () => navigate('/dashboard/ai-categorization'),
+      color: 'from-orange-500 to-orange-600'
+    },
+    {
       id: 'financial-therapist',
       title: 'AI Financial Therapist',
       description: 'Emotional and behavioral coaching to improve your financial wellness. Chat about money stress and get support.',
@@ -337,8 +348,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           <h2 className="text-xl font-bold text-white mb-2">Core AI Tools</h2>
           <p className="text-white/60 text-sm">Essential AI-powered features for your financial management</p>
         </div>
-        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2'}`}>
-          {aiEmployeeCards.slice(0, isSidebarCollapsed ? 3 : 2).map((card, index) => (
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+          {aiEmployeeCards.slice(0, 3).map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}

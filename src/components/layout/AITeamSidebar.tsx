@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Settings, ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import './AITeamSidebar.css';
 
 interface AIEmployee {
@@ -52,41 +52,15 @@ const AITeamSidebar: React.FC = () => {
         { id: 'wave', name: 'Wave', emoji: '🌊', status: 'away', activity: 'Spotify Integration', category: 'core' },
         { id: 'harmony-studio', name: 'Harmony', emoji: '🎵', status: 'online', activity: 'Financial Wellness Studio', category: 'core' }
       ]
-    },
-    {
-      id: 'cheerleaders',
-      title: 'FINANCIAL CHEERLEADERS',
-      isCollapsed: false,
-      employees: [
-        { id: 'spark', name: 'Spark', emoji: '⚡', status: 'online', activity: 'Energetic & Motivational', category: 'cheerleaders' },
-        { id: 'wisdom', name: 'Wisdom', emoji: '🧠', status: 'online', activity: 'Wise & Analytical', category: 'cheerleaders' },
-        { id: 'serenity', name: 'Serenity', emoji: '🌙', status: 'away', activity: 'Empathetic & Supportive', category: 'cheerleaders' },
-        { id: 'fortune', name: 'Fortune', emoji: '💰', status: 'online', activity: 'Direct & Honest', category: 'cheerleaders' },
-        { id: 'nova', name: 'Nova', emoji: '🌱', status: 'online', activity: 'Creative & Innovative', category: 'cheerleaders' },
-        { id: 'harmony-cheer', name: 'Harmony', emoji: '🧘', status: 'away', activity: 'Mindful & Balanced', category: 'cheerleaders' }
-      ]
-    },
-    {
-      id: 'roasters',
-      title: 'REALITY CHECKERS',
-      isCollapsed: false,
-      employees: [
-        { id: 'roast-master', name: 'Roast Master', emoji: '🔥', status: 'online', activity: 'Brutally Honest', category: 'roasters' },
-        { id: 'savage-sally', name: 'Savage Sally', emoji: '💅', status: 'online', activity: 'Sassy & Direct', category: 'roasters' },
-        { id: 'truth-bomber', name: 'Truth Bomber', emoji: '💣', status: 'away', activity: 'Explosive & Direct', category: 'roasters' },
-        { id: 'reality-checker', name: 'Reality Checker', emoji: '🔍', status: 'online', activity: 'Analytical & Critical', category: 'roasters' },
-        { id: 'savage-sam', name: 'Savage Sam', emoji: '😈', status: 'online', activity: 'Devilishly Honest', category: 'roasters' },
-        { id: 'roast-queen', name: 'Roast Queen', emoji: '👑', status: 'away', activity: 'Regally Savage', category: 'roasters' }
-      ]
     }
   ]);
 
   const [recentHistory] = useState([
     { id: 1, timestamp: '2 min ago', activity: 'Byte processed 3 documents' },
-    { id: 2, timestamp: '5 min ago', activity: 'Spark celebrated your savings goal' },
-    { id: 3, timestamp: '12 min ago', activity: 'Crystal detected spending pattern' },
-    { id: 4, timestamp: '18 min ago', activity: 'Roast Master gave reality check' },
-    { id: 5, timestamp: '25 min ago', activity: 'Ledger found tax deduction' }
+    { id: 2, timestamp: '5 min ago', activity: 'Crystal detected spending pattern' },
+    { id: 3, timestamp: '12 min ago', activity: 'Ledger found tax deduction' },
+    { id: 4, timestamp: '18 min ago', activity: 'Tag categorized transactions' },
+    { id: 5, timestamp: '25 min ago', activity: 'Finley analyzed spending trends' }
   ]);
 
   const toggleSection = (sectionId: string) => {
@@ -121,18 +95,6 @@ const AITeamSidebar: React.FC = () => {
 
   return (
     <div className="ai-team-sidebar">
-      {/* Header */}
-      <div className="sidebar-header">
-        <div className="sidebar-title">Your AI Team</div>
-        <div className="sidebar-controls">
-          <button className="control-btn">
-            <Search size={16} />
-          </button>
-          <button className="control-btn">
-            <Settings size={16} />
-          </button>
-        </div>
-      </div>
 
       {/* Recent Activity - Now at the top and always visible */}
       <div className="recent-activity-section">
