@@ -355,9 +355,10 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-3 hover:bg-white/10 transition-all duration-300"
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-full"
             >
-              <div className="flex items-start justify-between mb-2">
+              {/* Header with icon and stats */}
+              <div className="flex items-start justify-between mb-3">
                 <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
@@ -370,13 +371,19 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 </div>
               </div>
               
-                             <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>{card.title}</h3>
-              <p className="text-white/70 text-sm mb-3">{card.description}</p>
+              {/* Title */}
+              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+                {card.title}
+              </h3>
               
+              {/* Description - flex-grow to fill available space */}
+              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              
+              {/* Button - always at bottom */}
               <button
                 onClick={card.onClick}
                 disabled={card.isLoading}
-                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm`}
+                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
               >
                 {card.isLoading ? (
                   <>
