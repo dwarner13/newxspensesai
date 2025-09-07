@@ -1,192 +1,312 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { 
+  Activity, 
+  CheckCircle, 
+  Clock, 
+  AlertTriangle, 
+  TrendingUp, 
+  MessageCircle,
+  Play,
+  Pause,
+  Filter
+} from 'lucide-react';
 import './AITeamSidebar.css';
 
-interface AIEmployee {
+interface LiveActivity {
   id: string;
-  name: string;
-  emoji: string;
-  status: 'online' | 'away' | 'offline';
-  activity: string;
-  category: string;
-}
-
-interface CollapsibleSection {
-  id: string;
+  aiName: string;
+  aiEmoji: string;
+  type: 'processing' | 'completed' | 'alert' | 'achievement' | 'available';
   title: string;
-  employees: AIEmployee[];
-  isCollapsed: boolean;
+  description: string;
+  timestamp: string;
+  progress?: number;
+  isNew?: boolean;
 }
 
 const AITeamSidebar: React.FC = () => {
-  const [sections, setSections] = useState<CollapsibleSection[]>([
+  const [isPaused, setIsPaused] = useState(false);
+  const [filter, setFilter] = useState<string | null>(null);
+  const [activities, setActivities] = useState<LiveActivity[]>([
     {
-      id: 'executive',
-      title: 'EXECUTIVE',
-      isCollapsed: false,
-      employees: [
-        { id: 'prime', name: 'Prime', emoji: '👑', status: 'online', activity: 'Orchestrating your empire', category: 'executive' }
-      ]
+      id: '1',
+      aiName: 'Byte',
+      aiEmoji: '📄',
+      type: 'processing',
+      title: 'Processing Chase Statement',
+      description: 'Analyzing 47 transactions from 12/15/2023',
+      timestamp: '2 min ago',
+      progress: 67,
+      isNew: true
     },
     {
-      id: 'core',
-      title: 'CORE AI EMPLOYEES',
-      isCollapsed: false,
-      employees: [
-        { id: 'finley', name: 'Finley', emoji: '💼', status: 'online', activity: 'Personal Finance AI', category: 'core' },
-        { id: 'byte', name: 'Byte', emoji: '📄', status: 'online', activity: 'Smart Import AI', category: 'core' },
-        { id: 'goalie', name: 'Goalie', emoji: '🥅', status: 'online', activity: 'AI Goal Concierge', category: 'core' },
-        { id: 'crystal', name: 'Crystal', emoji: '🔮', status: 'away', activity: 'Spending Predictions', category: 'core' },
-        { id: 'tag', name: 'Tag', emoji: '🏷️', status: 'online', activity: 'AI Categorization', category: 'core' },
-        { id: 'liberty', name: 'Liberty', emoji: '🗽', status: 'online', activity: 'AI Financial Freedom', category: 'core' },
-        { id: 'chime', name: 'Chime', emoji: '🔔', status: 'online', activity: 'Bill Reminder System', category: 'core' },
-        { id: 'blitz', name: 'Blitz', emoji: '⚡', status: 'online', activity: 'Debt Payoff Planner', category: 'core' },
-        { id: 'dj-zen', name: 'DJ Zen', emoji: '🎧', status: 'away', activity: 'Audio Entertainment', category: 'core' },
-        { id: 'roundtable', name: 'The Roundtable', emoji: '🎙️', status: 'online', activity: 'Personal Podcast', category: 'core' },
-        { id: 'ledger', name: 'Ledger', emoji: '📊', status: 'online', activity: 'Tax Assistant', category: 'core' },
-        { id: 'intelia', name: 'Intelia', emoji: '🧠', status: 'online', activity: 'Business Intelligence', category: 'core' },
-        { id: 'automa', name: 'Automa', emoji: '⚙️', status: 'away', activity: 'Smart Automation', category: 'core' },
-        { id: 'dash', name: 'Dash', emoji: '📈', status: 'online', activity: 'Analytics', category: 'core' },
-        { id: 'custodian', name: 'Custodian', emoji: '🔐', status: 'online', activity: 'Settings', category: 'core' },
-        { id: 'wave', name: 'Wave', emoji: '🌊', status: 'away', activity: 'Spotify Integration', category: 'core' },
-        { id: 'harmony-studio', name: 'Harmony', emoji: '🎵', status: 'online', activity: 'Financial Wellness Studio', category: 'core' }
-      ]
+      id: '2',
+      aiName: 'Crystal',
+      aiEmoji: '🔮',
+      type: 'completed',
+      title: 'Spending Analysis Complete',
+      description: 'Found 3 spending patterns in your data',
+      timestamp: '5 min ago',
+      isNew: true
+    },
+    {
+      id: '3',
+      aiName: 'Goalie',
+      aiEmoji: '🥅',
+      type: 'achievement',
+      title: 'Savings Goal Updated',
+      description: 'You\'re $247 ahead of schedule this week!',
+      timestamp: '12 min ago'
+    },
+    {
+      id: '4',
+      aiName: 'Chime',
+      aiEmoji: '🔔',
+      type: 'alert',
+      title: 'Bill Reminder',
+      description: 'Credit card payment due in 2 days',
+      timestamp: '18 min ago'
+    },
+    {
+      id: '5',
+      aiName: 'Tag',
+      aiEmoji: '🏷️',
+      type: 'completed',
+      title: 'Categorization Complete',
+      description: 'Auto-categorized 23 transactions with 96% accuracy',
+      timestamp: '25 min ago'
+    },
+    {
+      id: '6',
+      aiName: 'Finley',
+      aiEmoji: '💼',
+      type: 'available',
+      title: 'Ready to Chat',
+      description: 'Available for financial advice and insights',
+      timestamp: '30 min ago'
     }
   ]);
 
-  const [recentHistory] = useState([
-    { id: 1, timestamp: '2 min ago', activity: 'Byte processed 3 documents' },
-    { id: 2, timestamp: '5 min ago', activity: 'Crystal detected spending pattern' },
-    { id: 3, timestamp: '12 min ago', activity: 'Ledger found tax deduction' },
-    { id: 4, timestamp: '18 min ago', activity: 'Tag categorized transactions' },
-    { id: 5, timestamp: '25 min ago', activity: 'Finley analyzed spending trends' }
-  ]);
+  // Simulate new activities
+  useEffect(() => {
+    if (isPaused) return;
 
-  const toggleSection = (sectionId: string) => {
-    setSections(prev => prev.map(section => 
-      section.id === sectionId 
-        ? { ...section, isCollapsed: !section.isCollapsed }
-        : section
-    ));
-  };
+    const interval = setInterval(() => {
+      const newActivities = [
+        {
+          id: Date.now().toString(),
+          aiName: 'Byte',
+          aiEmoji: '📄',
+          type: 'completed' as const,
+          title: 'Document Processed',
+          description: 'Successfully processed 3 receipts',
+          timestamp: 'Just now',
+          isNew: true
+        },
+        {
+          id: (Date.now() + 1).toString(),
+          aiName: 'Dash',
+          aiEmoji: '📈',
+          type: 'completed' as const,
+          title: 'Weekly Report Generated',
+          description: 'Your spending summary is ready',
+          timestamp: 'Just now',
+          isNew: true
+        },
+        {
+          id: (Date.now() + 2).toString(),
+          aiName: 'Crystal',
+          aiEmoji: '🔮',
+          type: 'processing' as const,
+          title: 'Analyzing Trends',
+          description: 'Predicting next month\'s spending',
+          timestamp: 'Just now',
+          progress: 23,
+          isNew: true
+        }
+      ];
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return '#00ff88';
-      case 'away': return '#ffaa00';
-      case 'offline': return 'rgba(255, 255, 255, 0.3)';
-      default: return 'rgba(255, 255, 255, 0.3)';
+      const randomActivity = newActivities[Math.floor(Math.random() * newActivities.length)];
+      
+      setActivities(prev => {
+        const updated = [randomActivity, ...prev.slice(0, 9)]; // Keep only 10 most recent
+        return updated;
+      });
+    }, 8000); // New activity every 8 seconds
+
+    return () => clearInterval(interval);
+  }, [isPaused]);
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'processing':
+        return <Activity className="w-4 h-4 text-blue-400" />;
+      case 'completed':
+        return <CheckCircle className="w-4 h-4 text-green-400" />;
+      case 'alert':
+        return <AlertTriangle className="w-4 h-4 text-orange-400" />;
+      case 'achievement':
+        return <TrendingUp className="w-4 h-4 text-purple-400" />;
+      case 'available':
+        return <MessageCircle className="w-4 h-4 text-cyan-400" />;
+      default:
+        return <Activity className="w-4 h-4 text-gray-400" />;
     }
   };
 
-  const handleEmployeeAction = (employeeId: string, status: string) => {
-    if (status === 'online') {
-      // Employee is already following/active
-      console.log(`Unfollowing ${employeeId}`);
-      // Here you would implement the unfollow logic
-    } else {
-      // Employee needs to be hired
-      console.log(`Hiring ${employeeId}`);
-      // Here you would implement the hire logic
-      // This could open a modal, redirect to a service page, etc.
+  const getActivityColor = (type: string) => {
+    switch (type) {
+      case 'processing':
+        return 'border-l-blue-400 bg-blue-400/5';
+      case 'completed':
+        return 'border-l-green-400 bg-green-400/5';
+      case 'alert':
+        return 'border-l-orange-400 bg-orange-400/5';
+      case 'achievement':
+        return 'border-l-purple-400 bg-purple-400/5';
+      case 'available':
+        return 'border-l-cyan-400 bg-cyan-400/5';
+      default:
+        return 'border-l-gray-400 bg-gray-400/5';
     }
   };
+
+  const filteredActivities = filter 
+    ? activities.filter(activity => activity.aiName.toLowerCase() === filter.toLowerCase())
+    : activities;
+
+  const uniqueAIs = [...new Set(activities.map(a => a.aiName))];
 
   return (
     <div className="ai-team-sidebar">
-
-      {/* Recent Activity - Now at the top and always visible */}
-      <div className="recent-activity-section">
-        <div className="section-label">
-          <span className="section-name">Live Activity</span>
-          <span className="section-count">{recentHistory.length}</span>
-        </div>
-        
-        <div className="activity-list">
-          {recentHistory.map((item) => (
-            <motion.div
-              key={item.id}
-              className="activity-item"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
+      {/* Header */}
+      <div className="sidebar-header">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-purple-400" />
+            <h2 className="text-lg font-bold text-white">Live Activity</h2>
+            <div className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] h-5 flex items-center justify-center">
+              {activities.filter(a => a.isNew).length}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsPaused(!isPaused)}
+              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+              title={isPaused ? 'Resume updates' : 'Pause updates'}
             >
-              <div className="activity-timestamp">{item.timestamp}</div>
-              <div className="activity-text">{item.activity}</div>
-            </motion.div>
-          ))}
+              {isPaused ? <Play className="w-4 h-4 text-white/70" /> : <Pause className="w-4 h-4 text-white/70" />}
+            </button>
+            <div className="relative">
+              <select
+                value={filter || ''}
+                onChange={(e) => setFilter(e.target.value || null)}
+                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              >
+                <option value="">All AIs</option>
+                {uniqueAIs.map(ai => (
+                  <option key={ai} value={ai}>{ai}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* AI Team Sections - Compact with separate scroll */}
-      <div className="team-sections-container">
-        <div className="team-sections">
-          {sections.map((section) => (
-            <div key={section.id} className="team-section">
-              <motion.button
-                className="section-header"
-                onClick={() => toggleSection(section.id)}
-                whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <div className="section-title">
-                  {section.title}
-                  <span className="section-count">{section.employees.length}</span>
+      {/* Live Activity Feed */}
+      <div className="activity-feed">
+        <AnimatePresence>
+          {filteredActivities.map((activity, index) => (
+            <motion.div
+              key={activity.id}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ 
+                duration: 0.4, 
+                delay: index * 0.1,
+                type: "spring",
+                stiffness: 100
+              }}
+              className={`activity-item ${getActivityColor(activity.type)} ${
+                activity.isNew ? 'ring-2 ring-purple-400/30' : ''
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-lg">
+                    {activity.aiEmoji}
+                  </div>
                 </div>
-                <motion.div
-                  animate={{ rotate: section.isCollapsed ? 0 : 90 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <ChevronRight size={16} />
-                </motion.div>
-              </motion.button>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    {getActivityIcon(activity.type)}
+                    <span className="text-sm font-semibold text-white">{activity.aiName}</span>
+                    <span className="text-xs text-white/50">{activity.timestamp}</span>
+                    {activity.isNew && (
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                    )}
+                  </div>
+                  
+                  <h4 className="text-sm font-medium text-white/90 mb-1">
+                    {activity.title}
+                  </h4>
+                  
+                  <p className="text-xs text-white/60 mb-2">
+                    {activity.description}
+                  </p>
 
-              <AnimatePresence>
-                {!section.isCollapsed && (
-                  <motion.div
-                    className="section-content"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  >
-                    {section.employees.map((employee) => (
-                      <motion.div
-                        key={employee.id}
-                        className="employee-item"
-                        whileHover={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}
-                        whileTap={{ scale: 0.98 }}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <div className="employee-avatar">
-                          {employee.emoji}
-                          <div 
-                            className="status-dot"
-                            style={{ backgroundColor: getStatusColor(employee.status) }}
-                          />
-                        </div>
-                        <div className="employee-info">
-                          <div className="employee-name">{employee.name}</div>
-                          <div className="employee-activity">{employee.activity}</div>
-                        </div>
-                        <div className="employee-actions">
-                          <button 
-                            className={`action-btn ${employee.status === 'online' ? 'following' : 'hire'}`}
-                            onClick={() => handleEmployeeAction(employee.id, employee.status)}
-                          >
-                            {employee.status === 'online' ? 'Following' : 'Hire'}
-                          </button>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+                  {activity.progress !== undefined && (
+                    <div className="mb-2">
+                      <div className="flex justify-between text-xs text-white/50 mb-1">
+                        <span>Progress</span>
+                        <span>{activity.progress}%</span>
+                      </div>
+                      <div className="w-full bg-white/10 rounded-full h-1.5">
+                        <motion.div
+                          className="bg-gradient-to-r from-blue-400 to-cyan-400 h-1.5 rounded-full"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${activity.progress}%` }}
+                          transition={{ duration: 0.8, delay: 0.2 }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {activity.type === 'available' && (
+                    <button className="text-xs bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 px-2 py-1 rounded-md transition-colors">
+                      Chat Now
+                    </button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
           ))}
+        </AnimatePresence>
+      </div>
+
+      {/* Executive Section - Keep Prime */}
+      <div className="mt-6">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+          <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wider">Executive</h3>
+        </div>
+        
+        <div className="bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/20 rounded-xl p-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center text-xl">
+              👑
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-semibold text-white">Prime</h4>
+              <p className="text-xs text-white/60">Orchestrating your empire</p>
+            </div>
+            <div className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">
+              FOLLOWING
+            </div>
+          </div>
         </div>
       </div>
     </div>

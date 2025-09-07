@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, X, ChevronDown } from 'lucide-react';
+import { Menu, ChevronDown } from 'lucide-react';
 import FeaturesMegaMenu from '../nav/FeaturesMegaMenu';
 import Logo from '../common/Logo';
 
@@ -76,6 +76,7 @@ export default function SimpleNavigation() {
       title: "ENTERTAINMENT",
       items: [
         { label: "Personal Podcast", to: "/features/personal-podcast" },
+        { label: "Financial Story", to: "/features/financial-story", tag: "NEW" },
         { label: "Financial Wellness Studio", to: "/features/wellness-studio" },
         { label: "Spotify Integration", to: "/features/spotify-integration", tag: "NEW" },
         { label: "Dashboard Player", to: "/dashboard/spotify-integration-new", tag: "BETA" },

@@ -31,7 +31,8 @@ import {
   Banknote,
   Star,
   Sparkles,
-  Crown
+  Crown,
+  BookOpen
 } from 'lucide-react';
 import Logo from '../common/Logo';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -242,6 +243,15 @@ export default function Sidebar({
               {shouldShowLabels && <span className="font-medium text-white/90">Smart Categories</span>}
             </NavLink>
           </li>
+        </ul>
+
+        {/* PLANNING & ANALYSIS */}
+        {shouldShowLabels && (
+          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
+            Planning & Analysis
+          </div>
+        )}
+        <ul className="space-y-1 mb-4">
           <li>
             <NavLink 
               to="/dashboard/transactions" 
@@ -257,15 +267,6 @@ export default function Sidebar({
               {shouldShowLabels && <span className="font-medium text-white/90">Transactions</span>}
             </NavLink>
           </li>
-        </ul>
-
-        {/* PLANNING & ANALYSIS */}
-        {shouldShowLabels && (
-          <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-            Planning & Analysis
-          </div>
-        )}
-        <ul className="space-y-1 mb-4">
           <li>
             <NavLink 
               to="/dashboard/goal-concierge" 
@@ -279,6 +280,21 @@ export default function Sidebar({
             >
               <Target size={20} className="flex-shrink-0 text-white/90" />
               {shouldShowLabels && <span className="font-medium text-white/90">AI Goal Concierge</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/smart-automation" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <Zap size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Smart Automation</span>}
             </NavLink>
           </li>
           <li>
@@ -367,6 +383,21 @@ export default function Sidebar({
           </li>
           <li>
             <NavLink 
+              to="/dashboard/financial-story" 
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+              style={{ minHeight: '48px' }}
+              onClick={() => isMobileOpen && setIsMobileOpen(false)}
+            >
+              <BookOpen size={20} className="flex-shrink-0 text-white/90" />
+              {shouldShowLabels && <span className="font-medium text-white/90">Financial Story</span>}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
               to="/dashboard/financial-therapist" 
               className={({ isActive }) => 
                 `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
@@ -448,21 +479,6 @@ export default function Sidebar({
             >
               <Building2 size={20} className="flex-shrink-0 text-white/90" />
               {shouldShowLabels && <span className="font-medium text-white/90">Business Intelligence</span>}
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/smart-automation" 
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-              style={{ minHeight: '48px' }}
-              onClick={() => isMobileOpen && setIsMobileOpen(false)}
-            >
-              <Zap size={20} className="flex-shrink-0 text-white/90" />
-              {shouldShowLabels && <span className="font-medium text-white/90">Smart Automation</span>}
             </NavLink>
           </li>
         </ul>

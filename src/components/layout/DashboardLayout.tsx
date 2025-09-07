@@ -83,12 +83,10 @@ export default function DashboardLayout() {
               <Outlet />
             </main>
             
-            {/* AI Team Sidebar - Only show on main dashboard */}
-            {location.pathname === '/dashboard' && (
-              <aside className="hidden lg:block w-[280px] shrink-0 bg-[rgba(15,23,42,0.95)] border-l border-white/10">
-                <AITeamSidebar />
-              </aside>
-            )}
+            {/* AI Team Sidebar - Show on all dashboard pages */}
+            <aside className="hidden lg:block w-[280px] shrink-0 bg-[rgba(15,23,42,0.95)] border-l border-white/10">
+              <AITeamSidebar />
+            </aside>
           </div>
         </div>
 

@@ -154,7 +154,7 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
         {/* Page Title */}
         <div className="flex-1">
           <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 bg-clip-text text-transparent mb-2">
-            {customTitle || pageTitles[location.pathname]?.title || 'Dashboard'}
+            {pageInfo.title}
           </h1>
         </div>
         
@@ -272,7 +272,7 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
       {/* Subtitle */}
       <div>
         <p className="text-xl text-white/80">
-          {customSubtitle || pageTitles[location.pathname]?.subtitle || 'Your financial command center'}
+          {pageInfo.subtitle}
         </p>
       </div>
     </header>

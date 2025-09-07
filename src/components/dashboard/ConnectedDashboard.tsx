@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Upload, 
@@ -13,9 +13,9 @@ import {
   FileText,
   BarChart3,
   Settings,
-  Play,
   Loader2,
-  Tag
+  Tag,
+  BookOpen
 } from 'lucide-react';
 import { UniversalAIController } from '../../services/UniversalAIController';
 import { UniversalChatInterface } from '../chat/UniversalChatInterface';
@@ -89,7 +89,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   // Handle processing completion
   const handleProcessingComplete = (result: ProcessingResult) => {
     setShowProcessingModal(false);
-    showNotification({ 
+    setShowNotification({ 
       type: 'success', 
       message: `Byte processed ${result.totalProcessed} transactions! Redirecting to transactions page...` 
     });
@@ -136,21 +136,16 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       // Simulate podcast generation
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      showNotification({ type: 'success', message: 'Your personalized podcast is ready! Check the podcast dashboard.' });
+      setShowNotification({ type: 'success', message: 'Your personalized podcast is ready! Check the podcast dashboard.' });
       
     } catch (error) {
-      showNotification({ type: 'error', message: 'Error generating podcast. Please try again.' });
+      setShowNotification({ type: 'error', message: 'Error generating podcast. Please try again.' });
     } finally {
       setIsProcessing(false);
       setProcessingStatus('');
     }
   };
 
-  // Categorization Connection
-  const handleManageCategories = async () => {
-    if (!user) return;
-    setActiveChat('categorization');
-  };
 
   // Debt Elimination Connection
   const handleDebtElimination = async () => {
@@ -170,21 +165,9 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     setActiveChat('budget-reality');
   };
 
-  // Process document with personality
-  const processDocumentWithPersonality = async (file: File, userId: string) => {
-    // Simulate document processing with Byte's personality
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const byteResponse = await aiController.chatWithEmployee(
-      'smart-import',
-      `I just finished processing "${file.name}" and found some fascinating patterns!`,
-      userId
-    );
-    
-    showNotification({ type: 'success', message: `Byte: ${byteResponse.response}` });
-  };
 
-  const aiEmployeeCards = [
+  // AI WORKSPACE cards
+  const aiWorkspaceCards = [
     {
       id: 'smart-import',
       title: 'Smart Import AI',
@@ -198,7 +181,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     },
     {
       id: 'financial-assistant',
-      title: 'AI Financial Assistant',
+      title: 'AI Chat Assistant',
       description: 'Chat with our AI assistant for personalized financial advice, insights, and real-time analysis of your data.',
       icon: <MessageCircle className="w-6 h-6" />,
       stats: { available: "24/7", accuracy: "99.7%" },
@@ -208,33 +191,50 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     },
     {
       id: 'smart-categorization',
-      title: 'Smart Categorization',
+      title: 'Smart Categories',
       description: 'Automatically categorize your transactions with AI. Learn from your corrections and improve over time.',
       icon: <Tag className="w-6 h-6" />,
       stats: { accuracy: "96%", categoriesLearned: 47 },
       buttonText: 'Categorize Now',
       onClick: () => navigate('/dashboard/ai-categorization'),
       color: 'from-orange-500 to-orange-600'
-    },
+    }
+  ];
+
+  // PLANNING & ANALYSIS cards
+  const planningAnalysisCards = [
     {
-      id: 'financial-therapist',
-      title: 'AI Financial Therapist',
-      description: 'Emotional and behavioral coaching to improve your financial wellness. Chat about money stress and get support.',
-      icon: <Heart className="w-6 h-6" />,
-      stats: { lastSession: "3 days ago", stressLevel: "Low" },
-      buttonText: 'Start Session',
-      onClick: handleStartSession,
-      color: 'from-pink-500 to-pink-600'
+      id: 'transactions',
+      title: 'Transactions',
+      description: 'View and manage all your financial transactions with detailed insights.',
+      icon: <FileText className="w-6 h-6" />,
+      stats: { total: "1,247", thisMonth: 89 },
+      buttonText: 'View All',
+      onClick: () => navigate('/dashboard/transactions'),
+      color: 'from-blue-500 to-blue-600',
+      isLoading: false
     },
     {
       id: 'goal-concierge',
-      title: 'Goal Concierge',
+      title: 'AI Goal Concierge',
       description: 'Set and track your financial goals with personalized coaching.',
       icon: <Target className="w-6 h-6" />,
       stats: { activeGoals: 3, completionRate: "87%" },
       buttonText: 'Set Goals',
       onClick: handleSetGoals,
-      color: 'from-purple-500 to-purple-600'
+      color: 'from-purple-500 to-purple-600',
+      isLoading: false
+    },
+    {
+      id: 'smart-automation',
+      title: 'Smart Automation',
+      description: 'Automate repetitive financial tasks with AI-powered workflows.',
+      icon: <Zap className="w-6 h-6" />,
+      stats: { automations: 12, timeSaved: "8h/week" },
+      buttonText: 'Configure',
+      onClick: () => navigate('/dashboard/smart-automation'),
+      color: 'from-yellow-500 to-yellow-600',
+      isLoading: false
     },
     {
       id: 'spending-predictions',
@@ -244,51 +244,46 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       stats: { accuracy: "94%", predictions: 156 },
       buttonText: 'View Predictions',
       onClick: handleViewPredictions,
-      color: 'from-indigo-500 to-indigo-600'
+      color: 'from-indigo-500 to-indigo-600',
+      isLoading: false
     },
     {
       id: 'debt-elimination',
-      title: 'Debt Elimination',
+      title: 'Debt Payoff Planner',
       description: 'Military-style debt destruction strategies and motivation.',
       icon: <Zap className="w-6 h-6" />,
       stats: { debtReduced: "$12,847", monthsSaved: 18 },
       buttonText: 'Attack Debt',
       onClick: handleDebtElimination,
-      color: 'from-red-500 to-red-600'
+      color: 'from-red-500 to-red-600',
+      isLoading: false
     },
     {
       id: 'investment-strategy',
-      title: 'Investment Strategy',
+      title: 'AI Financial Freedom',
       description: 'Wise investment advice and long-term wealth building strategies.',
       icon: <BarChart3 className="w-6 h-6" />,
       stats: { portfolioGrowth: "23%", riskLevel: "Moderate" },
       buttonText: 'Get Strategy',
       onClick: handleInvestmentStrategy,
-      color: 'from-emerald-500 to-emerald-600'
+      color: 'from-emerald-500 to-emerald-600',
+      isLoading: false
     },
     {
       id: 'budget-reality',
-      title: 'Budget Reality Check',
-      description: 'Direct, honest feedback about your spending habits and budget.',
+      title: 'Bill Reminder System',
+      description: 'Never miss a payment with smart reminders and automated tracking.',
       icon: <Banknote className="w-6 h-6" />,
-      stats: { overBudget: 2, realityScore: "B+" },
-      buttonText: 'Get Reality',
+      stats: { reminders: 5, saved: "$47" },
+      buttonText: 'Set Reminders',
       onClick: handleBudgetReality,
-      color: 'from-orange-500 to-orange-600'
-    },
-    {
-      id: 'categorization',
-      title: 'Smart Categorization',
-      description: 'Chat with our AI to manage categories, review auto-categorization, and get insights on your spending patterns.',
-      icon: <FileText className="w-6 h-6" />,
-      stats: { accuracy: "98.3%", categories: 24 },
-      buttonText: 'Chat & Manage',
-      onClick: handleManageCategories,
-      color: 'from-cyan-500 to-cyan-600'
+      color: 'from-orange-500 to-orange-600',
+      isLoading: false
     }
   ];
 
-  const entertainmentFeatures = [
+  // ENTERTAINMENT & WELLNESS cards
+  const entertainmentWellnessCards = [
     {
       id: 'personal-podcast',
       title: 'Personal Podcast',
@@ -301,6 +296,37 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       isLoading: isProcessing && processingStatus.includes('podcast')
     },
     {
+      id: 'financial-story',
+      title: 'Financial Story',
+      description: 'Transform your financial data into engaging stories with AI storytellers.',
+      icon: <BookOpen className="w-6 h-6" />,
+      stats: { stories: 4, lastCreated: "1 hour ago" },
+      buttonText: 'Create Story',
+      onClick: () => navigate('/dashboard/financial-story'),
+      color: 'from-purple-500 to-purple-600'
+    },
+    {
+      id: 'financial-therapist',
+      title: 'AI Financial Therapist',
+      description: 'Emotional and behavioral coaching to improve your financial wellness. Chat about money stress and get support.',
+      icon: <Heart className="w-6 h-6" />,
+      stats: { lastSession: "3 days ago", stressLevel: "Low" },
+      buttonText: 'Start Session',
+      onClick: handleStartSession,
+      color: 'from-pink-500 to-pink-600'
+    },
+    {
+      id: 'wellness-studio',
+      title: 'Wellness Studio',
+      description: 'Educational content and guided sessions for financial health and wellness.',
+      icon: <Heart className="w-6 h-6" />,
+      stats: { sessions: 12, wellnessScore: "85%" },
+      buttonText: 'Start Session',
+      onClick: () => navigate('/dashboard/wellness-studio'),
+      color: 'from-pink-500 to-pink-600',
+      isLoading: false
+    },
+    {
       id: 'spotify-integration',
       title: 'Spotify Integration',
       description: 'Curated playlists for focus, relaxation, and financial motivation.',
@@ -308,9 +334,74 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       stats: { status: "Connected", playlists: 8 },
       buttonText: 'Connect',
       onClick: () => window.open('/dashboard/spotify-integration', '_blank'),
-      color: 'from-green-500 to-green-600'
+      color: 'from-green-500 to-green-600',
+      isLoading: false
     }
   ];
+
+  // BUSINESS & TAX cards
+  const businessTaxCards = [
+    {
+      id: 'tax-assistant',
+      title: 'Tax Assistant',
+      description: 'AI-powered tax preparation and optimization for maximum savings.',
+      icon: <FileText className="w-6 h-6" />,
+      stats: { savings: "$2,400", accuracy: "99%" },
+      buttonText: 'Get Started',
+      onClick: () => navigate('/dashboard/tax-assistant'),
+      color: 'from-blue-500 to-blue-600',
+      isLoading: false
+    },
+    {
+      id: 'business-intelligence',
+      title: 'Business Intelligence',
+      description: 'Advanced analytics and insights for business growth and optimization.',
+      icon: <BarChart3 className="w-6 h-6" />,
+      stats: { reports: 8, insights: 156 },
+      buttonText: 'View Reports',
+      onClick: () => navigate('/dashboard/business-intelligence'),
+      color: 'from-indigo-500 to-indigo-600',
+      isLoading: false
+    }
+  ];
+
+  // TOOLS & SETTINGS cards
+  const toolsSettingsCards = [
+    {
+      id: 'analytics',
+      title: 'Analytics',
+      description: 'Comprehensive financial reports and detailed analytics dashboard.',
+      icon: <BarChart3 className="w-6 h-6" />,
+      stats: { metrics: 24, lastUpdate: "1 hour ago" },
+      buttonText: 'View Analytics',
+      onClick: () => navigate('/dashboard/analytics'),
+      color: 'from-purple-500 to-purple-600',
+      isLoading: false
+    },
+    {
+      id: 'settings',
+      title: 'Settings',
+      description: 'Manage your account, preferences, and integrations.',
+      icon: <Settings className="w-6 h-6" />,
+      stats: { lastUpdated: "2 days ago", integrations: 5 },
+      buttonText: 'Open Settings',
+      onClick: () => navigate('/dashboard/settings'),
+      color: 'from-gray-500 to-gray-600',
+      isLoading: false
+    },
+    {
+      id: 'reports',
+      title: 'Reports',
+      description: 'Generate and view comprehensive financial reports.',
+      icon: <FileText className="w-6 h-6" />,
+      stats: { generated: 12, lastReport: "1 week ago" },
+      buttonText: 'View Reports',
+      onClick: () => navigate('/dashboard/reports'),
+      color: 'from-cyan-500 to-cyan-600',
+      isLoading: false
+    }
+  ];
+
 
   return (
     <div className={`space-y-8 ${className}`}>
@@ -342,29 +433,29 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         </motion.div>
       )}
 
-      {/* Core AI Tools Section */}
+      {/* CORE AI TOOLS Section */}
       <div className="space-y-4">
         <div className="text-center">
-          <h2 className="text-xl font-bold text-white mb-2">Core AI Tools</h2>
+          <h2 className="text-xl font-bold text-white mb-2">CORE AI TOOLS</h2>
           <p className="text-white/60 text-sm">Essential AI-powered features for your financial management</p>
         </div>
         <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
-          {aiEmployeeCards.slice(0, 3).map((card, index) => (
+          {aiWorkspaceCards.map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-full"
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
             >
               {/* Header with icon and stats */}
               <div className="flex items-start justify-between mb-3">
                 <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
-                <div className="text-right">
+                <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
-                    <div key={key} className="text-xs text-white/60">
+                    <div key={key} className="text-xs text-white/60 leading-tight">
                       {key}: <span className="text-white/90">{value}</span>
                     </div>
                   ))}
@@ -399,41 +490,48 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         </div>
       </div>
 
-      {/* Planning & Analysis Section */}
-      <div className="space-y-6">
+      {/* PLANNING & ANALYSIS Section */}
+      <div className="space-y-4">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Planning & Analysis</h2>
+          <h2 className="text-xl font-bold text-white mb-2">PLANNING & ANALYSIS</h2>
           <p className="text-white/60 text-sm">Advanced tools for financial planning and strategic analysis</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {aiEmployeeCards.slice(3, 6).map((card, index) => (
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+          {planningAnalysisCards.map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: (index + 3) * 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center text-white`}>
+              {/* Header with icon and stats */}
+              <div className="flex items-start justify-between mb-3">
+                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
-                <div className="text-right">
+                <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
-                    <div key={key} className="text-xs text-white/60">
+                    <div key={key} className="text-xs text-white/60 leading-tight">
                       {key}: <span className="text-white/90">{value}</span>
                     </div>
                   ))}
                 </div>
               </div>
               
-              <h3 className="text-white font-semibold text-lg mb-2">{card.title}</h3>
-              <p className="text-white/70 text-sm mb-4">{card.description}</p>
+              {/* Title */}
+              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+                {card.title}
+              </h3>
               
+              {/* Description - flex-grow to fill available space */}
+              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              
+              {/* Button - always at bottom */}
               <button
                 onClick={card.onClick}
                 disabled={card.isLoading}
-                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
               >
                 {card.isLoading ? (
                   <>
@@ -449,41 +547,48 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         </div>
       </div>
 
-      {/* Additional Tools Section */}
-      <div className="space-y-6">
+      {/* ENTERTAINMENT & WELLNESS Section */}
+      <div className="space-y-4">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Additional Tools</h2>
-          <p className="text-white/60 text-sm">Specialized tools for advanced financial management</p>
+          <h2 className="text-xl font-bold text-white mb-2">ENTERTAINMENT & WELLNESS</h2>
+          <p className="text-white/60 text-sm">Fun and engaging features to make finance enjoyable</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {aiEmployeeCards.slice(6).map((card, index) => (
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+          {entertainmentWellnessCards.map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: (index + 6) * 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
+              transition={{ delay: (index + 10) * 0.1 }}
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 bg-gradient-to-r ${card.color} rounded-xl flex items-center justify-center text-white`}>
+              {/* Header with icon and stats */}
+              <div className="flex items-start justify-between mb-3">
+                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
-                <div className="text-right">
+                <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
-                    <div key={key} className="text-xs text-white/60">
+                    <div key={key} className="text-xs text-white/60 leading-tight">
                       {key}: <span className="text-white/90">{value}</span>
                     </div>
                   ))}
                 </div>
               </div>
               
-              <h3 className="text-white font-semibold text-lg mb-2">{card.title}</h3>
-              <p className="text-white/70 text-sm mb-4">{card.description}</p>
+              {/* Title */}
+              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+                {card.title}
+              </h3>
               
+              {/* Description - flex-grow to fill available space */}
+              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              
+              {/* Button - always at bottom */}
               <button
                 onClick={card.onClick}
                 disabled={card.isLoading}
-                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
               >
                 {card.isLoading ? (
                   <>
@@ -499,55 +604,120 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         </div>
       </div>
 
-      {/* Entertainment Section */}
-      <div className="space-y-6">
+      {/* BUSINESS & TAX Section */}
+      <div className="space-y-4">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-white mb-2">Entertainment</h2>
-          <p className="text-white/60 text-sm">Fun and engaging features to make finance enjoyable</p>
+          <h2 className="text-xl font-bold text-white mb-2">BUSINESS & TAX</h2>
+          <p className="text-white/60 text-sm">Professional tools for business and tax management</p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {entertainmentFeatures.map((feature, index) => (
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+          {businessTaxCards.map((card, index) => (
             <motion.div
-              key={feature.id}
+              key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: (aiEmployeeCards.length + index) * 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
+              transition={{ delay: (index + 15) * 0.1 }}
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 bg-gradient-to-r ${feature.color} rounded-xl flex items-center justify-center text-white`}>
-                  {feature.icon}
+              {/* Header with icon and stats */}
+              <div className="flex items-start justify-between mb-3">
+                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
+                  {card.icon}
                 </div>
-                <div className="text-right">
-                  {Object.entries(feature.stats).map(([key, value]) => (
-                    <div key={key} className="text-xs text-white/60">
+                <div className="text-right h-[2.5rem] flex flex-col justify-start">
+                  {Object.entries(card.stats).map(([key, value]) => (
+                    <div key={key} className="text-xs text-white/60 leading-tight">
                       {key}: <span className="text-white/90">{value}</span>
                     </div>
                   ))}
                 </div>
               </div>
               
-              <h3 className="text-white font-semibold text-lg mb-2">{feature.title}</h3>
-              <p className="text-white/70 text-sm mb-4">{feature.description}</p>
+              {/* Title */}
+              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+                {card.title}
+              </h3>
               
+              {/* Description - flex-grow to fill available space */}
+              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              
+              {/* Button - always at bottom */}
               <button
-                onClick={feature.onClick}
-                disabled={feature.isLoading}
-                className={`w-full bg-gradient-to-r ${feature.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-all duration-200 flex items-center justify-center space-x-2`}
+                onClick={card.onClick}
+                disabled={card.isLoading}
+                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
               >
-                {feature.isLoading ? (
+                {card.isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>Processing...</span>
                   </>
                 ) : (
-                  <span>{feature.buttonText}</span>
+                  <span>{card.buttonText}</span>
                 )}
               </button>
             </motion.div>
           ))}
         </div>
       </div>
+
+      {/* TOOLS & SETTINGS Section */}
+      <div className="space-y-4">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-white mb-2">TOOLS & SETTINGS</h2>
+          <p className="text-white/60 text-sm">System tools and configuration options</p>
+        </div>
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+          {toolsSettingsCards.map((card, index) => (
+            <motion.div
+              key={card.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: (index + 17) * 0.1 }}
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
+            >
+              {/* Header with icon and stats */}
+              <div className="flex items-start justify-between mb-3">
+                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
+                  {card.icon}
+                </div>
+                <div className="text-right h-[2.5rem] flex flex-col justify-start">
+                  {Object.entries(card.stats).map(([key, value]) => (
+                    <div key={key} className="text-xs text-white/60 leading-tight">
+                      {key}: <span className="text-white/90">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Title */}
+              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+                {card.title}
+              </h3>
+              
+              {/* Description - flex-grow to fill available space */}
+              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              
+              {/* Button - always at bottom */}
+              <button
+                onClick={card.onClick}
+                disabled={card.isLoading}
+                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
+              >
+                {card.isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>{card.buttonText}</span>
+                )}
+              </button>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
 
       {/* Chat Interface */}
       {activeChat && (

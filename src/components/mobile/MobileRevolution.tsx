@@ -21,8 +21,12 @@ const MobileDetection = {
    * Desktop experience remains completely unchanged
    */
   isMobile: () => {
-    return window.innerWidth <= 768 && 
-           ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    // More robust mobile detection
+    const isSmallScreen = window.innerWidth <= 768;
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    return isSmallScreen && (hasTouch || isMobileUserAgent);
   },
 
   /**
@@ -409,14 +413,30 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
 }) => {
   const [stories, setStories] = useState<Story[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Load initial data
+  // Check if we're on mobile and should render
   useEffect(() => {
-    if (MobileDetection.isMobile()) {
-      loadStories();
-      loadEmployees();
-    }
+    const checkMobile = () => {
+      const mobile = MobileDetection.isMobile();
+      setIsMobile(mobile);
+      
+      if (mobile) {
+        loadStories();
+        loadEmployees();
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Don't render on desktop
+  if (!isMobile) {
+    return null;
+  }
 
   const loadStories = async () => {
     // Transform existing data into story format

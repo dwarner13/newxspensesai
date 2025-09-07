@@ -29,6 +29,7 @@ const SECTIONS: Section[] = [
     title: "🎵 AUDIO ENTERTAINMENT",
     items: [
       { label: "Personal Podcast", to: "/features/personal-podcast" },
+      { label: "Financial Story", to: "/features/financial-story", tag: "NEW" },
       { label: "Spotify Integration", to: "/features/spotify-integration" },
       { label: "Wellness Studio", to: "/features/wellness-studio" },
     ],

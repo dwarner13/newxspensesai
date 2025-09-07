@@ -70,6 +70,8 @@ const WellnessStudioFeaturePage = lazy(() => import('./pages/features/wellness-s
 const WellnessStudioPage = lazy(() => import('./pages/dashboard/WellnessStudioPage'));
 const GoalConciergeFeaturePage = lazy(() => import('./pages/features/goal-concierge'));
 const PersonalPodcastFeaturePage = lazy(() => import('./pages/features/personal-podcast'));
+const FinancialStoryFeaturePage = lazy(() => import('./pages/features/financial-story'));
+const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
 const PodcastPage = lazy(() => import('./pages/features/podcast'));
 const GamificationFeaturePage = lazy(() => import('./pages/features/gamification'));
 const BusinessExpensesFeaturePage = lazy(() => import('./pages/features/business-expenses'));
@@ -209,6 +211,7 @@ function App() {
                       <Route path="/features/wellness-studio" element={<WellnessStudioFeaturePage />} />
                       <Route path="/features/goal-concierge" element={<GoalConciergeFeaturePage />} />
                       <Route path="/features/personal-podcast" element={<PersonalPodcastFeaturePage />} />
+                      <Route path="/features/financial-story" element={<FinancialStoryFeaturePage />} />
                       <Route path="/features/podcast" element={<PodcastPage />} />
                       <Route path="/features/gamification" element={<GamificationFeaturePage />} />
                       <Route path="/features/business-expenses" element={<BusinessExpensesFeaturePage />} />
@@ -246,6 +249,7 @@ function App() {
                       <Route path="ai-financial-freedom" element={<AIFinancialFreedomFeaturePage />} />
                       <Route path="therapist-demo" element={<TherapistDemoPage />} />
                       <Route path="personal-podcast" element={<PersonalPodcastPage />} />
+                      <Route path="financial-story" element={<FinancialStoryPage />} />
                       <Route path="podcast" element={<PodcastDashboard />} />
 
                       <Route path="smart-automation" element={<SmartAutomation />} />
