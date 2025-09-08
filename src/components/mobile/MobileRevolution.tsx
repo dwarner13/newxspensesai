@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Crown, Home, Upload, Bot, Mic, Bell } from 'lucide-react';
+import { Crown, Home, Upload, Bot, Mic, Bell, Heart } from 'lucide-react';
 import BossBubble from '../boss/BossBubble';
 import './MobileRevolution.css';
 
