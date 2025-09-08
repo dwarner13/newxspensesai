@@ -35,30 +35,8 @@ const MobileDetection = {
     // Only activate mobile view for dashboard pages on actual mobile devices
     const isDashboardPage = window.location.pathname.includes('/dashboard');
     
-    // For debugging - let's be more permissive for now
-    console.log('Mobile Detection Debug:', {
-      isSmallScreen,
-      hasTouch,
-      isMobileUserAgent,
-      isDashboardPage,
-      pathname: window.location.pathname,
-      userAgent: navigator.userAgent
-    });
-    
-    // More permissive - just check for small screen and dashboard
-    // For testing, let's be even more permissive
-    if (isDashboardPage && isSmallScreen) {
-      console.log('Mobile detected: dashboard page with small screen');
-      return true;
-    }
-    
-    // Also check if we're on a dashboard page and it's a mobile user agent
-    if (isDashboardPage && isMobileUserAgent) {
-      console.log('Mobile detected: dashboard page with mobile user agent');
-      return true;
-    }
-    
-    return false;
+    // Only show mobile view on actual mobile devices with touch
+    return isDashboardPage && isSmallScreen && (hasTouch || isMobileUserAgent);
   },
 
   /**
@@ -523,7 +501,6 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   useEffect(() => {
     const checkMobile = () => {
       const mobile = MobileDetection.isMobile();
-      console.log('Mobile check result:', mobile, 'currentView:', currentView);
       setIsMobile(mobile);
       
       if (mobile) {
@@ -540,11 +517,8 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
 
   // Don't render on desktop
   if (!isMobile) {
-    console.log('Not mobile, not rendering mobile component');
     return null;
   }
-  
-  console.log('Mobile component rendering, currentView:', currentView);
 
   const handleStoryAction = (action: string, storyId: string) => {
     if (onStoryAction) {
@@ -610,7 +584,6 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
           <div className="mobile-dashboard">
             <div className="mobile-dashboard-content">
               <h2 className="mobile-dashboard-title">Dashboard</h2>
-              <p style={{color: 'white', fontSize: '12px', marginBottom: '10px'}}>Mobile dashboard is rendering!</p>
               <div className="mobile-dashboard-cards">
                 <div className="mobile-card">
                   <div className="mobile-card-icon">📄</div>
