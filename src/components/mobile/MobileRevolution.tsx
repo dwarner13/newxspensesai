@@ -588,23 +588,24 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   }
 
   return (
-    <div className="mobile-revolution-container" style={{ 
-      position: 'fixed', 
-      top: '10px', 
-      right: '10px', 
-      zIndex: 9999, 
-      background: 'red', 
-      color: 'white', 
-      padding: '10px',
-      borderRadius: '5px',
-      fontSize: '12px'
-    }}>
-      DEBUG: MobileRevolution is rendering!<br/>
-      isMobile: {isMobile ? 'true' : 'false'}<br/>
-      propIsMobile: {propIsMobile ? 'true' : 'false'}<br/>
-      currentView: {currentView}
-    </div>
-    <div className="mobile-revolution-container">
+    <>
+      <div className="mobile-revolution-container" style={{ 
+        position: 'fixed', 
+        top: '10px', 
+        right: '10px', 
+        zIndex: 9999, 
+        background: 'red', 
+        color: 'white', 
+        padding: '10px',
+        borderRadius: '5px',
+        fontSize: '12px'
+      }}>
+        DEBUG: MobileRevolution is rendering!<br/>
+        isMobile: {isMobile ? 'true' : 'false'}<br/>
+        propIsMobile: {propIsMobile ? 'true' : 'false'}<br/>
+        currentView: {currentView}
+      </div>
+      <div className="mobile-revolution-container">
       {/* Main Content Area */}
       <div className="mobile-content">
         {currentView === 'stories' && isMobile && (
@@ -842,6 +843,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
       {/* Desktop Prime Chatbot - Same as desktop */}
       <BossBubble />
     </div>
+    </>
   );
 };
 
