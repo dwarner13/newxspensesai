@@ -37,8 +37,10 @@ const MobileDetection = {
     // Only activate mobile view for dashboard pages on actual mobile devices
     const isDashboardPage = window.location.pathname.includes('/dashboard');
     
-    // Only show mobile view on actual mobile devices with touch
-    return isDashboardPage && isSmallScreen && (hasTouch || isMobileUserAgent);
+    // For testing: show mobile view on small screens OR mobile devices
+    console.log('Mobile detection:', { isDashboardPage, isSmallScreen, hasTouch, isMobileUserAgent });
+    // Temporarily force mobile view for testing
+    return isDashboardPage;
   },
 
   /**
@@ -371,8 +373,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     { id: 'dashboard', icon: '⌂', label: 'Home', badge: null },
     { id: 'import', icon: '☁', label: 'Import', badge: null },
     { id: 'assistant', icon: '🤖', label: 'Assistant', badge: null },
-    { id: 'wellness', icon: '♥', label: 'Wellness', badge: null },
-    { id: 'notifications', icon: '🔔', label: 'Alerts', badge: null }
+    { id: 'wellness', icon: '♥', label: 'Wellness', badge: null }
   ];
 
   const handleNavClick = (itemId: string) => {
@@ -404,6 +405,21 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           {item.badge && <span className="nav-badge">{item.badge}</span>}
         </button>
       ))}
+      
+      {/* Bell Notification - Bottom Right */}
+      <button 
+        className="nav-item bell-notification"
+        onClick={() => console.log('Notifications clicked')}
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          zIndex: 1002
+        }}
+      >
+        <span className="nav-icon">🔔</span>
+        <span className="nav-label">Alerts</span>
+      </button>
     </div>
   );
 };
@@ -516,6 +532,15 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     return () => window.removeEventListener('resize', checkMobile);
   }, [currentView]);
 
+  // Debug logging
+  console.log('MobileRevolution render check:', {
+    isMobile,
+    windowWidth: window.innerWidth,
+    pathname: window.location.pathname,
+    hasTouch: 'ontouchstart' in window,
+    userAgent: navigator.userAgent
+  });
+
   // Don't render on desktop
   if (!isMobile) {
     return null;
@@ -586,9 +611,6 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
             {/* Mobile Header */}
             <div className="mobile-header">
               <div className="mobile-logo-section">
-                <div className="mobile-logo">
-                  <Crown size={32} className="text-yellow-400" />
-                </div>
                 <h1 className="mobile-app-title">XspensesAI</h1>
               </div>
               <div className="mobile-nav-actions">
