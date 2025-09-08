@@ -28,9 +28,13 @@ export const useMobileRevolution = () => {
   // Determine initial view based on current route
   const getInitialView = (): MobileRevolutionState['currentView'] => {
     const path = window.location.pathname;
+    console.log('Getting initial view for path:', path);
+    
     if (path === '/dashboard' || path === '/dashboard/' || path.startsWith('/dashboard/')) {
+      console.log('Setting initial view to dashboard');
       return 'dashboard';
     }
+    console.log('Setting initial view to stories');
     return 'stories';
   };
   
@@ -45,8 +49,21 @@ export const useMobileRevolution = () => {
 
   // Mobile detection
   const isMobile = () => {
-    return window.innerWidth <= 768 && 
-           ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    const isSmallScreen = window.innerWidth <= 768;
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isDashboardPage = window.location.pathname.includes('/dashboard');
+    
+    console.log('Hook mobile detection:', { 
+      isSmallScreen, 
+      hasTouch, 
+      isMobileUserAgent, 
+      isDashboardPage,
+      windowWidth: window.innerWidth,
+      pathname: window.location.pathname
+    });
+    
+    return isDashboardPage && (isSmallScreen || isMobileUserAgent);
   };
 
   // View change handler
@@ -189,6 +206,12 @@ export const useMobileRevolution = () => {
         break;
     }
   };
+
+  console.log('useMobileRevolution returning:', {
+    currentView: state.currentView,
+    isMobile: isMobile(),
+    pathname: window.location.pathname
+  });
 
   return {
     ...state,

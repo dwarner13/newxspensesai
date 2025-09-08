@@ -40,7 +40,17 @@ const MobileDetection = {
     // For testing: show mobile view on small screens OR mobile devices
     console.log('Mobile detection:', { isDashboardPage, isSmallScreen, hasTouch, isMobileUserAgent });
     
-    // Only show mobile view if it's actually a mobile device AND on dashboard pages
+    // For testing: show mobile view on small screens OR mobile devices on dashboard pages
+    console.log('Mobile detection details:', { 
+      isDashboardPage, 
+      isSmallScreen, 
+      hasTouch, 
+      isMobileUserAgent,
+      windowWidth: window.innerWidth,
+      userAgent: navigator.userAgent
+    });
+    
+    // More permissive for testing - show on small screens OR mobile devices
     return isDashboardPage && (isSmallScreen || isMobileUserAgent);
   },
 
@@ -432,6 +442,7 @@ interface MobileRevolutionProps {
   notifications?: number;
   onEmployeeSelect?: (employeeId: string) => void;
   onStoryAction?: (action: string, storyId: string) => void;
+  isMobile?: boolean;
 }
 
 const MobileRevolution: React.FC<MobileRevolutionProps> = ({
@@ -444,7 +455,8 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   activeEmployee = 'prime',
   notifications = 0,
   onEmployeeSelect,
-  onStoryAction
+  onStoryAction,
+  isMobile: propIsMobile = false
 }) => {
   const [stories, setStories] = useState<Story[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -508,28 +520,21 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     setEmployees(mockEmployees);
   };
 
-  // Check if we're on mobile and should render
+  // Use the prop isMobile instead of local detection
   useEffect(() => {
-    const checkMobile = () => {
-      const mobile = MobileDetection.isMobile();
-      console.log('Mobile check result:', mobile, 'Current view:', currentView);
-      setIsMobile(mobile);
-      
-      if (mobile) {
-        loadStories();
-        loadEmployees();
-      }
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
+    console.log('Mobile prop received:', propIsMobile, 'Current view:', currentView);
+    setIsMobile(propIsMobile);
     
-    return () => window.removeEventListener('resize', checkMobile);
-  }, [currentView]);
+    if (propIsMobile) {
+      loadStories();
+      loadEmployees();
+    }
+  }, [propIsMobile, currentView]);
 
   // Debug logging
   console.log('🚀 MobileRevolution render check:', {
     isMobile,
+    propIsMobile,
     windowWidth: window.innerWidth,
     pathname: window.location.pathname,
     hasTouch: 'ontouchstart' in window,
