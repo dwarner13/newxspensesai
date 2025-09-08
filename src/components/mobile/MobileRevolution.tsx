@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Crown } from 'lucide-react';
+import { Crown, Home, Upload, Bot, Heart, Bell } from 'lucide-react';
 import BossBubble from '../boss/BossBubble';
 import './MobileRevolution.css';
 
@@ -39,7 +39,7 @@ const MobileDetection = {
     
     // For testing: show mobile view on small screens OR mobile devices
     console.log('Mobile detection:', { isDashboardPage, isSmallScreen, hasTouch, isMobileUserAgent });
-    // Temporarily force mobile view for testing
+    // Force mobile view for testing - always show on dashboard pages
     return isDashboardPage;
   },
 
@@ -370,10 +370,10 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   }
 
   const navItems = [
-    { id: 'dashboard', icon: '⌂', label: 'Home', badge: null },
-    { id: 'import', icon: '☁', label: 'Import', badge: null },
-    { id: 'assistant', icon: '🤖', label: 'Assistant', badge: null },
-    { id: 'wellness', icon: '♥', label: 'Wellness', badge: null }
+    { id: 'dashboard', icon: 'home', label: 'Home', badge: null },
+    { id: 'import', icon: 'upload', label: 'Import', badge: null },
+    { id: 'assistant', icon: 'bot', label: 'Assistant', badge: null },
+    { id: 'wellness', icon: 'heart', label: 'Wellness', badge: null }
   ];
 
   const handleNavClick = (itemId: string) => {
@@ -400,7 +400,12 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           onClick={() => handleNavClick(item.id)}
           data-id={item.id}
         >
-          <span className="nav-icon">{item.icon}</span>
+          <span className="nav-icon">
+            {item.icon === 'home' && <Home size={20} />}
+            {item.icon === 'upload' && <Upload size={20} />}
+            {item.icon === 'bot' && <Bot size={20} />}
+            {item.icon === 'heart' && <Heart size={20} />}
+          </span>
           <span className="nav-label">{item.label}</span>
           {item.badge && <span className="nav-badge">{item.badge}</span>}
         </button>
@@ -408,17 +413,26 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       
       {/* Bell Notification - Bottom Right */}
       <button 
-        className="nav-item bell-notification"
+        className="bell-notification"
         onClick={() => console.log('Notifications clicked')}
         style={{
           position: 'fixed',
           bottom: '20px',
           right: '20px',
-          zIndex: 1002
+          zIndex: 1002,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '4px',
+          background: 'none',
+          border: 'none',
+          color: 'white',
+          cursor: 'pointer',
+          padding: '8px'
         }}
       >
-        <span className="nav-icon">🔔</span>
-        <span className="nav-label">Alerts</span>
+        <Bell size={20} />
+        <span style={{ fontSize: '10px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Alerts</span>
       </button>
     </div>
   );
@@ -538,7 +552,8 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     windowWidth: window.innerWidth,
     pathname: window.location.pathname,
     hasTouch: 'ontouchstart' in window,
-    userAgent: navigator.userAgent
+    userAgent: navigator.userAgent,
+    currentView
   });
 
   // Don't render on desktop
@@ -608,10 +623,12 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
 
         {currentView === 'dashboard' && (
           <div className="mobile-dashboard">
+            {console.log('Rendering mobile dashboard')}
             {/* Mobile Header */}
             <div className="mobile-header">
               <div className="mobile-logo-section">
-                <h1 className="mobile-app-title">XspensesAI</h1>
+                <div className="mobile-logo-icon">👑</div>
+                <div className="mobile-logo-text">XspensesAI</div>
               </div>
               <div className="mobile-nav-actions">
                 <button className="mobile-menu-btn">☰</button>
