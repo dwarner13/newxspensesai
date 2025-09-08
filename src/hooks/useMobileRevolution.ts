@@ -63,7 +63,8 @@ export const useMobileRevolution = () => {
       pathname: window.location.pathname
     });
     
-    return isDashboardPage && (isSmallScreen || isMobileUserAgent);
+    // For testing: always show on dashboard pages if small screen
+    return isDashboardPage && (isSmallScreen || isMobileUserAgent || window.innerWidth <= 1200);
   };
 
   // View change handler

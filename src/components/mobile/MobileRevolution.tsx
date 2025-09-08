@@ -50,8 +50,8 @@ const MobileDetection = {
       userAgent: navigator.userAgent
     });
     
-    // More permissive for testing - show on small screens OR mobile devices
-    return isDashboardPage && (isSmallScreen || isMobileUserAgent);
+    // For testing: always show on dashboard pages if small screen
+    return isDashboardPage && (isSmallScreen || isMobileUserAgent || window.innerWidth <= 1200);
   },
 
   /**
