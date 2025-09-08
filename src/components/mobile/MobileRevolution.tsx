@@ -9,7 +9,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Crown, Home, Upload, Bot, Heart, Bell } from 'lucide-react';
+import { Crown, Home, Upload, Bot, Mic, Bell } from 'lucide-react';
 import BossBubble from '../boss/BossBubble';
 import './MobileRevolution.css';
 
@@ -412,30 +412,6 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           {item.badge && <span className="nav-badge">{item.badge}</span>}
         </button>
       ))}
-      
-      {/* Bell Notification - Bottom Right */}
-      <button 
-        className="bell-notification"
-        onClick={() => console.log('Notifications clicked')}
-        style={{
-          position: 'fixed',
-          bottom: '20px',
-          right: '20px',
-          zIndex: 1002,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '4px',
-          background: 'none',
-          border: 'none',
-          color: 'white',
-          cursor: 'pointer',
-          padding: '8px'
-        }}
-      >
-        <Bell size={20} />
-        <span style={{ fontSize: '10px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Alerts</span>
-      </button>
     </div>
   );
 };
@@ -472,6 +448,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   const [stories, setStories] = useState<Story[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isMobile, setIsMobile] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const loadStories = async () => {
     // Transform existing data into story format
@@ -565,8 +542,11 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
 
   // Don't render on desktop
   if (!isMobile) {
+    console.log('❌ Not mobile, not rendering');
     return null;
   }
+  
+  console.log('✅ Mobile detected, rendering dashboard');
 
   const handleStoryAction = (action: string, storyId: string) => {
     if (onStoryAction) {
@@ -640,14 +620,50 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                 <div className="mobile-logo-text">XspensesAI</div>
               </div>
               <div className="mobile-nav-actions">
-                <button className="mobile-menu-btn" onClick={() => console.log('Mobile menu clicked')}>☰</button>
+                <button 
+                  className="mobile-menu-btn" 
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                >
+                  ☰
+                </button>
               </div>
             </div>
+            
+            {/* Mobile Menu Dropdown */}
+            {isMobileMenuOpen && (
+              <div className="mobile-menu-dropdown">
+                <div className="mobile-menu-item" onClick={() => { onViewChange('dashboard'); setIsMobileMenuOpen(false); }}>
+                  <span>🏠</span>
+                  <span>Dashboard</span>
+                </div>
+                <div className="mobile-menu-item" onClick={() => { onUpload(); setIsMobileMenuOpen(false); }}>
+                  <span>☁️</span>
+                  <span>Import Documents</span>
+                </div>
+                <div className="mobile-menu-item" onClick={() => { onViewChange('chat'); setIsMobileMenuOpen(false); }}>
+                  <span>🤖</span>
+                  <span>AI Assistant</span>
+                </div>
+                <div className="mobile-menu-item" onClick={() => { window.location.href = '/dashboard/wellness-studio'; setIsMobileMenuOpen(false); }}>
+                  <span>❤️</span>
+                  <span>Wellness Studio</span>
+                </div>
+                <div className="mobile-menu-item" onClick={() => { window.location.href = '/dashboard/transactions'; setIsMobileMenuOpen(false); }}>
+                  <span>📊</span>
+                  <span>Transactions</span>
+                </div>
+                <div className="mobile-menu-item" onClick={() => { window.location.href = '/dashboard/ai-categorization'; setIsMobileMenuOpen(false); }}>
+                  <span>🏷️</span>
+                  <span>Smart Categories</span>
+                </div>
+              </div>
+            )}
             
             <div className="mobile-dashboard-content">
               <h2 className="mobile-dashboard-title">FinTech Entertainment Platform</h2>
               <p className="mobile-welcome-text">Welcome back, John! Here's your financial overview.</p>
               <div className="mobile-dashboard-cards">
+                {console.log('🎯 Rendering dashboard cards')}
                 <div className="mobile-card">
                   <div className="mobile-card-icon">📄</div>
                   <div className="mobile-card-content">

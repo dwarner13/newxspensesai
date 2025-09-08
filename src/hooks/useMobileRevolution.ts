@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface MobileRevolutionState {
-  currentView: 'stories' | 'processing' | 'live' | 'upload' | 'dashboard';
+  currentView: 'stories' | 'processing' | 'live' | 'upload' | 'dashboard' | 'chat';
   isProcessing: boolean;
   transactionCount: number;
   discoveries: Array<{
@@ -28,7 +28,7 @@ export const useMobileRevolution = () => {
   // Determine initial view based on current route
   const getInitialView = (): MobileRevolutionState['currentView'] => {
     const path = window.location.pathname;
-    if (path === '/dashboard' || path === '/dashboard/') {
+    if (path === '/dashboard' || path === '/dashboard/' || path.startsWith('/dashboard/')) {
       return 'dashboard';
     }
     return 'stories';
@@ -68,6 +68,12 @@ export const useMobileRevolution = () => {
         break;
       case 'live':
         // Show live employee grid
+        break;
+      case 'chat':
+        // Show chat interface
+        break;
+      case 'dashboard':
+        // Show dashboard
         break;
       default:
         break;

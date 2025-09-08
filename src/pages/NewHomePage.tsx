@@ -642,28 +642,28 @@ const FinalCTA = () => (
 const NewHomePage = () => {
   return (
     <>
-      <Helmet>
-        <title>XspensesAI - World's First FinTech Entertainment Platform | AI Reads Any Statement</title>
-        <meta name="description" content="Revolutionary AI reads any bank statement, receipt, or financial document instantly. Creates personal podcasts about YOUR money story + Spotify integration. End expense categorization hell forever." />
-        <meta name="keywords" content="AI expense tracker, smart expense management, AI financial assistant, automated expense categorization, financial entertainment platform, AI statement reader, AI reads bank statements automatically, upload any financial document AI organizes, entertainment financial management platform, AI that learns your spending patterns, smart expense import any format, financial podcast creator personal" />
-        <meta property="og:title" content="XspensesAI - World's First FinTech Entertainment Platform | AI Reads Any Statement" />
-        <meta property="og:description" content="Revolutionary AI reads any bank statement, receipt, or financial document instantly. Creates personal podcasts about YOUR money story + Spotify integration. End expense categorization hell forever." />
-        <meta property="og:type" content="website" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="XspensesAI - World's First FinTech Entertainment Platform | AI Reads Any Statement" />
-        <meta name="twitter:description" content="Revolutionary AI reads any bank statement, receipt, or financial document instantly. Creates personal podcasts about YOUR money story + Spotify integration." />
-      </Helmet>
-      <NewHomepageHero />
-      <SmartImportAIDemo />
-      <TaxSeasonTransformation />
-      <RevolutionaryFeatures />
-      <AILearningEvolution />
-      <SmartImportAISection />
-      <SocialProofResults />
-      <CompetitiveDifferentiation />
-      <FinalCTA />
+    <Helmet>
+      <title>XspensesAI - World's First FinTech Entertainment Platform | AI Reads Any Statement</title>
+      <meta name="description" content="Revolutionary AI reads any bank statement, receipt, or financial document instantly. Creates personal podcasts about YOUR money story + Spotify integration. End expense categorization hell forever." />
+      <meta name="keywords" content="AI expense tracker, smart expense management, AI financial assistant, automated expense categorization, financial entertainment platform, AI statement reader, AI reads bank statements automatically, upload any financial document AI organizes, entertainment financial management platform, AI that learns your spending patterns, smart expense import any format, financial podcast creator personal" />
+      <meta property="og:title" content="XspensesAI - World's First FinTech Entertainment Platform | AI Reads Any Statement" />
+      <meta property="og:description" content="Revolutionary AI reads any bank statement, receipt, or financial document instantly. Creates personal podcasts about YOUR money story + Spotify integration. End expense categorization hell forever." />
+      <meta property="og:type" content="website" />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content="XspensesAI - World's First FinTech Entertainment Platform | AI Reads Any Statement" />
+      <meta name="twitter:description" content="Revolutionary AI reads any bank statement, receipt, or financial document instantly. Creates personal podcasts about YOUR money story + Spotify integration." />
+    </Helmet>
+    <NewHomepageHero />
+    <SmartImportAIDemo />
+    <TaxSeasonTransformation />
+    <RevolutionaryFeatures />
+    <AILearningEvolution />
+    <SmartImportAISection />
+    <SocialProofResults />
+    <CompetitiveDifferentiation />
+    <FinalCTA />
     </>
-  );
+);
 };
 
 export default NewHomePage;

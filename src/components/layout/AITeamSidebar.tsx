@@ -283,14 +283,14 @@ const AITeamSidebar: React.FC = () => {
             </div>
           <div className="bg-green-500/20 text-green-400 text-xs rounded-full px-1.5 py-0.5 min-w-[16px] h-4 flex items-center justify-center animate-pulse">
             {activities.length}
-          </div>
         </div>
+      </div>
 
         <div ref={activityRef} className="space-y-0.5 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-          <AnimatePresence>
+        <AnimatePresence>
             {activities.slice(0, 6).map((activity, index) => (
-              <motion.div
-                key={activity.id}
+            <motion.div
+              key={activity.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
@@ -316,16 +316,16 @@ const AITeamSidebar: React.FC = () => {
               </motion.div>
             ))}
           </AnimatePresence>
-        </div>
-      </div>
-
+                  </div>
+                </div>
+                
       {/* Ultra-Compact WORKERS */}
       <div className="mb-1">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-xs font-semibold text-white/80 uppercase tracking-wider">WORKERS</h3>
           <span className="text-xs text-white/60">{activeWorkers.length}/4</span>
-        </div>
-        
+                  </div>
+                  
         <div className="space-y-0.5">
           {activeWorkers.length > 0 ? (
             activeWorkers.slice(0, 4).map((workerName) => {
@@ -361,10 +361,10 @@ const AITeamSidebar: React.FC = () => {
                       className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
                       style={{ width: `${progress || 0}%` }}
                     ></div>
-                </div>
+                      </div>
                   <div className="text-xs text-center text-blue-400 font-semibold">
                     {progress || 0}%
-                  </div>
+                      </div>
                 </motion.div>
               );
             })
@@ -373,7 +373,7 @@ const AITeamSidebar: React.FC = () => {
               <p className="text-xs text-white/50">No active workers</p>
                     </div>
                   )}
-              </div>
+                </div>
       </div>
 
       {/* Prime at Bottom */}

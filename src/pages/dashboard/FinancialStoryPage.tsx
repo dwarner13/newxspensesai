@@ -12,7 +12,7 @@ import {
   Users,
   Zap,
   ArrowRight,
-  Play,
+  Play, 
   Mic,
   Headphones
 } from 'lucide-react';
@@ -112,14 +112,14 @@ const FinancialStoryPage: React.FC = () => {
             <div>
               <h1 className="text-2xl font-bold text-white mb-1">Financial Story Center</h1>
               <p className="text-white/70 text-sm">AI-powered financial narratives for podcasters</p>
-            </div>
           </div>
+        </div>
         </motion.div>
 
         {/* Action Buttons */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="flex justify-center gap-3 mb-6"
         >
@@ -131,14 +131,14 @@ const FinancialStoryPage: React.FC = () => {
             <Zap className="w-4 h-4" />
             {isLoading ? 'Generating...' : 'Generate Story'}
           </button>
-          <button
+                <button
             onClick={() => setShowStoryAI(true)}
             className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity flex items-center gap-2 text-sm"
-          >
+                >
             <BookOpen className="w-4 h-4" />
             AI Assistant
-          </button>
-        </motion.div>
+                </button>
+          </motion.div>
 
         {/* Stories Grid */}
           <motion.div
@@ -163,15 +163,15 @@ const FinancialStoryPage: React.FC = () => {
             </div>
           ) : (
             stories.map((story, index) => (
-              <motion.div
+            <motion.div
                 key={story.storyId}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 * index }}
                 className="bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer group"
                 onClick={() => setSelectedStory(story)}
-              >
-                {/* Story Header */}
+            >
+              {/* Story Header */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-lg flex items-center justify-center">
@@ -181,7 +181,7 @@ const FinancialStoryPage: React.FC = () => {
                       <h3 className="text-white font-semibold text-sm">Financial Story</h3>
                       <p className="text-white/60 text-xs">ID: {story.storyId.slice(-8)}</p>
                     </div>
-                  </div>
+                </div>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(story.status)}`}>
                     {story.status}
                   </span>
@@ -196,8 +196,8 @@ const FinancialStoryPage: React.FC = () => {
                   <div className="text-center">
                     <div className="text-lg font-bold text-white">{story.insights.length}</div>
                     <div className="text-white/60 text-xs">Insights</div>
-                  </div>
                 </div>
+              </div>
 
                 {/* Story Hooks */}
                 <div className="mb-3">
@@ -206,13 +206,13 @@ const FinancialStoryPage: React.FC = () => {
                     {story.storyHooks.slice(0, 2).map((hook, hookIndex) => (
                       <div key={hookIndex} className="text-white/70 text-xs truncate">
                         {hook.hook}
-                      </div>
+                  </div>
                     ))}
                     {story.storyHooks.length > 2 && (
                       <div className="text-blue-400 text-xs">+{story.storyHooks.length - 2} more...</div>
-                    )}
-                  </div>
+                  )}
                 </div>
+              </div>
 
                 {/* Actions */}
                 <div className="flex gap-2 mb-3">
@@ -351,31 +351,31 @@ const FinancialStoryPage: React.FC = () => {
                               'text-red-400 bg-red-400/10'
                             }`}>
                               {hook.podcastPotential} potential
-                            </span>
+                    </span>
                           </div>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                  ))}
                 </div>
+              </div>
 
-                {/* Actions */}
+              {/* Actions */}
                 <div className="flex gap-4">
-                  <button
+                <button
                     onClick={() => exportStory(selectedStory)}
                     className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-                  >
+                >
                     <Download className="w-5 h-5" />
                     Export Story
-                  </button>
+                </button>
                   <button
                     onClick={() => setShowStoryAI(true)}
                     className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
                   >
                     <BookOpen className="w-5 h-5" />
                     AI Analysis
-            </button>
-                </div>
+                </button>
+              </div>
               </div>
             </motion.div>
           </motion.div>
