@@ -367,21 +367,24 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   const navItems = [
     { id: 'dashboard', icon: '⌂', label: 'Home', badge: null },
-    { id: 'transactions', icon: '≡', label: 'Transactions', badge: null },
-    { id: 'chat', icon: '◐', label: 'AI Chat', badge: null },
-    { id: 'notifications', icon: '!', label: 'Alerts', badge: notifications > 0 ? notifications.toString() : null }
+    { id: 'import', icon: '☁', label: 'Import', badge: null },
+    { id: 'assistant', icon: '🤖', label: 'Assistant', badge: null },
+    { id: 'wellness', icon: '♥', label: 'Wellness', badge: null },
+    { id: 'more', icon: '☰', label: 'More', badge: null }
   ];
 
   const handleNavClick = (itemId: string) => {
     if (itemId === 'dashboard') {
       onViewChange('dashboard');
-    } else if (itemId === 'transactions') {
-      navigate('/dashboard/transactions');
-    } else if (itemId === 'chat') {
+    } else if (itemId === 'import') {
+      onUpload();
+    } else if (itemId === 'assistant') {
       onViewChange('chat');
-    } else if (itemId === 'notifications') {
-      // Handle notifications - could open a notifications panel
-      console.log('Notifications clicked');
+    } else if (itemId === 'wellness') {
+      navigate('/dashboard/wellness-studio');
+    } else if (itemId === 'more') {
+      // Handle more menu - could open a side menu
+      console.log('More menu clicked');
     }
   };
 
