@@ -159,6 +159,10 @@ function App() {
   const [isTherapistModalOpen] = useAtom(isTherapistModalOpenAtom);
   const mobileRevolution = useMobileRevolution();
   
+  // Debug logging
+  console.log('App.tsx - mobileRevolution hook result:', mobileRevolution);
+  console.log('App.tsx - current pathname:', window.location.pathname);
+  
   return (
     <BossProvider>
       <AuthProvider>
@@ -167,6 +171,22 @@ function App() {
             <AIFinancialAssistantProvider>
               <UserProvider>
                 <ScrollToTop />
+                {/* Debug indicator - always show */}
+                <div style={{
+                  position: 'fixed',
+                  top: '50px',
+                  right: '10px',
+                  background: 'blue',
+                  color: 'white',
+                  padding: '10px',
+                  zIndex: 10000,
+                  fontSize: '12px'
+                }}>
+                  App.tsx - MobileRevolution should render here<br/>
+                  isMobile: {mobileRevolution.isMobile ? 'true' : 'false'}<br/>
+                  currentView: {mobileRevolution.currentView}
+                </div>
+                
                 <MobileRevolution 
                   currentView={mobileRevolution.currentView}
                   onViewChange={mobileRevolution.handleViewChange}

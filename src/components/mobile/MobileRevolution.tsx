@@ -52,7 +52,8 @@ const MobileDetection = {
     
     // For testing: always show on dashboard pages if small screen
     // Temporarily make it always true for testing
-    return isDashboardPage && (isSmallScreen || isMobileUserAgent || window.innerWidth <= 1200 || true);
+    console.log('Component mobile detection result:', isDashboardPage);
+    return isDashboardPage; // Always true for dashboard pages
   },
 
   /**
