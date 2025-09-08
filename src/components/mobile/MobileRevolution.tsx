@@ -616,7 +616,16 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
         )}
 
         {currentView === 'dashboard' && isMobile && (
-          <div className="mobile-dashboard" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000 }}>
+          <div className="mobile-dashboard" style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            zIndex: 1000,
+            height: '100vh',
+            overflowY: 'auto'
+          }}>
             {console.log('Rendering mobile dashboard - isMobile:', isMobile, 'currentView:', currentView)}
             {/* Mobile Header */}
             <div className="mobile-header">
@@ -666,12 +675,30 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
               </div>
             )}
             
-            <div className="mobile-dashboard-content">
+            <div className="mobile-dashboard-content" style={{ 
+              paddingTop: '20px',
+              paddingBottom: '20px',
+              minHeight: 'calc(100vh - 80px)'
+            }}>
               <h2 className="mobile-dashboard-title">FinTech Entertainment Platform</h2>
               <p className="mobile-welcome-text">Welcome back, John! Here's your financial overview.</p>
-              <div className="mobile-dashboard-cards">
-                {console.log('🎯 Rendering dashboard cards')}
-                <div className="mobile-card">
+              {console.log('🎯 Mobile dashboard content rendered')}
+              <div className="mobile-dashboard-cards" style={{ 
+                marginTop: '20px',
+                paddingBottom: '100px',
+                minHeight: '400px'
+              }}>
+                {console.log('🎯 Rendering dashboard cards - cards should be visible now')}
+                <div className="mobile-card" style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px'
+                }}>
                   <div className="mobile-card-icon">📄</div>
                   <div className="mobile-card-content">
                     <h3>Smart Import AI</h3>
@@ -679,7 +706,16 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button">Import & Chat</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card" style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px'
+                }}>
                   <div className="mobile-card-icon">🤖</div>
                   <div className="mobile-card-content">
                     <h3>AI Financial Assistant</h3>
@@ -687,7 +723,16 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button">Chat Now</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card" style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px'
+                }}>
                   <div className="mobile-card-icon">🏷️</div>
                   <div className="mobile-card-content">
                     <h3>Smart Categories</h3>
@@ -695,7 +740,16 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button">Categorize Now</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card" style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px'
+                }}>
                   <div className="mobile-card-icon">📊</div>
                   <div className="mobile-card-content">
                     <h3>Transactions</h3>
@@ -703,7 +757,16 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button">View All</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card" style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px'
+                }}>
                   <div className="mobile-card-icon">🎯</div>
                   <div className="mobile-card-content">
                     <h3>Goal Concierge</h3>
@@ -711,7 +774,16 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button">Set Goals</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card" style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '16px',
+                  padding: '20px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px'
+                }}>
                   <div className="mobile-card-icon">⚡</div>
                   <div className="mobile-card-content">
                     <h3>Smart Automation</h3>
