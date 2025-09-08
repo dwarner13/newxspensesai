@@ -39,8 +39,9 @@ const MobileDetection = {
     
     // For testing: show mobile view on small screens OR mobile devices
     console.log('Mobile detection:', { isDashboardPage, isSmallScreen, hasTouch, isMobileUserAgent });
-    // Force mobile view for testing - always show on dashboard pages
-    return true; // Force mobile view always for testing
+    
+    // Only show mobile view if it's actually a mobile device AND on dashboard pages
+    return isDashboardPage && (isSmallScreen || isMobileUserAgent);
   },
 
   /**
@@ -511,6 +512,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   useEffect(() => {
     const checkMobile = () => {
       const mobile = MobileDetection.isMobile();
+      console.log('Mobile check result:', mobile, 'Current view:', currentView);
       setIsMobile(mobile);
       
       if (mobile) {
@@ -542,11 +544,11 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
 
   // Don't render on desktop
   if (!isMobile) {
-    console.log('❌ Not mobile, not rendering');
+    console.log('❌ Not mobile, not rendering MobileRevolution');
     return null;
   }
   
-  console.log('✅ Mobile detected, rendering dashboard');
+  console.log('✅ Mobile detected, rendering MobileRevolution dashboard');
 
   const handleStoryAction = (action: string, storyId: string) => {
     if (onStoryAction) {
@@ -573,14 +575,14 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     <div className="mobile-revolution-container">
       {/* Main Content Area */}
       <div className="mobile-content">
-        {currentView === 'stories' && (
+        {currentView === 'stories' && isMobile && (
           <MobileStoryFeed 
             stories={stories}
             onStoryAction={handleStoryAction}
           />
         )}
         
-        {currentView === 'processing' && (
+        {currentView === 'processing' && isMobile && (
           <MobileProcessingShow
             isProcessing={isProcessing}
             transactionCount={transactionCount}
@@ -589,14 +591,14 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
           />
         )}
         
-        {currentView === 'live' && (
+        {currentView === 'live' && isMobile && (
           <MobileLiveMode
             employees={employees}
             isLive={true}
           />
         )}
         
-        {currentView === 'chat' && (
+        {currentView === 'chat' && isMobile && (
           <div className="mobile-dashboard">
             <div className="mobile-dashboard-content">
               <h2 className="mobile-dashboard-title">AI Chat</h2>
@@ -608,9 +610,9 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
           </div>
         )}
 
-        {currentView === 'dashboard' && (
-          <div className="mobile-dashboard">
-            {console.log('Rendering mobile dashboard')}
+        {currentView === 'dashboard' && isMobile && (
+          <div className="mobile-dashboard" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000 }}>
+            {console.log('Rendering mobile dashboard - isMobile:', isMobile, 'currentView:', currentView)}
             {/* Mobile Header */}
             <div className="mobile-header">
               <div className="mobile-logo-section">
@@ -725,13 +727,13 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
       </div>
 
       {/* Bottom Navigation */}
-      <MobileBottomNav
-        activeEmployee={activeEmployee}
-        onEmployeeSelect={handleEmployeeSelect}
-        onUpload={onUpload}
-        notifications={notifications}
+              <MobileBottomNav
+          activeEmployee={activeEmployee}
+          onEmployeeSelect={handleEmployeeSelect}
+          onUpload={onUpload}
+          notifications={notifications}
         onViewChange={onViewChange}
-      />
+        />
       
       {/* Desktop Prime Chatbot - Same as desktop */}
       <BossBubble />
