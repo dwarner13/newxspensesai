@@ -47,26 +47,20 @@ export const useMobileRevolution = () => {
     notifications: 3
   });
 
-  // Mobile detection
+  // Mobile detection - more stable
   const isMobile = () => {
-    const isSmallScreen = window.innerWidth <= 768;
-    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const isDashboardPage = window.location.pathname.includes('/dashboard');
+    const isSmallScreen = window.innerWidth <= 1200; // More permissive
     
     console.log('Hook mobile detection:', { 
-      isSmallScreen, 
-      hasTouch, 
-      isMobileUserAgent, 
       isDashboardPage,
       windowWidth: window.innerWidth,
-      pathname: window.location.pathname
+      pathname: window.location.pathname,
+      result: isDashboardPage && isSmallScreen
     });
     
-    // For testing: always show on dashboard pages if small screen
-    // Temporarily make it always true for testing
-    console.log('Hook mobile detection result:', isDashboardPage);
-    return isDashboardPage; // Always true for dashboard pages
+    // Show mobile view on dashboard pages with small screens
+    return isDashboardPage && isSmallScreen;
   };
 
   // View change handler
