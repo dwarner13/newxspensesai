@@ -370,7 +370,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     { id: 'import', icon: '☁', label: 'Import', badge: null },
     { id: 'assistant', icon: '🤖', label: 'Assistant', badge: null },
     { id: 'wellness', icon: '♥', label: 'Wellness', badge: null },
-    { id: 'more', icon: '☰', label: 'More', badge: null }
+    { id: 'notifications', icon: '🔔', label: 'Alerts', badge: null }
   ];
 
   const handleNavClick = (itemId: string) => {
@@ -382,9 +382,9 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       onViewChange('chat');
     } else if (itemId === 'wellness') {
       navigate('/dashboard/wellness-studio');
-    } else if (itemId === 'more') {
-      // Handle more menu - could open a side menu
-      console.log('More menu clicked');
+    } else if (itemId === 'notifications') {
+      // Handle notifications - could open notifications panel
+      console.log('Notifications clicked');
     }
   };
 
@@ -401,11 +401,6 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           {item.badge && <span className="nav-badge">{item.badge}</span>}
         </button>
       ))}
-      
-      {/* Central Upload */}
-      <button className="nav-upload" onClick={onUpload}>
-        <span className="upload-icon">📸</span>
-      </button>
     </div>
   );
 };
