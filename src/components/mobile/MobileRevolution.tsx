@@ -32,9 +32,17 @@ const MobileDetection = {
       return false;
     }
     
-    // Only activate mobile view for dashboard pages on actual mobile devices
-    const isDashboardPage = window.location.pathname.includes('/dashboard');
-    return isDashboardPage && isSmallScreen && (hasTouch || isMobileUserAgent);
+    // Don't activate mobile view on main dashboard - show regular dashboard
+    const isMainDashboard = window.location.pathname === '/dashboard' || window.location.pathname === '/dashboard/';
+    if (isMainDashboard) {
+      return false;
+    }
+    
+    // Only activate mobile view for specific dashboard pages on actual mobile devices
+    const isSpecificDashboardPage = window.location.pathname.includes('/dashboard/') && 
+      !window.location.pathname.includes('/dashboard/ai-categorization') &&
+      !window.location.pathname.includes('/dashboard/smart-categories');
+    return isSpecificDashboardPage && isSmallScreen && (hasTouch || isMobileUserAgent);
   },
 
   /**
