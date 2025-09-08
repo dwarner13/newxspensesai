@@ -9,6 +9,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Crown } from 'lucide-react';
+import BossBubble from '../boss/BossBubble';
 import './MobileRevolution.css';
 
 // ================================================================================
@@ -395,6 +397,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           key={item.id}
           className={`nav-item ${activeEmployee === item.id ? 'active' : ''}`}
           onClick={() => handleNavClick(item.id)}
+          data-id={item.id}
         >
           <span className="nav-icon">{item.icon}</span>
           <span className="nav-label">{item.label}</span>
@@ -580,8 +583,22 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
 
         {currentView === 'dashboard' && (
           <div className="mobile-dashboard">
+            {/* Mobile Header */}
+            <div className="mobile-header">
+              <div className="mobile-logo-section">
+                <div className="mobile-logo">
+                  <Crown size={32} className="text-yellow-400" />
+                </div>
+                <h1 className="mobile-app-title">XspensesAI</h1>
+              </div>
+              <div className="mobile-nav-actions">
+                <button className="mobile-menu-btn">☰</button>
+              </div>
+            </div>
+            
             <div className="mobile-dashboard-content">
-              <h2 className="mobile-dashboard-title">Dashboard</h2>
+              <h2 className="mobile-dashboard-title">FinTech Entertainment Platform</h2>
+              <p className="mobile-welcome-text">Welcome back, John! Here's your financial overview.</p>
               <div className="mobile-dashboard-cards">
                 <div className="mobile-card">
                   <div className="mobile-card-icon">📄</div>
@@ -632,19 +649,28 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   </div>
                 </div>
               </div>
+              
+              {/* Swipe Up Indicator */}
+              <div className="swipe-up-indicator">
+                <div className="swipe-up-arrow">↑</div>
+                <div className="swipe-up-text">Swipe up for AI Stories</div>
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Bottom Navigation */}
-              <MobileBottomNav
-          activeEmployee={activeEmployee}
-          onEmployeeSelect={handleEmployeeSelect}
-          onUpload={onUpload}
-          notifications={notifications}
-          onViewChange={onViewChange}
-        />
+      <MobileBottomNav
+        activeEmployee={activeEmployee}
+        onEmployeeSelect={handleEmployeeSelect}
+        onUpload={onUpload}
+        notifications={notifications}
+        onViewChange={onViewChange}
+      />
+      
+      {/* Desktop Prime Chatbot - Same as desktop */}
+      <BossBubble />
     </div>
   );
 };
