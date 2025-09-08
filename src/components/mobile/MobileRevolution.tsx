@@ -32,17 +32,33 @@ const MobileDetection = {
       return false;
     }
     
-    // Don't activate mobile view on main dashboard - show regular dashboard
-    const isMainDashboard = window.location.pathname === '/dashboard' || window.location.pathname === '/dashboard/';
-    if (isMainDashboard) {
-      return false;
+    // Only activate mobile view for dashboard pages on actual mobile devices
+    const isDashboardPage = window.location.pathname.includes('/dashboard');
+    
+    // For debugging - let's be more permissive for now
+    console.log('Mobile Detection Debug:', {
+      isSmallScreen,
+      hasTouch,
+      isMobileUserAgent,
+      isDashboardPage,
+      pathname: window.location.pathname,
+      userAgent: navigator.userAgent
+    });
+    
+    // More permissive - just check for small screen and dashboard
+    // For testing, let's be even more permissive
+    if (isDashboardPage && isSmallScreen) {
+      console.log('Mobile detected: dashboard page with small screen');
+      return true;
     }
     
-    // Only activate mobile view for specific dashboard pages on actual mobile devices
-    const isSpecificDashboardPage = window.location.pathname.includes('/dashboard/') && 
-      !window.location.pathname.includes('/dashboard/ai-categorization') &&
-      !window.location.pathname.includes('/dashboard/smart-categories');
-    return isSpecificDashboardPage && isSmallScreen && (hasTouch || isMobileUserAgent);
+    // Also check if we're on a dashboard page and it's a mobile user agent
+    if (isDashboardPage && isMobileUserAgent) {
+      console.log('Mobile detected: dashboard page with mobile user agent');
+      return true;
+    }
+    
+    return false;
   },
 
   /**
@@ -355,13 +371,15 @@ interface MobileBottomNavProps {
   onEmployeeSelect: (employeeId: string) => void;
   onUpload: () => void;
   notifications: number;
+  onViewChange: (view: string) => void;
 }
 
 const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   activeEmployee,
   onEmployeeSelect,
   onUpload,
-  notifications
+  notifications,
+  onViewChange
 }) => {
   const navigate = useNavigate();
 
@@ -370,11 +388,24 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   }
 
   const navItems = [
-    { id: 'byte', icon: '📄', label: 'Byte', badge: notifications > 0 ? notifications.toString() : null },
-    { id: 'prime', icon: '👑', label: 'Prime', badge: '!' },
-    { id: 'crystal', icon: '🔮', label: 'Crystal', badge: null },
-    { id: 'team', icon: '👥', label: 'Team', badge: '5' }
+    { id: 'dashboard', icon: '⌂', label: 'Home', badge: null },
+    { id: 'transactions', icon: '≡', label: 'Transactions', badge: null },
+    { id: 'chat', icon: '◐', label: 'AI Chat', badge: null },
+    { id: 'notifications', icon: '!', label: 'Alerts', badge: notifications > 0 ? notifications.toString() : null }
   ];
+
+  const handleNavClick = (itemId: string) => {
+    if (itemId === 'dashboard') {
+      onViewChange('dashboard');
+    } else if (itemId === 'transactions') {
+      navigate('/dashboard/transactions');
+    } else if (itemId === 'chat') {
+      onViewChange('chat');
+    } else if (itemId === 'notifications') {
+      // Handle notifications - could open a notifications panel
+      console.log('Notifications clicked');
+    }
+  };
 
   return (
     <div className="mobile-bottom-nav">
@@ -382,7 +413,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <button 
           key={item.id}
           className={`nav-item ${activeEmployee === item.id ? 'active' : ''}`}
-          onClick={() => onEmployeeSelect(item.id)}
+          onClick={() => handleNavClick(item.id)}
         >
           <span className="nav-icon">{item.icon}</span>
           <span className="nav-label">{item.label}</span>
@@ -403,7 +434,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 // ================================================================================
 
 interface MobileRevolutionProps {
-  currentView: 'stories' | 'processing' | 'live' | 'upload';
+  currentView: 'stories' | 'processing' | 'live' | 'upload' | 'dashboard' | 'chat';
   onViewChange: (view: string) => void;
   onUpload: () => void;
   isProcessing?: boolean;
@@ -492,6 +523,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   useEffect(() => {
     const checkMobile = () => {
       const mobile = MobileDetection.isMobile();
+      console.log('Mobile check result:', mobile, 'currentView:', currentView);
       setIsMobile(mobile);
       
       if (mobile) {
@@ -504,12 +536,15 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     window.addEventListener('resize', checkMobile);
     
     return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+  }, [currentView]);
 
   // Don't render on desktop
   if (!isMobile) {
+    console.log('Not mobile, not rendering mobile component');
     return null;
   }
+  
+  console.log('Mobile component rendering, currentView:', currentView);
 
   const handleStoryAction = (action: string, storyId: string) => {
     if (onStoryAction) {
@@ -558,6 +593,77 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
             isLive={true}
           />
         )}
+        
+        {currentView === 'chat' && (
+          <div className="mobile-dashboard">
+            <div className="mobile-dashboard-content">
+              <h2 className="mobile-dashboard-title">AI Chat</h2>
+              <p style={{color: 'white', fontSize: '12px', marginBottom: '10px'}}>Chat with Tag AI</p>
+              <div style={{padding: '20px', textAlign: 'center'}}>
+                <p style={{color: 'white'}}>Tag AI Chat interface would go here</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {currentView === 'dashboard' && (
+          <div className="mobile-dashboard">
+            <div className="mobile-dashboard-content">
+              <h2 className="mobile-dashboard-title">Dashboard</h2>
+              <p style={{color: 'white', fontSize: '12px', marginBottom: '10px'}}>Mobile dashboard is rendering!</p>
+              <div className="mobile-dashboard-cards">
+                <div className="mobile-card">
+                  <div className="mobile-card-icon">📄</div>
+                  <div className="mobile-card-content">
+                    <h3>Smart Import AI</h3>
+                    <p>Upload and process documents</p>
+                    <button className="mobile-card-button">Import & Chat</button>
+                  </div>
+                </div>
+                <div className="mobile-card">
+                  <div className="mobile-card-icon">🤖</div>
+                  <div className="mobile-card-content">
+                    <h3>AI Financial Assistant</h3>
+                    <p>Get financial advice 24/7</p>
+                    <button className="mobile-card-button">Chat Now</button>
+                  </div>
+                </div>
+                <div className="mobile-card">
+                  <div className="mobile-card-icon">🏷️</div>
+                  <div className="mobile-card-content">
+                    <h3>Smart Categories</h3>
+                    <p>AI-powered categorization</p>
+                    <button className="mobile-card-button">Categorize Now</button>
+                  </div>
+                </div>
+                <div className="mobile-card">
+                  <div className="mobile-card-icon">📊</div>
+                  <div className="mobile-card-content">
+                    <h3>Transactions</h3>
+                    <p>View all transactions</p>
+                    <button className="mobile-card-button">View All</button>
+                  </div>
+                </div>
+                <div className="mobile-card">
+                  <div className="mobile-card-icon">🎯</div>
+                  <div className="mobile-card-content">
+                    <h3>Goal Concierge</h3>
+                    <p>Set and track financial goals</p>
+                    <button className="mobile-card-button">Set Goals</button>
+                  </div>
+                </div>
+                <div className="mobile-card">
+                  <div className="mobile-card-icon">⚡</div>
+                  <div className="mobile-card-content">
+                    <h3>Smart Automation</h3>
+                    <p>Automate financial tasks</p>
+                    <button className="mobile-card-button">Configure</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom Navigation */}
@@ -566,6 +672,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
           onEmployeeSelect={handleEmployeeSelect}
           onUpload={onUpload}
           notifications={notifications}
+          onViewChange={onViewChange}
         />
     </div>
   );

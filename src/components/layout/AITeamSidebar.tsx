@@ -276,7 +276,7 @@ const AITeamSidebar: React.FC = () => {
     <div className="ai-team-sidebar">
       {/* Live Activity Section - Expanded */}
       <div className="mb-2">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 px-1">
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
             <h3 className="text-xs font-semibold text-white/80 uppercase tracking-wider">LIVE ACTIVITY</h3>

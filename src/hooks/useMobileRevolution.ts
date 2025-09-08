@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 interface MobileRevolutionState {
-  currentView: 'stories' | 'processing' | 'live' | 'upload';
+  currentView: 'stories' | 'processing' | 'live' | 'upload' | 'dashboard';
   isProcessing: boolean;
   transactionCount: number;
   discoveries: Array<{
@@ -24,8 +24,18 @@ interface MobileRevolutionState {
 
 export const useMobileRevolution = () => {
   const navigate = useNavigate();
+  
+  // Determine initial view based on current route
+  const getInitialView = (): MobileRevolutionState['currentView'] => {
+    const path = window.location.pathname;
+    if (path === '/dashboard' || path === '/dashboard/') {
+      return 'dashboard';
+    }
+    return 'stories';
+  };
+  
   const [state, setState] = useState<MobileRevolutionState>({
-    currentView: 'stories',
+    currentView: getInitialView(),
     isProcessing: false,
     transactionCount: 0,
     discoveries: [],

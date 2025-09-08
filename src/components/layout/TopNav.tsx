@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useAtom } from 'jotai';
 import { 
   Bell, 
@@ -10,7 +10,8 @@ import {
   HelpCircle,
   Banknote,
   Moon,
-  Sun
+  Sun,
+  X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -27,6 +28,15 @@ interface TopNavProps {
   toggleDarkMode?: () => void;
 }
 
+interface Notification {
+  id: number;
+  title: string;
+  message: string;
+  time: string;
+  type: 'transaction' | 'profile' | 'feature';
+  read: boolean;
+}
+
 const TopNav = ({ toggleDarkMode }: TopNavProps) => {
   const { user, signOut } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useAtom(isMobileMenuOpenAtom);
@@ -34,10 +44,61 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useAtom(isUserMenuOpenAtom);
   const [darkMode] = useAtom(isDarkModeAtom);
   
+  // Notification state management
+  const [notifications, setNotifications] = useState<Notification[]>([
+    {
+      id: 1,
+      title: 'New transaction categorized',
+      message: 'AI categorized 15 transactions',
+      time: '2 hours ago',
+      type: 'transaction',
+      read: false
+    },
+    {
+      id: 2,
+      title: 'Profile updated',
+      message: 'Your profile was updated successfully',
+      time: '1 day ago',
+      type: 'profile',
+      read: false
+    },
+    {
+      id: 3,
+      title: 'New features available',
+      message: 'Check out the new AI categorization',
+      time: '3 days ago',
+      type: 'feature',
+      read: false
+    }
+  ]);
+  
   const notificationsRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const bellRef = useRef<HTMLButtonElement>(null);
   const userButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Notification management functions
+  const markNotificationAsRead = (id: number) => {
+    setNotifications(prev => 
+      prev.map(notification => 
+        notification.id === id 
+          ? { ...notification, read: true }
+          : notification
+      )
+    );
+  };
+
+  const removeNotification = (id: number) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  };
+
+  const markAllAsRead = () => {
+    setNotifications(prev => 
+      prev.map(notification => ({ ...notification, read: true }))
+    );
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -132,7 +193,11 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
             aria-label="Notifications"
           >
             <Bell size={20} />
-            <span className="absolute top-0 right-0 w-2 h-2 bg-primary-500 rounded-full"></span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
           </button>
           
           <AnimatePresence>
@@ -147,50 +212,71 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
                   darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                 }`}
               >
-                <div className={`px-4 py-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                <div className={`px-4 py-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'} flex justify-between items-center`}>
                   <h3 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={markAllAsRead}
+                      className={`text-xs ${darkMode ? 'text-primary-400 hover:text-primary-300' : 'text-primary-600 hover:text-primary-700'}`}
+                    >
+                      Mark all as read
+                    </button>
+                  )}
                 </div>
                 
                 <div className="max-h-96 overflow-y-auto">
-                  {/* Sample notifications */}
-                  <div className={`px-4 py-3 hover:${darkMode ? 'bg-gray-700' : 'bg-gray-50'} transition-colors cursor-pointer`}>
-                    <div className="flex items-start">
-                      <div className={`w-8 h-8 rounded-full ${darkMode ? 'bg-primary-700' : 'bg-primary-100'} flex items-center justify-center mr-3`}>
-                        <Banknote size={16} className={darkMode ? 'text-primary-300' : 'text-primary-600'} />
-                      </div>
-                      <div>
-                        <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>New transaction categorized</p>
-                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>AI categorized 15 transactions</p>
-                        <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'} mt-1`}>2 hours ago</p>
-                      </div>
+                  {notifications.length === 0 ? (
+                    <div className={`px-4 py-8 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      No notifications
                     </div>
-                  </div>
-                  
-                  <div className={`px-4 py-3 hover:${darkMode ? 'bg-gray-700' : 'bg-gray-50'} transition-colors cursor-pointer`}>
-                    <div className="flex items-start">
-                      <div className={`w-8 h-8 rounded-full ${darkMode ? 'bg-success-700' : 'bg-success-100'} flex items-center justify-center mr-3`}>
-                        <User size={16} className={darkMode ? 'text-success-300' : 'text-success-600'} />
+                  ) : (
+                    notifications.map((notification) => (
+                      <div 
+                        key={notification.id}
+                        className={`px-4 py-3 hover:${darkMode ? 'bg-gray-700' : 'bg-gray-50'} transition-colors cursor-pointer group relative ${
+                          !notification.read ? (darkMode ? 'bg-gray-800/50' : 'bg-blue-50/50') : ''
+                        }`}
+                        onClick={() => markNotificationAsRead(notification.id)}
+                      >
+                        <div className="flex items-start">
+                          <div className={`w-8 h-8 rounded-full ${
+                            notification.type === 'transaction' 
+                              ? (darkMode ? 'bg-primary-700' : 'bg-primary-100')
+                              : notification.type === 'profile'
+                              ? (darkMode ? 'bg-success-700' : 'bg-success-100')
+                              : (darkMode ? 'bg-warning-700' : 'bg-warning-100')
+                          } flex items-center justify-center mr-3`}>
+                            {notification.type === 'transaction' && <Banknote size={16} className={darkMode ? 'text-primary-300' : 'text-primary-600'} />}
+                            {notification.type === 'profile' && <User size={16} className={darkMode ? 'text-success-300' : 'text-success-600'} />}
+                            {notification.type === 'feature' && <HelpCircle size={16} className={darkMode ? 'text-warning-300' : 'text-warning-600'} />}
+                          </div>
+                          <div className="flex-1">
+                            <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'} ${!notification.read ? 'font-semibold' : ''}`}>
+                              {notification.title}
+                            </p>
+                            <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {notification.message}
+                            </p>
+                            <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'} mt-1`}>
+                              {notification.time}
+                            </p>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeNotification(notification.id);
+                            }}
+                            className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:${darkMode ? 'bg-gray-600' : 'bg-gray-200'} rounded-full`}
+                          >
+                            <X size={14} className={darkMode ? 'text-gray-400' : 'text-gray-500'} />
+                          </button>
+                        </div>
+                        {!notification.read && (
+                          <div className={`absolute left-0 top-0 bottom-0 w-1 ${darkMode ? 'bg-primary-500' : 'bg-primary-600'} rounded-r`}></div>
+                        )}
                       </div>
-                      <div>
-                        <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>Profile updated</p>
-                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Your profile was updated successfully</p>
-                        <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'} mt-1`}>1 day ago</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className={`px-4 py-3 hover:${darkMode ? 'bg-gray-700' : 'bg-gray-50'} transition-colors cursor-pointer`}>
-                    <div className="flex items-start">
-                      <div className={`w-8 h-8 rounded-full ${darkMode ? 'bg-warning-700' : 'bg-warning-100'} flex items-center justify-center mr-3`}>
-                        <HelpCircle size={16} className={darkMode ? 'text-warning-300' : 'text-warning-600'} />
-                      </div>
-                      <div>
-                        <p className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>New features available</p>
-                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Check out the new AI categorization</p>
-                        <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'} mt-1`}>3 days ago</p>
-                      </div>
-                    </div>
-                  </div>
+                    ))
+                  )}
                 </div>
                 
                 <div className={`px-4 py-2 border-t ${darkMode ? 'border-gray-700' : 'border-gray-100'} text-center`}>
