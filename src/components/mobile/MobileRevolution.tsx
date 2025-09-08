@@ -40,7 +40,7 @@ const MobileDetection = {
     // For testing: show mobile view on small screens OR mobile devices
     console.log('Mobile detection:', { isDashboardPage, isSmallScreen, hasTouch, isMobileUserAgent });
     // Force mobile view for testing - always show on dashboard pages
-    return isDashboardPage;
+    return true; // Force mobile view always for testing
   },
 
   /**
@@ -547,7 +547,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   }, [currentView]);
 
   // Debug logging
-  console.log('MobileRevolution render check:', {
+  console.log('🚀 MobileRevolution render check:', {
     isMobile,
     windowWidth: window.innerWidth,
     pathname: window.location.pathname,
@@ -555,6 +555,11 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     userAgent: navigator.userAgent,
     currentView
   });
+  
+  // Add visible debug indicator
+  if (typeof window !== 'undefined') {
+    console.log('🎯 MOBILE REVOLUTION IS RENDERING!');
+  }
 
   // Don't render on desktop
   if (!isMobile) {
