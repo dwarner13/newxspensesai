@@ -11,24 +11,10 @@ import {
   Table,
   FileSpreadsheet
 } from 'lucide-react';
-import { universalAIEmployeeManager } from '../../lib/universalAIEmployeeConnection';
+// import { universalAIEmployeeManager } from '../../lib/universalAIEmployeeConnection';
 
 const AICategorizationPage: React.FC = () => {
   console.log('AICategorizationPage loading...');
-  
-  // Simple test render first
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-white mb-4">Smart Categories</h1>
-        <p className="text-white/60">AI Categorization Page is loading...</p>
-        <div className="mt-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
-        </div>
-      </div>
-    </div>
-  );
-  
   const [categoryOverviewOpen, setCategoryOverviewOpen] = useState(false);
   const [quickCategorizeOpen, setQuickCategorizeOpen] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
@@ -293,9 +279,26 @@ What would you like to explore about your financial data?`;
         return;
       }
 
-      // Call real Tag AI
-      const response = await universalAIEmployeeManager.chatWithEmployee('Tag', message);
-      console.log('Tag AI response:', response);
+      // Mock Tag AI response for now
+      const response = `🧠 **Tag AI Response** (Demo Mode)
+
+I received your message: "${message}"
+
+Here's what I would normally do:
+
+**For categorization requests:**
+- Analyze transaction patterns
+- Suggest smart categories
+- Create categorization rules
+- Process spending data
+
+**For analysis requests:**
+- Review spending patterns
+- Identify trends and insights
+- Generate reports
+- Provide recommendations
+
+What would you like to explore about your financial data?`;
       
       // Remove loading message and add AI response
       setChatMessages(prev => {
