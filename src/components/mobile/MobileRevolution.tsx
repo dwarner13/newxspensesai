@@ -373,7 +373,8 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     { id: 'dashboard', icon: 'home', label: 'Home', badge: null },
     { id: 'import', icon: 'upload', label: 'Import', badge: null },
     { id: 'assistant', icon: 'bot', label: 'Assistant', badge: null },
-    { id: 'wellness', icon: 'heart', label: 'Wellness', badge: null }
+    { id: 'wellness', icon: 'heart', label: 'Wellness', badge: null },
+    { id: 'alerts', icon: 'bell', label: 'Alerts', badge: null }
   ];
 
   const handleNavClick = (itemId: string) => {
@@ -385,9 +386,9 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       onViewChange('chat');
     } else if (itemId === 'wellness') {
       navigate('/dashboard/wellness-studio');
-    } else if (itemId === 'notifications') {
-      // Handle notifications - could open notifications panel
-      console.log('Notifications clicked');
+    } else if (itemId === 'alerts') {
+      // Handle alerts - could open notifications panel
+      console.log('Alerts clicked');
     }
   };
 
@@ -405,6 +406,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             {item.icon === 'upload' && <Upload size={20} />}
             {item.icon === 'bot' && <Bot size={20} />}
             {item.icon === 'heart' && <Heart size={20} />}
+            {item.icon === 'bell' && <Bell size={20} />}
           </span>
           <span className="nav-label">{item.label}</span>
           {item.badge && <span className="nav-badge">{item.badge}</span>}
@@ -434,6 +436,78 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <Bell size={20} />
         <span style={{ fontSize: '10px', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Alerts</span>
       </button>
+    </div>
+  );
+};
+
+// ================================================================================
+// MOBILE BOTTOM NAVIGATION COMPONENT
+// ================================================================================
+
+interface MobileBottomNavProps {
+  activeEmployee: string;
+  onEmployeeSelect: (employeeId: string) => void;
+  onUpload: () => void;
+  notifications: number;
+  onViewChange: (view: string) => void;
+}
+
+const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
+  activeEmployee,
+  onEmployeeSelect,
+  onUpload,
+  notifications,
+  onViewChange
+}) => {
+  const navigate = useNavigate();
+
+  if (!MobileDetection.isMobile()) {
+    return null;
+  }
+
+  const navItems = [
+    { id: 'dashboard', icon: 'home', label: 'Home', badge: null },
+    { id: 'import', icon: 'upload', label: 'Import', badge: null },
+    { id: 'assistant', icon: 'bot', label: 'Assistant', badge: null },
+    { id: 'wellness', icon: 'heart', label: 'Wellness', badge: null },
+    { id: 'alerts', icon: 'bell', label: 'Alerts', badge: null }
+  ];
+
+  const handleNavClick = (itemId: string) => {
+    if (itemId === 'dashboard') {
+      onViewChange('dashboard');
+    } else if (itemId === 'import') {
+      onUpload();
+    } else if (itemId === 'assistant') {
+      onViewChange('chat');
+    } else if (itemId === 'wellness') {
+      navigate('/dashboard/wellness-studio');
+    } else if (itemId === 'alerts') {
+      // Handle alerts - could open notifications panel
+      console.log('Alerts clicked');
+    }
+  };
+
+  return (
+    <div className="mobile-bottom-nav">
+      {navItems.map((item) => (
+        <button 
+          key={item.id}
+          className={`nav-item ${activeEmployee === item.id ? 'active' : ''}`}
+          onClick={() => handleNavClick(item.id)}
+          data-id={item.id}
+        >
+          <span className="nav-icon">
+            {item.icon === 'home' && <Home size={20} />}
+            {item.icon === 'upload' && <Upload size={20} />}
+            {item.icon === 'bot' && <Bot size={20} />}
+            {item.icon === 'heart' && <Heart size={20} />}
+            {item.icon === 'bell' && <Bell size={20} />}
+          </span>
+          <span className="nav-label">{item.label}</span>
+          {item.badge && <span className="nav-badge">{item.badge}</span>}
+        </button>
+      ))}
     </div>
   );
 };
@@ -632,11 +706,13 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
             {/* Mobile Header */}
             <div className="mobile-header">
               <div className="mobile-logo-section">
-                <div className="mobile-logo-icon">👑</div>
+                <div className="mobile-logo-icon">
+                  <Crown size={24} className="text-white" />
+                </div>
                 <div className="mobile-logo-text">XspensesAI</div>
               </div>
               <div className="mobile-nav-actions">
-                <button className="mobile-menu-btn">☰</button>
+                <button className="mobile-menu-btn" onClick={() => console.log('Mobile menu clicked')}>☰</button>
               </div>
             </div>
             
