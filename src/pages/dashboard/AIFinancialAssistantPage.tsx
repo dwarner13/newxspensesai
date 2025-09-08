@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 import { 
   TrendingUp, 
   CreditCard, 
@@ -23,7 +24,8 @@ import {
   getConversation,
   saveConversation,
   logAIInteraction,
-  generateConversationId
+  generateConversationId,
+  getRecentConversations
 } from '../../lib/ai-employees';
 
 interface FinleyMessage {
@@ -39,32 +41,56 @@ interface FinleyMessage {
 
 export default function AIFinancialAssistantPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const [messages, setMessages] = useState<FinleyMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState('');
+  const [attachments, setAttachments] = useState<File[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize conversation and load Finley's config
   useEffect(() => {
     const initializeFinley = async () => {
       if (!user?.id) return;
 
-      const newConversationId = generateConversationId();
-      setConversationId(newConversationId);
+      // Use a persistent conversation ID based on user ID
+      const persistentConversationId = `finley-${user.id}`;
+      setConversationId(persistentConversationId);
 
       // Load Finley's configuration
       await getEmployeeConfig('finley');
 
       // Load existing conversation if any
-      const existingConversation = await getConversation(user.id, 'finley', newConversationId);
+      const existingConversation = await getConversation(user.id, 'finley', persistentConversationId);
       if (existingConversation && existingConversation.messages.length > 0) {
         setMessages(existingConversation.messages as FinleyMessage[]);
+      } else {
+        // If no conversation with persistent ID, try to get the most recent conversation
+        const recentConversations = await getRecentConversations(user.id, 'finley', 1);
+        if (recentConversations.length > 0) {
+          const recentConversation = recentConversations[0];
+          setMessages(recentConversation.messages as FinleyMessage[]);
+          setConversationId(recentConversation.conversation_id);
+        }
       }
     };
 
     initializeFinley();
   }, [user?.id]);
+
+  // Handle activity context from sidebar navigation
+  useEffect(() => {
+    const activityContext = location.state?.activityContext;
+    if (activityContext && user?.id) {
+      // Auto-send a message about the activity
+      const activityMessage = `I see ${activityContext.aiName} was ${activityContext.activityTitle.toLowerCase()} ${activityContext.timestamp}. Can you tell me more about this?`;
+      setTimeout(() => {
+        sendMessage(activityMessage);
+      }, 1000);
+    }
+  }, [location.state, user?.id]);
 
   // Scroll to top when component mounts
   useEffect(() => {
@@ -73,8 +99,26 @@ export default function AIFinancialAssistantPage() {
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollTop = messagesEndRef.current.scrollHeight;
+    }
   }, [messages]);
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const newFiles = Array.from(files);
+      setAttachments(prev => [...prev, ...newFiles]);
+      
+      // Auto-send message about uploaded files
+      const fileNames = newFiles.map(f => f.name).join(', ');
+      sendMessage(`I uploaded ${fileNames}`);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !user?.id) return;
@@ -98,25 +142,50 @@ export default function AIFinancialAssistantPage() {
       
       const lowerContent = content.toLowerCase();
       
-      if (lowerContent.includes('smart import') || lowerContent.includes('upload') || lowerContent.includes('categorize')) {
+      if (lowerContent.includes('hi') || lowerContent.includes('hello') || lowerContent.includes('hey')) {
+        const userName = user?.name || user?.email?.split('@')[0] || 'there';
         aiResponse = {
           role: 'finley',
-          content: `🚀 **Smart Import AI** is one of our most powerful features! Here's how it works:\n\n• **Automatic Categorization**: Upload your bank statements and watch as AI instantly categorizes every transaction\n• **Pattern Recognition**: Learns from your spending habits to improve accuracy over time\n• **Multi-Format Support**: Works with CSV, PDF, and direct bank connections\n• **Real-time Processing**: Get insights in seconds, not hours\n\nTry uploading a recent statement to see the magic happen! The AI will identify patterns you never noticed before.`,
+          content: `👋 Hi ${userName}! I'm your XspensesAI Financial Assistant. How can I help you today?`,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            processing_time_ms: 800,
+            tokens_used: 50,
+            model_used: 'gpt-4'
+          }
+        };
+      } else if (lowerContent.includes('smart import') || lowerContent.includes('upload') || lowerContent.includes('categorize') || lowerContent.includes('upload document') || lowerContent.includes('process statement')) {
+        const userName = user?.name || user?.email?.split('@')[0] || 'there';
+        aiResponse = {
+          role: 'finley',
+          content: `Great choice! Byte is our document processing superstar. Let me get them...\n\n*Byte joins the conversation*\n\nByte: "Hey ${userName}! 📄 I'm Byte, and I absolutely love processing documents! I can handle bank statements, receipts, CSV files - you name it. I'm super fast and accurate too. What do you have for me to work on?"`,
           timestamp: new Date().toISOString(),
           metadata: {
             processing_time_ms: 1200,
-            tokens_used: 180,
+            tokens_used: 120,
+            model_used: 'gpt-4'
+          }
+        };
+      } else if (lowerContent.includes('add category') || lowerContent.includes('create category') || lowerContent.includes('new category') || lowerContent.includes('can you add a category')) {
+        const userName = user?.name || user?.email?.split('@')[0] || 'there';
+        aiResponse = {
+          role: 'finley',
+          content: `Perfect! Tag is our categorization wizard. Let me grab them...\n\n*Tag joins the conversation*\n\nTag: "Hey ${userName}! 🏷️ I heard you want to add a category. I'm all about keeping things organized! What kind of category are you thinking? Something for work expenses, entertainment, or maybe something totally unique?"`,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            processing_time_ms: 1200,
+            tokens_used: 120,
             model_used: 'gpt-4'
           }
         };
       } else if (lowerContent.includes('smart categories') || lowerContent.includes('categorization')) {
         aiResponse = {
           role: 'finley',
-          content: `🧠 **Smart Categories** uses advanced AI to understand your spending patterns:\n\n• **Dynamic Learning**: Gets smarter with every transaction you review\n• **Custom Categories**: Create personalized categories that match your lifestyle\n• **Anomaly Detection**: Flags unusual spending patterns automatically\n• **Visual Insights**: See your spending breakdown in beautiful charts\n\nPro tip: The more you interact with the categorization suggestions, the more accurate they become. It's like having a personal finance expert that never sleeps!`,
+          content: `🧠 **Smart Categories**\n\nAuto-categorizes transactions. Gets smarter over time!`,
           timestamp: new Date().toISOString(),
           metadata: {
-            processing_time_ms: 1100,
-            tokens_used: 160,
+            processing_time_ms: 800,
+            tokens_used: 60,
             model_used: 'gpt-4'
           }
         };
@@ -131,14 +200,15 @@ export default function AIFinancialAssistantPage() {
             model_used: 'gpt-4'
           }
         };
-      } else if (lowerContent.includes('goal') || lowerContent.includes('concierge')) {
+      } else if (lowerContent.includes('goal') || lowerContent.includes('concierge') || lowerContent.includes('set goal') || lowerContent.includes('financial goal')) {
+        const userName = user?.name || user?.email?.split('@')[0] || 'there';
         aiResponse = {
           role: 'finley',
-          content: `🎯 **AI Goal Concierge** is your personal financial coach:\n\n• **Smart Goal Setting**: AI suggests realistic goals based on your income and spending\n• **Progress Tracking**: Monitor your goals with beautiful visualizations\n• **Actionable Insights**: Get specific recommendations to stay on track\n• **Milestone Celebrations**: Celebrate your wins with personalized rewards\n\nWhat financial goal would you like to work on? I can help you create a personalized plan!`,
+          content: `Hey ${userName}! I think Goalie would be perfect for this. Let me get them for you...\n\n*Goalie joins the conversation*\n\nGoalie: "Hey ${userName}! 👋 I heard you're thinking about financial goals. That's awesome! I love helping people turn their dreams into reality. What's on your mind? Are you saving for something specific, or maybe looking to pay off debt?"`,
           timestamp: new Date().toISOString(),
           metadata: {
-            processing_time_ms: 1400,
-            tokens_used: 175,
+            processing_time_ms: 1200,
+            tokens_used: 120,
             model_used: 'gpt-4'
           }
         };
@@ -165,9 +235,10 @@ export default function AIFinancialAssistantPage() {
           }
         };
       } else {
+        const userName = user?.name || user?.email?.split('@')[0] || 'there';
         aiResponse = {
         role: 'finley',
-          content: `🤖 I'm your XspensesAI Financial Assistant, and I'm here to help you master your finances!\n\nI can assist you with:\n• **Smart Import AI** - Upload and categorize transactions\n• **Smart Categories** - AI-powered expense insights\n• **Transaction Analysis** - Deep spending analysis\n• **AI Goal Concierge** - Set and track financial goals\n• **Receipt Processing** - Scan and process receipts\n• **Smart Automation** - Automate your workflows\n\nWhat would you like to explore? I'm here to make your financial journey smarter and more efficient!`,
+          content: `🤖 Hi ${userName}! I'm your XspensesAI Financial Assistant, and I'm here to help you master your finances!\n\nI can assist you with:\n• **Smart Import AI** - Upload and categorize transactions\n• **Smart Categories** - AI-powered expense insights\n• **Transaction Analysis** - Deep spending analysis\n• **AI Goal Concierge** - Set and track financial goals\n• **Receipt Processing** - Scan and process receipts\n• **Smart Automation** - Automate your workflows\n\nWhat would you like to explore? I'm here to make your financial journey smarter and more efficient!`,
         timestamp: new Date().toISOString(),
         metadata: {
             processing_time_ms: 1500,
@@ -200,28 +271,20 @@ export default function AIFinancialAssistantPage() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col max-h-[calc(100vh-150px)]">
       {/* Main Chat Interface */}
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 flex flex-col">
           {/* Chat Messages Area */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4" ref={messagesEndRef}>
+          <div className="flex-1 overflow-y-auto p-2 space-y-2 max-h-[calc(100vh-200px)]" ref={messagesEndRef}>
             {messages.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center max-w-2xl">
-        <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.2 }}
-                    className="w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-2xl"
-                  >
-                    <Brain className="w-10 h-10 text-white" />
-                  </motion.div>
                   <motion.h2
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3 }}
-                    className="text-2xl font-bold text-white mb-3"
+                    className="text-xl font-bold text-white mb-1"
                   >
                     Welcome to XspensesAI Assistant
                   </motion.h2>
@@ -229,11 +292,11 @@ export default function AIFinancialAssistantPage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="text-white/60 text-base mb-6"
+                    className="text-white/60 text-sm mb-3"
                   >
                     Your intelligent guide to mastering expense management and financial insights
                   </motion.p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-5xl mx-auto">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
                     {[
                       { icon: Upload, title: "Smart Import AI", desc: "Upload and categorize transactions", color: "from-blue-500 to-cyan-500" },
                       { icon: Brain, title: "Smart Categories", desc: "AI-powered expense insights", color: "from-green-500 to-emerald-500" },
@@ -248,13 +311,13 @@ export default function AIFinancialAssistantPage() {
           animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.5 + index * 0.1 }}
                         onClick={() => sendMessage(`Help me with ${item.title.toLowerCase()}`)}
-                        className="group flex items-center gap-4 p-4 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[60px]"
+                        className="group flex items-center gap-1.5 p-1.5 bg-white/5 hover:bg-white/10 rounded text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[40px]"
                       >
-                        <div className={`w-10 h-10 bg-gradient-to-br ${item.color} rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0`}>
-                          <item.icon className="w-5 h-5 text-white" />
+                        <div className={`w-6 h-6 bg-gradient-to-br ${item.color} rounded flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0`}>
+                          <item.icon className="w-3 h-3 text-white" />
             </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                          <h3 className="text-xs font-semibold text-white mb-0">{item.title}</h3>
                           <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
             </div>
                       </motion.button>
@@ -271,14 +334,14 @@ export default function AIFinancialAssistantPage() {
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-sm px-3 py-2 rounded-lg text-left ${
+                    className={`max-w-md px-2 py-1.5 rounded text-left ${
                       message.role === 'user'
                         ? 'bg-gradient-to-r from-purple-500 to-cyan-500 text-white'
                         : 'bg-white/10 text-white border border-white/20'
                     }`}
                   >
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                    <p className="text-xs opacity-70 mt-1">
+                    <p className="text-sm leading-tight whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-xs opacity-70 mt-0.5">
                       {new Date(message.timestamp).toLocaleTimeString()}
                     </p>
                   </div>
@@ -307,35 +370,62 @@ export default function AIFinancialAssistantPage() {
               </div>
 
           {/* High-Tech Input Area */}
-          <div className="p-6 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/5">
-            <div className="flex gap-3">
+          <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/5">
+            {/* Attachments Display */}
+            {attachments.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1">
+                {attachments.map((file, index) => (
+                  <div key={index} className="flex items-center gap-1 bg-white/10 rounded px-2 py-1 text-xs text-white">
+                    <span className="truncate max-w-20">{file.name}</span>
+                    <button 
+                      onClick={() => removeAttachment(index)}
+                      className="text-white/60 hover:text-white"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-1">
               <div className="flex-1 relative">
                   <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                    placeholder="Ask about Smart Import AI, Smart Categories, or any XspensesAI feature..."
-                    className="w-full bg-white/5 border border-white/20 rounded-2xl px-6 py-4 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
+                    placeholder="Ask about Smart Import AI, Smart Categories..."
+                    className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1.5 pr-10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
                     disabled={isLoading}
                   />
-                <button className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-white/10 rounded-lg transition-colors">
-                  <Paperclip className="w-5 h-5 text-white/60" />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded transition-colors"
+                >
+                  <Paperclip className="w-3.5 h-3.5 text-white/60" />
                 </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.csv,.xlsx,.xls,.txt,.jpg,.jpeg,.png"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
               </div>
-              <button className="p-2 hover:bg-white/10 rounded-xl transition-colors">
-                <Mic className="w-5 h-5 text-white/60" />
+              <button className="p-1.5 hover:bg-white/10 rounded transition-colors">
+                <Mic className="w-3.5 h-3.5 text-white/60" />
               </button>
                   <button
                 onClick={() => !isLoading && sendMessage(input)}
                     disabled={isLoading || !input.trim()}
-                className="px-6 py-4 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-2xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 font-medium"
+                className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
                   >
                 {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <>
-                    <Send className="w-5 h-5" />
+                    <Send className="w-4 h-4" />
                     <span>Send</span>
                   </>
                 )}

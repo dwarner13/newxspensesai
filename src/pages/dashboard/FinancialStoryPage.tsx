@@ -1,285 +1,392 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Play, 
-  Pause, 
-  Download, 
-  Share2, 
-  Plus, 
   BookOpen, 
-  Mic, 
-  Headphones,
-  Clock,
-  Star,
-  MoreVertical,
-  PlayCircle,
-  PauseCircle
+  BarChart3, 
+  Download, 
+  FileText, 
+  TrendingUp, 
+  Target, 
+  DollarSign,
+  Calendar,
+  Users,
+  Zap,
+  ArrowRight,
+  Play,
+  Mic,
+  Headphones
 } from 'lucide-react';
-import DashboardHeader from '../../components/ui/DashboardHeader';
+import { FinancialStoryAI } from '../../components/chat/FinancialStoryAI';
+import { financialStoryAPI, FinancialStoryData } from '../../lib/financial-story';
 
-interface Story {
-  id: string;
-  title: string;
-  description: string;
-  duration: string;
-  createdAt: string;
-  status: 'draft' | 'generating' | 'ready' | 'published';
-  hosts: string[];
-  thumbnail: string;
-  listens: number;
-  rating: number;
-}
+const FinancialStoryPage: React.FC = () => {
+  const [stories, setStories] = useState<FinancialStoryData[]>([]);
+  const [selectedStory, setSelectedStory] = useState<FinancialStoryData | null>(null);
+  const [showStoryAI, setShowStoryAI] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-const FinancialStoryPage = () => {
-  const [selectedStory, setSelectedStory] = useState<Story | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [stories, setStories] = useState<Story[]>([
-    {
-      id: '1',
-      title: 'The Mystery of the Missing Savings',
-      description: 'Spark and Wisdom investigate where your money went this month, uncovering surprising patterns in your late-night spending.',
-      duration: '12:34',
-      createdAt: '2 hours ago',
-      status: 'ready',
-      hosts: ['Spark', 'Wisdom'],
-      thumbnail: '🔍',
-      listens: 47,
-      rating: 4.8
-    },
-    {
-      id: '2',
-      title: 'The Great Coffee Shop Conspiracy',
-      description: 'Roast Master exposes your $247 monthly coffee addiction while Fortune finds the silver lining in your loyalty rewards.',
-      duration: '18:22',
-      createdAt: '1 day ago',
-      status: 'ready',
-      hosts: ['Roast Master', 'Fortune'],
-      thumbnail: '☕',
-      listens: 23,
-      rating: 4.9
-    },
-    {
-      id: '3',
-      title: 'New Beginnings & Old Habits',
-      description: 'Your first financial story! Nova and Serenity explore your spending personality and create your money mission statement.',
-      duration: '15:18',
-      createdAt: '3 days ago',
-      status: 'ready',
-      hosts: ['Nova', 'Serenity'],
-      thumbnail: '🌱',
-      listens: 89,
-      rating: 4.7
-    },
-    {
-      id: '4',
-      title: 'The Investment Adventure',
-      description: 'Crystal predicts market trends while Liberty guides you through your first investment decisions.',
-      duration: '22:45',
-      createdAt: '1 week ago',
-      status: 'generating',
-      hosts: ['Crystal', 'Liberty'],
-      thumbnail: '📈',
-      listens: 0,
-      rating: 0
+  useEffect(() => {
+    loadStories();
+  }, []);
+
+  const loadStories = async () => {
+    try {
+      setIsLoading(true);
+      // In a real app, this would get the actual user ID
+      const userId = 'demo-user';
+      const userStories = financialStoryAPI.getUserStories(userId);
+      setStories(userStories);
+    } catch (error) {
+      console.error('Error loading stories:', error);
+    } finally {
+      setIsLoading(false);
     }
-  ]);
-
-  const handlePlay = (story: Story) => {
-    setSelectedStory(story);
-    setIsPlaying(true);
   };
 
-  const handlePause = () => {
-    setIsPlaying(false);
+  const generateNewStory = async () => {
+    try {
+      setIsLoading(true);
+      const userId = 'demo-user';
+      const newStory = await financialStoryAPI.collectEmployeeData(userId);
+      setStories(prev => [newStory, ...prev]);
+      setSelectedStory(newStory);
+    } catch (error) {
+      console.error('Error generating story:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleCreateNew = () => {
-    // TODO: Implement create new story functionality
-    console.log('Create new story');
+  const exportStory = (story: FinancialStoryData) => {
+    const jsonData = financialStoryAPI.exportStory(story.storyId);
+    const blogData = financialStoryAPI.exportBlogPost(story.storyId);
+
+    if (jsonData && blogData) {
+      // Download JSON
+      const jsonBlob = new Blob([jsonData], { type: 'application/json' });
+      const jsonUrl = URL.createObjectURL(jsonBlob);
+      const jsonLink = document.createElement('a');
+      jsonLink.href = jsonUrl;
+      jsonLink.download = `financial-story-${story.storyId}.json`;
+      document.body.appendChild(jsonLink);
+      jsonLink.click();
+      document.body.removeChild(jsonLink);
+      URL.revokeObjectURL(jsonUrl);
+
+      // Download Blog
+      const blogBlob = new Blob([blogData], { type: 'text/markdown' });
+      const blogUrl = URL.createObjectURL(blogBlob);
+      const blogLink = document.createElement('a');
+      blogLink.href = blogUrl;
+      blogLink.download = `financial-story-blog-${story.storyId}.md`;
+      document.body.appendChild(blogLink);
+      blogLink.click();
+      document.body.removeChild(blogLink);
+      URL.revokeObjectURL(blogUrl);
+    }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'ready': return 'text-green-400 bg-green-400/10';
-      case 'generating': return 'text-blue-400 bg-blue-400/10';
-      case 'draft': return 'text-yellow-400 bg-yellow-400/10';
+      case 'analyzing': return 'text-yellow-400 bg-yellow-400/10';
+      case 'collecting': return 'text-blue-400 bg-blue-400/10';
       case 'published': return 'text-purple-400 bg-purple-400/10';
       default: return 'text-gray-400 bg-gray-400/10';
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'ready': return 'Ready to Play';
-      case 'generating': return 'Generating...';
-      case 'draft': return 'Draft';
-      case 'published': return 'Published';
-      default: return 'Unknown';
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-[#0a0e27]">
-      <DashboardHeader 
-        customTitle="Financial Story"
-        customSubtitle="Transform your financial data into engaging stories with AI storytellers"
-      />
-
-      <div className="p-6 space-y-6">
-        {/* Action Bar */}
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <h2 className="text-2xl font-bold text-white">Your Stories</h2>
-            <span className="text-white/60">({stories.length} stories)</span>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-6"
+        >
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+              <BookOpen className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white mb-1">Financial Story Center</h1>
+              <p className="text-white/70 text-sm">AI-powered financial narratives for podcasters</p>
+            </div>
           </div>
-          <button
-            onClick={handleCreateNew}
-            className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-cyan-500 text-white px-4 py-2 rounded-lg hover:from-purple-600 hover:to-cyan-600 transition-all duration-200"
-          >
-            <Plus className="w-4 h-4" />
-            Create New Story
-          </button>
-        </div>
+        </motion.div>
 
-        {/* Now Playing Bar */}
-        {selectedStory && (
+        {/* Action Buttons */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="flex justify-center gap-3 mb-6"
+        >
+          <button
+            onClick={generateNewStory}
+            disabled={isLoading}
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2 text-sm"
+          >
+            <Zap className="w-4 h-4" />
+            {isLoading ? 'Generating...' : 'Generate Story'}
+          </button>
+          <button
+            onClick={() => setShowStoryAI(true)}
+            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity flex items-center gap-2 text-sm"
+          >
+            <BookOpen className="w-4 h-4" />
+            AI Assistant
+          </button>
+        </motion.div>
+
+        {/* Stories Grid */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white/5 backdrop-blur-md rounded-xl border border-white/10 p-4"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-lg flex items-center justify-center text-2xl">
-                {selectedStory.thumbnail}
+          transition={{ delay: 0.2 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+        >
+          {stories.length === 0 ? (
+            <div className="col-span-full text-center py-8">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <BookOpen className="w-8 h-8 text-blue-400" />
               </div>
-              <div className="flex-1">
-                <h3 className="text-white font-semibold">{selectedStory.title}</h3>
-                <p className="text-white/60 text-sm">{selectedStory.hosts.join(' & ')}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={isPlaying ? handlePause : () => handlePlay(selectedStory)}
-                  className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-colors"
-                >
-                  {isPlaying ? <PauseCircle className="w-5 h-5" /> : <PlayCircle className="w-5 h-5" />}
-                </button>
-                <span className="text-white/60 text-sm">{selectedStory.duration}</span>
-              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">No Financial Stories Yet</h3>
+              <p className="text-white/70 mb-4 text-sm">Generate your first financial story to get started</p>
+              <button
+                onClick={generateNewStory}
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity text-sm"
+              >
+                Create First Story
+              </button>
             </div>
-          </motion.div>
-        )}
-
-        {/* Stories Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {stories.map((story, index) => (
-            <motion.div
-              key={story.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300 group"
-            >
-              {/* Story Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-lg flex items-center justify-center text-2xl">
-                  {story.thumbnail}
-                </div>
-                <div className="flex items-center gap-2">
+          ) : (
+            stories.map((story, index) => (
+              <motion.div
+                key={story.storyId}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 * index }}
+                className="bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer group"
+                onClick={() => setSelectedStory(story)}
+              >
+                {/* Story Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-lg flex items-center justify-center">
+                      <BarChart3 className="w-4 h-4 text-blue-300" />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-semibold text-sm">Financial Story</h3>
+                      <p className="text-white/60 text-xs">ID: {story.storyId.slice(-8)}</p>
+                    </div>
+                  </div>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(story.status)}`}>
-                    {getStatusText(story.status)}
+                    {story.status}
                   </span>
-                  <button className="p-1 hover:bg-white/10 rounded-lg transition-colors">
-                    <MoreVertical className="w-4 h-4 text-white/60" />
+                </div>
+
+                {/* Story Stats */}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-white">{story.employees.byte.totalTransactions}</div>
+                    <div className="text-white/60 text-xs">Transactions</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-lg font-bold text-white">{story.insights.length}</div>
+                    <div className="text-white/60 text-xs">Insights</div>
+                  </div>
+                </div>
+
+                {/* Story Hooks */}
+                <div className="mb-3">
+                  <h4 className="text-white font-medium mb-1 text-sm">Story Hooks</h4>
+                  <div className="space-y-1">
+                    {story.storyHooks.slice(0, 2).map((hook, hookIndex) => (
+                      <div key={hookIndex} className="text-white/70 text-xs truncate">
+                        {hook.hook}
+                      </div>
+                    ))}
+                    {story.storyHooks.length > 2 && (
+                      <div className="text-blue-400 text-xs">+{story.storyHooks.length - 2} more...</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      exportStory(story);
+                    }}
+                    className="flex-1 px-2 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1"
+                  >
+                    <Download className="w-3 h-3" />
+                    Export
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedStory(story);
+                    }}
+                    className="flex-1 px-2 py-1.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-lg text-xs font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-1"
+                  >
+                    <ArrowRight className="w-3 h-3" />
+                    View
                   </button>
                 </div>
-              </div>
 
-              {/* Story Content */}
-              <div className="mb-4">
-                <h3 className="text-white font-semibold mb-2 group-hover:text-purple-400 transition-colors">
-                  {story.title}
-                </h3>
-                <p className="text-white/60 text-sm leading-relaxed mb-3">
-                  {story.description}
-                </p>
-                <div className="flex items-center gap-4 text-xs text-white/50">
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {story.duration}
+                {/* Date */}
+                <div className="pt-2 border-t border-white/10">
+                  <div className="flex items-center gap-1 text-white/60 text-xs">
+                    <Calendar className="w-3 h-3" />
+                    {new Date(story.timestamp).toLocaleDateString()}
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Headphones className="w-3 h-3" />
-                    {story.listens} listens
-                  </div>
-                  {story.rating > 0 && (
-                    <div className="flex items-center gap-1">
-                      <Star className="w-3 h-3" />
-                      {story.rating}
-                    </div>
-                  )}
                 </div>
-              </div>
-
-              {/* Hosts */}
-              <div className="mb-4">
-                <p className="text-xs text-white/50 mb-2">Hosted by:</p>
-                <div className="flex gap-2">
-                  {story.hosts.map((host, idx) => (
-                    <span
-                      key={idx}
-                      className="px-2 py-1 bg-white/10 rounded-lg text-xs text-white/80"
-                    >
-                      {host}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handlePlay(story)}
-                  disabled={story.status !== 'ready'}
-                  className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-cyan-500 text-white px-4 py-2 rounded-lg hover:from-purple-600 hover:to-cyan-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Play className="w-4 h-4" />
-                  Play
-                </button>
-                <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                  <Download className="w-4 h-4 text-white/60" />
-                </button>
-                <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
-                  <Share2 className="w-4 h-4 text-white/60" />
-                </button>
-              </div>
-
-              {/* Created Date */}
-              <div className="mt-3 pt-3 border-t border-white/10">
-                <p className="text-xs text-white/50">Created {story.createdAt}</p>
-              </div>
             </motion.div>
-          ))}
-        </div>
+            ))
+          )}
+        </motion.div>
 
-        {/* Empty State */}
-        {stories.length === 0 && (
+        {/* Selected Story Modal */}
+        {selectedStory && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center py-12"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           >
-            <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6">
-              <BookOpen className="w-12 h-12 text-white/40" />
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-2">No Stories Yet</h3>
-            <p className="text-white/60 mb-6">Create your first financial story to get started</p>
-            <button
-              onClick={handleCreateNew}
-              className="bg-gradient-to-r from-purple-500 to-cyan-500 text-white px-6 py-3 rounded-lg hover:from-purple-600 hover:to-cyan-600 transition-all duration-200"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-white/20"
             >
-              Create Your First Story
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-6 border-b border-white/10">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+                    <BookOpen className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">Financial Story Details</h2>
+                    <p className="text-white/70">ID: {selectedStory.storyId}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedStory(null)}
+                  className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center transition-colors"
+                >
+                  <span className="text-white text-xl">×</span>
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 space-y-6">
+                {/* Executive Summary */}
+                <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-xl p-6 border border-blue-400/20">
+                  <h3 className="text-xl font-bold text-white mb-4">Executive Summary</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-blue-400">{selectedStory.employees.byte.totalTransactions}</div>
+                      <div className="text-white/70 text-sm">Transactions</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-green-400">{selectedStory.insights.length}</div>
+                      <div className="text-white/70 text-sm">Insights</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-purple-400">{selectedStory.storyHooks.length}</div>
+                      <div className="text-white/70 text-sm">Story Hooks</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-yellow-400">{selectedStory.employees.goalie.activeGoals}</div>
+                      <div className="text-white/70 text-sm">Active Goals</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Employee Contributions */}
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-4">AI Employee Contributions</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(selectedStory.employees).map(([employee, data]) => (
+                      <div key={employee} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-8 h-8 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-lg flex items-center justify-center">
+                            <span className="text-white font-bold text-sm">{employee.charAt(0).toUpperCase()}</span>
+                          </div>
+                          <h4 className="text-white font-semibold capitalize">{employee}</h4>
+                        </div>
+                        <div className="text-white/70 text-sm">
+                          {employee === 'byte' && `Processed ${data.totalTransactions} transactions`}
+                          {employee === 'goalie' && `Active goals: ${data.activeGoals}`}
+                          {employee === 'tag' && `Categories: ${data.totalCategories}`}
+                          {employee === 'crystal' && `Budget status: ${data.budgetStatus.status}`}
+                          {employee === 'ledger' && `Health score: ${data.financialHealth.overall}/100`}
+                          {employee === 'finley' && `Recommendations: ${data.recommendations.length}`}
+                          {employee === 'prime' && `Strategic decisions: ${data.strategicDecisions.length}`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Story Hooks */}
+                <div>
+                  <h3 className="text-xl font-bold text-white mb-4">Story Hooks for Podcasters</h3>
+                  <div className="space-y-3">
+                    {selectedStory.storyHooks.map((hook, index) => (
+                      <div key={index} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 bg-gradient-to-br from-green-500/30 to-emerald-500/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <Mic className="w-4 h-4 text-green-400" />
+                          </div>
+                          <div>
+                            <h4 className="text-white font-medium mb-1">{hook.hook}</h4>
+                            <p className="text-white/70 text-sm mb-2">{hook.context}</p>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              hook.podcastPotential === 'high' ? 'text-green-400 bg-green-400/10' :
+                              hook.podcastPotential === 'medium' ? 'text-yellow-400 bg-yellow-400/10' :
+                              'text-red-400 bg-red-400/10'
+                            }`}>
+                              {hook.podcastPotential} potential
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => exportStory(selectedStory)}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-5 h-5" />
+                    Export Story
+                  </button>
+                  <button
+                    onClick={() => setShowStoryAI(true)}
+                    className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-500 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                  >
+                    <BookOpen className="w-5 h-5" />
+                    AI Analysis
             </button>
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
+        )}
+
+        {/* Financial Story AI Modal */}
+        {showStoryAI && (
+          <FinancialStoryAI
+            userId="demo-user"
+            onClose={() => setShowStoryAI(false)}
+          />
         )}
       </div>
     </div>
@@ -287,4 +394,3 @@ const FinancialStoryPage = () => {
 };
 
 export default FinancialStoryPage;
-

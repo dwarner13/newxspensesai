@@ -54,8 +54,8 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
     subtitle: 'Educational content and guided sessions for financial health.'
   },
   '/dashboard/ai-categorization': {
-    title: 'AI Categorization',
-    subtitle: 'Automatically categorize transactions and learn from corrections.'
+    title: 'Smart Categories',
+    subtitle: 'AI-powered transaction categorization with 96% accuracy.'
   },
   '/dashboard/business-intelligence': {
     title: 'Business Intelligence',
@@ -80,6 +80,14 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard/ai-financial-freedom': {
     title: 'AI Financial Freedom',
     subtitle: 'Pathway to financial independence with AI guidance.'
+  },
+  '/dashboard/financial-story': {
+    title: 'Financial Story',
+    subtitle: 'AI-powered financial narratives for podcasters.'
+  },
+  '/dashboard/transactions': {
+    title: 'Transactions',
+    subtitle: 'View and manage all your financial transactions.'
   },
   '/dashboard/reports': {
     title: 'Reports',

@@ -17,7 +17,7 @@ import {
   Bell, AlertCircle, CheckCircle2, XCircle, CreditCard as CreditCardIcon,
   Home, Car, ShoppingCart, Heart as HeartIcon, Zap as ZapIcon2,
   Upload, Download, TrendingDown as TrendingDownIcon2, Target as TargetIcon2,
-  Lock, Key, Wifi, Smartphone, Award, Flame, Globe
+  Lock, Key, Wifi, Smartphone, Award, Globe
 } from 'lucide-react';
 
 const AIFinancialFreedomFeaturePage = () => {

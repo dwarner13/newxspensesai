@@ -10,7 +10,7 @@ import OpenAI from 'openai';
 
 // Initialize OpenAI connection (single instance for all employees)
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY,
+  apiKey: import.meta.env.VITE_OPENAI_API_KEY || 'your-api-key-here',
 });
 
 /**

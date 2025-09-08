@@ -1,650 +1,1729 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  Tag, 
-  FolderOpen, 
-  Search, 
   Bot, 
-  Send, 
-  Loader2,
-  CheckCircle,
-  AlertCircle,
-  Settings,
-  BarChart3,
-  Filter,
-  Edit,
-  Plus,
-  Trash2,
-  RefreshCw,
-  Zap
+  Zap, 
+  TrendingUp, 
+  Search,
+  X,
+  Download,
+  FileText,
+  Table,
+  FileSpreadsheet
 } from 'lucide-react';
-import DashboardHeader from '../../components/ui/DashboardHeader';
-import { useAuth } from '../../contexts/AuthContext';
-import {
-  getEmployeeConfig,
-  getConversation,
-  saveConversation,
-  addMessageToConversation,
-  incrementConversationCount,
-  logAIInteraction,
-  generateConversationId,
-  createSystemMessage,
-  createUserMessage,
-  createAssistantMessage
-} from '../../lib/ai-employees';
-import { AIConversationMessage } from '../../types/ai-employees.types';
+import { universalAIEmployeeManager } from '../../lib/universalAIEmployeeConnection';
 
-interface TagMessage {
-  role: 'user' | 'tag' | 'system';
+const AICategorizationPage: React.FC = () => {
+  console.log('AICategorizationPage loading...');
+  const [categoryOverviewOpen, setCategoryOverviewOpen] = useState(false);
+  const [quickCategorizeOpen, setQuickCategorizeOpen] = useState(false);
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatOpen, setChatOpen] = useState(false);
+  const [autoCategoryOpen, setAutoCategoryOpen] = useState(false);
+  const [categoryManagementOpen, setCategoryManagementOpen] = useState(false);
+  const [transactionsViewOpen, setTransactionsViewOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [rulesOpen, setRulesOpen] = useState(false);
+  const [generatedRules, setGeneratedRules] = useState<any[]>([]);
+  const [processOverviewOpen, setProcessOverviewOpen] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState('');
+  const [chatMessages, setChatMessages] = useState<Array<{
+    id: number;
+    type: 'user' | 'ai';
   content: string;
   timestamp: string;
-  metadata?: {
-    processing_time_ms?: number;
-    tokens_used?: number;
-    model_used?: string;
-  };
-}
-
-export default function AICategorizationPage() {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<TagMessage[]>([
+    isLoading?: boolean;
+  }>>([
     {
-      role: 'tag',
-      content: "Hi! I'm 🏷️ Tag, your AI Categorization specialist! I help you organize and categorize your transactions with precision and intelligence. I can explain categorization rules, help improve accuracy, create custom categories, and make sure your financial data is perfectly organized. What would you like to know about transaction categorization?",
-      timestamp: new Date().toISOString()
+      id: 1,
+      type: 'ai',
+      content: '👋 Hello! I\'m Tag AI, your smart categorization assistant. I can help you view categories, create rules, analyze spending, export data, and process documents. What would you like to do?',
+      timestamp: new Date().toLocaleTimeString(),
+      isLoading: false
     }
   ]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [conversationId, setConversationId] = useState('');
-  const [tagConfig, setTagConfig] = useState<any>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize conversation and load Tag's config
-  useEffect(() => {
-    const initializeTag = async () => {
-      if (!user?.id) return;
+  // Simple test to see if component renders
+  if (typeof window !== 'undefined') {
+    console.log('AICategorizationPage rendering in browser...');
+  }
 
-      const newConversationId = generateConversationId();
-      setConversationId(newConversationId);
-
-      // Load Tag's configuration
-      const config = await getEmployeeConfig('tag');
-      setTagConfig(config);
-
-      // Load existing conversation if any
-      const existingConversation = await getConversation(user.id, 'tag', newConversationId);
-      if (existingConversation && existingConversation.messages.length > 0) {
-        setMessages(existingConversation.messages as TagMessage[]);
-      }
-    };
-
-    initializeTag();
-  }, [user?.id]);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const sendMessage = async (content: string) => {
-    if (!content.trim() || !user?.id || isLoading) return;
-
-    const userMessage: TagMessage = {
-      role: 'user',
-      content: content.trim(),
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      // Save user message to conversation
-      await addMessageToConversation(user.id, 'tag', conversationId, userMessage as AIConversationMessage);
-
-      // Log the interaction
-      await logAIInteraction(user.id, 'tag', 'chat', content);
-
-      // Simulate AI response (in real implementation, this would call OpenAI)
-      const startTime = Date.now();
-
-      // Create Tag's response based on the user's query
-      const tagResponse = await generateTagResponse(content);
-
-      const processingTime = Date.now() - startTime;
-
-      const tagMessage: TagMessage = {
-        role: 'tag',
-        content: tagResponse,
-        timestamp: new Date().toISOString(),
-        metadata: {
-          processing_time_ms: processingTime,
-          model_used: 'gpt-3.5-turbo'
-        }
-      };
-
-      setMessages(prev => [...prev, tagMessage]);
-
-      // Save Tag's response to conversation
-      await addMessageToConversation(user.id, 'tag', conversationId, tagMessage as AIConversationMessage);
-
-      // Increment conversation count
-      await incrementConversationCount(user.id, 'tag');
-
-    } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage: TagMessage = {
-        role: 'tag',
-        content: "I'm having trouble processing your request right now. Please try again in a moment.",
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
+  // Sample transaction data
+  const sampleTransactions = {
+    'Food & Dining': [
+      { id: 1, merchant: 'Starbucks', amount: 4.50, date: '2024-01-15', description: 'Coffee' },
+      { id: 2, merchant: 'McDonald\'s', amount: 12.30, date: '2024-01-14', description: 'Lunch' },
+      { id: 3, merchant: 'Whole Foods', amount: 89.45, date: '2024-01-13', description: 'Groceries' },
+      { id: 4, merchant: 'Pizza Hut', amount: 24.99, date: '2024-01-12', description: 'Dinner' },
+      { id: 5, merchant: 'Subway', amount: 8.75, date: '2024-01-11', description: 'Sandwich' },
+      { id: 6, merchant: 'Chipotle', amount: 15.20, date: '2024-01-10', description: 'Burrito Bowl' },
+      { id: 7, merchant: 'Trader Joe\'s', amount: 67.80, date: '2024-01-09', description: 'Groceries' },
+      { id: 8, merchant: 'Dunkin\'', amount: 6.25, date: '2024-01-08', description: 'Coffee & Donut' }
+    ],
+    'Transportation': [
+      { id: 1, merchant: 'Uber', amount: 15.60, date: '2024-01-15', description: 'Ride to work' },
+      { id: 2, merchant: 'Shell Gas Station', amount: 45.20, date: '2024-01-14', description: 'Gas' },
+      { id: 3, merchant: 'Lyft', amount: 22.40, date: '2024-01-13', description: 'Airport ride' },
+      { id: 4, merchant: 'Exxon', amount: 38.75, date: '2024-01-12', description: 'Gas' },
+      { id: 5, merchant: 'Uber', amount: 18.90, date: '2024-01-11', description: 'Ride home' }
+    ],
+    'Entertainment': [
+      { id: 1, merchant: 'Netflix', amount: 15.99, date: '2024-01-15', description: 'Monthly subscription' },
+      { id: 2, merchant: 'AMC Theaters', amount: 24.50, date: '2024-01-14', description: 'Movie tickets' },
+      { id: 3, merchant: 'Spotify', amount: 9.99, date: '2024-01-13', description: 'Premium subscription' },
+      { id: 4, merchant: 'Steam', amount: 29.99, date: '2024-01-12', description: 'Game purchase' },
+      { id: 5, merchant: 'Hulu', amount: 7.99, date: '2024-01-11', description: 'Monthly subscription' }
+    ],
+    'Uncategorized': [
+      { id: 1, merchant: 'Amazon', amount: 45.99, date: '2024-01-15', description: 'Online purchase' },
+      { id: 2, merchant: 'Walmart', amount: 23.45, date: '2024-01-14', description: 'Store purchase' },
+      { id: 3, merchant: 'Target', amount: 67.80, date: '2024-01-13', description: 'Store purchase' }
+    ]
   };
 
-  const generateTagResponse = async (userQuery: string): Promise<string> => {
-    // Simulate AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+  const getCategoryTotal = (category: string) => {
+    const transactions = sampleTransactions[category as keyof typeof sampleTransactions] || [];
+    return transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
+  };
 
-    const query = userQuery.toLowerCase();
-    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
-
-    // Tag's specialized responses for categorization-related queries
-    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there') || query.includes('how are you')) {
-      return `I'm doing wonderfully, ${userName}! 🏷️ I just finished categorizing some beautifully complex transaction patterns - there's something almost artistic about finding the perfect category for every expense. It's like solving a puzzle where every piece has its perfect place. How are you doing? Any financial chaos I can help transform into beautiful organization?`;
+  const generateSmartRules = (category: string) => {
+    const transactions = sampleTransactions[category as keyof typeof sampleTransactions] || [];
+    
+    // Analyze patterns and generate rules
+    const rules = [];
+    
+    // Merchant-based rules
+    const merchants = [...new Set(transactions.map(t => t.merchant.toLowerCase()))];
+    merchants.forEach(merchant => {
+      rules.push({
+        id: `merchant_${merchant.replace(/\s+/g, '_')}`,
+        type: 'merchant',
+        condition: `merchant contains "${merchant}"`,
+        action: `category = "${category}"`,
+        confidence: 95,
+        description: `Auto-categorize ${merchant} transactions as ${category}`
+      });
+    });
+    
+    // Keyword-based rules
+    const keywords = {
+      'Food & Dining': ['coffee', 'restaurant', 'food', 'dining', 'cafe', 'pizza', 'burger', 'lunch', 'dinner', 'breakfast'],
+      'Transportation': ['gas', 'fuel', 'uber', 'lyft', 'taxi', 'ride', 'station', 'parking'],
+      'Entertainment': ['netflix', 'spotify', 'movie', 'theater', 'game', 'subscription', 'streaming', 'music'],
+      'Uncategorized': ['amazon', 'walmart', 'target', 'store', 'purchase', 'online']
+    };
+    
+    const categoryKeywords = keywords[category as keyof typeof keywords] || [];
+    categoryKeywords.forEach(keyword => {
+      rules.push({
+        id: `keyword_${keyword}`,
+        type: 'keyword',
+        condition: `description contains "${keyword}"`,
+        action: `category = "${category}"`,
+        confidence: 85,
+        description: `Auto-categorize transactions with "${keyword}" as ${category}`
+      });
+    });
+    
+    // Amount-based rules
+    if (category === 'Food & Dining') {
+      rules.push({
+        id: 'amount_small_food',
+        type: 'amount',
+        condition: 'amount < $15',
+        action: `category = "${category}"`,
+        confidence: 70,
+        description: `Small amounts likely to be ${category}`
+      });
     }
     
-    if (query.includes('categorize') || query.includes('category') || query.includes('organize') || query.includes('classify')) {
-      return `🏷️ Excellent! Let's talk about transaction categorization. Here's how I help organize your financial data:
-
-**My Categorization System:**
-
-**Standard Categories:**
-• **Food & Dining** - Restaurants, groceries, coffee shops
-• **Transportation** - Gas, public transit, ride-sharing, car maintenance
-• **Shopping** - Clothing, electronics, home goods, online purchases
-• **Entertainment** - Movies, concerts, games, streaming services
-• **Health & Fitness** - Medical expenses, gym memberships, wellness
-• **Bills & Utilities** - Rent, electricity, internet, phone
-• **Income** - Salary, freelance, investments, refunds
-• **Savings & Investments** - Emergency fund, retirement, stocks
-
-**Smart Categorization Features:**
-• **Merchant Recognition** - I learn from your previous categorizations
-• **Pattern Matching** - Similar transactions get consistent categories
-• **Amount Analysis** - Large vs. small transactions may be categorized differently
-• **Date Patterns** - Recurring transactions get special treatment
-• **Location Awareness** - Geographic data helps with categorization
-
-**Accuracy Improvements:**
-• **Machine Learning** - I get smarter with every transaction
-• **User Feedback** - Your corrections help me learn
-• **Merchant Database** - Extensive database of business categories
-• **Context Awareness** - I consider transaction context and timing
-
-**Pro Tips:**
-• **Be consistent** - Categorize similar transactions the same way
-• **Use subcategories** - Break down broad categories for better insights
-• **Review regularly** - Check categorizations monthly for accuracy
-• **Custom categories** - Create categories that match your lifestyle
-
-Would you like me to help you set up custom categories or improve your current categorization?`;
+    if (category === 'Entertainment') {
+      rules.push({
+        id: 'amount_subscription',
+        type: 'amount',
+        condition: 'amount between $8-20 AND recurring',
+        action: `category = "${category}"`,
+        confidence: 80,
+        description: `Subscription amounts likely to be ${category}`
+      });
     }
-
-    if (query.includes('custom') || query.includes('create') || query.includes('new category') || query.includes('personalize')) {
-      return `✨ Great idea! Custom categories make your financial data much more meaningful. Let me help you create a personalized categorization system.
-
-**Creating Custom Categories:**
-
-**Step 1: Identify Your Needs**
-• **Lifestyle Categories** - Travel, hobbies, side hustles
-• **Business Categories** - If you're self-employed or have business expenses
-• **Goal-Based Categories** - Categories that align with your financial goals
-• **Personal Categories** - Categories that reflect your unique spending patterns
-
-**Popular Custom Categories:**
-• **Travel Fund** - Vacation savings and travel expenses
-• **Side Hustle** - Freelance income and business expenses
-• **Home Improvement** - Renovations, repairs, decor
-• **Pet Expenses** - Food, vet visits, grooming, toys
-• **Education** - Courses, books, workshops, certifications
-• **Gifts & Giving** - Presents, donations, charitable giving
-• **Emergency Fund** - Savings for unexpected expenses
-• **Investment Categories** - Different types of investments
-
-**Best Practices:**
-• **Keep it simple** - Don't create too many categories
-• **Be specific** - "Coffee Shops" vs. just "Food"
-• **Think long-term** - Categories should work for years
-• **Align with goals** - Categories should help track progress
-• **Use hierarchy** - Main categories with subcategories
-
-**Setting Up Rules:**
-• **Merchant Rules** - "Always categorize Starbucks as Coffee"
-• **Amount Rules** - "Transactions over $100 in Food = Special Occasion"
-• **Date Rules** - "Weekend dining = Entertainment, weekday = Food"
-• **Location Rules** - "Gas stations near home = Personal, near work = Business"
-
-**Pro Tips:**
-• Start with 10-15 main categories
-• Add subcategories as needed
-• Review and refine every 3 months
-• Use categories that motivate you
-
-What type of custom categories would be most helpful for your financial tracking?`;
-    }
-
-    if (query.includes('accuracy') || query.includes('improve') || query.includes('better') || query.includes('fix')) {
-      return `🎯 Excellent! Improving categorization accuracy is crucial for meaningful financial insights. Here's my approach to making your categories more precise:
-
-**Accuracy Improvement Strategies:**
-
-**1. Review and Correct:**
-• **Monthly Review** - Check last month's categorizations
-• **Bulk Corrections** - Fix multiple similar transactions at once
-• **Pattern Recognition** - Look for consistent miscategorizations
-• **Feedback Loop** - Your corrections teach me to be more accurate
-
-**2. Smart Learning Features:**
-• **Merchant Learning** - I remember how you categorize specific businesses
-• **Amount Patterns** - Different amounts may need different categories
-• **Time Patterns** - Weekend vs. weekday spending patterns
-• **Location Context** - Geographic data improves accuracy
-• **Frequency Analysis** - Regular transactions get special treatment
-
-**3. Advanced Rules:**
-• **Merchant-Specific Rules** - "Always categorize Target as Shopping"
-• **Amount-Based Rules** - "Dining over $50 = Special Occasion"
-• **Date-Based Rules** - "Friday night dining = Entertainment"
-• **Category Exclusions** - "Never categorize gas as Food"
-• **Priority Rules** - "If merchant matches multiple rules, use highest priority"
-
-**4. Quality Checks:**
-• **Anomaly Detection** - Flag unusual categorizations for review
-• **Consistency Checks** - Ensure similar transactions are categorized alike
-• **Pattern Validation** - Verify that categorizations make sense over time
-• **Accuracy Scoring** - Track how often corrections are needed
-
-**My Accuracy Features:**
-• **95%+ accuracy** on standard transactions
-• **90%+ accuracy** on complex or ambiguous transactions
-• **Continuous learning** from your feedback
-• **Merchant database** with millions of businesses
-• **Context awareness** for better categorization
-
-**Pro Tips:**
-• **Be patient** - Accuracy improves over time
-• **Provide feedback** - Every correction helps me learn
-• **Use bulk actions** - Fix multiple transactions efficiently
-• **Set up rules** - Automate common categorizations
-
-Would you like me to help you review your recent transactions or set up specific categorization rules?`;
-    }
-
-    if (query.includes('rule') || query.includes('automate') || query.includes('automatic') || query.includes('set up')) {
-      return `⚙️ Fantastic! Setting up categorization rules will save you time and improve accuracy. Let me help you create a smart automation system.
-
-**Categorization Rules Setup:**
-
-**1. Merchant Rules (Most Common):**
-• **Exact Match** - "Starbucks" → "Coffee & Dining"
-• **Partial Match** - "McDonald's" → "Fast Food"
-• **Pattern Match** - "*COFFEE*" → "Coffee & Dining"
-• **Multiple Locations** - "Target" → "Shopping" (regardless of location)
-
-**2. Amount-Based Rules:**
-• **Threshold Rules** - "Dining > $100" → "Special Occasion"
-• **Range Rules** - "Gas $30-$60" → "Transportation"
-• **Percentage Rules** - "Top 10% of transactions" → "Large Purchase"
-
-**3. Time-Based Rules:**
-• **Day of Week** - "Friday dining" → "Entertainment"
-• **Time of Day** - "After 8 PM dining" → "Entertainment"
-• **Monthly Patterns** - "First week of month" → "Bills & Utilities"
-• **Seasonal Rules** - "December shopping" → "Holiday Expenses"
-
-**4. Location-Based Rules:**
-• **Geographic Areas** - "Downtown purchases" → "Work Expenses"
-• **Distance from Home** - "Gas stations > 10 miles" → "Travel"
-• **Business Districts** - "Financial district" → "Business Expenses"
-
-**5. Category Rules:**
-• **Exclusions** - "Never categorize gas as Food"
-• **Priorities** - "If multiple matches, use highest priority"
-• **Defaults** - "Unknown merchants" → "Miscellaneous"
-• **Splits** - "Large purchases" → "Split across multiple categories"
-
-**Setting Up Rules:**
-1. **Start Simple** - Begin with your most common merchants
-2. **Test Rules** - Apply to past transactions to verify accuracy
-3. **Refine Over Time** - Adjust rules based on results
-4. **Monitor Performance** - Check rule effectiveness monthly
-
-**Pro Tips:**
-• **Order matters** - More specific rules should come first
-• **Use wildcards** - "*COFFEE*" catches variations
-• **Test thoroughly** - Apply rules to historical data first
-• **Keep it simple** - Complex rules can cause confusion
-
-What type of categorization rules would be most helpful for your transactions?`;
-    }
-
-    if (query.includes('bulk') || query.includes('multiple') || query.includes('batch') || query.includes('mass')) {
-      return `🔄 Great question! Bulk categorization is a powerful way to organize large numbers of transactions efficiently. Here's how I help with mass categorization:
-
-**Bulk Categorization Features:**
-
-**1. Smart Selection Tools:**
-• **Date Range** - Select transactions from specific time periods
-• **Merchant Filter** - Select all transactions from specific businesses
-• **Amount Range** - Select transactions within price ranges
-• **Uncategorized** - Find all transactions without categories
-• **Category Filter** - Select transactions currently in specific categories
-
-**2. Bulk Actions:**
-• **Mass Categorization** - Apply one category to multiple transactions
-• **Bulk Rules** - Create rules based on selected transactions
-• **Pattern Recognition** - I suggest categories based on selected patterns
-• **Split Transactions** - Divide large transactions across multiple categories
-• **Merge Categories** - Combine similar categories
-
-**3. Smart Suggestions:**
-• **AI Recommendations** - I suggest categories based on transaction patterns
-• **Merchant Analysis** - Group similar merchants for bulk categorization
-• **Amount Patterns** - Suggest categories based on transaction amounts
-• **Time Patterns** - Suggest categories based on when transactions occur
-• **Location Patterns** - Suggest categories based on transaction locations
-
-**4. Bulk Operations:**
-• **Select All Similar** - "Select all transactions from this merchant"
-• **Apply Rule** - "Apply this categorization rule to all selected"
-• **Preview Changes** - See what will change before applying
-• **Undo Bulk Actions** - Revert bulk changes if needed
-• **Export/Import** - Save and load bulk categorization settings
-
-**Best Practices:**
-• **Start Small** - Begin with 10-20 transactions to test
-• **Preview First** - Always preview bulk changes before applying
-• **Backup Data** - Export your data before major bulk operations
-• **Review Results** - Check the results of bulk operations
-• **Refine Rules** - Use bulk operations to create better rules
-
-**Pro Tips:**
-• **Use filters** - Narrow down transactions before bulk operations
-• **Test on subset** - Try bulk operations on a small group first
-• **Create rules** - Turn successful bulk operations into permanent rules
-• **Monitor accuracy** - Check that bulk categorizations are correct
-
-Would you like me to help you set up a bulk categorization operation for your transactions?`;
-    }
-
-    if (query.includes('help') || query.includes('advice') || query.includes('guidance') || query.includes('support')) {
-      return `🏷️ I'm here to help you master transaction categorization! Here's what I can assist with:
-
-**My Categorization Expertise:**
-📊 **Smart Categorization** - AI-powered transaction organization
-🎯 **Accuracy Improvement** - Help you achieve 95%+ categorization accuracy
-⚙️ **Rule Creation** - Set up automatic categorization rules
-🔄 **Bulk Operations** - Efficiently categorize multiple transactions
-✨ **Custom Categories** - Create personalized categorization systems
-📈 **Analytics** - Use categorization data for better insights
-🔧 **System Optimization** - Improve your overall categorization workflow
-
-**How I Can Help:**
-• Explain categorization best practices and strategies
-• Help you create custom categories that match your lifestyle
-• Set up automatic categorization rules to save time
-• Improve categorization accuracy through smart learning
-• Assist with bulk categorization operations
-• Provide insights based on your categorized data
-• Troubleshoot categorization issues and questions
-
-**My Approach:**
-I combine AI intelligence with human insight to create a categorization system that's both accurate and meaningful. I learn from your preferences and help you organize your financial data in ways that support your goals.
-
-**Pro Tip:** The better your categorization, the more valuable your financial insights become!
-
-What specific aspect of transaction categorization would you like to explore?`;
-    }
-
-    // Default response for other queries
-    return `Hi ${userName}! 🏷️ I understand you're asking about "${userQuery}". As your AI Categorization specialist, I'm here to help with:
-
-**Categorization Topics I Cover:**
-• Smart transaction categorization and organization
-• Creating custom categories for your unique needs
-• Improving categorization accuracy and consistency
-• Setting up automatic categorization rules
-• Bulk categorization operations and efficiency
-• Using categorized data for financial insights
-• Optimizing your categorization workflow
-
-**My Categorization Capabilities:**
-I use advanced AI to help you organize your financial transactions with precision and intelligence. I can learn your preferences, suggest categories, and help you create a system that makes your financial data more meaningful and actionable.
-
-**My Promise:**
-I'll help you create a categorization system that's both accurate and meaningful, turning your raw transaction data into valuable financial insights.
-
-Could you tell me more specifically what categorization topic you'd like to discuss? I'm ready to help you organize your financial data!`;
+    
+    setGeneratedRules(rules);
+    setRulesOpen(true);
+    
+    // Also send to Tag AI for analysis
+    sendMessage(`I've generated ${rules.length} smart categorization rules for ${category}. Please review and suggest improvements.`);
   };
 
-  const quickActions = [
-    { icon: Tag, text: "Smart Categorization", action: () => sendMessage("I want to learn about smart categorization") },
-    { icon: Plus, text: "Create Custom Categories", action: () => sendMessage("I want to create custom categories") },
-    { icon: Settings, text: "Set Up Rules", action: () => sendMessage("I want to set up categorization rules") },
-    { icon: RefreshCw, text: "Improve Accuracy", action: () => sendMessage("I want to improve categorization accuracy") },
-    { icon: BarChart3, text: "Bulk Operations", action: () => sendMessage("I want to do bulk categorization") },
-    { icon: CheckCircle, text: "Review Categories", action: () => sendMessage("I want to review my current categories") }
-  ];
+  const startLiveProcessing = () => {
+    setIsProcessing(true);
+    setCurrentStep(0);
+    setProcessingStatus('Starting document processing...');
+    
+    const steps = [
+      {
+        step: 1,
+        status: '📤 Uploading document...',
+        duration: 2000,
+        details: 'Smart Import AI (Byte) is processing your document'
+      },
+      {
+        step: 2,
+        status: '🔍 Extracting transaction data...',
+        duration: 3000,
+        details: 'Found 156 transactions, validating data integrity'
+      },
+      {
+        step: 3,
+        status: '🧠 Tag AI analyzing patterns...',
+        duration: 4000,
+        details: 'Creating smart categorization rules based on your spending patterns'
+      },
+      {
+        step: 4,
+        status: '📊 Applying categorization rules...',
+        duration: 3000,
+        details: 'Categorizing transactions: 142 auto-categorized, 14 need review'
+      },
+      {
+        step: 5,
+        status: '✅ Processing complete!',
+        duration: 2000,
+        details: '95% accuracy achieved. Ready for review and chat with Tag AI'
+      }
+    ];
+    
+    let currentStepIndex = 0;
+    
+    const processStep = () => {
+      if (currentStepIndex < steps.length) {
+        const step = steps[currentStepIndex];
+        setCurrentStep(step.step);
+        setProcessingStatus(step.status);
+        
+        setTimeout(() => {
+          currentStepIndex++;
+          processStep();
+        }, step.duration);
+      } else {
+        setIsProcessing(false);
+        setProcessingStatus('Processing complete! Ready for review.');
+      }
+    };
+    
+    processStep();
+  };
 
-  const categorizationTips = [
-    {
-      icon: Zap,
-      title: "Be Consistent",
-      description: "Categorize similar transactions the same way"
-    },
-    {
-      icon: Edit,
-      title: "Custom Categories",
-      description: "Create categories that match your lifestyle"
-    },
-    {
-      icon: Filter,
-      title: "Use Rules",
-      description: "Automate common categorizations"
-    },
-    {
-      icon: Search,
-      title: "Regular Reviews",
-      description: "Check accuracy monthly"
+  const sendMessage = async (message: string) => {
+    console.log('Sending message to Tag AI:', message);
+    
+    // Add user message to chat
+    const newMessage = {
+      id: Date.now(),
+      type: 'user' as const,
+      content: message,
+      timestamp: new Date().toLocaleTimeString()
+    };
+    setChatMessages(prev => [...prev, newMessage]);
+    
+    // Show loading state
+    const loadingMessage = {
+      id: Date.now() + 1,
+      type: 'ai' as const,
+      content: '🤖 Tag AI is thinking...',
+      timestamp: new Date().toLocaleTimeString(),
+      isLoading: true
+    };
+    setChatMessages(prev => [...prev, loadingMessage]);
+    
+    try {
+      // Check if API key is available
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (!apiKey || apiKey === 'your-api-key-here') {
+        // Fallback response when API key is not configured
+        const fallbackResponse = `🧠 **Tag AI Response** (Demo Mode)
+
+I received your message: "${message}"
+
+Since the OpenAI API key isn't configured yet, I'm running in demo mode. Here's what I would normally do:
+
+**For categorization requests:**
+- Analyze transaction patterns
+- Suggest smart categories
+- Create categorization rules
+- Process spending data
+
+**For analysis requests:**
+- Review spending patterns
+- Identify trends and insights
+- Generate reports
+- Provide recommendations
+
+To enable full AI functionality, please configure your OpenAI API key in the environment variables.
+
+What would you like to explore about your financial data?`;
+
+        // Remove loading message and add fallback response
+        setChatMessages(prev => {
+          const filtered = prev.filter(msg => !msg.isLoading);
+          return [...filtered, {
+            id: Date.now() + 2,
+            type: 'ai' as const,
+            content: fallbackResponse,
+            timestamp: new Date().toLocaleTimeString(),
+            isLoading: false
+          }];
+        });
+        return;
+      }
+
+      // Call real Tag AI
+      const response = await universalAIEmployeeManager.chatWithEmployee('Tag', message);
+      console.log('Tag AI response:', response);
+      
+      // Remove loading message and add AI response
+      setChatMessages(prev => {
+        const filtered = prev.filter(msg => !msg.isLoading);
+        return [...filtered, {
+          id: Date.now() + 2,
+          type: 'ai' as const,
+          content: response?.response || response || 'I received your message but couldn\'t generate a response. Please try again.',
+          timestamp: new Date().toLocaleTimeString(),
+          isLoading: false
+        }];
+      });
+      
+    } catch (error) {
+      console.error('Error sending message to Tag AI:', error);
+      
+      // Remove loading message and add error response
+      setChatMessages(prev => {
+        const filtered = prev.filter(msg => !msg.isLoading);
+        return [...filtered, {
+          id: Date.now() + 2,
+          type: 'ai' as const,
+          content: '❌ Sorry, I encountered an error. Please try again.',
+          timestamp: new Date().toLocaleTimeString(),
+          isLoading: false
+        }];
+      });
     }
-  ];
+  };
+
+  // Export functionality
+  const exportToCSV = () => {
+    const categories = [
+      { name: "Food & Dining", percentage: "23%", amount: "$2,847", transactions: 156 },
+      { name: "Transportation", percentage: "12%", amount: "$1,456", transactions: 89 },
+      { name: "Entertainment", percentage: "8%", amount: "$892", transactions: 45 },
+      { name: "Shopping", percentage: "15%", amount: "$1,823", transactions: 134 },
+      { name: "Utilities", percentage: "6%", amount: "$743", transactions: 23 },
+      { name: "Uncategorized", percentage: "5%", amount: "$623", transactions: 23 }
+    ];
+
+    const csvContent = [
+      ['Category', 'Percentage', 'Amount', 'Transactions'],
+      ...categories.map(cat => [cat.name, cat.percentage, cat.amount, cat.transactions])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `smart-categories-report-${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    
+    showExportToast('CSV');
+  };
+
+  const exportToExcel = () => {
+    // For Excel, we'll create a CSV that Excel can open
+    const categories = [
+      { name: "Food & Dining", percentage: "23%", amount: "$2,847", transactions: 156 },
+      { name: "Transportation", percentage: "12%", amount: "$1,456", transactions: 89 },
+      { name: "Entertainment", percentage: "8%", amount: "$892", transactions: 45 },
+      { name: "Shopping", percentage: "15%", amount: "$1,823", transactions: 134 },
+      { name: "Utilities", percentage: "6%", amount: "$743", transactions: 23 },
+      { name: "Uncategorized", percentage: "5%", amount: "$623", transactions: 23 }
+    ];
+
+    const csvContent = [
+      ['Category', 'Percentage', 'Amount', 'Transactions'],
+      ...categories.map(cat => [cat.name, cat.percentage, cat.amount, cat.transactions])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `smart-categories-report-${new Date().toISOString().split('T')[0]}.xls`;
+    link.click();
+    
+    showExportToast('Excel');
+  };
+
+  const exportToPDF = () => {
+    // Create a simple PDF using browser's print functionality
+    const printWindow = window.open('', '_blank');
+    const categories = [
+      { name: "Food & Dining", percentage: "23%", amount: "$2,847", transactions: 156 },
+      { name: "Transportation", percentage: "12%", amount: "$1,456", transactions: 89 },
+      { name: "Entertainment", percentage: "8%", amount: "$892", transactions: 45 },
+      { name: "Shopping", percentage: "15%", amount: "$1,823", transactions: 134 },
+      { name: "Utilities", percentage: "6%", amount: "$743", transactions: 23 },
+      { name: "Uncategorized", percentage: "5%", amount: "$623", transactions: 23 }
+    ];
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Smart Categories Report</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .header h1 { color: #333; margin: 0; }
+          .header p { color: #666; margin: 5px 0; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+          th { background-color: #f2f2f2; font-weight: bold; }
+          .total { font-weight: bold; background-color: #f9f9f9; }
+          .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Smart Categories Report</h1>
+          <p>Generated on ${new Date().toLocaleDateString()}</p>
+          <p>AI-Powered Transaction Categorization Analysis</p>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Percentage</th>
+              <th>Amount</th>
+              <th>Transactions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${categories.map(cat => `
+              <tr>
+                <td>${cat.name}</td>
+                <td>${cat.percentage}</td>
+                <td>${cat.amount}</td>
+                <td>${cat.transactions}</td>
+              </tr>
+            `).join('')}
+            <tr class="total">
+              <td>Total</td>
+              <td>100%</td>
+              <td>$8,384</td>
+              <td>472</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          <p>Report generated by XspensesAI Smart Categories</p>
+          <p>Accuracy: 96.2% | Categories: 12 | Total Transactions: 1,247</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    if (printWindow) {
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+      printWindow.print();
+    }
+    
+    showExportToast('PDF');
+  };
+
+  const showExportToast = (format: string) => {
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+    toast.textContent = `📄 ${format} report exported successfully!`;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 3000);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-teal-900 to-slate-900">
-      <DashboardHeader />
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
+      <div className="container mx-auto px-4 py-8">
+        {/* Welcome Header */}
+        <div className="text-center mb-8">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="text-xl font-bold text-white mb-1"
+          >
+            Welcome to Smart Categories
+          </motion.h2>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-white/60 text-sm mb-3"
+          >
+            Your intelligent guide to mastering expense categorization and financial insights
+          </motion.p>
+        </div>
 
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Tag Header */}
-        <motion.div
+        {/* 6-Box Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+          {/* Box 1: Category Overview */}
+          <motion.button
+            onClick={() => setCategoryOverviewOpen(true)}
+            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <TrendingUp className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xs font-semibold text-white mb-0">Category Overview</h3>
+              <p className="text-white/60 text-xs leading-tight">Real-time spending breakdown</p>
+            </div>
+          </motion.button>
+
+          {/* Box 2: Quick Categorization Panel */}
+          <motion.button
+            onClick={() => {
+              console.log('Quick Categorize button clicked!');
+              setQuickCategorizeOpen(true);
+            }}
+            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xs font-semibold text-white mb-0">Quick Categorize</h3>
+              <p className="text-white/60 text-xs leading-tight">Bulk categorization tools</p>
+            </div>
+          </motion.button>
+
+          {/* Box 3: AI Chat Assistant */}
+          <motion.button
+            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <Bot className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xs font-semibold text-white mb-0">Tag AI Chat</h3>
+              <p className="text-white/60 text-xs leading-tight">Chat with Tag AI</p>
+            </div>
+          </motion.button>
+
+          {/* Box 4: Category Rules */}
+          <motion.button
+            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <Search className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xs font-semibold text-white mb-0">Category Rules</h3>
+              <p className="text-white/60 text-xs leading-tight">Manage categorization rules</p>
+            </div>
+          </motion.button>
+
+          {/* Box 5: Auto Category */}
+          <motion.button
+            onClick={() => setAutoCategoryOpen(true)}
+            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.5 }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <Bot className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xs font-semibold text-white mb-0">Auto Category</h3>
+              <p className="text-white/60 text-xs leading-tight">Automatic categorization</p>
+            </div>
+          </motion.button>
+
+          {/* Box 6: Process Overview */}
+          <motion.button
+            onClick={() => setProcessOverviewOpen(true)}
+            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
-        >
-          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
-            <div className="text-3xl">🏷️</div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Tag</h1>
-              <p className="text-white/70 text-sm">AI Categorization Specialist</p>
+            transition={{ duration: 0.5, delay: 0.6 }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
             </div>
-            <div className="flex items-center gap-2 ml-4">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm">AI Active</span>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xs font-semibold text-white mb-0">Process Overview</h3>
+              <p className="text-white/60 text-xs leading-tight">See complete workflow</p>
             </div>
-          </div>
-        </motion.div>
+          </motion.button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Chat Interface */}
-          <div className="lg:col-span-2">
+          {/* Box 7: Category Management */}
+          <motion.button
+            onClick={() => setCategoryManagementOpen(true)}
+            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.7 }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
+              <Table className="w-4 h-4 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-xs font-semibold text-white mb-0">Category Management</h3>
+              <p className="text-white/60 text-xs leading-tight">View all categories & transactions</p>
+            </div>
+          </motion.button>
+          </div>
+
+        {/* Category Overview Modal */}
+        {categoryOverviewOpen && (
+          <motion.div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border border-white/20 p-4 w-[65vw] max-w-2xl max-h-[65vh] overflow-y-auto"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
             >
-              {/* Chat Header */}
-              <div className="bg-white/10 px-6 py-4 border-b border-white/10">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="text-xl">🏷️</div>
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-white" />
+                  </div>
                   <div>
-                    <h2 className="font-semibold text-white">Chat with Tag</h2>
-                    <p className="text-white/60 text-sm">AI Categorization Specialist</p>
+                    <h2 className="text-lg font-bold text-white">Category Overview</h2>
+                    <p className="text-white/60 text-xs">Tag's comprehensive spending analysis</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setCategoryOverviewOpen(false)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4 text-white/60" />
+                </button>
+              </div>
+
+              {/* Tag's Analysis */}
+              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-3 mb-4">
+                <div className="flex items-start gap-2">
+                  <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-3 h-3 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-blue-400 font-semibold text-xs mb-1">⚡ Tag's Analysis</div>
+                    <p className="text-white/80 text-xs leading-relaxed mb-2">
+                      "Food & Dining trending up 23% ($2,847). 23 uncategorized transactions need attention."
+                    </p>
+                    <div className="flex gap-1">
+                      <button 
+                        onClick={() => sendMessage("Auto-categorize all uncategorized transactions")}
+                        className="bg-green-600 hover:bg-green-700 active:scale-95 text-white rounded px-2 py-1 text-xs transition-all duration-200 font-medium"
+                      >
+                        Auto-Categorize
+                      </button>
+                      <button 
+                        onClick={() => sendMessage("Review uncategorized transactions together")}
+                        className="bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded px-2 py-1 text-xs transition-all duration-200 font-medium"
+                      >
+                        Review Together
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Messages */}
-              <div className="h-96 overflow-y-auto p-4 space-y-4">
-                {messages.map((message, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                      message.role === 'user'
-                        ? 'bg-teal-600 text-white'
-                        : 'bg-white/10 text-white border border-white/20'
-                    }`}>
-                      <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div className="text-xs opacity-60 mt-2">
-                        {new Date(message.timestamp).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-
-                {isLoading && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex justify-start"
-                  >
-                    <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Tag is organizing...</span>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                <div ref={messagesEndRef} />
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                <div className="bg-white/5 rounded-lg p-2 text-center border border-white/10">
+                  <div className="text-white font-bold text-sm">12</div>
+                  <div className="text-white/60 text-xs">Categories</div>
+                </div>
+                <div className="bg-white/5 rounded-lg p-2 text-center border border-white/10">
+                  <div className="text-white font-bold text-sm">1,247</div>
+                  <div className="text-white/60 text-xs">Transactions</div>
+                </div>
+                <div className="bg-white/5 rounded-lg p-2 text-center border border-white/10">
+                  <div className="text-green-400 font-bold text-sm">96.2%</div>
+                  <div className="text-white/60 text-xs">Accuracy</div>
+                </div>
               </div>
 
-              {/* Input Area */}
-              <div className="p-4 border-t border-white/10">
+              {/* Category Breakdown */}
+              <div className="space-y-3 mb-6">
+                <h3 className="text-white font-semibold text-sm mb-4">Spending by Category</h3>
+                {[
+                  { name: "Food & Dining", percentage: "23%", amount: "$2,847", transactions: "156 txns", color: "bg-green-500" },
+                  { name: "Transportation", percentage: "12%", amount: "$1,456", transactions: "89 txns", color: "bg-blue-500" },
+                  { name: "Entertainment", percentage: "8%", amount: "$892", transactions: "45 txns", color: "bg-purple-500" },
+                  { name: "Shopping", percentage: "15%", amount: "$1,823", transactions: "134 txns", color: "bg-pink-500" },
+                  { name: "Utilities", percentage: "6%", amount: "$743", transactions: "23 txns", color: "bg-yellow-500" }
+                ].map((category, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors border border-white/10">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 ${category.color} rounded-full`}></div>
+                      <div>
+                        <div className="text-white text-sm font-medium">{category.name}</div>
+                        <div className="text-white/60 text-xs">{category.percentage} • {category.transactions}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-white font-semibold text-sm">{category.amount}</div>
+                      <div className="flex gap-1">
+                        <button 
+                          onClick={() => sendMessage(`Show details for ${category.name} category`)}
+                          className="bg-blue-500/20 hover:bg-blue-500/30 active:scale-95 text-blue-400 rounded px-2 py-1 text-xs transition-all duration-200 font-medium"
+                        >
+                          Ask Tag
+                        </button>
+                        <button 
+                          onClick={() => sendMessage(`View all ${category.name} transactions`)}
+                          className="bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded px-2 py-1 text-xs transition-all duration-200 font-medium"
+                        >
+                          View All
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Uncategorized Section */}
+              <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg mb-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-yellow-400 font-semibold text-sm">23 Uncategorized</div>
+                    <div className="text-white/60 text-xs">Need attention</div>
+                  </div>
+                  <button 
+                    onClick={() => sendMessage("Show uncategorized transactions")}
+                    className="bg-yellow-500/20 hover:bg-yellow-500/30 active:scale-95 text-yellow-400 rounded-lg px-3 py-2 text-sm transition-all duration-200 font-medium"
+                  >
+                    Fix
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 mt-4">
+                <button 
+                  onClick={() => {
+                    // Show export options in a simple way
+                    const choice = confirm('Choose export format:\nOK = PDF\nCancel = CSV\nOr use the dropdown for Excel');
+                    if (choice === null) return; // User cancelled
+                    if (choice) {
+                      exportToPDF();
+                    } else {
+                      exportToCSV();
+                    }
+                  }}
+                  className="flex-1 h-9 bg-gradient-to-r from-gray-500 to-gray-600 hover:opacity-90 active:scale-95 text-white rounded-lg transition-all duration-200 text-xs flex items-center justify-center gap-1 font-medium"
+                >
+                  <Download className="w-3 h-3" />
+                  Export Report
+                </button>
+                
+                <button 
+                  onClick={() => setChatOpen(true)}
+                  className="flex-1 h-9 bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 active:scale-95 text-white rounded-lg transition-all duration-200 text-xs font-medium"
+                >
+                  Create Category
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Quick Categorize Modal */}
+        {quickCategorizeOpen && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border border-white/20 p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-white">Quick Categorize</h2>
+                    <p className="text-white/60 text-sm">Bulk categorize multiple transactions at once</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setQuickCategorizeOpen(false)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-white/60" />
+                </button>
+              </div>
+
+              {/* Tag's Quick Analysis */}
+              <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-blue-400 font-semibold text-sm mb-2">⚡ Tag's Quick Analysis</div>
+                    <p className="text-white/80 text-sm leading-relaxed mb-3">
+                      "I found 47 uncategorized transactions that need attention! I can categorize them in bulk using smart patterns. 
+                      Would you like me to auto-categorize them, or would you prefer to review them first?"
+                    </p>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => sendMessage("Auto-categorize all uncategorized transactions using smart patterns")}
+                        className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg px-3 py-2 text-sm transition-all duration-200"
+                      >
+                        Auto-Categorize All
+                      </button>
+                      <button 
+                        onClick={() => sendMessage("Show me the uncategorized transactions to review")}
+                        className="bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-lg px-3 py-2 text-sm transition-all duration-200"
+                      >
+                        Review First
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bulk Actions */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                  <h3 className="text-white font-semibold text-sm mb-3">Smart Bulk Actions</h3>
+                  <div className="space-y-2">
+                    <button 
+                      onClick={() => sendMessage("Categorize all transactions from the last 30 days")}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 text-white rounded-lg px-3 py-2 text-sm transition-opacity"
+                    >
+                      Last 30 Days
+                    </button>
+                    <button 
+                      onClick={() => sendMessage("Categorize all transactions by merchant name")}
+                      className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-3 py-2 text-sm transition-opacity"
+                    >
+                      By Merchant
+                    </button>
+                    <button 
+                      onClick={() => sendMessage("Categorize all transactions by amount range")}
+                      className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:opacity-90 text-white rounded-lg px-3 py-2 text-sm transition-opacity"
+                    >
+                      By Amount
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                  <h3 className="text-white font-semibold text-sm mb-3">Quick Filters</h3>
+                  <div className="space-y-2">
+                    <button 
+                      onClick={() => sendMessage("Show only uncategorized transactions")}
+                      className="w-full bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-2 text-sm transition-colors"
+                    >
+                      Uncategorized Only
+                    </button>
+                    <button 
+                      onClick={() => sendMessage("Show transactions from this month")}
+                      className="w-full bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-2 text-sm transition-colors"
+                    >
+                      This Month
+                    </button>
+                    <button 
+                      onClick={() => sendMessage("Show transactions over $100")}
+                      className="w-full bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-2 text-sm transition-colors"
+                    >
+                      Over $100
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Transaction List Preview */}
+              <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                <h3 className="text-white font-semibold text-sm mb-3">Recent Uncategorized Transactions</h3>
+                <div className="space-y-2">
+                  {[
+                    { merchant: "AMAZON.COM", amount: "$47.99", date: "Dec 15", suggested: "Shopping" },
+                    { merchant: "STARBUCKS", amount: "$5.67", date: "Dec 14", suggested: "Food & Dining" },
+                    { merchant: "SHELL", amount: "$32.45", date: "Dec 14", suggested: "Transportation" },
+                    { merchant: "NETFLIX", amount: "$15.99", date: "Dec 13", suggested: "Entertainment" },
+                    { merchant: "WALMART", amount: "$89.23", date: "Dec 13", suggested: "Shopping" }
+                  ].map((transaction, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                        <div>
+                          <div className="text-white text-sm font-medium">{transaction.merchant}</div>
+                          <div className="text-white/60 text-xs">{transaction.date}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-white font-semibold text-sm">{transaction.amount}</div>
+                        <button 
+                          onClick={() => sendMessage(`Categorize ${transaction.merchant} as ${transaction.suggested}`)}
+                          className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded px-2 py-1 text-xs transition-colors"
+                        >
+                          {transaction.suggested}
+                        </button>
+                      </div>
+                </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 mt-6">
+                <div className="flex-1 relative group">
+                  <button 
+                    className="w-full bg-gradient-to-r from-gray-500 to-gray-600 hover:opacity-90 text-white rounded-lg px-4 py-3 transition-opacity text-sm flex items-center justify-center gap-2 font-medium"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export List
+                  </button>
+                  
+                  {/* Export Options Dropdown */}
+                  <div className="absolute bottom-full left-0 mb-2 w-full bg-slate-800 border border-white/20 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+                    <div className="p-2 space-y-1">
+                      <button 
+                        onClick={exportToPDF}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 rounded text-sm transition-colors"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Export as PDF
+                      </button>
+                      <button 
+                        onClick={exportToCSV}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 rounded text-sm transition-colors"
+                      >
+                        <Table className="w-4 h-4" />
+                        Export as CSV
+                      </button>
+                      <button 
+                        onClick={exportToExcel}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-white hover:bg-white/10 rounded text-sm transition-colors"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        Export as Excel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => sendMessage("Create custom categorization rules")}
+                  className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-4 py-3 transition-opacity text-sm font-medium"
+                >
+                  Create Rules
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tag AI Chat Interface */}
+        {chatOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-white">🧠 Smart Tag AI</h3>
+                  <p className="text-sm text-gray-400">Your central hub for all categorization actions</p>
+                </div>
+                <button 
+                  onClick={() => setChatOpen(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="flex-1 bg-slate-700 rounded-lg p-4 mb-4 overflow-y-auto">
+                <div className="space-y-4">
+                  {chatMessages.map((message) => (
+                    <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`rounded-lg p-3 max-w-[80%] ${
+                        message.type === 'user' 
+                          ? 'bg-blue-500 text-white' 
+                          : message.isLoading 
+                            ? 'bg-slate-600 text-gray-300 animate-pulse' 
+                            : 'bg-slate-600 text-white'
+                      }`}>
+                        <p className="text-sm whitespace-pre-line">{message.content}</p>
+                        <p className="text-xs opacity-70 mt-1">{message.timestamp}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => sendMessage("Show me all my categories")}
+                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
+                  >
+                    View Categories
+                  </button>
+                  <button
+                    onClick={() => sendMessage("Create smart categorization rules")}
+                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
+                  >
+                    Create Rules
+                  </button>
+                  <button
+                    onClick={() => sendMessage("Analyze my spending patterns")}
+                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
+                  >
+                    Analyze Spending
+                  </button>
+                  <button
+                    onClick={() => sendMessage("Export my data")}
+                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
+                  >
+                    Export Data
+                  </button>
+                  <button
+                    onClick={() => sendMessage("Process new document")}
+                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
+                  >
+                    Upload Document
+                  </button>
+                  <button
+                    onClick={() => sendMessage("Show uncategorized transactions")}
+                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
+                  >
+                    View Uncategorized
+                  </button>
+                </div>
+                
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                    placeholder="Ask Tag about categorization, custom categories, rules, or bulk operations..."
-                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-teal-500"
-                    disabled={isLoading}
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    placeholder="Ask Tag AI anything about your categories..."
+                    className="flex-1 bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-blue-500 focus:outline-none"
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage(chatMessage)}
                   />
                   <button
-                    onClick={() => sendMessage(input)}
-                    disabled={isLoading || !input.trim()}
-                    className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
+                    onClick={() => {
+                      if (chatMessage.trim()) {
+                        sendMessage(chatMessage);
+                        setChatMessage('');
+                      }
+                    }}
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-6 py-3 transition-opacity font-medium"
                   >
-                    <Send className="w-5 h-5" />
+                    Send
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
+          </div>
+        )}
+
+        {/* Auto Category Modal */}
+        {autoCategoryOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-semibold text-white">🤖 Auto Category with Tag AI</h3>
+                  <p className="text-sm text-gray-400">Let Tag AI automatically categorize your transactions</p>
+                </div>
+                <button 
+                  onClick={() => setAutoCategoryOpen(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Auto Category Options */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  <div className="bg-slate-700 rounded-lg p-3 min-h-[140px] flex flex-col">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+                        <Zap className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-white text-sm">Smart Auto-Categorize</h4>
+                        <p className="text-xs text-gray-400">AI learns your patterns</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-300 mb-3 flex-grow">Tag AI analyzes your transaction history and automatically categorizes new transactions based on merchant names, amounts, and patterns.</p>
+                    <button
+                      onClick={() => {
+                        sendMessage("Please auto-categorize all my uncategorized transactions using smart pattern recognition");
+                        setAutoCategoryOpen(false);
+                      }}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-xs font-medium"
+                    >
+                      Start Auto-Categorization
+                    </button>
+                  </div>
+
+                  <div className="bg-slate-700 rounded-lg p-3 min-h-[140px] flex flex-col">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                        <Search className="w-4 h-4 text-white" />
+                      </div>
+            <div>
+                        <h4 className="font-semibold text-white text-sm">Pattern Analysis</h4>
+                        <p className="text-xs text-gray-400">Discover spending patterns</p>
+            </div>
+            </div>
+                    <p className="text-xs text-gray-300 mb-3 flex-grow">Analyze your spending patterns and get suggestions for new categories and rules based on your transaction history.</p>
+                    <button
+                      onClick={() => {
+                        sendMessage("Analyze my spending patterns and suggest new categories and categorization rules");
+                        setAutoCategoryOpen(false);
+                      }}
+                      className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-xs font-medium"
+                    >
+                      Analyze Patterns
+                    </button>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 gap-3">
-                {quickActions.map((action, index) => (
-                  <button
-                    key={index}
-                    onClick={action.action}
-                    className="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
-                  >
-                    <action.icon className="w-5 h-5" />
-                    <span className="text-sm">{action.text}</span>
-                  </button>
-                ))}
+                  <div className="bg-slate-700 rounded-lg p-3 min-h-[140px] flex flex-col">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                        <Bot className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-white text-sm">Rule Creation</h4>
+                        <p className="text-xs text-gray-400">Create smart rules</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-300 mb-3 flex-grow">Let Tag AI create intelligent categorization rules that will automatically categorize future transactions.</p>
+                    <button
+                      onClick={() => {
+                        sendMessage("Create smart categorization rules for my most common merchants and transaction types");
+                        setAutoCategoryOpen(false);
+                      }}
+                      className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-xs font-medium"
+                    >
+                      Create Rules
+                    </button>
               </div>
-            </motion.div>
 
-            {/* Categorization Tips */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Categorization Tips</h3>
-              <div className="space-y-3">
-                {categorizationTips.map((tip, index) => (
-                  <div key={index} className="flex items-start gap-3 p-3 bg-white/10 rounded-lg">
-                    <tip.icon className="w-5 h-5 text-teal-400 mt-0.5" />
-                    <div>
-                      <div className="text-white text-sm font-medium">{tip.title}</div>
-                      <div className="text-white/60 text-xs">{tip.description}</div>
+                  <div className="bg-slate-700 rounded-lg p-3 min-h-[140px] flex flex-col">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
+                        <TrendingUp className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-white text-sm">Bulk Processing</h4>
+                        <p className="text-xs text-gray-400">Process many transactions</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-300 mb-3 flex-grow">Process large batches of transactions at once using Tag AI's intelligent categorization engine.</p>
+                    <button
+                      onClick={() => {
+                        sendMessage("Help me bulk categorize all my transactions from the last 30 days");
+                        setAutoCategoryOpen(false);
+                      }}
+                      className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-xs font-medium"
+                    >
+                      Bulk Process
+                    </button>
+                </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="bg-slate-700 rounded-lg p-3">
+                  <h4 className="font-semibold text-white mb-2 text-sm">Quick Actions</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        sendMessage("Show me all uncategorized transactions and suggest categories for them");
+                        setAutoCategoryOpen(false);
+                      }}
+                      className="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-2 rounded transition-colors"
+                    >
+                      Find Uncategorized
+                    </button>
+                    <button
+                      onClick={() => {
+                        sendMessage("Review my current categories and suggest improvements or new ones");
+                        setAutoCategoryOpen(false);
+                      }}
+                      className="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-2 rounded transition-colors"
+                    >
+                      Review Categories
+                    </button>
+                    <button
+                      onClick={() => {
+                        sendMessage("Create a rule to automatically categorize transactions from [merchant name] as [category name]");
+                        setAutoCategoryOpen(false);
+                      }}
+                      className="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-2 rounded transition-colors"
+                    >
+                      Create Custom Rule
+                    </button>
+                    <button
+                      onClick={() => {
+                        sendMessage("Help me optimize my expense categories for better budgeting and tax purposes");
+                        setAutoCategoryOpen(false);
+                      }}
+                      className="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-2 rounded transition-colors"
+                    >
+                      Optimize Categories
+                    </button>
+                </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Category Management Modal */}
+        {categoryManagementOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 rounded-lg p-6 w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-semibold text-white">📊 Category Management</h3>
+                  <p className="text-sm text-gray-400">View all categories, transactions, and manage with Tag AI</p>
+                </div>
+                <button 
+                  onClick={() => setCategoryManagementOpen(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Categories List */}
+          <div className="lg:col-span-2">
+                  <h4 className="text-lg font-semibold text-white mb-4">All Categories</h4>
+                  <div className="space-y-3">
+                    {/* Sample Categories */}
+                    <div className="bg-slate-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                          <h5 className="font-semibold text-white">Food & Dining</h5>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-300">$2,847</p>
+                          <p className="text-xs text-gray-400">156 transactions</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedCategory('Food & Dining');
+                            setTransactionsViewOpen(true);
+                          }}
+                          className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded transition-colors"
+                        >
+                          View Transactions
+                        </button>
+                        <button
+                          onClick={() => {
+                            generateSmartRules('Food & Dining');
+                            setCategoryManagementOpen(false);
+                          }}
+                          className="bg-purple-500 hover:bg-purple-600 text-white text-xs px-3 py-1 rounded transition-colors"
+                        >
+                          Create Rules
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                          <h5 className="font-semibold text-white">Transportation</h5>
+                  </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-300">$1,456</p>
+                          <p className="text-xs text-gray-400">89 transactions</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedCategory('Transportation');
+                            setTransactionsViewOpen(true);
+                          }}
+                          className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded transition-colors"
+                        >
+                          View Transactions
+                        </button>
+                        <button
+                          onClick={() => {
+                            generateSmartRules('Transportation');
+                            setCategoryManagementOpen(false);
+                          }}
+                          className="bg-purple-500 hover:bg-purple-600 text-white text-xs px-3 py-1 rounded transition-colors"
+                        >
+                          Create Rules
+                        </button>
+                </div>
+              </div>
+
+                    <div className="bg-slate-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                          <h5 className="font-semibold text-white">Entertainment</h5>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-300">$892</p>
+                          <p className="text-xs text-gray-400">45 transactions</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedCategory('Entertainment');
+                            setTransactionsViewOpen(true);
+                          }}
+                          className="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1 rounded transition-colors"
+                        >
+                          View Transactions
+                        </button>
+                        <button
+                          onClick={() => {
+                            generateSmartRules('Entertainment');
+                            setCategoryManagementOpen(false);
+                          }}
+                          className="bg-purple-500 hover:bg-purple-600 text-white text-xs px-3 py-1 rounded transition-colors"
+                        >
+                          Create Rules
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                          <h5 className="font-semibold text-white">Uncategorized</h5>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-300">$623</p>
+                          <p className="text-xs text-gray-400">23 transactions</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedCategory('Uncategorized');
+                            setTransactionsViewOpen(true);
+                          }}
+                          className="bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1 rounded transition-colors"
+                        >
+                          View Transactions
+                        </button>
+                        <button
+                          onClick={() => {
+                            generateSmartRules('Uncategorized');
+                            setCategoryManagementOpen(false);
+                          }}
+                          className="bg-purple-500 hover:bg-purple-600 text-white text-xs px-3 py-1 rounded transition-colors"
+                        >
+                          Create Rules
+                        </button>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </motion.div>
+                </div>
 
-            {/* Tag's Stats */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Tag's Stats</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Transactions Categorized</span>
-                  <span className="text-teal-400">45,892</span>
+                {/* Tag AI Chat Panel */}
+                <div className="lg:col-span-1">
+                  <h4 className="text-lg font-semibold text-white mb-4">💬 Chat with Tag AI</h4>
+                  <div className="bg-slate-700 rounded-lg p-4 h-full">
+                    <div className="space-y-4">
+                      <div className="bg-slate-600 rounded-lg p-3 text-sm text-gray-300">
+                        <p className="font-semibold mb-2">🧠 Tag AI can help with:</p>
+                        <ul className="space-y-1 text-xs">
+                          <li>• Analyzing spending patterns</li>
+                          <li>• Suggesting new categories</li>
+                          <li>• Creating categorization rules</li>
+                          <li>• Optimizing existing categories</li>
+                          <li>• Finding uncategorized transactions</li>
+                        </ul>
+              </div>
+
+                      <div className="space-y-2">
+                  <input
+                    type="text"
+                          value={chatMessage}
+                          onChange={(e) => setChatMessage(e.target.value)}
+                          placeholder="Ask Tag AI about your categories..."
+                          className="w-full bg-slate-600 text-white rounded-lg px-3 py-2 border border-slate-500 focus:border-purple-500 focus:outline-none text-sm"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              sendMessage(chatMessage);
+                              setChatMessage('');
+                            }
+                          }}
+                  />
+                  <button
+                          onClick={() => {
+                            sendMessage(chatMessage);
+                            setChatMessage('');
+                          }}
+                          className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-sm"
+                        >
+                          Send to Tag AI
+                  </button>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Accuracy Rate</span>
-                  <span className="text-green-400">96.7%</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Rules Created</span>
-                  <span className="text-blue-400">1,247</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Custom Categories</span>
-                  <span className="text-purple-400">89</span>
+
+                      <div className="space-y-2">
+                        <p className="text-xs text-gray-400">Quick Actions:</p>
+                        <button
+                          onClick={() => {
+                            sendMessage("Give me a complete overview of all my spending categories and suggest improvements");
+                            setCategoryManagementOpen(false);
+                          }}
+                          className="w-full bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
+                        >
+                          Category Overview
+                        </button>
+                        <button
+                          onClick={() => {
+                            sendMessage("Help me create smart rules to automatically categorize future transactions");
+                            setCategoryManagementOpen(false);
+                          }}
+                          className="w-full bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
+                        >
+                          Create Rules
+                        </button>
+                        <button
+                          onClick={() => {
+                            sendMessage("Find all transactions that might be miscategorized and suggest corrections");
+                            setCategoryManagementOpen(false);
+                          }}
+                          className="w-full bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
+                        >
+                          Find Errors
+                        </button>
+              </div>
+          </div>
+                  </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
+        )}
+
+        {/* Live Process Overview Modal */}
+        {processOverviewOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-2xl font-semibold text-white">🔄 Live Processing Workflow</h3>
+                  <p className="text-sm text-gray-400">Watch the complete process from upload to categorization in real-time</p>
+                </div>
+                <button 
+                  onClick={() => setProcessOverviewOpen(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+          <div className="space-y-6">
+                {/* Live Processing Status */}
+                <div className="bg-slate-700 rounded-lg p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-xl font-semibold text-white">Live Processing Status</h4>
+                    {!isProcessing && (
+                      <button
+                        onClick={startLiveProcessing}
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 text-white rounded-lg px-4 py-2 transition-opacity font-medium"
+                      >
+                        Start Live Demo
+                      </button>
+                    )}
+                  </div>
+                  
+                  {isProcessing ? (
+                    <div className="space-y-4">
+                      {/* Progress Bar */}
+                      <div className="w-full bg-slate-600 rounded-full h-3">
+                        <div 
+                          className="bg-gradient-to-r from-blue-500 to-purple-500 h-3 rounded-full transition-all duration-1000"
+                          style={{ width: `${(currentStep / 5) * 100}%` }}
+                        ></div>
+                      </div>
+                      
+                      {/* Current Status */}
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-white mb-2">{processingStatus}</div>
+                        <div className="text-sm text-gray-300">Step {currentStep} of 5</div>
+                      </div>
+                      
+                      {/* Live Activity Feed */}
+                      <div className="bg-slate-600 rounded-lg p-4">
+                        <h5 className="text-white font-medium mb-3">Live Activity Feed</h5>
+                        <div className="space-y-2 text-sm">
+                          {currentStep >= 1 && (
+                            <div className="flex items-center gap-2 text-green-400">
+                              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                              <span>Smart Import AI (Byte) processing document...</span>
+                            </div>
+                          )}
+                          {currentStep >= 2 && (
+                            <div className="flex items-center gap-2 text-green-400">
+                              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                              <span>Extracted 156 transactions, validating data...</span>
+                            </div>
+                          )}
+                          {currentStep >= 3 && (
+                            <div className="flex items-center gap-2 text-green-400">
+                              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                              <span>Tag AI analyzing patterns, creating rules...</span>
+                            </div>
+                          )}
+                          {currentStep >= 4 && (
+                            <div className="flex items-center gap-2 text-green-400">
+                              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                              <span>Applying categorization: 142 auto-categorized, 14 need review</span>
+                            </div>
+                          )}
+                          {currentStep >= 5 && (
+                            <div className="flex items-center gap-2 text-green-400">
+                              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                              <span>Processing complete! 95% accuracy achieved</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="text-6xl mb-4">🚀</div>
+                      <h5 className="text-xl font-semibold text-white mb-2">Ready to Start Live Processing</h5>
+                      <p className="text-gray-300 mb-6">Click "Start Live Demo" to see the complete workflow in action</p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-300">
+                        <div className="bg-slate-600 rounded-lg p-3">
+                          <div className="text-blue-400 font-medium mb-1">Step 1-2</div>
+                          <div>Document Upload & Data Extraction</div>
+                        </div>
+                        <div className="bg-slate-600 rounded-lg p-3">
+                          <div className="text-purple-400 font-medium mb-1">Step 3-4</div>
+                          <div>Tag AI Analysis & Categorization</div>
+                        </div>
+                        <div className="bg-slate-600 rounded-lg p-3">
+                          <div className="text-green-400 font-medium mb-1">Step 5</div>
+                          <div>Review & Chat with Tag AI</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Real-time Results */}
+                {currentStep >= 4 && (
+                  <div className="bg-slate-700 rounded-lg p-6">
+                    <h4 className="text-xl font-semibold text-white mb-4">Real-time Categorization Results</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h5 className="text-white font-medium mb-3">Auto-categorized Transactions</h5>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-green-400">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span className="text-sm">Starbucks $4.50 → Food & Dining</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-green-400">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span className="text-sm">Shell Gas $45.20 → Transportation</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-green-400">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span className="text-sm">Netflix $15.99 → Entertainment</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-green-400">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span className="text-sm">Uber $18.90 → Transportation</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <h5 className="text-white font-medium mb-3">Needs Review</h5>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-yellow-400">
+                            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                            <span className="text-sm">Amazon $67.80 → Needs review</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-yellow-400">
+                            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                            <span className="text-sm">Walmart $23.45 → Needs review</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex gap-4 justify-center">
+                  <button
+                    onClick={() => {
+                      setProcessOverviewOpen(false);
+                      setCategoryManagementOpen(true);
+                    }}
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-6 py-3 transition-opacity font-medium"
+                  >
+                    View Category Management
+                  </button>
+                  <button
+                    onClick={() => {
+                      setProcessOverviewOpen(false);
+                      setChatOpen(true);
+                    }}
+                    className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 text-white rounded-lg px-6 py-3 transition-opacity font-medium"
+                  >
+                    Chat with Tag AI
+                  </button>
+              </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Transactions View Modal */}
+        {transactionsViewOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-slate-800 rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-xl font-semibold text-white">📋 {selectedCategory} Transactions</h3>
+                  <p className="text-sm text-gray-400">View all transactions in this category</p>
+                </div>
+                <button 
+                  onClick={() => setTransactionsViewOpen(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <div className="space-y-6">
+                {/* Total Summary */}
+                <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-2xl font-bold text-white">${getCategoryTotal(selectedCategory).toFixed(2)}</h4>
+                      <p className="text-blue-100">Total Spent in {selectedCategory}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-bold text-white">{sampleTransactions[selectedCategory as keyof typeof sampleTransactions]?.length || 0}</p>
+                      <p className="text-blue-100">Transactions</p>
+                  </div>
+              </div>
+                </div>
+
+                {/* Transactions List */}
+                <div className="bg-slate-700 rounded-lg p-4">
+                  <h5 className="text-lg font-semibold text-white mb-4">Transaction Details</h5>
+              <div className="space-y-3">
+                    {sampleTransactions[selectedCategory as keyof typeof sampleTransactions]?.map((transaction) => (
+                      <div key={transaction.id} className="bg-slate-600 rounded-lg p-4 flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <h6 className="font-semibold text-white">{transaction.merchant}</h6>
+                            <span className="text-xs bg-slate-500 text-gray-200 px-2 py-1 rounded">
+                              {transaction.date}
+                            </span>
+                </div>
+                          <p className="text-sm text-gray-300">{transaction.description}</p>
+                </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold text-white">${transaction.amount.toFixed(2)}</p>
+                </div>
+                </div>
+                    ))}
+              </div>
+          </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      sendMessage(`Analyze my ${selectedCategory} spending patterns and suggest optimizations`);
+                      setTransactionsViewOpen(false);
+                    }}
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-4 py-3 transition-opacity font-medium"
+                  >
+                    Ask Tag AI to Analyze
+                  </button>
+                  <button
+                    onClick={() => {
+                      sendMessage(`Help me create better categorization rules for ${selectedCategory} transactions`);
+                      setTransactionsViewOpen(false);
+                    }}
+                    className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 text-white rounded-lg px-4 py-3 transition-opacity font-medium"
+                  >
+                    Create Rules
+                  </button>
+                  <button
+                    onClick={() => {
+                      // Export functionality would go here
+                      console.log('Export transactions for', selectedCategory);
+                    }}
+                    className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 text-white rounded-lg px-4 py-3 transition-opacity font-medium"
+                  >
+                    Export Data
+                  </button>
         </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Floating Chat Button */}
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-full p-4 shadow-lg transition-opacity z-40"
+          title="Chat with Tag AI"
+        >
+          <Bot className="w-6 h-6" />
+        </button>
       </div>
     </div>
   );
-} 
+};
+
+export default AICategorizationPage;

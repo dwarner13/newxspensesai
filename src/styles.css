@@ -70,6 +70,13 @@
 .dashboard-main-content {
   min-height: 0;
   flex: 1;
+  max-width: calc(100vw - 300px - 280px); /* Account for left sidebar (300px) and right sidebar (280px) */
+  overflow-x: hidden;
+}
+
+/* When sidebar is collapsed */
+.dashboard-layout[data-sidebar-collapsed="true"] .dashboard-main-content {
+  max-width: calc(100vw - 80px - 280px); /* Account for collapsed left sidebar (80px) and right sidebar (280px) */
 }
 
 /* Fix dashboard card sizing consistency */
@@ -79,11 +86,11 @@
 
 @media (min-width: 768px) {
   .dashboard-main-content .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1280px) {
   .dashboard-main-content .grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
@@ -101,11 +108,11 @@
 
 @media (min-width: 768px) {
   .dashboard-main-content section .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1280px) {
   .dashboard-main-content section .grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }

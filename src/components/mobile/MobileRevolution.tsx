@@ -21,12 +21,20 @@ const MobileDetection = {
    * Desktop experience remains completely unchanged
    */
   isMobile: () => {
-    // More robust mobile detection
+    // More robust mobile detection - only activate on actual mobile devices
     const isSmallScreen = window.innerWidth <= 768;
     const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
-    return isSmallScreen && (hasTouch || isMobileUserAgent);
+    // Don't activate mobile view on homepage - always show desktop homepage
+    const isHomepage = window.location.pathname === '/';
+    if (isHomepage) {
+      return false;
+    }
+    
+    // Only activate mobile view for dashboard pages on actual mobile devices
+    const isDashboardPage = window.location.pathname.includes('/dashboard');
+    return isDashboardPage && isSmallScreen && (hasTouch || isMobileUserAgent);
   },
 
   /**
@@ -415,29 +423,6 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Check if we're on mobile and should render
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = MobileDetection.isMobile();
-      setIsMobile(mobile);
-      
-      if (mobile) {
-        loadStories();
-        loadEmployees();
-      }
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Don't render on desktop
-  if (!isMobile) {
-    return null;
-  }
-
   const loadStories = async () => {
     // Transform existing data into story format
     const mockStories: Story[] = [
@@ -494,6 +479,29 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     ];
     setEmployees(mockEmployees);
   };
+
+  // Check if we're on mobile and should render
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = MobileDetection.isMobile();
+      setIsMobile(mobile);
+      
+      if (mobile) {
+        loadStories();
+        loadEmployees();
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Don't render on desktop
+  if (!isMobile) {
+    return null;
+  }
 
   const handleStoryAction = (action: string, storyId: string) => {
     if (onStoryAction) {

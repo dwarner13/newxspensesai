@@ -24,8 +24,9 @@ import XspensesProDashboard from './components/XspensesProDashboard';
 // Lazy load non-critical components
 const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
 const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
-// const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage')); // Temporarily disabled
-const ByteLabPage = lazy(() => import('./components/pages/ByteLabPage'));
+const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
+const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
+const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 const ThreeColumnDashboardDemo = lazy(() => import('./components/layout/ThreeColumnDashboardDemo'));
 const SpendingPredictionsPage = lazy(() => import('./pages/dashboard/SpendingPredictionsPage'));
@@ -71,7 +72,6 @@ const WellnessStudioPage = lazy(() => import('./pages/dashboard/WellnessStudioPa
 const GoalConciergeFeaturePage = lazy(() => import('./pages/features/goal-concierge'));
 const PersonalPodcastFeaturePage = lazy(() => import('./pages/features/personal-podcast'));
 const FinancialStoryFeaturePage = lazy(() => import('./pages/features/financial-story'));
-const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
 const PodcastPage = lazy(() => import('./pages/features/podcast'));
 const GamificationFeaturePage = lazy(() => import('./pages/features/gamification'));
 const BusinessExpensesFeaturePage = lazy(() => import('./pages/features/business-expenses'));
@@ -240,16 +240,18 @@ function App() {
                       <Route index element={<XspensesProDashboard />} />
                       <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} />
                       <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
-                      <Route path="smart-import-ai" element={<ByteLabPage />} />
+                      <Route path="smart-import-ai" element={<SmartImportAIPage />} />
+                      <Route path="financial-story" element={<FinancialStoryPage />} />
+                      <Route path="transactions" element={<DashboardTransactionsPage />} />
                       <Route path="goal-concierge" element={<GoalConciergePage />} />
                       <Route path="spending-predictions" element={<SpendingPredictionsPage />} />
                       <Route path="ai-categorization" element={<AICategorizationPage />} />
+                      <Route path="smart-categories" element={<AICategorizationPage />} />
                       <Route path="bill-reminders" element={<BillRemindersPage />} />
                       <Route path="debt-payoff-planner" element={<DebtPayoffPlannerPage />} />
                       <Route path="ai-financial-freedom" element={<AIFinancialFreedomFeaturePage />} />
                       <Route path="therapist-demo" element={<TherapistDemoPage />} />
                       <Route path="personal-podcast" element={<PersonalPodcastPage />} />
-                      <Route path="financial-story" element={<FinancialStoryPage />} />
                       <Route path="podcast" element={<PodcastDashboard />} />
 
                       <Route path="smart-automation" element={<SmartAutomation />} />

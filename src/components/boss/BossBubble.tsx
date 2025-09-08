@@ -377,7 +377,7 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
       <button
         onClick={() => setOpen(v => !v)}
         aria-label="Open Prime"
-        className="fixed z-[70] bottom-20 right-5 md:bottom-24 md:right-7 rounded-full w-14 h-14 bg-gradient-to-br from-cyan-500 to-fuchsia-500 shadow-lg hover:scale-105 active:scale-95 transition"
+        className="fixed z-[70] bottom-24 right-5 md:bottom-8 md:right-7 rounded-full w-14 h-14 bg-gradient-to-br from-cyan-500 to-fuchsia-500 shadow-lg hover:scale-105 active:scale-95 transition"
       >
         <span className="text-2xl">👑</span>
       </button>

@@ -6,6 +6,7 @@ import BottomNav from "./BottomNav";
 import Logo from "../common/Logo";
 import AITeamSidebar from "./AITeamSidebar";
 import DashboardHeader from "../ui/DashboardHeader";
+import BossBubble from "../boss/BossBubble";
 
 
 
@@ -33,7 +34,7 @@ export default function DashboardLayout() {
 
   return (
     <>
-      <div className="dashboard-layout h-screen bg-[#0f172a] text-white lg:flex" data-page="dashboard">
+      <div className="dashboard-layout h-screen bg-[#0f172a] text-white lg:flex" data-page="dashboard" data-sidebar-collapsed={isSidebarCollapsed}>
         {/* Desktop sidebar - Dynamic width based on collapsed state */}
         <aside className={`hidden lg:block shrink-0 border-r border-purple-500/20 bg-[rgba(15,23,42,0.95)] transition-all duration-300 ${
           isSidebarCollapsed ? 'w-[80px]' : 'w-[300px]'
@@ -97,6 +98,9 @@ export default function DashboardLayout() {
 
         {/* Bottom tabs (mobile only) */}
         <BottomNav onMore={() => setOpen(true)} />
+        
+        {/* Prime Chatbot - Bottom Right */}
+        <BossBubble />
       </div>
   </>
 );

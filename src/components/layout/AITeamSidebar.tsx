@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { 
   Activity, 
   CheckCircle, 
@@ -9,9 +10,15 @@ import {
   MessageCircle,
   Play,
   Pause,
-  Filter
+  Filter,
+  Users,
+  Bot,
+  Crown,
+  ChevronDown,
+  Settings
 } from 'lucide-react';
 import './AITeamSidebar.css';
+import { AI_EMPLOYEES } from '../../orchestrator/aiEmployees';
 
 interface LiveActivity {
   id: string;
@@ -26,8 +33,57 @@ interface LiveActivity {
 }
 
 const AITeamSidebar: React.FC = () => {
+  const navigate = useNavigate();
   const [isPaused, setIsPaused] = useState(false);
   const [filter, setFilter] = useState<string | null>(null);
+  const [activeWorkers, setActiveWorkers] = useState<string[]>([]);
+
+  // Function to manually trigger AI workers (can be called from dashboard cards)
+  const triggerAIWorkers = (workerNames: string[]) => {
+    const newActivities = workerNames.map((name, index) => ({
+      id: `manual-${Date.now()}-${index}`,
+      aiName: name,
+      aiEmoji: '🤖',
+      type: 'processing' as const,
+      title: 'Processing Request',
+      description: 'Working on your request',
+      timestamp: 'Just now',
+      progress: Math.floor(Math.random() * 100),
+      isNew: true
+    }));
+
+    setActivities(prev => {
+      // Remove any existing processing activities for these workers
+      const filtered = prev.filter(activity => 
+        !(activity.type === 'processing' && workerNames.includes(activity.aiName))
+      );
+      return [...newActivities, ...filtered].slice(0, 10);
+    });
+  };
+
+  // Expose the function globally so dashboard cards can call it
+  React.useEffect(() => {
+    (window as any).triggerAIWorkers = triggerAIWorkers;
+    return () => {
+      delete (window as any).triggerAIWorkers;
+    };
+  }, []);
+
+  // Handle activity click to navigate to chatbot
+  const handleActivityClick = (activity: LiveActivity) => {
+    // Navigate to AI Financial Assistant with the activity context
+    navigate('/dashboard/ai-financial-assistant', { 
+      state: { 
+        activityContext: {
+          aiName: activity.aiName,
+          activityType: activity.type,
+          activityTitle: activity.title,
+          timestamp: activity.timestamp
+        }
+      }
+    });
+  };
+
   const [activities, setActivities] = useState<LiveActivity[]>([
     {
       id: '1',
@@ -44,20 +100,34 @@ const AITeamSidebar: React.FC = () => {
       id: '2',
       aiName: 'Crystal',
       aiEmoji: '🔮',
-      type: 'completed',
-      title: 'Spending Analysis Complete',
-      description: 'Found 3 spending patterns in your data',
+      type: 'processing',
+      title: 'Analyzing Trends',
+      description: 'Predicting next month\'s spending',
       timestamp: '5 min ago',
+      progress: 45,
       isNew: true
     },
     {
       id: '3',
-      aiName: 'Goalie',
-      aiEmoji: '🥅',
-      type: 'achievement',
-      title: 'Savings Goal Updated',
-      description: 'You\'re $247 ahead of schedule this week!',
-      timestamp: '12 min ago'
+      aiName: 'Tag',
+      aiEmoji: '🏷️',
+      type: 'processing',
+      title: 'Categorizing Transactions',
+      description: 'Auto-categorizing 15 new transactions',
+      timestamp: '12 min ago',
+      progress: 78,
+      isNew: true
+    },
+    {
+      id: '7',
+      aiName: 'Ledger',
+      aiEmoji: '📊',
+      type: 'processing',
+      title: 'Tax Analysis',
+      description: 'Identifying tax deductions and savings',
+      timestamp: '8 min ago',
+      progress: 52,
+      isNew: true
     },
     {
       id: '4',
@@ -70,17 +140,17 @@ const AITeamSidebar: React.FC = () => {
     },
     {
       id: '5',
-      aiName: 'Tag',
-      aiEmoji: '🏷️',
+      aiName: 'Finley',
+      aiEmoji: '💼',
       type: 'completed',
-      title: 'Categorization Complete',
+      title: 'Financial Analysis Complete',
       description: 'Auto-categorized 23 transactions with 96% accuracy',
       timestamp: '25 min ago'
     },
     {
       id: '6',
-      aiName: 'Finley',
-      aiEmoji: '💼',
+      aiName: 'Goalie',
+      aiEmoji: '🥅',
       type: 'available',
       title: 'Ready to Chat',
       description: 'Available for financial advice and insights',
@@ -88,41 +158,64 @@ const AITeamSidebar: React.FC = () => {
     }
   ]);
 
-  // Simulate new activities
+  // Auto-scroll Live Activity section
+  const activityRef = useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (activityRef.current) {
+      activityRef.current.scrollTop = activityRef.current.scrollHeight;
+    }
+  }, [activities]);
+
+  // Update active workers based on current activities
+  useEffect(() => {
+    const processingActivities = activities.filter(activity => activity.type === 'processing');
+    const workerNames = processingActivities.map(activity => activity.aiName);
+    console.log('Processing activities:', processingActivities);
+    console.log('Active workers:', workerNames);
+    setActiveWorkers(workerNames);
+  }, [activities]);
+
+  // Simulate new activities - much slower and more controlled
   useEffect(() => {
     if (isPaused) return;
 
     const interval = setInterval(() => {
+      const processingActivities = activities.filter(activity => activity.type === 'processing');
+      
+      // Add new activity more frequently for live feel
+      if (processingActivities.length < 3) {
       const newActivities = [
         {
           id: Date.now().toString(),
           aiName: 'Byte',
           aiEmoji: '📄',
-          type: 'completed' as const,
-          title: 'Document Processed',
-          description: 'Successfully processed 3 receipts',
+            type: 'processing' as const,
+            title: 'Processing Documents',
+            description: 'Analyzing uploaded receipts',
           timestamp: 'Just now',
+            progress: Math.floor(Math.random() * 100),
           isNew: true
         },
         {
           id: (Date.now() + 1).toString(),
-          aiName: 'Dash',
-          aiEmoji: '📈',
-          type: 'completed' as const,
-          title: 'Weekly Report Generated',
-          description: 'Your spending summary is ready',
-          timestamp: 'Just now',
-          isNew: true
-        },
-        {
-          id: (Date.now() + 2).toString(),
           aiName: 'Crystal',
           aiEmoji: '🔮',
           type: 'processing' as const,
           title: 'Analyzing Trends',
           description: 'Predicting next month\'s spending',
           timestamp: 'Just now',
-          progress: 23,
+            progress: Math.floor(Math.random() * 100),
+            isNew: true
+          },
+          {
+            id: (Date.now() + 2).toString(),
+            aiName: 'Tag',
+            aiEmoji: '🏷️',
+            type: 'processing' as const,
+            title: 'Categorizing Transactions',
+            description: 'Auto-categorizing new transactions',
+            timestamp: 'Just now',
+            progress: Math.floor(Math.random() * 100),
           isNew: true
         }
       ];
@@ -133,10 +226,11 @@ const AITeamSidebar: React.FC = () => {
         const updated = [randomActivity, ...prev.slice(0, 9)]; // Keep only 10 most recent
         return updated;
       });
-    }, 8000); // New activity every 8 seconds
+      }
+    }, 8000); // New activity every 8 seconds for more live feel
 
     return () => clearInterval(interval);
-  }, [isPaused]);
+  }, [isPaused, activities]);
 
   const getActivityIcon = (type: string) => {
     switch (type) {
@@ -180,131 +274,121 @@ const AITeamSidebar: React.FC = () => {
 
   return (
     <div className="ai-team-sidebar">
-      {/* Header */}
-      <div className="sidebar-header">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-purple-400" />
-            <h2 className="text-lg font-bold text-white">Live Activity</h2>
-            <div className="bg-red-500 text-white text-xs rounded-full px-2 py-1 min-w-[20px] h-5 flex items-center justify-center">
-              {activities.filter(a => a.isNew).length}
+      {/* Live Activity Section - Expanded */}
+      <div className="mb-2">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1">
+            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+            <h3 className="text-xs font-semibold text-white/80 uppercase tracking-wider">LIVE ACTIVITY</h3>
             </div>
+          <div className="bg-green-500/20 text-green-400 text-xs rounded-full px-1.5 py-0.5 min-w-[16px] h-4 flex items-center justify-center animate-pulse">
+            {activities.length}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsPaused(!isPaused)}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-              title={isPaused ? 'Resume updates' : 'Pause updates'}
-            >
-              {isPaused ? <Play className="w-4 h-4 text-white/70" /> : <Pause className="w-4 h-4 text-white/70" />}
-            </button>
-            <div className="relative">
-              <select
-                value={filter || ''}
-                onChange={(e) => setFilter(e.target.value || null)}
-                className="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-white/70 focus:outline-none focus:ring-2 focus:ring-purple-500"
+        </div>
+
+        <div ref={activityRef} className="space-y-0.5 max-h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
+          <AnimatePresence>
+            {activities.slice(0, 6).map((activity, index) => (
+              <motion.div
+                key={activity.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+                onClick={() => handleActivityClick(activity)}
+                className={`py-0.5 hover:text-white hover:bg-white/10 transition-all cursor-pointer border-l-2 ${
+                  activity.type === 'processing' ? 'border-l-blue-500 bg-blue-500/5' :
+                  activity.type === 'completed' ? 'border-l-green-500 bg-green-500/5' :
+                  activity.type === 'alert' ? 'border-l-yellow-500 bg-yellow-500/5' :
+                  'border-l-gray-500 bg-gray-500/5'
+                } pl-1.5 rounded-r`}
               >
-                <option value="">All AIs</option>
-                {uniqueAIs.map(ai => (
-                  <option key={ai} value={ai}>{ai}</option>
-                ))}
-              </select>
-            </div>
-          </div>
+                <div className="flex items-center gap-1">
+                  <div className={`w-1 h-1 rounded-full ${
+                    activity.type === 'processing' ? 'bg-blue-500 animate-pulse' :
+                    activity.type === 'completed' ? 'bg-green-500' :
+                    activity.type === 'alert' ? 'bg-yellow-500 animate-pulse' :
+                    'bg-gray-500'
+                  }`}></div>
+                  <div className="text-xs text-white/50">{activity.timestamp}</div>
+                </div>
+                <div className="text-xs text-white/80 mt-0.5">{activity.aiName} {activity.title.toLowerCase()}</div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       </div>
 
-      {/* Live Activity Feed */}
-      <div className="activity-feed">
-        <AnimatePresence>
-          {filteredActivities.map((activity, index) => (
-            <motion.div
-              key={activity.id}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              transition={{ 
-                duration: 0.4, 
-                delay: index * 0.1,
-                type: "spring",
-                stiffness: 100
-              }}
-              className={`activity-item ${getActivityColor(activity.type)} ${
-                activity.isNew ? 'ring-2 ring-purple-400/30' : ''
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-lg">
-                    {activity.aiEmoji}
-                  </div>
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {getActivityIcon(activity.type)}
-                    <span className="text-sm font-semibold text-white">{activity.aiName}</span>
-                    <span className="text-xs text-white/50">{activity.timestamp}</span>
-                    {activity.isNew && (
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-                    )}
-                  </div>
-                  
-                  <h4 className="text-sm font-medium text-white/90 mb-1">
-                    {activity.title}
-                  </h4>
-                  
-                  <p className="text-xs text-white/60 mb-2">
-                    {activity.description}
-                  </p>
-
-                  {activity.progress !== undefined && (
-                    <div className="mb-2">
-                      <div className="flex justify-between text-xs text-white/50 mb-1">
-                        <span>Progress</span>
-                        <span>{activity.progress}%</span>
-                      </div>
-                      <div className="w-full bg-white/10 rounded-full h-1.5">
-                        <motion.div
-                          className="bg-gradient-to-r from-blue-400 to-cyan-400 h-1.5 rounded-full"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${activity.progress}%` }}
-                          transition={{ duration: 0.8, delay: 0.2 }}
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {activity.type === 'available' && (
-                    <button className="text-xs bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 px-2 py-1 rounded-md transition-colors">
-                      Chat Now
-                    </button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-
-      {/* Executive Section - Keep Prime */}
-      <div className="mt-6">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-          <h3 className="text-sm font-semibold text-white/80 uppercase tracking-wider">Executive</h3>
+      {/* Ultra-Compact WORKERS */}
+      <div className="mb-1">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-xs font-semibold text-white/80 uppercase tracking-wider">WORKERS</h3>
+          <span className="text-xs text-white/60">{activeWorkers.length}/4</span>
         </div>
         
-        <div className="bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/20 rounded-xl p-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-cyan-500 rounded-full flex items-center justify-center text-xl">
-              👑
+        <div className="space-y-0.5">
+          {activeWorkers.length > 0 ? (
+            activeWorkers.slice(0, 4).map((workerName) => {
+              const employee = AI_EMPLOYEES[workerName];
+              if (!employee) return null;
+              
+              // Find the current activity for this worker
+              const currentActivity = activities.find(activity => 
+                activity.aiName === workerName && activity.type === 'processing'
+              );
+              const progress = currentActivity?.progress || 0;
+              
+              // Debug logging
+              console.log(`Worker: ${workerName}, Activity:`, currentActivity, `Progress: ${progress}%`);
+              
+              return (
+            <motion.div
+                  key={workerName}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/20 rounded p-1"
+                >
+                  <div className="mb-0.5">
+                    <h4 className="text-xs font-semibold text-white truncate">
+                      {workerName} - {employee.role.split(' - ')[0]}
+                    </h4>
+                  </div>
+                  {/* Progress Bar */}
+                  <div className="w-full bg-white/20 rounded-full h-1.5 mb-0.5">
+                    <div 
+                      className="bg-blue-500 h-1.5 rounded-full transition-all duration-500"
+                      style={{ width: `${progress || 0}%` }}
+                    ></div>
+                </div>
+                  <div className="text-xs text-center text-blue-400 font-semibold">
+                    {progress || 0}%
+                  </div>
+                </motion.div>
+              );
+            })
+          ) : (
+            <div className="text-center py-2">
+              <p className="text-xs text-white/50">No active workers</p>
+                    </div>
+                  )}
+              </div>
+      </div>
+
+      {/* Prime at Bottom */}
+      <div className="mt-auto pt-2">
+        <div className="bg-gradient-to-r from-purple-500/15 to-cyan-500/15 border border-purple-500/30 rounded p-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              <Crown className="w-2 h-2 text-yellow-400" />
+              <div>
+                <h4 className="text-xs font-semibold text-white">Prime</h4>
+                <p className="text-xs text-white/60">AI</p>
+        </div>
             </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-semibold text-white">Prime</h4>
-              <p className="text-xs text-white/60">Orchestrating your empire</p>
-            </div>
-            <div className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">
-              FOLLOWING
+            <div className="bg-green-500/30 text-green-400 text-xs px-1 py-0.5 rounded-full font-semibold">
+              ON
             </div>
           </div>
         </div>

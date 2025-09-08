@@ -104,7 +104,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   const handleChatNow = async (employeeId: string = 'financial-assistant') => {
     if (!user) return;
     
-    setActiveChat(employeeId);
+    // Navigate to AI Chat Assistant page
+    navigate('/dashboard/ai-financial-assistant');
   };
 
   // AI Financial Therapist Connection
@@ -439,14 +440,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           <h2 className="text-xl font-bold text-white mb-2">CORE AI TOOLS</h2>
           <p className="text-white/60 text-sm">Essential AI-powered features for your financial management</p>
         </div>
-        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
           {aiWorkspaceCards.map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
               <div className="flex items-start justify-between mb-3">
@@ -456,7 +457,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
                     <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key}: <span className="text-white/90">{value}</span>
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -467,14 +468,15 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 {card.title}
               </h3>
               
-              {/* Description - flex-grow to fill available space */}
-              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              {/* Description - fixed height for consistent button alignment */}
+              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">{card.description}</p>
               
               {/* Button - always at bottom */}
-              <button
-                onClick={card.onClick}
-                disabled={card.isLoading}
-                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
+              <div className="mt-auto">
+                <button
+                  onClick={card.onClick}
+                  disabled={card.isLoading}
+                  className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm`}
               >
                 {card.isLoading ? (
                   <>
@@ -484,7 +486,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 ) : (
                   <span>{card.buttonText}</span>
                 )}
-              </button>
+                </button>
+              </div>
             </motion.div>
           ))}
         </div>
@@ -496,14 +499,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           <h2 className="text-xl font-bold text-white mb-2">PLANNING & ANALYSIS</h2>
           <p className="text-white/60 text-sm">Advanced tools for financial planning and strategic analysis</p>
         </div>
-        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
           {planningAnalysisCards.map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: (index + 3) * 0.1 }}
-                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
+              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
               <div className="flex items-start justify-between mb-3">
@@ -513,7 +516,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
                     <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key}: <span className="text-white/90">{value}</span>
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -524,14 +527,15 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 {card.title}
               </h3>
               
-              {/* Description - flex-grow to fill available space */}
-              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              {/* Description - fixed height for consistent button alignment */}
+              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">{card.description}</p>
               
               {/* Button - always at bottom */}
-              <button
-                onClick={card.onClick}
-                disabled={card.isLoading}
-                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
+              <div className="mt-auto">
+                <button
+                  onClick={card.onClick}
+                  disabled={card.isLoading}
+                  className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm`}
               >
                 {card.isLoading ? (
                   <>
@@ -541,7 +545,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 ) : (
                   <span>{card.buttonText}</span>
                 )}
-              </button>
+                </button>
+              </div>
             </motion.div>
           ))}
         </div>
@@ -553,14 +558,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           <h2 className="text-xl font-bold text-white mb-2">ENTERTAINMENT & WELLNESS</h2>
           <p className="text-white/60 text-sm">Fun and engaging features to make finance enjoyable</p>
         </div>
-        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
           {entertainmentWellnessCards.map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: (index + 10) * 0.1 }}
-                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
               <div className="flex items-start justify-between mb-3">
@@ -570,7 +575,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
                     <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key}: <span className="text-white/90">{value}</span>
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -581,14 +586,15 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 {card.title}
               </h3>
               
-              {/* Description - flex-grow to fill available space */}
-              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              {/* Description - fixed height for consistent button alignment */}
+              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">{card.description}</p>
               
               {/* Button - always at bottom */}
-              <button
-                onClick={card.onClick}
-                disabled={card.isLoading}
-                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
+              <div className="mt-auto">
+                <button
+                  onClick={card.onClick}
+                  disabled={card.isLoading}
+                  className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm`}
               >
                 {card.isLoading ? (
                   <>
@@ -598,7 +604,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 ) : (
                   <span>{card.buttonText}</span>
                 )}
-              </button>
+                </button>
+              </div>
             </motion.div>
           ))}
         </div>
@@ -610,14 +617,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           <h2 className="text-xl font-bold text-white mb-2">BUSINESS & TAX</h2>
           <p className="text-white/60 text-sm">Professional tools for business and tax management</p>
         </div>
-        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
           {businessTaxCards.map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: (index + 15) * 0.1 }}
-                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
               <div className="flex items-start justify-between mb-3">
@@ -627,7 +634,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
                     <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key}: <span className="text-white/90">{value}</span>
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -638,14 +645,15 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 {card.title}
               </h3>
               
-              {/* Description - flex-grow to fill available space */}
-              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              {/* Description - fixed height for consistent button alignment */}
+              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">{card.description}</p>
               
               {/* Button - always at bottom */}
-              <button
-                onClick={card.onClick}
-                disabled={card.isLoading}
-                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
+              <div className="mt-auto">
+                <button
+                  onClick={card.onClick}
+                  disabled={card.isLoading}
+                  className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm`}
               >
                 {card.isLoading ? (
                   <>
@@ -655,7 +663,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 ) : (
                   <span>{card.buttonText}</span>
                 )}
-              </button>
+                </button>
+              </div>
             </motion.div>
           ))}
         </div>
@@ -667,14 +676,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           <h2 className="text-xl font-bold text-white mb-2">TOOLS & SETTINGS</h2>
           <p className="text-white/60 text-sm">System tools and configuration options</p>
         </div>
-        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
           {toolsSettingsCards.map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: (index + 17) * 0.1 }}
-                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
               <div className="flex items-start justify-between mb-3">
@@ -684,7 +693,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
                     <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key}: <span className="text-white/90">{value}</span>
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -695,14 +704,15 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 {card.title}
               </h3>
               
-              {/* Description - flex-grow to fill available space */}
-              <p className="text-white/70 text-sm mb-4 flex-grow">{card.description}</p>
+              {/* Description - fixed height for consistent button alignment */}
+              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">{card.description}</p>
               
               {/* Button - always at bottom */}
-              <button
-                onClick={card.onClick}
-                disabled={card.isLoading}
-                className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm mt-auto`}
+              <div className="mt-auto">
+                <button
+                  onClick={card.onClick}
+                  disabled={card.isLoading}
+                  className={`w-full bg-gradient-to-r ${card.color} hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-3 py-2 transition-all duration-200 flex items-center justify-center space-x-2 text-sm`}
               >
                 {card.isLoading ? (
                   <>
@@ -712,7 +722,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 ) : (
                   <span>{card.buttonText}</span>
                 )}
-              </button>
+                </button>
+              </div>
             </motion.div>
           ))}
         </div>
