@@ -51,7 +51,8 @@ const MobileDetection = {
     });
     
     // For testing: always show on dashboard pages if small screen
-    return isDashboardPage && (isSmallScreen || isMobileUserAgent || window.innerWidth <= 1200);
+    // Temporarily make it always true for testing
+    return isDashboardPage && (isSmallScreen || isMobileUserAgent || window.innerWidth <= 1200 || true);
   },
 
   /**
@@ -572,11 +573,37 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     onViewChange('stories');
   };
 
-  if (!MobileDetection.isMobile()) {
-    return null; // Don't render on desktop
+  // Don't render on desktop - use the isMobile state instead of MobileDetection
+  if (!isMobile) {
+    console.log('❌ Not mobile, not rendering MobileRevolution');
+    return null;
+  }
+  
+  console.log('✅ Mobile detected, rendering MobileRevolution dashboard');
+
+  // Add a visible debug indicator that always shows
+  if (typeof window !== 'undefined') {
+    console.log('🎯 MOBILE REVOLUTION COMPONENT IS RENDERING!');
+    console.log('Current props:', { currentView, isMobile, propIsMobile });
   }
 
   return (
+    <div className="mobile-revolution-container" style={{ 
+      position: 'fixed', 
+      top: '10px', 
+      right: '10px', 
+      zIndex: 9999, 
+      background: 'red', 
+      color: 'white', 
+      padding: '10px',
+      borderRadius: '5px',
+      fontSize: '12px'
+    }}>
+      DEBUG: MobileRevolution is rendering!<br/>
+      isMobile: {isMobile ? 'true' : 'false'}<br/>
+      propIsMobile: {propIsMobile ? 'true' : 'false'}<br/>
+      currentView: {currentView}
+    </div>
     <div className="mobile-revolution-container">
       {/* Main Content Area */}
       <div className="mobile-content">
