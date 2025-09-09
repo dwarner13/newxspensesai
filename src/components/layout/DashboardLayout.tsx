@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import MobileSidebar from "./MobileSidebar";
-import BottomNav from "./BottomNav";
+// import BottomNav from "./BottomNav"; // Removed to avoid conflicts with MobileRevolution
 import Logo from "../common/Logo";
 import AITeamSidebar from "./AITeamSidebar";
 import DashboardHeader from "../ui/DashboardHeader";
@@ -96,11 +96,10 @@ export default function DashboardLayout() {
           <Sidebar isMobileOpen={open} setIsMobileOpen={setOpen} />
         </MobileSidebar>
 
-        {/* Bottom tabs (mobile only) */}
-        <BottomNav onMore={() => setOpen(true)} />
+        {/* Bottom tabs (mobile only) - Permanently removed to avoid conflicts with MobileRevolution */}
         
-        {/* Prime Chatbot - Bottom Right */}
-        <BossBubble />
+        {/* Prime Chatbot - Handled by MobileRevolution */}
+        {/* <BossBubble /> */}
       </div>
   </>
 );

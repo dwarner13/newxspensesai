@@ -30,8 +30,37 @@ export const useMobileRevolution = () => {
     const path = window.location.pathname;
     console.log('Getting initial view for path:', path);
     
+    // Routes that should show their own components, not MobileRevolution
+    const excludedRoutes = [
+      // '/dashboard', // Removed - allow mobile navbar on main dashboard
+      // '/dashboard/', // Removed - allow mobile navbar on main dashboard
+      '/dashboard/podcast',
+      '/dashboard/personal-podcast',
+      '/dashboard/ai-financial-assistant',
+      '/dashboard/smart-import-ai',
+      '/dashboard/financial-story',
+      '/dashboard/goal-concierge',
+      '/dashboard/spending-predictions',
+      '/dashboard/ai-categorization',
+      '/dashboard/bill-reminders',
+      '/dashboard/debt-payoff-planner',
+      '/dashboard/ai-financial-freedom',
+      '/dashboard/spotify-integration',
+      '/dashboard/wellness-studio',
+      '/dashboard/smart-automation',
+      '/dashboard/analytics',
+      '/dashboard/settings'
+    ];
+    
+    // Check if current path should be excluded (only specific sub-routes)
+    if (excludedRoutes.includes(path)) {
+      console.log('Path excluded from MobileRevolution, showing original component');
+      return 'stories'; // This will prevent MobileRevolution from rendering
+    }
+    
+    // For main dashboard, show dashboard view
     if (path === '/dashboard' || path === '/dashboard/' || path.startsWith('/dashboard/')) {
-      console.log('Setting initial view to dashboard');
+      console.log('Dashboard route, setting view to dashboard');
       return 'dashboard';
     }
     console.log('Setting initial view to stories');
@@ -47,19 +76,87 @@ export const useMobileRevolution = () => {
     notifications: 3
   });
 
+  // Track window size for responsive mobile detection
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  // Add window resize listener for responsive mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      const newWidth = window.innerWidth;
+      console.log('🔄 Window resized:', {
+        oldWidth: windowWidth,
+        newWidth,
+        isMobile: isMobile(),
+        path: window.location.pathname
+      });
+      setWindowWidth(newWidth);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [windowWidth]);
+
   // Mobile detection - more stable
   const isMobile = () => {
-    const isDashboardPage = window.location.pathname.includes('/dashboard');
-    const isSmallScreen = window.innerWidth <= 1200; // More permissive
+    const path = window.location.pathname;
+    const isDashboardPage = path.includes('/dashboard');
+    const isSmallScreen = windowWidth <= 1200; // Use tracked window width
+    
+    // Routes that should show their own components, not MobileRevolution
+    const excludedRoutes = [
+      // '/dashboard', // Removed - allow mobile navbar on main dashboard
+      // '/dashboard/', // Removed - allow mobile navbar on main dashboard
+      '/dashboard/podcast',
+      '/dashboard/personal-podcast',
+      '/dashboard/ai-financial-assistant',
+      '/dashboard/smart-import-ai',
+      '/dashboard/financial-story',
+      '/dashboard/goal-concierge',
+      '/dashboard/spending-predictions',
+      '/dashboard/ai-categorization',
+      '/dashboard/bill-reminders',
+      '/dashboard/debt-payoff-planner',
+      '/dashboard/ai-financial-freedom',
+      '/dashboard/spotify-integration',
+      '/dashboard/wellness-studio',
+      '/dashboard/smart-automation',
+      '/dashboard/analytics',
+      '/dashboard/settings'
+    ];
+    
+    // Don't show MobileRevolution for excluded routes
+    if (excludedRoutes.includes(path)) {
+      console.log('Hook mobile detection: Path excluded, not mobile', { path, excludedRoutes });
+      return false;
+    }
+    
     
     console.log('Hook mobile detection:', { 
       isDashboardPage,
       windowWidth: window.innerWidth,
-      pathname: window.location.pathname,
+      pathname: path,
       result: isDashboardPage && isSmallScreen
     });
     
-    // Show mobile view on dashboard pages with small screens
+    // Show mobile view on dashboard pages with small screens only
+    console.log('🔍 Mobile detection debug:', {
+      isDashboardPage,
+      isSmallScreen,
+      windowWidth: window.innerWidth,
+      path,
+      result: isDashboardPage && isSmallScreen
+    });
+    
+    // Only show mobile on actual mobile devices
+    // For testing: you can force mobile by adding ?mobile=true to the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const forceMobile = urlParams.get('mobile') === 'true';
+    
+    if (forceMobile && isDashboardPage) {
+      console.log('🚀 FORCING MOBILE FOR TESTING - ?mobile=true in URL');
+      return true;
+    }
+    
     return isDashboardPage && isSmallScreen;
   };
 
@@ -210,9 +307,41 @@ export const useMobileRevolution = () => {
     pathname: window.location.pathname
   });
 
+  const mobileResult = isMobile();
+  const path = window.location.pathname;
+  const excludedRoutes = [
+    // '/dashboard', // Removed - allow mobile navbar on main dashboard
+    // '/dashboard/', // Removed - allow mobile navbar on main dashboard
+    '/dashboard/podcast', 
+    '/dashboard/ai-financial-assistant',
+    '/dashboard/personal-podcast',
+    '/dashboard/smart-import-ai',
+    '/dashboard/financial-story',
+    '/dashboard/goal-concierge',
+    '/dashboard/spending-predictions',
+    '/dashboard/ai-categorization',
+    '/dashboard/bill-reminders',
+    '/dashboard/debt-payoff-planner',
+    '/dashboard/ai-financial-freedom',
+    '/dashboard/spotify-integration',
+    '/dashboard/wellness-studio',
+    '/dashboard/smart-automation',
+    '/dashboard/analytics',
+    '/dashboard/settings'
+  ];
+  const isExcludedRoute = excludedRoutes.includes(path);
+  
+  console.log('useMobileRevolution returning:', { 
+    path, 
+    isMobile: mobileResult, 
+    isExcludedRoute,
+    currentView: state.currentView 
+  });
+  
   return {
     ...state,
-    isMobile: isMobile(),
+    isMobile: mobileResult,
+    isExcludedRoute,
     handleViewChange,
     handleUpload,
     handleEmployeeSelect,

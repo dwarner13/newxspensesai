@@ -171,22 +171,6 @@ function App() {
             <AIFinancialAssistantProvider>
               <UserProvider>
                 <ScrollToTop />
-                {/* Debug indicator - always show */}
-                <div style={{
-                  position: 'fixed',
-                  top: '50px',
-                  right: '10px',
-                  background: 'blue',
-                  color: 'white',
-                  padding: '10px',
-                  zIndex: 10000,
-                  fontSize: '12px'
-                }}>
-                  App.tsx - MobileRevolution should render here<br/>
-                  isMobile: {mobileRevolution.isMobile ? 'true' : 'false'}<br/>
-                  currentView: {mobileRevolution.currentView}
-                </div>
-                
                 <MobileRevolution 
                   currentView={mobileRevolution.currentView}
                   onViewChange={mobileRevolution.handleViewChange}
@@ -201,8 +185,16 @@ function App() {
                   isMobile={mobileRevolution.isMobile}
                 />
                 <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900" style={{
-                  display: mobileRevolution.isMobile ? 'none' : 'block'
+                  display: (mobileRevolution.isMobile && !mobileRevolution.isExcludedRoute) ? 'none' : 'block'
                 }}>
+                  {/* Debug info for desktop */}
+                  {console.log('Desktop content visibility:', {
+                    isMobile: mobileRevolution.isMobile,
+                    isExcludedRoute: mobileRevolution.isExcludedRoute,
+                    shouldShow: !(mobileRevolution.isMobile && !mobileRevolution.isExcludedRoute),
+                    pathname: window.location.pathname
+                  })}
+                  {/* Debug info - Removed */}
                   <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
                       {/* Marketing routes with BossBubble */}
