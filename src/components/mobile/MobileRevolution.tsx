@@ -629,6 +629,21 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     console.log('❌ Not mobile, not rendering MobileRevolution - propIsMobile:', propIsMobile, 'path:', window.location.pathname);
     return null;
   }
+
+  // DEBUG: Add visible indicator for live site debugging
+  console.log('🚀 MOBILE REVOLUTION RENDERING ON LIVE SITE!', {
+    propIsMobile,
+    currentView,
+    pathname: window.location.pathname,
+    userAgent: navigator.userAgent,
+    timestamp: new Date().toISOString()
+  });
+
+  // FORCE DASHBOARD VIEW FOR LIVE SITE DEBUGGING
+  const effectiveView = window.location.pathname === '/dashboard' ? 'dashboard' : currentView;
+  if (window.location.pathname === '/dashboard' && currentView !== 'dashboard') {
+    console.log('🔧 FORCING DASHBOARD VIEW - currentView was:', currentView, 'forcing to dashboard');
+  }
   
   // Additional safety check - if we're on an excluded route, don't render
   const excludedRoutes = [
@@ -697,14 +712,14 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
 
       {/* Main Content Area */}
       <div className="mobile-content">
-        {currentView === 'stories' && propIsMobile && (
+        {effectiveView === 'stories' && propIsMobile && (
           <MobileStoryFeed 
             stories={stories}
             onStoryAction={handleStoryAction}
           />
         )}
         
-        {currentView === 'processing' && propIsMobile && (
+        {effectiveView === 'processing' && propIsMobile && (
           <MobileProcessingShow
             isProcessing={isProcessing}
             transactionCount={transactionCount}
@@ -713,14 +728,14 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
           />
         )}
         
-        {currentView === 'live' && propIsMobile && (
+        {effectiveView === 'live' && propIsMobile && (
           <MobileLiveMode
             employees={employees}
             isLive={true}
           />
         )}
         
-        {currentView === 'chat' && propIsMobile && (
+        {effectiveView === 'chat' && propIsMobile && (
           <div className="mobile-dashboard">
             <div className="mobile-dashboard-content">
               <h2 className="mobile-dashboard-title">AI Chat</h2>
@@ -732,7 +747,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
           </div>
         )}
 
-        {currentView === 'dashboard' && propIsMobile && (
+        {effectiveView === 'dashboard' && propIsMobile && (
           <div className="mobile-dashboard" style={{ 
             position: 'fixed', 
             top: 0, 
