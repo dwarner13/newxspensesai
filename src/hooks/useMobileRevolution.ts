@@ -34,22 +34,29 @@ export const useMobileRevolution = () => {
     const excludedRoutes = [
       // '/dashboard', // Removed - allow mobile navbar on main dashboard
       // '/dashboard/', // Removed - allow mobile navbar on main dashboard
-      '/dashboard/podcast',
-      '/dashboard/personal-podcast',
-      // '/dashboard/ai-financial-assistant', // Temporarily removed to test desktop
+      '/dashboard/three-column-demo',
+      '/dashboard/ai-financial-assistant',
       '/dashboard/smart-import-ai',
       '/dashboard/financial-story',
+      '/dashboard/transactions',
       '/dashboard/goal-concierge',
       '/dashboard/spending-predictions',
       '/dashboard/ai-categorization',
+      '/dashboard/smart-categories',
       '/dashboard/bill-reminders',
       '/dashboard/debt-payoff-planner',
       '/dashboard/ai-financial-freedom',
-      '/dashboard/spotify-integration',
-      '/dashboard/wellness-studio',
+      '/dashboard/therapist-demo',
+      '/dashboard/personal-podcast',
+      '/dashboard/podcast',
       '/dashboard/smart-automation',
       '/dashboard/analytics',
-      '/dashboard/settings'
+      '/dashboard/settings',
+      '/dashboard/reports',
+      '/dashboard/spotify-integration',
+      '/dashboard/spotify-integration-new',
+      '/dashboard/wellness-studio',
+      '/dashboard/financial-therapist'
     ];
     
     // Check if current path should be excluded (only specific sub-routes)
@@ -106,22 +113,29 @@ export const useMobileRevolution = () => {
     const excludedRoutes = [
       // '/dashboard', // Removed - allow mobile navbar on main dashboard
       // '/dashboard/', // Removed - allow mobile navbar on main dashboard
-      '/dashboard/podcast',
-      '/dashboard/personal-podcast',
-      // '/dashboard/ai-financial-assistant', // Temporarily removed to test desktop
+      '/dashboard/three-column-demo',
+      '/dashboard/ai-financial-assistant',
       '/dashboard/smart-import-ai',
       '/dashboard/financial-story',
+      '/dashboard/transactions',
       '/dashboard/goal-concierge',
       '/dashboard/spending-predictions',
       '/dashboard/ai-categorization',
+      '/dashboard/smart-categories',
       '/dashboard/bill-reminders',
       '/dashboard/debt-payoff-planner',
       '/dashboard/ai-financial-freedom',
-      '/dashboard/spotify-integration',
-      '/dashboard/wellness-studio',
+      '/dashboard/therapist-demo',
+      '/dashboard/personal-podcast',
+      '/dashboard/podcast',
       '/dashboard/smart-automation',
       '/dashboard/analytics',
-      '/dashboard/settings'
+      '/dashboard/settings',
+      '/dashboard/reports',
+      '/dashboard/spotify-integration',
+      '/dashboard/spotify-integration-new',
+      '/dashboard/wellness-studio',
+      '/dashboard/financial-therapist'
     ];
     
     // Don't show MobileRevolution for excluded routes
@@ -312,22 +326,29 @@ export const useMobileRevolution = () => {
   const excludedRoutes = [
     // '/dashboard', // Removed - allow mobile navbar on main dashboard
     // '/dashboard/', // Removed - allow mobile navbar on main dashboard
-    '/dashboard/podcast', 
+    '/dashboard/three-column-demo',
     '/dashboard/ai-financial-assistant',
-    '/dashboard/personal-podcast',
     '/dashboard/smart-import-ai',
     '/dashboard/financial-story',
+    '/dashboard/transactions',
     '/dashboard/goal-concierge',
     '/dashboard/spending-predictions',
     '/dashboard/ai-categorization',
+    '/dashboard/smart-categories',
     '/dashboard/bill-reminders',
     '/dashboard/debt-payoff-planner',
     '/dashboard/ai-financial-freedom',
-    '/dashboard/spotify-integration',
-    '/dashboard/wellness-studio',
+    '/dashboard/therapist-demo',
+    '/dashboard/personal-podcast',
+    '/dashboard/podcast',
     '/dashboard/smart-automation',
     '/dashboard/analytics',
-    '/dashboard/settings'
+    '/dashboard/settings',
+    '/dashboard/reports',
+    '/dashboard/spotify-integration',
+    '/dashboard/spotify-integration-new',
+    '/dashboard/wellness-studio',
+    '/dashboard/financial-therapist'
   ];
   const isExcludedRoute = excludedRoutes.includes(path);
   
