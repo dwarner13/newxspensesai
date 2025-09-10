@@ -826,13 +826,13 @@
     bottom: 0;
     left: 0;
     right: 0;
-    height: 60px; /* Reduced from 70px */
+    height: 80px; /* Increased for better iPhone compatibility */
     background: rgba(0, 0, 0, 0.2);
     backdrop-filter: blur(10px);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 8px; /* Reduced from 12px */
+    padding: 12px 16px; /* Increased padding for better touch targets */
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     z-index: 1001;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
@@ -845,18 +845,18 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px; /* Reduced from 3px */
+    gap: 4px; /* Increased for better spacing */
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.6);
     cursor: pointer;
     transition: all 0.3s ease;
     position: relative;
-    padding: 4px 2px; /* Reduced from 6px 2px */
-    min-height: 50px; /* Reduced from 55px */
+    padding: 8px 4px; /* Increased padding for better touch targets */
+    min-height: 60px; /* Increased for better iPhone compatibility */
     flex: 1;
-    max-width: 50px; /* Reduced from 55px */
-    border-radius: 8px; /* Reduced from 10px */
+    max-width: 60px; /* Increased for better touch targets */
+    border-radius: 8px;
   }
   
   .nav-item.active {
@@ -1077,8 +1077,8 @@
     }
     
     .mobile-bottom-nav {
-      height: 55px; /* Reduced from 65px */
-      padding: 0 6px; /* Further reduced for small screens */
+      height: 70px; /* Maintain good height for small screens */
+      padding: 8px 12px; /* Better padding for small screens */
       width: 100%;
       box-sizing: border-box;
     }
@@ -1090,25 +1090,28 @@
     }
     
     .nav-item {
-      max-width: 45px; /* Further reduced for small screens */
-      padding: 2px 1px; /* Reduced padding */
+      max-width: 55px; /* Better touch targets on small screens */
+      padding: 6px 2px; /* Better padding */
+      min-height: 55px; /* Maintain good height */
     }
   }
   
   /* Extra small screens - prevent any overflow */
   @media (max-width: 360px) {
     .mobile-bottom-nav {
-      padding: 0 4px; /* Minimal padding */
+      height: 65px; /* Maintain usable height */
+      padding: 6px 8px; /* Minimal but usable padding */
     }
     
     .nav-item {
-      max-width: 40px; /* Even smaller for very small screens */
-      padding: 1px;
-      font-size: 10px; /* Smaller text */
+      max-width: 50px; /* Better touch targets even on very small screens */
+      padding: 4px 1px;
+      font-size: 11px; /* Readable text size */
+      min-height: 50px; /* Maintain touch target size */
     }
     
     .nav-item .nav-icon {
-      font-size: 16px; /* Smaller icons */
+      font-size: 18px; /* Readable icon size */
     }
   }
 }

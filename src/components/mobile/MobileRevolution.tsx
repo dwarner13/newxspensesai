@@ -13,9 +13,10 @@ import {
   Crown, Home, Upload, Bot, Bell, Heart, Menu, 
   BarChart3, UploadCloud, Brain, FileText, Target, Zap, 
   TrendingUp, CreditCard, Award, Mic, BookOpen, Music, 
-  Calculator, Building2, Settings, User, LogOut
+  Calculator, Building2, Settings, User, LogOut, MessageCircle, Tag
 } from 'lucide-react';
 import BossBubble from '../boss/BossBubble';
+import { useAuth } from '../../contexts/AuthContext';
 import './MobileRevolution.css';
 
 // ================================================================================
@@ -472,7 +473,43 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { user } = useAuth();
 
+  // Handler functions for mobile cards (same as desktop)
+  const handleImportNow = async () => {
+    if (!user) return;
+    
+    // Create file input programmatically
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.csv,.xlsx,.jpg,.png,.jpeg';
+    input.multiple = true;
+    
+    input.onchange = async (event) => {
+      const files = Array.from((event.target as HTMLInputElement).files || []);
+      if (files.length > 0) {
+        onUpload(); // Trigger the upload process
+      }
+    };
+    
+    input.click();
+  };
+
+  const handleChatNow = async (employeeId: string = 'financial-assistant') => {
+    if (!user) return;
+    navigate('/dashboard/ai-financial-assistant');
+  };
+
+  const handleSetGoals = async () => {
+    if (!user) return;
+    navigate('/dashboard/goal-concierge');
+  };
+
+  const handleViewPredictions = async () => {
+    if (!user) return;
+    navigate('/dashboard/spending-predictions');
+  };
 
   const loadStories = async () => {
     // Transform existing data into story format
@@ -1022,7 +1059,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Smart Import AI</h3>
                     <p>Upload receipts and bank statements. Byte processes them instantly and you can chat about your data in real-time.</p>
-                    <button className="mobile-card-button">Import & Chat</button>
+                    <button className="mobile-card-button" onClick={handleImportNow}>Import & Chat</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1030,7 +1067,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>AI Chat Assistant</h3>
                     <p>Chat with our AI assistant for personalized financial advice, insights, and real-time analysis of your data.</p>
-                    <button className="mobile-card-button">Chat Now</button>
+                    <button className="mobile-card-button" onClick={() => handleChatNow('financial-assistant')}>Chat Now</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1038,7 +1075,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Smart Categories</h3>
                     <p>Automatically categorize your transactions with AI. Learn from your corrections and improve over time.</p>
-                    <button className="mobile-card-button">Categorize Now</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/ai-categorization')}>Categorize Now</button>
                   </div>
                 </div>
 
@@ -1048,7 +1085,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Transactions</h3>
                     <p>View and manage all your financial transactions with detailed insights.</p>
-                    <button className="mobile-card-button">View All</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/transactions')}>View All</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1056,7 +1093,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>AI Goal Concierge</h3>
                     <p>Set and track your financial goals with personalized coaching.</p>
-                    <button className="mobile-card-button">Set Goals</button>
+                    <button className="mobile-card-button" onClick={handleSetGoals}>Set Goals</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1064,7 +1101,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Smart Automation</h3>
                     <p>Automate repetitive financial tasks with AI-powered workflows.</p>
-                    <button className="mobile-card-button">Configure</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/smart-automation')}>Configure</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1072,7 +1109,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Spending Predictions</h3>
                     <p>AI-powered forecasts of your future spending patterns and trends.</p>
-                    <button className="mobile-card-button">View Predictions</button>
+                    <button className="mobile-card-button" onClick={handleViewPredictions}>View Predictions</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1080,7 +1117,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Debt Payoff Planner</h3>
                     <p>Military-style debt destruction strategies and motivation.</p>
-                    <button className="mobile-card-button">Attack Debt</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/debt-payoff-planner')}>Attack Debt</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1088,7 +1125,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>AI Financial Freedom</h3>
                     <p>Wise investment advice and long-term wealth building strategies.</p>
-                    <button className="mobile-card-button">Get Strategy</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/ai-financial-freedom')}>Get Strategy</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1096,7 +1133,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Bill Reminder System</h3>
                     <p>Never miss a payment with smart reminders and automated tracking.</p>
-                    <button className="mobile-card-button">Set Reminders</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/bill-reminders')}>Set Reminders</button>
                   </div>
                 </div>
 
@@ -1106,7 +1143,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Personal Podcast</h3>
                     <p>AI-generated podcasts about your financial journey and money story.</p>
-                    <button className="mobile-card-button">Listen Now</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/podcast')}>Listen Now</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1114,7 +1151,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Financial Story</h3>
                     <p>Transform your financial data into engaging stories with AI storytellers.</p>
-                    <button className="mobile-card-button">Create Story</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/financial-story')}>Create Story</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1122,7 +1159,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>AI Financial Therapist</h3>
                     <p>Emotional and behavioral coaching to improve your financial wellness. Chat about money stress and get support.</p>
-                    <button className="mobile-card-button">Start Session</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/ai-financial-therapist')}>Start Session</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1130,7 +1167,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Wellness Studio</h3>
                     <p>Educational content and guided sessions for financial health and wellness.</p>
-                    <button className="mobile-card-button">Start Session</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/wellness-studio')}>Start Session</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1138,7 +1175,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Spotify Integration</h3>
                     <p>Curated playlists for focus, relaxation, and financial motivation.</p>
-                    <button className="mobile-card-button">Connect</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/spotify-integration')}>Connect</button>
                   </div>
                 </div>
 
@@ -1148,7 +1185,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Tax Assistant</h3>
                     <p>AI-powered tax preparation and optimization for maximum savings.</p>
-                    <button className="mobile-card-button">Get Started</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/tax-assistant')}>Get Started</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1156,7 +1193,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Business Intelligence</h3>
                     <p>Advanced analytics and insights for business growth and optimization.</p>
-                    <button className="mobile-card-button">View Reports</button>
+                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/business-intelligence')}>View Reports</button>
                   </div>
                 </div>
               </div>
@@ -1174,12 +1211,17 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
       {/* Mobile Crown Button for Prime Chatbot */}
       <button
         onClick={() => setIsChatbotOpen(true)}
-        className="fixed bottom-20 right-5 z-50 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white p-3 rounded-full shadow-lg transition-all duration-300 hover:scale-110 active:scale-95"
+        className="fixed bottom-24 right-4 z-50 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110 active:scale-95"
         style={{
           boxShadow: '0 8px 25px rgba(251, 191, 36, 0.4)',
+          width: '56px',
+          height: '56px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
         }}
       >
-        <Crown size={24} />
+        <Crown size={28} />
       </button>
 
       {/* Bottom Navigation - MobileRevolution's custom navbar */}
