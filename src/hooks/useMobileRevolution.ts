@@ -36,7 +36,7 @@ export const useMobileRevolution = () => {
       // '/dashboard/', // Removed - allow mobile navbar on main dashboard
       '/dashboard/podcast',
       '/dashboard/personal-podcast',
-      '/dashboard/ai-financial-assistant',
+      // '/dashboard/ai-financial-assistant', // Temporarily removed to test desktop
       '/dashboard/smart-import-ai',
       '/dashboard/financial-story',
       '/dashboard/goal-concierge',
@@ -108,7 +108,7 @@ export const useMobileRevolution = () => {
       // '/dashboard/', // Removed - allow mobile navbar on main dashboard
       '/dashboard/podcast',
       '/dashboard/personal-podcast',
-      '/dashboard/ai-financial-assistant',
+      // '/dashboard/ai-financial-assistant', // Temporarily removed to test desktop
       '/dashboard/smart-import-ai',
       '/dashboard/financial-story',
       '/dashboard/goal-concierge',
