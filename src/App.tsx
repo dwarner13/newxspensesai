@@ -54,7 +54,7 @@ const PricingPage = lazy(() => import('./pages/PricingPage'));
 // Spotify integration components
 const SpotifyCallbackPage = lazy(() => import('./pages/SpotifyCallbackPage'));
 const SpotifyPlayerPage = lazy(() => import('./pages/SpotifyPlayerPage'));
-const SpotifyIntegration = lazy(() => import('./pages/dashboard/SpotifyIntegration'));
+const SpotifyIntegrationPage = lazy(() => import('./pages/dashboard/SpotifyIntegrationPage'));
 
 // Feature pages - lazy load as they're less critical
 const SmartImportAIFeaturePage = lazy(() => import('./pages/features/smart-import-ai'));
@@ -264,17 +264,17 @@ function App() {
                       <Route path="smart-categories" element={<AICategorizationPage />} />
                       <Route path="bill-reminders" element={<BillRemindersPage />} />
                       <Route path="debt-payoff-planner" element={<DebtPayoffPlannerPage />} />
-                      <Route path="ai-financial-freedom" element={<AIFinancialFreedomFeaturePage />} />
+                      <Route path="ai-financial-freedom" element={<AIFinancialFreedomPage />} />
                       <Route path="therapist-demo" element={<TherapistDemoPage />} />
                       <Route path="personal-podcast" element={<PersonalPodcastPage />} />
-                      <Route path="podcast" element={<PodcastDashboard />} />
+                      <Route path="podcast" element={<PersonalPodcastPage />} />
 
                       <Route path="smart-automation" element={<SmartAutomation />} />
                       <Route path="analytics" element={<Analytics />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="reports" element={<ReportsPage />} />
-                      <Route path="spotify-integration" element={<SpotifyIntegration />} />
-                      <Route path="spotify-integration-new" element={<SpotifyIntegration />} />
+                      <Route path="spotify-integration" element={<SpotifyIntegrationPage />} />
+                      <Route path="spotify-integration-new" element={<SpotifyIntegrationPage />} />
                       <Route path="wellness-studio" element={<WellnessStudioPage />} />
                       <Route path="financial-therapist" element={<FinancialTherapistPage />} />
                     </Route>

@@ -1,85 +1,266 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TrendingUp, 
   BarChart3, 
-  Calendar, 
   AlertTriangle, 
-  Bot, 
   Send, 
   Loader2,
-  Eye,
   TrendingDown,
   DollarSign,
-  Clock,
   Target,
-  PieChart,
-  LineChart,
-  Activity
+  Activity,
+  Brain,
+  Search,
+  XCircle,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  Minus,
+  MessageCircle
 } from 'lucide-react';
-import DashboardHeader from '../../components/ui/DashboardHeader';
-import { useAuth } from '../../contexts/AuthContext';
-import {
-  getEmployeeConfig,
-  getConversation,
-  saveConversation,
-  addMessageToConversation,
-  incrementConversationCount,
-  logAIInteraction,
-  generateConversationId,
-  createSystemMessage,
-  createUserMessage,
-  createAssistantMessage
-} from '../../lib/ai-employees';
-import { AIConversationMessage } from '../../types/ai-employees.types';
 
-interface CrystalMessage {
-  role: 'user' | 'crystal' | 'system';
+// Prediction Data Interfaces
+interface SpendingPrediction {
+  id: string;
+  category: string;
+  currentMonth: number;
+  predictedNextMonth: number;
+  confidence: number;
+  trend: 'up' | 'down' | 'stable';
+  changePercent: number;
+  lastUpdated: string;
+}
+
+interface PatternInsight {
+  id: string;
+  title: string;
+  description: string;
+  confidence: number;
+  impact: 'high' | 'medium' | 'low';
+  category: string;
+  discovered: string;
+}
+
+interface PredictionAlert {
+  id: string;
+  type: 'budget' | 'trend' | 'anomaly' | 'seasonal';
+  title: string;
+  message: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  predictedDate: string;
+  confidence: number;
+}
+
+interface CrystalInsight {
+  id: string;
+  title: string;
   content: string;
+  type: 'prediction' | 'pattern' | 'recommendation' | 'warning';
+  confidence: number;
+  category: string;
   timestamp: string;
-  metadata?: {
-    processing_time_ms?: number;
-    tokens_used?: number;
-    model_used?: string;
-  };
 }
 
 export default function SpendingPredictionsPage() {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<CrystalMessage[]>([
+  // View state
+  const [activeView, setActiveView] = useState('overview');
+  const [showCrystalChat, setShowCrystalChat] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
+
+  // Crystal AI Chat
+  const [messages, setMessages] = useState<Array<{
+    role: 'user' | 'crystal';
+    content: string;
+    timestamp: string;
+  }>>([
     {
       role: 'crystal',
-      content: "Hi! I'm 🔮 Crystal, your Spending Predictions AI! I analyze your spending patterns and provide forecasts to help you understand trends and make informed financial decisions. I can predict future expenses, identify spending patterns, and help you spot potential budget issues before they happen. What would you like to know about your spending predictions?",
+      content: "🔮 Hello! I'm Crystal, your AI Spending Predictions specialist. I analyze your financial patterns to predict future spending with 90%+ accuracy. I can forecast expenses, identify trends, and help you avoid budget surprises. What would you like to know about your spending future?",
       timestamp: new Date().toISOString()
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [conversationId, setConversationId] = useState('');
-  const [crystalConfig, setCrystalConfig] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize conversation and load Crystal's config
+  // Live prediction data (simulated)
+  const [livePredictions, setLivePredictions] = useState({
+    totalPredicted: 3240,
+    accuracy: 92.3,
+    patternsFound: 47,
+    alertsActive: 3,
+    moneySaved: 1270,
+    timeHorizon: '30 days'
+  });
+
+  // Mock prediction data
+  const spendingPredictions: SpendingPrediction[] = [
+    {
+      id: 'groceries',
+      category: 'Groceries',
+      currentMonth: 450,
+      predictedNextMonth: 485,
+      confidence: 94,
+      trend: 'up',
+      changePercent: 7.8,
+      lastUpdated: '2 hours ago'
+    },
+    {
+      id: 'dining',
+      category: 'Dining Out',
+      currentMonth: 320,
+      predictedNextMonth: 280,
+      confidence: 89,
+      trend: 'down',
+      changePercent: -12.5,
+      lastUpdated: '1 hour ago'
+    },
+    {
+      id: 'entertainment',
+      category: 'Entertainment',
+      currentMonth: 180,
+      predictedNextMonth: 195,
+      confidence: 91,
+      trend: 'up',
+      changePercent: 8.3,
+      lastUpdated: '30 minutes ago'
+    },
+    {
+      id: 'utilities',
+      category: 'Utilities',
+      currentMonth: 220,
+      predictedNextMonth: 225,
+      confidence: 98,
+      trend: 'stable',
+      changePercent: 2.3,
+      lastUpdated: '15 minutes ago'
+    },
+    {
+      id: 'transportation',
+      category: 'Transportation',
+      currentMonth: 150,
+      predictedNextMonth: 165,
+      confidence: 87,
+      trend: 'up',
+      changePercent: 10.0,
+      lastUpdated: '45 minutes ago'
+    },
+    {
+      id: 'shopping',
+      category: 'Shopping',
+      currentMonth: 280,
+      predictedNextMonth: 310,
+      confidence: 85,
+      trend: 'up',
+      changePercent: 10.7,
+      lastUpdated: '1 hour ago'
+    }
+  ];
+
+  const patternInsights: PatternInsight[] = [
+    {
+      id: 'weekend-spending',
+      title: 'Weekend Spending Spike',
+      description: 'You spend 40% more on weekends, especially on dining and entertainment',
+      confidence: 92,
+      impact: 'high',
+      category: 'Lifestyle',
+      discovered: '2 days ago'
+    },
+    {
+      id: 'payday-effect',
+      title: 'Payday Spending Pattern',
+      description: 'Spending increases by 25% in the first week after payday',
+      confidence: 88,
+      impact: 'medium',
+      category: 'Income',
+      discovered: '1 week ago'
+    },
+    {
+      id: 'seasonal-holiday',
+      title: 'Holiday Season Preparation',
+      description: 'Historical data shows 35% spending increase in December',
+      confidence: 95,
+      impact: 'high',
+      category: 'Seasonal',
+      discovered: '3 days ago'
+    }
+  ];
+
+  const predictionAlerts: PredictionAlert[] = [
+    {
+      id: 'budget-groceries',
+      type: 'budget',
+      title: 'Grocery Budget Alert',
+      message: 'Predicted to exceed grocery budget by $85 next month',
+      severity: 'medium',
+      predictedDate: '2024-02-15',
+      confidence: 94
+    },
+    {
+      id: 'trend-dining',
+      type: 'trend',
+      title: 'Dining Trend Change',
+      message: 'Dining out spending predicted to decrease by 12.5%',
+      severity: 'low',
+      predictedDate: '2024-02-01',
+      confidence: 89
+    },
+    {
+      id: 'seasonal-holiday',
+      type: 'seasonal',
+      title: 'Holiday Season Warning',
+      message: 'December spending predicted to increase by 35%',
+      severity: 'high',
+      predictedDate: '2024-12-01',
+      confidence: 95
+    }
+  ];
+
+  const crystalInsights: CrystalInsight[] = [
+    {
+      id: 'savings-opportunity',
+      title: 'Savings Opportunity Detected',
+      content: 'Based on your dining pattern, you could save $200/month by cooking at home 2 more times per week',
+      type: 'recommendation',
+      confidence: 87,
+      category: 'Dining',
+      timestamp: '1 hour ago'
+    },
+    {
+      id: 'budget-optimization',
+      title: 'Budget Optimization Suggestion',
+      content: 'Your grocery spending is trending upward. Consider meal planning to stay within budget',
+      type: 'recommendation',
+      confidence: 92,
+      category: 'Groceries',
+      timestamp: '2 hours ago'
+    },
+    {
+      id: 'anomaly-detected',
+      title: 'Unusual Spending Pattern',
+      content: 'Detected 3x normal entertainment spending last week. This may indicate a special event',
+      type: 'warning',
+      confidence: 78,
+      category: 'Entertainment',
+      timestamp: '3 hours ago'
+    }
+  ];
+
+  // Simulate live updates
   useEffect(() => {
-    const initializeCrystal = async () => {
-      if (!user?.id) return;
-
-      const newConversationId = generateConversationId();
-      setConversationId(newConversationId);
-
-      // Load Crystal's configuration
-      const config = await getEmployeeConfig('crystal');
-      setCrystalConfig(config);
-
-      // Load existing conversation if any
-      const existingConversation = await getConversation(user.id, 'crystal', newConversationId);
-      if (existingConversation && existingConversation.messages.length > 0) {
-        setMessages(existingConversation.messages as CrystalMessage[]);
-      }
-    };
-
-    initializeCrystal();
-  }, [user?.id]);
+    const interval = setInterval(() => {
+      setLivePredictions(prev => ({
+        ...prev,
+        totalPredicted: prev.totalPredicted + Math.floor(Math.random() * 10 - 5),
+        accuracy: Math.min(99, prev.accuracy + (Math.random() * 0.2 - 0.1)),
+        patternsFound: prev.patternsFound + Math.floor(Math.random() * 2),
+        moneySaved: prev.moneySaved + Math.floor(Math.random() * 5)
+      }));
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -87,10 +268,10 @@ export default function SpendingPredictionsPage() {
   }, [messages]);
 
   const sendMessage = async (content: string) => {
-    if (!content.trim() || !user?.id || isLoading) return;
+    if (!content.trim() || isLoading) return;
 
-    const userMessage: CrystalMessage = {
-      role: 'user',
+    const userMessage = {
+      role: 'user' as const,
       content: content.trim(),
       timestamp: new Date().toISOString()
     };
@@ -99,360 +280,562 @@ export default function SpendingPredictionsPage() {
     setInput('');
     setIsLoading(true);
 
-    try {
-      // Save user message to conversation
-      await addMessageToConversation(user.id, 'crystal', conversationId, userMessage as AIConversationMessage);
+    // Simulate AI response with better logic
+    setTimeout(() => {
+      const query = content.toLowerCase();
+      let crystalResponse = '';
 
-      // Log the interaction
-      await logAIInteraction(user.id, 'crystal', 'chat', content);
+      if (query.includes('next month') || query.includes('forecast') || query.includes('predict')) {
+        crystalResponse = `🔮 **Spending Forecast for Next Month:**
 
-      // Simulate AI response (in real implementation, this would call OpenAI)
-      const startTime = Date.now();
+**Total Predicted Spending:** $3,240 (92% confidence)
+**Key Changes:**
+• Groceries: +7.8% ($485)
+• Dining Out: -12.5% ($280) 
+• Entertainment: +8.3% ($195)
+• Shopping: +10.7% ($310)
 
-      // Create Crystal's response based on the user's query
-      const crystalResponse = await generateCrystalResponse(content);
+**Budget Impact:** You're on track to stay within budget with a $160 buffer.
 
-      const processingTime = Date.now() - startTime;
+**Recommendation:** Consider meal planning to optimize grocery spending.`;
+      } else if (query.includes('pattern') || query.includes('trend') || query.includes('analysis')) {
+        crystalResponse = `📊 **Spending Pattern Analysis:**
 
-      const crystalMessage: CrystalMessage = {
-        role: 'crystal',
-        content: crystalResponse,
-        timestamp: new Date().toISOString(),
-        metadata: {
-          processing_time_ms: processingTime,
-          model_used: 'gpt-3.5-turbo'
-        }
-      };
+**Key Patterns Discovered:**
+• **Weekend Spike:** 40% higher spending on weekends
+• **Payday Effect:** 25% increase in first week after payday
+• **Seasonal Trend:** 35% increase expected in December
 
-      setMessages(prev => [...prev, crystalMessage]);
+**Confidence Levels:**
+• Weekend Pattern: 92% confidence
+• Payday Pattern: 88% confidence
+• Seasonal Pattern: 95% confidence
 
-      // Save Crystal's response to conversation
-      await addMessageToConversation(user.id, 'crystal', conversationId, crystalMessage as AIConversationMessage);
+**Insight:** Your spending follows predictable cycles that I can use for accurate forecasting.`;
+      } else if (query.includes('budget') || query.includes('alert') || query.includes('warning')) {
+        crystalResponse = `⚠️ **Budget Alert Analysis:**
 
-      // Increment conversation count
-      await incrementConversationCount(user.id, 'crystal');
-
-    } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage: CrystalMessage = {
-        role: 'crystal',
-        content: "I'm having trouble processing your request right now. Please try again in a moment.",
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const generateCrystalResponse = async (userQuery: string): Promise<string> => {
-    // Simulate AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-
-    const query = userQuery.toLowerCase();
-    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
-
-    // Crystal's specialized responses for prediction-related queries
-    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there') || query.includes('how are you')) {
-      return `Ah, I've been expecting you, ${userName}... the patterns have been whispering interesting things about your financial future. Based on your spending rhythms, I'm seeing a 78% chance of a major expense category shift next month. Want to hear what the data spirits are telling me?`;
-    }
-    
-    if (query.includes('confused') || query.includes('puzzled') || query.includes('unclear') || query.includes('don\'t understand')) {
-      return `Okay, this spending pattern has me completely puzzled. I'm seeing data points that don't fit any model I know - it's like your financial behavior is writing poetry instead of following logical patterns. Can you help me understand what's happening here?`;
-    }
-    
-    if (query.includes('predict') || query.includes('forecast') || query.includes('future')) {
-      return `🔮 Excellent! Let's talk about spending predictions. Here's how I analyze and forecast:
-
-**My Prediction Methods:**
-• **Historical Analysis** - I study your past 6-12 months of spending
-• **Seasonal Patterns** - I identify recurring expenses (holidays, birthdays, etc.)
-• **Trend Analysis** - I spot increasing or decreasing spending trends
-• **Machine Learning** - I use AI to predict future behavior based on patterns
-
-**What I Can Predict:**
-1. **Monthly Spending** - Total expected expenses for next month
-2. **Category Forecasts** - How much you'll spend in each category
-3. **Seasonal Spikes** - When spending will likely increase
-4. **Budget Alerts** - When you might exceed your budget
-5. **Savings Impact** - How spending affects your savings goals
-
-**Prediction Accuracy:**
-• **Short-term (1-3 months):** 85-90% accuracy
-• **Medium-term (3-6 months):** 75-80% accuracy
-• **Long-term (6+ months):** 60-70% accuracy
-
-**Pro Tip:** The more data I have, the more accurate my predictions become!
-
-Would you like me to analyze your spending patterns and create a forecast?`;
-    }
-
-    if (query.includes('trend') || query.includes('pattern') || query.includes('analysis')) {
-      return `📊 Great question! I love analyzing spending trends and patterns. Here's what I look for:
-
-**Key Trend Indicators:**
-
-**Spending Patterns:**
-• **Weekly Patterns** - Do you spend more on weekends?
-• **Monthly Cycles** - Paycheck timing effects
-• **Seasonal Trends** - Holiday spending, summer expenses
-• **Category Shifts** - Changes in spending priorities
-
-**Pattern Recognition:**
-• **Impulse Spending** - Unplanned purchases
-• **Recurring Expenses** - Subscriptions, memberships
-• **Lifestyle Changes** - New habits affecting spending
-• **Income Correlation** - How income changes affect spending
-
-**Trend Analysis Tools:**
-• **Moving Averages** - Smooth out daily fluctuations
-• **Percentage Changes** - Month-over-month growth
-• **Category Ratios** - Spending distribution changes
-• **Anomaly Detection** - Unusual spending spikes
-
-**What I Analyze:**
-• **Spending velocity** - How fast you're spending
-• **Category drift** - Shifts in spending priorities
-• **Budget adherence** - How well you stick to budgets
-• **Savings correlation** - Impact on savings goals
-
-**Pro Tip:** I can identify patterns you might not notice yourself!
-
-Would you like me to analyze your specific spending trends?`;
-    }
-
-    if (query.includes('budget') || query.includes('overspend') || query.includes('alert')) {
-      return `⚠️ Smart thinking! Budget alerts and overspending prevention are crucial. Here's my approach:
-
-**Budget Alert System:**
-
-**Early Warning Signs:**
-• **Spending Velocity** - If you're spending faster than usual
-• **Category Thresholds** - When categories approach limits
-• **Trend Projections** - If current pace will exceed budget
-• **Seasonal Adjustments** - Account for expected increases
-
-**Alert Types:**
-1. **Gentle Reminder** - "You're 70% through your dining budget"
-2. **Caution Alert** - "At current pace, you'll exceed budget by 15%"
-3. **Critical Warning** - "You've exceeded budget in 3 categories"
-4. **Savings Impact** - "This spending will reduce savings by $200"
+**Current Alerts:**
+• Grocery budget at risk (+$85 predicted overage)
+• Entertainment spending trending up
+• Holiday season preparation needed
 
 **Prevention Strategies:**
-• **Daily Spending Limits** - Set maximum daily amounts
-• **Category Caps** - Hard limits on discretionary spending
-• **Weekly Reviews** - Check progress every week
-• **Adjustment Alerts** - When to modify spending habits
+• Set daily spending limits for discretionary categories
+• Plan meals to reduce grocery costs
+• Start holiday savings now
 
-**My Prediction Accuracy:**
-• **Overspending Warnings:** 92% accuracy
-• **Budget Exceeded:** 88% accuracy
-• **Savings Impact:** 85% accuracy
+**My Accuracy:** 92% for budget breach predictions with 2-3 week advance warning.`;
+      } else if (query.includes('save') || query.includes('optimize') || query.includes('reduce')) {
+        crystalResponse = `💰 **Savings Optimization:**
 
-**Pro Tip:** I can predict overspending 2-3 weeks before it happens!
+**Potential Monthly Savings:**
+• Dining out reduction: $200/month
+• Grocery optimization: $85/month
+• Entertainment adjustment: $50/month
 
-Would you like me to set up personalized budget alerts for you?`;
-    }
+**Total Potential:** $335/month = $4,020/year
 
-    if (query.includes('seasonal') || query.includes('holiday') || query.includes('christmas') || query.includes('summer')) {
-      return `🎄 Great question! Seasonal spending patterns are fascinating. Here's what I predict:
+**Quick Wins:**
+• Cook 2 more meals at home weekly
+• Use grocery shopping lists
+• Set entertainment budget limits
 
-**Seasonal Spending Patterns:**
+**Impact:** These changes could accelerate your savings goals by 6 months!`;
+      } else {
+        crystalResponse = `🔮 **Hello! I'm Crystal, your AI Spending Predictions specialist.**
 
-**Holiday Season (Nov-Dec):**
-• **Expected Increase:** 25-40% above normal spending
-• **Key Categories:** Gifts, travel, dining, entertainment
-• **Peak Spending:** December 15-23
-• **Recovery Period:** January (spending drops 15-20%)
+I can help you with:
+• **Spending Forecasts** - Predict next month's expenses
+• **Pattern Analysis** - Discover your spending trends
+• **Budget Alerts** - Get early warnings about overspending
+• **Savings Optimization** - Find ways to save more money
+• **Seasonal Planning** - Prepare for holiday spending
 
-**Summer Months (Jun-Aug):**
-• **Expected Increase:** 15-25% above normal
-• **Key Categories:** Travel, outdoor activities, dining
-• **Peak Spending:** July (vacation season)
-• **Back-to-School:** August spending spike
+**My Accuracy:** 92%+ for all predictions
+**Data Sources:** Your transaction history, spending patterns, and financial behavior
 
-**Tax Season (Feb-Apr):**
-• **Expected Increase:** 10-15% for tax preparation
-• **Key Categories:** Professional services, software
-• **Refund Impact:** Often leads to increased discretionary spending
+What would you like to know about your spending future?`;
+      }
 
-**My Seasonal Predictions:**
-• **Accuracy:** 80-85% for major holidays
-• **Lead Time:** 2-3 months advance warning
-• **Category Specificity:** Down to individual spending categories
-• **Recovery Planning:** Help you plan for post-season adjustments
-
-**Pro Tips:**
-• Start saving for holidays 6 months in advance
-• Plan for post-holiday spending lulls
-• Use seasonal patterns to optimize savings timing
-
-Would you like me to create a seasonal spending forecast for you?`;
-    }
-
-    if (query.includes('savings') || query.includes('impact') || query.includes('affect')) {
-      return `💰 Excellent question! Let me show you how spending affects your savings:
-
-**Savings Impact Analysis:**
-
-**Direct Impact Calculations:**
-• **Monthly Savings Rate** - How much you can save vs. current spending
-• **Goal Achievement** - How spending affects your savings goals
-• **Compound Effect** - Long-term impact of spending decisions
-• **Opportunity Cost** - What you could have saved instead
-
-**My Prediction Models:**
-• **Short-term Impact** - Next 3 months of savings
-• **Medium-term Projection** - 6-12 month savings forecast
-• **Long-term Compound** - 5-10 year wealth building impact
-• **Goal Timeline** - How spending affects goal achievement dates
-
-**Key Metrics I Track:**
-• **Savings Rate** - Percentage of income saved
-• **Spending Efficiency** - Value per dollar spent
-• **Goal Progress** - How spending affects milestone dates
-• **Emergency Fund Impact** - Effect on financial security
-
-**Pro Tips:**
-• Every $100 saved monthly = $12,000 in 10 years (at 7% return)
-• Reducing dining out by $200/month = $24,000 more in 10 years
-• Small spending cuts compound into significant savings
-
-**My Accuracy:**
-• **Savings Predictions:** 90% accuracy
-• **Goal Timeline:** 85% accuracy
-• **Impact Analysis:** 88% accuracy
-
-Would you like me to analyze how your current spending affects your savings goals?`;
-    }
-
-    if (query.includes('help') || query.includes('advice') || query.includes('guidance')) {
-      return `🔮 I'm here to help you understand and predict your spending! Here's what I can assist with:
-
-**My Prediction Expertise:**
-📊 **Spending Analysis** - Analyze your spending patterns and trends
-🔮 **Future Forecasts** - Predict upcoming expenses and spending
-⚠️ **Budget Alerts** - Warn you about potential overspending
-🎄 **Seasonal Patterns** - Identify holiday and seasonal spending trends
-💰 **Savings Impact** - Show how spending affects your savings goals
-📈 **Trend Analysis** - Spot spending patterns and changes
-🎯 **Goal Correlation** - Connect spending to financial goal achievement
-
-**How I Can Help:**
-• Create personalized spending forecasts
-• Identify spending patterns and trends
-• Predict seasonal spending increases
-• Alert you to potential budget issues
-• Show the impact of spending on savings
-• Help you optimize spending for goals
-• Provide data-driven spending insights
-
-**My Approach:**
-I use advanced analytics and machine learning to analyze your spending data and provide accurate predictions. I help you make informed decisions about your money.
-
-**Pro Tip:** The more data I have, the more accurate my predictions become!
-
-What specific aspect of spending predictions would you like to explore?`;
-    }
-
-    // Default response for other queries
-    return `🔮 I understand you're asking about "${userQuery}". As your Spending Predictions AI, I'm here to help with:
-
-**Prediction Topics I Cover:**
-• Spending pattern analysis and trend identification
-• Future expense forecasting and budget planning
-• Seasonal spending predictions and holiday planning
-• Budget alert systems and overspending prevention
-• Savings impact analysis and goal correlation
-• Spending optimization for financial goals
-• Data-driven financial decision making
-
-**My Prediction Capabilities:**
-I analyze your spending data using advanced analytics and machine learning to provide accurate forecasts and insights. I help you understand your spending patterns and make informed financial decisions.
-
-**My Promise:**
-I'll help you predict future spending, identify trends, and optimize your spending to achieve your financial goals.
-
-Could you tell me more specifically what prediction-related topic you'd like to discuss? I'm ready to help you understand your spending future!`;
+      const crystalMessage = {
+        role: 'crystal' as const,
+        content: crystalResponse,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, crystalMessage]);
+      setIsLoading(false);
+    }, 1500);
   };
 
-  const quickActions = [
-    { icon: TrendingUp, text: "Spending Forecast", action: () => sendMessage("I want a spending forecast for next month") },
-    { icon: BarChart3, text: "Trend Analysis", action: () => sendMessage("I want to analyze my spending trends") },
-    { icon: AlertTriangle, text: "Budget Alerts", action: () => sendMessage("I want to set up budget alerts") },
-    { icon: Calendar, text: "Seasonal Predictions", action: () => sendMessage("I want seasonal spending predictions") },
-    { icon: DollarSign, text: "Savings Impact", action: () => sendMessage("I want to see how spending affects my savings") },
-    { icon: Eye, text: "Pattern Recognition", action: () => sendMessage("I want to identify spending patterns") }
-  ];
+  const filteredPredictions = spendingPredictions.filter(prediction => 
+    prediction.category.toLowerCase().includes(searchTerm.toLowerCase()) &&
+    (filterCategory === 'all' || prediction.trend === filterCategory)
+  );
 
-  const predictionTips = [
-    {
-      icon: Activity,
-      title: "Data-Driven",
-      description: "More data = more accurate predictions"
-    },
-    {
-      icon: Clock,
-      title: "Early Warnings",
-      description: "Get alerts 2-3 weeks in advance"
-    },
-    {
-      icon: Target,
-      title: "Goal Focused",
-      description: "Predictions aligned with your goals"
-    },
-    {
-      icon: LineChart,
-      title: "Trend Analysis",
-      description: "Spot patterns you might miss"
+  const categories = ['all', 'up', 'down', 'stable'];
+
+  const getTrendIcon = (trend: string) => {
+    switch (trend) {
+      case 'up': return <TrendingUpIcon className="w-4 h-4 text-red-400" />;
+      case 'down': return <TrendingDownIcon className="w-4 h-4 text-green-400" />;
+      default: return <Minus className="w-4 h-4 text-gray-400" />;
     }
-  ];
+  };
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return 'text-red-400 bg-red-500/20 border-red-500/30';
+      case 'high': return 'text-orange-400 bg-orange-500/20 border-orange-500/30';
+      case 'medium': return 'text-yellow-400 bg-yellow-500/20 border-yellow-500/30';
+      default: return 'text-blue-400 bg-blue-500/20 border-blue-500/30';
+    }
+  };
+
+  const getInsightTypeColor = (type: string) => {
+    switch (type) {
+      case 'recommendation': return 'text-green-400 bg-green-500/20 border-green-500/30';
+      case 'warning': return 'text-orange-400 bg-orange-500/20 border-orange-500/30';
+      case 'prediction': return 'text-purple-400 bg-purple-500/20 border-purple-500/30';
+      default: return 'text-blue-400 bg-blue-500/20 border-blue-500/30';
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      <DashboardHeader />
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">AI Spending Predictions</h1>
+            <p className="text-white/70 text-sm sm:text-base">Crystal's AI-powered forecasting with 92%+ accuracy</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+              <span className="text-purple-400 text-sm font-medium">Crystal AI Active</span>
+            </div>
+            <div className="text-2xl">🔮</div>
+          </div>
+        </div>
+      </motion.div>
 
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Crystal Header */}
+      {/* Navigation Tabs */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="flex flex-wrap gap-2 mb-6"
+      >
+        {[
+          { key: 'overview', label: 'Overview', icon: BarChart3 },
+          { key: 'predictions', label: 'Predictions', icon: TrendingUp },
+          { key: 'patterns', label: 'Patterns', icon: Activity },
+          { key: 'alerts', label: 'Alerts', icon: AlertTriangle },
+          { key: 'insights', label: 'Crystal Insights', icon: Brain },
+          { key: 'chat', label: 'Chat with Crystal', icon: MessageCircle }
+        ].map(({ key, label, icon: Icon }) => (
+          <motion.button
+            key={key}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setActiveView(key)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeView === key
+                ? 'bg-purple-500 text-white'
+                : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </motion.button>
+        ))}
+      </motion.div>
+
+      {/* Overview Section */}
+      {activeView === 'overview' && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
         >
-          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
-            <div className="text-3xl">🔮</div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Crystal</h1>
-              <p className="text-white/70 text-sm">Spending Predictions AI</p>
+          {/* Live Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Predicted Spending</p>
+                  <p className="text-2xl font-bold text-white">${livePredictions.totalPredicted.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-6 h-6 text-purple-400" />
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2 ml-4">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm">AI Active</span>
+
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Prediction Accuracy</p>
+                  <p className="text-2xl font-bold text-white">{livePredictions.accuracy.toFixed(1)}%</p>
+                </div>
+                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <Target className="w-6 h-6 text-green-400" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Patterns Found</p>
+                  <p className="text-2xl font-bold text-white">{livePredictions.patternsFound}</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-blue-400" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Money Saved</p>
+                  <p className="text-2xl font-bold text-white">${livePredictions.moneySaved.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                  <TrendingDown className="w-6 h-6 text-yellow-400" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <button
+                onClick={() => setActiveView('predictions')}
+                className="flex items-center gap-3 p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-white transition-colors"
+              >
+                <TrendingUp className="w-5 h-5" />
+                <span>View Predictions</span>
+              </button>
+              <button
+                onClick={() => setActiveView('patterns')}
+                className="flex items-center gap-3 p-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-white transition-colors"
+              >
+                <Activity className="w-5 h-5" />
+                <span>Analyze Patterns</span>
+              </button>
+              <button
+                onClick={() => setActiveView('alerts')}
+                className="flex items-center gap-3 p-4 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-white transition-colors"
+              >
+                <AlertTriangle className="w-5 h-5" />
+                <span>Check Alerts</span>
+              </button>
+              <button
+                onClick={() => setShowCrystalChat(true)}
+                className="flex items-center gap-3 p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-white transition-colors"
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span>Chat with Crystal</span>
+              </button>
             </div>
           </div>
         </motion.div>
+      )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Chat Interface */}
-          <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
+      {/* Predictions Section */}
+      {activeView === 'predictions' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          {/* Search and Filter */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/50" />
+              <input
+                type="text"
+                placeholder="Search predictions..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+              />
+            </div>
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-purple-500"
             >
-              {/* Chat Header */}
-              <div className="bg-white/10 px-6 py-4 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <div className="text-xl">🔮</div>
+              {categories.map(category => (
+                <option key={category} value={category} className="bg-slate-800">
+                  {category === 'all' ? 'All Trends' : category.charAt(0).toUpperCase() + category.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Predictions Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {filteredPredictions.map((prediction) => (
+              <div key={prediction.id} className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h2 className="font-semibold text-white">Chat with Crystal</h2>
-                    <p className="text-white/60 text-sm">Spending Predictions AI</p>
+                    <h3 className="text-lg font-semibold text-white">{prediction.category}</h3>
+                    <p className="text-white/70 text-sm">Updated {prediction.lastUpdated}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getTrendIcon(prediction.trend)}
+                    <span className={`text-sm font-medium ${
+                      prediction.trend === 'up' ? 'text-red-400' : 
+                      prediction.trend === 'down' ? 'text-green-400' : 'text-gray-400'
+                    }`}>
+                      {prediction.changePercent > 0 ? '+' : ''}{prediction.changePercent.toFixed(1)}%
+                    </span>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <p className="text-white/70 text-sm">Current Month</p>
+                    <p className="text-white font-semibold">${prediction.currentMonth}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/70 text-sm">Predicted Next Month</p>
+                    <p className="text-white font-semibold">${prediction.predictedNextMonth}</p>
+                  </div>
+                  <div>
+                    <p className="text-white/70 text-sm">Confidence</p>
+                    <p className="text-white font-semibold">{prediction.confidence}%</p>
+                  </div>
+                  <div>
+                    <p className="text-white/70 text-sm">Trend</p>
+                    <p className="text-white font-semibold capitalize">{prediction.trend}</p>
+                  </div>
+                </div>
+
+                <div className="w-full bg-white/10 rounded-full h-2">
+                  <div 
+                    className="bg-purple-500 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${prediction.confidence}%` }}
+                  ></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Patterns Section */}
+      {activeView === 'patterns' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {patternInsights.map((insight) => (
+              <div key={insight.id} className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{insight.title}</h3>
+                    <p className="text-white/70 text-sm">Discovered {insight.discovered}</p>
+                  </div>
+                  <div className={`px-2 py-1 rounded text-xs font-medium ${
+                    insight.impact === 'high' ? 'bg-red-500/20 text-red-400' :
+                    insight.impact === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                    'bg-green-500/20 text-green-400'
+                  }`}>
+                    {insight.impact.toUpperCase()}
+                  </div>
+                </div>
+
+                <p className="text-white/80 mb-4">{insight.description}</p>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-white/70 text-sm">Confidence: {insight.confidence}%</span>
+                  <span className="text-white/70 text-sm">Category: {insight.category}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Alerts Section */}
+      {activeView === 'alerts' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="space-y-4">
+            {predictionAlerts.map((alert) => (
+              <div key={alert.id} className={`p-4 rounded-xl border ${getSeverityColor(alert.severity)}`}>
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="font-semibold">{alert.title}</h3>
+                  <span className="text-xs opacity-70">{alert.predictedDate}</span>
+                </div>
+                <p className="text-sm opacity-80 mb-2">{alert.message}</p>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="opacity-70">Confidence: {alert.confidence}%</span>
+                  <span className="opacity-70">Type: {alert.type}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Crystal Insights Section */}
+      {activeView === 'insights' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="space-y-4">
+            {crystalInsights.map((insight) => (
+              <div key={insight.id} className={`p-4 rounded-xl border ${getInsightTypeColor(insight.type)}`}>
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="font-semibold">{insight.title}</h3>
+                  <span className="text-xs opacity-70">{insight.timestamp}</span>
+                </div>
+                <p className="text-sm opacity-80 mb-2">{insight.content}</p>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="opacity-70">Confidence: {insight.confidence}%</span>
+                  <span className="opacity-70">Category: {insight.category}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Chat Section */}
+      {activeView === 'chat' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="text-3xl">🔮</div>
+              <div>
+                <h3 className="text-xl font-semibold text-white">Chat with Crystal</h3>
+                <p className="text-white/70">AI Spending Predictions Specialist</p>
+              </div>
+            </div>
+
+            <div className="h-96 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
+              {messages.map((message, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    message.role === 'user'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-white/10 text-white border border-white/20'
+                  }`}>
+                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    <div className="text-xs opacity-60 mt-2">
+                      {new Date(message.timestamp).toLocaleTimeString()}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+
+              {isLoading && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Crystal is analyzing...</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                placeholder="Ask Crystal about spending predictions..."
+                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+                disabled={isLoading}
+              />
+              <button
+                onClick={() => sendMessage(input)}
+                disabled={isLoading || !input.trim()}
+                className="bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Crystal Chat Modal */}
+      <AnimatePresence>
+        {showCrystalChat && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setShowCrystalChat(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-slate-800 rounded-xl border border-white/20 p-6 w-full max-w-2xl h-[600px] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">🔮</div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">Chat with Crystal</h3>
+                    <p className="text-white/70 text-sm">AI Spending Predictions Specialist</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowCrystalChat(false)}
+                  className="text-white/70 hover:text-white"
+                >
+                  <XCircle className="w-6 h-6" />
+                </button>
               </div>
 
-              {/* Messages */}
-              <div className="h-96 overflow-y-auto p-4 space-y-4">
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
                 {messages.map((message, index) => (
                   <motion.div
                     key={index}
@@ -491,104 +874,28 @@ Could you tell me more specifically what prediction-related topic you'd like to 
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Area */}
-              <div className="p-4 border-t border-white/10">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                    placeholder="Ask Crystal about spending predictions, trends, forecasts, or budget alerts..."
-                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
-                    disabled={isLoading}
-                  />
-                  <button
-                    onClick={() => sendMessage(input)}
-                    disabled={isLoading || !input.trim()}
-                    className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
-                  >
-                    <Send className="w-5 h-5" />
-                  </button>
-                </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                  placeholder="Ask Crystal about spending predictions..."
+                  className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-purple-500"
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={isLoading || !input.trim()}
+                  className="bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
               </div>
             </motion.div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 gap-3">
-                {quickActions.map((action, index) => (
-                  <button
-                    key={index}
-                    onClick={action.action}
-                    className="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
-                  >
-                    <action.icon className="w-5 h-5" />
-                    <span className="text-sm">{action.text}</span>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Prediction Tips */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Prediction Tips</h3>
-              <div className="space-y-3">
-                {predictionTips.map((tip, index) => (
-                  <div key={index} className="flex items-start gap-3 p-3 bg-white/10 rounded-lg">
-                    <tip.icon className="w-5 h-5 text-purple-400 mt-0.5" />
-                    <div>
-                      <div className="text-white text-sm font-medium">{tip.title}</div>
-                      <div className="text-white/60 text-xs">{tip.description}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Crystal's Stats */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Crystal's Stats</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Predictions Made</span>
-                  <span className="text-purple-400">3,247</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Accuracy Rate</span>
-                  <span className="text-green-400">87.3%</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Avg. Response Time</span>
-                  <span className="text-blue-400">1.5s</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Trends Identified</span>
-                  <span className="text-orange-400">1,156</span>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 } 

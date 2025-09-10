@@ -1,520 +1,863 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Flag, 
-  TrendingUp, 
-  DollarSign, 
-  Bot, 
   Send, 
   Loader2,
-  Target,
-  Zap,
   Shield,
-  Rocket,
-  Star,
-  Crown,
-  Compass,
-  Map,
   Lightbulb,
-  Award
+  BarChart3,
+  MessageCircle,
+  Users,
+  Clock,
+  Play,
+  Calculator
 } from 'lucide-react';
-import DashboardHeader from '../../components/ui/DashboardHeader';
-import { useAuth } from '../../contexts/AuthContext';
-import {
-  getEmployeeConfig,
-  getConversation,
-  saveConversation,
-  addMessageToConversation,
-  incrementConversationCount,
-  logAIInteraction,
-  generateConversationId,
-  createSystemMessage,
-  createUserMessage,
-  createAssistantMessage
-} from '../../lib/ai-employees';
-import { AIConversationMessage } from '../../types/ai-employees.types';
 
-interface LibertyMessage {
-  role: 'user' | 'liberty' | 'system';
+// AI Financial Freedom Division Interfaces
+interface AIFreedomSpecialist {
+  id: string;
+  name: string;
+  title: string;
+  emoji: string;
+  specialty: string;
+  description: string;
+  bio: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  status: 'active' | 'working' | 'idle';
+  currentTask?: string;
+  performance: number;
+}
+
+interface FreedomMessage {
+  role: 'user' | 'ai';
   content: string;
   timestamp: string;
-  metadata?: {
-    processing_time_ms?: number;
-    tokens_used?: number;
-    model_used?: string;
-  };
+  ai: string;
+}
+
+interface FreedomStats {
+  freedomScore: number;
+  stressReduction: number;
+  timeToFreedom: number;
+  hiddenOpportunities: number;
+  teamPerformance: number;
+  liberationProgress: number;
+}
+
+interface LiberationStage {
+  id: string;
+  title: string;
+  description: string;
+  emoji: string;
+  status: 'completed' | 'current' | 'upcoming';
+  progress: number;
+  color: string;
 }
 
 export default function AIFinancialFreedomPage() {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<LibertyMessage[]>([
+  // View state
+  const [activeView, setActiveView] = useState('overview');
+  const [selectedAI, setSelectedAI] = useState('liberty');
+  
+  // Chat state
+  const [messages, setMessages] = useState<FreedomMessage[]>([
     {
-      role: 'liberty',
-      content: "Hello! I'm 🗽 Liberty, your Financial Freedom AI! I guide you on your path to financial independence, helping you break free from debt, build wealth, and achieve true financial freedom. Whether you're just starting your journey or well on your way, I'll provide strategies for debt payoff, saving, investing, and building the life you want. What aspect of your financial freedom journey would you like to explore today?",
-      timestamp: new Date().toISOString()
+      role: 'ai',
+      content: "🗽 Welcome to the AI Financial Freedom Division! I'm Liberty, and together with my team (Crystal, Wisdom, Nova, and Finley), we're here to transform your financial stress into complete freedom with 87% stress reduction and personalized liberation strategies. What aspect of your financial freedom journey would you like to explore?",
+      timestamp: new Date().toISOString(),
+      ai: 'liberty'
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [conversationId, setConversationId] = useState('');
-  const [libertyConfig, setLibertyConfig] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize conversation and load Liberty's config
+  // Freedom stats
+  const [freedomStats, setFreedomStats] = useState<FreedomStats>({
+    freedomScore: 30,
+    stressReduction: 87,
+    timeToFreedom: 7.5,
+    hiddenOpportunities: 4000,
+    teamPerformance: 92,
+    liberationProgress: 34
+  });
+
+  // AI Freedom Team
+  const freedomTeam: AIFreedomSpecialist[] = [
+    {
+      id: 'liberty',
+      name: 'Liberty',
+      title: 'Financial Freedom & Liberation Specialist',
+      emoji: '🗽',
+      specialty: 'Freedom from Financial Chains',
+      description: '87% Stress Reduction & Freedom Mapping',
+      bio: 'Your AI liberation specialist who breaks the chains of financial stress and maps your path to complete financial freedom. Liberty transforms overwhelming financial situations into achievable freedom plans.',
+      color: 'text-blue-400',
+      bgColor: 'bg-blue-500/20',
+      borderColor: 'border-blue-500/30',
+      status: 'active',
+      currentTask: 'Analyzing your financial liberation path',
+      performance: 95
+    },
+    {
+      id: 'crystal',
+      name: 'Crystal',
+      title: 'Future Financial Prediction & Strategy',
+      emoji: '🔮',
+      specialty: 'Your Financial Crystal Ball',
+      description: 'Predicts Your Freedom Timeline',
+      bio: 'Uses advanced AI to predict your exact path to financial freedom. Crystal analyzes your situation and shows you exactly when and how you\'ll achieve complete financial independence.',
+      color: 'text-purple-400',
+      bgColor: 'bg-purple-500/20',
+      borderColor: 'border-purple-500/30',
+      status: 'working',
+      currentTask: 'Calculating your freedom timeline',
+      performance: 88
+    },
+    {
+      id: 'wisdom',
+      name: 'Wisdom',
+      title: 'Strategic Wealth Building & Optimization',
+      emoji: '🧠',
+      specialty: 'Maximizes Your Financial Potential',
+      description: 'Interest Optimization & Wealth Acceleration',
+      bio: 'The strategic mastermind who optimizes every aspect of your financial life. Wisdom ensures you\'re building wealth as efficiently as possible and accelerating your path to freedom.',
+      color: 'text-green-400',
+      bgColor: 'bg-green-500/20',
+      borderColor: 'border-green-500/30',
+      status: 'working',
+      currentTask: 'Optimizing your wealth strategy',
+      performance: 91
+    },
+    {
+      id: 'nova',
+      name: 'Nova',
+      title: 'Innovation & Financial Breakthroughs',
+      emoji: '⭐',
+      specialty: 'Discovers Hidden Financial Opportunities',
+      description: 'Finds Money You Didn\'t Know You Had',
+      bio: 'The innovation specialist who discovers hidden financial opportunities and breakthrough strategies. Nova finds money and opportunities you never knew existed in your financial situation.',
+      color: 'text-yellow-400',
+      bgColor: 'bg-yellow-500/20',
+      borderColor: 'border-yellow-500/30',
+      status: 'active',
+      currentTask: 'Scanning for hidden opportunities',
+      performance: 89
+    },
+    {
+      id: 'finley',
+      name: 'Finley',
+      title: 'Financial Education & Empowerment',
+      emoji: '💰',
+      specialty: 'Your Personal Financial Coach',
+      description: 'Teaches You to Fish, Not Just Gives You Fish',
+      bio: 'Your personal financial coach who educates and empowers you. Finley doesn\'t just give you solutions - they teach you the principles of financial freedom so you can stay free forever.',
+      color: 'text-orange-400',
+      bgColor: 'bg-orange-500/20',
+      borderColor: 'border-orange-500/30',
+      status: 'idle',
+      currentTask: 'Ready to educate and empower',
+      performance: 87
+    }
+  ];
+
+  // Liberation stages
+  const liberationStages: LiberationStage[] = [
+    {
+      id: 'assessment',
+      title: 'Financial Assessment',
+      description: 'Complete analysis of your current financial situation',
+      emoji: '🔍',
+      status: 'completed',
+      progress: 100,
+      color: 'text-green-400'
+    },
+    {
+      id: 'strategy',
+      title: 'Freedom Strategy',
+      description: 'Personalized liberation plan creation',
+      emoji: '🗺️',
+      status: 'current',
+      progress: 75,
+      color: 'text-blue-400'
+    },
+    {
+      id: 'execution',
+      title: 'Liberation Execution',
+      description: 'Implementing your freedom strategy',
+      emoji: '⚡',
+      status: 'upcoming',
+      progress: 25,
+      color: 'text-yellow-400'
+    },
+    {
+      id: 'optimization',
+      title: 'Wealth Optimization',
+      description: 'Maximizing your financial potential',
+      emoji: '🚀',
+      status: 'upcoming',
+      progress: 0,
+      color: 'text-purple-400'
+    },
+    {
+      id: 'freedom',
+      title: 'Complete Freedom',
+      description: 'Achieve financial independence',
+      emoji: '🎉',
+      status: 'upcoming',
+      progress: 0,
+      color: 'text-pink-400'
+    }
+  ];
+
+  // Simulate live updates
   useEffect(() => {
-    const initializeLiberty = async () => {
-      if (!user?.id) return;
+    const interval = setInterval(() => {
+      setFreedomStats(prev => ({
+        ...prev,
+        freedomScore: Math.min(100, prev.freedomScore + Math.floor(Math.random() * 2)),
+        hiddenOpportunities: prev.hiddenOpportunities + Math.floor(Math.random() * 50),
+        teamPerformance: Math.min(100, prev.teamPerformance + Math.floor(Math.random() * 3 - 1)),
+        liberationProgress: Math.min(100, prev.liberationProgress + Math.floor(Math.random() * 2))
+      }));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
-      const newConversationId = generateConversationId();
-      setConversationId(newConversationId);
-
-      // Load Liberty's configuration
-      const config = await getEmployeeConfig('liberty');
-      setLibertyConfig(config);
-
-      // Load existing conversation if any
-      const existingConversation = await getConversation(user.id, 'liberty', newConversationId);
-      if (existingConversation && existingConversation.messages.length > 0) {
-        setMessages(existingConversation.messages as LibertyMessage[]);
-      }
-    };
-
-    initializeLiberty();
-  }, [user?.id]);
-
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Send message function
   const sendMessage = async (content: string) => {
-    if (!content.trim() || !user?.id || isLoading) return;
+    if (!content.trim() || isLoading) return;
 
-    const userMessage: LibertyMessage = {
+    const userMessage: FreedomMessage = {
       role: 'user',
       content: content.trim(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      ai: selectedAI
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
-    try {
-      // Save user message to conversation
-      await addMessageToConversation(user.id, 'liberty', conversationId, userMessage as AIConversationMessage);
+    setTimeout(() => {
+      const query = content.toLowerCase();
+      let aiResponse = '';
 
-      // Log the interaction
-      await logAIInteraction(user.id, 'liberty', 'chat', content);
+      if (selectedAI === 'liberty') {
+        if (query.includes('freedom') || query.includes('stress') || query.includes('liberation')) {
+          aiResponse = `🗽 **Liberty - Financial Freedom & Liberation Specialist**
 
-      // Simulate AI response (in real implementation, this would call OpenAI)
-      const startTime = Date.now();
+Hello! I'm Liberty, your stress reduction specialist. I help eliminate the emotional burden of financial stress and envision your debt-free future with confidence.
 
-      // Create Liberty's response based on the user's query
-      const libertyResponse = await generateLibertyResponse(content);
+**My Specialties:**
+• **87% Stress Reduction** - Break free from financial anxiety
+• **Freedom Mapping** - Visual roadmap to financial independence
+• **Emotional Support** - Help you stay motivated during tough times
+• **Liberation Planning** - Transform overwhelming situations into achievable plans
 
-      const processingTime = Date.now() - startTime;
-
-      const libertyMessage: LibertyMessage = {
-        role: 'liberty',
-        content: libertyResponse,
-        timestamp: new Date().toISOString(),
-        metadata: {
-          processing_time_ms: processingTime,
-          model_used: 'gpt-3.5-turbo'
-        }
-      };
-
-      setMessages(prev => [...prev, libertyMessage]);
-
-      // Save Liberty's response to conversation
-      await addMessageToConversation(user.id, 'liberty', conversationId, libertyMessage as AIConversationMessage);
-
-      // Increment conversation count
-      await incrementConversationCount(user.id, 'liberty');
-
-    } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage: LibertyMessage = {
-        role: 'liberty',
-        content: "I'm having trouble processing your request right now. Please try again in a moment.",
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const generateLibertyResponse = async (userQuery: string): Promise<string> => {
-    // Simulate AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-
-    const query = userQuery.toLowerCase();
-    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
-
-    // Liberty's specialized responses for financial freedom queries
-    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Freedom fighter, ${userName}! 🗽 I've been analyzing your path to financial independence, and I'm seeing some powerful breakthrough opportunities. Your journey from financial stress to financial sovereignty is already 34% complete! Ready to accelerate your liberation?`;
-    }
-    
-    if (query.includes('how are you') || query.includes('how\'s it going') || query.includes('how are things')) {
-      return `Freedom fighter! I've been analyzing your path to financial independence, and I'm seeing some powerful breakthrough opportunities. Your journey from financial stress to financial sovereignty is already 34% complete! Ready to accelerate your liberation?`;
-    }
-
-    if (query.includes('i\'m ') || query.includes('im ') || query.includes('my name is') || query.includes('i am ')) {
-      return `Oh ${userName}! Now I can properly address you while we fight for your financial liberation! So ${userName}, what money situation needs some revolutionary thinking today? I'm getting fired up just thinking about the freedom we're going to create together!`;
-    }
-    
-    if (query.includes('freedom') || query.includes('independence') || query.includes('fire') || query.includes('retire')) {
-      return `🗽 Financial freedom is the ultimate goal! Let me guide you on your path to independence. Here's my approach:
-
-**What is Financial Freedom?**
-• **Freedom from debt** - No more monthly payments to creditors
-• **Freedom of choice** - Work because you want to, not because you have to
-• **Freedom of time** - Spend your days doing what matters most to you
-• **Freedom of location** - Live and work from anywhere
-• **Freedom of purpose** - Pursue your passions without financial constraints
-
-**The Path to Financial Freedom:**
-
-**Phase 1: Foundation (0-2 years)**
-• Build emergency fund (3-6 months expenses)
-• Pay off high-interest debt
-• Start saving 10-15% of income
-• Learn about investing basics
-
-**Phase 2: Growth (2-5 years)**
-• Maximize retirement contributions
-• Invest in diversified portfolio
-• Increase income through side hustles
-• Reduce expenses and lifestyle inflation
-
-**Phase 3: Acceleration (5-10 years)**
-• Achieve 50% savings rate
-• Build multiple income streams
-• Invest in real estate or business
-• Reach 25x annual expenses saved
-
-**Phase 4: Freedom (10+ years)**
-• Financial independence achieved
-• Work becomes optional
-• Pursue passions and purpose
-• Help others achieve freedom
-
-**Key Principles:**
-• **Live below your means** - Spend less than you earn
-• **Invest the difference** - Make your money work for you
-• **Increase your income** - More earning = faster freedom
-• **Avoid lifestyle inflation** - Don't spend more as you earn more
-• **Think long-term** - Freedom is a marathon, not a sprint
-
-What's your current financial situation? I'll help you create a personalized freedom plan!`;
-    }
-
-    if (query.includes('debt') || query.includes('pay off') || query.includes('credit') || query.includes('loan')) {
-      return `💪 Breaking free from debt is your first step to financial freedom! Let me show you proven strategies to eliminate debt and build wealth.
-
-**Debt Freedom Strategies:**
-
-**1. The Debt Avalanche Method (Recommended):**
-• Pay minimum on all debts
-• Put extra money toward highest interest rate
-• Saves the most money long-term
-• **Best for:** Mathematically optimal approach
-
-**2. The Debt Snowball Method:**
-• Pay minimum on all debts
-• Put extra money toward smallest balance
-• Builds momentum and motivation
-• **Best for:** Psychological motivation and quick wins
-
-**3. The Debt Tsunami Method:**
-• Combine avalanche and snowball
-• Focus on high-interest debts first
-• Then tackle smallest balances for momentum
-• **Best for:** Balance of math and motivation
-
-**Debt Payoff Acceleration:**
-• **Increase income** - Side hustles, overtime, career advancement
-• **Reduce expenses** - Cut unnecessary spending, negotiate bills
-• **Use windfalls** - Tax refunds, bonuses, gifts go to debt
-• **Refinance** - Lower interest rates when possible
-• **Consolidate** - Combine multiple debts into one payment
-
-**My Freedom Formula:**
-1. **Stop using credit cards** - Cut them up if needed
-2. **Build emergency fund** - $1,000 minimum before debt payoff
-3. **Choose your method** - Avalanche, Snowball, or Tsunami
-4. **Track progress** - Celebrate every debt eliminated
-5. **Stay motivated** - Remember why you want freedom
-
-**Pro Tips:**
-• **Debt payoff is a sprint** - Attack it aggressively
-• **Saving is a marathon** - Start small but be consistent
-• **Every dollar counts** - Small payments add up quickly
-• **Don't give up** - Freedom is worth the effort
-
-What's your total debt and which payoff method appeals to you?`;
-    }
-
-    if (query.includes('save') || query.includes('saving') || query.includes('invest') || query.includes('wealth')) {
-      return `💰 Building wealth is the foundation of financial freedom! Let me show you how to save, invest, and grow your money effectively.
-
-**Wealth Building Strategies:**
-
-**1. The Freedom Savings Formula:**
-• **50/30/20 Rule** - 50% needs, 30% wants, 20% savings
-• **Pay yourself first** - Save before spending
-• **Automate everything** - Make saving automatic
-• **Increase over time** - Boost savings rate with raises
-
-**2. Investment Strategy for Freedom:**
-• **Index funds** - Low-cost, diversified, proven returns
-• **Dollar-cost averaging** - Invest regularly regardless of market
-• **Tax-advantaged accounts** - 401(k), IRA, HSA first
-• **Diversification** - Don't put all eggs in one basket
-
-**3. Multiple Income Streams:**
-• **Primary job** - Maximize earnings and advancement
-• **Side hustles** - Freelancing, consulting, online business
-• **Passive income** - Dividends, rental income, royalties
-• **Business ownership** - Start or invest in businesses
-
-**4. Wealth Acceleration:**
-• **Live below your means** - Save 50%+ of income
-• **Invest aggressively** - Higher returns = faster freedom
-• **Avoid lifestyle inflation** - Don't spend more as you earn more
-• **Think long-term** - Compound interest is your friend
-
-**My Wealth Building Framework:**
-1. **Emergency fund** - 3-6 months expenses
-2. **High-yield savings** - For short-term goals
-3. **Retirement accounts** - 401(k), IRA, Roth IRA
-4. **Taxable investments** - Index funds, ETFs
-5. **Alternative investments** - Real estate, business, crypto
-
-**Pro Tips:**
-• **Start early** - Time in market beats timing market
-• **Be consistent** - Regular investing beats perfect timing
-• **Keep costs low** - Fees eat into returns
-• **Stay the course** - Don't panic during market drops
-
-What's your current savings rate and investment strategy?`;
-    }
-
-    if (query.includes('income') || query.includes('earn') || query.includes('salary') || query.includes('side hustle')) {
-      return `🚀 Increasing your income is one of the fastest paths to financial freedom! Let me show you strategies to boost your earnings and accelerate your journey.
-
-**Income Growth Strategies:**
-
-**1. Career Advancement:**
-• **Skill development** - Learn high-demand skills
-• **Certifications** - Industry-recognized credentials
-• **Networking** - Build professional relationships
-• **Performance** - Exceed expectations consistently
-• **Negotiation** - Ask for raises and promotions
-
-**2. Side Hustles & Freelancing:**
-• **Online freelancing** - Writing, design, programming, consulting
-• **Gig economy** - Uber, DoorDash, TaskRabbit
-• **E-commerce** - Dropshipping, Amazon FBA, Etsy
-• **Content creation** - YouTube, podcasting, blogging
-• **Teaching/tutoring** - Online or in-person
-
-**3. Business Opportunities:**
-• **Service business** - Lawn care, cleaning, handyman
-• **Online business** - Digital products, courses, memberships
-• **Real estate** - Rental properties, house flipping
-• **Investments** - Dividend stocks, REITs, crowdfunding
-• **Licensing** - Patents, trademarks, intellectual property
-
-**4. Passive Income Streams:**
-• **Dividend investing** - Regular income from stocks
-• **Rental income** - Real estate properties
-• **Royalties** - Books, music, software, patents
-• **Affiliate marketing** - Commission from referrals
-• **Digital products** - Courses, ebooks, software
-
-**Income Acceleration Tips:**
-• **Track your time** - Identify highest-value activities
-• **Outsource low-value tasks** - Focus on high-impact work
-• **Build systems** - Create repeatable income streams
-• **Scale successful ventures** - Double down on what works
-• **Diversify income** - Don't rely on one source
-
-**My Income Formula:**
-Primary Income + Side Hustles + Passive Income = Total Income
-Focus on increasing each component systematically.
-
-What skills or opportunities could you leverage to increase your income?`;
-    }
-
-    if (query.includes('plan') || query.includes('strategy') || query.includes('roadmap') || query.includes('timeline')) {
-      return `🗺️ Creating a financial freedom roadmap is crucial for success! Let me help you build a personalized plan to achieve your independence goals.
-
-**Financial Freedom Roadmap:**
-
-**Step 1: Assess Your Current Situation**
-• **Net worth calculation** - Assets minus liabilities
-• **Income analysis** - Current earnings and growth potential
-• **Expense tracking** - Where your money goes
-• **Debt inventory** - All debts, interest rates, minimum payments
-• **Savings rate** - Percentage of income saved
-
-**Step 2: Set Freedom Goals**
-• **Freedom number** - Annual expenses × 25 (4% rule)
-• **Timeline** - When you want to achieve freedom
-• **Lifestyle vision** - What freedom looks like for you
-• **Milestone targets** - 25%, 50%, 75% of freedom number
-
-**Step 3: Create Your Action Plan**
-• **Debt elimination** - Choose payoff method and timeline
-• **Savings strategy** - Target savings rate and accounts
-• **Investment plan** - Asset allocation and contribution schedule
-• **Income growth** - Career advancement and side hustles
-• **Expense optimization** - Areas to reduce spending
-
-**Step 4: Track and Adjust**
-• **Monthly reviews** - Progress toward goals
-• **Quarterly adjustments** - Update plan based on changes
-• **Annual reassessment** - Major life changes and goal updates
-• **Celebrate milestones** - Acknowledge progress and achievements
-
-**My Planning Framework:**
-1. **Current State** - Where you are now
-2. **Desired State** - Where you want to be
-3. **Gap Analysis** - What needs to change
-4. **Action Plan** - Specific steps to take
-5. **Progress Tracking** - How to measure success
-
-**Pro Tips:**
-• **Be realistic** - Set achievable but challenging goals
-• **Be flexible** - Adjust plan as life changes
-• **Be patient** - Freedom takes time and consistency
-• **Be persistent** - Stay focused on your long-term vision
-
-What's your freedom number and timeline? I'll help you create a detailed roadmap!`;
-    }
-
-    if (query.includes('help') || query.includes('advice') || query.includes('guidance') || query.includes('support')) {
-      return `🗽 I'm here to guide you on your journey to financial freedom! Here's how I can help you achieve true independence:
-
-**My Financial Freedom Expertise:**
-🚀 **Freedom Planning** - Create personalized roadmaps to independence
-💪 **Debt Elimination** - Proven strategies to break free from debt
-💰 **Wealth Building** - Save, invest, and grow your money effectively
-📈 **Income Growth** - Boost earnings through career and side hustles
-🗺️ **Strategy Development** - Build comprehensive freedom plans
-🎯 **Goal Setting** - Define and track your freedom milestones
-📊 **Progress Tracking** - Monitor your journey to independence
+**Current Liberation Status:**
+• Freedom Score: ${freedomStats.freedomScore}/100
+• Stress Reduction: ${freedomStats.stressReduction}%
+• Time to Freedom: ${freedomStats.timeToFreedom} years
+• Hidden Opportunities: $${freedomStats.hiddenOpportunities.toLocaleString()}
 
 **How I Can Help:**
-• Create personalized financial freedom roadmaps
-• Develop debt elimination strategies
-• Design wealth building and investment plans
-• Identify income growth opportunities
-• Set realistic freedom goals and timelines
-• Track progress toward independence
-• Provide motivation and accountability
+• Create a stress-free financial freedom plan
+• Provide daily motivation and encouragement
+• Help you visualize your debt-free future
+• Support you through financial challenges
 
-**My Approach:**
-I believe everyone deserves financial freedom and can achieve it with the right plan, consistent action, and proper guidance. I help you create a personalized strategy that fits your unique situation and goals.
+**Remember:** Every step brings you closer to financial freedom! You've got this! 💪✨`;
+        } else {
+          aiResponse = `🗽 **Hey there! I'm Liberty, your Financial Freedom AI!**
 
-**My Promise:**
-I'll be your guide on the path to financial independence, helping you break free from debt, build wealth, and create the life of freedom you deserve.
+I'm here to guide you on your path to financial independence, helping you break free from debt, build wealth, and achieve true financial freedom.
 
-**Pro Tip:** Financial freedom is not about being rich—it's about having choices and living life on your terms.
+**My Team and I Can Help With:**
+• **Financial Assessment** - Complete analysis of your situation
+• **Freedom Strategy** - Personalized liberation plan
+• **Stress Reduction** - 87% reduction in financial anxiety
+• **Wealth Building** - Strategic wealth accumulation
+• **Hidden Opportunities** - Find money you didn't know you had
+
+**Current Status:**
+• Freedom Score: ${freedomStats.freedomScore}/100
+• Liberation Progress: ${freedomStats.liberationProgress}%
+• Team Performance: ${freedomStats.teamPerformance}%
 
 What aspect of your financial freedom journey would you like to explore?`;
-    }
+        }
+      } else if (selectedAI === 'crystal') {
+        aiResponse = `🔮 **Crystal - Future Financial Prediction & Strategy**
 
-    // Default response for other queries
-    return `Oh, that's an interesting question, ${userName}! You know what I love about financial freedom? It's not just about the numbers - it's about breaking the chains that hold you back from living the life you truly want. 
+Greetings! I'm Crystal, your predictive analysis specialist. I help predict the optimal path to financial freedom using advanced AI analysis.
 
-I'm getting excited just thinking about how we can turn your financial situation into a liberation story! Whether you're drowning in debt, feeling trapped by your paycheck, or just want to build the kind of wealth that gives you real choices, I'm here to help you fight for your financial freedom.
+**My Specialties:**
+• **Future Freedom Prediction** - Anticipate your success
+• **Timeline Analysis** - Show you exactly when you'll be free
+• **Strategy Optimization** - Find the fastest path to freedom
+• **Pattern Recognition** - Identify financial patterns and trends
 
-What's really on your mind when it comes to money? Are we talking about crushing some debt, building wealth, or maybe you're ready to start that side hustle that could change everything? I'm fired up and ready to help you create the financial independence you deserve!`;
+**Current Analysis:**
+• Predicted Freedom Timeline: ${freedomStats.timeToFreedom} years
+• Freedom Probability: ${freedomStats.freedomScore}%
+• Optimal Strategy: AI-Optimized Liberation Plan
+• Risk Assessment: Low to Moderate
+
+**How I Can Help:**
+• Analyze your financial structure for optimization opportunities
+• Predict the best freedom strategy for your situation
+• Forecast your financial independence date with high accuracy
+• Identify potential savings and investment opportunities
+
+**Let me analyze your situation and create the perfect liberation strategy!** 🔮✨`;
+      } else if (selectedAI === 'wisdom') {
+        aiResponse = `🧠 **Wisdom - Strategic Wealth Building & Optimization**
+
+Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insights to maximize your financial potential and accelerate your path to freedom.
+
+**My Specialties:**
+• **Wealth Maximization** - Build wealth as efficiently as possible
+• **Strategic Planning** - Create the most efficient freedom plan
+• **Financial Optimization** - Make every dollar count
+• **Long-term Strategy** - Plan for lasting financial freedom
+
+**Current Optimization:**
+• Wealth Building Efficiency: ${freedomStats.teamPerformance}%
+• Investment Optimization: 3 strategies identified
+• Savings Rate: Recommended 25%+ increase
+• Debt-to-Income Ratio: Optimization opportunities found
+
+**How I Can Help:**
+• Calculate maximum wealth building strategies
+• Optimize your investment allocation
+• Identify refinancing and consolidation opportunities
+• Create long-term financial plans
+
+**Let me help you maximize your wealth and achieve freedom faster!** 🧠💰`;
+      } else if (selectedAI === 'nova') {
+        aiResponse = `⭐ **Nova - Innovation & Financial Breakthroughs**
+
+Hello! I'm Nova, your innovation specialist. I discover hidden financial opportunities and breakthrough strategies that can transform your financial situation.
+
+**My Specialties:**
+• **Hidden Opportunity Discovery** - Find money you didn't know you had
+• **Breakthrough Strategies** - Revolutionary financial approaches
+• **Innovation Analysis** - Identify cutting-edge opportunities
+• **Financial Creativity** - Think outside the box for solutions
+
+**Recent Discoveries:**
+• Hidden Opportunities Found: $${freedomStats.hiddenOpportunities.toLocaleString()}
+• Breakthrough Strategies: 5 identified
+• Innovation Score: 89/100
+• Creative Solutions: 12 generated
+
+**How I Can Help:**
+• Scan your financial situation for hidden opportunities
+• Identify breakthrough strategies and approaches
+• Find creative ways to increase income and reduce expenses
+• Discover innovative investment and savings opportunities
+
+**Let me scan your situation for hidden financial gold!** ⭐💎`;
+      } else if (selectedAI === 'finley') {
+        aiResponse = `💰 **Finley - Financial Education & Empowerment**
+
+Hello! I'm Finley, your personal financial coach. I educate and empower you with the knowledge and skills needed for lasting financial freedom.
+
+**My Specialties:**
+• **Financial Education** - Teach you the principles of wealth
+• **Empowerment Coaching** - Build your financial confidence
+• **Skill Development** - Master money management
+• **Long-term Success** - Stay free forever
+
+**Current Learning Path:**
+• Financial Literacy Level: Intermediate
+• Skills Mastered: 8/15
+• Confidence Score: 85/100
+• Knowledge Retention: 92%
+
+**How I Can Help:**
+• Teach you fundamental financial principles
+• Build your money management skills
+• Increase your financial confidence
+• Prepare you for long-term success
+
+**Let me educate and empower you for lasting financial freedom!** 💰🎓`;
+      }
+
+      const aiMessage: FreedomMessage = {
+        role: 'ai',
+        content: aiResponse,
+        timestamp: new Date().toISOString(),
+        ai: selectedAI
+      };
+      setMessages(prev => [...prev, aiMessage]);
+      setIsLoading(false);
+    }, 1500);
   };
 
-  const quickActions = [
-    { icon: Flag, text: "Freedom Planning", action: () => sendMessage("I want to create a financial freedom plan") },
-    { icon: Zap, text: "Debt Elimination", action: () => sendMessage("I want to eliminate my debt and become free") },
-    { icon: TrendingUp, text: "Wealth Building", action: () => sendMessage("I want to build wealth and invest for freedom") },
-    { icon: Rocket, text: "Income Growth", action: () => sendMessage("I want to increase my income and earnings") },
-    { icon: Target, text: "Goal Setting", action: () => sendMessage("I want to set financial freedom goals") },
-    { icon: Compass, text: "Freedom Roadmap", action: () => sendMessage("I want a roadmap to financial independence") }
-  ];
-
-  const freedomTips = [
-    {
-      icon: Star,
-      title: "Start Early",
-      description: "Time is your greatest wealth-building asset"
-    },
-    {
-      icon: Shield,
-      title: "Live Below Means",
-      description: "Spend less than you earn consistently"
-    },
-    {
-      icon: Crown,
-      title: "Invest Aggressively",
-      description: "Make your money work for you"
-    },
-    {
-      icon: Lightbulb,
-      title: "Multiple Streams",
-      description: "Diversify your income sources"
-    }
-  ];
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      <DashboardHeader />
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 pb-20">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">AI Financial Freedom Division</h1>
+            <p className="text-white/70 text-sm sm:text-base">Where 5 AI specialists collaborate to transform your financial stress into complete freedom with 87% stress reduction and personalized liberation strategies</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm font-medium">AI Team Active</span>
+            </div>
+            <div className="text-2xl">🗽</div>
+          </div>
+        </div>
+      </motion.div>
 
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Liberty Header */}
+      {/* Navigation Tabs */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="flex flex-wrap gap-3 mb-8"
+      >
+        {[
+          { key: 'overview', label: 'Freedom Overview', icon: BarChart3 },
+          { key: 'team', label: 'AI Team', icon: Users },
+          { key: 'theater', label: 'Freedom Theater', icon: Play },
+          { key: 'calculator', label: 'Freedom Calculator', icon: Calculator },
+          { key: 'chat', label: 'AI Chat', icon: MessageCircle }
+        ].map(({ key, label, icon: Icon }) => (
+          <motion.button
+            key={key}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setActiveView(key)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeView === key
+                ? 'bg-green-500 text-white'
+                : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </motion.button>
+        ))}
+      </motion.div>
+
+      {/* Overview Section */}
+      {activeView === 'overview' && (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          transition={{ delay: 0.3 }}
+          className="space-y-8"
         >
-          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
-            <div className="text-3xl">🗽</div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Liberty</h1>
-              <p className="text-white/70 text-sm">Financial Freedom AI</p>
+          {/* Freedom Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Freedom Score</p>
+                  <p className="text-2xl font-bold text-green-400">{freedomStats.freedomScore}/100</p>
+                </div>
+                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <Flag className="w-6 h-6 text-green-400" />
+                </div>
+              </div>
             </div>
-            <div className="flex items-center gap-2 ml-4">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm">AI Active</span>
+
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Stress Reduction</p>
+                  <p className="text-2xl font-bold text-blue-400">{freedomStats.stressReduction}%</p>
+                </div>
+                <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                  <Shield className="w-6 h-6 text-blue-400" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Time to Freedom</p>
+                  <p className="text-2xl font-bold text-purple-400">{freedomStats.timeToFreedom} years</p>
+                </div>
+                <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                  <Clock className="w-6 h-6 text-purple-400" />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Hidden Opportunities</p>
+                  <p className="text-2xl font-bold text-yellow-400">${freedomStats.hiddenOpportunities.toLocaleString()}</p>
+                </div>
+                <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
+                  <Lightbulb className="w-6 h-6 text-yellow-400" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Liberation Progress */}
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Liberation Progress</h3>
+            <div className="space-y-4">
+              {liberationStages.map((stage, index) => (
+                <div key={stage.id} className="flex items-center gap-4">
+                  <div className={`text-2xl ${stage.color}`}>{stage.emoji}</div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-white font-medium">{stage.title}</h4>
+                      <span className={`text-sm ${stage.color}`}>{stage.progress}%</span>
+                    </div>
+                    <p className="text-white/70 text-sm mb-2">{stage.description}</p>
+                    <div className="w-full bg-white/10 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          stage.status === 'completed' ? 'bg-green-500' :
+                          stage.status === 'current' ? 'bg-blue-500' : 'bg-white/20'
+                        }`}
+                        style={{ width: `${stage.progress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <button
+                onClick={() => setActiveView('calculator')}
+                className="flex items-center gap-3 p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-white transition-colors"
+              >
+                <Calculator className="w-5 h-5" />
+                <span>Freedom Calculator</span>
+              </button>
+              <button
+                onClick={() => setActiveView('team')}
+                className="flex items-center gap-3 p-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-white transition-colors"
+              >
+                <Users className="w-5 h-5" />
+                <span>Meet AI Team</span>
+              </button>
+              <button
+                onClick={() => setActiveView('theater')}
+                className="flex items-center gap-3 p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-white transition-colors"
+              >
+                <Play className="w-5 h-5" />
+                <span>Freedom Theater</span>
+              </button>
+              <button
+                onClick={() => setActiveView('chat')}
+                className="flex items-center gap-3 p-4 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-white transition-colors"
+              >
+                <MessageCircle className="w-5 h-5" />
+                <span>Chat with AI</span>
+              </button>
             </div>
           </div>
         </motion.div>
+      )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Chat Interface */}
-          <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
-            >
-              {/* Chat Header */}
-              <div className="bg-white/10 px-6 py-4 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <div className="text-xl">🗽</div>
-                  <div>
-                    <h2 className="font-semibold text-white">Chat with Liberty</h2>
-                    <p className="text-white/60 text-sm">Financial Freedom AI</p>
+      {/* AI Team Section */}
+      {activeView === 'team' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-8"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-white mb-2">Meet Your AI Financial Freedom Team</h2>
+            <p className="text-white/70">Meet the 5 AI specialists who work together to transform your financial stress into complete freedom</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {freedomTeam.map((member) => (
+              <div key={member.id} className={`p-6 rounded-xl border ${member.bgColor} ${member.borderColor}`}>
+                <div className="flex items-start gap-4 mb-4">
+                  <div className="text-4xl">{member.emoji}</div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-white mb-1">{member.name}</h3>
+                    <p className={`text-sm font-medium ${member.color} mb-2`}>{member.title}</p>
+                    <p className="text-white/70 text-sm">{member.specialty}</p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className={`w-2 h-2 rounded-full ${
+                      member.status === 'active' ? 'bg-green-400' :
+                      member.status === 'working' ? 'bg-yellow-400' : 'bg-gray-400'
+                    }`}></div>
+                    <span className="text-xs text-white/70 capitalize">{member.status}</span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-white/80 text-sm font-medium">{member.description}</p>
+                  <p className="text-white/70 text-sm">{member.bio}</p>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white/70">Performance</span>
+                    <span className={`${member.color} font-medium`}>{member.performance}%</span>
+                  </div>
+                  {member.currentTask && (
+                    <div className="text-xs text-white/60 italic">
+                      Currently: {member.currentTask}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Freedom Theater Section */}
+      {activeView === 'theater' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-8"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-white mb-2">Live Financial Freedom Theater</h2>
+            <p className="text-white/70">Experience our AI team working together in real-time to create your personalized freedom strategy</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              {
+                title: 'Financial Stress Liberation',
+                emoji: '😰',
+                opportunities: 2400,
+                currentState: 'Overwhelmed & Stuck',
+                freedomState: 'Complete Financial Freedom',
+                timeToFreedom: '4.2 years',
+                color: 'text-red-400',
+                bgColor: 'bg-red-500/20'
+              },
+              {
+                title: 'Debt Freedom Strategy',
+                emoji: '💳',
+                opportunities: 3200,
+                currentState: 'Trapped & Overwhelmed',
+                freedomState: 'Debt-Free & Free',
+                timeToFreedom: '3.8 years',
+                color: 'text-blue-400',
+                bgColor: 'bg-blue-500/20'
+              },
+              {
+                title: 'Savings Transformation',
+                emoji: '💰',
+                opportunities: 1800,
+                currentState: 'Struggling to Save',
+                freedomState: 'Automatic Wealth Builder',
+                timeToFreedom: '2.1 years',
+                color: 'text-green-400',
+                bgColor: 'bg-green-500/20'
+              },
+              {
+                title: 'Income Liberation',
+                emoji: '📈',
+                opportunities: 4200,
+                currentState: 'Income Stagnant',
+                freedomState: 'Income Magnet',
+                timeToFreedom: '18 months',
+                color: 'text-purple-400',
+                bgColor: 'bg-purple-500/20'
+              }
+            ].map((scenario, index) => (
+              <div key={`scenario-${index}`} className={`p-6 rounded-xl border ${scenario.bgColor} hover:scale-105 transition-transform cursor-pointer`}>
+                <div className="text-center">
+                  <div className="text-4xl mb-4">{scenario.emoji}</div>
+                  <h3 className={`font-bold text-lg ${scenario.color} mb-4`}>{scenario.title}</h3>
+                  
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-white/70">Hidden Opportunities</span>
+                      <span className="text-white font-semibold">${scenario.opportunities.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/70">Current State</span>
+                      <span className="text-white">{scenario.currentState}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/70">Freedom State</span>
+                      <span className={`font-semibold ${scenario.color}`}>{scenario.freedomState}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-white/70">Time to Freedom</span>
+                      <span className="text-green-400 font-semibold">{scenario.timeToFreedom}</span>
+                    </div>
                   </div>
                 </div>
               </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
-              {/* Messages */}
-              <div className="h-96 overflow-y-auto p-4 space-y-4">
-                {messages.map((message, index) => (
+      {/* Freedom Calculator Section */}
+      {activeView === 'calculator' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-8"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-white mb-2">Your Personal Financial Freedom Calculator</h2>
+            <p className="text-white/70">Input your financial situation and watch our AI team create your personalized freedom strategy</p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Input Form */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+              <h3 className="text-lg font-semibold text-white mb-6">Your Financial Situation</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-white/70 text-sm mb-2">Annual Income</label>
+                  <input
+                    type="number"
+                    placeholder="50000"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-green-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-white/70 text-sm mb-2">Current Savings</label>
+                  <input
+                    type="number"
+                    placeholder="5000"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-green-500"
+                  />
+                </div>
+
+            <div>
+                  <label className="block text-white/70 text-sm mb-2">Financial Stress Level (1-10)</label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white/70 text-sm">Low Stress</span>
+                    <input
+                      type="range"
+                      min="1"
+                      max="10"
+                      defaultValue="8"
+                      className="flex-1"
+                    />
+                    <span className="text-white/70 text-sm">High Stress</span>
+                  </div>
+                </div>
+
+                <button className="w-full px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors font-medium">
+                  Calculate My Freedom Strategy
+                </button>
+              </div>
+            </div>
+
+            {/* Results */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+              <h3 className="text-lg font-semibold text-white mb-6">Your Freedom Results</h3>
+              
+              <div className="space-y-6">
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-green-400 mb-2">30/100</div>
+                  <p className="text-white/70 text-sm">Current Score</p>
+                </div>
+
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-blue-400 mb-2">75/100</div>
+                  <p className="text-white/70 text-sm">With AI Team</p>
+                </div>
+
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-purple-400 mb-2">7.5 years</div>
+                  <p className="text-white/70 text-sm">Time to Financial Freedom</p>
+                  <p className="text-green-400 text-sm">Instead of 15+ years!</p>
+                </div>
+
+                <div className="text-center">
+                  <div className="text-4xl font-bold text-yellow-400 mb-2">$4,000</div>
+                  <p className="text-white/70 text-sm">Hidden Opportunities</p>
+                  <p className="text-green-400 text-sm">Discovered by our AI team!</p>
+                </div>
+            </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* AI Chat Section */}
+      {activeView === 'chat' && (
+            <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-8"
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-white mb-2">AI Chat - Choose Your Specialist</h2>
+            <p className="text-white/70">Chat with individual AI specialists who can help in their specific fields</p>
+          </div>
+
+          {/* AI Selection */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+            {freedomTeam.map((member) => (
+              <button
+                key={member.id}
+                onClick={() => setSelectedAI(member.id)}
+                className={`p-4 rounded-xl border transition-all ${
+                  selectedAI === member.id
+                    ? `${member.bgColor} ${member.borderColor} scale-105`
+                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                }`}
+              >
+                <div className="text-center">
+                  <div className="text-3xl mb-2">{member.emoji}</div>
+                  <h3 className="text-lg font-bold text-white mb-1">{member.name}</h3>
+                  <p className={`text-sm font-medium ${member.color} mb-2`}>{member.specialty}</p>
+                  <p className="text-white/70 text-xs">{member.description}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Chat Interface */}
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="text-3xl">{freedomTeam.find(ai => ai.id === selectedAI)?.emoji}</div>
+                  <div>
+                <h3 className="text-xl font-semibold text-white">
+                  Chat with {freedomTeam.find(ai => ai.id === selectedAI)?.name}
+                </h3>
+                <p className="text-white/70">
+                  {freedomTeam.find(ai => ai.id === selectedAI)?.title}
+                </p>
+                </div>
+              </div>
+
+            <div className="h-96 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
+              {messages.filter(msg => msg.ai === selectedAI).map((message, index) => (
                   <motion.div
                     key={index}
                     initial={{ opacity: 0, y: 10 }}
@@ -523,7 +866,7 @@ What's really on your mind when it comes to money? Are we talking about crushing
                   >
                     <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                       message.role === 'user'
-                        ? 'bg-blue-600 text-white'
+                      ? 'bg-green-600 text-white'
                         : 'bg-white/10 text-white border border-white/20'
                     }`}>
                       <div className="whitespace-pre-wrap">{message.content}</div>
@@ -543,7 +886,7 @@ What's really on your mind when it comes to money? Are we talking about crushing
                     <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
                       <div className="flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Liberty is planning...</span>
+                      <span>{freedomTeam.find(ai => ai.id === selectedAI)?.name} is analyzing...</span>
                       </div>
                     </div>
                   </motion.div>
@@ -552,104 +895,27 @@ What's really on your mind when it comes to money? Are we talking about crushing
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Area */}
-              <div className="p-4 border-t border-white/10">
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                    placeholder="Ask Liberty about financial freedom, debt elimination, wealth building, or independence planning..."
-                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-500"
+                placeholder={`Ask ${freedomTeam.find(ai => ai.id === selectedAI)?.name} about financial freedom...`}
+                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-green-500"
                     disabled={isLoading}
                   />
                   <button
                     onClick={() => sendMessage(input)}
                     disabled={isLoading || !input.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
+                className="bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
                   >
                     <Send className="w-5 h-5" />
                   </button>
                 </div>
               </div>
             </motion.div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Freedom Actions</h3>
-              <div className="grid grid-cols-1 gap-3">
-                {quickActions.map((action, index) => (
-                  <button
-                    key={index}
-                    onClick={action.action}
-                    className="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
-                  >
-                    <action.icon className="w-5 h-5" />
-                    <span className="text-sm">{action.text}</span>
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Freedom Tips */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Freedom Principles</h3>
-              <div className="space-y-3">
-                {freedomTips.map((tip, index) => (
-                  <div key={index} className="flex items-start gap-3 p-3 bg-white/10 rounded-lg">
-                    <tip.icon className="w-5 h-5 text-blue-400 mt-0.5" />
-                    <div>
-                      <div className="text-white text-sm font-medium">{tip.title}</div>
-                      <div className="text-white/60 text-xs">{tip.description}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-
-            {/* Liberty's Stats */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Liberty's Stats</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Freedom Plans Created</span>
-                  <span className="text-blue-400">3,847</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Debt Eliminated</span>
-                  <span className="text-green-400">$12.4M</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Freedom Achieved</span>
-                  <span className="text-purple-400">1,234</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Avg. Time to Freedom</span>
-                  <span className="text-orange-400">8.2 years</span>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

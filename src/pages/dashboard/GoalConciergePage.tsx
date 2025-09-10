@@ -1,36 +1,27 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Target, 
-  TrendingUp, 
-  Calendar, 
   Trophy, 
-  Bot, 
   Send, 
   Loader2,
-  Flag,
-  CheckCircle,
-  AlertCircle,
-  Star,
-  Award,
   BarChart3,
-  Clock,
-  DollarSign
+  Crown,
+  Users,
+  MessageCircle,
+  Home,
+  Shield,
+  CreditCard,
+  CheckCircle
 } from 'lucide-react';
 
-import DashboardHeader from '../../components/ui/DashboardHeader';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  getEmployeeConfig,
   getConversation,
-  saveConversation,
   addMessageToConversation,
   incrementConversationCount,
   logAIInteraction,
-  generateConversationId,
-  createSystemMessage,
-  createUserMessage,
-  createAssistantMessage
+  generateConversationId
 } from '../../lib/ai-employees';
 import { AIConversationMessage } from '../../types/ai-employees.types';
 
@@ -50,15 +41,91 @@ export default function GoalConciergePage() {
   const [messages, setMessages] = useState<GoalieMessage[]>([
     {
       role: 'goalie',
-      content: "Hi! I'm 🥅 Goalie, your Goal Concierge! I help you set, track, and achieve your financial goals. Whether you want to save for a vacation, pay off debt, build an emergency fund, or invest for retirement, I'll keep you motivated and on track. What financial goal would you like to work on today?",
+      content: "Welcome to your Luxury AI Financial Concierge! I'm 🥅 Goalie, orchestrating our elite AI team to create your personalized wealth-building journey. Where luxury meets wealth creation - let's make your financial dreams a reality!",
       timestamp: new Date().toISOString()
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState('');
-  const [goalieConfig, setGoalieConfig] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Luxury AI Concierge State
+  const [activeView, setActiveView] = useState<'overview' | 'team' | 'conversation' | 'goals'>('overview');
+  const [conversationMode, setConversationMode] = useState<'goalie' | 'team'>('goalie');
+  const [teamConversation, setTeamConversation] = useState<any[]>([]);
+
+  // Clear AI Functionality
+  const aiFeatures = [
+    {
+      id: 'goal-setting',
+      title: 'Smart Goal Setting',
+      description: 'Set and track financial goals with AI-powered recommendations',
+      icon: Target,
+      examples: ['Save $10,000 emergency fund', 'Pay off $5,000 credit card debt', 'Buy house in 3 years']
+    },
+    {
+      id: 'budget-analysis',
+      title: 'Budget Analysis',
+      description: 'Get insights on your spending patterns and optimization suggestions',
+      icon: BarChart3,
+      examples: ['Track monthly expenses', 'Find savings opportunities', 'Optimize spending categories']
+    },
+    {
+      id: 'financial-advice',
+      title: 'Personalized Advice',
+      description: 'Get tailored financial advice based on your specific situation',
+      icon: MessageCircle,
+      examples: ['Investment strategies', 'Debt payoff plans', 'Retirement planning']
+    },
+    {
+      id: 'progress-tracking',
+      title: 'Progress Tracking',
+      description: 'Monitor your financial progress with visual charts and milestones',
+      icon: Trophy,
+      examples: ['Goal completion rates', 'Monthly progress reports', 'Achievement celebrations']
+    }
+  ];
+
+  // Common Financial Goals
+  const commonGoals = [
+    {
+      id: 'emergency-fund',
+      name: 'Emergency Fund',
+      icon: Shield,
+      description: 'Build 3-6 months of expenses saved',
+      timeline: '6-12 months',
+      targetAmount: '$5,000 - $15,000',
+      priority: 'High'
+    },
+    {
+      id: 'debt-payoff',
+      name: 'Debt Payoff',
+      icon: CreditCard,
+      description: 'Pay off credit cards and loans',
+      timeline: '1-3 years',
+      targetAmount: 'Varies by debt amount',
+      priority: 'High'
+    },
+    {
+      id: 'home-purchase',
+      name: 'Home Purchase',
+      icon: Home,
+      description: 'Save for down payment on a house',
+      timeline: '2-5 years',
+      targetAmount: '$20,000 - $100,000',
+      priority: 'Medium'
+    },
+    {
+      id: 'retirement',
+      name: 'Retirement Savings',
+      icon: Crown,
+      description: 'Build long-term retirement fund',
+      timeline: '10-30 years',
+      targetAmount: '$500,000 - $2,000,000',
+      priority: 'High'
+    }
+  ];
 
   // Initialize conversation and load Goalie's config
   useEffect(() => {
@@ -67,10 +134,6 @@ export default function GoalConciergePage() {
 
       const newConversationId = generateConversationId();
       setConversationId(newConversationId);
-
-      // Load Goalie's configuration
-      const config = await getEmployeeConfig('goalie');
-      setGoalieConfig(config);
 
       // Load existing conversation if any
       const existingConversation = await getConversation(user.id, 'goalie', newConversationId);
@@ -86,6 +149,47 @@ export default function GoalConciergePage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Luxury AI Team Conversation Functions
+  const startTeamConversation = async (goal: string) => {
+    setConversationMode('team');
+    
+    // Simulate team conversation
+    const teamResponses = [
+      {
+        member: 'goalie',
+        message: `I want to buy my dream ${goal} in 5 years. How do we make this happen?`,
+        timestamp: new Date().toISOString(),
+        isUser: true
+      },
+      {
+        member: 'finley',
+        message: `Based on your current financial profile, you'll need approximately $120,000 for a 20% down payment on a $600,000 home.`,
+        timestamp: new Date().toISOString(),
+        isUser: false
+      },
+      {
+        member: 'crystal',
+        message: `I'm predicting a 15% increase in your income over the next 3 years, which will accelerate your savings timeline by 8 months.`,
+        timestamp: new Date().toISOString(),
+        isUser: false
+      },
+      {
+        member: 'nova',
+        message: `I've identified 3 side hustle opportunities that could generate an additional $2,500 monthly, putting you 2 years ahead of schedule!`,
+        timestamp: new Date().toISOString(),
+        isUser: false
+      },
+      {
+        member: 'wisdom',
+        message: `Let's diversify your savings strategy: 60% in high-yield savings, 30% in conservative investments, and 10% in emergency reserves.`,
+        timestamp: new Date().toISOString(),
+        isUser: false
+      }
+    ];
+
+    setTeamConversation(teamResponses);
+  };
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || !user?.id || isLoading) return;
@@ -409,37 +513,6 @@ I'll be your goal achievement partner, celebrating every milestone and helping y
 Could you tell me more specifically what goal-related topic you'd like to discuss? I'm ready to help you achieve your financial dreams!`;
   };
 
-  const quickActions = [
-    { icon: Target, text: "Set New Goal", action: () => sendMessage("I want to set a new financial goal") },
-    { icon: BarChart3, text: "Track Progress", action: () => sendMessage("I want to track my goal progress") },
-    { icon: Calendar, text: "Timeline Planning", action: () => sendMessage("I need help planning my goal timeline") },
-    { icon: Trophy, text: "Celebrate Milestone", action: () => sendMessage("I want to celebrate a goal milestone") },
-    { icon: AlertCircle, text: "Motivation Help", action: () => sendMessage("I need motivation to stay on track") },
-    { icon: CheckCircle, text: "Goal Review", action: () => sendMessage("I want to review and adjust my goals") }
-  ];
-
-  const goalTips = [
-    {
-      icon: Star,
-      title: "SMART Goals",
-      description: "Specific, Measurable, Achievable, Relevant, Time-bound"
-    },
-    {
-      icon: Award,
-      title: "Celebrate Progress",
-      description: "Every milestone deserves recognition"
-    },
-    {
-      icon: Clock,
-      title: "Consistency Over Speed",
-      description: "Small daily actions compound over time"
-    },
-    {
-      icon: DollarSign,
-      title: "Pay Yourself First",
-      description: "Automate savings before spending"
-    }
-  ];
 
   // Scroll to top when component mounts
   useEffect(() => {
@@ -447,185 +520,437 @@ Could you tell me more specifically what goal-related topic you'd like to discus
   }, []);
 
   return (
-    <div className="w-full">
-      <DashboardHeader />
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Goalie Header */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Clear Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          className="mb-8"
         >
-          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
-            <div className="text-3xl">🥅</div>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-white">Goalie</h1>
-              <p className="text-white/70 text-sm">Goal Concierge</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">Financial Goal Assistant</h1>
+              <p className="text-white/70 text-sm sm:text-base">Set, track, and achieve your financial goals with AI-powered guidance</p>
             </div>
-            <div className="flex items-center gap-2 ml-4">
+            
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm">AI Active</span>
+                <span className="text-green-400 text-sm font-medium">AI Ready</span>
+              </div>
+              <div className="text-2xl">🎯</div>
             </div>
           </div>
         </motion.div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Chat Interface */}
-          <div className="lg:col-span-2">
+        {/* Navigation Tabs */}
             <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="flex flex-wrap gap-2 mb-6"
+        >
+          {[
+            { key: 'overview', label: 'How It Works', icon: BarChart3 },
+            { key: 'team', label: 'AI Features', icon: Users },
+            { key: 'conversation', label: 'Chat with AI', icon: MessageCircle },
+            { key: 'goals', label: 'Set Goals', icon: Target }
+          ].map(({ key, label, icon: Icon }) => (
+            <motion.button
+              key={key}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveView(key as any)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                activeView === key
+                  ? 'bg-purple-500 text-white'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+              }`}
             >
-              {/* Chat Header */}
-              <div className="bg-white/10 px-6 py-4 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <div className="text-xl">🥅</div>
-                  <div>
-                    <h2 className="font-semibold text-white">Chat with Goalie</h2>
-                    <p className="text-white/60 text-sm">Goal Concierge</p>
+              <Icon className="w-4 h-4" />
+              {label}
+            </motion.button>
+          ))}
+        </motion.div>
+
+          {/* Dynamic Content Based on Active View */}
+          <AnimatePresence mode="wait">
+            {activeView === 'overview' && (
+              <motion.div
+                key="overview"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                {/* How It Works Section */}
+                <div className="bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                  <h3 className="text-xl font-bold text-white mb-4">How It Works</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-purple-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Target className="w-6 h-6 text-purple-400" />
+                      </div>
+                      <h4 className="font-semibold text-white mb-2">1. Set Your Goals</h4>
+                      <p className="text-white/70 text-sm">Choose from common financial goals or create your own</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <MessageCircle className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <h4 className="font-semibold text-white mb-2">2. Get AI Advice</h4>
+                      <p className="text-white/70 text-sm">Chat with AI to get personalized strategies and tips</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Trophy className="w-6 h-6 text-green-400" />
+                      </div>
+                      <h4 className="font-semibold text-white mb-2">3. Track Progress</h4>
+                      <p className="text-white/70 text-sm">Monitor your progress and celebrate milestones</p>
+                    </div>
                   </div>
                 </div>
+
+                {/* Common Goals */}
+                <div className="bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                  <h3 className="text-xl font-bold text-white mb-4">Common Financial Goals</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {commonGoals.map((goal) => (
+                      <motion.div
+                        key={goal.id}
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-white/5 p-4 rounded-lg border border-white/10 hover:bg-white/10 transition-all cursor-pointer"
+                        onClick={() => startTeamConversation(goal.id)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <goal.icon className="w-8 h-8 text-purple-400 mt-1" />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-semibold text-white">{goal.name}</h4>
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                goal.priority === 'High' ? 'bg-red-500/20 text-red-300' : 'bg-yellow-500/20 text-yellow-300'
+                              }`}>
+                                {goal.priority}
+                              </span>
+                            </div>
+                            <p className="text-white/70 text-sm mb-2">{goal.description}</p>
+                            <div className="flex justify-between text-xs text-white/60">
+                              <span>Timeline: {goal.timeline}</span>
+                              <span>Target: {goal.targetAmount}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Quick Start */}
+                <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20">
+                  <h3 className="text-xl font-bold text-white mb-4">Ready to Get Started?</h3>
+                  <p className="text-white/80 mb-4">Click on any goal above or start a conversation with our AI assistant to begin your financial journey.</p>
+                  <div className="flex gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setActiveView('conversation')}
+                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Start Chatting
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setActiveView('goals')}
+                      className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Set Custom Goal
+                    </motion.button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeView === 'team' && (
+              <motion.div
+                key="team"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                {/* AI Features */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {aiFeatures.map((feature, index) => (
+                    <motion.div
+                      key={feature.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm rounded-xl p-6 border border-white/10"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                          <feature.icon className="w-6 h-6 text-purple-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-bold text-white mb-2">{feature.title}</h3>
+                          <p className="text-white/70 text-sm mb-4">{feature.description}</p>
+                          <div>
+                            <p className="text-white/60 text-xs font-medium mb-2">Examples:</p>
+                            <div className="space-y-1">
+                              {feature.examples.map((example, idx) => (
+                                <div key={idx} className="text-white/60 text-xs flex items-center gap-2">
+                                  <CheckCircle className="w-3 h-3 text-green-400" />
+                                  {example}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* How AI Helps */}
+                <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20">
+                  <h3 className="text-xl font-bold text-white mb-4">How AI Helps You Succeed</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="font-semibold text-white mb-2">Personalized Guidance</h4>
+                      <p className="text-white/70 text-sm">Get advice tailored to your specific financial situation, income, and goals.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white mb-2">24/7 Availability</h4>
+                      <p className="text-white/70 text-sm">Access financial guidance whenever you need it, day or night.</p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white mb-2">Data-Driven Insights</h4>
+                      <p className="text-white/70 text-sm">Make decisions based on your actual spending patterns and financial data.</p>
+                    </div>
+                  <div>
+                      <h4 className="font-semibold text-white mb-2">Motivation & Accountability</h4>
+                      <p className="text-white/70 text-sm">Stay motivated with regular check-ins and progress celebrations.</p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeView === 'conversation' && (
+              <motion.div
+                key="conversation"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                {/* Conversation Mode Toggle */}
+                <div className="flex justify-center">
+                  <div className="bg-white/10 rounded-xl p-1">
+                    <button
+                      onClick={() => setConversationMode('goalie')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        conversationMode === 'goalie'
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                          : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      Chat with Goalie
+                    </button>
+                    <button
+                      onClick={() => setConversationMode('team')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        conversationMode === 'team'
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                          : 'text-white/70 hover:text-white'
+                      }`}
+                    >
+                      Team Discussion
+                    </button>
+                  </div>
+                </div>
+
+                {/* Chat Interface */}
+                <div className="bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-xl rounded-2xl border border-white/20 overflow-hidden">
+                  <div className="p-4 border-b border-white/10">
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                      <MessageCircle className="w-5 h-5" />
+                      {conversationMode === 'goalie' ? 'Goalie Chat' : 'AI Team Discussion'}
+                    </h3>
               </div>
 
-              {/* Messages */}
               <div className="h-96 overflow-y-auto p-4 space-y-4">
-                {messages.map((message, index) => (
+                    {conversationMode === 'goalie' ? (
+                      messages.map((message, index) => (
                   <motion.div
                     key={index}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                          <div className={`max-w-[80%] p-3 rounded-lg ${
                       message.role === 'user'
-                        ? 'bg-orange-600 text-white'
-                        : 'bg-white/10 text-white border border-white/20'
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                              : 'bg-white/10 text-white'
                     }`}>
-                      <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div className="text-xs opacity-60 mt-2">
-                        {new Date(message.timestamp).toLocaleTimeString()}
-                      </div>
+                            <p className="text-sm">{message.content}</p>
                     </div>
                   </motion.div>
-                ))}
-
-                {isLoading && (
+                      ))
+                    ) : (
+                      teamConversation.map((msg, index) => (
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="flex justify-start"
-                  >
-                    <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Goalie is thinking...</span>
+                          key={index}
+                          initial={{ opacity: 0, x: msg.isUser ? 20 : -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.2 }}
+                          className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div className={`max-w-[80%] p-4 rounded-lg ${
+                            msg.isUser 
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                              : 'bg-white/10 text-white'
+                          }`}>
+                            {!msg.isUser && (
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-lg">🤖</span>
+                                <span className="font-bold text-sm">AI Assistant</span>
                       </div>
+                            )}
+                            <p className="text-sm">{msg.message}</p>
                     </div>
                   </motion.div>
+                      ))
                 )}
-
                 <div ref={messagesEndRef} />
               </div>
 
               {/* Input Area */}
               <div className="p-4 border-t border-white/10">
                 <div className="flex gap-2">
+                      <div className="flex-1 relative">
                   <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                    placeholder="Ask Goalie about goal setting, tracking, motivation, or timeline planning..."
-                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-orange-500"
+                          onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                          placeholder={conversationMode === 'goalie' ? "Ask Goalie anything..." : "Start a team discussion..."}
+                          className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 text-sm"
                     disabled={isLoading}
                   />
+                      </div>
                   <button
-                    onClick={() => sendMessage(input)}
+                        onClick={() => !isLoading && sendMessage(input)}
                     disabled={isLoading || !input.trim()}
-                    className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
+                        className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
                   >
-                    <Send className="w-5 h-5" />
+                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </button>
+                </div>
                 </div>
               </div>
             </motion.div>
-          </div>
+            )}
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
+            {activeView === 'goals' && (
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-1 gap-3">
-                {quickActions.map((action, index) => (
-                  <button
-                    key={index}
-                    onClick={action.action}
-                    className="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
-                  >
-                    <action.icon className="w-5 h-5" />
-                    <span className="text-sm">{action.text}</span>
-                  </button>
-                ))}
+                key="goals"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                {/* Set Custom Goal */}
+                <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20">
+                  <h3 className="text-xl font-bold text-white mb-4">Set Your Financial Goal</h3>
+                  <p className="text-white/80 mb-4">Tell us what you want to achieve and we'll help you create a plan to get there.</p>
+                  <div className="flex gap-3">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setActiveView('conversation')}
+                      className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Start Goal Planning
+                    </motion.button>
+                  </div>
               </div>
-            </motion.div>
 
-            {/* Goal Tips */}
+                {/* Common Goals */}
+                <div className="bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                  <h3 className="text-xl font-bold text-white mb-4">Popular Financial Goals</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {commonGoals.map((goal) => (
             <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Goal Achievement Tips</h3>
-              <div className="space-y-3">
-                {goalTips.map((tip, index) => (
-                  <div key={index} className="flex items-start gap-3 p-3 bg-white/10 rounded-lg">
-                    <tip.icon className="w-5 h-5 text-orange-400 mt-0.5" />
-                    <div>
-                      <div className="text-white text-sm font-medium">{tip.title}</div>
-                      <div className="text-white/60 text-xs">{tip.description}</div>
+                        key={goal.id}
+                        whileHover={{ scale: 1.02 }}
+                        className="bg-white/5 p-4 rounded-lg border border-white/10 hover:bg-white/10 transition-all cursor-pointer"
+                        onClick={() => startTeamConversation(goal.id)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <goal.icon className="w-8 h-8 text-purple-400 mt-1" />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-semibold text-white">{goal.name}</h4>
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                goal.priority === 'High' ? 'bg-red-500/20 text-red-300' : 'bg-yellow-500/20 text-yellow-300'
+                              }`}>
+                                {goal.priority}
+                              </span>
+                            </div>
+                            <p className="text-white/70 text-sm mb-2">{goal.description}</p>
+                            <div className="flex justify-between text-xs text-white/60">
+                              <span>Timeline: {goal.timeline}</span>
+                              <span>Target: {goal.targetAmount}</span>
+                            </div>
                     </div>
                   </div>
+                      </motion.div>
                 ))}
               </div>
-            </motion.div>
+                </div>
 
-            {/* Goalie's Stats */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Goalie's Stats</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Goals Set</span>
-                  <span className="text-orange-400">1,847</span>
+                {/* Goal Setting Tips */}
+                <div className="bg-gradient-to-br from-white/5 to-white/2 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                  <h3 className="text-xl font-bold text-white mb-4">Goal Setting Tips</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-400 mt-1" />
+                      <div>
+                        <h4 className="font-semibold text-white text-sm">Be Specific</h4>
+                        <p className="text-white/70 text-xs">Instead of "save money," say "save $5,000 for emergency fund"</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-400 mt-1" />
+                      <div>
+                        <h4 className="font-semibold text-white text-sm">Set Deadlines</h4>
+                        <p className="text-white/70 text-xs">Give yourself a realistic timeline to stay motivated</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-400 mt-1" />
+                      <div>
+                        <h4 className="font-semibold text-white text-sm">Track Progress</h4>
+                        <p className="text-white/70 text-xs">Monitor your progress regularly and celebrate milestones</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-400 mt-1" />
+                      <div>
+                        <h4 className="font-semibold text-white text-sm">Start Small</h4>
+                        <p className="text-white/70 text-xs">Begin with achievable goals to build confidence</p>
+                      </div>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Goals Achieved</span>
-                  <span className="text-green-400">1,234</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Success Rate</span>
-                  <span className="text-blue-400">66.8%</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Avg. Goal Time</span>
-                  <span className="text-purple-400">8.2 months</span>
                 </div>
               </div>
             </motion.div>
-          </div>
-        </div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
-} 
+};

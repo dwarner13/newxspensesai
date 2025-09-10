@@ -470,6 +470,11 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [mobileModalOpen, setMobileModalOpen] = useState(false);
+  const [mobileModalContent, setMobileModalContent] = useState<{
+    title: string;
+    content: React.ReactNode;
+  } | null>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -507,6 +512,234 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   const handleViewPredictions = async () => {
     if (!user) return;
     navigate('/dashboard/spending-predictions');
+  };
+
+  // Mobile-specific handlers that open modals instead of navigating
+  const openMobileModal = (title: string, content: React.ReactNode) => {
+    setMobileModalContent({ title, content });
+    setMobileModalOpen(true);
+  };
+
+  const closeMobileModal = () => {
+    setMobileModalOpen(false);
+    setMobileModalContent(null);
+  };
+
+  // Mobile card handlers
+  const handleMobileCategorization = () => {
+    openMobileModal('Smart Categories', (
+      <div className="mobile-modal-content">
+        <p>AI-powered transaction categorization is coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/ai-categorization');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileTransactions = () => {
+    openMobileModal('Transactions', (
+      <div className="mobile-modal-content">
+        <p>Transaction management is coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/transactions');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileSmartAutomation = () => {
+    openMobileModal('Smart Automation', (
+      <div className="mobile-modal-content">
+        <p>Smart automation configuration is coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/smart-automation');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileDebtPlanner = () => {
+    openMobileModal('Debt Payoff Planner', (
+      <div className="mobile-modal-content">
+        <p>Debt payoff planning is coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/debt-payoff-planner');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileFinancialFreedom = () => {
+    openMobileModal('AI Financial Freedom', (
+      <div className="mobile-modal-content">
+        <p>Financial freedom planning is coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/ai-financial-freedom');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileBillReminders = () => {
+    openMobileModal('Bill Reminder System', (
+      <div className="mobile-modal-content">
+        <p>Bill reminder management is coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/bill-reminders');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileFinancialStory = () => {
+    openMobileModal('Financial Story', (
+      <div className="mobile-modal-content">
+        <p>Financial storytelling is coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/financial-story');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileFinancialTherapist = () => {
+    openMobileModal('AI Financial Therapist', (
+      <div className="mobile-modal-content">
+        <p>Financial therapy sessions are coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/ai-financial-therapist');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileWellnessStudio = () => {
+    openMobileModal('Wellness Studio', (
+      <div className="mobile-modal-content">
+        <p>Wellness studio sessions are coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/wellness-studio');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileSpotifyIntegration = () => {
+    openMobileModal('Spotify Integration', (
+      <div className="mobile-modal-content">
+        <p>Spotify integration is coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/spotify-integration');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileTaxAssistant = () => {
+    openMobileModal('Tax Assistant', (
+      <div className="mobile-modal-content">
+        <p>Tax assistance is coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/tax-assistant');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
+  };
+
+  const handleMobileBusinessIntelligence = () => {
+    openMobileModal('Business Intelligence', (
+      <div className="mobile-modal-content">
+        <p>Business intelligence reports are coming soon to mobile!</p>
+        <p>For now, please use the desktop version for full functionality.</p>
+        <button 
+          className="mobile-card-button" 
+          onClick={() => {
+            closeMobileModal();
+            navigate('/dashboard/business-intelligence');
+          }}
+        >
+          Open Desktop Version
+        </button>
+      </div>
+    ));
   };
 
   const loadStories = async () => {
@@ -1073,7 +1306,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Smart Categories</h3>
                     <p>Automatically categorize your transactions with AI. Learn from your corrections and improve over time.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/ai-categorization')}>Categorize Now</button>
+                    <button className="mobile-card-button" onClick={handleMobileCategorization}>Categorize Now</button>
                   </div>
                 </div>
 
@@ -1083,7 +1316,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Transactions</h3>
                     <p>View and manage all your financial transactions with detailed insights.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/transactions')}>View All</button>
+                    <button className="mobile-card-button" onClick={handleMobileTransactions}>View All</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1099,7 +1332,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Smart Automation</h3>
                     <p>Automate repetitive financial tasks with AI-powered workflows.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/smart-automation')}>Configure</button>
+                    <button className="mobile-card-button" onClick={handleMobileSmartAutomation}>Configure</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1115,7 +1348,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Debt Payoff Planner</h3>
                     <p>Military-style debt destruction strategies and motivation.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/debt-payoff-planner')}>Attack Debt</button>
+                    <button className="mobile-card-button" onClick={handleMobileDebtPlanner}>Attack Debt</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1123,7 +1356,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>AI Financial Freedom</h3>
                     <p>Wise investment advice and long-term wealth building strategies.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/ai-financial-freedom')}>Get Strategy</button>
+                    <button className="mobile-card-button" onClick={handleMobileFinancialFreedom}>Get Strategy</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1131,7 +1364,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Bill Reminder System</h3>
                     <p>Never miss a payment with smart reminders and automated tracking.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/bill-reminders')}>Set Reminders</button>
+                    <button className="mobile-card-button" onClick={handleMobileBillReminders}>Set Reminders</button>
                   </div>
                 </div>
 
@@ -1149,7 +1382,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Financial Story</h3>
                     <p>Transform your financial data into engaging stories with AI storytellers.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/financial-story')}>Create Story</button>
+                    <button className="mobile-card-button" onClick={handleMobileFinancialStory}>Create Story</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1157,7 +1390,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>AI Financial Therapist</h3>
                     <p>Emotional and behavioral coaching to improve your financial wellness. Chat about money stress and get support.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/ai-financial-therapist')}>Start Session</button>
+                    <button className="mobile-card-button" onClick={handleMobileFinancialTherapist}>Start Session</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1165,7 +1398,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Wellness Studio</h3>
                     <p>Educational content and guided sessions for financial health and wellness.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/wellness-studio')}>Start Session</button>
+                    <button className="mobile-card-button" onClick={handleMobileWellnessStudio}>Start Session</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1173,7 +1406,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Spotify Integration</h3>
                     <p>Curated playlists for focus, relaxation, and financial motivation.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/spotify-integration')}>Connect</button>
+                    <button className="mobile-card-button" onClick={handleMobileSpotifyIntegration}>Connect</button>
                   </div>
                 </div>
 
@@ -1183,7 +1416,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Tax Assistant</h3>
                     <p>AI-powered tax preparation and optimization for maximum savings.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/tax-assistant')}>Get Started</button>
+                    <button className="mobile-card-button" onClick={handleMobileTaxAssistant}>Get Started</button>
                   </div>
                 </div>
                 <div className="mobile-card">
@@ -1191,7 +1424,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Business Intelligence</h3>
                     <p>Advanced analytics and insights for business growth and optimization.</p>
-                    <button className="mobile-card-button" onClick={() => navigate('/dashboard/business-intelligence')}>View Reports</button>
+                    <button className="mobile-card-button" onClick={handleMobileBusinessIntelligence}>View Reports</button>
                   </div>
                 </div>
               </div>
@@ -1259,6 +1492,70 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
           }} onClick={(e) => e.stopPropagation()}>
       <BossBubble />
     </div>
+        </div>
+      )}
+
+      {/* Mobile Modal for Card Content */}
+      {mobileModalOpen && mobileModalContent && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px'
+        }} onClick={closeMobileModal}>
+          <div style={{
+            width: '100%',
+            maxWidth: '400px',
+            maxHeight: '70vh',
+            backgroundColor: '#1a1a2e',
+            borderRadius: '20px',
+            overflow: 'hidden',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
+            position: 'relative',
+            padding: '24px'
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px'
+            }}>
+              <h2 style={{
+                color: 'white',
+                fontSize: '20px',
+                fontWeight: 'bold',
+                margin: 0
+              }}>
+                {mobileModalContent.title}
+              </h2>
+              <button
+                onClick={closeMobileModal}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'white',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{
+              color: 'white',
+              lineHeight: '1.6'
+            }}>
+              {mobileModalContent.content}
+            </div>
+          </div>
         </div>
       )}
 
