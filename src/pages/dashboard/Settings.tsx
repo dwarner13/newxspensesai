@@ -1,399 +1,884 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { 
-  Settings as SettingsIcon, User, Shield, CreditCard, Bell, Globe, 
-  Key, Zap, Bot, Download, Trash2, Copy, Eye, EyeOff, 
-  Upload, Camera, Plus, CheckCircle, AlertTriangle,
-  ExternalLink, HelpCircle, Gift, Crown, Users, 
-  Lock, RefreshCw, FileText, Mail, ChevronRight, Edit, Save,
-  Download as DownloadIcon, Link, X, Music
+  Settings as SettingsIcon, 
+  User, 
+  Shield, 
+  CreditCard, 
+  Bell, 
+  Globe, 
+  Key, 
+  Zap, 
+  Bot, 
+  Download, 
+  Trash2, 
+  Copy, 
+  Eye, 
+  EyeOff, 
+  Upload, 
+  Camera, 
+  Plus, 
+  CheckCircle, 
+  AlertTriangle,
+  ExternalLink, 
+  HelpCircle, 
+  Gift, 
+  Crown, 
+  Users, 
+  Lock, 
+  RefreshCw, 
+  FileText, 
+  Mail, 
+  ChevronRight, 
+  Edit, 
+  Save,
+  Download as DownloadIcon, 
+  Link, 
+  X, 
+  Music,
+  Palette,
+  Database,
+  Activity,
+  Smartphone,
+  Monitor,
+  Moon,
+  Sun,
+  Languages,
+  Clock,
+  Calendar,
+  BarChart3,
+  MessageCircle,
+  Play,
+  Target
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import DashboardHeader from '../../components/ui/DashboardHeader';
+import { useAuth } from '../../contexts/AuthContext';
 
-
-
+// Settings Interfaces
 interface ProfileData {
   name: string;
   email: string;
   phone: string;
+  avatar: string;
   plan: 'free' | 'pro' | 'enterprise';
   planRenewal: string;
   twoFactorEnabled: boolean;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+}
+
+interface SubscriptionData {
+  plan: 'free' | 'pro' | 'enterprise';
+  status: 'active' | 'cancelled' | 'past_due';
+  renewalDate: string;
+  monthlyPrice: number;
+  features: string[];
+  usage: {
+    aiQueries: number;
+    dataStorage: number;
+    integrations: number;
+  };
+  limits: {
+    maxAiQueries: number;
+    maxStorage: number;
+    maxIntegrations: number;
+  };
+}
+
+interface AISettings {
+  primaryAI: 'crystal' | 'byte' | 'tag' | 'prime';
+  responseStyle: 'professional' | 'casual' | 'technical';
+  learningEnabled: boolean;
+  dataProcessing: 'minimal' | 'standard' | 'comprehensive';
+  personality: 'analytical' | 'friendly' | 'direct';
+  autoSuggestions: boolean;
+  voiceEnabled: boolean;
+}
+
+interface NotificationSettings {
+  email: {
+    enabled: boolean;
+    aiInsights: boolean;
+    systemUpdates: boolean;
+    securityAlerts: boolean;
+    marketing: boolean;
+  };
+  push: {
+    enabled: boolean;
+    aiResponses: boolean;
+    anomalies: boolean;
+    achievements: boolean;
+  };
+  sms: {
+    enabled: boolean;
+    criticalAlerts: boolean;
+    twoFactor: boolean;
+  };
 }
 
 interface Integration {
   id: string;
   name: string;
   icon: string;
-  status: 'connected' | 'disconnected' | 'error';
+  status: 'connected' | 'disconnected' | 'error' | 'pending';
   lastSync: string;
+  category: 'banking' | 'accounting' | 'crm' | 'marketing' | 'other';
+  permissions: string[];
 }
 
-interface AIChatbot {
-  id: string;
-  name: string;
-  description: string;
-  isEnabled: boolean;
-  expertise: 'basic' | 'advanced';
-}
-
-const Settings = () => {
-  const [activeSection, setActiveSection] = useState('account');
+export default function Settings() {
+  console.log('🚀🚀🚀 LOADING SETTINGS DASHBOARD - Complete System Configuration!');
+  const { user } = useAuth();
+  const [activeSection, setActiveSection] = useState('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Profile Data
   const [profileData, setProfileData] = useState<ProfileData>({
-    name: 'John Doe',
-    email: 'john.doe@example.com',
+    name: user?.name || 'John Doe',
+    email: user?.email || 'john.doe@example.com',
     phone: '+1 (555) 123-4567',
+    avatar: '',
     plan: 'pro',
     planRenewal: 'March 15, 2024',
-    twoFactorEnabled: true
+    twoFactorEnabled: true,
+    emailVerified: true,
+    phoneVerified: false
   });
 
-  const [tempProfile, setTempProfile] = useState<ProfileData>(profileData);
+  // Subscription Data
+  const [subscriptionData, setSubscriptionData] = useState<SubscriptionData>({
+    plan: 'pro',
+    status: 'active',
+    renewalDate: 'March 15, 2024',
+    monthlyPrice: 29.99,
+    features: [
+      'Unlimited AI Queries',
+      'Advanced Analytics',
+      'Priority Support',
+      'Custom Integrations',
+      'Data Export'
+    ],
+    usage: {
+      aiQueries: 1247,
+      dataStorage: 2.3,
+      integrations: 5
+    },
+    limits: {
+      maxAiQueries: 10000,
+      maxStorage: 100,
+      maxIntegrations: 20
+    }
+  });
 
-  const integrations = [
-    { id: '1', name: 'Google Drive', icon: '📁', status: 'connected' as const, lastSync: '2 hours ago' },
-    { id: '2', name: 'Slack', icon: '💬', status: 'connected' as const, lastSync: '1 hour ago' },
-    { id: '3', name: 'Dropbox', icon: '📦', status: 'disconnected' as const, lastSync: 'Never' }
-  ];
+  // AI Settings
+  const [aiSettings, setAiSettings] = useState<AISettings>({
+    primaryAI: 'crystal',
+    responseStyle: 'professional',
+    learningEnabled: true,
+    dataProcessing: 'comprehensive',
+    personality: 'analytical',
+    autoSuggestions: true,
+    voiceEnabled: false
+  });
 
-  const aiChatbots = [
-    { id: '1', name: 'TaxBot', description: 'Tax preparation assistant', isEnabled: true, expertise: 'advanced' as const },
-    { id: '2', name: 'BizBot', description: 'Business intelligence expert', isEnabled: true, expertise: 'advanced' as const },
-    { id: '3', name: 'AnalyticsBot', description: 'Financial data analysis', isEnabled: true, expertise: 'advanced' as const },
-    { id: '4', name: 'AutoBot', description: 'Automation setup', isEnabled: false, expertise: 'basic' as const }
-  ];
+  // Notification Settings
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
+    email: {
+      enabled: true,
+      aiInsights: true,
+      systemUpdates: true,
+      securityAlerts: true,
+      marketing: false
+    },
+    push: {
+      enabled: true,
+      aiResponses: true,
+      anomalies: true,
+      achievements: true
+    },
+    sms: {
+      enabled: false,
+      criticalAlerts: true,
+      twoFactor: true
+    }
+  });
 
-  const sections = [
-    { id: 'account', name: 'Account & Profile', icon: User },
-    { id: 'integrations', name: 'Integrations & APIs', icon: Zap },
-    { id: 'ai', name: 'AI Chatbot Settings', icon: Bot },
-    { id: 'preferences', name: 'Dashboard Preferences', icon: SettingsIcon },
-    { id: 'payment', name: 'Upgrade & Payment', icon: CreditCard },
-    { id: 'security', name: 'Security & Privacy', icon: Shield },
-    { id: 'support', name: 'Support & Help', icon: HelpCircle }
+  // Integrations
+  const [integrations, setIntegrations] = useState<Integration[]>([
+    {
+      id: 'bank-1',
+      name: 'Chase Bank',
+      icon: '🏦',
+      status: 'connected',
+      lastSync: '2 minutes ago',
+      category: 'banking',
+      permissions: ['Read transactions', 'Read account balance']
+    },
+    {
+      id: 'accounting-1',
+      name: 'QuickBooks',
+      icon: '📊',
+      status: 'connected',
+      lastSync: '1 hour ago',
+      category: 'accounting',
+      permissions: ['Read financial data', 'Write transactions']
+    },
+    {
+      id: 'crm-1',
+      name: 'Salesforce',
+      icon: '👥',
+      status: 'error',
+      lastSync: '3 days ago',
+      category: 'crm',
+      permissions: ['Read contacts', 'Read opportunities']
+    },
+    {
+      id: 'marketing-1',
+      name: 'Mailchimp',
+      icon: '📧',
+      status: 'disconnected',
+      lastSync: '1 week ago',
+      category: 'marketing',
+      permissions: ['Read campaigns', 'Write subscribers']
+    }
+  ]);
+
+  const settingsSections = [
+    { key: 'profile', label: 'Profile & Account', icon: User, color: 'from-blue-500 to-cyan-500' },
+    { key: 'subscription', label: 'Subscription & Billing', icon: CreditCard, color: 'from-green-500 to-emerald-500' },
+    { key: 'ai', label: 'AI Configuration', icon: Bot, color: 'from-purple-500 to-pink-500' },
+    { key: 'security', label: 'Security & Privacy', icon: Shield, color: 'from-red-500 to-orange-500' },
+    { key: 'notifications', label: 'Notifications', icon: Bell, color: 'from-yellow-500 to-amber-500' },
+    { key: 'integrations', label: 'Integrations', icon: Link, color: 'from-indigo-500 to-blue-500' },
+    { key: 'appearance', label: 'Appearance & UI', icon: Palette, color: 'from-pink-500 to-rose-500' },
+    { key: 'data', label: 'Data Management', icon: Database, color: 'from-gray-500 to-slate-500' }
   ];
 
   const handleSaveProfile = () => {
-    setProfileData(tempProfile);
     setIsEditing(false);
+    // Save profile logic here
+    console.log('Profile saved:', profileData);
   };
 
-  const handleCancelEdit = () => {
-    setTempProfile(profileData);
-    setIsEditing(false);
+  const handleToggleTwoFactor = () => {
+    setProfileData(prev => ({
+      ...prev,
+      twoFactorEnabled: !prev.twoFactorEnabled
+    }));
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'connected': return 'text-green-400';
-      case 'disconnected': return 'text-gray-400';
-      case 'error': return 'text-red-400';
-      default: return 'text-gray-400';
-    }
+  const handleAISettingChange = (key: keyof AISettings, value: any) => {
+    setAiSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const handleNotificationChange = (category: keyof NotificationSettings, key: string, value: boolean) => {
+    setNotificationSettings(prev => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [key]: value
+      }
+    }));
+  };
+
+  const handleIntegrationAction = (id: string, action: 'connect' | 'disconnect' | 'reconnect') => {
+    setIntegrations(prev => prev.map(integration => {
+      if (integration.id === id) {
+        return {
+          ...integration,
+          status: action === 'connect' ? 'connected' : action === 'disconnect' ? 'disconnected' : 'pending'
+        };
+      }
+      return integration;
+    }));
   };
 
   return (
-    <div className="w-full">
-      <DashboardHeader />
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 p-4 sm:p-6 pb-20">
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">⚙️ System Settings</h1>
+            <p className="text-white/70 text-sm sm:text-base">Complete control over your AI-powered financial dashboard</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm font-medium">All Systems Active</span>
+            </div>
+            <div className="text-2xl">⚙️</div>
+          </div>
+        </div>
+      </motion.div>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            
-            {/* Sidebar Navigation */}
-            <div className="lg:col-span-1">
-              <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20">
-                <nav className="space-y-2">
-                  {sections.map((section) => {
-                    const Icon = section.icon;
-                    return (
-                      <button
-                        key={section.id}
-                        onClick={() => setActiveSection(section.id)}
-                        className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-all ${
-                          activeSection === section.id
-                            ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-400/30 text-white'
-                            : 'text-white/70 hover:text-white hover:bg-white/10'
-                        }`}
-                      >
-                        <Icon size={20} />
-                        <span className="font-medium">{section.name}</span>
-                      </button>
-                    );
-                  })}
-                </nav>
-              </div>
+      {/* Navigation Tabs */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="flex flex-wrap gap-3 mb-8"
+      >
+        {settingsSections.map(({ key, label, icon: Icon, color }) => (
+          <motion.button
+            key={key}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setActiveSection(key)}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              activeSection === key
+                ? 'bg-indigo-500 text-white'
+                : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
+            }`}
+          >
+            <Icon className="w-4 h-4" />
+            {label}
+          </motion.button>
+        ))}
+      </motion.div>
+
+      {/* Profile & Account Section */}
+      {activeSection === 'profile' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-white">Profile Information</h3>
+              <button
+                onClick={() => setIsEditing(!isEditing)}
+                className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm transition-colors"
+              >
+                <Edit className="w-4 h-4" />
+                {isEditing ? 'Cancel' : 'Edit'}
+              </button>
             </div>
 
-            {/* Main Content */}
-            <div className="lg:col-span-3">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeSection}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20"
-                >
-                  
-                  {/* Account & Profile */}
-                  {activeSection === 'account' && (
-                    <div className="space-y-6">
-                      <div className="flex items-center space-x-3 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                          <User size={24} className="text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-white">Account & Profile</h3>
-                          <p className="text-white/60 text-sm">Manage your personal information and account settings</p>
-                        </div>
-                      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Full Name</label>
+                  <input
+                    type="text"
+                    value={profileData.name}
+                    onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
+                    disabled={!isEditing}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+                  />
+                </div>
 
-                      {/* Profile Photo */}
-                      <div className="flex items-center space-x-4">
-                        <div className="relative">
-                          <div className="w-20 h-20 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                            {profileData.name.split(' ').map(n => n[0]).join('')}
-                          </div>
-                          <button className="absolute -bottom-1 -right-1 bg-white/20 hover:bg-white/30 p-2 rounded-full transition-all">
-                            <Camera size={16} className="text-white" />
-                          </button>
-                        </div>
-                        <div>
-                          <h4 className="text-white font-semibold">Profile Photo</h4>
-                          <p className="text-white/60 text-sm">Upload a new profile picture</p>
-                        </div>
-                      </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Email Address</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="email"
+                      value={profileData.email}
+                      onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
+                      disabled={!isEditing}
+                      className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+                    />
+                    {profileData.emailVerified ? (
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                    )}
+                  </div>
+                </div>
 
-                      {/* Profile Information */}
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-white font-semibold">Profile Information</h4>
-                          {!isEditing ? (
-                            <button
-                              onClick={() => setIsEditing(true)}
-                              className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded-lg transition-all flex items-center gap-2"
-                            >
-                              <Edit size={16} />
-                              Edit
-                            </button>
-                          ) : (
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={handleSaveProfile}
-                                className="bg-green-500/20 hover:bg-green-500/30 text-green-400 px-3 py-1 rounded-lg transition-all flex items-center gap-2"
-                              >
-                                <Save size={16} />
-                                Save
-                              </button>
-                              <button
-                                onClick={handleCancelEdit}
-                                className="bg-red-500/20 hover:bg-red-500/30 text-red-400 px-3 py-1 rounded-lg transition-all flex items-center gap-2"
-                              >
-                                <X size={16} />
-                                Cancel
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Phone Number</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="tel"
+                      value={profileData.phone}
+                      onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
+                      disabled={!isEditing}
+                      className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+                    />
+                    {profileData.phoneVerified ? (
+                      <CheckCircle className="w-5 h-5 text-green-400" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-yellow-400" />
+                    )}
+                  </div>
+                </div>
+              </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-white/60 text-sm">Full Name</label>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={profileData.name}
-                                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white mt-1"
-                              />
-                            ) : (
-                              <div className="text-white font-medium">{profileData.name}</div>
-                            )}
-                          </div>
-                          <div>
-                            <label className="text-white/60 text-sm">Email</label>
-                            {isEditing ? (
-                              <input
-                                type="email"
-                                value={profileData.email}
-                                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white mt-1"
-                              />
-                            ) : (
-                              <div className="text-white font-medium">{profileData.email}</div>
-                            )}
-                          </div>
-                          <div>
-                            <label className="text-white/60 text-sm">Phone</label>
-                            {isEditing ? (
-                              <input
-                                type="tel"
-                                value={profileData.phone}
-                                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white mt-1"
-                              />
-                            ) : (
-                              <div className="text-white font-medium">{profileData.phone}</div>
-                            )}
-                          </div>
-                          <div>
-                            <label className="text-white/60 text-sm">Plan</label>
-                            <div className="flex items-center space-x-2 mt-1">
-                              <span className="text-white font-medium capitalize">{profileData.plan}</span>
-                              <span className="text-white/60 text-sm">• Renews {profileData.planRenewal}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Security Settings */}
-                        <div className="border-t border-white/10 pt-6">
-                          <h4 className="text-white font-semibold mb-4">Security</h4>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="text-white font-medium">Two-Factor Authentication</div>
-                              <div className="text-white/60 text-sm">Add an extra layer of security</div>
-                            </div>
-                            <button className={`px-3 py-1 rounded text-sm transition-all ${
-                              profileData.twoFactorEnabled 
-                                ? 'bg-green-500/20 text-green-400' 
-                                : 'bg-gray-500/20 text-gray-400'
-                            }`}>
-                              {profileData.twoFactorEnabled ? 'Enabled' : 'Disabled'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Profile Picture</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
+                      <User className="w-8 h-8 text-white" />
                     </div>
-                  )}
+                    <button className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm transition-colors">
+                      <Camera className="w-4 h-4" />
+                      Change Photo
+                    </button>
+                  </div>
+                </div>
 
-                  {/* Integrations */}
-                  {activeSection === 'integrations' && (
-                    <div className="space-y-6">
-                      <div className="flex items-center space-x-3 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-blue-600 rounded-full flex items-center justify-center">
-                          <Link size={24} className="text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-white">Integrations</h3>
-                          <p className="text-white/60 text-sm">Connect your favorite apps and services</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        {integrations.map((integration) => (
-                          <div key={integration.id} className="p-4 bg-white/5 rounded-lg border border-white/10">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-3">
-                                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                                  <span className="text-white text-lg">{integration.icon}</span>
-                                </div>
-                                <div>
-                                  <div className="text-white font-semibold">{integration.name}</div>
-                                  <div className="text-white/60 text-sm">Last synced {integration.lastSync}</div>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-3">
-                                <div className={`w-3 h-3 rounded-full ${getStatusColor(integration.status)}`}></div>
-                                <button className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded text-sm transition-all">
-                                  {integration.status === 'connected' ? 'Disconnect' : 'Connect'}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* AI Chatbot Settings */}
-                  {activeSection === 'ai' && (
-                    <div className="space-y-6">
-                      <div className="flex items-center space-x-3 mb-6">
-                        <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                          <Bot size={24} className="text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-white">AI Chatbot Settings</h3>
-                          <p className="text-white/60 text-sm">Configure your AI assistants and their expertise levels</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        {aiChatbots.map((chatbot) => (
-                          <div key={chatbot.id} className="p-4 bg-white/5 rounded-lg border border-white/10">
-                            <div className="flex items-center justify-between mb-3">
-                              <div>
-                                <div className="text-white font-semibold">{chatbot.name}</div>
-                                <div className="text-white/60 text-sm">{chatbot.description}</div>
-                              </div>
-                              <button className={`px-3 py-1 rounded text-sm transition-all ${
-                                chatbot.isEnabled 
-                                  ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' 
-                                  : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'
-                              }`}>
-                                {chatbot.isEnabled ? 'Enabled' : 'Disabled'}
-                              </button>
-                            </div>
-                            
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-4">
-                                <div>
-                                  <label className="text-white/60 text-sm">Expertise Level</label>
-                                  <select 
-                                    value={chatbot.expertise}
-                                    className="bg-white/10 border border-white/20 rounded-lg px-3 py-1 text-white text-sm"
-                                  >
-                                    <option value="basic">Basic</option>
-                                    <option value="advanced">Advanced</option>
-                                  </select>
-                                </div>
-                              </div>
-                              <button className="bg-white/10 hover:bg-white/20 text-white px-3 py-1 rounded text-sm transition-all">
-                                View History
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Referral Program */}
-                  <div className="mt-8 p-6 bg-gradient-to-br from-green-600/20 to-blue-600/20 rounded-lg border border-white/20">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <Gift size={24} className="text-yellow-400" />
-                        <div>
-                          <h4 className="text-white font-semibold">Referral Program</h4>
-                          <p className="text-white/60 text-sm">Invite friends and earn rewards</p>
-                        </div>
-                      </div>
-                      <button className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-all">
-                        Invite Friends
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Account Security</label>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-white">Two-Factor Authentication</span>
+                      <button
+                        onClick={handleToggleTwoFactor}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          profileData.twoFactorEnabled ? 'bg-green-500' : 'bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            profileData.twoFactorEnabled ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
                       </button>
                     </div>
                     <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-white font-semibold">Your Referral Code</div>
-                        <div className="text-blue-400 font-mono">JOHNDOE2024</div>
-                      </div>
-                      <button className="bg-white/10 hover:bg-white/20 text-white p-2 rounded transition-all">
-                        <Copy size={16} />
-                      </button>
+                      <span className="text-white">Email Verified</span>
+                      <span className={`text-sm ${profileData.emailVerified ? 'text-green-400' : 'text-yellow-400'}`}>
+                        {profileData.emailVerified ? 'Verified' : 'Pending'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-white">Phone Verified</span>
+                      <span className={`text-sm ${profileData.phoneVerified ? 'text-green-400' : 'text-yellow-400'}`}>
+                        {profileData.phoneVerified ? 'Verified' : 'Pending'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {isEditing && (
+              <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-white/10">
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors"
+                >
+                  Save Changes
+                </button>
+              </div>
+            )}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Subscription & Billing Section */}
+      {activeSection === 'subscription' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <h3 className="text-lg font-semibold text-white mb-6">Current Plan</h3>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-lg font-semibold text-white capitalize">{subscriptionData.plan} Plan</h4>
+                    <Crown className="w-5 h-5 text-yellow-400" />
+                  </div>
+                  <p className="text-white/70 text-sm mb-2">${subscriptionData.monthlyPrice}/month</p>
+                  <p className="text-white/60 text-xs">Renews on {subscriptionData.renewalDate}</p>
+                </div>
+
+                <div className="space-y-4">
+                  <h5 className="text-white font-medium">Plan Features</h5>
+                  <ul className="space-y-2">
+                    {subscriptionData.features.map((feature, index) => (
+                      <li key={index} className="flex items-center gap-2 text-white/70 text-sm">
+                        <CheckCircle className="w-4 h-4 text-green-400" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h5 className="text-white font-medium">Usage This Month</h5>
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-sm text-white/70 mb-1">
+                      <span>AI Queries</span>
+                      <span>{subscriptionData.usage.aiQueries.toLocaleString()} / {subscriptionData.limits.maxAiQueries.toLocaleString()}</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-2">
+                      <div 
+                        className="bg-blue-500 h-2 rounded-full"
+                        style={{ width: `${(subscriptionData.usage.aiQueries / subscriptionData.limits.maxAiQueries) * 100}%` }}
+                      ></div>
                     </div>
                   </div>
 
-                </motion.div>
-              </AnimatePresence>
+                  <div>
+                    <div className="flex justify-between text-sm text-white/70 mb-1">
+                      <span>Data Storage</span>
+                      <span>{subscriptionData.usage.dataStorage}GB / {subscriptionData.limits.maxStorage}GB</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-2">
+                      <div 
+                        className="bg-green-500 h-2 rounded-full"
+                        style={{ width: `${(subscriptionData.usage.dataStorage / subscriptionData.limits.maxStorage) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-sm text-white/70 mb-1">
+                      <span>Integrations</span>
+                      <span>{subscriptionData.usage.integrations} / {subscriptionData.limits.maxIntegrations}</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-2">
+                      <div 
+                        className="bg-purple-500 h-2 rounded-full"
+                        style={{ width: `${(subscriptionData.usage.integrations / subscriptionData.limits.maxIntegrations) * 100}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-white/10">
+                  <button className="w-full px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors mb-2">
+                    Upgrade Plan
+                  </button>
+                  <button className="w-full px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">
+                    Billing History
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </main>
+        </motion.div>
+      )}
+
+      {/* AI Configuration Section */}
+      {activeSection === 'ai' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <h3 className="text-lg font-semibold text-white mb-6">AI Configuration</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Primary AI Assistant</label>
+                  <select
+                    value={aiSettings.primaryAI}
+                    onChange={(e) => handleAISettingChange('primaryAI', e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="crystal">Crystal - Predictive Analytics</option>
+                    <option value="byte">Byte - Data Processing</option>
+                    <option value="tag">Tag - Pattern Recognition</option>
+                    <option value="prime">Prime - Strategic Analysis</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Response Style</label>
+                  <select
+                    value={aiSettings.responseStyle}
+                    onChange={(e) => handleAISettingChange('responseStyle', e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="professional">Professional</option>
+                    <option value="casual">Casual</option>
+                    <option value="technical">Technical</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">AI Personality</label>
+                  <select
+                    value={aiSettings.personality}
+                    onChange={(e) => handleAISettingChange('personality', e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="analytical">Analytical</option>
+                    <option value="friendly">Friendly</option>
+                    <option value="direct">Direct</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/70 mb-2">Data Processing Level</label>
+                  <select
+                    value={aiSettings.dataProcessing}
+                    onChange={(e) => handleAISettingChange('dataProcessing', e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="minimal">Minimal</option>
+                    <option value="standard">Standard</option>
+                    <option value="comprehensive">Comprehensive</option>
+                  </select>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-white">Learning Enabled</span>
+                    <button
+                      onClick={() => handleAISettingChange('learningEnabled', !aiSettings.learningEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        aiSettings.learningEnabled ? 'bg-green-500' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          aiSettings.learningEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-white">Auto Suggestions</span>
+                    <button
+                      onClick={() => handleAISettingChange('autoSuggestions', !aiSettings.autoSuggestions)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        aiSettings.autoSuggestions ? 'bg-green-500' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          aiSettings.autoSuggestions ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-white">Voice Enabled</span>
+                    <button
+                      onClick={() => handleAISettingChange('voiceEnabled', !aiSettings.voiceEnabled)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        aiSettings.voiceEnabled ? 'bg-green-500' : 'bg-gray-600'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          aiSettings.voiceEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Notifications Section */}
+      {activeSection === 'notifications' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <h3 className="text-lg font-semibold text-white mb-6">Notification Preferences</h3>
+            
+            <div className="space-y-6">
+              <div>
+                <h4 className="text-white font-medium mb-4 flex items-center gap-2">
+                  <Mail className="w-5 h-5" />
+                  Email Notifications
+                </h4>
+                <div className="space-y-3">
+                  {Object.entries(notificationSettings.email).map(([key, value]) => (
+                    <div key={key} className="flex items-center justify-between">
+                      <span className="text-white capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+                      <button
+                        onClick={() => handleNotificationChange('email', key, !value)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          value ? 'bg-green-500' : 'bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            value ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-white font-medium mb-4 flex items-center gap-2">
+                  <Bell className="w-5 h-5" />
+                  Push Notifications
+                </h4>
+                <div className="space-y-3">
+                  {Object.entries(notificationSettings.push).map(([key, value]) => (
+                    <div key={key} className="flex items-center justify-between">
+                      <span className="text-white capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+                      <button
+                        onClick={() => handleNotificationChange('push', key, !value)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          value ? 'bg-green-500' : 'bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            value ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-white font-medium mb-4 flex items-center gap-2">
+                  <Smartphone className="w-5 h-5" />
+                  SMS Notifications
+                </h4>
+                <div className="space-y-3">
+                  {Object.entries(notificationSettings.sms).map(([key, value]) => (
+                    <div key={key} className="flex items-center justify-between">
+                      <span className="text-white capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
+                      <button
+                        onClick={() => handleNotificationChange('sms', key, !value)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          value ? 'bg-green-500' : 'bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            value ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Integrations Section */}
+      {activeSection === 'integrations' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-6"
+        >
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-white">Connected Integrations</h3>
+              <button className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm transition-colors">
+                <Plus className="w-4 h-4" />
+                Add Integration
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {integrations.map((integration) => (
+                <div key={integration.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="text-2xl">{integration.icon}</div>
+                      <div>
+                        <h4 className="text-white font-medium">{integration.name}</h4>
+                        <p className="text-white/60 text-sm">Last sync: {integration.lastSync}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <div className={`w-2 h-2 rounded-full ${
+                            integration.status === 'connected' ? 'bg-green-400' :
+                            integration.status === 'error' ? 'bg-red-400' :
+                            integration.status === 'pending' ? 'bg-yellow-400' : 'bg-gray-400'
+                          }`}></div>
+                          <span className="text-xs text-white/60 capitalize">{integration.status}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleIntegrationAction(integration.id, 'reconnect')}
+                        className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded text-sm transition-colors"
+                      >
+                        Reconnect
+                      </button>
+                      <button
+                        onClick={() => handleIntegrationAction(integration.id, 'disconnect')}
+                        className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded text-sm transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-white/10">
+                    <p className="text-xs text-white/60 mb-2">Permissions:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {integration.permissions.map((permission, index) => (
+                        <span key={index} className="px-2 py-1 bg-white/10 text-white/70 text-xs rounded">
+                          {permission}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Other sections placeholder */}
+      {!['profile', 'subscription', 'ai', 'notifications', 'integrations'].includes(activeSection) && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-8 text-center"
+        >
+          <div className="text-6xl mb-4">⚙️</div>
+          <h3 className="text-xl font-semibold text-white mb-2">
+            {activeSection === 'security' && 'Security & Privacy Coming Soon'}
+            {activeSection === 'appearance' && 'Appearance & UI Coming Soon'}
+            {activeSection === 'data' && 'Data Management Coming Soon'}
+          </h3>
+          <p className="text-white/70">
+            This section is being enhanced with advanced configuration options. Stay tuned!
+          </p>
+        </motion.div>
+      )}
     </div>
   );
-};
-
-export default Settings; 
+}

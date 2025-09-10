@@ -38,11 +38,14 @@ const TherapistDemoPage = lazy(() => import('./pages/dashboard/TherapistDemoPage
 const PersonalPodcastPage = lazy(() => import('./pages/dashboard/PersonalPodcastPage'));
 const PodcastDashboard = lazy(() => import('./pages/PodcastDashboard'));
 const TaxAssistant = lazy(() => import('./pages/features/tax-assistant'));
+const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistant')); // 🚀🚀🚀 BRAND NEW VERSION
 const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
+const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligence'));
 const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
 const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
 const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const Reports = lazy(() => import('./pages/dashboard/Reports'));
 const ViewTransactionsPage = lazy(() => import('./pages/ViewTransactionsPage'));
 const AIFinancialFreedomPage = lazy(() => import('./pages/dashboard/AIFinancialFreedomPage'));
 const AIFinancialFreedomFeaturePage = lazy(() => import('./pages/features/ai-financial-freedom'));
@@ -185,7 +188,7 @@ function App() {
                   isMobile={mobileRevolution.isMobile}
                 />
                 <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900" style={{
-                  display: (mobileRevolution.isMobile && !mobileRevolution.isExcludedRoute) ? 'none' : 'block'
+                  display: mobileRevolution.isMobile ? 'none' : 'block'
                 }}>
                   {/* Debug info for desktop */}
                   {console.log('Desktop content visibility:', {
@@ -272,11 +275,13 @@ function App() {
                       <Route path="smart-automation" element={<SmartAutomation />} />
                       <Route path="analytics" element={<Analytics />} />
                       <Route path="settings" element={<Settings />} />
-                      <Route path="reports" element={<ReportsPage />} />
+                      <Route path="reports" element={<Reports />} />
                       <Route path="spotify-integration" element={<SpotifyIntegrationPage />} />
                       <Route path="spotify-integration-new" element={<SpotifyIntegrationPage />} />
                       <Route path="wellness-studio" element={<WellnessStudioPage />} />
                       <Route path="financial-therapist" element={<FinancialTherapistPage />} />
+                      <Route path="tax-assistant" element={<TaxAssistantPage />} />
+                      <Route path="business-intelligence" element={<BusinessIntelligencePage />} />
                     </Route>
                     </Routes>
                   </Suspense>

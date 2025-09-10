@@ -31,32 +31,30 @@ export const useMobileRevolution = () => {
     console.log('Getting initial view for path:', path);
     
     // Routes that should show their own components, not MobileRevolution
-    const excludedRoutes = [
-      // '/dashboard', // Removed - allow mobile navbar on main dashboard
-      // '/dashboard/', // Removed - allow mobile navbar on main dashboard
-      '/dashboard/three-column-demo',
-      '/dashboard/ai-financial-assistant',
-      '/dashboard/smart-import-ai',
-      '/dashboard/financial-story',
-      '/dashboard/transactions',
-      '/dashboard/goal-concierge',
-      '/dashboard/spending-predictions',
-      '/dashboard/ai-categorization',
-      '/dashboard/smart-categories',
-      '/dashboard/bill-reminders',
-      '/dashboard/debt-payoff-planner',
-      '/dashboard/therapist-demo',
-      '/dashboard/personal-podcast',
-      '/dashboard/podcast',
-      '/dashboard/smart-automation',
-      '/dashboard/analytics',
-      '/dashboard/settings',
-      '/dashboard/reports',
-      '/dashboard/spotify-integration',
-      '/dashboard/spotify-integration-new',
-      '/dashboard/wellness-studio',
-      '/dashboard/financial-therapist'
-    ];
+  const excludedRoutes = [
+    '/dashboard/three-column-demo',
+    '/dashboard/ai-financial-assistant',
+    '/dashboard/smart-import-ai',
+    '/dashboard/financial-story',
+    '/dashboard/transactions',
+    '/dashboard/goal-concierge',
+    '/dashboard/spending-predictions',
+    '/dashboard/ai-categorization',
+    '/dashboard/smart-categories',
+    '/dashboard/bill-reminders',
+    '/dashboard/debt-payoff-planner',
+    '/dashboard/therapist-demo',
+    '/dashboard/personal-podcast',
+    '/dashboard/podcast',
+    '/dashboard/smart-automation',
+    '/dashboard/analytics',
+    '/dashboard/settings',
+    '/dashboard/reports',
+    '/dashboard/spotify-integration',
+    '/dashboard/spotify-integration-new',
+    '/dashboard/wellness-studio',
+    '/dashboard/financial-therapist'
+  ];
     
     // Check if current path should be excluded (only specific sub-routes)
     if (excludedRoutes.includes(path)) {
@@ -110,8 +108,6 @@ export const useMobileRevolution = () => {
     
     // Routes that should show their own components, not MobileRevolution
     const excludedRoutes = [
-      // '/dashboard', // Removed - allow mobile navbar on main dashboard
-      // '/dashboard/', // Removed - allow mobile navbar on main dashboard
       '/dashboard/three-column-demo',
       '/dashboard/ai-financial-assistant',
       '/dashboard/smart-import-ai',
@@ -141,7 +137,6 @@ export const useMobileRevolution = () => {
       console.log('Hook mobile detection: Path excluded, not mobile', { path, excludedRoutes });
       return false;
     }
-    
     
     console.log('Hook mobile detection:', { 
       isDashboardPage,

@@ -13,7 +13,7 @@ import {
   Crown, Home, Upload, Bot, Bell, Heart, Menu, 
   BarChart3, UploadCloud, Brain, FileText, Target, Zap, 
   TrendingUp, CreditCard, Award, Mic, BookOpen, Music, 
-  Calculator, Building2, Settings, User, LogOut, MessageCircle, Tag
+  Calculator, Building2, Settings, User
 } from 'lucide-react';
 import BossBubble from '../boss/BossBubble';
 import { useAuth } from '../../contexts/AuthContext';
@@ -515,231 +515,54 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   };
 
   // Mobile-specific handlers that open modals instead of navigating
-  const openMobileModal = (title: string, content: React.ReactNode) => {
-    setMobileModalContent({ title, content });
-    setMobileModalOpen(true);
-  };
-
-  const closeMobileModal = () => {
-    setMobileModalOpen(false);
-    setMobileModalContent(null);
-  };
 
   // Mobile card handlers
   const handleMobileCategorization = () => {
-    openMobileModal('Smart Categories', (
-      <div className="mobile-modal-content">
-        <p>AI-powered transaction categorization is coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/ai-categorization');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/ai-categorization');
   };
 
   const handleMobileTransactions = () => {
-    openMobileModal('Transactions', (
-      <div className="mobile-modal-content">
-        <p>Transaction management is coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/transactions');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/transactions');
   };
 
   const handleMobileSmartAutomation = () => {
-    openMobileModal('Smart Automation', (
-      <div className="mobile-modal-content">
-        <p>Smart automation configuration is coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/smart-automation');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/smart-automation');
   };
 
   const handleMobileDebtPlanner = () => {
-    openMobileModal('Debt Payoff Planner', (
-      <div className="mobile-modal-content">
-        <p>Debt payoff planning is coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/debt-payoff-planner');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/debt-payoff-planner');
   };
 
   const handleMobileFinancialFreedom = () => {
-    openMobileModal('AI Financial Freedom', (
-      <div className="mobile-modal-content">
-        <p>Financial freedom planning is coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/ai-financial-freedom');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/ai-financial-freedom');
   };
 
   const handleMobileBillReminders = () => {
-    openMobileModal('Bill Reminder System', (
-      <div className="mobile-modal-content">
-        <p>Bill reminder management is coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/bill-reminders');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/bill-reminders');
   };
 
   const handleMobileFinancialStory = () => {
-    openMobileModal('Financial Story', (
-      <div className="mobile-modal-content">
-        <p>Financial storytelling is coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/financial-story');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/financial-story');
   };
 
   const handleMobileFinancialTherapist = () => {
-    openMobileModal('AI Financial Therapist', (
-      <div className="mobile-modal-content">
-        <p>Financial therapy sessions are coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/ai-financial-therapist');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/financial-therapist');
   };
 
   const handleMobileWellnessStudio = () => {
-    openMobileModal('Wellness Studio', (
-      <div className="mobile-modal-content">
-        <p>Wellness studio sessions are coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/wellness-studio');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/wellness-studio');
   };
 
   const handleMobileSpotifyIntegration = () => {
-    openMobileModal('Spotify Integration', (
-      <div className="mobile-modal-content">
-        <p>Spotify integration is coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/spotify-integration');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/spotify-integration');
   };
 
   const handleMobileTaxAssistant = () => {
-    openMobileModal('Tax Assistant', (
-      <div className="mobile-modal-content">
-        <p>Tax assistance is coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/tax-assistant');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/tax-assistant');
   };
 
   const handleMobileBusinessIntelligence = () => {
-    openMobileModal('Business Intelligence', (
-      <div className="mobile-modal-content">
-        <p>Business intelligence reports are coming soon to mobile!</p>
-        <p>For now, please use the desktop version for full functionality.</p>
-        <button 
-          className="mobile-card-button" 
-          onClick={() => {
-            closeMobileModal();
-            navigate('/dashboard/business-intelligence');
-          }}
-        >
-          Open Desktop Version
-        </button>
-      </div>
-    ));
+    navigate('/dashboard/business-intelligence');
   };
 
   const loadStories = async () => {
@@ -974,9 +797,29 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   }
 
   console.log('🎯 RENDERING MOBILE REVOLUTION COMPONENT');
+  console.log('🔍 Dashboard rendering debug:', {
+    effectiveView,
+    propIsMobile,
+    currentView,
+    pathname: window.location.pathname,
+    shouldRenderDashboard: effectiveView === 'dashboard' && propIsMobile
+  });
 
   return (
     <div className="mobile-revolution-container mobile-active">
+      {/* DEBUG: Always visible mobile indicator */}
+      <div style={{
+        position: 'fixed',
+        top: '10px',
+        left: '10px',
+        background: 'red',
+        color: 'white',
+        padding: '10px',
+        zIndex: 9999,
+        fontSize: '12px'
+      }}>
+        MOBILE: {propIsMobile ? 'YES' : 'NO'} | VIEW: {effectiveView} | PATH: {window.location.pathname}
+      </div>
 
       {/* Main Content Area */}
       <div className="mobile-content">
@@ -1015,7 +858,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
           </div>
         )}
 
-        {effectiveView === 'dashboard' && propIsMobile && (
+        {(effectiveView === 'dashboard' || window.location.pathname === '/dashboard') && propIsMobile && (
           <div className="mobile-dashboard" style={{ 
             position: 'fixed', 
             top: 0, 

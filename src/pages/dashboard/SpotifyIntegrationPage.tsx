@@ -536,7 +536,8 @@ I'm exploring new musical territories that will revolutionize how you experience
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-slate-900 p-4 sm:p-6 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-slate-900">
+      <div className="container mx-auto px-4 py-4 pb-20">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -995,6 +996,7 @@ I'm exploring new musical territories that will revolutionize how you experience
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

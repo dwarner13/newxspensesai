@@ -474,7 +474,7 @@ What would you like to explore about your financial data?`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {/* Welcome Header */}
         <div className="text-center mb-8">
           <motion.h2
