@@ -968,7 +968,7 @@ I'm developing a personalized 21-day mindfulness program that will transform you
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

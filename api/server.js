@@ -15,6 +15,7 @@ const documentsRoutes = require('./routes/documents');
 const aiEmployeesRoutes = require('./routes/ai-employees');
 const transactionsRoutes = require('./routes/transactions');
 const categoriesRoutes = require('./routes/categories');
+const ocrRoutes = require('./routes/ocr');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -67,6 +68,7 @@ app.use('/api/documents', documentsRoutes);
 app.use('/api/ai-employees', aiEmployeesRoutes);
 app.use('/api/transactions', transactionsRoutes);
 app.use('/api/categories', categoriesRoutes);
+app.use('/api/ocr', ocrRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
