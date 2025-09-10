@@ -208,8 +208,6 @@ const MobileStoryFeed: React.FC<MobileStoryFeedProps> = ({ stories, onStoryActio
               </div>
             </div>
 
-            {/* Swipe Hint */}
-            <div className="swipe-hint">↑ Swipe up for next</div>
           </div>
         ))}
       </div>
@@ -1198,11 +1196,6 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                 </div>
               </div>
               
-              {/* Swipe Up Indicator */}
-              <div className="swipe-up-indicator">
-                <div className="swipe-up-arrow">↑</div>
-                <div className="swipe-up-text">Swipe up for AI Stories</div>
-              </div>
             </div>
           </div>
         )}

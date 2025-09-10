@@ -394,34 +394,6 @@
     transform: translateY(-1px);
   }
   
-  /* Swipe Up Indicator */
-  .swipe-up-indicator {
-    position: fixed;
-    bottom: 100px;
-    left: 50%;
-    transform: translateX(-50%);
-    text-align: center;
-    z-index: 1000;
-    animation: swipeUpPulse 2s infinite;
-  }
-  
-  .swipe-up-arrow {
-    font-size: 32px;
-    color: white;
-    margin-bottom: 8px;
-    animation: bounce 1.5s infinite;
-  }
-  
-  .swipe-up-text {
-    color: white;
-    font-size: 14px;
-    font-weight: 600;
-    background: rgba(0, 0, 0, 0.3);
-    padding: 6px 12px;
-    border-radius: 15px;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
   
 
   /* ================================================================================
@@ -571,25 +543,6 @@
     transform: translateY(0);
   }
   
-  /* Swipe Hint */
-  .swipe-hint {
-    position: absolute;
-    bottom: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: white;
-    font-size: 16px;
-    font-weight: 600;
-    text-align: center;
-    pointer-events: none;
-    z-index: 10;
-    animation: bounce 2s infinite;
-    background: rgba(0, 0, 0, 0.3);
-    padding: 8px 16px;
-    border-radius: 20px;
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
 
   /* ================================================================================
      PROCESSING SHOW STYLES
