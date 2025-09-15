@@ -460,6 +460,11 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   isMobile: propIsMobile = false
 }) => {
   const { pathname } = useLocation();
+  
+  // Get current route to determine what content to show
+  const currentRoute = pathname;
+  const isDashboardRoot = currentRoute === '/dashboard';
+  const currentPage = currentRoute.split('/').pop() || 'dashboard';
 
   // ✅ Render on all dashboard routes (root and sub-routes)
   const isDashboardRoute = pathname.startsWith("/dashboard");
@@ -527,11 +532,11 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
 
   // Mobile-specific handlers that open modals instead of navigating
 
-  // Mobile card handlers
+  // Mobile card handlers - Show mobile views instead of navigating
   const handleMobileCategorization = () => {
-    console.log('Mobile: Navigating to ai-categorization');
-    console.log('Mobile: Current pathname:', window.location.pathname);
-    console.log('Mobile: Navigate function available:', typeof navigate);
+    console.log('Mobile: Showing AI Categorization view');
+    // Instead of navigating, we'll show the categorization content within mobile
+    // For now, let's navigate to the desktop version
     navigate('/dashboard/ai-categorization');
   };
 
@@ -745,11 +750,13 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
               </div>
             </div>
             
-            {/* Dashboard Content - Only renders on root /dashboard */}
+            {/* Dashboard Content - Shows different content based on route */}
             <div className="mobile-dashboard-content">
-              <h2 className="mobile-dashboard-title">FinTech Entertainment Platform</h2>
-              <p className="mobile-welcome-text">Welcome back, John! Here's your financial overview.</p>
-              <div className="mobile-dashboard-cards">
+              {isDashboardRoot ? (
+                <>
+                  <h2 className="mobile-dashboard-title">FinTech Entertainment Platform</h2>
+                  <p className="mobile-welcome-text">Welcome back, John! Here's your financial overview.</p>
+                  <div className="mobile-dashboard-cards">
                 {/* AI WORKSPACE CARDS */}
                 <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">📄</div>
@@ -772,10 +779,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Smart Categories</h3>
                     <p>Automatically categorize your transactions with AI. Learn from your corrections and improve over time.</p>
-                    <button className="mobile-card-button" onClick={() => {
-                      alert('Button clicked!');
-                      handleMobileCategorization();
-                    }}>Categorize Now</button>
+                    <button className="mobile-card-button" onClick={handleMobileCategorization}>Categorize Now</button>
                   </div>
                 </div>
 
@@ -785,10 +789,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Transactions</h3>
                     <p>View and manage all your financial transactions with detailed insights.</p>
-                    <button className="mobile-card-button" onClick={() => {
-                      alert('Transactions button clicked!');
-                      handleMobileTransactions();
-                    }}>View All</button>
+                    <button className="mobile-card-button" onClick={handleMobileTransactions}>View All</button>
                   </div>
                 </div>
                 <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
@@ -899,7 +900,24 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleMobileBusinessIntelligence}>View Reports</button>
                   </div>
                 </div>
-              </div>
+                  </div>
+                </>
+              ) : (
+                <div className="mobile-page-content">
+                  <h2 className="mobile-dashboard-title">Mobile View</h2>
+                  <p className="mobile-welcome-text">Current page: {currentPage}</p>
+                  <div className="mobile-page-info">
+                    <p>This is a mobile-optimized view for: {currentRoute}</p>
+                    <button 
+                      className="mobile-card-button" 
+                      onClick={() => navigate('/dashboard')}
+                      style={{ marginTop: '20px' }}
+                    >
+                      Back to Dashboard
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
         </div>
       </div>
