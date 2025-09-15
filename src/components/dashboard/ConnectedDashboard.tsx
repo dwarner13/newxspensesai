@@ -460,7 +460,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           )}
 
       {/* CORE AI TOOLS Section */}
-      <div className="space-y-3 mt-16 md:mt-20">
+      <div className="space-y-3 mt-8 md:mt-12">
         <div className="text-center">
           <h2 className="text-xl font-bold text-white mb-2">CORE AI TOOLS</h2>
           <p className="text-white/60 text-sm">Essential AI-powered features for your financial management</p>
