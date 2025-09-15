@@ -495,10 +495,10 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
       {/* Content */}
       <div>
         <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
         <div className="flex justify-end">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

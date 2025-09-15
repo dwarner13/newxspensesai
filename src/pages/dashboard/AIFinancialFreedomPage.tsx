@@ -918,4 +918,4 @@ Hello! I'm Finley, your personal financial coach. I educate and empower you with
       )}
     </div>
   );
-}
+};
