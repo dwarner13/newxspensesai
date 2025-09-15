@@ -509,16 +509,6 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
           </div>
         </div>
       </motion.div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm font-medium">AI Team Active</span>
-            </div>
-            <div className="text-2xl">🔔</div>
-          </div>
-        </div>
-      </motion.div>
 
       {/* Navigation Tabs */}
       <motion.div

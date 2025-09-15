@@ -333,17 +333,17 @@ export default function SmartAutomation() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* Header Section */}
       <div className="bg-white/5 backdrop-blur-sm border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="max-w-6xl mx-auto px-4 py-8">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-center"
           >
             <h1 className="text-3xl font-bold text-white mb-3">
-              Smart Automation
+              Welcome to Automa's Command Center
             </h1>
             <p className="text-white/70 text-lg mb-6">
-              Automate your financial workflows with AI
+              Your intelligent automation assistant for financial workflows
             </p>
             <div className="flex items-center justify-center gap-6">
               <div className="flex items-center gap-2">
@@ -363,7 +363,7 @@ export default function SmartAutomation() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-4 py-8">
 
         {/* Navigation Tabs */}
         <motion.div

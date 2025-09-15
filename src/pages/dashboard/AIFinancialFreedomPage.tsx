@@ -405,25 +405,26 @@ Hello! I'm Finley, your personal financial coach. I educate and empower you with
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
-      {/* Content */}
-      <div>
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="flex justify-end">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                <span className="text-yellow-400 text-sm font-medium">Freedom AI Active</span>
+    <>
+      <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
+        {/* Content */}
+        <div>
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8"
+          >
+            <div className="flex justify-end">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                  <span className="text-yellow-400 text-sm font-medium">Freedom AI Active</span>
+                </div>
+                <div className="text-2xl">🏆</div>
               </div>
-              <div className="text-2xl">🏆</div>
             </div>
-          </div>
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
 
       {/* Navigation Tabs */}
       <motion.div
@@ -916,6 +917,7 @@ Hello! I'm Finley, your personal financial coach. I educate and empower you with
             </motion.div>
         </motion.div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
