@@ -537,146 +537,252 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
   const debtTypes = ['all', 'credit_card', 'car_loan', 'mortgage', 'personal_loan', 'student_loan'];
 
   return (
-    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
-      {/* Content */}
-      <div>
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8"
-        >
-          <div className="flex justify-end">
-            <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Header Section */}
+      <div className="bg-white/5 backdrop-blur-sm border-b border-white/10">
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center"
+          >
+            <h1 className="text-3xl font-bold text-white mb-3">
+              Welcome to Blitz's Debt Liberation Boardroom
+            </h1>
+            <p className="text-white/70 text-lg mb-6">
+              Your strategic command center for debt elimination and financial freedom
+            </p>
+            <div className="flex items-center justify-center gap-6">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                <span className="text-blue-400 text-sm font-medium">Blitz AI Active</span>
+                <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
+                <span className="text-blue-400 font-medium">Blitz AI Active</span>
               </div>
-              <div className="text-2xl">⚡</div>
+              <button 
+                onClick={() => setIsChatOpen(true)}
+                className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 shadow-lg"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Chat with Blitz
+              </button>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex flex-wrap gap-3 mb-8"
-      >
-        {[
-          { key: 'overview', label: 'Liberation Overview', icon: BarChart3 },
-          { key: 'debts', label: 'My Debts', icon: CreditCard },
-          { key: 'upload', label: 'Upload Documents', icon: Upload },
-          { key: 'simulate', label: 'Liberation Calculator', icon: Calculator },
-          { key: 'theater', label: 'Live Liberation Theater', icon: Zap },
-          { key: 'chat', label: 'AI Chat', icon: Brain }
-        ].map(({ key, label, icon: Icon }) => (
-          <motion.button
-            key={key}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setActiveView(key)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeView === key
-                ? 'bg-green-500 text-white'
-                : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </motion.button>
-        ))}
-      </motion.div>
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-4 py-8">
 
-      {/* Overview Section */}
-      {activeView === 'overview' && (
+        {/* Navigation Tabs */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
+          transition={{ delay: 0.2 }}
+          className="flex justify-center mb-8"
         >
-          {/* Blitz Liberation Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">3x Faster Payoff</p>
-                  <p className="text-2xl font-bold text-yellow-400">3x</p>
-                </div>
-                <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                  <Zap className="w-6 h-6 text-yellow-400" />
-                </div>
-              </div>
-            </div>
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-2 border border-white/10">
+            {[
+              { key: 'overview', label: 'Liberation Overview', icon: BarChart3 },
+              { key: 'debts', label: 'Debt Analysis', icon: CreditCard },
+              { key: 'upload', label: 'Smart Upload', icon: Upload },
+              { key: 'simulate', label: 'AI Calculator', icon: Calculator },
+              { key: 'chat', label: 'Chat with Blitz', icon: Brain }
+            ].map(({ key, label, icon: Icon }) => (
+              <motion.button
+                key={key}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setActiveView(key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeView === key
+                    ? 'bg-blue-500 text-white shadow-lg'
+                    : 'text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
 
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Avg. Interest Saved</p>
-                  <p className="text-2xl font-bold text-green-400">$28,000</p>
-                </div>
-                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
-                  <TrendingDown className="w-6 h-6 text-green-400" />
+        {/* Overview Section */}
+        {activeView === 'overview' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-8"
+          >
+            {/* AI Performance Metrics */}
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-white mb-2">Blitz AI Performance</h2>
+              <p className="text-white/60">Real-time debt liberation metrics and AI insights</p>
+            </div>
+            
+            {/* Liberation Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/60 text-sm font-medium">Payoff Acceleration</p>
+                    <p className="text-3xl font-bold text-white mt-1">3x</p>
+                    <p className="text-blue-400 text-xs mt-1">Faster than traditional</p>
+                  </div>
+                  <div className="w-14 h-14 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                    <Zap className="w-7 h-7 text-blue-400" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Stress Reduction</p>
-                  <p className="text-2xl font-bold text-blue-400">87%</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                  <Brain className="w-6 h-6 text-blue-400" />
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/60 text-sm font-medium">Interest Saved</p>
+                    <p className="text-3xl font-bold text-white mt-1">$28K</p>
+                    <p className="text-green-400 text-xs mt-1">This year</p>
+                  </div>
+                  <div className="w-14 h-14 bg-green-500/20 rounded-xl flex items-center justify-center">
+                    <TrendingDown className="w-7 h-7 text-green-400" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">24/7 AI Motivation</p>
-                  <p className="text-2xl font-bold text-purple-400">24/7</p>
-                </div>
-                <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                  <MessageCircle className="w-6 h-6 text-purple-400" />
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/60 text-sm font-medium">Stress Reduction</p>
+                    <p className="text-3xl font-bold text-white mt-1">87%</p>
+                    <p className="text-purple-400 text-xs mt-1">AI-powered relief</p>
+                  </div>
+                  <div className="w-14 h-14 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                    <Brain className="w-7 h-7 text-purple-400" />
+                  </div>
                 </div>
               </div>
-            </div>
+
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/60 text-sm font-medium">AI Availability</p>
+                    <p className="text-3xl font-bold text-white mt-1">24/7</p>
+                    <p className="text-yellow-400 text-xs mt-1">Always ready</p>
+                  </div>
+                  <div className="w-14 h-14 bg-yellow-500/20 rounded-xl flex items-center justify-center">
+                    <MessageCircle className="w-7 h-7 text-yellow-400" />
+                  </div>
+                </div>
+              </div>
           </div>
 
-          {/* Quick Actions */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* AI Chat Interface */}
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">Chat with Blitz AI</h2>
+              <p className="text-white/60">Get instant debt liberation strategies and personalized advice</p>
+            </div>
+            
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
+                  <Brain className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Blitz AI</h3>
+                  <p className="text-white/60 text-sm">Your debt liberation strategist</p>
+                </div>
+              </div>
+              
+              <div className="bg-white/5 rounded-lg p-4 mb-4 min-h-[120px]">
+                {messages.length === 0 ? (
+                  <div className="text-center text-white/60">
+                    <p>👋 Hi! I'm Blitz, your AI debt liberation strategist.</p>
+                    <p className="mt-2">Ask me about payoff strategies, interest optimization, or debt consolidation!</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {messages.map((message, index) => (
+                      <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] rounded-lg px-3 py-2 ${
+                          message.role === 'user' 
+                            ? 'bg-blue-500 text-white' 
+                            : 'bg-white/10 text-white'
+                        }`}>
+                          <p className="text-sm">{message.content}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {isLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-white/10 text-white rounded-lg px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span className="text-sm">Blitz is thinking...</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+              
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                  placeholder="Ask Blitz about debt strategies..."
+                  className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-blue-500"
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={isLoading || !input.trim()}
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-3 py-2 transition-colors"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">Quick Actions</h2>
+              <p className="text-white/60">Essential tools for debt liberation</p>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <button
                 onClick={() => setActiveView('upload')}
-                className="flex items-center gap-3 p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-white transition-colors"
+                className="flex flex-col items-center gap-4 p-6 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl text-white transition-all hover:scale-105"
               >
-                <Upload className="w-5 h-5" />
-                <span>Upload Statements</span>
+                <div className="w-12 h-12 bg-green-500/30 rounded-xl flex items-center justify-center">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <span className="font-medium">Smart Upload</span>
               </button>
               <button
                 onClick={() => setActiveView('simulate')}
-                className="flex items-center gap-3 p-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-white transition-colors"
+                className="flex flex-col items-center gap-4 p-6 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl text-white transition-all hover:scale-105"
               >
-                <Calculator className="w-5 h-5" />
-                <span>Run Simulation</span>
+                <div className="w-12 h-12 bg-blue-500/30 rounded-xl flex items-center justify-center">
+                  <Calculator className="w-6 h-6" />
+                </div>
+                <span className="font-medium">AI Calculator</span>
               </button>
               <button
-                onClick={() => setActiveView('recommendations')}
-                className="flex items-center gap-3 p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-white transition-colors"
+                onClick={() => setActiveView('chat')}
+                className="flex flex-col items-center gap-4 p-6 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-white transition-all hover:scale-105"
               >
-                <Brain className="w-5 h-5" />
-                <span>AI Recommendations</span>
+                <div className="w-12 h-12 bg-purple-500/30 rounded-xl flex items-center justify-center">
+                  <Brain className="w-6 h-6" />
+                </div>
+                <span className="font-medium">AI Strategy</span>
               </button>
             </div>
-          </div>
-        </motion.div>
-      )}
+          </motion.div>
+        )}
+      </div>
 
       {/* Debts Section */}
       {activeView === 'debts' && (
