@@ -77,8 +77,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading || initialLoad) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <div className="text-center flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
           <p className="text-white text-lg">Checking authentication...</p>
         </div>
       </div>
@@ -89,8 +89,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   if (sessionValidating) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <div className="text-center flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
           <p className="text-white text-lg">Validating your session...</p>
         </div>
       </div>

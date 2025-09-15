@@ -2,6 +2,10 @@
    XSPENSESAI DESIGN SYSTEM - MAIN ENTRY
    ======================================== */
 
+/* Layout Guards */
+:root[data-layout="mobile"] .desktop-only { display: none !important; }
+:root[data-layout="desktop"] .mobile-only { display: none !important; }
+
 /* Import the protected design system first */
 @import './design-system.css';
 

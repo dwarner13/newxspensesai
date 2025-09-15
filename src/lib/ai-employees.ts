@@ -1,7 +1,7 @@
 // AI Employee System - Supabase Client Functions
 // This file handles all interactions with the AI employee database
 
-import { supabase } from './supabase';
+import { getSupabase } from './supabase';
 import { 
   AIEmployeeConfig, 
   AIConversation, 
@@ -17,6 +17,7 @@ import {
 
 export async function getEmployeeConfig(employeeKey: string): Promise<AIEmployeeConfig | null> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('ai_employee_configs')
       .select('*')
@@ -38,6 +39,7 @@ export async function getEmployeeConfig(employeeKey: string): Promise<AIEmployee
 
 export async function getAllEmployeeConfigs(): Promise<AIEmployeeConfig[]> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('ai_employee_configs')
       .select('*')
@@ -64,6 +66,7 @@ export async function getConversation(
   conversationId: string
 ): Promise<AIConversation | null> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('ai_conversations')
       .select('*')
@@ -90,6 +93,7 @@ export async function getRecentConversations(
   limit: number = 5
 ): Promise<AIConversation[]> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('ai_conversations')
       .select('*')
@@ -118,6 +122,7 @@ export async function saveConversation(
   context: Record<string, any> = {}
 ): Promise<boolean> {
   try {
+    const supabase = getSupabase();
     const { error } = await supabase
       .from('ai_conversations')
       .upsert({
@@ -172,6 +177,7 @@ export async function getUserPreferences(
   employeeKey: string
 ): Promise<UserAIPreferences | null> {
   try {
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from('user_ai_preferences')
       .select('*')
@@ -268,6 +274,7 @@ export async function logAIInteraction(
   errorMessage?: string
 ): Promise<boolean> {
   try {
+    const supabase = getSupabase();
     const { error } = await supabase
       .from('ai_interactions_log')
       .insert({

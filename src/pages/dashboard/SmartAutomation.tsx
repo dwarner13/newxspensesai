@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Settings, 
@@ -17,7 +17,11 @@ import {
   Plus,
   Search,
   Download,
-  Brain
+  Brain,
+  Send,
+  Loader2,
+  X,
+  MessageCircle
 } from 'lucide-react';
 
 // AI Team Members
@@ -216,6 +220,72 @@ export default function SmartAutomation() {
     totalSavings: 3240
   });
 
+  // Chat state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [messages, setMessages] = useState<Array<{
+    role: 'user' | 'prime';
+    content: string;
+    timestamp: string;
+  }>>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const sendMessage = async (message: string) => {
+    if (!message.trim() || isLoading) return;
+
+    const userMessage = {
+      role: 'user' as const,
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    // Simulate AI response
+    setTimeout(() => {
+      const primeResponse = {
+        role: 'prime' as const,
+        content: getPrimeResponse(message),
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, primeResponse]);
+      setIsLoading(false);
+    }, 1500);
+  };
+
+  const getPrimeResponse = (message: string) => {
+    const lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.includes('automation') || lowerMessage.includes('rule')) {
+      return "I can help you create powerful automation rules! Based on your current setup, I recommend setting up rules for transaction categorization, bill reminders, and spending alerts. Would you like me to create a custom automation rule for you?";
+    }
+    
+    if (lowerMessage.includes('team') || lowerMessage.includes('ai')) {
+      return "Our AI team is performing excellently! Prime (me) handles strategic decisions, Byte optimizes processes, Tag manages categorization, and Crystal provides predictions. All systems are running at 99%+ accuracy. How can I help optimize our team performance?";
+    }
+    
+    if (lowerMessage.includes('performance') || lowerMessage.includes('stats')) {
+      return "Great question! Today we've made 121 decisions, saved 3 hours of manual work, and $847 in costs. Our accuracy rate is 99.7%. I can help you analyze these metrics and suggest improvements. What specific performance area interests you?";
+    }
+    
+    if (lowerMessage.includes('workflow') || lowerMessage.includes('process')) {
+      return "Workflow optimization is my specialty! I can analyze your current processes and suggest automation opportunities. We've already automated transaction categorization, bill processing, and expense tracking. What workflow would you like to optimize next?";
+    }
+    
+    return "Hello! I'm Prime, your AI Automation Director. I can help you with automation rules, team performance, workflow optimization, and strategic planning. What would you like to automate today?";
+  };
+
   // Simulate live updates
   useEffect(() => {
     const interval = setInterval(() => {
@@ -268,16 +338,27 @@ export default function SmartAutomation() {
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">AI Automation Workspace</h1>
-            <p className="text-white/70 text-sm sm:text-base">Manage your AI employees and automation rules</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm font-medium">All Systems Active</span>
+            <h2 className="text-xl font-bold text-white mb-1">
+              Welcome to Prime's Automation Command Center
+            </h2>
+            <p className="text-white/60 text-sm mb-3">
+              Your intelligent guide to automating financial workflows and optimizing AI team performance
+            </p>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-green-400 text-sm font-medium">All Systems Active</span>
+              </div>
+              <button 
+                onClick={() => setIsChatOpen(true)}
+                className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Chat with Prime
+              </button>
             </div>
-            <div className="text-2xl">🤖</div>
           </div>
+          <div className="text-2xl">🤖</div>
         </div>
       </motion.div>
 
@@ -723,6 +804,155 @@ export default function SmartAutomation() {
                     className="flex-1 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
                   >
                     Create Rule
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Chat Modal */}
+      <AnimatePresence>
+        {isChatOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setIsChatOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 w-full max-w-2xl h-[600px] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Chat Header */}
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center">
+                    <Crown className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Prime AI</h3>
+                    <p className="text-white/60 text-sm">Automation Director</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsChatOpen(false)}
+                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-white/60" />
+                </button>
+              </div>
+
+              {/* Chat Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.length === 0 ? (
+                  <div className="h-full flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        <Crown className="w-8 h-8 text-white" />
+                      </div>
+                      <h4 className="text-lg font-semibold text-white mb-2">Hello! I'm Prime 👑</h4>
+                      <p className="text-white/60 text-sm mb-4">
+                        I'm your AI Automation Director. Ask me about:
+                      </p>
+                      <div className="grid grid-cols-1 gap-2 max-w-sm mx-auto">
+                        {[
+                          "Create automation rules",
+                          "Optimize team performance",
+                          "Analyze workflow efficiency",
+                          "Set up smart alerts",
+                          "Review automation metrics"
+                        ].map((suggestion, index) => (
+                          <button
+                            key={index}
+                            onClick={() => sendMessage(suggestion)}
+                            className="text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg text-white/80 hover:text-white text-sm transition-colors"
+                          >
+                            {suggestion}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  messages.map((message, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] p-3 rounded-lg ${
+                          message.role === 'user'
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                            : 'bg-white/10 text-white border border-white/20'
+                        }`}
+                      >
+                        {message.role === 'prime' && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-6 h-6 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-lg flex items-center justify-center">
+                              <Crown className="w-3 h-3 text-white" />
+                            </div>
+                            <span className="text-xs font-semibold text-yellow-400">Prime</span>
+                          </div>
+                        )}
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-xs opacity-70 mt-1">
+                          {new Date(message.timestamp).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+                
+                {isLoading && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex justify-start"
+                  >
+                    <div className="bg-white/10 px-3 py-2 rounded-lg border border-white/20">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-lg flex items-center justify-center">
+                          <Crown className="w-3 h-3 text-white" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-3 h-3 animate-spin text-yellow-400" />
+                          <span className="text-xs text-white/70">Prime is analyzing...</span>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Chat Input */}
+              <div className="p-4 border-t border-white/10">
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                      placeholder="Ask Prime about automation and workflows..."
+                      className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <button
+                    onClick={() => !isLoading && sendMessage(input)}
+                    disabled={isLoading || !input.trim()}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
+                  >
+                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </button>
                 </div>
               </div>

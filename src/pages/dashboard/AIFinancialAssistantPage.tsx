@@ -271,12 +271,12 @@ export default function AIFinancialAssistantPage() {
   };
 
   return (
-    <div className="h-full flex flex-col max-h-[calc(100vh-150px)]">
+    <div className="max-w-7xl mx-auto p-6 pt-32">
       {/* Main Chat Interface */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col">
           {/* Chat Messages Area */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-2 max-h-[calc(100vh-200px)]" ref={messagesEndRef}>
+          <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]" ref={messagesEndRef}>
             {messages.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center max-w-2xl">
@@ -311,15 +311,15 @@ export default function AIFinancialAssistantPage() {
           animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.5 + index * 0.1 }}
                         onClick={() => sendMessage(`Help me with ${item.title.toLowerCase()}`)}
-                        className="group flex items-center gap-1.5 p-1.5 bg-white/5 hover:bg-white/10 rounded text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[40px]"
+                        className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                       >
-                        <div className={`w-6 h-6 bg-gradient-to-br ${item.color} rounded flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0`}>
-                          <item.icon className="w-3 h-3 text-white" />
-            </div>
+                        <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                          <item.icon className="w-6 h-6 text-white" />
+                        </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-xs font-semibold text-white mb-0">{item.title}</h3>
+                          <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
                           <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
-            </div>
+                        </div>
                       </motion.button>
                     ))}
                   </div>

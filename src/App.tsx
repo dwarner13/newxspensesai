@@ -5,8 +5,9 @@ import { therapistTriggerAtom, isTherapistModalOpenAtom } from './lib/uiStore';
 import TherapistNotification from './components/therapist/TherapistNotification';
 import TherapistModal from './components/therapist/TherapistModal';
 import AppLayout from './components/layout/AppLayout';
-import DashboardLayout from './components/layout/DashboardLayout';
+import DashboardLayout from './layouts/DashboardLayout';
 import MarketingLayout from './layouts/MarketingLayout';
+import { ErrorBoundary } from './components/util/ErrorBoundary';
 
 import { AuthProvider } from './contexts/AuthContext';
 import { AudioProvider } from './contexts/AudioContext';
@@ -14,8 +15,9 @@ import { PersonalPodcastProvider } from './contexts/PersonalPodcastContext';
 import { AIFinancialAssistantProvider } from './contexts/AIFinancialAssistantContext';
 import { UserProvider } from './contexts/UserContext';
 import { BossProvider } from './lib/agents/context';
+import MobileLayoutGate from './components/layout/MobileLayoutGate';
 import MobileRevolution from './components/mobile/MobileRevolution';
-import { useMobileRevolution } from './hooks/useMobileRevolution';
+import DesktopDashboard from './components/DesktopDashboard';
 
 // Critical components - load immediately
 import HomePage from './pages/HomePage';
@@ -36,11 +38,17 @@ const DebtPayoffPlannerPage = lazy(() => import('./pages/dashboard/DebtPayoffPla
 const FinancialTherapistPage = lazy(() => import('./pages/dashboard/FinancialTherapistPage'));
 const TherapistDemoPage = lazy(() => import('./pages/dashboard/TherapistDemoPage'));
 const PersonalPodcastPage = lazy(() => import('./pages/dashboard/PersonalPodcastPage'));
+const OCRTesterPage = lazy(() => import('./pages/OCRTesterPage'));
+const MobileCheck = lazy(() => import('./pages/debug/MobileCheck'));
+const MobileTest = lazy(() => import('./pages/debug/MobileTest'));
+const NavCheck = lazy(() => import('./pages/debug/NavCheck'));
+const SheetCheck = lazy(() => import('./pages/debug/SheetCheck'));
 const PodcastDashboard = lazy(() => import('./pages/PodcastDashboard'));
 const TaxAssistant = lazy(() => import('./pages/features/tax-assistant'));
 const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistant')); // 🚀🚀🚀 BRAND NEW VERSION
 const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
 const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligence'));
+const TeamRoom = lazy(() => import('./pages/dashboard/TeamRoom'));
 const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
 const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
@@ -160,11 +168,6 @@ function ScrollToTop() {
 function App() {
   const [therapistTrigger] = useAtom(therapistTriggerAtom);
   const [isTherapistModalOpen] = useAtom(isTherapistModalOpenAtom);
-  const mobileRevolution = useMobileRevolution();
-  
-  // Debug logging
-  console.log('App.tsx - mobileRevolution hook result:', mobileRevolution);
-  console.log('App.tsx - current pathname:', window.location.pathname);
   
   return (
     <BossProvider>
@@ -174,30 +177,7 @@ function App() {
             <AIFinancialAssistantProvider>
               <UserProvider>
                 <ScrollToTop />
-                <MobileRevolution 
-                  currentView={mobileRevolution.currentView}
-                  onViewChange={mobileRevolution.handleViewChange}
-                  onUpload={mobileRevolution.handleUpload}
-                  isProcessing={mobileRevolution.isProcessing}
-                  transactionCount={mobileRevolution.transactionCount}
-                  discoveries={mobileRevolution.discoveries}
-                  activeEmployee={mobileRevolution.activeEmployee}
-                  notifications={mobileRevolution.notifications}
-                  onEmployeeSelect={mobileRevolution.handleEmployeeSelect}
-                  onStoryAction={mobileRevolution.handleStoryAction}
-                  isMobile={mobileRevolution.isMobile}
-                />
-                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900" style={{
-                  display: mobileRevolution.isMobile ? 'none' : 'block'
-                }}>
-                  {/* Debug info for desktop */}
-                  {console.log('Desktop content visibility:', {
-                    isMobile: mobileRevolution.isMobile,
-                    isExcludedRoute: mobileRevolution.isExcludedRoute,
-                    shouldShow: !(mobileRevolution.isMobile && !mobileRevolution.isExcludedRoute),
-                    pathname: window.location.pathname
-                  })}
-                  {/* Debug info - Removed */}
+                <ErrorBoundary>
                   <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
                       {/* Marketing routes with BossBubble */}
@@ -214,6 +194,13 @@ function App() {
                         
                         {/* Reports route - redirect to dashboard */}
                         <Route path="/reports" element={<Navigate to="/dashboard/reports" replace />} />
+                        
+                        {/* OCR Tester route */}
+                        <Route path="/ocr-tester" element={<OCRTesterPage />} />
+            <Route path="/debug/mobile" element={<MobileCheck />} />
+            <Route path="/debug/mobile-test" element={<MobileTest />} />
+            <Route path="/debug/navcheck" element={<NavCheck />} />
+            <Route path="/debug/sheet" element={<SheetCheck />} />
                         
                                               {/* Feature pages */}
                       <Route path="/features/smart-import" element={<SmartImportAIFeaturePage />} />
@@ -254,10 +241,31 @@ function App() {
                     </Route>
                     
                     {/* Dashboard routes with persistent layout - Each route shows its specific page */}
-                    <Route path="/dashboard" element={<DashboardLayout />}>
+                    <Route path="/dashboard" element={
+                      <MobileLayoutGate 
+                        Mobile={MobileRevolution} 
+                        Desktop={DashboardLayout}
+                        mobileProps={{
+                          currentView: 'dashboard',
+                          onViewChange: (view: string) => console.log('View change:', view),
+                          onUpload: () => console.log('Upload triggered'),
+                          isProcessing: false,
+                          transactionCount: 0,
+                          discoveries: [],
+                          activeEmployee: "",
+                          notifications: 0,
+                          onEmployeeSelect: (employeeId: string) => console.log('Employee selected:', employeeId),
+                          onStoryAction: (action: string, storyId: string) => console.log('Story action:', action, storyId)
+                        }}
+                        desktopProps={{}}
+                      />
+                    }>
                       <Route index element={<XspensesProDashboard />} />
                       <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} />
+                      <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
+                      <Route path="smart-import" element={<Navigate to="/dashboard/smart-import-ai" replace />} />
+                      <Route path="team-room" element={<TeamRoom />} />
                       <Route path="smart-import-ai" element={<SmartImportAIPage />} />
                       <Route path="financial-story" element={<FinancialStoryPage />} />
                       <Route path="transactions" element={<DashboardTransactionsPage />} />
@@ -284,8 +292,8 @@ function App() {
                       <Route path="business-intelligence" element={<BusinessIntelligencePage />} />
                     </Route>
                     </Routes>
-                  </Suspense>
-                </div>
+                    </Suspense>
+                  </ErrorBoundary>
                 
                 {/* Global Therapist Components */}
                 {therapistTrigger && <TherapistNotification />}

@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import App from './App';
 import './styles.css';
 import './styles/mobile-menu-static.css';
+import './utils/assertSingleMobileNav';
 
 // Import Montserrat font from Google Fonts
 const link = document.createElement('link');

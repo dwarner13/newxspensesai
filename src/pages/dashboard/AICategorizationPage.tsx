@@ -306,7 +306,7 @@ What would you like to explore about your financial data?`;
         return [...filtered, {
           id: Date.now() + 2,
           type: 'ai' as const,
-          content: response?.response || response || 'I received your message but couldn\'t generate a response. Please try again.',
+          content: response || 'I received your message but couldn\'t generate a response. Please try again.',
           timestamp: new Date().toLocaleTimeString(),
           isLoading: false
         }];
@@ -473,43 +473,52 @@ What would you like to explore about your financial data?`;
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        {/* Welcome Header */}
-        <div className="text-center mb-8">
-          <motion.h2
+    <div className="max-w-7xl mx-auto p-6 pt-32">
+        {/* Content */}
+        <div>
+        {/* Page Header */}
+        <div className="text-center mb-12">
+          <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             className="text-xl font-bold text-white mb-1"
           >
-            Welcome to Smart Categories
-          </motion.h2>
+            Smart Categories
+          </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
             className="text-white/60 text-sm mb-3"
           >
+            AI-powered transaction categorization with 96% accuracy
+          </motion.p>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-white/60 text-base max-w-3xl mx-auto"
+          >
             Your intelligent guide to mastering expense categorization and financial insights
           </motion.p>
         </div>
 
-        {/* 6-Box Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {/* Feature Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {/* Box 1: Category Overview */}
           <motion.button
             onClick={() => setCategoryOverviewOpen(true)}
-            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-              <TrendingUp className="w-4 h-4 text-white" />
+            <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <TrendingUp className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-xs font-semibold text-white mb-0">Category Overview</h3>
+              <h3 className="text-sm font-semibold text-white mb-1">Category Overview</h3>
               <p className="text-white/60 text-xs leading-tight">Real-time spending breakdown</p>
             </div>
           </motion.button>
@@ -520,48 +529,48 @@ What would you like to explore about your financial data?`;
               console.log('Quick Categorize button clicked!');
               setQuickCategorizeOpen(true);
             }}
-            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.2 }}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-              <Zap className="w-4 h-4 text-white" />
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Zap className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-xs font-semibold text-white mb-0">Quick Categorize</h3>
+              <h3 className="text-sm font-semibold text-white mb-1">Quick Categorize</h3>
               <p className="text-white/60 text-xs leading-tight">Bulk categorization tools</p>
             </div>
           </motion.button>
 
           {/* Box 3: AI Chat Assistant */}
           <motion.button
-            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-              <Bot className="w-4 h-4 text-white" />
+            <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Bot className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-xs font-semibold text-white mb-0">Tag AI Chat</h3>
+              <h3 className="text-sm font-semibold text-white mb-1">Tag AI Chat</h3>
               <p className="text-white/60 text-xs leading-tight">Chat with Tag AI</p>
             </div>
           </motion.button>
 
           {/* Box 4: Category Rules */}
           <motion.button
-            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.4 }}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-              <Search className="w-4 h-4 text-white" />
+            <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Search className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-xs font-semibold text-white mb-0">Category Rules</h3>
+              <h3 className="text-sm font-semibold text-white mb-1">Category Rules</h3>
               <p className="text-white/60 text-xs leading-tight">Manage categorization rules</p>
             </div>
           </motion.button>
@@ -569,16 +578,16 @@ What would you like to explore about your financial data?`;
           {/* Box 5: Auto Category */}
           <motion.button
             onClick={() => setAutoCategoryOpen(true)}
-            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.5 }}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-              <Bot className="w-4 h-4 text-white" />
+            <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Bot className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-xs font-semibold text-white mb-0">Auto Category</h3>
+              <h3 className="text-sm font-semibold text-white mb-1">Auto Category</h3>
               <p className="text-white/60 text-xs leading-tight">Automatic categorization</p>
             </div>
           </motion.button>
@@ -586,18 +595,18 @@ What would you like to explore about your financial data?`;
           {/* Box 6: Process Overview */}
           <motion.button
             onClick={() => setProcessOverviewOpen(true)}
-            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.6 }}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-xs font-semibold text-white mb-0">Process Overview</h3>
+              <h3 className="text-sm font-semibold text-white mb-1">Process Overview</h3>
               <p className="text-white/60 text-xs leading-tight">See complete workflow</p>
             </div>
           </motion.button>
@@ -605,7 +614,7 @@ What would you like to explore about your financial data?`;
           {/* Box 7: Category Management */}
           <motion.button
             onClick={() => setCategoryManagementOpen(true)}
-            className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+            className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.7 }}
@@ -1738,7 +1747,7 @@ What would you like to explore about your financial data?`;
         >
           <Bot className="w-6 h-6" />
         </button>
-      </div>
+        </div>
     </div>
   );
 };

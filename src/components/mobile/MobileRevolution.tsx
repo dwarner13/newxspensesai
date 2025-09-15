@@ -8,15 +8,14 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Crown, Home, Upload, Bot, Bell, Heart, Menu, 
-  BarChart3, UploadCloud, Brain, FileText, Target, Zap, 
-  TrendingUp, CreditCard, Award, Mic, BookOpen, Music, 
-  Calculator, Building2, Settings, User
+  Crown, Home, Upload, Bot, Bell, Mic
 } from 'lucide-react';
 import BossBubble from '../boss/BossBubble';
 import { useAuth } from '../../contexts/AuthContext';
+import MobileDebugPanel from '../dev/MobileDebugPanel';
+import MobileNavInline from '../navigation/MobileNavInline';
 import './MobileRevolution.css';
 
 // ================================================================================
@@ -40,8 +39,7 @@ const MobileDetection = {
     });
     
     // Show mobile view on dashboard pages with small screens
-    // For testing purposes, also show on larger screens if on dashboard
-    return isDashboardPage && (isSmallScreen || window.innerWidth <= 1200);
+    return isDashboardPage && isSmallScreen;
   },
 
   /**
@@ -347,8 +345,6 @@ interface MobileBottomNavProps {
   onUpload: () => void;
   notifications: number;
   onViewChange: (view: string) => void;
-  isChatbotOpen: boolean;
-  setIsChatbotOpen: (open: boolean) => void;
 }
 
 const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
@@ -356,9 +352,7 @@ const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onEmployeeSelect,
   onUpload,
   onViewChange,
-  notifications,
-  isChatbotOpen,
-  setIsChatbotOpen
+  notifications
 }) => {
   const navigate = useNavigate();
 
@@ -465,17 +459,34 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   onStoryAction,
   isMobile: propIsMobile = false
 }) => {
+  const { pathname } = useLocation();
+
+  // ✅ Render on all dashboard routes (root and sub-routes)
+  const isDashboardRoute = pathname.startsWith("/dashboard");
+
+  // Console logging for debugging
+  console.log('[MobileRevolution] pathname:', pathname, 'isDashboardRoute:', isDashboardRoute, 'isMounted:', isDashboardRoute);
+
+  // Track rendering content
+  useEffect(() => {
+    console.log('[MobileRevolution] Rendering content for pathname:', pathname, 'isDashboardRoute:', isDashboardRoute);
+  }, [pathname, isDashboardRoute]);
+
+  // If not a dashboard route, unmount completely - let other layouts handle non-dashboard pages
+  if (!isDashboardRoute) return null;
   const [stories, setStories] = useState<Story[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isMobile, setIsMobile] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
-  const [mobileModalOpen, setMobileModalOpen] = useState(false);
-  const [mobileModalContent, setMobileModalContent] = useState<{
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState<{
     title: string;
     content: React.ReactNode;
   } | null>(null);
-  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  
+  const closeModal = () => {
+    setModalOpen(false);
+    setModalContent(null);
+  };
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -518,18 +529,22 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
 
   // Mobile card handlers
   const handleMobileCategorization = () => {
+    console.log('Mobile: Navigating to ai-categorization');
     navigate('/dashboard/ai-categorization');
   };
 
   const handleMobileTransactions = () => {
+    console.log('Mobile: Navigating to transactions');
     navigate('/dashboard/transactions');
   };
 
   const handleMobileSmartAutomation = () => {
+    console.log('Mobile: Navigating to smart-automation');
     navigate('/dashboard/smart-automation');
   };
 
   const handleMobileDebtPlanner = () => {
+    console.log('Mobile: Navigating to debt-payoff-planner');
     navigate('/dashboard/debt-payoff-planner');
   };
 
@@ -633,44 +648,8 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     { name: 'Settings', path: '/dashboard/settings', hasDropdown: false }
   ];
 
-  // Close mobile menu when location changes
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, []);
 
-  // Lock body scroll when mobile menu is open
-  useEffect(() => {
-    if (isMobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
 
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isMobileMenuOpen]);
-
-  // Close mobile menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        isMobileMenuOpen &&
-        mobileMenuRef.current &&
-        !mobileMenuRef.current.contains(event.target as Node)
-      ) {
-        setIsMobileMenuOpen(false);
-      }
-    };
-
-    if (isMobileMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isMobileMenuOpen]);
 
   // Use the isMobile prop from the hook instead of component's own detection
   useEffect(() => {
@@ -678,10 +657,12 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     setIsMobile(propIsMobile);
     
     if (propIsMobile) {
-      loadStories();
+      // NEVER load stories - always show dashboard view
+      // loadStories(); // COMMENTED OUT - Never load stories
       loadEmployees();
     }
   }, [propIsMobile, currentView]);
+
 
   // Debug logging
   console.log('🚀 MobileRevolution render check:', {
@@ -715,61 +696,9 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   }
 
   // Don't render on desktop - use ONLY the isMobile prop from hook
-  // Ignore the component's own mobile detection to avoid conflicts
   if (!propIsMobile) {
-    console.log('❌ Not mobile, not rendering MobileRevolution - propIsMobile:', propIsMobile, 'path:', window.location.pathname);
     return null;
   }
-
-  // DEBUG: Add visible indicator for live site debugging
-  console.log('🚀 MOBILE REVOLUTION RENDERING ON LIVE SITE!', {
-    propIsMobile,
-    currentView,
-    pathname: window.location.pathname,
-    userAgent: navigator.userAgent,
-    timestamp: new Date().toISOString()
-  });
-
-  // FORCE DASHBOARD VIEW FOR LIVE SITE DEBUGGING
-  const effectiveView = window.location.pathname === '/dashboard' ? 'dashboard' : currentView;
-  if (window.location.pathname === '/dashboard' && currentView !== 'dashboard') {
-    console.log('🔧 FORCING DASHBOARD VIEW - currentView was:', currentView, 'forcing to dashboard');
-  }
-  
-  // Additional safety check - if we're on an excluded route, don't render
-  const excludedRoutes = [
-    // '/dashboard', // Removed - allow mobile navbar on main dashboard
-    // '/dashboard/', // Removed - allow mobile navbar on main dashboard
-    '/dashboard/podcast', 
-    '/dashboard/ai-financial-assistant',
-    '/dashboard/personal-podcast',
-    '/dashboard/smart-import-ai',
-    '/dashboard/financial-story',
-    '/dashboard/goal-concierge',
-    '/dashboard/spending-predictions',
-    '/dashboard/ai-categorization',
-    '/dashboard/bill-reminders',
-    '/dashboard/debt-payoff-planner',
-    '/dashboard/ai-financial-freedom',
-    '/dashboard/spotify-integration',
-    // '/dashboard/wellness-studio', // Temporarily removed to show mobile navbar
-    '/dashboard/smart-automation',
-    '/dashboard/analytics',
-    '/dashboard/settings'
-  ];
-  
-  if (excludedRoutes.includes(window.location.pathname)) {
-    console.log('❌ Route excluded, not rendering MobileRevolution - path:', window.location.pathname);
-    return null;
-  }
-  
-  console.log('✅ Mobile detected, rendering MobileRevolution dashboard');
-  console.log('🔍 MobileRevolution render state:', {
-    isMobile,
-    currentView,
-    stories: stories.length,
-    employees: employees.length
-  });
 
   const handleStoryAction = (action: string, storyId: string) => {
     if (onStoryAction) {
@@ -787,348 +716,38 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   const handleProcessingComplete = () => {
     onViewChange('stories');
   };
-  
-  console.log('✅ Mobile detected, rendering MobileRevolution dashboard');
-
-  // Add a visible debug indicator that always shows
-  if (typeof window !== 'undefined') {
-    console.log('🎯 MOBILE REVOLUTION COMPONENT IS RENDERING!');
-    console.log('Current props:', { currentView, isMobile, propIsMobile });
-  }
-
-  console.log('🎯 RENDERING MOBILE REVOLUTION COMPONENT');
-  console.log('🔍 Dashboard rendering debug:', {
-    effectiveView,
-    propIsMobile,
-    currentView,
-    pathname: window.location.pathname,
-    shouldRenderDashboard: effectiveView === 'dashboard' && propIsMobile
-  });
 
   return (
-    <div className="mobile-revolution-container mobile-active">
-      {/* DEBUG: Always visible mobile indicator */}
-      <div style={{
-        position: 'fixed',
-        top: '10px',
-        left: '10px',
-        background: 'red',
-        color: 'white',
-        padding: '10px',
-        zIndex: 9999,
-        fontSize: '12px'
-      }}>
-        MOBILE: {propIsMobile ? 'YES' : 'NO'} | VIEW: {effectiveView} | PATH: {window.location.pathname}
-      </div>
+    <div className="mobile-only mobile-revolution-container mobile-active">
 
       {/* Main Content Area */}
       <div className="mobile-content">
-        {effectiveView === 'stories' && propIsMobile && (
-          <MobileStoryFeed 
-            stories={stories}
-            onStoryAction={handleStoryAction}
-          />
-        )}
-        
-        {effectiveView === 'processing' && propIsMobile && (
-          <MobileProcessingShow
-            isProcessing={isProcessing}
-            transactionCount={transactionCount}
-            discoveries={discoveries}
-            onComplete={handleProcessingComplete}
-          />
-        )}
-        
-        {effectiveView === 'live' && propIsMobile && (
-          <MobileLiveMode
-            employees={employees}
-            isLive={true}
-          />
-        )}
-        
-        {effectiveView === 'chat' && propIsMobile && (
-          <div className="mobile-dashboard">
-            <div className="mobile-dashboard-content">
-              <h2 className="mobile-dashboard-title">AI Chat</h2>
-              <p style={{color: 'white', fontSize: '12px', marginBottom: '10px'}}>Chat with Tag AI</p>
-              <div style={{padding: '20px', textAlign: 'center'}}>
-                <p style={{color: 'white'}}>Tag AI Chat interface would go here</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {(effectiveView === 'dashboard' || window.location.pathname === '/dashboard') && propIsMobile && (
-          <div className="mobile-dashboard" style={{ 
-            position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
-            zIndex: 1000,
-            height: '100vh',
-            overflowY: 'auto',
-            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
-          }}>
+        <div className="mobile-dashboard" style={{ 
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
+        }}>
             {/* Mobile Header */}
-            <div className="mobile-header">
+            <div className="mobile-header relative z-[60]">
               <div className="mobile-logo-section">
                 <div className="mobile-logo-icon">
                   <Crown size={24} className="text-white" />
                 </div>
                 <div className="mobile-logo-text">XspensesAI</div>
               </div>
-              <div className="mobile-nav-actions">
-                <button 
-                  className="mobile-menu-btn" 
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  aria-label="Toggle mobile menu"
-                >
-                  <Menu size={24} />
-                </button>
+
+              {/* RIGHT ACTIONS */}
+              <div className="mobile-nav-actions flex items-center gap-2">
+                {/* Self-contained mobile navigation */}
+                <MobileNavInline />
               </div>
             </div>
             
-            {/* Mobile Sidebar Menu */}
-            {isMobileMenuOpen && (
-              <>
-                {/* Backdrop */}
-                <div 
-                  className="mobile-menu-backdrop"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                />
-                
-                {/* Sidebar */}
-                <div 
-                  ref={mobileMenuRef}
-                  className="mobile-sidebar-menu"
-                >
-                  {/* Header */}
-                  <div className="mobile-sidebar-header">
-                    <div className="mobile-sidebar-logo">
-                      <span>XspensesAI</span>
-                </div>
-                    <button 
-                      className="mobile-sidebar-close"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      ✕
-                    </button>
-                </div>
-                  
-                  {/* Navigation */}
-                  <div className="mobile-sidebar-nav">
-                    {/* Main Dashboard - Active */}
-                    <Link
-                      to="/dashboard"
-                      className="mobile-sidebar-item active"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      <BarChart3 size={20} className="mobile-sidebar-icon" />
-                      <span>Main Dashboard</span>
-                    </Link>
-                    
-                    {/* AI Workspace Section */}
-                    <div className="mobile-sidebar-section">
-                      <h3>AI WORKSPACE</h3>
-                      <Link
-                        to="/dashboard/smart-import-ai"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <UploadCloud size={20} className="mobile-sidebar-icon" />
-                        <span>Smart Import AI</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/ai-financial-assistant"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Bot size={20} className="mobile-sidebar-icon" />
-                        <span>AI Chat Assistant</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/ai-categorization"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Brain size={20} className="mobile-sidebar-icon" />
-                        <span>Smart Categories</span>
-                      </Link>
-                </div>
-                    
-                    {/* Planning & Analysis Section */}
-                    <div className="mobile-sidebar-section">
-                      <h3>PLANNING & ANALYSIS</h3>
-                      <Link
-                        to="/dashboard/transactions"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <FileText size={20} className="mobile-sidebar-icon" />
-                        <span>Transactions</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/goal-concierge"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Target size={20} className="mobile-sidebar-icon" />
-                        <span>AI Goal Concierge</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/smart-automation"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Zap size={20} className="mobile-sidebar-icon" />
-                        <span>Smart Automation</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/spending-predictions"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <TrendingUp size={20} className="mobile-sidebar-icon" />
-                        <span>Spending Predictions</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/debt-payoff-planner"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <CreditCard size={20} className="mobile-sidebar-icon" />
-                        <span>Debt Payoff Planner</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/ai-financial-freedom"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Award size={20} className="mobile-sidebar-icon" />
-                        <span>AI Financial Freedom</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/bill-reminders"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Bell size={20} className="mobile-sidebar-icon" />
-                        <span>Bill Reminder System</span>
-                      </Link>
-                    </div>
-                    
-                    {/* Entertainment & Wellness Section */}
-                    <div className="mobile-sidebar-section">
-                      <h3>ENTERTAINMENT & WELLNESS</h3>
-                      <Link
-                        to="/dashboard/podcast"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Mic size={20} className="mobile-sidebar-icon" />
-                        <span>Personal Podcast</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/financial-story"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <BookOpen size={20} className="mobile-sidebar-icon" />
-                        <span>Financial Story</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/financial-therapist"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Heart size={20} className="mobile-sidebar-icon" />
-                        <span>AI Financial Therapist</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/wellness-studio"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Heart size={20} className="mobile-sidebar-icon" />
-                  <span>Wellness Studio</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/spotify-integration"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Music size={20} className="mobile-sidebar-icon" />
-                        <span>Spotify Integration</span>
-                      </Link>
-                </div>
-                    
-                    {/* Business & Tax Section */}
-                    <div className="mobile-sidebar-section">
-                      <h3>BUSINESS & TAX</h3>
-                      <Link
-                        to="/dashboard/tax-assistant"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Calculator size={20} className="mobile-sidebar-icon" />
-                        <span>Tax Assistant</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/business-intelligence"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Building2 size={20} className="mobile-sidebar-icon" />
-                        <span>Business Intelligence</span>
-                      </Link>
-                </div>
-                    
-                    {/* Tools & Settings Section */}
-                    <div className="mobile-sidebar-section">
-                      <h3>TOOLS & SETTINGS</h3>
-                      <Link
-                        to="/dashboard/analytics"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <BarChart3 size={20} className="mobile-sidebar-icon" />
-                        <span>Analytics</span>
-                      </Link>
-                      <Link
-                        to="/dashboard/settings"
-                        className="mobile-sidebar-item"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                      >
-                        <Settings size={20} className="mobile-sidebar-icon" />
-                        <span>Settings</span>
-                      </Link>
-                </div>
-              </div>
-                  
-                  {/* User Profile */}
-                  <div className="mobile-sidebar-profile">
-                    <div className="mobile-sidebar-user">
-                      <div className="mobile-sidebar-avatar">
-                        <User size={20} />
-                      </div>
-                      <div className="mobile-sidebar-user-info">
-                        <div className="mobile-sidebar-user-name">Darrell Warner</div>
-                        <div className="mobile-sidebar-user-status">Premium Member</div>
-                        <div className="mobile-sidebar-user-level">Level 8 Money Master</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-            
+            {/* Dashboard Content - Only renders on root /dashboard */}
             <div className="mobile-dashboard-content">
               <h2 className="mobile-dashboard-title">FinTech Entertainment Platform</h2>
               <p className="mobile-welcome-text">Welcome back, John! Here's your financial overview.</p>
               <div className="mobile-dashboard-cards">
                 {/* AI WORKSPACE CARDS */}
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">📄</div>
                   <div className="mobile-card-content">
                     <h3>Smart Import AI</h3>
@@ -1136,7 +755,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleImportNow}>Import & Chat</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">🤖</div>
                   <div className="mobile-card-content">
                     <h3>AI Chat Assistant</h3>
@@ -1144,7 +763,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={() => handleChatNow('financial-assistant')}>Chat Now</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">🏷️</div>
                   <div className="mobile-card-content">
                     <h3>Smart Categories</h3>
@@ -1154,7 +773,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                 </div>
 
                 {/* PLANNING & ANALYSIS CARDS */}
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">📊</div>
                   <div className="mobile-card-content">
                     <h3>Transactions</h3>
@@ -1162,7 +781,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleMobileTransactions}>View All</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">🎯</div>
                   <div className="mobile-card-content">
                     <h3>AI Goal Concierge</h3>
@@ -1170,7 +789,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleSetGoals}>Set Goals</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">⚡</div>
                   <div className="mobile-card-content">
                     <h3>Smart Automation</h3>
@@ -1178,7 +797,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleMobileSmartAutomation}>Configure</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">📈</div>
                   <div className="mobile-card-content">
                     <h3>Spending Predictions</h3>
@@ -1186,7 +805,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleViewPredictions}>View Predictions</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">💳</div>
                   <div className="mobile-card-content">
                     <h3>Debt Payoff Planner</h3>
@@ -1194,7 +813,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleMobileDebtPlanner}>Attack Debt</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">💰</div>
                   <div className="mobile-card-content">
                     <h3>AI Financial Freedom</h3>
@@ -1202,7 +821,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleMobileFinancialFreedom}>Get Strategy</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">🔔</div>
                   <div className="mobile-card-content">
                     <h3>Bill Reminder System</h3>
@@ -1212,7 +831,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                 </div>
 
                 {/* ENTERTAINMENT & WELLNESS CARDS */}
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">🎙️</div>
                   <div className="mobile-card-content">
                     <h3>Personal Podcast</h3>
@@ -1220,7 +839,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={() => navigate('/dashboard/podcast')}>Listen Now</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">📖</div>
                   <div className="mobile-card-content">
                     <h3>Financial Story</h3>
@@ -1228,7 +847,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleMobileFinancialStory}>Create Story</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">💖</div>
                   <div className="mobile-card-content">
                     <h3>AI Financial Therapist</h3>
@@ -1236,7 +855,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleMobileFinancialTherapist}>Start Session</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">🧘</div>
                   <div className="mobile-card-content">
                     <h3>Wellness Studio</h3>
@@ -1244,7 +863,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleMobileWellnessStudio}>Start Session</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">🎵</div>
                   <div className="mobile-card-content">
                     <h3>Spotify Integration</h3>
@@ -1254,7 +873,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                 </div>
 
                 {/* BUSINESS & TAX CARDS */}
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">📋</div>
                   <div className="mobile-card-content">
                     <h3>Tax Assistant</h3>
@@ -1262,7 +881,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                     <button className="mobile-card-button" onClick={handleMobileTaxAssistant}>Get Started</button>
                   </div>
                 </div>
-                <div className="mobile-card">
+                <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
                   <div className="mobile-card-icon">📊</div>
                   <div className="mobile-card-content">
                     <h3>Business Intelligence</h3>
@@ -1271,75 +890,24 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   </div>
                 </div>
               </div>
-              
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
-      {/* Mobile Crown Button for Prime Chatbot */}
-      <button
-        onClick={() => setIsChatbotOpen(true)}
-        className="fixed bottom-24 right-4 z-50 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110 active:scale-95"
-        style={{
-          boxShadow: '0 8px 25px rgba(251, 191, 36, 0.4)',
-          width: '56px',
-          height: '56px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <Crown size={28} />
-      </button>
-
       {/* Bottom Navigation - MobileRevolution's custom navbar */}
-              <MobileBottomNav
-          activeEmployee={activeEmployee}
-          onEmployeeSelect={handleEmployeeSelect}
-          onUpload={onUpload}
-          notifications={notifications}
+      <MobileBottomNav
+        activeEmployee={activeEmployee}
+        onEmployeeSelect={handleEmployeeSelect}
+        onUpload={onUpload}
+        notifications={notifications}
         onViewChange={onViewChange}
-        isChatbotOpen={isChatbotOpen}
-        setIsChatbotOpen={setIsChatbotOpen}
       />
       
-      
-      
-      {/* Prime Chatbot - Using the actual BossBubble component */}
-      {isChatbotOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.8)',
-          backdropFilter: 'blur(10px)',
-          zIndex: 10000,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '10px'
-        }} onClick={() => setIsChatbotOpen(false)}>
-          <div style={{
-            background: 'white',
-            borderRadius: '20px',
-            width: '100%',
-            maxWidth: '90vw',
-            height: '90vh',
-            maxHeight: '700px',
-            overflow: 'hidden',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
-            position: 'relative'
-          }} onClick={(e) => e.stopPropagation()}>
+      {/* Prime Chatbot - Using the main BossBubble component */}
       <BossBubble />
-    </div>
-        </div>
-      )}
 
       {/* Mobile Modal for Card Content */}
-      {mobileModalOpen && mobileModalContent && (
+      {modalOpen && modalContent && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -1352,7 +920,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
           alignItems: 'center',
           justifyContent: 'center',
           padding: '20px'
-        }} onClick={closeMobileModal}>
+        }} onClick={closeModal}>
           <div style={{
             width: '100%',
             maxWidth: '400px',
@@ -1376,10 +944,10 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                 fontWeight: 'bold',
                 margin: 0
               }}>
-                {mobileModalContent.title}
+                {modalContent.title}
               </h2>
               <button
-                onClick={closeMobileModal}
+                onClick={closeModal}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -1396,11 +964,23 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
               color: 'white',
               lineHeight: '1.6'
             }}>
-              {mobileModalContent.content}
+              {modalContent.content}
             </div>
           </div>
         </div>
       )}
+
+      {/* Debug Panel */}
+      <MobileDebugPanel data={{
+        path: window.location.pathname,
+        width: window.innerWidth,
+        isMobile: propIsMobile,
+        isMobileByWidth: window.innerWidth <= 768,
+        isLikelyMobileUA: /iphone|android|ipad|ipod|mobile|silk|kindle|opera mini|palm|blackberry/.test(navigator.userAgent.toLowerCase()),
+        isExcludedRoute: false,
+        shouldRenderMobile: propIsMobile,
+        currentView: currentView
+      }} />
 
     </div>
   );

@@ -108,67 +108,102 @@ const AIGoalConcierge = () => {
   };
 
   return (
-    <div className="w-full">
-      <DashboardHeader />
-      
-      <div className="max-w-7xl mx-auto space-y-8 px-6">
-        {/* AI Learning Timeline */}
-        <section className="ai-timeline-section">
-          <div className="timeline-header">
-            <div className="ai-coach-info">
-              <div className="ai-coach-avatar">
-                <Bot size={24} />
+    <div className="max-w-7xl mx-auto p-6 pt-32">
+      {/* Welcome Section */}
+      <div className="text-center mb-8">
+        <h2 className="text-xl font-bold text-white mb-1">
+          Welcome to Goalie's Goals Setting Session
+        </h2>
+        <p className="text-white/60 text-sm mb-3">
+          Your intelligent guide to setting, tracking, and achieving your financial goals
+        </p>
+      </div>
+
+      <div className="space-y-8">
+        {/* Goalie AI Assistant */}
+        <section className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                <Bot className="w-6 h-6 text-white" />
               </div>
-              <div className="coach-details">
-                <h3>AI Learning Timeline</h3>
-                <div className="coach-status">
-                  <div className="online-indicator"></div>
-                  <span>Watch how your AI coach evolves</span>
-                </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Goalie AI</h3>
+                <p className="text-white/60 text-sm">Your personal goal-setting coach</p>
               </div>
             </div>
-            <button className="timeline-toggle">
-              <TrendingUp size={20} />
-              <span>View Progress</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm">AI Active</span>
+            </div>
           </div>
           
-          <div className="timeline-content">
-            <div className="timeline-track">
-              {learningMilestones.map((milestone, index) => (
-                <div key={milestone.id} className="timeline-item">
-                  <div className={`timeline-marker ${milestone.completed ? 'completed' : ''}`}>
-                    {milestone.completed ? <CheckCircle size={16} /> : <Clock size={16} />}
-                  </div>
-                  <div className="timeline-content">
-                    <h4 className="timeline-title">{milestone.title}</h4>
-                    <p className="timeline-description">{milestone.description}</p>
-                    <span className="timeline-date">{milestone.date}</span>
-                  </div>
-                </div>
-              ))}
+          <div className="bg-white/10 rounded-lg p-4 mb-4">
+            <p className="text-white/80 text-sm mb-3">
+              "Hi! I'm Goalie, your AI goal-setting assistant. I can help you create smart financial goals, 
+              track your progress, and provide personalized strategies to achieve them faster. What would you like to work on today?"
+            </p>
+            <div className="flex gap-2">
+              <button className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg text-sm transition-colors">
+                Chat with Goalie
+              </button>
+              <button className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-sm transition-colors">
+                Get Goal Suggestions
+              </button>
             </div>
           </div>
         </section>
 
-        {/* Financial Goals */}
-        <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
+        {/* AI-Powered Goal Management */}
+        <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-white">Your Financial Goals</h2>
-            <button
-              onClick={() => setShowGoalForm(!showGoalForm)}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
-            >
-              <Target size={16} />
-              <span>Add Goal</span>
-            </button>
+            <div>
+              <h2 className="text-xl font-bold text-white">AI-Powered Goal Management</h2>
+              <p className="text-white/60 text-sm">Let Goalie help you set and achieve your financial goals</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowGoalForm(!showGoalForm)}
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2"
+              >
+                <Target size={16} />
+                <span>Create Goal</span>
+              </button>
+              <button className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2">
+                <Zap size={16} />
+                <span>AI Suggestions</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Goalie's Insights */}
+          <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg p-4 mb-6">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Bot className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="text-purple-400 font-semibold text-sm mb-1">🎯 Goalie's Analysis</div>
+                <p className="text-white/80 text-sm leading-relaxed mb-2">
+                  "You're making great progress! Your Emergency Fund is 57% complete. I suggest increasing your monthly contribution by $200 to reach your goal 2 months early."
+                </p>
+                <div className="flex gap-2">
+                  <button className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded px-3 py-1 text-xs transition-colors">
+                    Get Strategy
+                  </button>
+                  <button className="bg-white/10 hover:bg-white/20 text-white rounded px-3 py-1 text-xs transition-colors">
+                    Adjust Goal
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {goals.map((goal) => (
               <div
                 key={goal.id}
-                className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all cursor-pointer"
+                className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all cursor-pointer group"
                 onClick={() => setSelectedGoal(goal.id)}
               >
                 <div className="flex items-center justify-between mb-3">
@@ -188,7 +223,7 @@ const AIGoalConcierge = () => {
                     </div>
                     <div className="w-full bg-white/20 rounded-full h-2">
                       <div
-                        className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all"
+                        className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all"
                         style={{ width: `${getProgressPercentage(goal.currentAmount, goal.targetAmount)}%` }}
                       />
                     </div>
@@ -213,9 +248,61 @@ const AIGoalConcierge = () => {
                     <span className="text-white/60">Priority</span>
                     <span className={`${getPriorityColor(goal.priority)} capitalize`}>{goal.priority}</span>
                   </div>
+                  
+                  {/* Quick Actions */}
+                  <div className="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded px-2 py-1 text-xs transition-colors">
+                      Ask Goalie
+                    </button>
+                    <button className="bg-white/10 hover:bg-white/20 text-white rounded px-2 py-1 text-xs transition-colors">
+                      Update
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Quick Actions Section */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                  <Target className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="text-white font-semibold text-sm">Smart Goal Creation</h3>
+              </div>
+              <p className="text-white/60 text-xs mb-3">Let Goalie analyze your finances and suggest personalized goals</p>
+              <button className="w-full bg-green-500 hover:bg-green-600 text-white rounded px-3 py-2 text-xs transition-colors">
+                Create Smart Goal
+              </button>
+            </div>
+
+            <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="text-white font-semibold text-sm">Progress Tracking</h3>
+              </div>
+              <p className="text-white/60 text-xs mb-3">Get AI-powered insights on your goal progress and recommendations</p>
+              <button className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded px-3 py-2 text-xs transition-colors">
+                View Analytics
+              </button>
+            </div>
+
+            <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                  <Star className="w-4 h-4 text-white" />
+                </div>
+                <h3 className="text-white font-semibold text-sm">Achievement Rewards</h3>
+              </div>
+              <p className="text-white/60 text-xs mb-3">Celebrate milestones and unlock achievements with Goalie</p>
+              <button className="w-full bg-purple-500 hover:bg-purple-600 text-white rounded px-3 py-2 text-xs transition-colors">
+                View Achievements
+              </button>
+            </div>
           </div>
         </div>
       </div>

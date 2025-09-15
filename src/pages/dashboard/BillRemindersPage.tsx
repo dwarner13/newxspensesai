@@ -491,16 +491,24 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 pb-20">
-      <motion.div
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
+      {/* Content */}
+      <div>
+        <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">AI Bill Protection System</h1>
-            <p className="text-white/70 text-sm sm:text-base">Where Chime and his AI team transform bill management from stress into seamless, intelligent protection with 100% payment success rate</p>
+        <div className="flex justify-end">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400 text-sm font-medium">Chime AI Active</span>
+            </div>
+            <div className="text-2xl">🏠</div>
+          </div>
+        </div>
+      </motion.div>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -1017,6 +1025,7 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
           </div>
         </motion.div>
       )}
+      </div>
     </div>
   );
 }

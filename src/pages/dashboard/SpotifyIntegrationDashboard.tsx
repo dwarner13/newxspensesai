@@ -69,9 +69,7 @@ const SpotifyIntegrationDashboard = () => {
   };
 
   return (
-    <div>
-      <DashboardHeader />
-
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
       <div className="space-y-8">
         {/* Connection Status */}
         <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl shadow-2xl p-8">

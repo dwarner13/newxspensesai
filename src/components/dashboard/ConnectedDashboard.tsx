@@ -31,7 +31,7 @@ interface ConnectedDashboardProps {
 }
 
 export function ConnectedDashboard({ className = '', isSidebarCollapsed = false }: ConnectedDashboardProps) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [aiController] = useState(new UniversalAIController());
   const [activeChat, setActiveChat] = useState<string | null>(null);
@@ -41,6 +41,31 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   const [isMobile, setIsMobile] = useState(false);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
   const [processingFileName, setProcessingFileName] = useState('');
+
+  // Debug logging
+  console.log('ConnectedDashboard render:', { user: !!user, loading, aiController: !!aiController });
+
+  // Show loading state while auth is initializing
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-900">
+        <div className="text-white text-xl">Loading...</div>
+      </div>
+    );
+  }
+
+  // Safety check for user - but allow rendering with mock user for now
+  if (!user) {
+    console.log('No user found, using mock user');
+    // For now, let's render the dashboard even without a real user
+    // This will help us see if the issue is with user auth or something else
+  }
+
+  // Safety check for aiController - but allow rendering without it
+  if (!aiController) {
+    console.log('No aiController found, using mock controller');
+    // For now, let's render the dashboard even without the AI controller
+  }
 
   useEffect(() => {
     if (showNotification) {
@@ -101,7 +126,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   };
 
   // AI Financial Assistant Connection
-  const handleChatNow = async (employeeId: string = 'financial-assistant') => {
+  const handleChatNow = async () => {
     if (!user) return;
     
     // Navigate to AI Chat Assistant page
@@ -187,7 +212,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       icon: <MessageCircle className="w-6 h-6" />,
       stats: { available: "24/7", accuracy: "99.7%" },
       buttonText: 'Chat Now',
-      onClick: () => handleChatNow('financial-assistant'),
+      onClick: () => handleChatNow(),
       color: 'from-green-500 to-green-600'
     },
     {
@@ -420,44 +445,44 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
 
       {/* Notification */}
       {showNotification && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          className={`p-4 rounded-lg flex items-center space-x-3 ${
-            showNotification.type === 'success' 
-              ? 'bg-green-500 text-white' 
-              : 'bg-red-500 text-white'
-          }`}
-        >
-          <span>{showNotification.message}</span>
-        </motion.div>
-      )}
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className={`p-4 rounded-lg flex items-center space-x-3 ${
+                showNotification.type === 'success' 
+                  ? 'bg-green-500 text-white' 
+                  : 'bg-red-500 text-white'
+              }`}
+            >
+              <span>{showNotification.message}</span>
+            </motion.div>
+          )}
 
       {/* CORE AI TOOLS Section */}
-      <div className="space-y-4">
+      <div className="space-y-3 mt-16 md:mt-20">
         <div className="text-center">
           <h2 className="text-xl font-bold text-white mb-2">CORE AI TOOLS</h2>
           <p className="text-white/60 text-sm">Essential AI-powered features for your financial management</p>
         </div>
-        <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {aiWorkspaceCards.map((card, index) => (
             <motion.div
               key={card.id}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
+                             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-8 hover:bg-white/10 transition-all duration-300 flex flex-col h-[280px]"
             >
               {/* Header with icon and stats */}
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-10 h-10 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
-                    <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
+                    <div key={key} className="text-sm text-white/60 leading-tight">
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90 font-medium">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -509,14 +534,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-10 h-10 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
-                    <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
+                    <div key={key} className="text-sm text-white/60 leading-tight">
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90 font-medium">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -568,14 +593,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-10 h-10 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
-                    <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
+                    <div key={key} className="text-sm text-white/60 leading-tight">
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90 font-medium">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -627,14 +652,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-10 h-10 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
-                    <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
+                    <div key={key} className="text-sm text-white/60 leading-tight">
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90 font-medium">{value}</span>
                     </div>
                   ))}
                 </div>
@@ -686,14 +711,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
+              <div className="flex items-start justify-between mb-4">
+                <div className={`w-10 h-10 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
                 <div className="text-right h-[2.5rem] flex flex-col justify-start">
                   {Object.entries(card.stats).map(([key, value]) => (
-                    <div key={key} className="text-xs text-white/60 leading-tight">
-                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90">{value}</span>
+                    <div key={key} className="text-sm text-white/60 leading-tight">
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90 font-medium">{value}</span>
                     </div>
                   ))}
                 </div>

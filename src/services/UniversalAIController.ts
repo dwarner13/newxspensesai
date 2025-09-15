@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/lib/supabase';
 import OpenAI from 'openai';
 
 interface AIEmployee {
@@ -45,15 +45,24 @@ export class UniversalAIController {
   private employees: Record<string, AIEmployee>;
 
   constructor() {
-    this.openAI = new OpenAI({
-      apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-      dangerouslyAllowBrowser: true
-    });
+    // Handle missing environment variables gracefully
+    const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
+    if (openaiKey && openaiKey !== 'your-api-key-here') {
+      this.openAI = new OpenAI({
+        apiKey: openaiKey,
+        dangerouslyAllowBrowser: true
+      });
+    } else {
+      console.warn('OpenAI API key not configured, AI features will be limited');
+      this.openAI = null as any;
+    }
     
-    this.supabase = createClient(
-      import.meta.env.VITE_SUPABASE_URL,
-      import.meta.env.VITE_SUPABASE_ANON_KEY
-    );
+    try {
+      this.supabase = getSupabase();
+    } catch (error) {
+      console.warn('Supabase not configured, some features will be limited');
+      this.supabase = null as any;
+    }
     
     this.employees = this.initializeAllEmployees();
   }
@@ -454,6 +463,16 @@ export class UniversalAIController {
   ): Promise<ChatResponse> {
     const employee = this.employees[employeeId];
     if (!employee) throw new Error(`Employee ${employeeId} not found`);
+
+    // Handle case where OpenAI is not configured
+    if (!this.openAI) {
+      return {
+        response: "I'm sorry, but AI features are not currently available. Please check your configuration.",
+        employee: employee.name,
+        actions: [],
+        personality: employee.personality
+      };
+    }
 
     try {
       // Get user context and financial data

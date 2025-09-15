@@ -1,0 +1,10 @@
+[33m22fe1aa[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m 🐛 Fix JSX syntax errors in WellnessStudioPage
+[33m79e17f6[m 🚀 Complete Mobile Responsiveness Overhaul
+[33me05313d[m 🎵 Add Revolutionary AI Spotify Integration Dashboard
+[33m548577e[m Fix all dashboard routes to work properly on desktop - Synchronize excluded routes with actual App.tsx routes - Add missing routes: transactions, smart-categories, therapist-demo, reports, spotify-integration-new, financial-therapist - Remove swipe up indicators that interfere with mobile scrolling - Ensure all dashboard pages render correctly on desktop
+[33m37ac184[m Temporarily remove ai-financial-assistant from excluded routes to test desktop functionality
+[33mc823dd2[m Remove swipe up indicators that interfere with mobile scrolling - Remove swipe-hint from story feed - Remove swipe-up-indicator from dashboard - Remove associated CSS animations and styling - Improve mobile scrolling experience
+[33mc3ce078[m Improve mobile navbar sizing and crown chatbot visibility - Increase navbar height to 80px for better iPhone compatibility - Improve nav item touch targets and padding - Make crown chatbot button larger and more visible - Add responsive sizing for different screen sizes
+[33me05b2f8[m Fix mobile dashboard view not showing on live site - Force dashboard view when on /dashboard route - Add debugging logs for live site troubleshooting - Use effectiveView to ensure correct view rendering
+[33m96d19aa[m Fix mobile navbar overflow and improve responsive design - Add section titles to mobile dashboard cards - Fix mobile/desktop switching without page refresh - Improve mobile sidebar profile styling - Add comprehensive mobile dashboard cards matching desktop
+[33m3c2ac12[m Fix Heart icon import error - Added missing Heart import from lucide-react - This fixes the ReferenceError that was preventing mobile dashboard from rendering - Mobile detection is working correctly, just needed this import fix

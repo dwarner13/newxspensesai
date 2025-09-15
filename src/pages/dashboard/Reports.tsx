@@ -284,7 +284,7 @@ export default function Reports() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 p-4 sm:p-6 pb-20">
+    <div className="max-w-7xl mx-auto p-6 pt-24">
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}

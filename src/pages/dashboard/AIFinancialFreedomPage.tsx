@@ -405,26 +405,25 @@ Hello! I'm Finley, your personal financial coach. I educate and empower you with
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 pb-20">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">AI Financial Freedom Division</h1>
-            <p className="text-white/70 text-sm sm:text-base">Where 5 AI specialists collaborate to transform your financial stress into complete freedom with 87% stress reduction and personalized liberation strategies</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm font-medium">AI Team Active</span>
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
+      {/* Content */}
+      <div>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8"
+        >
+          <div className="flex justify-end">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
+                <span className="text-yellow-400 text-sm font-medium">Freedom AI Active</span>
+              </div>
+              <div className="text-2xl">🏆</div>
             </div>
-            <div className="text-2xl">🗽</div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
 
       {/* Navigation Tabs */}
       <motion.div
@@ -809,7 +808,7 @@ Hello! I'm Finley, your personal financial coach. I educate and empower you with
 
       {/* AI Chat Section */}
       {activeView === 'chat' && (
-            <motion.div
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
@@ -915,6 +914,7 @@ Hello! I'm Finley, your personal financial coach. I educate and empower you with
                 </div>
               </div>
             </motion.div>
+        </motion.div>
       )}
     </div>
   );

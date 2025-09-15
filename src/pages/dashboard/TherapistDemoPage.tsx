@@ -1,6 +1,5 @@
 import React from 'react';
 import { Heart, Bell, AlertTriangle, TrendingUp, Clock, Zap } from 'lucide-react';
-import DashboardHeader from '../../components/ui/DashboardHeader';
 import { simulateTherapistTrigger, resetTherapistTriggers, setTherapistTriggerFunction } from '../../utils/therapistTriggers';
 import { useSetAtom } from 'jotai';
 import { therapistTriggerAtom } from '../../lib/uiStore';
@@ -50,11 +49,9 @@ const TherapistDemoPage: React.FC = () => {
   ];
 
   return (
-    <div className="w-full">
-      <DashboardHeader />
-      
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
       {/* Content Area with Enhanced Styling */}
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="space-y-8">
         
         {/* Status Bar */}
         <div className="bg-gradient-to-r from-purple-600/20 to-blue-600/20 rounded-lg p-4 border border-purple-200/30 mb-8">

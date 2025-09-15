@@ -1,6 +1,14 @@
+/**
+ * @deprecated Use src/components/navigation/MobileNav instead
+ * This component is deprecated and will be removed in a future version.
+ * The new MobileNav uses NAV_ITEMS from nav-registry.tsx as single source of truth.
+ */
+console.warn("[DEPRECATED] Using old mobile nav. Replace with MobileNav.");
+
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import Logo from '../common/Logo';
 
 interface MobileSidebarProps {
@@ -11,10 +19,12 @@ interface MobileSidebarProps {
 
 export default function MobileSidebar({ open, onClose, children }: MobileSidebarProps) {
   const location = useLocation();
-
-  // CORRECT LOGIC: Only show sidebar on dashboard routes
+  
+  console.log('🔍 MobileSidebar render:', { open, children: !!children, childrenType: typeof children });
+  
+  // Only show sidebar on dashboard routes
   if (!location.pathname.startsWith('/dashboard')) {
-    return null; // Hide sidebar on ALL non-dashboard routes
+    return null;
   }
   
   // Show sidebar ONLY on dashboard routes
@@ -31,46 +41,68 @@ export default function MobileSidebar({ open, onClose, children }: MobileSidebar
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  // Removed early return to allow sidebar to render with transform
+
+  // Simple test - render directly without portal
+  if (!open) {
+    return null;
+  }
 
   return (
-    <div className="fixed inset-0 z-50 lg:hidden">
-      {/* Backdrop */}
-      <div
-        aria-hidden
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-in-out"
-      />
-      
-      {/* Sidebar */}
-      <aside
-        role="dialog"
-        aria-modal="true"
-        className="absolute inset-y-0 left-0 w-full max-w-[85vw] sm:max-w-[320px] bg-[#0b0f2a] shadow-2xl border-r border-white/10 flex flex-col transform transition-transform duration-300 ease-in-out"
-        style={{
-          transform: open ? 'translateX(0)' : 'translateX(-100%)'
-        }}
-      >
-        {/* Header with close button */}
-        <div className="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-gradient-to-r from-[#0b0f2a] to-[#1a1f3a] backdrop-blur-md">
-          <div className="flex items-center gap-4">
-            <Logo size="lg" showText={false} />
-            <span className="font-bold text-2xl leading-tight tracking-tight text-white drop-shadow-sm">XspensesAI</span>
-          </div>
-          <button
-            aria-label="Close menu"
-            onClick={onClose}
-            className="rounded-xl p-3 hover:bg-white/10 transition-all duration-300 text-white/80 hover:text-white hover:scale-110 active:scale-95"
-          >
-            <X className="h-6 w-6" />
-          </button>
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.8)',
+      zIndex: 99999,
+      display: 'flex'
+    }}>
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: '300px',
+        backgroundColor: '#0b0f2a',
+        border: '5px solid red',
+        padding: '20px',
+        color: 'white',
+        fontSize: '18px'
+      }}>
+        <div style={{ marginBottom: '20px', background: 'yellow', color: 'black', padding: '10px' }}>
+          SIDEBAR IS WORKING! State: {open ? 'TRUE' : 'FALSE'}
         </div>
-        
-        {/* Content area with proper padding and spacing */}
-        <div className="flex-1 overflow-y-auto py-6">
-          {children}
+        <div style={{ marginBottom: '20px' }}>
+          <h3>Main Dashboard</h3>
         </div>
-      </aside>
+        <div style={{ marginBottom: '20px' }}>
+          <h3>AI WORKSPACE</h3>
+          <div>Smart Import AI</div>
+          <div>AI Chat Assistant</div>
+          <div>Smart Categories</div>
+        </div>
+        <div style={{ marginBottom: '20px' }}>
+          <h3>PLANNING & ANALYSIS</h3>
+          <div>Financial Reports</div>
+          <div>Budget Planning</div>
+          <div>Analytics</div>
+        </div>
+        <button 
+          onClick={onClose}
+          style={{
+            background: 'red',
+            color: 'white',
+            border: 'none',
+            padding: '10px 20px',
+            borderRadius: '5px',
+            cursor: 'pointer'
+          }}
+        >
+          CLOSE SIDEBAR
+        </button>
+      </div>
     </div>
   );
 }

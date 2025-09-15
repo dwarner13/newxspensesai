@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import supabase from '../lib/supabase';
+import { getSupabase } from '../lib/supabase';
 
 interface AuthContextType {
   user: any;
@@ -18,6 +18,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
   const navigate = useNavigate();
+  
+  console.log('AuthProvider render:', { user: !!user, loading, initialLoad });
   
   // Refs for cleanup (currently unused due to bypass)
   // const authTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -47,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(bypassUser);
       setLoading(false);
       setInitialLoad(false);
-      console.log('🔍 AuthContext: Production auth temporarily disabled, using bypass user');
+      console.log('🔍 AuthContext: Production auth temporarily disabled, using bypass user', bypassUser);
       return;
     }
 
@@ -58,11 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         console.log('🔍 AuthContext: Checking Supabase session...');
         
-        // Wait for Supabase to be initialized
-        if (!supabase) {
-          console.log('🔍 AuthContext: Waiting for Supabase to initialize...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
+        // Get Supabase client
+        const supabase = getSupabase();
         
         if (!supabase) {
           console.log('🔍 AuthContext: Supabase not available, using bypass');
@@ -103,10 +102,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     checkSession();
 
-    // Set up auth state change listener only if supabase is available
+    // Set up auth state change listener
     let subscription: any = null;
     
-    if (supabase && supabase.auth) {
+    try {
+      const supabase = getSupabase();
       const { data } = supabase.auth.onAuthStateChange(
         async (event: string, session: any) => {
           console.log('🔍 AuthContext: Auth state change:', event, session?.user?.email);
@@ -143,6 +143,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       );
       subscription = data.subscription;
+    } catch (error) {
+      console.error('❌ AuthContext: Failed to set up auth listener:', error);
     }
 
     // Cleanup function
@@ -158,6 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔍 AuthContext: Signing in with Google...');
       
+      const supabase = getSupabase();
       if (!supabase || !supabase.auth) {
         console.log('⚡ Dev mode: Google sign-in skipped');
         toast.success('Development mode - sign-in simulated');
@@ -187,6 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔍 AuthContext: Signing in with Apple...');
       
+      const supabase = getSupabase();
       if (!supabase || !supabase.auth) {
         console.log('⚡ Dev mode: Apple sign-in skipped');
         toast.success('Development mode - sign-in simulated');
@@ -216,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔍 AuthContext: Signing out user...');
 
+      const supabase = getSupabase();
       if (!supabase || !supabase.auth) {
         // Development mode - just clear the user state
         console.log('⚡ Dev mode: sign-out simulated');
@@ -245,8 +250,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (loading && initialLoad) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4"></div>
+        <div className="text-center flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4 mx-auto"></div>
           <p className="text-gray-600">Checking authentication...</p>
         </div>
       </div>
@@ -317,8 +322,8 @@ export function AppWithAuth({ children }: { children: ReactNode }) {
   if (!authInitialized) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <div className="text-center flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4 mx-auto"></div>
           <p className="text-white text-lg">Initializing...</p>
         </div>
       </div>

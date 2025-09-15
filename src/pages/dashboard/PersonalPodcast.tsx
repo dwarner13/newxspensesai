@@ -633,10 +633,7 @@ Could you tell me more specifically what podcast creation topic you'd like to di
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-orange-900 to-slate-900">
-      <DashboardHeader />
-
-      <div className="max-w-7xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
         {/* Roundtable Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

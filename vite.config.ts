@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
+import path from 'path';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -9,6 +10,11 @@ export default defineConfig({
     react(),
     visualizer({ open: false }), // view bundle size with `npm run build`
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   optimizeDeps: {
     exclude: ['lucide-react'],
     include: ['react', 'react-dom', 'react-router-dom', 'framer-motion'],

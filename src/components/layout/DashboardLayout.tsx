@@ -1,19 +1,27 @@
 import React, { useEffect, useState } from "react";
-import { Outlet, useLocation } from "react-router-dom";
-import Sidebar from "./Sidebar";
-import MobileSidebar from "./MobileSidebar";
-// import BottomNav from "./BottomNav"; // Removed to avoid conflicts with MobileRevolution
-import Logo from "../common/Logo";
-import AITeamSidebar from "./AITeamSidebar";
-import DashboardHeader from "../ui/DashboardHeader";
+import { Outlet } from "react-router-dom";
+import { Crown } from "lucide-react";
+import DesktopSidebar from "../navigation/DesktopSidebar";
+import MobileNavInline from "../navigation/MobileNavInline";
 import BossBubble from "../boss/BossBubble";
+import DashboardHeader from "../ui/DashboardHeader";
+import RightSidebar from "../ui/RightSidebar";
 
 
 
 export default function DashboardLayout() {
-  const [open, setOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const location = useLocation();
+
+
+  // Dev-only guard to detect duplicate sidebars
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      const sidebars = document.querySelectorAll('[data-testid="desktop-sidebar"]');
+      if (sidebars.length > 1) {
+        console.warn('[DesktopSidebar] duplicate sidebars detected:', sidebars.length);
+      }
+    }
+  }, []);
 
   // Add dashboard-page class to body when this component mounts
   useEffect(() => {
@@ -27,79 +35,52 @@ export default function DashboardLayout() {
     };
   }, []);
 
-  // Close drawer on route change (no page scrolling needed)
-  useEffect(() => {
-    setOpen(false);
-  }, [location.pathname]);
 
   return (
     <>
-      <div className="dashboard-layout h-screen bg-[#0f172a] text-white lg:flex" data-page="dashboard" data-sidebar-collapsed={isSidebarCollapsed}>
-        {/* Desktop sidebar - Dynamic width based on collapsed state */}
-        <aside className={`hidden lg:block shrink-0 border-r border-purple-500/20 bg-[rgba(15,23,42,0.95)] transition-all duration-300 ${
-          isSidebarCollapsed ? 'w-[80px]' : 'w-[300px]'
-        }`}>
-          <Sidebar 
-            isMobileOpen={false} 
-            setIsMobileOpen={() => {}} 
-            isCollapsed={isSidebarCollapsed}
-            setIsCollapsed={setIsSidebarCollapsed}
+      <div className="dashboard-layout h-screen bg-[#0f172a] text-white flex" data-page="dashboard" data-sidebar-collapsed={isSidebarCollapsed}>
+        {/* Desktop sidebar - Hidden on mobile */}
+        <div className="hidden lg:block">
+          <DesktopSidebar 
+            collapsed={isSidebarCollapsed}
+            onToggleCollapse={setIsSidebarCollapsed}
           />
-        </aside>
-
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Mobile top bar */}
-          <header className="lg:hidden sticky top-0 z-40 bg-[rgba(15,23,42,0.95)]/95 backdrop-blur border-b border-white/10">
-            <div className="flex items-center gap-3 px-4 py-4">
-              {/* Logo and title - Now on the LEFT */}
-              <div className="flex items-center gap-3 flex-1">
-                <Logo size="md" linkTo="/dashboard" />
-              </div>
-              
-              {/* Hamburger menu - Now on the RIGHT */}
-              <button
-                aria-label="Open menu"
-                onClick={() => setOpen(true)}
-                className="rounded-xl p-3 hover:bg-white/10 transition-colors duration-200 text-white/90 hover:text-white"
-              >
-                {/* Enhanced hamburger menu */}
-                <div className="space-y-1.5">
-                  <span className="block h-0.5 w-6 bg-current transition-all duration-200" />
-                  <span className="block h-0.5 w-6 bg-current transition-all duration-200" />
-                  <span className="block h-0.5 w-6 bg-current transition-all duration-200" />
-                </div>
-              </button>
-            </div>
-          </header>
-
-          {/* Full width header for all dashboard pages */}
-          <div className="w-full">
-            <DashboardHeader />
-          </div>
-          
-          {/* Main content and AI Team Sidebar */}
-          <div className="flex-1 flex overflow-hidden">
-            <main className="flex-1 overflow-y-auto dashboard-main-content">
-              <Outlet />
-            </main>
-            
-            {/* AI Team Sidebar - Show on all dashboard pages */}
-            <aside className="hidden lg:block w-[280px] shrink-0 bg-[rgba(15,23,42,0.95)] border-l border-white/10">
-              <AITeamSidebar />
-            </aside>
-          </div>
         </div>
 
-        {/* Mobile drawer uses the same Sidebar */}
-        <MobileSidebar open={open} onClose={() => setOpen(false)}>
-          <Sidebar isMobileOpen={open} setIsMobileOpen={setOpen} />
-        </MobileSidebar>
+        {/* Middle + Right rail */}
+        <div className="flex flex-1 min-w-0">
+          {/* Middle column */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            {/* Mobile Header - Only visible on mobile */}
+            <div className="lg:hidden w-full p-4 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-xl flex items-center justify-center">
+                  <div className="flex flex-col items-center">
+                    <Crown className="h-4 w-4 text-white stroke-2" />
+                    <div className="w-3 h-0.5 bg-white mt-0.5"></div>
+                  </div>
+                </div>
+                <span className="text-xl font-bold text-white">XspensesAI</span>
+              </div>
+              <MobileNavInline />
+            </div>
 
-        {/* Bottom tabs (mobile only) - Permanently removed to avoid conflicts with MobileRevolution */}
-        
-        {/* Prime Chatbot - Handled by MobileRevolution */}
-        {/* <BossBubble /> */}
+            {/* Shared Dashboard Header - Desktop only */}
+            <div className="hidden lg:block">
+              <DashboardHeader />
+            </div>
+            
+            <main className="flex-1 w-full overflow-y-auto">
+              <Outlet />
+            </main>
+          </div>
+
+          {/* Right sidebar */}
+          <RightSidebar />
+        </div>
+
+        {/* Prime Chatbot - Using the main BossBubble */}
+        <BossBubble />
       </div>
   </>
 );

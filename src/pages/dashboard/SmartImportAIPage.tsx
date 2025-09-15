@@ -248,7 +248,7 @@ const SmartImportAIPage: React.FC = () => {
                   status: 'error', 
                   progress: 0,
                   error: errorCheck.errorMessage,
-                  errorType: errorCheck.errorType
+                  errorType: errorCheck.errorType as ProcessingFile['errorType']
                 }
               : f
           ));
@@ -412,10 +412,10 @@ const SmartImportAIPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col max-h-[calc(100vh-150px)]">
-      {/* Main Content - Clean Workspace */}
-      <div className="flex-1 px-4 py-4 overflow-y-auto">
-        <div className="max-w-5xl mx-auto">
+    <>
+      <div className="w-full pt-32 px-4 sm:px-6 lg:px-8">
+        {/* Main Content - Clean Workspace */}
+        <div className="max-w-6xl mx-auto">
           
           {/* Welcome Banner */}
           <motion.div
@@ -433,105 +433,104 @@ const SmartImportAIPage: React.FC = () => {
           </motion.div>
 
           {/* Feature Modules Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-w-4xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
             <motion.button
-              className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+              className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               onClick={() => setBytePopupOpen(true)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                <UploadCloud className="w-4 h-4 text-white" />
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <UploadCloud className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-xs font-semibold text-white mb-0">Document Upload</h3>
+                <h3 className="text-sm font-semibold text-white mb-1">Document Upload</h3>
                 <p className="text-white/60 text-xs leading-tight">Upload and process files</p>
               </div>
             </motion.button>
 
             <motion.button
-              className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+              className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
               onClick={() => setBytePopupOpen(true)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                <span className="text-white text-sm">📸</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="text-white text-xl">📸</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-xs font-semibold text-white mb-0">Scan Receipt</h3>
+                <h3 className="text-sm font-semibold text-white mb-1">Scan Receipt</h3>
                 <p className="text-white/60 text-xs leading-tight">Camera-based scanning</p>
               </div>
             </motion.button>
 
             <motion.button
-              className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+              className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               onClick={() => setBytePopupOpen(true)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                <span className="text-white text-sm">🏦</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="text-white text-xl">🏦</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-xs font-semibold text-white mb-0">Bank Statement</h3>
+                <h3 className="text-sm font-semibold text-white mb-1">Bank Statement</h3>
                 <p className="text-white/60 text-xs leading-tight">Import bank data</p>
               </div>
             </motion.button>
 
             <motion.button
-              className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+              className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               onClick={() => setBytePopupOpen(true)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                <span className="text-white text-sm">📊</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="text-white text-xl">📊</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-xs font-semibold text-white mb-0">CSV Import</h3>
+                <h3 className="text-sm font-semibold text-white mb-1">CSV Import</h3>
                 <p className="text-white/60 text-xs leading-tight">Bulk data processing</p>
               </div>
             </motion.button>
 
             <motion.button
-              className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+              className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 }}
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                <span className="text-white text-sm">⚡</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="text-white text-xl">⚡</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-xs font-semibold text-white mb-0">Fast Processing</h3>
+                <h3 className="text-sm font-semibold text-white mb-1">Fast Processing</h3>
                 <p className="text-white/60 text-xs leading-tight">2.3s average speed</p>
               </div>
             </motion.button>
 
             <motion.button
-              className="group flex items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[65px]"
+              className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.6 }}
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                <span className="text-white text-sm">🎯</span>
+              <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                <span className="text-white text-xl">🎯</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-xs font-semibold text-white mb-0">99.7% Accuracy</h3>
+                <h3 className="text-sm font-semibold text-white mb-1">99.7% Accuracy</h3>
                 <p className="text-white/60 text-xs leading-tight">Precision processing</p>
               </div>
             </motion.button>
           </div>
         </div>
-      </div>
-
-      {/* Byte Popup Modal */}
+        
+        {/* Byte Popup Modal */}
       <AnimatePresence>
         {bytePopupOpen && (
           <motion.div
@@ -1039,7 +1038,8 @@ const SmartImportAIPage: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+      </div>
+    </>
   );
 };
 

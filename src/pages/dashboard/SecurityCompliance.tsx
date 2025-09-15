@@ -759,10 +759,7 @@ What's really on your mind when it comes to security? Are we talking about fraud
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900 to-slate-900">
-      <DashboardHeader />
-
-      <div className="max-w-7xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
         {/* Custodian Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

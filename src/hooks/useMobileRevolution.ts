@@ -8,6 +8,7 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { MOBILE_CONFIG } from '../config/mobile';
 
 interface MobileRevolutionState {
   currentView: 'stories' | 'processing' | 'live' | 'upload' | 'dashboard' | 'chat';
@@ -22,341 +23,243 @@ interface MobileRevolutionState {
   notifications: number;
 }
 
+interface MobileDebugData {
+  path: string;
+  width: number;
+  isMobile: boolean;
+  isMobileByWidth: boolean;
+  isLikelyMobileUA: boolean;
+  isExcludedRoute: boolean;
+  shouldRenderMobile: boolean;
+  currentView?: string;
+}
+
 export const useMobileRevolution = () => {
   const navigate = useNavigate();
   
+  // Robust device detection with width tracking
+  const [width, setWidth] = useState<number>(() => 
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  );
+
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // User Agent detection for mobile devices
+  const ua = (typeof navigator !== 'undefined' ? navigator.userAgent || '' : '').toLowerCase();
+  const isLikelyMobileUA = /iphone|android|ipad|ipod|mobile|silk|kindle|opera mini|palm|blackberry/.test(ua);
+
+  // Mobile detection logic
+  const isMobileByWidth = width < MOBILE_CONFIG.MOBILE_MAX;
+  const isMobile = isMobileByWidth || isLikelyMobileUA;
+  
+  // TEMPORARY: Force mobile for testing - DISABLED to fix subpage rendering
+  const forceMobileForTesting = false;
+  const finalIsMobile = forceMobileForTesting || isMobile;
+
+  // Route exclusion logic with force override
+  const pathname = window.location.pathname;
+  const forceMobile = MOBILE_CONFIG.FORCE_ENABLED;
+  const isExcludedRoute = !forceMobile && MOBILE_CONFIG.excludedRoutes.includes(pathname as any);
+  const shouldRenderMobile = finalIsMobile && !isExcludedRoute;
+  
+  // Debug logging (reduced for production)
+  if (import.meta.env.DEV) {
+    console.log('[useMobileRevolution] Debug info:', {
+      pathname,
+      width,
+      isMobileByWidth,
+      isLikelyMobileUA,
+      finalIsMobile,
+      isExcludedRoute,
+      shouldRenderMobile,
+      forceMobileForTesting
+    });
+  }
+  
   // Determine initial view based on current route
   const getInitialView = (): MobileRevolutionState['currentView'] => {
-    const path = window.location.pathname;
-    console.log('Getting initial view for path:', path);
-    
-    // Routes that should show their own components, not MobileRevolution
-  const excludedRoutes = [
-    '/dashboard/three-column-demo',
-    '/dashboard/ai-financial-assistant',
-    '/dashboard/smart-import-ai',
-    '/dashboard/financial-story',
-    '/dashboard/transactions',
-    '/dashboard/goal-concierge',
-    '/dashboard/spending-predictions',
-    '/dashboard/ai-categorization',
-    '/dashboard/smart-categories',
-    '/dashboard/bill-reminders',
-    '/dashboard/debt-payoff-planner',
-    '/dashboard/therapist-demo',
-    '/dashboard/personal-podcast',
-    '/dashboard/podcast',
-    '/dashboard/smart-automation',
-    '/dashboard/analytics',
-    '/dashboard/settings',
-    '/dashboard/reports',
-    '/dashboard/spotify-integration',
-    '/dashboard/spotify-integration-new',
-    '/dashboard/wellness-studio',
-    '/dashboard/financial-therapist'
-  ];
-    
-    // Check if current path should be excluded (only specific sub-routes)
-    if (excludedRoutes.includes(path)) {
-      console.log('Path excluded from MobileRevolution, showing original component');
-      return 'stories'; // This will prevent MobileRevolution from rendering
+    if (import.meta.env.DEV) {
+      console.log('Getting initial view for path:', pathname);
     }
     
-    // For main dashboard, show dashboard view
-    if (path === '/dashboard' || path === '/dashboard/' || path.startsWith('/dashboard/')) {
-      console.log('Dashboard route, setting view to dashboard');
-      return 'dashboard';
+    if (isExcludedRoute && !forceMobile) {
+      if (import.meta.env.DEV) {
+        console.log('Path excluded from MobileRevolution:', pathname);
+      }
+      return 'dashboard'; // Default view for excluded routes
     }
-    console.log('Setting initial view to stories');
-    return 'stories';
+    
+    // Map routes to views
+    if (pathname === '/dashboard') return 'dashboard';
+    if (pathname === '/dashboard/upload') return 'upload';
+    if (pathname === '/dashboard/processing') return 'processing';
+    if (pathname === '/dashboard/live') return 'live';
+    if (pathname === '/dashboard/chat') return 'chat';
+    
+    return 'stories'; // Default to stories view
   };
-  
-  const [state, setState] = useState<MobileRevolutionState>({
-    currentView: getInitialView(),
-    isProcessing: false,
-    transactionCount: 0,
-    discoveries: [],
-    activeEmployee: 'prime',
-    notifications: 3
-  });
 
-  // Track window size for responsive mobile detection
-  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const [currentView, setCurrentView] = useState<MobileRevolutionState['currentView']>(getInitialView);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [transactionCount, setTransactionCount] = useState(0);
+  const [discoveries, setDiscoveries] = useState<MobileRevolutionState['discoveries']>([]);
+  const [activeEmployee, setActiveEmployee] = useState('prime');
+  const [notifications, setNotifications] = useState(0);
 
-  // Add window resize listener for responsive mobile detection
+  // Listen for route changes
   useEffect(() => {
-    const handleResize = () => {
-      const newWidth = window.innerWidth;
-      console.log('🔄 Window resized:', {
-        oldWidth: windowWidth,
-        newWidth,
-        isMobile: isMobile(),
-        path: window.location.pathname
-      });
-      setWindowWidth(newWidth);
+    const handleRouteChange = () => {
+      const newView = getInitialView();
+      if (import.meta.env.DEV) {
+        console.log('Route changed, updating view to:', newView);
+      }
+      setCurrentView(newView);
     };
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [windowWidth]);
-
-  // Mobile detection - more stable
-  const isMobile = () => {
-    const path = window.location.pathname;
-    const isDashboardPage = path.includes('/dashboard');
-    const isSmallScreen = windowWidth <= 1200; // Use tracked window width
+    // Listen for popstate events (back/forward navigation)
+    window.addEventListener('popstate', handleRouteChange);
     
-    // Routes that should show their own components, not MobileRevolution
-    const excludedRoutes = [
-      '/dashboard/three-column-demo',
-      '/dashboard/ai-financial-assistant',
-      '/dashboard/smart-import-ai',
-      '/dashboard/financial-story',
-      '/dashboard/transactions',
-      '/dashboard/goal-concierge',
-      '/dashboard/spending-predictions',
-      '/dashboard/ai-categorization',
-      '/dashboard/smart-categories',
-      '/dashboard/bill-reminders',
-      '/dashboard/debt-payoff-planner',
-      '/dashboard/therapist-demo',
-      '/dashboard/personal-podcast',
-      '/dashboard/podcast',
-      '/dashboard/smart-automation',
-      '/dashboard/analytics',
-      '/dashboard/settings',
-      '/dashboard/reports',
-      '/dashboard/spotify-integration',
-      '/dashboard/spotify-integration-new',
-      '/dashboard/wellness-studio',
-      '/dashboard/financial-therapist'
-    ];
+    // Also listen for pushstate/replacestate (programmatic navigation)
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
     
-    // Don't show MobileRevolution for excluded routes
-    if (excludedRoutes.includes(path)) {
-      console.log('Hook mobile detection: Path excluded, not mobile', { path, excludedRoutes });
-      return false;
-    }
-    
-    console.log('Hook mobile detection:', { 
-      isDashboardPage,
-      windowWidth: window.innerWidth,
-      pathname: path,
-      result: isDashboardPage && isSmallScreen
-    });
-    
-    // Show mobile view on dashboard pages with small screens only
-    console.log('🔍 Mobile detection debug:', {
-      isDashboardPage,
-      isSmallScreen,
-      windowWidth: window.innerWidth,
-      path,
-      result: isDashboardPage && isSmallScreen
-    });
-    
-    // Only show mobile on actual mobile devices
-    // For testing: you can force mobile by adding ?mobile=true to the URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const forceMobile = urlParams.get('mobile') === 'true';
-    
-    if (forceMobile && isDashboardPage) {
-      console.log('🚀 FORCING MOBILE FOR TESTING - ?mobile=true in URL');
-      return true;
-    }
-    
-    return isDashboardPage && isSmallScreen;
-  };
-
-  // View change handler
-  const handleViewChange = (view: string) => {
-    if (!isMobile()) return; // Only work on mobile
-    
-    setState(prev => ({
-      ...prev,
-      currentView: view as MobileRevolutionState['currentView']
-    }));
-
-    // Route to existing functionality
-    switch (view) {
-      case 'upload':
-        navigate('/upload');
-        break;
-      case 'stories':
-        // Stay in mobile stories view
-        break;
-      case 'live':
-        // Show live employee grid
-        break;
-      case 'chat':
-        // Show chat interface
-        break;
-      case 'dashboard':
-        // Show dashboard
-        break;
-      default:
-        break;
-    }
-  };
-
-  // Upload handler - connects to existing upload system
-  const handleUpload = () => {
-    if (!isMobile()) return;
-    
-    // Trigger existing upload functionality
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.pdf,.csv,.xlsx,.jpg,.png,.jpeg';
-    input.multiple = true;
-    
-    input.onchange = async (event) => {
-      const files = Array.from((event.target as HTMLInputElement).files || []);
-      
-      if (files.length === 0) return;
-      
-      // Start mobile processing show
-      setState(prev => ({
-        ...prev,
-        currentView: 'processing',
-        isProcessing: true,
-        transactionCount: 0,
-        discoveries: []
-      }));
-
-      // Simulate processing with discoveries
-      simulateProcessing(files);
+    history.pushState = function(...args) {
+      originalPushState.apply(history, args);
+      setTimeout(handleRouteChange, 0);
     };
     
-    input.click();
-  };
+    history.replaceState = function(...args) {
+      originalReplaceState.apply(history, args);
+      setTimeout(handleRouteChange, 0);
+    };
 
-  // Simulate processing with discoveries
-  const simulateProcessing = async (files: File[]) => {
-    const discoveryTemplates = [
-      { icon: '☕', text: 'Starbucks visits detected... that\'s a lot of caffeine!', employee: 'Byte' },
-      { icon: '🎮', text: 'Gaming expense found: Steam purchase detected', employee: 'Byte' },
-      { icon: '💡', text: 'Multiple Netflix subscriptions detected!', employee: 'Tag' },
-      { icon: '🚨', text: 'Amazon spending alert: Midnight purchases detected!', employee: 'Crystal' },
-      { icon: '💰', text: 'Tax deduction found: Office supplies = savings!', employee: 'Ledger' },
-      { icon: '📈', text: 'Side hustle income increased this month!', employee: 'Intelia' }
-    ];
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+      history.pushState = originalPushState;
+      history.replaceState = originalReplaceState;
+    };
+  }, [pathname, isExcludedRoute, forceMobile]);
 
-    let discoveryCount = 0;
-    let transactionCount = 0;
-
-    // Simulate processing over time
-    const processingInterval = setInterval(() => {
-      // Add discovery
-      if (discoveryCount < discoveryTemplates.length) {
-        const discovery = discoveryTemplates[discoveryCount];
-        setState(prev => ({
-          ...prev,
-          discoveries: [...prev.discoveries, discovery]
-        }));
-        discoveryCount++;
-      }
-
-      // Update transaction count
-      transactionCount += Math.floor(Math.random() * 5) + 1;
-      setState(prev => ({
-        ...prev,
-        transactionCount
-      }));
-
-      // Complete processing
-      if (discoveryCount >= discoveryTemplates.length && transactionCount >= 50) {
-        clearInterval(processingInterval);
-        setTimeout(() => {
-          setState(prev => ({
-            ...prev,
-            isProcessing: false,
-            currentView: 'stories'
-          }));
-        }, 2000);
-      }
-    }, 800);
-  };
-
-  // Employee selection handler
-  const handleEmployeeSelect = (employeeId: string) => {
-    setState(prev => ({
-      ...prev,
-      activeEmployee: employeeId,
-      currentView: 'stories'
-    }));
-  };
-
-  // Story action handler
-  const handleStoryAction = (action: string, storyId: string) => {
-    console.log(`Mobile story action: ${action} on ${storyId}`);
-    
-    // Route to existing functionality based on action
-    switch (action) {
-      case 'View Details':
-        navigate('/dashboard/transactions');
-        break;
-      case 'Share Win':
-        // Could trigger share functionality
-        break;
-      case 'View Analysis':
-        navigate('/dashboard/analytics');
-        break;
-      case 'Set Reminder':
-        navigate('/dashboard/bill-reminders');
-        break;
-      default:
-        break;
-    }
-  };
-
-  console.log('useMobileRevolution returning:', {
-    currentView: state.currentView,
-    isMobile: isMobile(),
-    pathname: window.location.pathname
-  });
-
-  const mobileResult = isMobile();
-  const path = window.location.pathname;
-  const excludedRoutes = [
-    // '/dashboard', // Removed - allow mobile navbar on main dashboard
-    // '/dashboard/', // Removed - allow mobile navbar on main dashboard
-    '/dashboard/three-column-demo',
-    '/dashboard/ai-financial-assistant',
-    '/dashboard/smart-import-ai',
-    '/dashboard/financial-story',
-    '/dashboard/transactions',
-    '/dashboard/goal-concierge',
-    '/dashboard/spending-predictions',
-    '/dashboard/ai-categorization',
-    '/dashboard/smart-categories',
-    '/dashboard/bill-reminders',
-    '/dashboard/debt-payoff-planner',
-    '/dashboard/therapist-demo',
-    '/dashboard/personal-podcast',
-    '/dashboard/smart-automation',
-    '/dashboard/analytics',
-    '/dashboard/settings',
-    '/dashboard/reports',
-    '/dashboard/spotify-integration',
-    '/dashboard/spotify-integration-new',
-    '/dashboard/wellness-studio',
-    '/dashboard/financial-therapist'
-  ];
-  const isExcludedRoute = excludedRoutes.includes(path);
-  
-  console.log('useMobileRevolution returning:', { 
-    path, 
-    isMobile: mobileResult, 
+  // Debug data for the debug panel
+  const debugData: MobileDebugData = {
+    path: pathname,
+    width,
+    isMobile: finalIsMobile,
+    isMobileByWidth,
+    isLikelyMobileUA,
     isExcludedRoute,
-    currentView: state.currentView 
-  });
+    shouldRenderMobile,
+    currentView
+  };
+
+  // Handler functions for mobile cards
+  const handleViewChange = (view: MobileRevolutionState['currentView']) => {
+    if (import.meta.env.DEV) {
+      console.log('Changing view to:', view);
+    }
+    setCurrentView(view);
+  };
+
+  const handleUpload = () => {
+    if (import.meta.env.DEV) {
+      console.log('Upload triggered from mobile');
+    }
+    setIsProcessing(true);
+    setTransactionCount(prev => prev + 1);
+    
+    // Simulate processing
+    setTimeout(() => {
+      setIsProcessing(false);
+      setDiscoveries(prev => [...prev, {
+        icon: '📊',
+        text: 'New transaction discovered',
+        employee: 'Byte'
+      }]);
+    }, 2000);
+  };
+
+  const handleProcessingComplete = () => {
+    setIsProcessing(false);
+    setTransactionCount(prev => prev + 5);
+    setDiscoveries(prev => [...prev, {
+      icon: '🎯',
+      text: 'Spending patterns identified',
+      employee: 'Tag'
+    }]);
+  };
+
+  const handleLiveMode = () => {
+    setCurrentView('live');
+    setActiveEmployee('prime');
+    setNotifications(prev => prev + 1);
+  };
+
+  const handleChat = () => {
+    setCurrentView('chat');
+    navigate('/dashboard/ai-financial-assistant');
+  };
+
+  const handleSetGoals = () => {
+    navigate('/dashboard/goal-concierge');
+  };
+
+  const handleViewTransactions = () => {
+        navigate('/dashboard/transactions');
+  };
+
+  const handleViewReports = () => {
+    navigate('/dashboard/reports');
+  };
+
+  const handleSettings = () => {
+    navigate('/dashboard/settings');
+  };
+
+  // Log mobile detection state for debugging
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('Mobile detection state:', {
+        pathname,
+        width,
+        isMobile: finalIsMobile,
+        isMobileByWidth,
+        isLikelyMobileUA,
+        isExcludedRoute,
+        shouldRenderMobile,
+        forceMobile,
+        currentView,
+        forceMobileForTesting
+      });
+    }
+  }, [pathname, width, finalIsMobile, isMobileByWidth, isLikelyMobileUA, isExcludedRoute, shouldRenderMobile, forceMobile, currentView]);
   
   return {
-    ...state,
-    isMobile: mobileResult,
-    isExcludedRoute,
+    // Core state
+    currentView,
+    isProcessing,
+    transactionCount,
+    discoveries,
+    activeEmployee,
+    notifications,
+    
+    // Mobile detection
+    isMobile: finalIsMobile,
+    shouldRenderMobile,
+    debugData,
+    
+    // Handlers
     handleViewChange,
     handleUpload,
-    handleEmployeeSelect,
-    handleStoryAction
+    handleProcessingComplete,
+    handleLiveMode,
+    handleChat,
+    handleSetGoals,
+    handleViewTransactions,
+    handleViewReports,
+    handleSettings,
   };
 };

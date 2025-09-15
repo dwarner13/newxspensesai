@@ -4,7 +4,6 @@ import {
   Calculator, 
   FileText, 
   Send, 
-  Loader2,
   Users,
   BarChart3,
   Upload,
@@ -19,7 +18,6 @@ import {
   logAIInteraction,
   generateConversationId
 } from '../../lib/ai-employees';
-import { AIConversationMessage } from '../../types/ai-employees.types';
 
 interface LedgerMessage {
   role: 'user' | 'ledger' | 'system';
@@ -62,11 +60,11 @@ export default function TaxAssistant() {
         }
 
         // Generate or get existing conversation ID
-        const newConversationId = generateConversationId('ledger', user.id);
+        const newConversationId = generateConversationId();
         setConversationId(newConversationId);
 
         // Load existing conversation if available
-        const existingConversation = await getConversation(newConversationId);
+        const existingConversation = await getConversation(user.id, 'ledger', newConversationId);
         if (existingConversation && existingConversation.messages.length > 0) {
           const ledgerMessages = existingConversation.messages.map(msg => ({
             role: msg.role as 'user' | 'ledger' | 'system',
@@ -104,7 +102,7 @@ export default function TaxAssistant() {
 
     try {
       // Add user message to conversation
-      await addMessageToConversation(conversationId, {
+      await addMessageToConversation(user?.id || 'anonymous', 'ledger', conversationId, {
         role: 'user',
         content: content.trim(),
         timestamp: new Date().toISOString()
@@ -127,18 +125,14 @@ export default function TaxAssistant() {
       setMessages(prev => [...prev, ledgerMessage]);
 
       // Add AI response to conversation
-      await addMessageToConversation(conversationId, {
+      await addMessageToConversation(user?.id || 'anonymous', 'ledger', conversationId, {
         role: 'assistant',
         content: aiResponse,
         timestamp: new Date().toISOString()
       });
 
       // Log interaction
-      await logAIInteraction('ledger', user?.id || 'anonymous', 'tax_assistant_chat', {
-        user_message: content.trim(),
-        ai_response: aiResponse,
-        conversation_id: conversationId
-      });
+      await logAIInteraction(user?.id || 'anonymous', 'ledger', 'chat', content.trim(), aiResponse.length, 500);
 
       // Increment conversation count
       await incrementConversationCount('ledger', user?.id || 'anonymous');
@@ -375,8 +369,7 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
         {/* Welcome Header */}
         <div className="text-center mb-8">
           <motion.h2
@@ -423,16 +416,16 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
               {/* Box 1: Tax Analysis */}
               <motion.button
                 onClick={() => console.log('Tax Analysis clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <BarChart3 className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <BarChart3 className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Tax Analysis</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Tax Analysis</h3>
                   <p className="text-white/60 text-xs leading-tight">Real-time savings</p>
                 </div>
               </motion.button>
@@ -440,16 +433,16 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
               {/* Box 2: Document Upload */}
               <motion.button
                 onClick={() => console.log('Upload Documents clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <Upload className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Upload className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Upload Docs</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Upload Docs</h3>
                   <p className="text-white/60 text-xs leading-tight">Bank statements</p>
                 </div>
               </motion.button>
@@ -457,16 +450,16 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
               {/* Box 3: AI Tax Team */}
               <motion.button
                 onClick={() => console.log('AI Tax Team clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <Users className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Users className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">AI Tax Team</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">AI Tax Team</h3>
                   <p className="text-white/60 text-xs leading-tight">Meet experts</p>
                 </div>
               </motion.button>
@@ -474,16 +467,16 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
               {/* Box 4: Find Deductions */}
               <motion.button
                 onClick={() => console.log('Find Deductions clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <Calculator className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Calculator className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Find Deductions</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Find Deductions</h3>
                   <p className="text-white/60 text-xs leading-tight">Hidden savings</p>
                 </div>
               </motion.button>
@@ -491,16 +484,16 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
               {/* Box 5: Tax Preparation */}
               <motion.button
                 onClick={() => console.log('Tax Preparation clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.5 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <FileText className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <FileText className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Tax Prep</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Tax Prep</h3>
                   <p className="text-white/60 text-xs leading-tight">Complete guide</p>
                 </div>
               </motion.button>
@@ -508,16 +501,16 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
               {/* Box 6: Chat with AI */}
               <motion.button
                 onClick={() => console.log('Chat with AI clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.6 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <MessageCircle className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <MessageCircle className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Chat with AI</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Chat with AI</h3>
                   <p className="text-white/60 text-xs leading-tight">Ask questions</p>
                 </div>
               </motion.button>
@@ -559,7 +552,6 @@ What's really on your mind when it comes to taxes? Are we talking about finding 
             </div>
           </div>
         </motion.div>
-      </div>
     </div>
   );
 }

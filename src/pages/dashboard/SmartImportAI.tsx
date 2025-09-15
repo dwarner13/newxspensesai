@@ -232,10 +232,7 @@ Could you tell me more specifically what you'd like to import or process? I'm re
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
-      <DashboardHeader />
-      
-      <div className="max-w-7xl mx-auto p-6">
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
         {/* Byte Header */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}

@@ -242,24 +242,23 @@ What's on your mind when it comes to business intelligence? Are we talking about
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-      <div className="container mx-auto px-4 sm:px-6 py-4 sm:py-6">
-        {/* Welcome Header */}
-        <div className="text-center mb-8">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="text-xl font-bold text-white mb-1"
-          >
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
+      {/* Welcome Header */}
+      <div className="text-center mb-8">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="text-xl font-bold text-white mb-1"
+        >
             Business Intelligence
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="text-white/60 text-sm mb-3"
-          >
+        </motion.h2>
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="text-white/60 text-sm mb-3"
+        >
             Your intelligent guide to data-driven insights, strategic planning, and business optimization
           </motion.p>
         </div>
@@ -290,16 +289,16 @@ What's on your mind when it comes to business intelligence? Are we talking about
               {/* Box 1: Data Analytics */}
               <motion.button
                 onClick={() => console.log('Data Analytics clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.1 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <BarChart3 className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <BarChart3 className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Data Analytics</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Data Analytics</h3>
                   <p className="text-white/60 text-xs leading-tight">Insights & trends</p>
                 </div>
               </motion.button>
@@ -307,16 +306,16 @@ What's on your mind when it comes to business intelligence? Are we talking about
               {/* Box 2: Strategic Planning */}
               <motion.button
                 onClick={() => console.log('Strategic Planning clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.2 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <Target className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Target className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Strategic Planning</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Strategic Planning</h3>
                   <p className="text-white/60 text-xs leading-tight">Growth strategy</p>
                 </div>
               </motion.button>
@@ -324,16 +323,16 @@ What's on your mind when it comes to business intelligence? Are we talking about
               {/* Box 3: Performance Metrics */}
               <motion.button
                 onClick={() => console.log('Performance Metrics clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <TrendingUp className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <TrendingUp className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Performance</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Performance</h3>
                   <p className="text-white/60 text-xs leading-tight">KPIs & metrics</p>
                 </div>
               </motion.button>
@@ -341,16 +340,16 @@ What's on your mind when it comes to business intelligence? Are we talking about
               {/* Box 4: Market Research */}
               <motion.button
                 onClick={() => console.log('Market Research clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <Eye className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Eye className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Market Research</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Market Research</h3>
                   <p className="text-white/60 text-xs leading-tight">Industry insights</p>
                 </div>
               </motion.button>
@@ -358,16 +357,16 @@ What's on your mind when it comes to business intelligence? Are we talking about
               {/* Box 5: Financial Analysis */}
               <motion.button
                 onClick={() => console.log('Financial Analysis clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.5 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <DollarSign className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <DollarSign className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Financial Analysis</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Financial Analysis</h3>
                   <p className="text-white/60 text-xs leading-tight">Revenue & costs</p>
                 </div>
               </motion.button>
@@ -375,16 +374,16 @@ What's on your mind when it comes to business intelligence? Are we talking about
               {/* Box 6: Chat with AI */}
               <motion.button
                 onClick={() => console.log('Chat with AI clicked')}
-                className="group flex items-center gap-1.5 p-2 bg-white/5 hover:bg-white/10 rounded-lg text-left transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[50px]"
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.6 }}
               >
-                <div className="w-5 h-5 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform flex-shrink-0">
-                  <MessageCircle className="w-2.5 h-2.5 text-white" />
+                <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <MessageCircle className="w-6 h-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-semibold text-white mb-0">Chat with AI</h3>
+                  <h3 className="text-sm font-semibold text-white mb-1">Chat with AI</h3>
                   <p className="text-white/60 text-xs leading-tight">Ask questions</p>
                 </div>
               </motion.button>
