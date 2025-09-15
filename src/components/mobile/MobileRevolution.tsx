@@ -530,11 +530,15 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
   // Mobile card handlers
   const handleMobileCategorization = () => {
     console.log('Mobile: Navigating to ai-categorization');
+    console.log('Mobile: Current pathname:', window.location.pathname);
+    console.log('Mobile: Navigate function available:', typeof navigate);
     navigate('/dashboard/ai-categorization');
   };
 
   const handleMobileTransactions = () => {
     console.log('Mobile: Navigating to transactions');
+    console.log('Mobile: Current pathname:', window.location.pathname);
+    console.log('Mobile: Navigate function available:', typeof navigate);
     navigate('/dashboard/transactions');
   };
 
@@ -768,7 +772,10 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Smart Categories</h3>
                     <p>Automatically categorize your transactions with AI. Learn from your corrections and improve over time.</p>
-                    <button className="mobile-card-button" onClick={handleMobileCategorization}>Categorize Now</button>
+                    <button className="mobile-card-button" onClick={() => {
+                      alert('Button clicked!');
+                      handleMobileCategorization();
+                    }}>Categorize Now</button>
                   </div>
                 </div>
 
@@ -778,7 +785,10 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Transactions</h3>
                     <p>View and manage all your financial transactions with detailed insights.</p>
-                    <button className="mobile-card-button" onClick={handleMobileTransactions}>View All</button>
+                    <button className="mobile-card-button" onClick={() => {
+                      alert('Transactions button clicked!');
+                      handleMobileTransactions();
+                    }}>View All</button>
                   </div>
                 </div>
                 <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
