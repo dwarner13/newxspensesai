@@ -330,187 +330,217 @@ export default function SmartAutomation() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h2 className="text-xl font-bold text-white mb-1">
-              Welcome to Prime's Automation Command Center
-            </h2>
-            <p className="text-white/60 text-sm mb-3">
-              Your intelligent guide to automating financial workflows and optimizing AI team performance
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* Header Section */}
+      <div className="bg-white/5 backdrop-blur-sm border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center"
+          >
+            <h1 className="text-3xl font-bold text-white mb-3">
+              Smart Automation
+            </h1>
+            <p className="text-white/70 text-lg mb-6">
+              Automate your financial workflows with AI
             </p>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center justify-center gap-6">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-green-400 text-sm font-medium">All Systems Active</span>
+                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-green-400 font-medium">All Systems Active</span>
               </div>
               <button 
                 onClick={() => setIsChatOpen(true)}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 shadow-lg"
               >
-                <MessageCircle className="w-4 h-4" />
+                <MessageCircle className="w-5 h-5" />
                 Chat with Prime
               </button>
             </div>
-          </div>
-          <div className="text-2xl">🤖</div>
+          </motion.div>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Navigation Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex flex-wrap gap-2 mb-6"
-      >
-        {[
-          { key: 'overview', label: 'Overview', icon: BarChart3 },
-          { key: 'automation', label: 'Automation Rules', icon: Settings },
-          { key: 'team', label: 'AI Team', icon: Users },
-          { key: 'activity', label: 'Activity Log', icon: Activity },
-          { key: 'insights', label: 'Insights', icon: Lightbulb }
-        ].map(({ key, label, icon: Icon }) => (
-          <motion.button
-            key={key}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setActiveView(key)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeView === key
-                ? 'bg-purple-500 text-white'
-                : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </motion.button>
-        ))}
-      </motion.div>
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
 
-      {/* Overview Section */}
-      {activeView === 'overview' && (
+        {/* Navigation Tabs */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-6"
+          transition={{ delay: 0.2 }}
+          className="flex justify-center mb-8"
         >
-          {/* Live Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Decisions Today</p>
-                  <p className="text-2xl font-bold text-white">{liveStats.decisionsToday}</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                  <Brain className="w-6 h-6 text-blue-400" />
-                </div>
-              </div>
-            </div>
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-2 border border-white/10">
+            {[
+              { key: 'overview', label: 'Overview', icon: BarChart3 },
+              { key: 'automation', label: 'Rules', icon: Settings },
+              { key: 'team', label: 'AI Team', icon: Users },
+              { key: 'activity', label: 'Activity', icon: Activity },
+              { key: 'insights', label: 'Insights', icon: Lightbulb }
+            ].map(({ key, label, icon: Icon }) => (
+              <motion.button
+                key={key}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setActiveView(key)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  activeView === key
+                    ? 'bg-purple-500 text-white shadow-lg'
+                    : 'text-white/70 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </motion.button>
+            ))}
+          </div>
+        </motion.div>
 
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Time Saved</p>
-                  <p className="text-2xl font-bold text-white">{liveStats.timeSaved}h</p>
-                </div>
-                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
-                  <Timer className="w-6 h-6 text-green-400" />
+        {/* Overview Section */}
+        {activeView === 'overview' && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-8"
+          >
+            {/* Key Metrics */}
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-white mb-2">Performance Overview</h2>
+              <p className="text-white/60">Real-time automation metrics and AI team performance</p>
+            </div>
+            
+            {/* Live Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/60 text-sm font-medium">Decisions Today</p>
+                    <p className="text-3xl font-bold text-white mt-1">{liveStats.decisionsToday}</p>
+                    <p className="text-green-400 text-xs mt-1">+12% from yesterday</p>
+                  </div>
+                  <div className="w-14 h-14 bg-blue-500/20 rounded-xl flex items-center justify-center">
+                    <Brain className="w-7 h-7 text-blue-400" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Money Saved</p>
-                  <p className="text-2xl font-bold text-white">${liveStats.moneySaved}</p>
-                </div>
-                <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                  <DollarSign className="w-6 h-6 text-yellow-400" />
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/60 text-sm font-medium">Time Saved</p>
+                    <p className="text-3xl font-bold text-white mt-1">{liveStats.timeSaved}h</p>
+                    <p className="text-green-400 text-xs mt-1">This week</p>
+                  </div>
+                  <div className="w-14 h-14 bg-green-500/20 rounded-xl flex items-center justify-center">
+                    <Timer className="w-7 h-7 text-green-400" />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Accuracy Rate</p>
-                  <p className="text-2xl font-bold text-white">{liveStats.accuracy}%</p>
-                </div>
-                <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                  <Target className="w-6 h-6 text-purple-400" />
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/60 text-sm font-medium">Money Saved</p>
+                    <p className="text-3xl font-bold text-white mt-1">${liveStats.moneySaved}</p>
+                    <p className="text-green-400 text-xs mt-1">This month</p>
+                  </div>
+                  <div className="w-14 h-14 bg-yellow-500/20 rounded-xl flex items-center justify-center">
+                    <DollarSign className="w-7 h-7 text-yellow-400" />
+                  </div>
                 </div>
               </div>
-            </div>
+
+              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/60 text-sm font-medium">Accuracy Rate</p>
+                    <p className="text-3xl font-bold text-white mt-1">{liveStats.accuracy}%</p>
+                    <p className="text-green-400 text-xs mt-1">Excellent</p>
+                  </div>
+                  <div className="w-14 h-14 bg-purple-500/20 rounded-xl flex items-center justify-center">
+                    <Target className="w-7 h-7 text-purple-400" />
+                  </div>
+                </div>
+              </div>
           </div>
 
-          {/* AI Team Performance */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">AI Team Performance</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* AI Team Performance */}
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">AI Team Performance</h2>
+              <p className="text-white/60">Meet your intelligent automation team</p>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {aiTeam.map((member) => (
-                <div key={member.id} className={`${member.bgColor} ${member.borderColor} border rounded-lg p-4`}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <member.icon className={`w-6 h-6 ${member.color}`} />
+                <div key={member.id} className={`${member.bgColor} ${member.borderColor} border rounded-xl p-6 hover:scale-105 transition-all`}>
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center">
+                      <member.icon className={`w-6 h-6 ${member.color}`} />
+                    </div>
                     <div>
-                      <h4 className="font-medium text-white">{member.name}</h4>
-                      <p className="text-xs text-white/70">{member.title}</p>
+                      <h4 className="font-semibold text-white text-lg">{member.name}</h4>
+                      <p className="text-sm text-white/70">{member.title}</p>
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-white/70">Decisions</span>
-                      <span className="text-white">{member.decisions}</span>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/60 text-sm">Decisions</span>
+                      <span className="text-white font-semibold">{member.decisions}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-white/70">Accuracy</span>
-                      <span className="text-white">{member.accuracy}%</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/60 text-sm">Accuracy</span>
+                      <span className="text-white font-semibold">{member.accuracy}%</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-white/70">Status</span>
-                      <span className="text-green-400">Active</span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-white/60 text-sm">Status</span>
+                      <span className="text-green-400 font-medium">Active</span>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Quick Actions */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Quick Actions */}
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-white mb-2">Quick Actions</h2>
+              <p className="text-white/60">Manage your automation workflows</p>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <button
                 onClick={handleCreateRule}
-                className="flex items-center gap-3 p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-white transition-colors"
+                className="flex flex-col items-center gap-4 p-6 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-white transition-all hover:scale-105"
               >
-                <Plus className="w-5 h-5" />
-                <span>Create New Rule</span>
+                <div className="w-12 h-12 bg-purple-500/30 rounded-xl flex items-center justify-center">
+                  <Plus className="w-6 h-6" />
+                </div>
+                <span className="font-medium">Create New Rule</span>
               </button>
-              <button className="flex items-center gap-3 p-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-white transition-colors">
-                <RefreshCw className="w-5 h-5" />
-                <span>Run Health Check</span>
+              <button className="flex flex-col items-center gap-4 p-6 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl text-white transition-all hover:scale-105">
+                <div className="w-12 h-12 bg-blue-500/30 rounded-xl flex items-center justify-center">
+                  <RefreshCw className="w-6 h-6" />
+                </div>
+                <span className="font-medium">Run Health Check</span>
               </button>
-              <button className="flex items-center gap-3 p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-white transition-colors">
-                <Download className="w-5 h-5" />
-                <span>Export Reports</span>
+              <button className="flex flex-col items-center gap-4 p-6 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl text-white transition-all hover:scale-105">
+                <div className="w-12 h-12 bg-green-500/30 rounded-xl flex items-center justify-center">
+                  <Download className="w-6 h-6" />
+                </div>
+                <span className="font-medium">Export Reports</span>
               </button>
-              <button className="flex items-center gap-3 p-4 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 rounded-lg text-white transition-colors">
-                <Settings className="w-5 h-5" />
-                <span>Settings</span>
+              <button className="flex flex-col items-center gap-4 p-6 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 rounded-xl text-white transition-all hover:scale-105">
+                <div className="w-12 h-12 bg-yellow-500/30 rounded-xl flex items-center justify-center">
+                  <Settings className="w-6 h-6" />
+                </div>
+                <span className="font-medium">Settings</span>
               </button>
             </div>
-          </div>
-        </motion.div>
-      )}
+          </motion.div>
+        )}
+      </div>
 
       {/* Automation Rules Section */}
       {activeView === 'automation' && (
