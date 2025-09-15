@@ -284,6 +284,7 @@ function App() {
                       <Route path="analytics" element={<Analytics />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="reports" element={<Reports />} />
+                      <Route path="spotify" element={<SpotifyIntegrationDashboardPage />} />
                       <Route path="spotify-integration" element={<SpotifyIntegrationPage />} />
                       <Route path="spotify-integration-new" element={<SpotifyIntegrationPage />} />
                       <Route path="wellness-studio" element={<WellnessStudioPage />} />
