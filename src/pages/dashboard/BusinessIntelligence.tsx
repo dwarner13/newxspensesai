@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Loader2, BarChart3, TrendingUp, Target, DollarSign, Users, Zap } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getConversation, saveConversation } from '../../lib/supabase';
 
 interface Message {
   role: 'user' | 'intelia' | 'system';
