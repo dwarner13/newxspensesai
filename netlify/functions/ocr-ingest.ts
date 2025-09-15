@@ -1,10 +1,10 @@
 import type { Handler } from '@netlify/functions';
-import { Configuration, OpenAIApi } from 'openai';
+import OpenAI from 'openai';
 import Tesseract from 'tesseract.js';
 import fetch from 'node-fetch';
 import { createClient } from '@supabase/supabase-js';
 
-const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!

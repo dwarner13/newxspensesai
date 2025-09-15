@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Music,
@@ -20,14 +20,35 @@ import {
   Settings,
   LogOut,
   Plus,
-  MessageCircle
+  MessageCircle,
+  Send,
+  Loader2,
+  X
 } from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
+
+interface Message {
+  role: 'user' | 'djzen';
+  content: string;
+  timestamp: string;
+}
 
 const SpotifyIntegrationDashboard = () => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: 'djzen',
+      content: "Hey there! I'm DJ Zen, your musical wellness companion. How are you feeling today? Let me curate the perfect soundtrack for your mood! 🎵",
+      timestamp: new Date().toISOString()
+    }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoadingMessage, setIsLoadingMessage] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
   const [currentTrack, setCurrentTrack] = useState({
     name: "Lo-fi Study Beats",
     artist: "Chill Vibes Collective",
@@ -68,8 +89,90 @@ const SpotifyIntegrationDashboard = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const sendMessage = async (message: string) => {
+    if (!message.trim()) return;
+
+    const userMessage: Message = {
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoadingMessage(true);
+
+    // Simulate DJ Zen's response
+    setTimeout(() => {
+      const responses = [
+        "I feel that energy! Let me create a playlist that matches your vibe perfectly. 🎶",
+        "That's exactly what I needed to hear! Here's a curated mix just for you! ✨",
+        "I love your honesty! Music has the power to transform any mood. Let's find your perfect sound! 🎵",
+        "Your feelings are valid, and I'm here to help you process them through music! 🎧",
+        "That's beautiful! Let me craft something special that speaks to your soul! 🌟",
+        "I understand completely! Music is the universal language of emotions. Here's your soundtrack! 🎼"
+      ];
+      
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      
+      const djzenMessage: Message = {
+        role: 'djzen',
+        content: randomResponse,
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => [...prev, djzenMessage]);
+      setIsLoadingMessage(false);
+    }, 1500);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
+    }
+  };
+
   return (
-    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
+    <div className="max-w-6xl mx-auto px-4">
+      {/* Header Section */}
+      <div className="text-center mb-8">
+        <motion.h1 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-4xl font-bold text-white mb-4"
+        >
+          Welcome to DJ Zen's Musical Wellness Studio
+        </motion.h1>
+        <motion.p 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="text-white/80 text-lg mb-6"
+        >
+          Your AI-powered musical companion for emotional wellness and financial focus
+        </motion.p>
+        <motion.button
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          onClick={() => setIsChatOpen(true)}
+          className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center gap-2 mx-auto"
+        >
+          <MessageCircle size={20} />
+          Chat with DJ Zen
+        </motion.button>
+      </div>
+
+      {/* Main Content */}
       <div className="space-y-8">
         {/* Connection Status */}
         <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl shadow-2xl p-8">
@@ -212,6 +315,97 @@ const SpotifyIntegrationDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* DJ Zen Chat Modal */}
+      {isChatOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-2xl shadow-2xl w-full max-w-2xl h-[600px] flex flex-col"
+          >
+            {/* Chat Header */}
+            <div className="flex items-center justify-between p-6 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                  <Music size={24} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">DJ Zen</h3>
+                  <p className="text-white/60 text-sm">Musical Wellness Companion</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsChatOpen(false)}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-white/60" />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {messages.map((message, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[80%] p-4 rounded-2xl ${
+                    message.role === 'user' 
+                      ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white' 
+                      : 'bg-white/10 text-white'
+                  }`}>
+                    <p className="text-sm">{message.content}</p>
+                    <p className="text-xs opacity-60 mt-1">
+                      {new Date(message.timestamp).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+              
+              {isLoadingMessage && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex justify-start"
+                >
+                  <div className="bg-white/10 text-white p-4 rounded-2xl">
+                    <div className="flex items-center gap-2">
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>DJ Zen is crafting your perfect playlist...</span>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="p-6 border-t border-white/10">
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Tell DJ Zen how you're feeling..."
+                  className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={!input.trim() || isLoadingMessage}
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
+                >
+                  <Send size={20} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
