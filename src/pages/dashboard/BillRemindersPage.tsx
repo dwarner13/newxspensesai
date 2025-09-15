@@ -491,134 +491,55 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 pt-6">
-      {/* Header Section */}
-      <div className="text-center mb-12">
-        <motion.h1 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-4xl font-bold text-white mb-4"
-        >
-          Welcome to Chime's Bill Protection Command Center
-        </motion.h1>
-        <motion.p 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-white/80 text-lg mb-8"
-        >
-          Your AI-powered financial protection system that never sleeps
-        </motion.p>
-        <motion.button
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          onClick={() => setActiveView('chat')}
-          className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 px-8 rounded-xl transition-all duration-200 flex items-center gap-2 mx-auto mb-6"
-        >
-          <MessageCircle size={20} />
-          Chat with Chime AI
-        </motion.button>
+    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
+      {/* Content */}
+      <div>
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="flex items-center justify-center gap-6"
+          className="mb-8"
         >
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-green-400 text-sm font-medium">Chime AI Active</span>
+          <div className="flex justify-end">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-green-400 text-sm font-medium">Chime AI Active</span>
+              </div>
+              <div className="text-2xl">🏠</div>
+            </div>
           </div>
-          <div className="text-white/60">•</div>
-          <div className="text-white/60 text-sm">24/7 Protection</div>
-          <div className="text-white/60">•</div>
-          <div className="text-white/60 text-sm">100% Success Rate</div>
         </motion.div>
-      </div>
 
-      {/* Simplified Quick Actions */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="mb-12"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            onClick={() => setActiveView('upload')}
-            className="group flex flex-col items-center gap-4 p-8 bg-gradient-to-br from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 rounded-2xl text-center transition-all duration-300 border border-green-500/20 hover:border-green-500/40 hover:shadow-lg hover:shadow-green-500/20"
-          >
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Upload size={32} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-white font-bold text-xl mb-2">Smart Upload</h3>
-              <p className="text-white/80">Upload bills for AI protection</p>
-            </div>
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            onClick={() => setActiveView('team')}
-            className="group flex flex-col items-center gap-4 p-8 bg-gradient-to-br from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 rounded-2xl text-center transition-all duration-300 border border-blue-500/20 hover:border-blue-500/40 hover:shadow-lg hover:shadow-blue-500/20"
-          >
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Users size={32} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-white font-bold text-xl mb-2">AI Team</h3>
-              <p className="text-white/80">Meet your protection specialists</p>
-            </div>
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            onClick={() => setActiveView('chat')}
-            className="group flex flex-col items-center gap-4 p-8 bg-gradient-to-br from-purple-600 to-pink-700 hover:from-purple-700 hover:to-pink-800 rounded-2xl text-center transition-all duration-300 border border-purple-500/20 hover:border-purple-500/40 hover:shadow-lg hover:shadow-purple-500/20"
-          >
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
-              <MessageCircle size={32} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-white font-bold text-xl mb-2">AI Chat</h3>
-              <p className="text-white/80">Get help from Chime AI</p>
-            </div>
-          </motion.button>
-        </div>
-      </motion.div>
-
-      {/* Simplified Navigation */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="flex justify-center mb-12"
-      >
-        <div className="bg-white/5 backdrop-blur-sm rounded-xl p-1 border border-white/10">
+        {/* Navigation Tabs */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="flex flex-wrap gap-3 mb-8"
+        >
           {[
-            { key: 'overview', label: 'Overview', icon: BarChart3 },
+            { key: 'overview', label: 'Protection Overview', icon: BarChart3 },
             { key: 'team', label: 'AI Team', icon: Users },
-            { key: 'upload', label: 'Upload', icon: Upload },
-            { key: 'chat', label: 'Chat', icon: MessageCircle }
+            { key: 'theater', label: 'Protection Theater', icon: Play },
+            { key: 'upload', label: 'Upload Statements', icon: Upload },
+            { key: 'chat', label: 'AI Chat', icon: MessageCircle }
           ].map(({ key, label, icon: Icon }) => (
             <motion.button
               key={key}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setActiveView(key)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                 activeView === key
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
               }`}
             >
               <Icon className="w-4 h-4" />
               {label}
             </motion.button>
           ))}
-        </div>
-      </motion.div>
+        </motion.div>
 
       {/* Overview Section */}
       {activeView === 'overview' && (
@@ -628,89 +549,72 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
           transition={{ delay: 0.3 }}
           className="space-y-8"
         >
-          {/* Simplified Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl shadow-2xl p-6 border border-green-500/20"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <CheckCircle size={24} className="text-white" />
+          {/* Protection Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Payment Success</p>
+                  <p className="text-2xl font-bold text-green-400">{protectionStats.paymentSuccess}%</p>
                 </div>
-                <span className="text-green-400 text-sm font-semibold">+100%</span>
+                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-green-400" />
+                </div>
               </div>
-              <h3 className="text-white font-bold text-lg mb-2">Payment Success</h3>
-              <p className="text-white/80 text-sm">Never miss a payment again</p>
-            </motion.div>
+            </div>
 
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="bg-gradient-to-br from-red-600 to-rose-700 rounded-2xl shadow-2xl p-6 border border-red-500/20"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <AlertTriangle size={24} className="text-white" />
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Late Fees</p>
+                  <p className="text-2xl font-bold text-red-400">{protectionStats.lateFees}</p>
                 </div>
-                <span className="text-red-400 text-sm font-semibold">$0</span>
+                <div className="w-12 h-12 bg-red-500/20 rounded-lg flex items-center justify-center">
+                  <AlertTriangle className="w-6 h-6 text-red-400" />
+                </div>
               </div>
-              <h3 className="text-white font-bold text-lg mb-2">Late Fees</h3>
-              <p className="text-white/80 text-sm">Eliminated completely</p>
-            </motion.div>
+            </div>
 
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl shadow-2xl p-6 border border-blue-500/20"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <Clock size={24} className="text-white" />
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Bill Monitoring</p>
+                  <p className="text-2xl font-bold text-blue-400">{protectionStats.billMonitoring}/7</p>
                 </div>
-                <span className="text-blue-400 text-sm font-semibold">24/7</span>
+                <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                  <Clock className="w-6 h-6 text-blue-400" />
+                </div>
               </div>
-              <h3 className="text-white font-bold text-lg mb-2">Bill Monitoring</h3>
-              <p className="text-white/80 text-sm">Always watching</p>
-            </motion.div>
+            </div>
 
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="bg-gradient-to-br from-purple-600 to-pink-700 rounded-2xl shadow-2xl p-6 border border-purple-500/20"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <Zap size={24} className="text-white" />
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-white/70 text-sm">Setup Speed</p>
+                  <p className="text-2xl font-bold text-purple-400">{protectionStats.setupSpeed}x</p>
                 </div>
-                <span className="text-purple-400 text-sm font-semibold">5x</span>
+                <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                  <Zap className="w-6 h-6 text-purple-400" />
+                </div>
               </div>
-              <h3 className="text-white font-bold text-lg mb-2">Setup Speed</h3>
-              <p className="text-white/80 text-sm">Faster than manual</p>
-            </motion.div>
+            </div>
           </div>
 
           {/* Protected Bills */}
-          <div className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-sm rounded-2xl border border-white/10 p-8">
-            <div className="text-center mb-6">
-              <h3 className="text-xl font-bold text-white mb-2">Protected Bills</h3>
-              <p className="text-white/60">Your bills are under Chime's protection</p>
-            </div>
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+            <h3 className="text-lg font-semibold text-white mb-4">Protected Bills</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {bills.map((bill) => (
-                <motion.div 
-                  key={bill.id} 
-                  whileHover={{ scale: 1.05 }}
-                  className="p-6 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-sm hover:border-green-500/30 transition-all duration-300"
-                >
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center">
-                        {bill.category === 'Housing' && <Home className="w-5 h-5 text-blue-400" />}
-                        {bill.category === 'Transportation' && <Car className="w-5 h-5 text-green-400" />}
-                        {bill.category === 'Utilities' && <Zap className="w-5 h-5 text-yellow-400" />}
-                        {bill.category === 'Entertainment' && <CreditCard className="w-5 h-5 text-purple-400" />}
-                      </div>
-                      <h4 className="text-white font-semibold">{bill.name}</h4>
+                <div key={bill.id} className="p-4 rounded-lg border border-white/10 bg-white/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      {bill.category === 'Housing' && <Home className="w-5 h-5 text-blue-400" />}
+                      {bill.category === 'Transportation' && <Car className="w-5 h-5 text-green-400" />}
+                      {bill.category === 'Utilities' && <Zap className="w-5 h-5 text-yellow-400" />}
+                      {bill.category === 'Entertainment' && <CreditCard className="w-5 h-5 text-purple-400" />}
+                      <h4 className="text-white font-medium">{bill.name}</h4>
                     </div>
-                    <div className={`w-3 h-3 rounded-full animate-pulse ${
+                    <div className={`w-2 h-2 rounded-full ${
                       bill.status === 'protected' ? 'bg-green-400' :
                       bill.status === 'pending' ? 'bg-yellow-400' : 'bg-red-400'
                     }`}></div>
@@ -734,11 +638,11 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
                         {bill.protectionLevel.toUpperCase()}
                       </span>
                     </div>
-                    <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                      <p className="text-green-400 text-xs font-medium">{bill.aiStrategy}</p>
+                    <div className="text-xs text-white/60">
+                      Strategy: {bill.aiStrategy}
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
           </div>
