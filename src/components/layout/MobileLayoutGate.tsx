@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Outlet } from "react-router-dom";
 import MobileDebugPanel from "../dev/MobileDebugPanel";
 import { useMobileRevolution } from "../../hooks/useMobileRevolution";
 
@@ -8,9 +8,10 @@ type Props = {
   Desktop: React.ComponentType<any>;
   mobileProps?: any;
   desktopProps?: any;
+  children?: React.ReactNode;
 };
 
-export default function MobileLayoutGate({ Mobile, Desktop, mobileProps, desktopProps }: Props) {
+export default function MobileLayoutGate({ Mobile, Desktop, mobileProps, desktopProps, children }: Props) {
   const { pathname } = useLocation();
   const data = useMobileRevolution(); // MUST return { path,width,isMobile,isMobileByWidth,isLikelyMobileUA,isExcludedRoute,shouldRenderMobile,currentView }
 
@@ -46,24 +47,35 @@ export default function MobileLayoutGate({ Mobile, Desktop, mobileProps, desktop
     final: shouldRenderMobile
   });
 
+  // Determine what to render based on route
+  const isDashboardRoot = pathname === '/dashboard';
+  
   return (
     <>
       <MobileDebugPanel data={{ ...data.debugData, shouldRenderMobile }} />
       {shouldRenderMobile ? (
-        <Mobile 
-          {...mobileProps}
-          isMobile={true}
-          currentView={data.currentView || 'dashboard'}
-          onViewChange={(view: string) => console.log('View change:', view)}
-          onUpload={() => console.log('Upload triggered')}
-          isProcessing={false}
-          transactionCount={0}
-          discoveries={[]}
-          activeEmployee=""
-          notifications={0}
-          onEmployeeSelect={(employeeId: string) => console.log('Employee selected:', employeeId)}
-          onStoryAction={(action: string, storyId: string) => console.log('Story action:', action, storyId)}
-        />
+        isDashboardRoot ? (
+          // Show MobileRevolution component on root dashboard
+          <Mobile 
+            {...mobileProps}
+            isMobile={true}
+            currentView={data.currentView || 'dashboard'}
+            onViewChange={(view: string) => console.log('View change:', view)}
+            onUpload={() => console.log('Upload triggered')}
+            isProcessing={false}
+            transactionCount={0}
+            discoveries={[]}
+            activeEmployee=""
+            notifications={0}
+            onEmployeeSelect={(employeeId: string) => console.log('Employee selected:', employeeId)}
+            onStoryAction={(action: string, storyId: string) => console.log('Story action:', action, storyId)}
+          />
+        ) : (
+          // Show the actual page components on sub-routes
+          <div className="mobile-page-wrapper">
+            <Outlet />
+          </div>
+        )
       ) : (
         <div className="desktop-only">
           <Desktop {...desktopProps} />

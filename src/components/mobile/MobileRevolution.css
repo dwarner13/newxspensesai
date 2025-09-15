@@ -48,6 +48,16 @@
     visibility: visible !important;
   }
   
+  /* Mobile page wrapper for sub-routes */
+  .mobile-page-wrapper {
+    height: 100vh;
+    background: #1a1a2e;
+    overflow-y: auto;
+    padding: 20px;
+    display: block !important;
+    visibility: visible !important;
+  }
+  
   /* Mobile Header */
   .mobile-header {
     display: flex;
