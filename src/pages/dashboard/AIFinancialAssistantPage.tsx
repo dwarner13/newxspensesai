@@ -2,16 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 import { 
-  TrendingUp, 
-  CreditCard, 
   Send, 
   Loader2,
-  Calculator,
   Target,
   Brain,
   Mic,
   Paperclip,
-  MoreVertical,
   Upload,
   BarChart3,
   FileText,
@@ -24,7 +20,6 @@ import {
   getConversation,
   saveConversation,
   logAIInteraction,
-  generateConversationId,
   getRecentConversations
 } from '../../lib/ai-employees';
 
@@ -272,57 +267,32 @@ export default function AIFinancialAssistantPage() {
 
   return (
     <div className="max-w-7xl mx-auto p-6 pt-32">
+      {/* Welcome Section */}
+      <div className="text-center mb-8">
+        <h2 className="text-xl font-bold text-white mb-1">
+          Welcome to XspensesAI Assistant
+        </h2>
+        <p className="text-white/60 text-sm mb-3">
+          Your intelligent guide to mastering expense management and financial insights
+        </p>
+        <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <span className="text-green-400 text-sm font-medium">AI Ready</span>
+          </div>
+          <div className="text-2xl">🧠</div>
+        </div>
+      </div>
+
       {/* Main Chat Interface */}
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col">
           {/* Chat Messages Area */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]" ref={messagesEndRef}>
+          <div className="overflow-y-auto p-2 space-y-2 h-[200px]" ref={messagesEndRef}>
             {messages.length === 0 ? (
               <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-2xl">
-                  <motion.h2
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="text-xl font-bold text-white mb-1"
-                  >
-                    Welcome to XspensesAI Assistant
-                  </motion.h2>
-                  <motion.p
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="text-white/60 text-sm mb-3"
-                  >
-                    Your intelligent guide to mastering expense management and financial insights
-                  </motion.p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
-                    {[
-                      { icon: Upload, title: "Smart Import AI", desc: "Upload and categorize transactions", color: "from-blue-500 to-cyan-500" },
-                      { icon: Brain, title: "Smart Categories", desc: "AI-powered expense insights", color: "from-green-500 to-emerald-500" },
-                      { icon: BarChart3, title: "Transaction Analysis", desc: "Deep spending analysis", color: "from-red-500 to-pink-500" },
-                      { icon: Target, title: "AI Goal Concierge", desc: "Set and track financial goals", color: "from-purple-500 to-violet-500" },
-                      { icon: FileText, title: "Receipt Processing", desc: "Scan and process receipts", color: "from-orange-500 to-yellow-500" },
-                      { icon: Zap, title: "Smart Automation", desc: "Automate workflows", color: "from-indigo-500 to-purple-500" }
-                    ].map((item, index) => (
-                      <motion.button
-                        key={item.title}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 + index * 0.1 }}
-                        onClick={() => sendMessage(`Help me with ${item.title.toLowerCase()}`)}
-                        className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                      >
-                        <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                          <item.icon className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
-                          <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
+                <div className="text-center max-w-4xl">
+                  <p className="text-white/60 text-sm mb-4">Start a conversation with Finley to begin your financial journey</p>
                 </div>
               </div>
             ) : (
@@ -367,7 +337,131 @@ export default function AIFinancialAssistantPage() {
                 </div>
               </motion.div>
             )}
-              </div>
+          </div>
+
+          {/* Core AI Tools Section - Always Visible */}
+          <div className="mt-6">
+            <div className="text-center max-w-4xl mx-auto">
+              {/* Core AI Tools Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="mb-8"
+              >
+                <h3 className="text-lg font-semibold text-white mb-4">CORE AI TOOLS</h3>
+                <p className="text-white/60 text-sm mb-6">Essential AI-powered features for your financial journey</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Smart Import AI */}
+                  <div className="bg-gradient-to-br from-blue-900/60 to-cyan-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                        <Upload size={24} className="text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">Smart Import AI</h3>
+                        <p className="text-sm text-white/60">Last Used: 2 hours ago</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => sendMessage("Help me with Smart Import AI")}
+                      className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-3 rounded-lg font-medium hover:from-blue-600 hover:to-cyan-600 transition-all"
+                    >
+                      Upload Documents
+                    </button>
+                  </div>
+
+                  {/* Smart Categories */}
+                  <div className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
+                        <Brain size={24} className="text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">Smart Categories</h3>
+                        <p className="text-sm text-white/60">Accuracy: 99.7%</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => sendMessage("Help me with Smart Categories")}
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-lg font-medium hover:from-green-600 hover:to-emerald-600 transition-all"
+                    >
+                      Categorize Expenses
+                    </button>
+                  </div>
+
+                  {/* Transaction Analysis */}
+                  <div className="bg-gradient-to-br from-red-900/60 to-pink-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl flex items-center justify-center">
+                        <BarChart3 size={24} className="text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-white">Transaction Analysis</h3>
+                        <p className="text-sm text-white/60">Accuracy: 96%</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => sendMessage("Help me with Transaction Analysis")}
+                      className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white py-3 rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transition-all"
+                    >
+                      Analyze Spending
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Planning & Analysis Section */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.6 }}
+              >
+                <h3 className="text-lg font-semibold text-white mb-4">PLANNING & ANALYSIS</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <button
+                    onClick={() => sendMessage("Help me with AI Goal Concierge")}
+                    className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                  >
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-violet-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Target className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-white mb-1">AI Goal Concierge</h3>
+                      <p className="text-white/60 text-xs leading-tight">Set and track financial goals</p>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => sendMessage("Help me with Receipt Processing")}
+                    className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                  >
+                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <FileText className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-white mb-1">Receipt Processing</h3>
+                      <p className="text-white/60 text-xs leading-tight">Scan and process receipts</p>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => sendMessage("Help me with Smart Automation")}
+                    className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                  >
+                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <Zap className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-white mb-1">Smart Automation</h3>
+                      <p className="text-white/60 text-xs leading-tight">Automate your workflows</p>
+                    </div>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </div>
 
           {/* High-Tech Input Area */}
           <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/5">
