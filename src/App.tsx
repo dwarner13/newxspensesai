@@ -14,6 +14,7 @@ import { AudioProvider } from './contexts/AudioContext';
 import { PersonalPodcastProvider } from './contexts/PersonalPodcastContext';
 import { AIFinancialAssistantProvider } from './contexts/AIFinancialAssistantContext';
 import { UserProvider } from './contexts/UserContext';
+import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import { BossProvider } from './lib/agents/context';
 import MobileLayoutGate from './components/layout/MobileLayoutGate';
 import MobileRevolution from './components/mobile/MobileRevolution';
@@ -176,6 +177,7 @@ function App() {
           <PersonalPodcastProvider>
             <AIFinancialAssistantProvider>
               <UserProvider>
+                <WorkspaceProvider>
                 <ScrollToTop />
                 <ErrorBoundary>
                   <Suspense fallback={<LoadingSpinner />}>
@@ -299,6 +301,7 @@ function App() {
                 {/* Global Therapist Components */}
                 {therapistTrigger && <TherapistNotification />}
                 <TherapistModal />
+                </WorkspaceProvider>
               </UserProvider>
           </AIFinancialAssistantProvider>
         </PersonalPodcastProvider>

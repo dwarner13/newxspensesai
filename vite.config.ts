@@ -77,7 +77,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    open: true,
+    open: false, // Disable auto-open to prevent hanging
     host: 'localhost',
     hmr: true, // Enable HMR for better development experience
     watch: {

@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { 
   Upload, 
   FileText, 
   Calculator, 
-  TrendingDown,
   DollarSign,
   BarChart3,
   Brain,
-  Zap,
   CheckCircle,
   AlertTriangle,
   Edit,
@@ -17,9 +16,12 @@ import {
   CreditCard,
   Home,
   Car,
-  MessageCircle,
   Send,
-  Loader2
+  Loader2,
+  Mic,
+  Paperclip,
+  Users,
+  Play
 } from 'lucide-react';
 
 // Debt Data Interfaces
@@ -60,19 +62,25 @@ interface AIRecommendation {
 }
 
 export default function DebtPayoffPlannerPage() {
+  const { updateWorkspaceState, getWorkspaceState } = useWorkspace();
+  const workspaceId = 'debt-payoff-planner';
+  
+  // Load saved state
+  const savedState = getWorkspaceState(workspaceId);
+  
   // View state
-  const [activeView, setActiveView] = useState('overview');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('all');
+  const [activeView, setActiveView] = useState(savedState.activeView || 'overview');
+  const [searchTerm, setSearchTerm] = useState(savedState.searchTerm || '');
+  const [filterType, setFilterType] = useState(savedState.filterType || 'all');
   
   // Chat state
-  const [selectedAI, setSelectedAI] = useState('blitz');
+  const [selectedAI, setSelectedAI] = useState(savedState.selectedAI || 'blitz');
   const [messages, setMessages] = useState<Array<{
     role: 'user' | 'ai';
     content: string;
     timestamp: string;
     ai: string;
-  }>>([
+  }>>(savedState.messages || [
     {
       role: 'ai',
       content: "⚡ Hey there! I'm Blitz, your AI Debt Liberation Master! I'm here to transform your overwhelming debt into an achievable freedom plan with 3x faster payoff strategies. My team and I work 24/7 to keep you motivated and on track. Upload your debt statements or ask me anything about debt liberation!",
@@ -126,9 +134,9 @@ export default function DebtPayoffPlannerPage() {
   ]);
 
   // Simulation state
-  const [extraPayment, setExtraPayment] = useState(0);
-  const [selectedStrategy, setSelectedStrategy] = useState('avalanche');
-  const [showSimulation, setShowSimulation] = useState(false);
+  const [extraPayment, setExtraPayment] = useState(savedState.extraPayment || 0);
+  const [selectedStrategy, setSelectedStrategy] = useState(savedState.selectedStrategy || 'avalanche');
+  const [showSimulation, setShowSimulation] = useState(savedState.showSimulation || false);
 
   // Document upload
   const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
@@ -285,6 +293,20 @@ export default function DebtPayoffPlannerPage() {
       priority: 'medium'
     }
   ];
+
+  // Save state whenever it changes
+  useEffect(() => {
+    updateWorkspaceState(workspaceId, {
+      activeView,
+      searchTerm,
+      filterType,
+      selectedAI,
+      messages,
+      extraPayment,
+      selectedStrategy,
+      showSimulation
+    });
+  }, [activeView, searchTerm, filterType, selectedAI, messages, extraPayment, selectedStrategy, showSimulation, updateWorkspaceState, workspaceId]);
 
   // Simulate live updates
   useEffect(() => {
@@ -537,252 +559,329 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
   const debtTypes = ['all', 'credit_card', 'car_loan', 'mortgage', 'personal_loan', 'student_loan'];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Header Section */}
-      <div className="bg-white/5 backdrop-blur-sm border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center"
-          >
-            <h1 className="text-3xl font-bold text-white mb-3">
-              Welcome to Blitz's Debt Liberation Boardroom
-            </h1>
-            <p className="text-white/70 text-lg mb-6">
-              Your strategic command center for debt elimination and financial freedom
-            </p>
-            <div className="flex items-center justify-center gap-6">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-400 rounded-full animate-pulse"></div>
-                <span className="text-blue-400 font-medium">Blitz AI Active</span>
-              </div>
-              <button 
-                onClick={() => setIsChatOpen(true)}
-                className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3 rounded-lg font-medium transition-all flex items-center gap-2 shadow-lg"
-              >
-                <MessageCircle className="w-5 h-5" />
-                Chat with Blitz
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-4 py-8">
-
-        {/* Navigation Tabs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="flex justify-center mb-8"
-        >
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl p-2 border border-white/10">
-            {[
-              { key: 'overview', label: 'Liberation Overview', icon: BarChart3 },
-              { key: 'debts', label: 'Debt Analysis', icon: CreditCard },
-              { key: 'upload', label: 'Smart Upload', icon: Upload },
-              { key: 'simulate', label: 'AI Calculator', icon: Calculator },
-              { key: 'chat', label: 'Chat with Blitz', icon: Brain }
-            ].map(({ key, label, icon: Icon }) => (
-              <motion.button
-                key={key}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setActiveView(key)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  activeView === key
-                    ? 'bg-blue-500 text-white shadow-lg'
-                    : 'text-white/70 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                {label}
-              </motion.button>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Overview Section */}
-        {activeView === 'overview' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="space-y-8"
-          >
-            {/* AI Performance Metrics */}
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-white mb-2">Blitz AI Performance</h2>
-              <p className="text-white/60">Real-time debt liberation metrics and AI insights</p>
-            </div>
-            
-            {/* Liberation Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/60 text-sm font-medium">Payoff Acceleration</p>
-                    <p className="text-3xl font-bold text-white mt-1">3x</p>
-                    <p className="text-blue-400 text-xs mt-1">Faster than traditional</p>
-                  </div>
-                  <div className="w-14 h-14 bg-blue-500/20 rounded-xl flex items-center justify-center">
-                    <Zap className="w-7 h-7 text-blue-400" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/60 text-sm font-medium">Interest Saved</p>
-                    <p className="text-3xl font-bold text-white mt-1">$28K</p>
-                    <p className="text-green-400 text-xs mt-1">This year</p>
-                  </div>
-                  <div className="w-14 h-14 bg-green-500/20 rounded-xl flex items-center justify-center">
-                    <TrendingDown className="w-7 h-7 text-green-400" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/60 text-sm font-medium">Stress Reduction</p>
-                    <p className="text-3xl font-bold text-white mt-1">87%</p>
-                    <p className="text-purple-400 text-xs mt-1">AI-powered relief</p>
-                  </div>
-                  <div className="w-14 h-14 bg-purple-500/20 rounded-xl flex items-center justify-center">
-                    <Brain className="w-7 h-7 text-purple-400" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-white/60 text-sm font-medium">AI Availability</p>
-                    <p className="text-3xl font-bold text-white mt-1">24/7</p>
-                    <p className="text-yellow-400 text-xs mt-1">Always ready</p>
-                  </div>
-                  <div className="w-14 h-14 bg-yellow-500/20 rounded-xl flex items-center justify-center">
-                    <MessageCircle className="w-7 h-7 text-yellow-400" />
-                  </div>
-                </div>
-              </div>
-          </div>
-
-            {/* AI Chat Interface */}
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-white mb-2">Chat with Blitz AI</h2>
-              <p className="text-white/60">Get instant debt liberation strategies and personalized advice</p>
-            </div>
-            
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
-                  <Brain className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">Blitz AI</h3>
-                  <p className="text-white/60 text-sm">Your debt liberation strategist</p>
-                </div>
-              </div>
-              
-              <div className="bg-white/5 rounded-lg p-4 mb-4 min-h-[120px]">
-                {messages.length === 0 ? (
-                  <div className="text-center text-white/60">
-                    <p>👋 Hi! I'm Blitz, your AI debt liberation strategist.</p>
-                    <p className="mt-2">Ask me about payoff strategies, interest optimization, or debt consolidation!</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {messages.map((message, index) => (
-                      <div key={index} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] rounded-lg px-3 py-2 ${
-                          message.role === 'user' 
-                            ? 'bg-blue-500 text-white' 
-                            : 'bg-white/10 text-white'
-                        }`}>
-                          <p className="text-sm">{message.content}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {isLoading && (
-                      <div className="flex justify-start">
-                        <div className="bg-white/10 text-white rounded-lg px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <span className="text-sm">Blitz is thinking...</span>
+    <>
+      <div className="max-w-7xl mx-auto p-6 pt-32">
+      {/* Main Chat Interface - XspensesAI Style */}
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col">
+          {/* Chat Messages Area */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]" ref={messagesEndRef}>
+            {messages.length === 0 ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center max-w-4xl">
+                  <motion.h2
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-xl font-bold text-white mb-1"
+                  >
+                    Welcome to Blitz's Debt Liberation Command Center
+                  </motion.h2>
+                  <motion.p
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-white/60 text-sm mb-6"
+                  >
+                    Your AI-powered strategic command center for debt elimination and financial freedom
+                  </motion.p>
+                  
+                  {/* Core AI Tools Section */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="mb-8"
+                  >
+                    <h3 className="text-lg font-semibold text-white mb-4">CORE AI TOOLS</h3>
+                    <p className="text-white/60 text-sm mb-6">Essential AI-powered features for your debt liberation journey</p>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {/* Smart Upload AI */}
+                      <div className="bg-gradient-to-br from-blue-900/60 to-cyan-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                            <Upload size={24} className="text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-white">Smart Upload AI</h3>
+                            <p className="text-sm text-white/60">Last Used: 2 hours ago</p>
                           </div>
                         </div>
+                        <div className="space-y-3 mb-4">
+                          <div className="flex items-center gap-2 text-sm text-white/80">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                            <span>Documents Processed: 247</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-white/80">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                            <span>Blitz processes debt statements automatically</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-white/80">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                            <span>Extracts balances, rates, and due dates</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setActiveView('upload')}
+                          className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-3 rounded-lg font-medium hover:from-blue-600 hover:to-cyan-600 transition-all"
+                        >
+                          Upload & Chat
+                        </button>
                       </div>
-                    )}
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
+
+                      {/* AI Chat Assistant */}
+                      <div className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
+                            <Brain size={24} className="text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-white">AI Chat Assistant</h3>
+                            <p className="text-sm text-white/60">Available: 24/7</p>
+                          </div>
+                        </div>
+                        <div className="space-y-3 mb-4">
+                          <div className="flex items-center gap-2 text-sm text-white/80">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span>Accuracy: 99.7%</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-white/80">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span>Chat with our AI assistant for personalized</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-white/80">
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span>debt liberation strategies and motivation</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setActiveView('chat')}
+                          className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-lg font-medium hover:from-green-600 hover:to-emerald-600 transition-all"
+                        >
+                          Chat Now
+                        </button>
+                      </div>
+
+                      {/* Smart Calculator */}
+                      <div className="bg-gradient-to-br from-purple-900/60 to-violet-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-violet-500 rounded-xl flex items-center justify-center">
+                            <Calculator size={24} className="text-white" />
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-white">Smart Calculator</h3>
+                            <p className="text-sm text-white/60">Accuracy: 96%</p>
+                          </div>
+                        </div>
+                        <div className="space-y-3 mb-4">
+                          <div className="flex items-center gap-2 text-sm text-white/80">
+                            <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                            <span>Strategies Analyzed: 47</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-white/80">
+                            <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                            <span>Automatically calculates optimal payoff strategies</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-white/80">
+                            <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
+                            <span>Shows interest savings and timeline projections</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setActiveView('simulate')}
+                          className="w-full bg-gradient-to-r from-purple-500 to-violet-500 text-white py-3 rounded-lg font-medium hover:from-purple-600 hover:to-violet-600 transition-all"
+                        >
+                          Calculate Now
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Planning & Analysis Section */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                  >
+                    <h3 className="text-lg font-semibold text-white mb-4">PLANNING & ANALYSIS</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      <button
+                        onClick={() => setActiveView('debts')}
+                        className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                      >
+                        <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <CreditCard className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-white mb-1">Debt Analysis</h3>
+                          <p className="text-white/60 text-xs leading-tight">Deep debt structure analysis</p>
+                        </div>
+                      </button>
+                      
+                      <button
+                        onClick={() => setActiveView('team')}
+                        className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                      >
+                        <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Users className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-white mb-1">AI Team</h3>
+                          <p className="text-white/60 text-xs leading-tight">Meet your liberation specialists</p>
+                        </div>
+                      </button>
+                      
+                      <button
+                        onClick={() => setActiveView('theater')}
+                        className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                      >
+                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <Play className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-white mb-1">Liberation Theater</h3>
+                          <p className="text-white/60 text-xs leading-tight">Live debt liberation scenarios</p>
+                        </div>
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
               </div>
-              
-              <div className="flex gap-2">
+            ) : (
+              messages.map((message, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-md px-2 py-1.5 rounded text-left ${
+                      message.role === 'user'
+                        ? 'bg-gradient-to-r from-purple-500 to-cyan-500 text-white'
+                        : 'bg-white/10 text-white border border-white/20'
+                    }`}
+                  >
+                    <p className="text-sm leading-tight whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-xs opacity-70 mt-0.5">
+                      {new Date(message.timestamp).toLocaleTimeString()}
+                    </p>
+                  </div>
+                </motion.div>
+              ))
+            )}
+            {isLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex justify-start"
+              >
+                <div className="bg-white/10 px-3 py-2 rounded-lg border border-white/20">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                      <Brain className="w-3 h-3 text-white" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-3 h-3 animate-spin text-green-400" />
+                      <span className="text-xs text-white/70">AI is analyzing...</span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          {/* High-Tech Input Area */}
+          <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/5">
+            <div className="flex gap-1">
+              <div className="flex-1 relative">
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                  placeholder="Ask Blitz about debt strategies..."
-                  className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-blue-500"
+                  onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                  placeholder="Ask about debt strategies, payoff calculations..."
+                  className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1.5 pr-10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
                   disabled={isLoading}
                 />
-                <button
-                  onClick={() => sendMessage(input)}
-                  disabled={isLoading || !input.trim()}
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-3 py-2 transition-colors"
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded transition-colors"
                 >
-                  <Send className="w-4 h-4" />
+                  <Paperclip className="w-3.5 h-3.5 text-white/60" />
                 </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.csv,.xlsx,.xls,.txt,.jpg,.jpeg,.png"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
               </div>
+              <button className="p-1.5 hover:bg-white/10 rounded transition-colors">
+                <Mic className="w-3.5 h-3.5 text-white/60" />
+              </button>
+              <button
+                onClick={() => !isLoading && sendMessage(input)}
+                disabled={isLoading || !input.trim()}
+                className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Send</span>
+                  </>
+                )}
+              </button>
             </div>
+          </div>
+        </div>
+      </div>
+      </div>
 
-            {/* Quick Actions */}
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-white mb-2">Quick Actions</h2>
-              <p className="text-white/60">Essential tools for debt liberation</p>
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <button
-                onClick={() => setActiveView('upload')}
-                className="flex flex-col items-center gap-4 p-6 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl text-white transition-all hover:scale-105"
-              >
-                <div className="w-12 h-12 bg-green-500/30 rounded-xl flex items-center justify-center">
-                  <Upload className="w-6 h-6" />
-                </div>
-                <span className="font-medium">Smart Upload</span>
-              </button>
-              <button
-                onClick={() => setActiveView('simulate')}
-                className="flex flex-col items-center gap-4 p-6 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl text-white transition-all hover:scale-105"
-              >
-                <div className="w-12 h-12 bg-blue-500/30 rounded-xl flex items-center justify-center">
-                  <Calculator className="w-6 h-6" />
-                </div>
-                <span className="font-medium">AI Calculator</span>
-              </button>
-              <button
-                onClick={() => setActiveView('chat')}
-                className="flex flex-col items-center gap-4 p-6 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-white transition-all hover:scale-105"
-              >
-                <div className="w-12 h-12 bg-purple-500/30 rounded-xl flex items-center justify-center">
-                  <Brain className="w-6 h-6" />
-                </div>
-                <span className="font-medium">AI Strategy</span>
-              </button>
+      {/* Workspace Views - Only show when not in chat mode */}
+      {activeView !== 'overview' && (
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          {/* Navigation Tabs */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex justify-center mb-8"
+          >
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-2 border border-white/10">
+              {[
+                { key: 'overview', label: 'Back to Overview', icon: BarChart3 },
+                { key: 'debts', label: 'Debt Analysis', icon: CreditCard },
+                { key: 'upload', label: 'Smart Upload', icon: Upload },
+                { key: 'simulate', label: 'AI Calculator', icon: Calculator },
+                { key: 'chat', label: 'Chat with Blitz', icon: Brain },
+                { key: 'team', label: 'AI Team', icon: Users },
+                { key: 'theater', label: 'Liberation Theater', icon: Play }
+              ].map(({ key, label, icon: Icon }) => (
+                <motion.button
+                  key={key}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setActiveView(key)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    activeView === key
+                      ? 'bg-blue-500 text-white shadow-lg'
+                      : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </motion.button>
+              ))}
             </div>
           </motion.div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Debts Section */}
       {activeView === 'debts' && (
@@ -1197,32 +1296,33 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
         </motion.div>
       )}
 
-
-      {/* AI Recommendations Section */}
-      {activeView === 'recommendations' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="space-y-4">
-            {aiRecommendations.map((rec) => (
-              <div key={rec.id} className={`p-4 rounded-xl border ${getPriorityColor(rec.priority)}`}>
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold">{rec.title}</h3>
-                  <span className="text-xs opacity-70">Confidence: {rec.confidence}%</span>
-                </div>
-                <p className="text-sm opacity-80 mb-2">{rec.description}</p>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="opacity-70">Potential Savings: ${rec.potentialSavings.toLocaleString()}</span>
-                  <span className="opacity-70">Action: {rec.actionRequired}</span>
+          {/* AI Recommendations Section */}
+          {activeView === 'recommendations' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="space-y-8"
+            >
+              <div className="space-y-4">
+                {aiRecommendations.map((rec) => (
+                  <div key={rec.id} className={`p-4 rounded-xl border ${getPriorityColor(rec.priority)}`}>
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="font-semibold">{rec.title}</h3>
+                      <span className="text-xs opacity-70">Confidence: {rec.confidence}%</span>
+                    </div>
+                    <p className="text-sm opacity-80 mb-2">{rec.description}</p>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="opacity-70">Potential Savings: ${rec.potentialSavings.toLocaleString()}</span>
+                      <span className="opacity-70">Action: {rec.actionRequired}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </div>
-      </div>
-            ))}
-          </div>
-        </motion.div>
       )}
-    </div>
+    </>
   );
-} 
+}

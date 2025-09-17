@@ -17,13 +17,13 @@ const MainContent = ({ dragOver, onDragOver, onDragLeave, onDrop }) => {
       <div className="max-w-7xl mx-auto space-y-8">
         
         {/* Row 1: Money Mood Tracker and AI Insights Carousel */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <MoneyMoodTracker />
           <AIInsightsCarousel />
         </div>
 
         {/* Row 2: Upload, AI Assistant, Personal Podcast */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <UploadCard 
             dragOver={dragOver}
             onDragOver={onDragOver}
@@ -31,6 +31,10 @@ const MainContent = ({ dragOver, onDragOver, onDragLeave, onDrop }) => {
             onDrop={onDrop}
           />
           <AIAssistantCard />
+        </div>
+        
+        {/* Row 2.5: Personal Podcast - Full Width */}
+        <div className="grid grid-cols-1 gap-8">
           <PersonalPodcastCard />
         </div>
 
