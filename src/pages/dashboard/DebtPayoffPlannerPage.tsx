@@ -880,19 +880,17 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
               ))}
             </div>
           </motion.div>
-        </div>
-      )}
 
-      {/* Debts Section */}
-      {activeView === 'debts' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          {/* Search and Filter */}
-          <div className="flex flex-col sm:flex-row gap-4">
+          {/* Debts Section */}
+          {activeView === 'debts' && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="space-y-8"
+            >
+              {/* Search and Filter */}
+              <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/50" />
               <input
@@ -1296,31 +1294,31 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
         </motion.div>
       )}
 
-          {/* AI Recommendations Section */}
-          {activeView === 'recommendations' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="space-y-8"
-            >
-              <div className="space-y-4">
-                {aiRecommendations.map((rec) => (
-                  <div key={rec.id} className={`p-4 rounded-xl border ${getPriorityColor(rec.priority)}`}>
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-semibold">{rec.title}</h3>
-                      <span className="text-xs opacity-70">Confidence: {rec.confidence}%</span>
-                    </div>
-                    <p className="text-sm opacity-80 mb-2">{rec.description}</p>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="opacity-70">Potential Savings: ${rec.potentialSavings.toLocaleString()}</span>
-                      <span className="opacity-70">Action: {rec.actionRequired}</span>
-                    </div>
-                  </div>
-                ))}
+      {/* AI Recommendations Section */}
+      {activeView === 'recommendations' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-8"
+        >
+          <div className="space-y-4">
+            {aiRecommendations.map((rec) => (
+              <div key={rec.id} className={`p-4 rounded-xl border ${getPriorityColor(rec.priority)}`}>
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="font-semibold">{rec.title}</h3>
+                  <span className="text-xs opacity-70">Confidence: {rec.confidence}%</span>
+                </div>
+                <p className="text-sm opacity-80 mb-2">{rec.description}</p>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="opacity-70">Potential Savings: ${rec.potentialSavings.toLocaleString()}</span>
+                  <span className="opacity-70">Action: {rec.actionRequired}</span>
+                </div>
               </div>
-            </motion.div>
-          )}
+            ))}
+          </div>
+        </motion.div>
+      )}
         </div>
       )}
     </>
