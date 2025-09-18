@@ -29,7 +29,7 @@ export default function SmartAutomationPage() {
   const savedState = getWorkspaceState(workspaceId);
   
   // View state
-  const [activeView, setActiveView] = useState(savedState.activeView || 'overview');
+  const [activeView] = useState(savedState.activeView || 'overview');
   
   // Chat state
   const [messages, setMessages] = useState<PrimeMessage[]>(savedState.messages || [
@@ -114,32 +114,57 @@ export default function SmartAutomationPage() {
   return (
     <>
       <div className="max-w-7xl mx-auto p-6 pt-32">
-        {/* Welcome Section */}
-        <div className="text-center mb-8">
-          <h2 className="text-xl font-bold text-white mb-1">
-            Welcome to Prime's Automation Command Center
-          </h2>
-          <p className="text-white/60 text-sm mb-3">
-            Your AI-powered strategic command center for automation and workflow optimization
-          </p>
-          <div className="flex items-center justify-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm font-medium">AI Ready</span>
-            </div>
-            <div className="text-2xl">⚡</div>
-          </div>
-        </div>
-
         {/* Main Chat Interface */}
         <div className="flex-1 flex flex-col">
           <div className="flex-1 flex flex-col">
             {/* Chat Messages Area */}
-            <div className="overflow-y-auto p-2 space-y-2 h-[200px]" ref={messagesEndRef}>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]" ref={messagesEndRef}>
               {messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
-                  <div className="text-center max-w-4xl">
-                    <p className="text-white/60 text-sm mb-4">Start a conversation with Prime to begin automating your workflows</p>
+                  <div className="text-center max-w-2xl">
+                    <motion.h2
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="text-xl font-bold text-white mb-1"
+                    >
+                      Welcome to Prime's Automation Command Center
+                    </motion.h2>
+                    <motion.p
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="text-white/60 text-sm mb-3"
+                    >
+                      Your AI-powered strategic command center for automation and workflow optimization
+                    </motion.p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                      {[
+                        { icon: Zap, title: "Smart Automation AI", desc: "Configure automation rules and workflows", color: "from-purple-500 to-violet-500" },
+                        { icon: Users, title: "AI Team Manager", desc: "Manage your AI automation team", color: "from-green-500 to-emerald-500" },
+                        { icon: BarChart3, title: "Performance Analytics", desc: "View automation performance metrics", color: "from-blue-500 to-cyan-500" },
+                        { icon: Crown, title: "Prime Overview", desc: "Strategic automation dashboard", color: "from-yellow-500 to-orange-500" },
+                        { icon: Activity, title: "Live Activity", desc: "Real-time automation logs", color: "from-red-500 to-pink-500" },
+                        { icon: Lightbulb, title: "Smart Insights", desc: "AI-powered recommendations", color: "from-indigo-500 to-purple-500" }
+                      ].map((item, index) => (
+                        <motion.button
+                          key={item.title}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.5 + index * 0.1 }}
+                          onClick={() => sendMessage(`Help me with ${item.title.toLowerCase()}`)}
+                          className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                        >
+                          <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                            <item.icon className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                            <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -184,130 +209,6 @@ export default function SmartAutomationPage() {
                   </div>
                 </motion.div>
               )}
-            </div>
-
-            {/* Core AI Tools Section - Always Visible */}
-            <div className="mt-6">
-              <div className="text-center max-w-4xl mx-auto">
-                {/* Core AI Tools Section */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 }}
-                  className="mb-8"
-                >
-                  <h3 className="text-lg font-semibold text-white mb-4">CORE AI TOOLS</h3>
-                  <p className="text-white/60 text-sm mb-6">Essential AI-powered features for your automation journey</p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {/* Smart Automation AI */}
-                    <div className="bg-gradient-to-br from-purple-900/60 to-violet-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-violet-500 rounded-xl flex items-center justify-center">
-                          <Zap size={24} className="text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">Smart Automation AI</h3>
-                          <p className="text-sm text-white/60">Last Used: 5 min ago</p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => setActiveView('automation')}
-                        className="w-full bg-gradient-to-r from-purple-500 to-violet-500 text-white py-3 rounded-lg font-medium hover:from-purple-600 hover:to-violet-600 transition-all"
-                      >
-                        Configure Rules
-                      </button>
-                    </div>
-
-                    {/* AI Team Manager */}
-                    <div className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
-                          <Users size={24} className="text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">AI Team Manager</h3>
-                          <p className="text-sm text-white/60">Available: 24/7</p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => setActiveView('team')}
-                        className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-lg font-medium hover:from-green-600 hover:to-emerald-600 transition-all"
-                      >
-                        Manage Team
-                      </button>
-                    </div>
-
-                    {/* Performance Analytics */}
-                    <div className="bg-gradient-to-br from-blue-900/60 to-cyan-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                          <BarChart3 size={24} className="text-white" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-white">Performance Analytics</h3>
-                          <p className="text-sm text-white/60">Accuracy: 98%</p>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => setActiveView('analytics')}
-                        className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-3 rounded-lg font-medium hover:from-blue-600 hover:to-cyan-600 transition-all"
-                      >
-                        View Analytics
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-
-                {/* Planning & Analysis Section */}
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
-                >
-                  <h3 className="text-lg font-semibold text-white mb-4">PLANNING & ANALYSIS</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <button
-                      onClick={() => setActiveView('overview')}
-                      className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                    >
-                      <div className="w-12 h-12 bg-gradient-to-br from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Crown className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-white mb-1">Prime Overview</h3>
-                        <p className="text-white/60 text-xs leading-tight">Strategic automation dashboard</p>
-                      </div>
-                    </button>
-                    
-                    <button
-                      onClick={() => setActiveView('activity')}
-                      className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                    >
-                      <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Activity className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-white mb-1">Live Activity</h3>
-                        <p className="text-white/60 text-xs leading-tight">Real-time automation logs</p>
-                      </div>
-                    </button>
-                    
-                    <button
-                      onClick={() => setActiveView('insights')}
-                      className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                    >
-                      <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Lightbulb className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-white mb-1">Smart Insights</h3>
-                        <p className="text-white/60 text-xs leading-tight">AI-powered recommendations</p>
-                      </div>
-                    </button>
-                  </div>
-                </motion.div>
-              </div>
             </div>
 
             {/* High-Tech Input Area */}
