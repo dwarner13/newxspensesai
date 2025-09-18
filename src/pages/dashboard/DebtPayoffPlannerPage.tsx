@@ -80,14 +80,7 @@ export default function DebtPayoffPlannerPage() {
     content: string;
     timestamp: string;
     ai: string;
-  }>>(savedState.messages || [
-    {
-      role: 'ai',
-      content: "⚡ Hey there! I'm Blitz, your AI Debt Liberation Master! I'm here to transform your overwhelming debt into an achievable freedom plan with 3x faster payoff strategies. My team and I work 24/7 to keep you motivated and on track. Upload your debt statements or ask me anything about debt liberation!",
-      timestamp: new Date().toISOString(),
-      ai: 'blitz'
-    }
-  ]);
+  }>>(savedState.messages || []);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -586,166 +579,34 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
                     Your AI-powered strategic command center for debt elimination and financial freedom
                   </motion.p>
                   
-                  {/* Core AI Tools Section */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 }}
-                    className="mb-8"
-                  >
-                    <h3 className="text-lg font-semibold text-white mb-4">CORE AI TOOLS</h3>
-                    <p className="text-white/60 text-sm mb-6">Essential AI-powered features for your debt liberation journey</p>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {/* Smart Upload AI */}
-                      <div className="bg-gradient-to-br from-blue-900/60 to-cyan-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                            <Upload size={24} className="text-white" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-bold text-white">Smart Upload AI</h3>
-                            <p className="text-sm text-white/60">Last Used: 2 hours ago</p>
-                          </div>
-                        </div>
-                        <div className="space-y-3 mb-4">
-                          <div className="flex items-center gap-2 text-sm text-white/80">
-                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                            <span>Documents Processed: 247</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-white/80">
-                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                            <span>Blitz processes debt statements automatically</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-white/80">
-                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                            <span>Extracts balances, rates, and due dates</span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => setActiveView('upload')}
-                          className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-3 rounded-lg font-medium hover:from-blue-600 hover:to-cyan-600 transition-all"
-                        >
-                          Upload & Chat
-                        </button>
-                      </div>
-
-                      {/* AI Chat Assistant */}
-                      <div className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
-                            <Brain size={24} className="text-white" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-bold text-white">AI Chat Assistant</h3>
-                            <p className="text-sm text-white/60">Available: 24/7</p>
-                          </div>
-                        </div>
-                        <div className="space-y-3 mb-4">
-                          <div className="flex items-center gap-2 text-sm text-white/80">
-                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span>Accuracy: 99.7%</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-white/80">
-                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span>Chat with our AI assistant for personalized</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-white/80">
-                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                            <span>debt liberation strategies and motivation</span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => setActiveView('chat')}
-                          className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-lg font-medium hover:from-green-600 hover:to-emerald-600 transition-all"
-                        >
-                          Chat Now
-                        </button>
-                      </div>
-
-                      {/* Smart Calculator */}
-                      <div className="bg-gradient-to-br from-purple-900/60 to-violet-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-violet-500 rounded-xl flex items-center justify-center">
-                            <Calculator size={24} className="text-white" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-bold text-white">Smart Calculator</h3>
-                            <p className="text-sm text-white/60">Accuracy: 96%</p>
-                          </div>
-                        </div>
-                        <div className="space-y-3 mb-4">
-                          <div className="flex items-center gap-2 text-sm text-white/80">
-                            <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                            <span>Strategies Analyzed: 47</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-white/80">
-                            <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                            <span>Automatically calculates optimal payoff strategies</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-white/80">
-                            <div className="w-2 h-2 bg-purple-400 rounded-full"></div>
-                            <span>Shows interest savings and timeline projections</span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => setActiveView('simulate')}
-                          className="w-full bg-gradient-to-r from-purple-500 to-violet-500 text-white py-3 rounded-lg font-medium hover:from-purple-600 hover:to-violet-600 transition-all"
-                        >
-                          Calculate Now
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-
-                  {/* Planning & Analysis Section */}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.6 }}
-                  >
-                    <h3 className="text-lg font-semibold text-white mb-4">PLANNING & ANALYSIS</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      <button
-                        onClick={() => setActiveView('debts')}
-                        className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                    {[
+                      { icon: Upload, title: "Smart Upload AI", desc: "Upload and analyze debt statements", color: "from-blue-500 to-cyan-500" },
+                      { icon: Brain, title: "AI Chat Assistant", desc: "Get personalized debt advice", color: "from-green-500 to-emerald-500" },
+                      { icon: Calculator, title: "Debt Calculator", desc: "Calculate payoff strategies", color: "from-purple-500 to-violet-500" },
+                      { icon: BarChart3, title: "Debt Analysis", desc: "Analyze your debt structure", color: "from-red-500 to-pink-500" },
+                      { icon: Users, title: "AI Team", desc: "Meet your liberation specialists", color: "from-orange-500 to-yellow-500" },
+                      { icon: Play, title: "Liberation Theater", desc: "Live debt liberation scenarios", color: "from-indigo-500 to-purple-500" }
+                    ].map((item, index) => (
+                      <motion.button
+                        key={item.title}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 + index * 0.1 }}
+                        onClick={() => sendMessage(`Help me with ${item.title.toLowerCase()}`)}
+                        className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
                       >
-                        <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-pink-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <CreditCard className="w-6 h-6 text-white" />
+                        <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                          <item.icon className="w-6 h-6 text-white" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-white mb-1">Debt Analysis</h3>
-                          <p className="text-white/60 text-xs leading-tight">Deep debt structure analysis</p>
+                          <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                          <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                         </div>
-                      </button>
-                      
-                      <button
-                        onClick={() => setActiveView('team')}
-                        className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                      >
-                        <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Users className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-white mb-1">AI Team</h3>
-                          <p className="text-white/60 text-xs leading-tight">Meet your liberation specialists</p>
-                        </div>
-                      </button>
-                      
-                      <button
-                        onClick={() => setActiveView('theater')}
-                        className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                      >
-                        <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <Play className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-white mb-1">Liberation Theater</h3>
-                          <p className="text-white/60 text-xs leading-tight">Live debt liberation scenarios</p>
-                        </div>
-                      </button>
-                    </div>
-                  </motion.div>
+                      </motion.button>
+                    ))}
+                  </div>
+
                 </div>
               </div>
             ) : (
