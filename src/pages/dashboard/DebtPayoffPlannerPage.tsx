@@ -92,7 +92,7 @@ export default function DebtPayoffPlannerPage() {
       selectedAI,
       messages
     });
-  }, [selectedAI, messages, updateWorkspaceState, workspaceId]);
+  }, [selectedAI, messages]);
 
   // Auto-scroll chat
   useEffect(() => {
