@@ -554,634 +554,148 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
   return (
     <>
       <div className="max-w-7xl mx-auto p-6 pt-32">
-      {/* Main Chat Interface - XspensesAI Style */}
-      <div className="flex-1 flex flex-col">
+        {/* Main Chat Interface */}
         <div className="flex-1 flex flex-col">
-          {/* Chat Messages Area */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]" ref={messagesEndRef}>
-            {messages.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-4xl">
-                  <motion.h2
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
-                    className="text-xl font-bold text-white mb-1"
-                  >
-                    Welcome to Blitz's Debt Liberation Command Center
-                  </motion.h2>
-                  <motion.p
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
-                    className="text-white/60 text-sm mb-6"
-                  >
-                    Your AI-powered strategic command center for debt elimination and financial freedom
-                  </motion.p>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
-                    {[
-                      { icon: Upload, title: "Smart Upload AI", desc: "Upload and analyze debt statements", color: "from-blue-500 to-cyan-500" },
-                      { icon: Brain, title: "AI Chat Assistant", desc: "Get personalized debt advice", color: "from-green-500 to-emerald-500" },
-                      { icon: Calculator, title: "Debt Calculator", desc: "Calculate payoff strategies", color: "from-purple-500 to-violet-500" },
-                      { icon: BarChart3, title: "Debt Analysis", desc: "Analyze your debt structure", color: "from-red-500 to-pink-500" },
-                      { icon: Users, title: "AI Team", desc: "Meet your liberation specialists", color: "from-orange-500 to-yellow-500" },
-                      { icon: Play, title: "Liberation Theater", desc: "Live debt liberation scenarios", color: "from-indigo-500 to-purple-500" }
-                    ].map((item, index) => (
-                      <motion.button
-                        key={item.title}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 + index * 0.1 }}
-                        onClick={() => sendMessage(`Help me with ${item.title.toLowerCase()}`)}
-                        className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                      >
-                        <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                          <item.icon className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
-                          <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
-
-                </div>
-              </div>
-            ) : (
-              messages.map((message, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-md px-2 py-1.5 rounded text-left ${
-                      message.role === 'user'
-                        ? 'bg-gradient-to-r from-purple-500 to-cyan-500 text-white'
-                        : 'bg-white/10 text-white border border-white/20'
-                    }`}
-                  >
-                    <p className="text-sm leading-tight whitespace-pre-wrap">{message.content}</p>
-                    <p className="text-xs opacity-70 mt-0.5">
-                      {new Date(message.timestamp).toLocaleTimeString()}
-                    </p>
-                  </div>
-                </motion.div>
-              ))
-            )}
-            {isLoading && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex justify-start"
-              >
-                <div className="bg-white/10 px-3 py-2 rounded-lg border border-white/20">
-                  <div className="flex items-center gap-2">
-                    <div className="w-5 h-5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                      <Brain className="w-3 h-3 text-white" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-3 h-3 animate-spin text-green-400" />
-                      <span className="text-xs text-white/70">AI is analyzing...</span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </div>
-
-          {/* High-Tech Input Area */}
-          <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/5">
-            <div className="flex gap-1">
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                  placeholder="Ask about debt strategies, payoff calculations..."
-                  className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1.5 pr-10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
-                  disabled={isLoading}
-                />
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded transition-colors"
-                >
-                  <Paperclip className="w-3.5 h-3.5 text-white/60" />
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept=".pdf,.csv,.xlsx,.xls,.txt,.jpg,.jpeg,.png"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </div>
-              <button className="p-1.5 hover:bg-white/10 rounded transition-colors">
-                <Mic className="w-3.5 h-3.5 text-white/60" />
-              </button>
-              <button
-                onClick={() => !isLoading && sendMessage(input)}
-                disabled={isLoading || !input.trim()}
-                className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    <span>Send</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
-
-      {/* Workspace Views - Only show when not in chat mode */}
-      {activeView !== 'overview' && (
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          {/* Navigation Tabs */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex justify-center mb-8"
-          >
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-2 border border-white/10">
-              {[
-                { key: 'overview', label: 'Back to Overview', icon: BarChart3 },
-                { key: 'debts', label: 'Debt Analysis', icon: CreditCard },
-                { key: 'upload', label: 'Smart Upload', icon: Upload },
-                { key: 'simulate', label: 'AI Calculator', icon: Calculator },
-                { key: 'chat', label: 'Chat with Blitz', icon: Brain },
-                { key: 'team', label: 'AI Team', icon: Users },
-                { key: 'theater', label: 'Liberation Theater', icon: Play }
-              ].map(({ key, label, icon: Icon }) => (
-                <motion.button
-                  key={key}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveView(key)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    activeView === key
-                      ? 'bg-blue-500 text-white shadow-lg'
-                      : 'text-white/70 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {label}
-                </motion.button>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Debts Section */}
-          {activeView === 'debts' && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="space-y-8"
-            >
-              {/* Search and Filter */}
-              <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-white/50" />
-              <input
-                type="text"
-                placeholder="Search debts..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-green-500"
-              />
-            </div>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-green-500"
-            >
-              {debtTypes.map(type => (
-                <option key={type} value={type} className="bg-slate-800">
-                  {type === 'all' ? 'All Types' : type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Debts Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {filteredDebts.map((debt) => (
-              <div key={debt.id} className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    {getDebtIcon(debt.type)}
-                    <div>
-                      <h3 className="text-base font-semibold text-white">{debt.name}</h3>
-                      <p className="text-white/70 text-xs">Updated {debt.lastUpdated}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button className="text-white/70 hover:text-white p-1">
-                      <Edit className="w-3 h-3" />
-                    </button>
-                    <button className="text-red-400 hover:text-red-300 p-1">
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                  <div>
-                    <p className="text-white/70 text-xs">Balance</p>
-                    <p className="text-white font-semibold text-sm">${debt.balance.toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/70 text-xs">Interest Rate</p>
-                    <p className="text-white font-semibold text-sm">{debt.rate}%</p>
-                  </div>
-                  <div>
-                    <p className="text-white/70 text-xs">Min Payment</p>
-                    <p className="text-white font-semibold text-sm">${debt.minPayment}</p>
-                  </div>
-                  <div>
-                    <p className="text-white/70 text-xs">Due Date</p>
-                    <p className="text-white font-semibold text-sm">{debt.dueDate}</p>
-                  </div>
-                </div>
-
-                <div className="w-full bg-white/10 rounded-full h-2">
-                  <div 
-                    className="bg-green-500 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, (debt.balance / (debt.originalAmount || debt.balance * 2)) * 100)}%` }}
-                  ></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Upload Documents Section */}
-      {activeView === 'upload' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          {/* Upload Area */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Upload className="w-8 h-8 text-green-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Upload Debt Statements</h3>
-              <p className="text-white/70 mb-6">Drag & drop your loan statements, or click to browse</p>
-              
-              <div
-                className="border-2 border-dashed border-white/20 rounded-xl p-8 hover:border-green-500/50 transition-colors cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="text-4xl mb-4">📄</div>
-                <p className="text-white/70 mb-2">Supported formats: PDF, PNG, JPG</p>
-                <p className="text-white/50 text-sm">Credit cards, car loans, mortgages, personal loans</p>
-              </div>
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.png,.jpg,.jpeg"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-4 px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-              >
-                {isUploading ? (
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Processing...
-                  </div>
-                ) : (
-                  'Choose Files'
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Uploaded Documents */}
-          {uploadedDocs.length > 0 && (
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Uploaded Documents</h3>
-              <div className="space-y-3">
-                {uploadedDocs.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-5 h-5 text-white/70" />
-                      <div>
-                        <p className="text-white font-medium">{doc.name}</p>
-                        <p className="text-white/70 text-sm">
-                          {doc.status === 'processing' ? 'Processing...' : 
-                           doc.status === 'completed' ? 'Data extracted' : 'Error processing'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {doc.status === 'processing' && <Loader2 className="w-4 h-4 animate-spin text-blue-400" />}
-                      {doc.status === 'completed' && <CheckCircle className="w-4 h-4 text-green-400" />}
-                      {doc.status === 'error' && <AlertTriangle className="w-4 h-4 text-red-400" />}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {/* Payoff Simulator Section */}
-      {activeView === 'simulate' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Simulation Controls */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Simulation Controls</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-white/70 text-sm mb-2">Extra Monthly Payment</label>
-                  <input
-                    type="number"
-                    value={extraPayment}
-                    onChange={(e) => setExtraPayment(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-green-500"
-                    placeholder="Enter extra amount"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white/70 text-sm mb-2">Payoff Strategy</label>
-                  <select
-                    value={selectedStrategy}
-                    onChange={(e) => setSelectedStrategy(e.target.value)}
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-green-500"
-                  >
-                    <option value="avalanche" className="bg-slate-800">Avalanche (Highest Interest First)</option>
-                    <option value="snowball" className="bg-slate-800">Snowball (Smallest Balance First)</option>
-                    <option value="ai_optimized" className="bg-slate-800">AI Optimized</option>
-                  </select>
-                </div>
-
-                <button
-                  onClick={() => setShowSimulation(true)}
-                  className="w-full px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                >
-                  Run Simulation
-                </button>
-              </div>
-            </div>
-
-            {/* Simulation Results */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Simulation Results</h3>
-              
-              {showSimulation ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-4 bg-white/5 rounded-lg">
-                      <p className="text-white/70 text-sm">Payoff Time</p>
-                      <p className="text-2xl font-bold text-white">{liveStats.payoffMonths - Math.floor(extraPayment / 100)} months</p>
-                    </div>
-                    <div className="text-center p-4 bg-white/5 rounded-lg">
-                      <p className="text-white/70 text-sm">Interest Saved</p>
-                      <p className="text-2xl font-bold text-green-400">${(liveStats.interestSaved + extraPayment * 2).toLocaleString()}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-white/70">Total Payments</span>
-                      <span className="text-white">${(liveStats.totalDebt + liveStats.interestSaved).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-white/70">Monthly Payment</span>
-                      <span className="text-white">${(liveStats.monthlyPayment + extraPayment).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-white/70">Strategy</span>
-                      <span className="text-white capitalize">{selectedStrategy.replace('_', ' ')}</span>
+          <div className="flex-1 flex flex-col">
+            {/* Chat Messages Area */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]" ref={messagesEndRef}>
+              {messages.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center max-w-2xl">
+                    <motion.h2
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="text-xl font-bold text-white mb-1"
+                    >
+                      Welcome to Blitz's Debt Liberation Command Center
+                    </motion.h2>
+                    <motion.p
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="text-white/60 text-sm mb-3"
+                    >
+                      Your AI-powered strategic command center for debt elimination and financial freedom
+                    </motion.p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                      {[
+                        { icon: Upload, title: "Smart Upload AI", desc: "Upload and analyze debt statements", color: "from-blue-500 to-cyan-500" },
+                        { icon: Brain, title: "AI Chat Assistant", desc: "Get personalized debt advice", color: "from-green-500 to-emerald-500" },
+                        { icon: Calculator, title: "Debt Calculator", desc: "Calculate payoff strategies", color: "from-purple-500 to-violet-500" },
+                        { icon: BarChart3, title: "Debt Analysis", desc: "Analyze your debt structure", color: "from-red-500 to-pink-500" },
+                        { icon: Users, title: "AI Team", desc: "Meet your liberation specialists", color: "from-orange-500 to-yellow-500" },
+                        { icon: Play, title: "Liberation Theater", desc: "Live debt liberation scenarios", color: "from-indigo-500 to-purple-500" }
+                      ].map((item, index) => (
+                        <motion.button
+                          key={item.title}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.5 + index * 0.1 }}
+                          onClick={() => sendMessage(`Help me with ${item.title.toLowerCase()}`)}
+                          className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                        >
+                          <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                            <item.icon className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                            <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
+                          </div>
+                        </motion.button>
+                      ))}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <Calculator className="w-12 h-12 text-white/30 mx-auto mb-4" />
-                  <p className="text-white/70">Run a simulation to see your payoff results</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* AI Chat Section */}
-      {activeView === 'chat' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">AI Chat - Choose Your Specialist</h2>
-            <p className="text-white/70">Chat with individual AI specialists who can help in their specific fields</p>
-          </div>
-
-          {/* AI Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {blitzTeam.map((member) => (
-              <button
-                key={member.id}
-                onClick={() => setSelectedAI(member.id)}
-                className={`p-4 rounded-xl border transition-all ${
-                  selectedAI === member.id
-                    ? `${member.bgColor} ${member.borderColor} scale-105`
-                    : 'bg-white/5 border-white/10 hover:bg-white/10'
-                }`}
-              >
-                <div className="text-center">
-                  <div className="text-3xl mb-2">{member.emoji}</div>
-                  <h3 className="text-lg font-bold text-white mb-1">{member.name}</h3>
-                  <p className={`text-sm font-medium ${member.color} mb-2`}>{member.specialty}</p>
-                  <p className="text-white/70 text-xs">{member.description}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Chat Interface */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="text-3xl">{blitzTeam.find(ai => ai.id === selectedAI)?.emoji}</div>
-              <div>
-                <h3 className="text-xl font-semibold text-white">
-                  Chat with {blitzTeam.find(ai => ai.id === selectedAI)?.name}
-                </h3>
-                <p className="text-white/70">
-                  {blitzTeam.find(ai => ai.id === selectedAI)?.title}
-                </p>
-              </div>
-            </div>
-
-            <div className="h-96 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
-              {messages.filter(msg => msg.ai === selectedAI).map((message, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    message.role === 'user'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-white/10 text-white border border-white/20'
-                  }`}>
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                    <div className="text-xs opacity-60 mt-2">
-                      {new Date(message.timestamp).toLocaleTimeString()}
+                messages.map((message, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-md px-2 py-1.5 rounded text-left ${
+                        message.role === 'user'
+                          ? 'bg-gradient-to-r from-purple-500 to-cyan-500 text-white'
+                          : 'bg-white/10 text-white/90'
+                      }`}
+                    >
+                      <div className="text-xs opacity-70 mb-1">
+                        {message.role === 'user' ? 'You' : blitzTeam.find(ai => ai.id === message.ai)?.name} • {new Date(message.timestamp).toLocaleTimeString()}
+                      </div>
+                      <div className="text-sm">{message.content}</div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-
+                  </motion.div>
+                ))
+              )}
               {isLoading && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
                   className="flex justify-start"
                 >
-                  <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
+                  <div className="bg-white/10 text-white/90 max-w-md px-2 py-1.5 rounded text-left">
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>{blitzTeam.find(ai => ai.id === selectedAI)?.name} is analyzing...</span>
+                      <span className="text-sm">Blitz is thinking...</span>
                     </div>
                   </div>
                 </motion.div>
               )}
-
-              <div ref={messagesEndRef} />
             </div>
 
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                placeholder={`Ask ${blitzTeam.find(ai => ai.id === selectedAI)?.name} about debt liberation...`}
-                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-green-500"
-                disabled={isLoading}
-              />
-              <button
-                onClick={() => sendMessage(input)}
-                disabled={isLoading || !input.trim()}
-                className="bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
-              >
-                <Send className="w-5 h-5" />
-              </button>
+            {/* High-Tech Input Area */}
+            <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/5">
+              <div className="flex gap-1">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                    placeholder="Ask about debt strategies, payoff calculations..."
+                    className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1.5 pr-10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
+                    disabled={isLoading}
+                  />
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded transition-colors"
+                  >
+                    <Paperclip className="w-3.5 h-3.5 text-white/60" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.csv,.xlsx,.xls,.txt,.jpg,.jpeg,.png"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </div>
+                <button className="p-1.5 hover:bg-white/10 rounded transition-colors">
+                  <Mic className="w-3.5 h-3.5 text-white/60" />
+                </button>
+                <button
+                  onClick={() => !isLoading && sendMessage(input)}
+                  disabled={isLoading || !input.trim()}
+                  className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Send</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-        </motion.div>
-      )}
-
-      {/* Live Liberation Theater Section */}
-      {activeView === 'theater' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Live Debt Liberation Theater</h2>
-            <p className="text-white/70">Experience Blitz's magical liberation in real-time as he consults with his AI team to create your freedom strategy</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {liberationExamples.map((example) => (
-              <div key={example.type} className={`p-4 rounded-xl border ${example.bgColor} hover:scale-105 transition-transform cursor-pointer`}>
-                <div className="text-center">
-                  <div className="text-3xl mb-2">{example.emoji}</div>
-                  <h3 className={`font-bold text-lg ${example.color} mb-2`}>{example.type}</h3>
-                  <p className="text-white/70 text-sm mb-4">help me pay off my ${example.debtAmount.toLocaleString()} {example.type.toLowerCase()} faster!</p>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-white/70">Debt Amount</span>
-                      <span className="text-white font-semibold">${example.debtAmount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/70">Current Time</span>
-                      <span className="text-white">{example.currentTime}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/70">Freedom Time</span>
-                      <span className={`font-semibold ${example.color}`}>{example.freedomTime}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/70">Interest Saved</span>
-                      <span className="text-green-400 font-semibold">${example.interestSaved.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* AI Recommendations Section */}
-      {activeView === 'recommendations' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="space-y-4">
-            {aiRecommendations.map((rec) => (
-              <div key={rec.id} className={`p-4 rounded-xl border ${getPriorityColor(rec.priority)}`}>
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold">{rec.title}</h3>
-                  <span className="text-xs opacity-70">Confidence: {rec.confidence}%</span>
-                </div>
-                <p className="text-sm opacity-80 mb-2">{rec.description}</p>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="opacity-70">Potential Savings: ${rec.potentialSavings.toLocaleString()}</span>
-                  <span className="opacity-70">Action: {rec.actionRequired}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
         </div>
-      )}
+      </div>
     </>
   );
 }
