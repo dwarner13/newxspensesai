@@ -117,6 +117,9 @@ export default function PersonalPodcastPage() {
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  
+  // Chat state
+  const [messages, setMessages] = useState<any[]>([]);
 
   // Financial data
   const [financialData] = useState<FinancialData>({
@@ -413,22 +416,6 @@ export default function PersonalPodcastPage() {
     }
   ]);
 
-  // Simulate live updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Update podcaster statuses randomly
-      setSelectedPodcaster(prev => {
-        const activePodcasters = aiPodcasters.filter(p => p.status === 'active');
-        if (activePodcasters.length > 0) {
-          const randomIndex = Math.floor(Math.random() * activePodcasters.length);
-          return activePodcasters[randomIndex].id;
-        }
-        return prev;
-      });
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
   // Audio controls
   const handlePlayPause = () => {
     setIsPlaying(!isPlaying);
@@ -470,504 +457,91 @@ export default function PersonalPodcastPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 sm:p-6 pb-20">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">🎙️ AI Financial Podcast Dashboard</h1>
-            <p className="text-white/70 text-sm sm:text-base">Finally, Financial Advice That Actually Gets You - 12 AI podcasters who know your spending patterns, celebrate your wins, and call out your mistakes</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm font-medium">AI Active</span>
-            </div>
-            <div className="text-2xl">🎙️</div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Navigation Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex flex-wrap gap-3 mb-8"
-      >
-        {[
-          { key: 'overview', label: 'Podcast Overview', icon: BarChart3 },
-          { key: 'cheerleaders', label: 'Financial Cheerleaders', icon: Heart },
-          { key: 'reality_checkers', label: 'Reality Checkers', icon: ThumbsDown },
-          { key: 'episodes', label: 'My Episodes', icon: Play },
-          { key: 'data', label: 'Financial Data', icon: TrendingUp }
-        ].map(({ key, label, icon: Icon }) => (
-          <motion.button
-            key={key}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setActiveView(key)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeView === key
-                ? 'bg-green-500 text-white'
-                : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </motion.button>
-        ))}
-      </motion.div>
-
-      {/* Overview Section */}
-      {activeView === 'overview' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          {/* Hero Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Total Episodes</p>
-                  <p className="text-2xl font-bold text-green-400">{episodes.length}</p>
-                </div>
-                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
-                  <Play className="w-6 h-6 text-green-400" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">AI Podcasters</p>
-                  <p className="text-2xl font-bold text-blue-400">12</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                  <Users className="w-6 h-6 text-blue-400" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Total Listens</p>
-                  <p className="text-2xl font-bold text-purple-400">
-                    {episodes.reduce((sum, ep) => sum + ep.stats.listens, 0)}
-                  </p>
-                </div>
-                <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                  <Headphones className="w-6 h-6 text-purple-400" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Avg. Rating</p>
-                  <p className="text-2xl font-bold text-yellow-400">4.9/5</p>
-                </div>
-                <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                  <Star className="w-6 h-6 text-yellow-400" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Financial Data Summary */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Your Financial Story This Month</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="text-center">
-                <p className="text-white/70 text-sm mb-2">Total Spending</p>
-                <p className="text-2xl font-bold text-white">${financialData.totalSpending.toLocaleString()}</p>
-                <p className="text-green-400 text-sm">↓ {Math.abs(financialData.trends.monthlyChange)}% from last month</p>
-              </div>
-              <div className="text-center">
-                <p className="text-white/70 text-sm mb-2">Top Category</p>
-                <p className="text-lg font-semibold text-white">{financialData.trends.topSpending}</p>
-                <p className="text-blue-400 text-sm">${financialData.categories.food}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-white/70 text-sm mb-2">Biggest Win</p>
-                <p className="text-sm text-green-400">{financialData.trends.biggestWin}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-white/70 text-sm mb-2">Challenge</p>
-                <p className="text-sm text-red-400">{financialData.trends.biggestChallenge}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Spending Categories */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Spending Breakdown</h3>
-            <div className="space-y-3">
-              {Object.entries(financialData.categories).map(([category, amount]) => (
-                <div key={category} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {getCategoryIcon(category)}
-                    <span className="text-white capitalize">{category}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-32 bg-white/10 rounded-full h-2">
-                      <div 
-                        className="bg-green-400 h-2 rounded-full" 
-                        style={{ width: `${(amount / financialData.totalSpending) * 100}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-white font-semibold w-20 text-right">${amount}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <button
-                onClick={() => setActiveView('episodes')}
-                className="flex items-center gap-3 p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-white transition-colors"
-              >
-                <Play className="w-5 h-5" />
-                <span>Generate New Episode</span>
-              </button>
-              <button
-                onClick={() => setActiveView('cheerleaders')}
-                className="flex items-center gap-3 p-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-white transition-colors"
-              >
-                <Heart className="w-5 h-5" />
-                <span>Meet Cheerleaders</span>
-              </button>
-              <button
-                onClick={() => setActiveView('reality_checkers')}
-                className="flex items-center gap-3 p-4 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-white transition-colors"
-              >
-                <ThumbsDown className="w-5 h-5" />
-                <span>Get Roasted</span>
-              </button>
-              <button
-                onClick={() => setActiveView('data')}
-                className="flex items-center gap-3 p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-white transition-colors"
-              >
-                <TrendingUp className="w-5 h-5" />
-                <span>View Data</span>
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Cheerleaders Section */}
-      {activeView === 'cheerleaders' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Your Personal Financial Cheerleaders</h2>
-            <p className="text-white/70">Tired of feeling guilty about your spending? These AI podcasters celebrate your wins, motivate your journey, and turn every financial milestone into a victory lap.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {aiPodcasters.filter(p => p.category === 'cheerleader').map((podcaster) => (
-              <div key={podcaster.id} className={`p-6 rounded-xl border ${podcaster.bgColor} ${podcaster.borderColor}`}>
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="text-4xl">{podcaster.emoji}</div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white mb-1">{podcaster.name}</h3>
-                    <p className={`text-sm font-medium ${podcaster.color} mb-2`}>{podcaster.title}</p>
-                    <p className="text-white/70 text-sm">{podcaster.personality}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full ${
-                      podcaster.status === 'active' ? 'bg-green-400' :
-                      podcaster.status === 'working' ? 'bg-yellow-400' : 'bg-gray-400'
-                    }`}></div>
-                    <span className="text-xs text-white/70 capitalize">{podcaster.status}</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-white/80 text-sm font-medium">"{podcaster.specialty}"</p>
-                  <p className="text-white/70 text-sm">{podcaster.description}</p>
-                  <p className="text-white/60 text-sm">{podcaster.bio}</p>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white/70">Performance</span>
-                    <span className={`${podcaster.color} font-medium`}>{podcaster.performance}%</span>
-                  </div>
-                  {podcaster.currentTask && (
-                    <div className="text-xs text-white/60 italic">
-                      Currently: {podcaster.currentTask}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Reality Checkers Section */}
-      {activeView === 'reality_checkers' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Your Financial Reality Checkers</h2>
-            <p className="text-white/70">Sometimes you need someone to call out your BS. These AI podcasters deliver the brutal truth with style and humor.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {aiPodcasters.filter(p => p.category === 'reality_checker').map((podcaster) => (
-              <div key={podcaster.id} className={`p-6 rounded-xl border ${podcaster.bgColor} ${podcaster.borderColor}`}>
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="text-4xl">{podcaster.emoji}</div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white mb-1">{podcaster.name}</h3>
-                    <p className={`text-sm font-medium ${podcaster.color} mb-2`}>{podcaster.title}</p>
-                    <p className="text-white/70 text-sm">{podcaster.personality}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full ${
-                      podcaster.status === 'active' ? 'bg-green-400' :
-                      podcaster.status === 'working' ? 'bg-yellow-400' : 'bg-gray-400'
-                    }`}></div>
-                    <span className="text-xs text-white/70 capitalize">{podcaster.status}</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-white/80 text-sm font-medium">"{podcaster.specialty}"</p>
-                  <p className="text-white/70 text-sm">{podcaster.description}</p>
-                  <p className="text-white/60 text-sm">{podcaster.bio}</p>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white/70">Performance</span>
-                    <span className={`${podcaster.color} font-medium`}>{podcaster.performance}%</span>
-                  </div>
-                  {podcaster.currentTask && (
-                    <div className="text-xs text-white/60 italic">
-                      Currently: {podcaster.currentTask}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Episodes Section */}
-      {activeView === 'episodes' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Your Personal Financial Episodes</h2>
-            <p className="text-white/70">Episodes generated from your actual financial data and spending patterns</p>
-          </div>
-
-          <div className="space-y-4">
-            {episodes.map((episode) => {
-              const podcaster = aiPodcasters.find(p => p.id === episode.podcaster);
-              return (
-                <div key={episode.id} className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="text-3xl">{podcaster?.emoji}</div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-white">{episode.title}</h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          episode.category === 'celebration' ? 'bg-green-500/20 text-green-400' :
-                          episode.category === 'reality_check' ? 'bg-red-500/20 text-red-400' :
-                          'bg-blue-500/20 text-blue-400'
-                        }`}>
-                          {episode.category.replace('_', ' ')}
-                        </span>
-                      </div>
-                      <p className="text-white/70 text-sm mb-3">{episode.description}</p>
-                      <div className="flex items-center gap-6 text-sm text-white/60 mb-4">
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {formatTime(episode.duration)}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          {new Date(episode.createdAt).toLocaleDateString()}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Headphones className="w-4 h-4" />
-                          {episode.stats.listens} listens
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <button
-                          onClick={() => {
-                            setCurrentEpisode(episode);
-                            setIsPlaying(true);
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+    <>
+      <div className="max-w-7xl mx-auto p-6 pt-32">
+        {/* Main Chat Interface */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col">
+            {/* Chat Messages Area */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]">
+              {messages.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center max-w-2xl">
+                    <motion.h2
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="text-xl font-bold text-white mb-1"
+                    >
+                      Welcome to Your Personal Financial Podcast Studio
+                    </motion.h2>
+                    <motion.p
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="text-white/60 text-sm mb-3"
+                    >
+                      Your AI-powered entertainment platform where financial advice meets personality
+                    </motion.p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                      {[
+                        { icon: Play, title: "Generate Episode", desc: "Create personalized podcast episodes", color: "from-green-500 to-emerald-500" },
+                        { icon: Heart, title: "Meet Cheerleaders", desc: "Your financial motivation team", color: "from-blue-500 to-cyan-500" },
+                        { icon: ThumbsDown, title: "Reality Checkers", desc: "Get honest financial feedback", color: "from-red-500 to-pink-500" },
+                        { icon: BarChart3, title: "Financial Data", desc: "View your spending insights", color: "from-purple-500 to-violet-500" },
+                        { icon: Users, title: "AI Podcasters", desc: "Meet your 12 AI hosts", color: "from-orange-500 to-yellow-500" },
+                        { icon: Mic, title: "Audio Studio", desc: "Listen to your episodes", color: "from-indigo-500 to-purple-500" }
+                      ].map((item, index) => (
+                        <motion.button
+                          key={item.title}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.5 + index * 0.1 }}
+                          onClick={() => setActiveView(item.title.toLowerCase().replace(' ', '_'))}
+                          className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
                         >
-                          <Play className="w-4 h-4" />
-                          Play Episode
-                        </button>
-                        <button className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">
-                          <Download className="w-4 h-4" />
-                          Download
-                        </button>
-                        <button className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">
-                          <Share2 className="w-4 h-4" />
-                          Share
-                        </button>
-                      </div>
+                          <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                            <item.icon className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                            <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
+                          </div>
+                        </motion.button>
+                      ))}
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Data Section */}
-      {activeView === 'data' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Your Financial Data Analysis</h2>
-            <p className="text-white/70">The data that powers your personalized podcast episodes</p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Spending Patterns</h3>
-              <div className="space-y-3">
-                {Object.entries(financialData.categories).map(([category, amount]) => (
-                  <div key={category} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {getCategoryIcon(category)}
-                      <span className="text-white capitalize">{category}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-32 bg-white/10 rounded-full h-2">
-                        <div 
-                          className="bg-green-400 h-2 rounded-full" 
-                          style={{ width: `${(amount / financialData.totalSpending) * 100}%` }}
-                        ></div>
-                      </div>
-                      <span className="text-white font-semibold w-20 text-right">${amount}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-white/60">Chat functionality coming soon! Use the feature boxes above to explore.</p>
+                </div>
+              )}
             </div>
 
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Financial Goals</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-white">Emergency Savings</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-white/10 rounded-full h-2">
-                      <div className="bg-green-400 h-2 rounded-full" style={{ width: '60%' }}></div>
-                    </div>
-                    <span className="text-white text-sm">${financialData.goals.savings}</span>
-                  </div>
+            {/* Input Area */}
+            <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-green-500/5 to-emerald-500/5">
+              <div className="flex gap-1">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    placeholder="Ask about podcast generation, AI hosts, or financial insights..."
+                    className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1.5 pr-10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-transparent transition-all text-sm"
+                    disabled
+                  />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white">Debt Payoff</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-white/10 rounded-full h-2">
-                      <div className="bg-yellow-400 h-2 rounded-full" style={{ width: '40%' }}></div>
-                    </div>
-                    <span className="text-white text-sm">${financialData.goals.debt}</span>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white">Investment</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-24 bg-white/10 rounded-full h-2">
-                      <div className="bg-blue-400 h-2 rounded-full" style={{ width: '25%' }}></div>
-                    </div>
-                    <span className="text-white text-sm">${financialData.goals.investment}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Audio Player */}
-      {currentEpisode && (
-        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm border-t border-white/10 p-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={handlePlayPause}
-                className="w-12 h-12 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center text-white transition-colors"
-              >
-                {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-              </button>
-              
-              <div className="flex-1">
-                <h4 className="text-white font-medium">{currentEpisode.title}</h4>
-                <p className="text-white/70 text-sm">{currentEpisode.description}</p>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button onClick={handleSkipBack} className="p-2 hover:bg-white/10 rounded-lg text-white">
-                  <SkipBack className="w-5 h-5" />
+                <button
+                  disabled
+                  className="px-2 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg opacity-50 cursor-not-allowed transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>Coming Soon</span>
                 </button>
-                <span className="text-white/70 text-sm">{formatTime(currentTime)}</span>
-                <div className="w-32 bg-white/20 rounded-full h-1">
-                  <div 
-                    className="bg-green-400 h-1 rounded-full" 
-                    style={{ width: `${(currentTime / duration) * 100}%` }}
-                  ></div>
-                </div>
-                <span className="text-white/70 text-sm">{formatTime(duration)}</span>
-                <button onClick={handleSkipForward} className="p-2 hover:bg-white/10 rounded-lg text-white">
-                  <SkipForward className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button onClick={handleMute} className="p-2 hover:bg-white/10 rounded-lg text-white">
-                  {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                </button>
-                <div className="w-16 bg-white/20 rounded-full h-1">
-                  <div 
-                    className="bg-green-400 h-1 rounded-full" 
-                    style={{ width: `${isMuted ? 0 : volume}%` }}
-                  ></div>
-                </div>
               </div>
             </div>
           </div>
         </div>
-      )}
-    </div>
+      </div>
+    </>
   );
 }
