@@ -416,13 +416,6 @@ What would you like to know about your spending future?`;
             <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
             <span className="text-purple-400 text-sm font-medium">Crystal AI Active</span>
           </div>
-          <button 
-            onClick={() => setShowCrystalChat(true)}
-            className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2"
-          >
-            <MessageCircle className="w-4 h-4" />
-            Chat with Crystal
-          </button>
         </div>
       </div>
 
