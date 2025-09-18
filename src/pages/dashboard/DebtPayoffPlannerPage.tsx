@@ -3,19 +3,9 @@ import { motion } from 'framer-motion';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { 
   Upload, 
-  FileText, 
   Calculator, 
-  DollarSign,
   BarChart3,
   Brain,
-  CheckCircle,
-  AlertTriangle,
-  Edit,
-  Trash2,
-  Search,
-  CreditCard,
-  Home,
-  Car,
   Send,
   Loader2,
   Mic,
@@ -24,43 +14,6 @@ import {
   Play
 } from 'lucide-react';
 
-// Debt Data Interfaces
-interface Debt {
-  id: string;
-  name: string;
-  type: 'credit_card' | 'car_loan' | 'mortgage' | 'personal_loan' | 'student_loan' | 'other';
-  balance: number;
-  rate: number;
-  minPayment: number;
-  dueDate: string;
-  originalAmount?: number;
-  termMonths?: number;
-  lastUpdated: string;
-  source: 'manual' | 'uploaded';
-}
-
-
-interface UploadedDocument {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  status: 'processing' | 'completed' | 'error';
-  extractedData?: Partial<Debt>;
-  uploadedAt: string;
-}
-
-interface AIRecommendation {
-  id: string;
-  type: 'refinance' | 'balance_transfer' | 'payment_timing' | 'strategy_change';
-  title: string;
-  description: string;
-  potentialSavings: number;
-  confidence: number;
-  actionRequired: string;
-  priority: 'high' | 'medium' | 'low';
-}
-
 export default function DebtPayoffPlannerPage() {
   const { updateWorkspaceState, getWorkspaceState } = useWorkspace();
   const workspaceId = 'debt-payoff-planner';
@@ -68,13 +21,8 @@ export default function DebtPayoffPlannerPage() {
   // Load saved state
   const savedState = getWorkspaceState(workspaceId);
   
-  // View state
-  const [activeView, setActiveView] = useState(savedState.activeView || 'overview');
-  const [searchTerm, setSearchTerm] = useState(savedState.searchTerm || '');
-  const [filterType, setFilterType] = useState(savedState.filterType || 'all');
-  
   // Chat state
-  const [selectedAI, setSelectedAI] = useState(savedState.selectedAI || 'blitz');
+  const [selectedAI] = useState(savedState.selectedAI || 'blitz');
   const [messages, setMessages] = useState<Array<{
     role: 'user' | 'ai';
     content: string;
@@ -84,67 +32,7 @@ export default function DebtPayoffPlannerPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Debt management
-  const [debts] = useState<Debt[]>([
-    {
-      id: 'cc1',
-      name: 'Chase Credit Card',
-      type: 'credit_card',
-      balance: 3200,
-      rate: 22.99,
-      minPayment: 85,
-      dueDate: '2024-02-15',
-      lastUpdated: '2 hours ago',
-      source: 'manual'
-    },
-    {
-      id: 'car1',
-      name: 'Toyota Car Loan',
-      type: 'car_loan',
-      balance: 7800,
-      rate: 6.49,
-      minPayment: 240,
-      dueDate: '2024-02-20',
-      originalAmount: 25000,
-      termMonths: 60,
-      lastUpdated: '1 hour ago',
-      source: 'manual'
-    },
-    {
-      id: 'mortgage1',
-      name: 'Home Mortgage',
-      type: 'mortgage',
-      balance: 185000,
-      rate: 4.25,
-      minPayment: 1200,
-      dueDate: '2024-02-01',
-      originalAmount: 250000,
-      termMonths: 360,
-      lastUpdated: '30 minutes ago',
-      source: 'manual'
-    }
-  ]);
-
-  // Simulation state
-  const [extraPayment, setExtraPayment] = useState(savedState.extraPayment || 0);
-  const [selectedStrategy, setSelectedStrategy] = useState(savedState.selectedStrategy || 'avalanche');
-  const [showSimulation, setShowSimulation] = useState(savedState.showSimulation || false);
-
-  // Document upload
-  const [uploadedDocs, setUploadedDocs] = useState<UploadedDocument[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-
-  // Live calculations
-  const [liveStats, setLiveStats] = useState({
-    totalDebt: 196000,
-    totalInterest: 45000,
-    payoffMonths: 84,
-    monthlyPayment: 1525,
-    interestSaved: 0
-  });
 
   // Blitz AI Liberation Team
   const blitzTeam = [
@@ -198,120 +86,13 @@ export default function DebtPayoffPlannerPage() {
     }
   ];
 
-
-  // Liberation Examples
-  const liberationExamples = [
-    {
-      type: 'Car Loan',
-      emoji: '🚗',
-      debtAmount: 25000,
-      currentTime: '5.5 years',
-      freedomTime: '3.2 years',
-      interestSaved: 3200,
-      color: 'text-blue-400',
-      bgColor: 'bg-blue-500/20'
-    },
-    {
-      type: 'Credit Card',
-      emoji: '💳',
-      debtAmount: 15000,
-      currentTime: '7 years',
-      freedomTime: '18 months',
-      interestSaved: 8400,
-      color: 'text-red-400',
-      bgColor: 'bg-red-500/20'
-    },
-    {
-      type: 'Student Loan',
-      emoji: '🎓',
-      debtAmount: 35000,
-      currentTime: '10 years',
-      freedomTime: '4.8 years',
-      interestSaved: 12600,
-      color: 'text-green-400',
-      bgColor: 'bg-green-500/20'
-    },
-    {
-      type: 'Personal Loan',
-      emoji: '📋',
-      debtAmount: 20000,
-      currentTime: '6 years',
-      freedomTime: '2.9 years',
-      interestSaved: 4800,
-      color: 'text-purple-400',
-      bgColor: 'bg-purple-500/20'
-    }
-  ];
-
-  // Mock AI recommendations with Blitz team integration
-  const aiRecommendations: AIRecommendation[] = [
-    {
-      id: 'blitz_refinance',
-      type: 'refinance',
-      title: 'Blitz Refinancing Strategy',
-      description: 'Blitz recommends refinancing your 22.99% credit card with a personal loan at 8.5% APR',
-      potentialSavings: 1200,
-      confidence: 92,
-      actionRequired: 'Apply for personal loan',
-      priority: 'high'
-    },
-    {
-      id: 'liberty_balance',
-      type: 'balance_transfer',
-      title: 'Liberty Balance Transfer',
-      description: 'Liberty found a 0% APR balance transfer opportunity for 18 months',
-      potentialSavings: 800,
-      confidence: 88,
-      actionRequired: 'Apply for balance transfer card',
-      priority: 'high'
-    },
-    {
-      id: 'crystal_timing',
-      type: 'payment_timing',
-      title: 'Crystal Payment Optimization',
-      description: 'Crystal suggests making extra payments on the 15th for maximum impact',
-      potentialSavings: 300,
-      confidence: 85,
-      actionRequired: 'Set up automatic payments',
-      priority: 'medium'
-    },
-    {
-      id: 'wisdom_strategy',
-      type: 'strategy_change',
-      title: 'Wisdom Strategy Enhancement',
-      description: 'Wisdom recommends switching to avalanche method for maximum interest savings',
-      potentialSavings: 500,
-      confidence: 90,
-      actionRequired: 'Update payoff strategy',
-      priority: 'medium'
-    }
-  ];
-
   // Save state whenever it changes
   useEffect(() => {
     updateWorkspaceState(workspaceId, {
-      activeView,
-      searchTerm,
-      filterType,
       selectedAI,
-      messages,
-      extraPayment,
-      selectedStrategy,
-      showSimulation
+      messages
     });
-  }, [activeView, searchTerm, filterType, selectedAI, messages, extraPayment, selectedStrategy, showSimulation, updateWorkspaceState, workspaceId]);
-
-  // Simulate live updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveStats(prev => ({
-        ...prev,
-        totalDebt: prev.totalDebt + Math.floor(Math.random() * 10 - 5),
-        interestSaved: prev.interestSaved + Math.floor(Math.random() * 5)
-      }));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  }, [selectedAI, messages, updateWorkspaceState, workspaceId]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -378,9 +159,6 @@ Hey! I'm excited to help you liberate your debt! Here's what my team and I can d
 • Personalized to your situation
 • 3x faster payoff guaranteed!
 
-**Your Current Strategy:** ${selectedStrategy.charAt(0).toUpperCase() + selectedStrategy.slice(1)}
-**Potential Savings:** $${liveStats.interestSaved.toLocaleString()} with extra payments
-
 **🗽 Liberty says:** "This strategy will reduce your financial stress by 87%!"`;
         } else {
           aiResponse = `⚡ **Hey! I'm Blitz, your AI Debt Liberation Master!**
@@ -398,11 +176,6 @@ My team and I are here to transform your debt into freedom:
 • **Extra Payment Planning** - Calculate massive savings
 • **Refinancing Opportunities** - Lower those interest rates
 • **Timeline Projections** - See your debt-free future
-
-**Current Liberation Status:**
-• Total Debt: $${liveStats.totalDebt.toLocaleString()}
-• Monthly Payment: $${liveStats.monthlyPayment.toLocaleString()}
-• Freedom Timeline: ${liveStats.payoffMonths} months
 
 **Ready to start your liberation journey?** Let's crush this debt together! 💪`;
         }
@@ -441,11 +214,6 @@ Greetings! I'm Crystal, your predictive analysis specialist. I help predict the 
 • Forecast your debt-free date with high accuracy
 • Identify potential savings opportunities
 
-**Current Analysis:**
-• Your optimal strategy: ${selectedStrategy.charAt(0).toUpperCase() + selectedStrategy.slice(1)}
-• Predicted payoff time: ${liveStats.payoffMonths} months
-• Potential savings: $${liveStats.interestSaved.toLocaleString()}
-
 **Let me analyze your situation and create the perfect liberation strategy!** 🔮✨`;
       } else if (selectedAI === 'wisdom') {
         aiResponse = `🧠 **Wisdom - Strategic Debt Planning & Interest Optimization**
@@ -463,11 +231,6 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
 • Optimize your payment allocation
 • Identify refinancing opportunities
 • Create long-term financial plans
-
-**Current Optimization:**
-• Total potential savings: $${liveStats.interestSaved.toLocaleString()}
-• Optimal monthly payment: $${liveStats.monthlyPayment.toLocaleString()}
-• Interest rate optimization opportunities: 3 identified
 
 **Let me help you maximize your savings and achieve freedom faster!** 🧠💰`;
       }
@@ -487,69 +250,10 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
-
-    setIsUploading(true);
     
-    Array.from(files).forEach((file, index) => {
-      const doc: UploadedDocument = {
-        id: `doc-${Date.now()}-${index}`,
-        name: file.name,
-        type: file.type,
-        size: file.size,
-        status: 'processing',
-        uploadedAt: new Date().toISOString()
-      };
-
-      setUploadedDocs(prev => [...prev, doc]);
-
-      // Simulate AI processing
-      setTimeout(() => {
-        setUploadedDocs(prev => prev.map(d => 
-          d.id === doc.id 
-            ? { 
-                ...d, 
-                status: 'completed',
-                extractedData: {
-                  name: file.name.includes('credit') ? 'Credit Card' : 
-                        file.name.includes('car') ? 'Car Loan' : 'Personal Loan',
-                  balance: Math.floor(Math.random() * 10000) + 1000,
-                  rate: Math.random() * 20 + 5,
-                  minPayment: Math.floor(Math.random() * 200) + 50
-                }
-              }
-            : d
-        ));
-      }, 2000 + index * 1000);
-    });
-
-    setTimeout(() => setIsUploading(false), 3000);
+    // Simple file handling for now
+    console.log('Files uploaded:', files);
   };
-
-
-  const getDebtIcon = (type: string) => {
-    switch (type) {
-      case 'credit_card': return <CreditCard className="w-5 h-5" />;
-      case 'car_loan': return <Car className="w-5 h-5" />;
-      case 'mortgage': return <Home className="w-5 h-5" />;
-      case 'student_loan': return <FileText className="w-5 h-5" />;
-      default: return <DollarSign className="w-5 h-5" />;
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'text-red-400 bg-red-500/20 border-red-500/30';
-      case 'medium': return 'text-yellow-400 bg-yellow-500/20 border-yellow-500/30';
-      default: return 'text-blue-400 bg-blue-500/20 border-blue-500/30';
-    }
-  };
-
-  const filteredDebts = debts.filter(debt => 
-    debt.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    (filterType === 'all' || debt.type === filterType)
-  );
-
-  const debtTypes = ['all', 'credit_card', 'car_loan', 'mortgage', 'personal_loan', 'student_loan'];
 
   return (
     <>
