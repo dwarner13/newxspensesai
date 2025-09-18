@@ -464,7 +464,7 @@ export default function PersonalPodcastPage() {
           <div className="flex-1 flex flex-col">
             {/* Chat Messages Area */}
             <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]">
-              {messages.length === 0 ? (
+              {activeView === 'overview' ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center max-w-2xl">
                     <motion.h2
@@ -485,19 +485,19 @@ export default function PersonalPodcastPage() {
                     </motion.p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
                       {[
-                        { icon: Play, title: "Generate Episode", desc: "Create personalized podcast episodes", color: "from-green-500 to-emerald-500" },
-                        { icon: Heart, title: "Meet Cheerleaders", desc: "Your financial motivation team", color: "from-blue-500 to-cyan-500" },
-                        { icon: ThumbsDown, title: "Reality Checkers", desc: "Get honest financial feedback", color: "from-red-500 to-pink-500" },
-                        { icon: BarChart3, title: "Financial Data", desc: "View your spending insights", color: "from-purple-500 to-violet-500" },
-                        { icon: Users, title: "AI Podcasters", desc: "Meet your 12 AI hosts", color: "from-orange-500 to-yellow-500" },
-                        { icon: Mic, title: "Audio Studio", desc: "Listen to your episodes", color: "from-indigo-500 to-purple-500" }
+                        { icon: Play, title: "Generate Episode", desc: "Create personalized podcast episodes", color: "from-green-500 to-emerald-500", view: "generate_episode" },
+                        { icon: Heart, title: "Meet Cheerleaders", desc: "Your financial motivation team", color: "from-blue-500 to-cyan-500", view: "cheerleaders" },
+                        { icon: ThumbsDown, title: "Reality Checkers", desc: "Get honest financial feedback", color: "from-red-500 to-pink-500", view: "reality_checkers" },
+                        { icon: BarChart3, title: "Financial Data", desc: "View your spending insights", color: "from-purple-500 to-violet-500", view: "financial_data" },
+                        { icon: Users, title: "AI Podcasters", desc: "Meet your 12 AI hosts", color: "from-orange-500 to-yellow-500", view: "ai_podcasters" },
+                        { icon: Mic, title: "Audio Studio", desc: "Listen to your episodes", color: "from-indigo-500 to-purple-500", view: "audio_studio" }
                       ].map((item, index) => (
                         <motion.button
                           key={item.title}
                           initial={{ opacity: 0, y: 20 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.5 + index * 0.1 }}
-                          onClick={() => setActiveView(item.title.toLowerCase().replace(' ', '_'))}
+                          onClick={() => setActiveView(item.view)}
                           className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
                         >
                           <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
@@ -512,9 +512,396 @@ export default function PersonalPodcastPage() {
                     </div>
                   </div>
                 </div>
+              ) : activeView === 'cheerleaders' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Your Financial Cheerleaders</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Tired of feeling guilty about your spending? These AI podcasters celebrate your wins, motivate your journey, and turn every financial milestone into a victory lap.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {aiPodcasters.filter(p => p.category === 'cheerleader').map((podcaster) => (
+                      <div key={podcaster.id} className={`p-4 rounded-xl border ${podcaster.bgColor} ${podcaster.borderColor}`}>
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="text-3xl">{podcaster.emoji}</div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-white mb-1">{podcaster.name}</h3>
+                            <p className={`text-sm font-medium ${podcaster.color} mb-1`}>{podcaster.title}</p>
+                            <p className="text-white/70 text-xs">{podcaster.personality}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className={`w-2 h-2 rounded-full ${
+                              podcaster.status === 'active' ? 'bg-green-400' :
+                              podcaster.status === 'working' ? 'bg-yellow-400' : 'bg-gray-400'
+                            }`}></div>
+                            <span className="text-xs text-white/70 capitalize">{podcaster.status}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-white/80 text-sm font-medium">"{podcaster.specialty}"</p>
+                          <p className="text-white/70 text-xs">{podcaster.description}</p>
+                          <p className="text-white/60 text-xs">{podcaster.bio}</p>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-white/70">Performance</span>
+                            <span className={`${podcaster.color} font-medium`}>{podcaster.performance}%</span>
+                          </div>
+                          {podcaster.currentTask && (
+                            <div className="text-xs text-white/60 italic">
+                              Currently: {podcaster.currentTask}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              ) : activeView === 'reality_checkers' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Your Financial Reality Checkers</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Sometimes you need someone to call out your BS. These AI podcasters deliver the brutal truth with style and humor.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {aiPodcasters.filter(p => p.category === 'reality_checker').map((podcaster) => (
+                      <div key={podcaster.id} className={`p-4 rounded-xl border ${podcaster.bgColor} ${podcaster.borderColor}`}>
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="text-3xl">{podcaster.emoji}</div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-white mb-1">{podcaster.name}</h3>
+                            <p className={`text-sm font-medium ${podcaster.color} mb-1`}>{podcaster.title}</p>
+                            <p className="text-white/70 text-xs">{podcaster.personality}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className={`w-2 h-2 rounded-full ${
+                              podcaster.status === 'active' ? 'bg-green-400' :
+                              podcaster.status === 'working' ? 'bg-yellow-400' : 'bg-gray-400'
+                            }`}></div>
+                            <span className="text-xs text-white/70 capitalize">{podcaster.status}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-white/80 text-sm font-medium">"{podcaster.specialty}"</p>
+                          <p className="text-white/70 text-xs">{podcaster.description}</p>
+                          <p className="text-white/60 text-xs">{podcaster.bio}</p>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-white/70">Performance</span>
+                            <span className={`${podcaster.color} font-medium`}>{podcaster.performance}%</span>
+                          </div>
+                          {podcaster.currentTask && (
+                            <div className="text-xs text-white/60 italic">
+                              Currently: {podcaster.currentTask}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              ) : activeView === 'audio_studio' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Your Personal Episodes</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Episodes generated from your actual financial data and spending patterns</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {episodes.map((episode) => {
+                      const podcaster = aiPodcasters.find(p => p.id === episode.podcaster);
+                      return (
+                        <div key={episode.id} className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="text-2xl">{podcaster?.emoji}</div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="text-lg font-semibold text-white">{episode.title}</h3>
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  episode.category === 'celebration' ? 'bg-green-500/20 text-green-400' :
+                                  episode.category === 'reality_check' ? 'bg-red-500/20 text-red-400' :
+                                  'bg-blue-500/20 text-blue-400'
+                                }`}>
+                                  {episode.category.replace('_', ' ')}
+                                </span>
+                              </div>
+                              <p className="text-white/70 text-sm mb-3">{episode.description}</p>
+                              <div className="flex items-center gap-4 text-sm text-white/60 mb-3">
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-4 h-4" />
+                                  {formatTime(episode.duration)}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="w-4 h-4" />
+                                  {new Date(episode.createdAt).toLocaleDateString()}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Headphones className="w-4 h-4" />
+                                  {episode.stats.listens} listens
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => {
+                                    setCurrentEpisode(episode);
+                                    setIsPlaying(true);
+                                  }}
+                                  className="flex items-center gap-2 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm"
+                                >
+                                  <Play className="w-4 h-4" />
+                                  Play Episode
+                                </button>
+                                <button className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm">
+                                  <Download className="w-4 h-4" />
+                                  Download
+                                </button>
+                                <button className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm">
+                                  <Share2 className="w-4 h-4" />
+                                  Share
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              ) : activeView === 'financial_data' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Your Financial Data Analysis</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">The data that powers your personalized podcast episodes</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+                      <h3 className="text-lg font-semibold text-white mb-4">Spending Patterns</h3>
+                      <div className="space-y-3">
+                        {Object.entries(financialData.categories).map(([category, amount]) => (
+                          <div key={category} className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {getCategoryIcon(category)}
+                              <span className="text-white capitalize text-sm">{category}</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="w-24 bg-white/10 rounded-full h-2">
+                                <div 
+                                  className="bg-green-400 h-2 rounded-full" 
+                                  style={{ width: `${(amount / financialData.totalSpending) * 100}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-white font-semibold text-sm w-16 text-right">${amount}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+                      <h3 className="text-lg font-semibold text-white mb-4">Financial Goals</h3>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-white text-sm">Emergency Savings</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 bg-white/10 rounded-full h-2">
+                              <div className="bg-green-400 h-2 rounded-full" style={{ width: '60%' }}></div>
+                            </div>
+                            <span className="text-white text-sm">${financialData.goals.savings}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-white text-sm">Debt Payoff</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 bg-white/10 rounded-full h-2">
+                              <div className="bg-yellow-400 h-2 rounded-full" style={{ width: '40%' }}></div>
+                            </div>
+                            <span className="text-white text-sm">${financialData.goals.debt}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-white text-sm">Investment</span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 bg-white/10 rounded-full h-2">
+                              <div className="bg-blue-400 h-2 rounded-full" style={{ width: '25%' }}></div>
+                            </div>
+                            <span className="text-white text-sm">${financialData.goals.investment}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : activeView === 'ai_podcasters' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Meet Your 12 AI Podcasters</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Your complete AI entertainment team - from cheerleaders to reality checkers</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {aiPodcasters.map((podcaster) => (
+                      <div key={podcaster.id} className={`p-4 rounded-xl border ${podcaster.bgColor} ${podcaster.borderColor}`}>
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="text-3xl">{podcaster.emoji}</div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-white mb-1">{podcaster.name}</h3>
+                            <p className={`text-sm font-medium ${podcaster.color} mb-1`}>{podcaster.title}</p>
+                            <p className="text-white/70 text-xs">{podcaster.personality}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className={`w-2 h-2 rounded-full ${
+                              podcaster.status === 'active' ? 'bg-green-400' :
+                              podcaster.status === 'working' ? 'bg-yellow-400' : 'bg-gray-400'
+                            }`}></div>
+                            <span className="text-xs text-white/70 capitalize">{podcaster.status}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-white/80 text-sm font-medium">"{podcaster.specialty}"</p>
+                          <p className="text-white/70 text-xs">{podcaster.description}</p>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-white/70">Performance</span>
+                            <span className={`${podcaster.color} font-medium`}>{podcaster.performance}%</span>
+                          </div>
+                          {podcaster.currentTask && (
+                            <div className="text-xs text-white/60 italic">
+                              Currently: {podcaster.currentTask}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              ) : activeView === 'generate_episode' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Generate New Episode</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Create a personalized podcast episode based on your financial data</p>
+                  </div>
+
+                  <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                    <h3 className="text-lg font-semibold text-white mb-4">Episode Generator</h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button className="flex items-center gap-3 p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-white transition-colors">
+                          <Heart className="w-5 h-5" />
+                          <span>Celebration Episode</span>
+                        </button>
+                        <button className="flex items-center gap-3 p-4 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg text-white transition-colors">
+                          <ThumbsDown className="w-5 h-5" />
+                          <span>Reality Check Episode</span>
+                        </button>
+                        <button className="flex items-center gap-3 p-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-white transition-colors">
+                          <BarChart3 className="w-5 h-5" />
+                          <span>Analysis Episode</span>
+                        </button>
+                        <button className="flex items-center gap-3 p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-white transition-colors">
+                          <TrendingUp className="w-5 h-5" />
+                          <span>Trending Episode</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-white/60">Chat functionality coming soon! Use the feature boxes above to explore.</p>
+                  <p className="text-white/60">Content coming soon! Use the feature boxes to explore.</p>
                 </div>
               )}
             </div>
@@ -542,6 +929,56 @@ export default function PersonalPodcastPage() {
           </div>
         </div>
       </div>
+
+      {/* Audio Player */}
+      {currentEpisode && (
+        <div className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-sm border-t border-white/10 p-4">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handlePlayPause}
+                className="w-12 h-12 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center text-white transition-colors"
+              >
+                {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+              </button>
+              
+              <div className="flex-1">
+                <h4 className="text-white font-medium">{currentEpisode.title}</h4>
+                <p className="text-white/70 text-sm">{currentEpisode.description}</p>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button onClick={handleSkipBack} className="p-2 hover:bg-white/10 rounded-lg text-white">
+                  <SkipBack className="w-5 h-5" />
+                </button>
+                <span className="text-white/70 text-sm">{formatTime(currentTime)}</span>
+                <div className="w-32 bg-white/20 rounded-full h-1">
+                  <div 
+                    className="bg-green-400 h-1 rounded-full" 
+                    style={{ width: `${(currentTime / duration) * 100}%` }}
+                  ></div>
+                </div>
+                <span className="text-white/70 text-sm">{formatTime(duration)}</span>
+                <button onClick={handleSkipForward} className="p-2 hover:bg-white/10 rounded-lg text-white">
+                  <SkipForward className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button onClick={handleMute} className="p-2 hover:bg-white/10 rounded-lg text-white">
+                  {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                </button>
+                <div className="w-16 bg-white/20 rounded-full h-1">
+                  <div 
+                    className="bg-green-400 h-1 rounded-full" 
+                    style={{ width: `${isMuted ? 0 : volume}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
