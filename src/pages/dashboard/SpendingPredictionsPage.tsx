@@ -434,8 +434,7 @@ What would you like to know about your spending future?`;
           { key: 'predictions', label: 'Predictions', icon: TrendingUp },
           { key: 'patterns', label: 'Patterns', icon: Activity },
           { key: 'alerts', label: 'Alerts', icon: AlertTriangle },
-          { key: 'insights', label: 'Crystal Insights', icon: Brain },
-          { key: 'chat', label: 'Chat with Crystal', icon: MessageCircle }
+          { key: 'insights', label: 'Crystal Insights', icon: Brain }
         ].map(({ key, label, icon: Icon }) => (
           <motion.button
             key={key}
