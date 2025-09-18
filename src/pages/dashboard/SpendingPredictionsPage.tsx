@@ -402,7 +402,7 @@ What would you like to know about your spending future?`;
   };
 
   return (
-    <div className="w-full pt-32 px-4 sm:px-6 lg:px-8">
+    <div className="w-full pt-32 pb-16 px-4 sm:px-6 lg:px-8 min-h-screen">
       {/* Welcome Section */}
       <div className="text-center mb-8">
         <h2 className="text-xl font-bold text-white mb-1">
@@ -513,36 +513,36 @@ What would you like to know about your spending future?`;
           </div>
 
           {/* Quick Actions */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 mb-8">
+            <h3 className="text-lg font-semibold text-white mb-6">Quick Actions</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <button
                 onClick={() => setActiveView('predictions')}
-                className="flex items-center gap-3 p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-white transition-colors"
+                className="flex items-center gap-3 p-5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[80px]"
               >
-                <TrendingUp className="w-5 h-5" />
-                <span>View Predictions</span>
+                <TrendingUp className="w-6 h-6 flex-shrink-0" />
+                <span className="font-medium">View Predictions</span>
               </button>
               <button
                 onClick={() => setActiveView('patterns')}
-                className="flex items-center gap-3 p-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-white transition-colors"
+                className="flex items-center gap-3 p-5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[80px]"
               >
-                <Activity className="w-5 h-5" />
-                <span>Analyze Patterns</span>
+                <Activity className="w-6 h-6 flex-shrink-0" />
+                <span className="font-medium">Analyze Patterns</span>
               </button>
               <button
                 onClick={() => setActiveView('alerts')}
-                className="flex items-center gap-3 p-4 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-white transition-colors"
+                className="flex items-center gap-3 p-5 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[80px]"
               >
-                <AlertTriangle className="w-5 h-5" />
-                <span>Check Alerts</span>
+                <AlertTriangle className="w-6 h-6 flex-shrink-0" />
+                <span className="font-medium">Check Alerts</span>
               </button>
               <button
                 onClick={() => setShowCrystalChat(true)}
-                className="flex items-center gap-3 p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-white transition-colors"
+                className="flex items-center gap-3 p-5 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[80px]"
               >
-                <MessageCircle className="w-5 h-5" />
-                <span>Chat with Crystal</span>
+                <MessageCircle className="w-6 h-6 flex-shrink-0" />
+                <span className="font-medium">Chat with Crystal</span>
               </button>
             </div>
           </div>
