@@ -402,13 +402,13 @@ What would you like to know about your spending future?`;
   };
 
   return (
-    <div className="w-full pt-32 pb-72 px-4 sm:px-6 lg:px-8">
+    <div className="w-full h-screen pt-32 pb-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
       {/* Welcome Section */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-4">
         <h2 className="text-xl font-bold text-white mb-1">
           Welcome to Crystal's Prediction Lab
         </h2>
-        <p className="text-white/60 text-sm mb-3">
+        <p className="text-white/60 text-sm mb-2">
           Your intelligent guide to predicting spending patterns and avoiding budget surprises
         </p>
         <div className="flex items-center justify-center gap-4">
@@ -427,7 +427,7 @@ What would you like to know about your spending future?`;
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="flex flex-wrap gap-2 mb-6"
+        className="flex flex-wrap gap-2 mb-4"
       >
         {[
           { key: 'overview', label: 'Overview', icon: BarChart3 },
@@ -462,7 +462,7 @@ What would you like to know about your spending future?`;
           className="space-y-6"
         >
           {/* Live Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -513,33 +513,33 @@ What would you like to know about your spending future?`;
           </div>
 
           {/* Quick Actions */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 mb-32">
-            <h3 className="text-lg font-semibold text-white mb-6">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4 mb-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <button
                 onClick={() => setActiveView('predictions')}
-                className="flex items-center gap-3 p-5 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[80px]"
+                className="flex items-center gap-3 p-3 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[60px]"
               >
                 <TrendingUp className="w-6 h-6 flex-shrink-0" />
                 <span className="font-medium">View Predictions</span>
               </button>
               <button
                 onClick={() => setActiveView('patterns')}
-                className="flex items-center gap-3 p-5 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[80px]"
+                className="flex items-center gap-3 p-3 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[60px]"
               >
                 <Activity className="w-6 h-6 flex-shrink-0" />
                 <span className="font-medium">Analyze Patterns</span>
               </button>
               <button
                 onClick={() => setActiveView('alerts')}
-                className="flex items-center gap-3 p-5 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[80px]"
+                className="flex items-center gap-3 p-3 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[60px]"
               >
                 <AlertTriangle className="w-6 h-6 flex-shrink-0" />
                 <span className="font-medium">Check Alerts</span>
               </button>
               <button
                 onClick={() => setShowCrystalChat(true)}
-                className="flex items-center gap-3 p-5 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[80px]"
+                className="flex items-center gap-3 p-3 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[60px]"
               >
                 <MessageCircle className="w-6 h-6 flex-shrink-0" />
                 <span className="font-medium">Chat with Crystal</span>
