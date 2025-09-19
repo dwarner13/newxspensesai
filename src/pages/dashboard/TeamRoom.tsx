@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import DashboardHeader from '../../components/ui/DashboardHeader';
 import { 
   Users, 
@@ -183,8 +184,12 @@ const TeamRoom: React.FC = () => {
   // Early return for debugging
   if (!agents || agents.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 sm:p-6 pb-20 pt-24 flex items-center justify-center">
-        <div className="text-center">
+      <div className="max-w-7xl mx-auto p-3 pt-4">
+        <MobilePageTitle 
+          title="Team Room" 
+          subtitle="Collaborate with your AI financial team"
+        />
+        <div className="text-center mt-8">
           <h1 className="text-2xl font-bold text-white mb-4">Team Room Loading...</h1>
           <p className="text-white/70">Initializing AI team...</p>
           <button 
@@ -199,17 +204,15 @@ const TeamRoom: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden pt-24">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse delay-1000"></div>
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-500"></div>
-      </div>
-
-      <div className="relative z-10 max-w-7xl mx-auto p-6 mt-6 md:mt-8">
-        {/* Content */}
-        <div>
+    <div className="max-w-7xl mx-auto p-3 pt-4">
+      {/* Page Title */}
+      <MobilePageTitle 
+        title="Team Room" 
+        subtitle="Collaborate with your AI financial team"
+      />
+      
+      {/* Content */}
+      <div>
         {/* Hero Header */}
         <motion.div
           initial={{ opacity: 0, y: -30 }}

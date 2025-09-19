@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useLocation } from 'react-router-dom';
 import { 
   Send, 
@@ -11,7 +12,8 @@ import {
   Upload,
   BarChart3,
   FileText,
-  Zap
+  Zap,
+  X
 } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
@@ -34,6 +36,25 @@ interface FinleyMessage {
   };
 }
 
+interface AIWorker {
+  id: string;
+  name: string;
+  role: string;
+  status: 'idle' | 'working' | 'completed';
+  progress: number;
+  currentTask: string;
+  avatar: string;
+  color: string;
+}
+
+interface WorkerMessage {
+  id: string;
+  worker: string;
+  content: string;
+  timestamp: string;
+  type: 'status' | 'chat' | 'progress';
+}
+
 export default function AIFinancialAssistantPage() {
   const { user } = useAuth();
   const location = useLocation();
@@ -42,8 +63,265 @@ export default function AIFinancialAssistantPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [watchMeWorkOpen, setWatchMeWorkOpen] = useState(false);
+  const [currentFeature, setCurrentFeature] = useState('');
+  const [workerChatInput, setWorkerChatInput] = useState('');
+  const [workerChatMessages, setWorkerChatMessages] = useState([
+    {
+      id: '1',
+      sender: 'Prime',
+      message: 'Hello! I\'m Prime, your AI team coordinator. Feel free to ask me or any of the team members questions!',
+      timestamp: new Date().toISOString(),
+      type: 'system'
+    }
+  ]);
+
+  // Real data states for sidebar display
+  const [realCategories, setRealCategories] = useState([
+    { name: 'Food & Dining', count: 23, amount: 456.78, color: 'from-green-500 to-emerald-500' },
+    { name: 'Transportation', count: 15, amount: 234.50, color: 'from-blue-500 to-cyan-500' },
+    { name: 'Shopping', count: 8, amount: 189.99, color: 'from-purple-500 to-violet-500' },
+    { name: 'Entertainment', count: 12, amount: 156.75, color: 'from-orange-500 to-yellow-500' },
+    { name: 'Utilities', count: 6, amount: 298.30, color: 'from-red-500 to-pink-500' },
+    { name: 'Healthcare', count: 4, amount: 89.45, color: 'from-indigo-500 to-purple-500' }
+  ]);
+
+  const [realTransactions, setRealTransactions] = useState([
+    { id: 1, description: 'Starbucks Coffee', amount: 4.95, category: 'Food & Dining', date: '2024-01-15', type: 'expense' },
+    { id: 2, description: 'Uber Ride', amount: 12.50, category: 'Transportation', date: '2024-01-15', type: 'expense' },
+    { id: 3, description: 'Amazon Purchase', amount: 45.99, category: 'Shopping', date: '2024-01-14', type: 'expense' },
+    { id: 4, description: 'Netflix Subscription', amount: 15.99, category: 'Entertainment', date: '2024-01-14', type: 'expense' },
+    { id: 5, description: 'Salary Deposit', amount: 3500.00, category: 'Income', date: '2024-01-14', type: 'income' }
+  ]);
+
+  const [realAutomations, setRealAutomations] = useState([
+    { id: 1, name: 'Auto-categorize Starbucks', rule: 'If merchant contains "Starbucks" → Food & Dining', status: 'active', lastRun: '2 hours ago' },
+    { id: 2, name: 'Round up savings', rule: 'Round up all purchases to nearest dollar → Savings', status: 'active', lastRun: '1 hour ago' },
+    { id: 3, name: 'Bill reminders', rule: 'Notify 3 days before recurring bills', status: 'active', lastRun: '30 minutes ago' },
+    { id: 4, name: 'Expense alerts', rule: 'Alert when daily spending exceeds $100', status: 'active', lastRun: '15 minutes ago' }
+  ]);
+
+  const [realGoals, setRealGoals] = useState([
+    { id: 1, name: 'Emergency Fund', target: 10000, current: 3500, deadline: '2024-12-31', progress: 35 },
+    { id: 2, name: 'Vacation Fund', target: 3000, current: 1200, deadline: '2024-06-30', progress: 40 },
+    { id: 3, name: 'New Car', target: 25000, current: 8500, deadline: '2025-03-15', progress: 34 }
+  ]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const activityFeedRef = useRef<HTMLDivElement>(null);
+
+  // AI Workers state
+  const [aiWorkers, setAiWorkers] = useState<AIWorker[]>([
+    {
+      id: 'finley',
+      name: 'Finley',
+      role: 'Financial Assistant',
+      status: 'idle',
+      progress: 0,
+      currentTask: 'Ready to assist with financial queries',
+      avatar: '🤖',
+      color: 'from-blue-500 to-cyan-500'
+    },
+    {
+      id: 'crystal',
+      name: 'Crystal',
+      role: 'Data Analysis Expert',
+      status: 'idle',
+      progress: 0,
+      currentTask: 'Waiting for data to analyze',
+      avatar: '💎',
+      color: 'from-purple-500 to-pink-500'
+    },
+    {
+      id: 'tag',
+      name: 'Tag',
+      role: 'Auto-Categorization Specialist',
+      status: 'idle',
+      progress: 0,
+      currentTask: 'Ready to categorize transactions',
+      avatar: '🏷️',
+      color: 'from-green-500 to-emerald-500'
+    },
+    {
+      id: 'prime',
+      name: 'Prime',
+      role: 'AI Team Coordinator',
+      status: 'idle',
+      progress: 0,
+      currentTask: 'Coordinating team activities',
+      avatar: '👑',
+      color: 'from-orange-500 to-yellow-500'
+    }
+  ]);
+
+  const [workerMessages, setWorkerMessages] = useState<WorkerMessage[]>([
+    {
+      id: '1',
+      worker: 'Prime',
+      content: 'AI Financial Assistant team assembled and ready!',
+      timestamp: new Date().toISOString(),
+      type: 'status'
+    }
+  ]);
+
+  // Simulate AI worker activities for different features
+  const simulateFeatureWorkflow = (feature: string) => {
+    // Reset workers to idle state
+    setAiWorkers(prev => prev.map(worker => ({
+      ...worker,
+      status: 'idle' as const,
+      progress: 0,
+      currentTask: 'Ready to assist with financial queries'
+    })));
+
+    // Clear previous messages
+    setWorkerMessages([{
+      id: '1',
+      worker: 'Prime',
+      content: `${feature} team assembled and ready!`,
+      timestamp: new Date().toISOString(),
+      type: 'status'
+    }]);
+    const workflows = {
+      'Smart Import AI': [
+        { worker: 'finley', task: 'Initializing document processing...', progress: 20 },
+        { worker: 'finley', task: 'Analyzing document structure...', progress: 40 },
+        { worker: 'finley', task: 'Extracting transaction data...', progress: 60 },
+        { worker: 'finley', task: 'Validating data integrity...', progress: 80 },
+        { worker: 'finley', task: 'Smart Import AI processing complete!', progress: 100 },
+        { worker: 'tag', task: 'Auto-categorizing transactions...', progress: 50 },
+        { worker: 'tag', task: 'Applying smart tags...', progress: 100 },
+        { worker: 'crystal', task: 'Analyzing spending patterns...', progress: 70 },
+        { worker: 'crystal', task: 'Generating insights...', progress: 100 }
+      ],
+      'Smart Categories': [
+        { worker: 'tag', task: 'Scanning transaction categories...', progress: 30 },
+        { worker: 'tag', task: 'Identifying patterns...', progress: 60 },
+        { worker: 'tag', task: 'Optimizing category rules...', progress: 90 },
+        { worker: 'tag', task: 'Smart Categories updated!', progress: 100 },
+        { worker: 'crystal', task: 'Analyzing category performance...', progress: 80 },
+        { worker: 'crystal', task: 'Category insights ready!', progress: 100 }
+      ],
+      'Transaction Analysis': [
+        { worker: 'crystal', task: 'Loading transaction data...', progress: 25 },
+        { worker: 'crystal', task: 'Analyzing spending trends...', progress: 50 },
+        { worker: 'crystal', task: 'Identifying anomalies...', progress: 75 },
+        { worker: 'crystal', task: 'Transaction analysis complete!', progress: 100 },
+        { worker: 'finley', task: 'Generating recommendations...', progress: 100 }
+      ],
+      'AI Goal Concierge': [
+        { worker: 'finley', task: 'Analyzing financial goals...', progress: 30 },
+        { worker: 'finley', task: 'Creating goal roadmap...', progress: 60 },
+        { worker: 'finley', task: 'Setting milestones...', progress: 90 },
+        { worker: 'finley', task: 'Goal Concierge plan ready!', progress: 100 },
+        { worker: 'prime', task: 'Coordinating goal tracking...', progress: 100 }
+      ],
+      'Receipt Processing': [
+        { worker: 'finley', task: 'Scanning receipt image...', progress: 25 },
+        { worker: 'finley', task: 'Extracting receipt data...', progress: 50 },
+        { worker: 'finley', task: 'Validating receipt info...', progress: 75 },
+        { worker: 'finley', task: 'Receipt processed successfully!', progress: 100 },
+        { worker: 'tag', task: 'Categorizing receipt...', progress: 100 }
+      ],
+      'Smart Automation': [
+        { worker: 'prime', task: 'Analyzing workflow patterns...', progress: 40 },
+        { worker: 'prime', task: 'Creating automation rules...', progress: 70 },
+        { worker: 'prime', task: 'Testing automation logic...', progress: 90 },
+        { worker: 'prime', task: 'Smart Automation activated!', progress: 100 },
+        { worker: 'finley', task: 'Monitoring automation...', progress: 100 }
+      ]
+    };
+
+    const tasks = workflows[feature as keyof typeof workflows] || [];
+    let taskIndex = 0;
+    
+    const interval = setInterval(() => {
+      if (taskIndex >= tasks.length) {
+        clearInterval(interval);
+        return;
+      }
+
+      const currentTask = tasks[taskIndex];
+      
+      // Update worker status
+      setAiWorkers(prev => prev.map(worker => 
+        worker.id === currentTask.worker 
+          ? { 
+              ...worker, 
+              status: currentTask.progress === 100 ? 'completed' : 'working',
+              progress: currentTask.progress,
+              currentTask: currentTask.task
+            }
+          : worker
+      ));
+
+      // Add worker message
+      const newMessage: WorkerMessage = {
+        id: Date.now().toString(),
+        worker: currentTask.worker,
+        content: currentTask.task,
+        timestamp: new Date().toISOString(),
+        type: currentTask.progress === 100 ? 'status' : 'progress'
+      };
+
+      setWorkerMessages(prev => [...prev, newMessage]);
+
+      // Add chat messages between workers
+      if (Math.random() > 0.6) {
+        const chatMessages = {
+          'Smart Import AI': [
+            { worker: 'Finley', content: 'Document processing is going smoothly!' },
+            { worker: 'Tag', content: 'Auto-categorization is working perfectly.' },
+            { worker: 'Crystal', content: 'I can see clear patterns in the imported data.' }
+          ],
+          'Smart Categories': [
+            { worker: 'Tag', content: 'Category optimization is running smoothly!' },
+            { worker: 'Crystal', content: 'Category performance analysis is complete.' },
+            { worker: 'Finley', content: 'Smart categories are being applied automatically.' }
+          ],
+          'Transaction Analysis': [
+            { worker: 'Crystal', content: 'Transaction analysis is revealing interesting patterns!' },
+            { worker: 'Finley', content: 'Generating personalized recommendations now.' },
+            { worker: 'Prime', content: 'Analysis team coordination is excellent!' }
+          ],
+          'AI Goal Concierge': [
+            { worker: 'Finley', content: 'Financial goal analysis is progressing well!' },
+            { worker: 'Prime', content: 'Goal tracking coordination is active.' },
+            { worker: 'Crystal', content: 'Goal performance metrics are being calculated.' }
+          ],
+          'Receipt Processing': [
+            { worker: 'Finley', content: 'Receipt scanning and extraction is working perfectly!' },
+            { worker: 'Tag', content: 'Receipt categorization is automated and accurate.' },
+            { worker: 'Crystal', content: 'Receipt data patterns are being analyzed.' }
+          ],
+          'Smart Automation': [
+            { worker: 'Prime', content: 'Automation workflow analysis is complete!' },
+            { worker: 'Finley', content: 'Monitoring automation performance in real-time.' },
+            { worker: 'Crystal', content: 'Automation efficiency metrics are excellent.' }
+          ]
+        };
+
+        const featureMessages = chatMessages[feature as keyof typeof chatMessages] || [
+          { worker: 'Finley', content: `Working on ${feature} - this is going smoothly!` },
+          { worker: 'Crystal', content: 'I can see the data patterns clearly now.' },
+          { worker: 'Tag', content: 'Categories are being optimized automatically.' }
+        ];
+
+        const randomChat = featureMessages[Math.floor(Math.random() * featureMessages.length)];
+        const chatMessage: WorkerMessage = {
+          id: (Date.now() + 1).toString(),
+          worker: randomChat.worker,
+          content: randomChat.content,
+          timestamp: new Date().toISOString(),
+          type: 'chat'
+        };
+
+        setWorkerMessages(prev => [...prev, chatMessage]);
+      }
+
+      taskIndex++;
+    }, 2000);
+  };
 
   // Initialize conversation and load Finley's config
   useEffect(() => {
@@ -98,6 +376,40 @@ export default function AIFinancialAssistantPage() {
       messagesEndRef.current.scrollTop = messagesEndRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Auto-scroll activity feed when new worker messages arrive
+  useEffect(() => {
+    if (activityFeedRef.current) {
+      // Multiple attempts to ensure scrolling works
+      const scrollToBottom = () => {
+        const container = activityFeedRef.current;
+        if (container) {
+          container.scrollTop = container.scrollHeight;
+        }
+      };
+
+      // Immediate scroll
+      scrollToBottom();
+      
+      // Delayed scrolls to handle rendering timing
+      setTimeout(scrollToBottom, 50);
+      setTimeout(scrollToBottom, 150);
+      setTimeout(scrollToBottom, 300);
+    }
+  }, [workerMessages]);
+
+  // Listen for Watch Me Work events from alerts popup
+  useEffect(() => {
+    const handleOpenWatchMeWork = (event: CustomEvent) => {
+      const { feature } = event.detail;
+      setCurrentFeature(feature || 'AI Team Overview');
+      simulateFeatureWorkflow(feature || 'AI Team Overview');
+      setWatchMeWorkOpen(true);
+    };
+
+    window.addEventListener('openWatchMeWork', handleOpenWatchMeWork as EventListener);
+    return () => window.removeEventListener('openWatchMeWork', handleOpenWatchMeWork as EventListener);
+  }, []);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -265,34 +577,167 @@ export default function AIFinancialAssistantPage() {
     }
   };
 
-  return (
-    <div className="max-w-7xl mx-auto p-6 pt-32">
-      {/* Welcome Section */}
-      <div className="text-center mb-8">
-        <h2 className="text-xl font-bold text-white mb-1">
-          Welcome to XspensesAI Assistant
-        </h2>
-        <p className="text-white/60 text-sm mb-3">
-          Your intelligent guide to mastering expense management and financial insights
-        </p>
-        <div className="flex items-center justify-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-green-400 text-sm font-medium">AI Ready</span>
-          </div>
-          <div className="text-2xl">🧠</div>
-        </div>
-      </div>
+  const handleWorkerChat = (message: string) => {
+    if (!message.trim()) return;
 
+    // Add user message
+    const userMessage = {
+      id: Date.now().toString(),
+      sender: 'You',
+      message: message.trim(),
+      timestamp: new Date().toISOString(),
+      type: 'user' as const
+    };
+
+    setWorkerChatMessages(prev => [...prev, userMessage]);
+
+    // Simulate AI response
+    setTimeout(() => {
+      const responses = [
+        { sender: 'Prime', message: 'Great question! Let me coordinate with the team on that.' },
+        { sender: 'Byte', message: 'I\'m currently processing documents. Everything is running smoothly!' },
+        { sender: 'Crystal', message: 'The data analysis is progressing well. I\'ll have insights ready soon.' },
+        { sender: 'Tag', message: 'Categorization is working perfectly. All transactions are being sorted automatically.' },
+        { sender: 'Prime', message: 'The team is working efficiently. Is there anything specific you\'d like to know?' }
+      ];
+
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      const aiMessage = {
+        id: (Date.now() + 1).toString(),
+        sender: randomResponse.sender,
+        message: randomResponse.message,
+        timestamp: new Date().toISOString(),
+        type: 'ai' as const
+      };
+
+      setWorkerChatMessages(prev => [...prev, aiMessage]);
+    }, 1000);
+
+    setWorkerChatInput('');
+  };
+
+  const handleWorkerChatKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleWorkerChat(workerChatInput);
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto p-6 pt-4">
+      {/* Page Title */}
+      <MobilePageTitle 
+        title="AI Financial Assistant" 
+        subtitle="Get personalized financial advice from AI"
+      />
+      
+      {/* Desktop Title */}
+      <div className="hidden md:block text-center mb-8">
+        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
+          AI Financial Assistant
+        </h1>
+        <p className="text-white/60 text-lg">
+          Get personalized financial advice from AI
+        </p>
+      </div>
+      
       {/* Main Chat Interface */}
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col">
           {/* Chat Messages Area */}
-          <div className="overflow-y-auto p-2 space-y-2 h-[200px]" ref={messagesEndRef}>
+          <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]" ref={messagesEndRef}>
             {messages.length === 0 ? (
               <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-4xl">
-                  <p className="text-white/60 text-sm mb-4">Start a conversation with Finley to begin your financial journey</p>
+                <div className="text-center max-w-2xl">
+                  <motion.h2
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="text-xl font-bold text-white mb-1"
+                  >
+                    Welcome to XspensesAI Assistant
+                  </motion.h2>
+                  <motion.p
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-white/60 text-sm mb-3"
+                  >
+                    Your intelligent guide to mastering expense management and financial insights
+                  </motion.p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                    {[
+                      { icon: Upload, title: "Smart Import AI", desc: "Upload and categorize transactions", color: "from-blue-500 to-cyan-500" },
+                      { icon: Brain, title: "Smart Categories", desc: "AI-powered expense insights", color: "from-green-500 to-emerald-500" },
+                      { icon: BarChart3, title: "Transaction Analysis", desc: "Deep spending analysis", color: "from-red-500 to-pink-500" },
+                      { icon: Target, title: "AI Goal Concierge", desc: "Set and track financial goals", color: "from-purple-500 to-violet-500" },
+                      { icon: FileText, title: "Receipt Processing", desc: "Scan and process receipts", color: "from-orange-500 to-yellow-500" },
+                      { icon: Zap, title: "Smart Automation", desc: "Automate workflows", color: "from-indigo-500 to-purple-500" }
+                    ].map((item, index) => (
+                      <motion.button
+                        key={item.title}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 + index * 0.1 }}
+                        onClick={() => {
+                          sendMessage(`Help me with ${item.title.toLowerCase()}`);
+                          setCurrentFeature(item.title);
+                          simulateFeatureWorkflow(item.title);
+                          setWatchMeWorkOpen(true);
+                          
+                          // Show real data based on feature
+                          if (item.title === 'Smart Categories') {
+                            // Simulate AI updating categories
+                            setTimeout(() => {
+                              setRealCategories(prev => prev.map(cat => ({
+                                ...cat,
+                                count: cat.count + Math.floor(Math.random() * 3),
+                                amount: cat.amount + (Math.random() * 50)
+                              })));
+                            }, 2000);
+                          } else if (item.title === 'Transaction Analysis') {
+                            // Simulate new transaction analysis
+                            setTimeout(() => {
+                              setRealTransactions(prev => [...prev, {
+                                id: Date.now(),
+                                description: 'AI Detected: Unusual spending pattern',
+                                amount: -25.00,
+                                category: 'Analysis Alert',
+                                date: new Date().toISOString().split('T')[0],
+                                type: 'analysis'
+                              }]);
+                            }, 3000);
+                          } else if (item.title === 'Smart Automation') {
+                            // Simulate automation running
+                            setTimeout(() => {
+                              setRealAutomations(prev => prev.map(auto => ({
+                                ...auto,
+                                lastRun: 'Just now'
+                              })));
+                            }, 1500);
+                          } else if (item.title === 'AI Goal Concierge') {
+                            // Simulate goal progress update
+                            setTimeout(() => {
+                              setRealGoals(prev => prev.map(goal => ({
+                                ...goal,
+                                current: goal.current + Math.floor(Math.random() * 100),
+                                progress: Math.min(100, Math.floor(((goal.current + Math.floor(Math.random() * 100)) / goal.target) * 100))
+                              })));
+                            }, 2500);
+                          }
+                        }}
+                        className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+                      >
+                        <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                          <item.icon className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                          <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -337,131 +782,7 @@ export default function AIFinancialAssistantPage() {
                 </div>
               </motion.div>
             )}
-          </div>
-
-          {/* Core AI Tools Section - Always Visible */}
-          <div className="mt-6">
-            <div className="text-center max-w-4xl mx-auto">
-              {/* Core AI Tools Section */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5 }}
-                className="mb-8"
-              >
-                <h3 className="text-lg font-semibold text-white mb-4">CORE AI TOOLS</h3>
-                <p className="text-white/60 text-sm mb-6">Essential AI-powered features for your financial journey</p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* Smart Import AI */}
-                  <div className="bg-gradient-to-br from-blue-900/60 to-cyan-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                        <Upload size={24} className="text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-white">Smart Import AI</h3>
-                        <p className="text-sm text-white/60">Last Used: 2 hours ago</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => sendMessage("Help me with Smart Import AI")}
-                      className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-3 rounded-lg font-medium hover:from-blue-600 hover:to-cyan-600 transition-all"
-                    >
-                      Upload Documents
-                    </button>
-                  </div>
-
-                  {/* Smart Categories */}
-                  <div className="bg-gradient-to-br from-green-900/60 to-emerald-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
-                        <Brain size={24} className="text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-white">Smart Categories</h3>
-                        <p className="text-sm text-white/60">Accuracy: 99.7%</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => sendMessage("Help me with Smart Categories")}
-                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white py-3 rounded-lg font-medium hover:from-green-600 hover:to-emerald-600 transition-all"
-                    >
-                      Categorize Expenses
-                    </button>
-                  </div>
-
-                  {/* Transaction Analysis */}
-                  <div className="bg-gradient-to-br from-red-900/60 to-pink-900/60 backdrop-blur-sm rounded-2xl shadow-xl border border-white/10 p-6">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl flex items-center justify-center">
-                        <BarChart3 size={24} className="text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-white">Transaction Analysis</h3>
-                        <p className="text-sm text-white/60">Accuracy: 96%</p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => sendMessage("Help me with Transaction Analysis")}
-                      className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white py-3 rounded-lg font-medium hover:from-red-600 hover:to-pink-600 transition-all"
-                    >
-                      Analyze Spending
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Planning & Analysis Section */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <h3 className="text-lg font-semibold text-white mb-4">PLANNING & ANALYSIS</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <button
-                    onClick={() => sendMessage("Help me with AI Goal Concierge")}
-                    className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                  >
-                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-violet-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Target className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-white mb-1">AI Goal Concierge</h3>
-                      <p className="text-white/60 text-xs leading-tight">Set and track financial goals</p>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={() => sendMessage("Help me with Receipt Processing")}
-                    className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                  >
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <FileText className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-white mb-1">Receipt Processing</h3>
-                      <p className="text-white/60 text-xs leading-tight">Scan and process receipts</p>
-                    </div>
-                  </button>
-                  
-                  <button
-                    onClick={() => sendMessage("Help me with Smart Automation")}
-                    className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                  >
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Zap className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-white mb-1">Smart Automation</h3>
-                      <p className="text-white/60 text-xs leading-tight">Automate your workflows</p>
-                    </div>
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          </div>
+              </div>
 
           {/* High-Tech Input Area */}
           <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/5">
@@ -528,6 +849,325 @@ export default function AIFinancialAssistantPage() {
           </div>
         </div>
       </div>
+
+      {/* Watch Me Work Modal */}
+      <AnimatePresence>
+        {watchMeWorkOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setWatchMeWorkOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-6xl max-h-[95vh] overflow-hidden mx-2 md:mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 md:p-6 border-b border-white/10">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg md:text-2xl font-bold text-white mb-1 md:mb-2 truncate">
+                    {currentFeature ? `${currentFeature} Team` : 'AI Financial Assistant Team'}
+                  </h2>
+                  <p className="text-white/60 text-sm md:text-base hidden md:block">
+                    {currentFeature 
+                      ? `Watch Finley's team process ${currentFeature.toLowerCase()} in real-time`
+                      : 'Watch Finley\'s team process financial tasks in real-time'
+                    }
+                  </p>
+                  <p className="text-white/60 text-xs md:hidden">
+                    {currentFeature ? `${currentFeature} in action` : 'AI team in action'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setWatchMeWorkOpen(false)}
+                  className="text-white/60 hover:text-white transition-colors flex-shrink-0 ml-2"
+                >
+                  <X className="w-5 h-5 md:w-6 md:h-6" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex flex-col md:flex-row h-[calc(95vh-80px)] md:h-[calc(90vh-120px)]">
+                {/* Left Side - AI Workers */}
+                <div className="w-full md:w-1/2 p-3 md:p-6 border-b md:border-b-0 md:border-r border-white/10 overflow-y-auto">
+                  <h3 className="text-base md:text-lg font-semibold text-white mb-3 md:mb-4">AI Workers</h3>
+                  <div className="space-y-2 md:space-y-4">
+                    {aiWorkers.map((worker) => (
+                      <motion.div
+                        key={worker.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white/5 rounded-lg md:rounded-xl p-2 md:p-4 border border-white/10"
+                      >
+                        <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
+                          <div className={`w-8 h-8 md:w-12 md:h-12 bg-gradient-to-r ${worker.color} rounded-lg md:rounded-xl flex items-center justify-center text-white text-sm md:text-xl`}>
+                            {worker.avatar}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-white font-semibold text-xs md:text-base">{worker.name}</h4>
+                            <p className="text-white/60 text-xs md:text-sm truncate">{worker.role}</p>
+                          </div>
+                          <div className={`px-1.5 md:px-2 py-0.5 md:py-1 rounded-full text-xs font-medium ${
+                            worker.status === 'working' ? 'bg-blue-500/20 text-blue-400' :
+                            worker.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {worker.status}
+                          </div>
+                        </div>
+                        
+                        {/* Progress Bar */}
+                        <div className="mb-1 md:mb-3">
+                          <div className="flex justify-between text-xs text-white/60 mb-1">
+                            <span className="truncate mr-2 text-xs">{worker.currentTask}</span>
+                            <span className="flex-shrink-0 text-xs">{worker.progress}%</span>
+                          </div>
+                          <div className="w-full bg-white/10 rounded-full h-1 md:h-2">
+                            <motion.div
+                              className={`h-1 md:h-2 rounded-full bg-gradient-to-r ${worker.color}`}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${worker.progress}%` }}
+                              transition={{ duration: 0.5 }}
+                            />
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Side - Live Chat & Real Data */}
+                <div className="w-full md:w-1/2 p-3 md:p-6 overflow-y-auto">
+                  <h3 className="text-base md:text-lg font-semibold text-white mb-3 md:mb-4">Live Activity Feed</h3>
+                  <div 
+                    ref={activityFeedRef}
+                    className="space-y-1.5 md:space-y-3 max-h-[calc(25vh-60px)] md:max-h-[calc(40vh-100px)] overflow-y-auto mb-3 md:mb-4"
+                  >
+                    {workerMessages.map((message) => (
+                      <motion.div
+                        key={message.id}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`p-1.5 md:p-3 rounded-md md:rounded-lg ${
+                          message.type === 'chat' ? 'bg-blue-500/10 border border-blue-500/20' :
+                          message.type === 'status' ? 'bg-green-500/10 border border-green-500/20' :
+                          'bg-purple-500/10 border border-purple-500/20'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1 md:gap-2 mb-1 flex-wrap">
+                          <span className="text-xs font-semibold text-white">{message.worker}</span>
+                          <span className={`text-xs px-1 md:px-2 py-0.5 rounded-full ${
+                            message.type === 'chat' ? 'bg-blue-500/20 text-blue-400' :
+                            message.type === 'status' ? 'bg-green-500/20 text-green-400' :
+                            'bg-purple-500/20 text-purple-400'
+                          }`}>
+                            {message.type}
+                          </span>
+                          <span className="text-xs text-white/40">
+                            {new Date(message.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="text-white/80 text-xs">{message.content}</p>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Real Data Section */}
+                  <div className="border-t border-white/10 pt-3 md:pt-4">
+                    <h3 className="text-base md:text-lg font-semibold text-white mb-3 md:mb-4">Real Data Updates</h3>
+                    
+                    {/* Categories */}
+                    {currentFeature === 'Smart Categories' && (
+                      <div className="mb-4">
+                        <h4 className="text-sm font-medium text-white/80 mb-2">Updated Categories</h4>
+                        <div className="space-y-1.5 md:space-y-2 max-h-24 md:max-h-32 overflow-y-auto">
+                          {realCategories.map((category, index) => (
+                            <motion.div
+                              key={category.name}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              className="flex items-center justify-between p-1.5 md:p-2 bg-white/5 rounded-md md:rounded-lg"
+                            >
+                              <div className="flex items-center gap-1.5 md:gap-2">
+                                <div className={`w-2.5 h-2.5 md:w-3 md:h-3 bg-gradient-to-r ${category.color} rounded-full`}></div>
+                                <span className="text-white text-xs md:text-sm">{category.name}</span>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-white text-xs font-medium">${category.amount.toFixed(2)}</div>
+                                <div className="text-white/60 text-xs">{category.count} txns</div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Transactions */}
+                    {currentFeature === 'Transaction Analysis' && (
+                      <div className="mb-4">
+                        <h4 className="text-sm font-medium text-white/80 mb-2">Recent Transactions</h4>
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                          {realTransactions.slice(-3).map((transaction, index) => (
+                            <motion.div
+                              key={transaction.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              className={`flex items-center justify-between p-2 rounded-lg ${
+                                transaction.type === 'income' ? 'bg-green-500/10 border border-green-500/20' :
+                                transaction.type === 'analysis' ? 'bg-orange-500/10 border border-orange-500/20' :
+                                'bg-white/5'
+                              }`}
+                            >
+                              <div>
+                                <div className="text-white text-sm font-medium">{transaction.description}</div>
+                                <div className="text-white/60 text-xs">{transaction.category}</div>
+                              </div>
+                              <div className={`text-sm font-medium ${
+                                transaction.amount > 0 ? 'text-green-400' : 'text-red-400'
+                              }`}>
+                                ${Math.abs(transaction.amount).toFixed(2)}
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Automations */}
+                    {currentFeature === 'Smart Automation' && (
+                      <div className="mb-4">
+                        <h4 className="text-sm font-medium text-white/80 mb-2">Active Automations</h4>
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                          {realAutomations.map((automation, index) => (
+                            <motion.div
+                              key={automation.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              className="p-2 bg-white/5 rounded-lg"
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-white text-sm font-medium">{automation.name}</span>
+                                <span className="text-green-400 text-xs">● {automation.status}</span>
+                              </div>
+                              <div className="text-white/60 text-xs mb-1">{automation.rule}</div>
+                              <div className="text-white/40 text-xs">Last run: {automation.lastRun}</div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Goals */}
+                    {currentFeature === 'AI Goal Concierge' && (
+                      <div className="mb-4">
+                        <h4 className="text-sm font-medium text-white/80 mb-2">Goal Progress</h4>
+                        <div className="space-y-2 max-h-32 overflow-y-auto">
+                          {realGoals.map((goal, index) => (
+                            <motion.div
+                              key={goal.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              className="p-2 bg-white/5 rounded-lg"
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-white text-sm font-medium">{goal.name}</span>
+                                <span className="text-white text-xs">{goal.progress}%</span>
+                              </div>
+                              <div className="w-full bg-white/10 rounded-full h-1.5 mb-1">
+                                <motion.div
+                                  className="h-1.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${goal.progress}%` }}
+                                  transition={{ duration: 1, delay: index * 0.2 }}
+                                />
+                              </div>
+                              <div className="text-white/60 text-xs">
+                                ${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Chat with AI Workers */}
+                  <div className="border-t border-white/10 pt-3 md:pt-4">
+                    <h3 className="text-base md:text-lg font-semibold text-white mb-3 md:mb-4">Chat with AI Workers</h3>
+                    {/* Chat Messages */}
+                    <div className="space-y-2 mb-3 max-h-32 overflow-y-auto">
+                      {workerChatMessages.map((msg) => (
+                        <div key={msg.id} className={`p-2 rounded-lg ${
+                          msg.type === 'user' ? 'bg-blue-500/10 ml-4' :
+                          msg.type === 'system' ? 'bg-purple-500/10' :
+                          'bg-white/5 mr-4'
+                        }`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-medium text-white">{msg.sender}</span>
+                            <span className="text-xs text-white/40">
+                              {new Date(msg.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-white/80">{msg.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="space-y-2 mb-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={workerChatInput}
+                          onChange={(e) => setWorkerChatInput(e.target.value)}
+                          onKeyPress={handleWorkerChatKeyPress}
+                          placeholder="Ask a question to the AI team..."
+                          className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent"
+                        />
+                        <button 
+                          onClick={() => handleWorkerChat(workerChatInput)}
+                          className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-lg px-3 py-2 transition-colors"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Quick Questions */}
+                    <div className="space-y-1">
+                      <p className="text-xs text-white/60 mb-2">Quick questions:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          "What are you working on?",
+                          "How's the progress?",
+                          "Any issues?",
+                          "Need help?"
+                        ].map((question, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleWorkerChat(question)}
+                            className="text-xs bg-white/5 hover:bg-white/10 text-white/80 hover:text-white px-2 py-1 rounded-md transition-colors"
+                          >
+                            {question}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 } 

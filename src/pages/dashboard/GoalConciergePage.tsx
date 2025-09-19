@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { Target, BarChart3, Trophy, Send, Loader2, X, Brain } from 'lucide-react';
 
 interface GoalieMessage {
@@ -75,7 +76,13 @@ const GoalConciergePage: React.FC = () => {
   };
 
   return (
-    <div className="w-full pt-32 px-4 sm:px-6 lg:px-8">
+    <div className="w-full pt-4 px-4 sm:px-6 lg:px-8">
+      {/* Page Title */}
+      <MobilePageTitle 
+        title="AI Goal Concierge" 
+        subtitle="Set and track your financial goals"
+      />
+      
       {/* Welcome Section */}
       <div className="text-center mb-8">
         <h2 className="text-xl font-bold text-white mb-1">

@@ -283,7 +283,7 @@ function App() {
                       <Route path="podcast" element={<PersonalPodcastPage />} />
 
                       <Route path="smart-automation" element={<SmartAutomation />} />
-                      <Route path="analytics" element={<Analytics />} />
+                      <Route path="analytics" element={<Analytics key="analytics" />} />
                       <Route path="settings" element={<Settings />} />
                       <Route path="reports" element={<Reports />} />
                       <Route path="spotify" element={<SpotifyIntegrationDashboardPage />} />

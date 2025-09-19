@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
+import AIEmployeeChatbot from '../../components/ai/AIEmployeeChatbot';
 import { 
   Bot, 
   Zap, 
@@ -473,7 +475,23 @@ What would you like to explore about your financial data?`;
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6 pt-32">
+    <div className="max-w-7xl mx-auto p-6 pt-4">
+        {/* Page Title */}
+        <MobilePageTitle 
+          title="AI Categorization" 
+          subtitle="Smart categorization of your transactions"
+        />
+        
+        {/* Desktop Title */}
+        <div className="hidden md:block text-center mb-8">
+          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
+            AI Categorization
+          </h1>
+          <p className="text-white/60 text-lg">
+            Smart categorization of your transactions
+          </p>
+        </div>
+        
         {/* Content */}
         <div>
         {/* Page Header */}
@@ -1739,14 +1757,6 @@ What would you like to explore about your financial data?`;
           </div>
         )}
 
-        {/* Floating Chat Button */}
-        <button
-          onClick={() => setChatOpen(true)}
-          className="fixed bottom-6 right-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-full p-4 shadow-lg transition-opacity z-40"
-          title="Chat with Tag AI"
-        >
-          <Bot className="w-6 h-6" />
-        </button>
         </div>
     </div>
   );

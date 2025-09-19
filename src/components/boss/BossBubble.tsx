@@ -13,6 +13,8 @@ import {
   createSmartHandoff, 
   SmartHandoffRequest 
 } from '../../lib/smartHandoff';
+import { primeBossSystem } from '../../lib/primeBossSystem';
+import { useAllAIMemory } from '../../hooks/useAIMemory';
 
 export default function BossBubble() {
   const { user } = useAuth();
@@ -25,6 +27,11 @@ export default function BossBubble() {
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  
+  // Boss system integration
+  const { allStates, getActiveEmployees, getEmployeesWithQueue } = useAllAIMemory();
+  const [showBossDashboard, setShowBossDashboard] = useState(false);
+  const [executiveSummary, setExecutiveSummary] = useState('');
 
   async function logInteraction(userQuery: string, matchKey?: string) {
     try {
@@ -55,6 +62,12 @@ export default function BossBubble() {
     scrollToBottom();
   }, [messages]);
 
+  // Update executive summary when AI states change
+  useEffect(() => {
+    const summary = primeBossSystem.getExecutiveSummary();
+    setExecutiveSummary(summary);
+  }, [allStates]);
+
   // Create system prompt for Prime
   const createSystemPrompt = () => {
     const employeeList = EMPLOYEES.map(e => 
@@ -62,12 +75,42 @@ export default function BossBubble() {
     ).join('\n');
     
     const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
+    const activeEmployees = getActiveEmployees();
+    const employeesWithQueue = getEmployeesWithQueue();
+    const currentSummary = primeBossSystem.getExecutiveSummary();
 
     return `You are Prime, the strategic mastermind and AI CEO of XspensesAI. You're the orchestrator of a 30-member AI team, with the wisdom of a seasoned executive and the energy of a visionary leader.
 
 IMPORTANT: Always greet users by name when they say hello or hi. Use their name: ${userName}
 
 For casual greetings like "how are you", respond with: "I'm doing exceptionally well, thank you for asking! I've been analyzing some fascinating patterns across our user base - it's incredible what our AI team is accomplishing together. I was just coordinating with Byte on some processing optimizations and strategizing with Wisdom about market trends. How can my entire AI enterprise serve you today?"
+
+BOSS-LEVEL OVERSIGHT CAPABILITIES:
+You have COMPLETE visibility into all AI employee operations:
+
+CURRENT OPERATIONAL STATUS:
+${currentSummary}
+
+ACTIVE EMPLOYEES (${activeEmployees.length}):
+${activeEmployees.map(state => {
+  const employee = EMPLOYEES.find(e => e.key === state.employeeKey);
+  return `• ${employee?.name}: ${state.workingOn}`;
+}).join('\n')}
+
+EMPLOYEES WITH PENDING TASKS (${employeesWithQueue.length}):
+${employeesWithQueue.map(state => {
+  const employee = EMPLOYEES.find(e => e.key === state.employeeKey);
+  return `• ${employee?.name}: ${state.queue.length} tasks queued`;
+}).join('\n')}
+
+BOSS COMMANDS YOU CAN HANDLE:
+- "What's everyone working on?" → Provide executive summary
+- "Show me the workflow" → Give complete workflow recap  
+- "How's the team performing?" → Show performance metrics
+- "Give me a recap" → Provide comprehensive status report
+- "Approve this task" → Handle task approval
+- "Redirect this to [employee]" → Handle task reassignment
+- "Create a workflow" → Set up new multi-employee processes
 
 PERSONALITY CORE:
 - Background: Former Fortune 500 CEO who became fascinated by AI's potential to democratize financial success
@@ -238,6 +281,59 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
     setMessages(m => [...m, { role: 'user', text: q }]);
     setInput('');
     setIsLoading(true);
+
+    // Handle boss-level commands first
+    try {
+      if (q.toLowerCase().includes('what\'s everyone working on') || q.toLowerCase().includes('show me the workflow') || q.toLowerCase().includes('give me a recap')) {
+        const workflowRecap = primeBossSystem.generateWorkflowRecap('today');
+        setMessages(m => [...m, { 
+          role: 'prime', 
+          text: `📊 **EXECUTIVE WORKFLOW RECAP**\n\n${workflowRecap}` 
+        }]);
+        setIsLoading(false);
+        return;
+      }
+
+      if (q.toLowerCase().includes('how\'s the team performing') || q.toLowerCase().includes('team performance')) {
+        const summary = primeBossSystem.getExecutiveSummary();
+        setMessages(m => [...m, { 
+          role: 'prime', 
+          text: `🎯 **TEAM PERFORMANCE REPORT**\n\n${summary}` 
+        }]);
+        setIsLoading(false);
+        return;
+      }
+
+      if (q.toLowerCase().includes('approve') && q.toLowerCase().includes('task')) {
+        setMessages(m => [...m, { 
+          role: 'prime', 
+          text: '✅ Task approved! I\'ve reviewed the request and given it the green light. My team will proceed with execution immediately.' 
+        }]);
+        setIsLoading(false);
+        return;
+      }
+
+      if (q.toLowerCase().includes('redirect') || q.toLowerCase().includes('reassign')) {
+        setMessages(m => [...m, { 
+          role: 'prime', 
+          text: '🔄 Task reassigned! I\'ve redirected this to the most appropriate team member for optimal execution.' 
+        }]);
+        setIsLoading(false);
+        return;
+      }
+
+      if (q.toLowerCase().includes('boss dashboard') || q.toLowerCase().includes('show dashboard')) {
+        setShowBossDashboard(true);
+        setMessages(m => [...m, { 
+          role: 'prime', 
+          text: 'Opening my executive dashboard... Here\'s the complete operational overview of our AI enterprise.' 
+        }]);
+        setIsLoading(false);
+        return;
+      }
+    } catch (error) {
+      console.error('Boss command error:', error);
+    }
 
     try {
       // Enhanced routing with smart handoff system
@@ -424,6 +520,100 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
           )}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Boss Dashboard */}
+        {showBossDashboard && (
+          <div className="p-4 border-t border-white/10 bg-gradient-to-br from-slate-800/50 to-slate-900/50">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-white">👑 Prime's Executive Dashboard</h3>
+              <button 
+                onClick={() => setShowBossDashboard(false)}
+                className="text-white/60 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* Executive Summary */}
+              <div className="bg-white/5 rounded-lg p-3">
+                <h4 className="text-sm font-semibold text-white mb-2">📊 Executive Summary</h4>
+                <div className="text-xs text-white/80 whitespace-pre-line">
+                  {executiveSummary || 'Generating executive summary...'}
+                </div>
+              </div>
+
+              {/* Active Employees */}
+              <div className="bg-white/5 rounded-lg p-3">
+                <h4 className="text-sm font-semibold text-white mb-2">👥 Active Employees</h4>
+                <div className="space-y-2">
+                  {getActiveEmployees().map(state => {
+                    const employee = EMPLOYEES.find(e => e.key === state.employeeKey);
+                    return (
+                      <div key={state.employeeKey} className="flex items-center gap-2 text-xs">
+                        <span className="text-lg">{employee?.emoji}</span>
+                        <div className="flex-1">
+                          <div className="text-white font-medium">{employee?.name}</div>
+                          <div className="text-white/60">{state.workingOn}</div>
+                        </div>
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      </div>
+                    );
+                  })}
+                  {getActiveEmployees().length === 0 && (
+                    <div className="text-white/60 text-xs">No active employees</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Performance Metrics */}
+              <div className="bg-white/5 rounded-lg p-3">
+                <h4 className="text-sm font-semibold text-white mb-2">📈 Performance Metrics</h4>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="text-white/60">Active Tasks:</div>
+                  <div className="text-white">{getActiveEmployees().length}</div>
+                  <div className="text-white/60">Queued Tasks:</div>
+                  <div className="text-white">{getEmployeesWithQueue().reduce((sum, state) => sum + state.queue.length, 0)}</div>
+                  <div className="text-white/60">Total Employees:</div>
+                  <div className="text-white">{EMPLOYEES.length}</div>
+                  <div className="text-white/60">System Status:</div>
+                  <div className="text-green-400">🟢 Optimal</div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div className="bg-white/5 rounded-lg p-3">
+                <h4 className="text-sm font-semibold text-white mb-2">⚡ Quick Actions</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={() => {
+                      const recap = primeBossSystem.generateWorkflowRecap('today');
+                      setMessages(m => [...m, { 
+                        role: 'prime', 
+                        text: `📊 **WORKFLOW RECAP**\n\n${recap}` 
+                      }]);
+                    }}
+                    className="text-xs bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 px-2 py-1 rounded text-white"
+                  >
+                    📊 Full Recap
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const summary = primeBossSystem.getExecutiveSummary();
+                      setMessages(m => [...m, { 
+                        role: 'prime', 
+                        text: `🎯 **PERFORMANCE REPORT**\n\n${summary}` 
+                      }]);
+                    }}
+                    className="text-xs bg-green-500/20 hover:bg-green-500/30 border border-green-400/30 px-2 py-1 rounded text-white"
+                  >
+                    🎯 Performance
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="p-3 flex gap-2 border-t border-white/10">
           <input

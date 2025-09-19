@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { 
   Zap,
   Brain,
@@ -32,13 +33,7 @@ export default function SmartAutomationPage() {
   const [activeView] = useState(savedState.activeView || 'overview');
   
   // Chat state
-  const [messages, setMessages] = useState<PrimeMessage[]>(savedState.messages || [
-    {
-      role: 'prime',
-      content: "Welcome to Prime's Automation Command Center! I'm your AI Automation Director, and I'm here to help you create powerful automation workflows that save time and money. My team and I work 24/7 to optimize your financial processes. What would you like to automate today?",
-      timestamp: new Date().toISOString()
-    }
-  ]);
+  const [messages, setMessages] = useState<PrimeMessage[]>(savedState.messages || []);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -114,6 +109,12 @@ export default function SmartAutomationPage() {
   return (
     <>
       <div className="max-w-7xl mx-auto p-6 pt-32">
+        {/* Page Title */}
+        <MobilePageTitle 
+          title="Smart Automation" 
+          subtitle="Automate your financial workflows"
+        />
+        
         {/* Main Chat Interface */}
         <div className="flex-1 flex flex-col">
           <div className="flex-1 flex flex-col">

@@ -56,7 +56,7 @@ export const useMobileRevolution = () => {
   const isMobileByWidth = width < MOBILE_CONFIG.MOBILE_MAX;
   const isMobile = isMobileByWidth || isLikelyMobileUA;
   
-  // TEMPORARY: Force mobile for testing - DISABLED to fix subpage rendering
+  // TEMPORARY: Force mobile for testing - DISABLED now that mobile layout is working
   const forceMobileForTesting = false;
   const finalIsMobile = forceMobileForTesting || isMobile;
 

@@ -1,6 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2, MessageCircle, Send, Paperclip, Mic, X } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2, X } from 'lucide-react';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
+import { useAIMemory } from '../../hooks/useAIMemory';
 
 interface ProcessingFile {
   id: string;
@@ -29,7 +31,34 @@ interface ProcessingModal {
   currentStep: number;
 }
 
+interface AIWorker {
+  id: string;
+  name: string;
+  role: string;
+  status: 'idle' | 'working' | 'completed';
+  progress: number;
+  currentTask: string;
+  avatar: string;
+  color: string;
+}
+
+interface WorkerMessage {
+  id: string;
+  worker: string;
+  content: string;
+  timestamp: string;
+  type: 'status' | 'chat' | 'progress';
+}
+
 const SmartImportAIPage: React.FC = () => {
+  // AI Memory System Integration
+  const { 
+    createTask, 
+    addMessage, 
+    currentTask, 
+    conversation
+  } = useAIMemory('byte');
+
   const [files, setFiles] = useState<ProcessingFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -40,8 +69,91 @@ const SmartImportAIPage: React.FC = () => {
       timestamp: new Date().toISOString()
     }
   ]);
-  const [chatInput, setChatInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [showTeamModal, setShowTeamModal] = useState(false);
+
+  // Sync with AI memory system
+  useEffect(() => {
+    if (conversation && conversation.messages.length > 0) {
+      const lastMessage = conversation.messages[conversation.messages.length - 1];
+      if (lastMessage.role === 'ai' && !chatMessages.some(m => m.content === lastMessage.content)) {
+        setChatMessages(prev => [...prev, {
+          id: `memory-${Date.now()}`,
+          role: 'byte',
+          content: lastMessage.content,
+          timestamp: lastMessage.timestamp
+        }]);
+      }
+    }
+  }, [conversation, chatMessages]);
+
+  // Create task when files are uploaded
+  const handleFileUpload = (newFiles: ProcessingFile[]) => {
+    setFiles(prev => [...prev, ...newFiles]);
+    
+    // Create AI task for document processing
+    if (newFiles.length > 0) {
+      createTask({
+        type: 'document_processing',
+        title: `Processing ${newFiles.length} document(s)`,
+        description: `Processing ${newFiles.map(f => f.name).join(', ')}`,
+        data: { files: newFiles }
+      });
+      
+      // Add message to conversation
+      addMessage('user', `Uploaded ${newFiles.length} file(s) for processing: ${newFiles.map(f => f.name).join(', ')}`);
+      
+      // Simulate Byte's response
+      setTimeout(() => {
+        addMessage('ai', `Got it! I'm processing ${newFiles.length} document(s) right now. I'll extract all the financial data and categorize everything automatically. You can chat with me while I work! 📄✨`);
+      }, 1000);
+    }
+  };
+
+  // Handle chat with Byte
+  const handleChatWithByte = async (message: string) => {
+    if (!message.trim()) return;
+
+    // Add user message
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+    setChatMessages(prev => [...prev, userMessage]);
+    
+    // Add to AI memory system
+    addMessage('user', message);
+
+    // Simulate Byte's response based on current task
+    setTimeout(() => {
+      let response = '';
+      
+      if (currentTask && currentTask.status === 'in_progress') {
+        const progress = Math.round(currentTask.progress);
+        response = `I'm currently processing your documents (${progress}% complete)! ${message.toLowerCase().includes('progress') ? 
+          `Here's what I'm doing: extracting transaction data, categorizing expenses, and validating amounts. I should be done in a few more minutes!` :
+          `I can chat while I work! What would you like to know about the processing?`}`;
+      } else if (message.toLowerCase().includes('upload') || message.toLowerCase().includes('file')) {
+        response = `Ready to process more files! Just drag and drop them or click the upload area. I can handle PDFs, CSVs, receipts, and bank statements with 99.7% accuracy! 📄✨`;
+      } else if (message.toLowerCase().includes('how') || message.toLowerCase().includes('what')) {
+        response = `I'm Byte, your document processing wizard! I extract financial data from any document type, categorize transactions automatically, and ensure everything is accurate. You can upload files anytime and chat with me while I work!`;
+      } else {
+        response = `Thanks for chatting! I'm here to help with all your document processing needs. Feel free to upload more files or ask me anything about the data I'm extracting! 📊`;
+      }
+
+      const byteMessage: ChatMessage = {
+        id: `byte-${Date.now()}`,
+        role: 'byte',
+        content: response,
+        timestamp: new Date().toISOString()
+      };
+      setChatMessages(prev => [...prev, byteMessage]);
+      
+      // Add to AI memory system
+      addMessage('ai', response);
+    }, 1500);
+  };
   const [processingModal, setProcessingModal] = useState<ProcessingModal>({
     isOpen: false,
     file: null,
@@ -49,8 +161,139 @@ const SmartImportAIPage: React.FC = () => {
     currentStep: 0
   });
   const [bytePopupOpen, setBytePopupOpen] = useState(false);
+  const [watchMeWorkOpen, setWatchMeWorkOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // AI Workers state
+  const [aiWorkers, setAiWorkers] = useState<AIWorker[]>([
+    {
+      id: 'byte',
+      name: 'Byte',
+      role: 'Document Processing Wizard',
+      status: 'idle',
+      progress: 0,
+      currentTask: 'Ready to process documents',
+      avatar: '🤖',
+      color: 'from-blue-500 to-cyan-500'
+    },
+    {
+      id: 'crystal',
+      name: 'Crystal',
+      role: 'Data Analysis Expert',
+      status: 'idle',
+      progress: 0,
+      currentTask: 'Waiting for data to analyze',
+      avatar: '💎',
+      color: 'from-purple-500 to-pink-500'
+    },
+    {
+      id: 'tag',
+      name: 'Tag',
+      role: 'Auto-Categorization Specialist',
+      status: 'idle',
+      progress: 0,
+      currentTask: 'Ready to categorize transactions',
+      avatar: '🏷️',
+      color: 'from-green-500 to-emerald-500'
+    },
+    {
+      id: 'prime',
+      name: 'Prime',
+      role: 'AI Team Coordinator',
+      status: 'idle',
+      progress: 0,
+      currentTask: 'Coordinating team activities',
+      avatar: '👑',
+      color: 'from-orange-500 to-yellow-500'
+    }
+  ]);
+
+  const [workerMessages, setWorkerMessages] = useState<WorkerMessage[]>([
+    {
+      id: '1',
+      worker: 'Prime',
+      content: 'Team assembled and ready for document processing!',
+      timestamp: new Date().toISOString(),
+      type: 'status'
+    }
+  ]);
+
+  // Simulate AI worker activities
+  const simulateWorkflow = () => {
+    const tasks = [
+      { worker: 'byte', task: 'Scanning uploaded document...', progress: 25 },
+      { worker: 'byte', task: 'Extracting text and data...', progress: 50 },
+      { worker: 'byte', task: 'Validating document format...', progress: 75 },
+      { worker: 'byte', task: 'Document processed successfully!', progress: 100 },
+      { worker: 'crystal', task: 'Analyzing transaction patterns...', progress: 30 },
+      { worker: 'crystal', task: 'Identifying spending categories...', progress: 60 },
+      { worker: 'crystal', task: 'Generating insights...', progress: 90 },
+      { worker: 'crystal', task: 'Analysis complete!', progress: 100 },
+      { worker: 'tag', task: 'Auto-categorizing transactions...', progress: 40 },
+      { worker: 'tag', task: 'Applying smart tags...', progress: 80 },
+      { worker: 'tag', task: 'Categorization finished!', progress: 100 },
+      { worker: 'prime', task: 'Coordinating team workflow...', progress: 100 }
+    ];
+
+    let taskIndex = 0;
+    const interval = setInterval(() => {
+      if (taskIndex >= tasks.length) {
+        clearInterval(interval);
+        return;
+      }
+
+      const currentTask = tasks[taskIndex];
+      
+      // Update worker status
+      setAiWorkers(prev => prev.map(worker => 
+        worker.id === currentTask.worker 
+          ? { 
+              ...worker, 
+              status: currentTask.progress === 100 ? 'completed' : 'working',
+              progress: currentTask.progress,
+              currentTask: currentTask.task
+            }
+          : worker
+      ));
+
+      // Add worker message
+      const newMessage: WorkerMessage = {
+        id: Date.now().toString(),
+        worker: currentTask.worker,
+        content: currentTask.task,
+        timestamp: new Date().toISOString(),
+        type: currentTask.progress === 100 ? 'status' : 'progress'
+      };
+
+      setWorkerMessages(prev => [...prev, newMessage]);
+
+      // Add chat messages between workers
+      if (Math.random() > 0.7) {
+        const chatMessages = [
+          { worker: 'Byte', content: 'Hey Crystal, I just finished processing that Chase statement!' },
+          { worker: 'Crystal', content: 'Perfect! I can see the transaction patterns now. Let me analyze the spending trends.' },
+          { worker: 'Tag', content: 'I\'m ready to categorize these transactions. Should I use the smart categories?' },
+          { worker: 'Prime', content: 'Excellent work team! The document processing is going smoothly.' },
+          { worker: 'Byte', content: 'The OCR accuracy is at 99.7% - this document is crystal clear!' },
+          { worker: 'Crystal', content: 'I\'ve identified some interesting patterns in the dining expenses.' },
+          { worker: 'Tag', content: 'Auto-categorization complete! All transactions are properly tagged.' }
+        ];
+
+        const randomChat = chatMessages[Math.floor(Math.random() * chatMessages.length)];
+        const chatMessage: WorkerMessage = {
+          id: (Date.now() + 1).toString(),
+          worker: randomChat.worker,
+          content: randomChat.content,
+          timestamp: new Date().toISOString(),
+          type: 'chat'
+        };
+
+        setWorkerMessages(prev => [...prev, chatMessage]);
+      }
+
+      taskIndex++;
+    }, 2000);
+  };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -79,7 +322,6 @@ const SmartImportAIPage: React.FC = () => {
   const handleAutoExport = async () => {
     // Generate financial story data for podcasters
     const totalTransactions = files.reduce((sum, file) => sum + (file.transactions || 0), 0);
-    const totalFiles = files.length;
     const processedFiles = files.filter(f => f.status === 'completed').length;
     
     // Create Byte's contribution to the financial story
@@ -176,7 +418,8 @@ const SmartImportAIPage: React.FC = () => {
       progress: 0
     }));
 
-    setFiles(prev => [...prev, ...newFiles]);
+    // Use the new handleFileUpload function
+    handleFileUpload(newFiles);
 
     // Add success message to chat
     const fileNames = newFiles.map(f => f.name).join(', ');
@@ -295,54 +538,7 @@ const SmartImportAIPage: React.FC = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const sendChatMessage = async (message: string) => {
-    if (!message.trim() || isLoading) return;
 
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      role: 'user',
-      content: message,
-      timestamp: new Date().toISOString()
-    };
-
-    setChatMessages(prev => [...prev, userMessage]);
-    setChatInput('');
-    setIsLoading(true);
-
-    // Simulate Byte's response
-    setTimeout(() => {
-      const byteResponse: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        role: 'byte',
-        content: getByteResponse(message),
-        timestamp: new Date().toISOString()
-      };
-      setChatMessages(prev => [...prev, byteResponse]);
-      setIsLoading(false);
-    }, 1000);
-  };
-
-  const getByteResponse = (message: string): string => {
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('upload') || lowerMessage.includes('file')) {
-      return "Perfect! Just drag and drop your files into the upload area above, or click 'Choose Files'. I can handle PDFs, CSVs, Excel files, and images. What type of document are you working with?";
-    }
-    
-    if (lowerMessage.includes('accuracy') || lowerMessage.includes('error')) {
-      return "I'm proud to say I maintain 99.7% accuracy! If you ever see an error, just let me know and I'll help you fix it. I'm always learning and improving! 📄✨";
-    }
-    
-    if (lowerMessage.includes('speed') || lowerMessage.includes('fast')) {
-      return "I process documents in an average of 2.3 seconds! Pretty fast, right? I love the challenge of organizing data quickly and accurately. What documents do you have for me today?";
-    }
-    
-    if (lowerMessage.includes('help') || lowerMessage.includes('how')) {
-      return "I'm here to help! I can process bank statements, receipts, CSV files, and more. Just upload your files and I'll extract all the transaction data with perfect accuracy. What do you need help with?";
-    }
-    
-    return "That's interesting! I'm Byte, your document processing specialist. I love organizing data and finding patterns in your financial documents. Feel free to ask me anything about file processing, or just upload some documents and I'll show you what I can do! 📄";
-  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -413,7 +609,23 @@ const SmartImportAIPage: React.FC = () => {
 
   return (
     <>
-      <div className="w-full pt-32 px-4 sm:px-6 lg:px-8">
+      <div className="w-full pt-4 px-4 sm:px-6 lg:px-8">
+        {/* Page Title */}
+        <MobilePageTitle 
+          title="Smart Import AI" 
+          subtitle="Automatically import and categorize your financial data"
+        />
+        
+        {/* Desktop Title */}
+        <div className="hidden md:block text-center mb-8">
+          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
+            Smart Import AI
+          </h1>
+          <p className="text-white/60 text-lg">
+            Automatically import and categorize your financial data
+          </p>
+        </div>
+        
         {/* Main Content - Clean Workspace */}
         <div className="max-w-6xl mx-auto">
           
@@ -452,7 +664,11 @@ const SmartImportAIPage: React.FC = () => {
 
             <motion.button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
-              onClick={() => setBytePopupOpen(true)}
+              onClick={() => {
+                // Open camera scanning interface
+                setBytePopupOpen(true);
+                handleChatWithByte("I want to scan a receipt with my camera");
+              }}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
@@ -468,7 +684,10 @@ const SmartImportAIPage: React.FC = () => {
 
             <motion.button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-              onClick={() => setBytePopupOpen(true)}
+              onClick={() => {
+                setBytePopupOpen(true);
+                handleChatWithByte("I want to import my bank statement");
+              }}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
@@ -484,7 +703,10 @@ const SmartImportAIPage: React.FC = () => {
 
             <motion.button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-              onClick={() => setBytePopupOpen(true)}
+              onClick={() => {
+                setBytePopupOpen(true);
+                handleChatWithByte("I want to import CSV data");
+              }}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
@@ -500,6 +722,9 @@ const SmartImportAIPage: React.FC = () => {
 
             <motion.button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+              onClick={() => {
+                handleChatWithByte("Show me the processing speed and performance metrics");
+              }}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.5 }}
@@ -514,17 +739,30 @@ const SmartImportAIPage: React.FC = () => {
             </motion.button>
 
             <motion.button
-              className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+              className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10 relative"
+              onClick={() => {
+                setWatchMeWorkOpen(true);
+                simulateWorkflow();
+              }}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.6 }}
             >
+              {/* Live Activity Indicator */}
+              {currentTask && currentTask.status === 'in_progress' && (
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full animate-pulse"></div>
+              )}
+              
               <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <span className="text-white text-xl">🎯</span>
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-semibold text-white mb-1">99.7% Accuracy</h3>
-                <p className="text-white/60 text-xs leading-tight">Precision processing</p>
+                <h3 className="text-sm font-semibold text-white mb-1">
+                  Watch Me Work
+                </h3>
+                <p className="text-white/60 text-xs leading-tight">
+                  {currentTask ? `Processing ${Math.round(currentTask.progress)}%` : 'See AI team in action'}
+                </p>
               </div>
             </motion.button>
           </div>
@@ -1038,6 +1276,236 @@ const SmartImportAIPage: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Team Modal */}
+      <AnimatePresence>
+        {showTeamModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowTeamModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-slate-900 rounded-2xl border border-white/10 w-full max-w-lg p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-white">👥 Call AI Team</h3>
+                <button
+                  onClick={() => setShowTeamModal(false)}
+                  className="p-1 hover:bg-white/10 rounded transition-colors"
+                >
+                  <X className="w-5 h-5 text-white/60" />
+                </button>
+              </div>
+              
+              <p className="text-white/70 text-sm mb-4">
+                Hand off your current task to another AI employee or get help from the team.
+              </p>
+              
+              <div className="space-y-3">
+                {/* Tag - For categorization */}
+                <button
+                  onClick={() => {
+                    handleChatWithByte("I'm handing this off to Tag for categorization");
+                    setShowTeamModal(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10"
+                >
+                  <div className="w-10 h-10 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-lg">🏷️</span>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <h4 className="text-white font-medium">Tag</h4>
+                    <p className="text-white/60 text-xs">Auto-categorizes transactions</p>
+                  </div>
+                  <span className="text-white/40 text-xs">→</span>
+                </button>
+                
+                {/* Crystal - For analysis */}
+                <button
+                  onClick={() => {
+                    handleChatWithByte("I'm handing this off to Crystal for trend analysis");
+                    setShowTeamModal(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10"
+                >
+                  <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-lg">🔮</span>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <h4 className="text-white font-medium">Crystal</h4>
+                    <p className="text-white/60 text-xs">Forecasts spending trends</p>
+                  </div>
+                  <span className="text-white/40 text-xs">→</span>
+                </button>
+                
+                {/* Intelia - For business intelligence */}
+                <button
+                  onClick={() => {
+                    handleChatWithByte("I'm handing this off to Intelia for business insights");
+                    setShowTeamModal(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10"
+                >
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-lg">🧠</span>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <h4 className="text-white font-medium">Intelia</h4>
+                    <p className="text-white/60 text-xs">Business intelligence & insights</p>
+                  </div>
+                  <span className="text-white/40 text-xs">→</span>
+                </button>
+                
+                {/* Prime - For executive oversight */}
+                <button
+                  onClick={() => {
+                    handleChatWithByte("I'm calling Prime for executive oversight");
+                    setShowTeamModal(false);
+                  }}
+                  className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10"
+                >
+                  <div className="w-10 h-10 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-lg">👑</span>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <h4 className="text-white font-medium">Prime</h4>
+                    <p className="text-white/60 text-xs">Strategic AI CEO oversight</p>
+                  </div>
+                  <span className="text-white/40 text-xs">→</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Watch Me Work Modal */}
+      <AnimatePresence>
+        {watchMeWorkOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setWatchMeWorkOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-6xl max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-white/10">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-2">AI Team in Action</h2>
+                  <p className="text-white/60">Watch Byte's team process documents in real-time</p>
+                </div>
+                <button
+                  onClick={() => setWatchMeWorkOpen(false)}
+                  className="text-white/60 hover:text-white transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="flex h-[calc(90vh-120px)]">
+                {/* Left Side - AI Workers */}
+                <div className="w-1/2 p-6 border-r border-white/10 overflow-y-auto">
+                  <h3 className="text-lg font-semibold text-white mb-4">AI Workers</h3>
+                  <div className="space-y-4">
+                    {aiWorkers.map((worker) => (
+                      <motion.div
+                        key={worker.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="bg-white/5 rounded-xl p-4 border border-white/10"
+                      >
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className={`w-12 h-12 bg-gradient-to-r ${worker.color} rounded-xl flex items-center justify-center text-white text-xl`}>
+                            {worker.avatar}
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="text-white font-semibold">{worker.name}</h4>
+                            <p className="text-white/60 text-sm">{worker.role}</p>
+                          </div>
+                          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            worker.status === 'working' ? 'bg-blue-500/20 text-blue-400' :
+                            worker.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                            'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            {worker.status}
+                          </div>
+                        </div>
+                        
+                        {/* Progress Bar */}
+                        <div className="mb-3">
+                          <div className="flex justify-between text-sm text-white/60 mb-1">
+                            <span>{worker.currentTask}</span>
+                            <span>{worker.progress}%</span>
+                          </div>
+                          <div className="w-full bg-white/10 rounded-full h-2">
+                            <motion.div
+                              className={`h-2 rounded-full bg-gradient-to-r ${worker.color}`}
+                              initial={{ width: 0 }}
+                              animate={{ width: `${worker.progress}%` }}
+                              transition={{ duration: 0.5 }}
+                            />
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Side - Live Chat */}
+                <div className="w-1/2 p-6 overflow-y-auto">
+                  <h3 className="text-lg font-semibold text-white mb-4">Live Activity Feed</h3>
+                  <div className="space-y-3 max-h-[calc(90vh-200px)] overflow-y-auto">
+                    {workerMessages.map((message) => (
+                      <motion.div
+                        key={message.id}
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className={`p-3 rounded-lg ${
+                          message.type === 'chat' ? 'bg-blue-500/10 border border-blue-500/20' :
+                          message.type === 'status' ? 'bg-green-500/10 border border-green-500/20' :
+                          'bg-purple-500/10 border border-purple-500/20'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-semibold text-white">{message.worker}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            message.type === 'chat' ? 'bg-blue-500/20 text-blue-400' :
+                            message.type === 'status' ? 'bg-green-500/20 text-green-400' :
+                            'bg-purple-500/20 text-purple-400'
+                          }`}>
+                            {message.type}
+                          </span>
+                          <span className="text-xs text-white/40">
+                            {new Date(message.timestamp).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <p className="text-white/80 text-sm">{message.content}</p>
+                      </motion.div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       </div>
     </>
   );

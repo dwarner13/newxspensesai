@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { 
   Play, 
   Pause, 
@@ -120,6 +121,20 @@ export default function PersonalPodcastPage() {
   
   // Chat state
   const [messages, setMessages] = useState<any[]>([]);
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    // Multiple scroll methods to ensure it works on all devices
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    
+    // Also scroll the main content if it exists
+    const mainContent = document.querySelector('.dashboard-main-content');
+    if (mainContent) {
+      mainContent.scrollTop = 0;
+    }
+  }, []);
 
   // Financial data
   const [financialData] = useState<FinancialData>({
@@ -457,13 +472,28 @@ export default function PersonalPodcastPage() {
   };
 
   return (
-    <>
-      <div className="max-w-7xl mx-auto p-6 pt-32">
-        {/* Main Chat Interface */}
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 flex flex-col">
-            {/* Chat Messages Area */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]">
+    <div>
+      <div className="dashboard-main-content max-w-7xl mx-auto p-4 md:p-6 pt-20 md:pt-32">
+        {/* Page Title */}
+        <MobilePageTitle 
+          title="Personal Podcast" 
+          subtitle="Your personalized financial podcast"
+        />
+        
+        {/* Desktop Title */}
+        <div className="hidden md:block text-center mb-8">
+          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
+            Personal Podcast
+          </h1>
+          <p className="text-white/60 text-lg">
+            Your personalized financial podcast
+          </p>
+        </div>
+        
+        {/* Main Content */}
+        <div className="min-h-[400px]">
+          {/* Chat Messages Area */}
+          <div className="p-2 space-y-2">
               {activeView === 'overview' ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center max-w-2xl">
@@ -979,6 +1009,6 @@ export default function PersonalPodcastPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

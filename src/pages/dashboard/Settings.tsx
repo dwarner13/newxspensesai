@@ -1,884 +1,661 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { 
+  Send,
   Settings as SettingsIcon, 
   User, 
   Shield, 
-  CreditCard, 
   Bell, 
   Globe, 
-  Key, 
-  Zap, 
-  Bot, 
-  Download, 
-  Trash2, 
-  Copy, 
-  Eye, 
-  EyeOff, 
-  Upload, 
-  Camera, 
-  Plus, 
-  CheckCircle, 
-  AlertTriangle,
-  ExternalLink, 
-  HelpCircle, 
-  Gift, 
-  Crown, 
-  Users, 
-  Lock, 
-  RefreshCw, 
-  FileText, 
-  Mail, 
-  ChevronRight, 
-  Edit, 
-  Save,
-  Download as DownloadIcon, 
-  Link, 
-  X, 
-  Music,
+  Brain,
+  Loader2,
   Palette,
   Database,
-  Activity,
-  Smartphone,
-  Monitor,
-  Moon,
-  Sun,
-  Languages,
-  Clock,
-  Calendar,
-  BarChart3,
-  MessageCircle,
-  Play,
-  Target
+  CheckCircle
 } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useWorkspace } from '../../contexts/WorkspaceContext';
 
-// Settings Interfaces
-interface ProfileData {
-  name: string;
-  email: string;
-  phone: string;
-  avatar: string;
-  plan: 'free' | 'pro' | 'enterprise';
-  planRenewal: string;
-  twoFactorEnabled: boolean;
-  emailVerified: boolean;
-  phoneVerified: boolean;
+interface SettingsMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
 }
 
-interface SubscriptionData {
-  plan: 'free' | 'pro' | 'enterprise';
-  status: 'active' | 'cancelled' | 'past_due';
-  renewalDate: string;
-  monthlyPrice: number;
-  features: string[];
-  usage: {
-    aiQueries: number;
-    dataStorage: number;
-    integrations: number;
+function SettingsPage() {
+  const { updateWorkspaceState, getWorkspaceState } = useWorkspace();
+  const workspaceId = 'settings';
+  
+  // Load saved state
+  const savedState = getWorkspaceState(workspaceId);
+  
+  // View state - force overview on mount
+  const [activeView, setActiveView] = useState('overview');
+  
+  // Chat state
+  const [messages, setMessages] = useState<SettingsMessage[]>(savedState.messages || []);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-  limits: {
-    maxAiQueries: number;
-    maxStorage: number;
-    maxIntegrations: number;
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Force overview view on mount and clear any previous state
+  useEffect(() => {
+    setActiveView('overview');
+    // Clear any previous messages to ensure clean state
+    setMessages([]);
+  }, []);
+
+  const sendMessage = async (message: string) => {
+    if (!message.trim() || isLoading) return;
+
+    const userMessage: SettingsMessage = {
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setIsLoading(true);
+
+    // Simulate AI response
+    setTimeout(() => {
+      const assistantResponse: SettingsMessage = {
+        role: 'assistant',
+        content: getAssistantResponse(message),
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, assistantResponse]);
+      setIsLoading(false);
+    }, 1500);
   };
-}
 
-interface AISettings {
-  primaryAI: 'crystal' | 'byte' | 'tag' | 'prime';
-  responseStyle: 'professional' | 'casual' | 'technical';
-  learningEnabled: boolean;
-  dataProcessing: 'minimal' | 'standard' | 'comprehensive';
-  personality: 'analytical' | 'friendly' | 'direct';
-  autoSuggestions: boolean;
-  voiceEnabled: boolean;
-}
-
-interface NotificationSettings {
-  email: {
-    enabled: boolean;
-    aiInsights: boolean;
-    systemUpdates: boolean;
-    securityAlerts: boolean;
-    marketing: boolean;
+  const getAssistantResponse = (_message: string): string => {
+    const responses = [
+      "I've analyzed your settings preferences and optimized your configuration for better performance. Your privacy settings are secure and your notification preferences have been updated for optimal user experience.",
+      "Great question! I've reviewed your current settings and identified several optimization opportunities. Your theme preferences are set to dark mode, and I've enabled auto-backup to protect your data.",
+      "I've updated your settings configuration based on your preferences. Your security settings are now enhanced with two-factor authentication, and your language preferences have been saved successfully.",
+      "Perfect! I've optimized your settings for better performance and security. Your notification settings have been fine-tuned, and your privacy mode has been configured to protect your sensitive data.",
+      "I've completed a comprehensive settings review and optimization. Your account is now configured with enhanced security features, and your preferences have been synchronized across all devices."
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
   };
-  push: {
-    enabled: boolean;
-    aiResponses: boolean;
-    anomalies: boolean;
-    achievements: boolean;
-  };
-  sms: {
-    enabled: boolean;
-    criticalAlerts: boolean;
-    twoFactor: boolean;
-  };
-}
 
-interface Integration {
-  id: string;
-  name: string;
-  icon: string;
-  status: 'connected' | 'disconnected' | 'error' | 'pending';
-  lastSync: string;
-  category: 'banking' | 'accounting' | 'crm' | 'marketing' | 'other';
-  permissions: string[];
-}
+  // Save state whenever it changes
+  useEffect(() => {
+    updateWorkspaceState(workspaceId, {
+      activeView,
+      messages
+    });
+  }, [activeView, messages, workspaceId]);
 
-export default function Settings() {
-  console.log('🚀🚀🚀 LOADING SETTINGS DASHBOARD - Complete System Configuration!');
-  const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState('profile');
-  const [isEditing, setIsEditing] = useState(false);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-
-  // Profile Data
-  const [profileData, setProfileData] = useState<ProfileData>({
-    name: user?.name || 'John Doe',
-    email: user?.email || 'john.doe@example.com',
-    phone: '+1 (555) 123-4567',
-    avatar: '',
-    plan: 'pro',
-    planRenewal: 'March 15, 2024',
-    twoFactorEnabled: true,
-    emailVerified: true,
-    phoneVerified: false
-  });
-
-  // Subscription Data
-  const [subscriptionData, setSubscriptionData] = useState<SubscriptionData>({
-    plan: 'pro',
-    status: 'active',
-    renewalDate: 'March 15, 2024',
-    monthlyPrice: 29.99,
-    features: [
-      'Unlimited AI Queries',
-      'Advanced Analytics',
-      'Priority Support',
-      'Custom Integrations',
-      'Data Export'
-    ],
-    usage: {
-      aiQueries: 1247,
-      dataStorage: 2.3,
-      integrations: 5
-    },
-    limits: {
-      maxAiQueries: 10000,
-      maxStorage: 100,
-      maxIntegrations: 20
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
     }
-  });
-
-  // AI Settings
-  const [aiSettings, setAiSettings] = useState<AISettings>({
-    primaryAI: 'crystal',
-    responseStyle: 'professional',
-    learningEnabled: true,
-    dataProcessing: 'comprehensive',
-    personality: 'analytical',
-    autoSuggestions: true,
-    voiceEnabled: false
-  });
-
-  // Notification Settings
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
-    email: {
-      enabled: true,
-      aiInsights: true,
-      systemUpdates: true,
-      securityAlerts: true,
-      marketing: false
-    },
-    push: {
-      enabled: true,
-      aiResponses: true,
-      anomalies: true,
-      achievements: true
-    },
-    sms: {
-      enabled: false,
-      criticalAlerts: true,
-      twoFactor: true
-    }
-  });
-
-  // Integrations
-  const [integrations, setIntegrations] = useState<Integration[]>([
-    {
-      id: 'bank-1',
-      name: 'Chase Bank',
-      icon: '🏦',
-      status: 'connected',
-      lastSync: '2 minutes ago',
-      category: 'banking',
-      permissions: ['Read transactions', 'Read account balance']
-    },
-    {
-      id: 'accounting-1',
-      name: 'QuickBooks',
-      icon: '📊',
-      status: 'connected',
-      lastSync: '1 hour ago',
-      category: 'accounting',
-      permissions: ['Read financial data', 'Write transactions']
-    },
-    {
-      id: 'crm-1',
-      name: 'Salesforce',
-      icon: '👥',
-      status: 'error',
-      lastSync: '3 days ago',
-      category: 'crm',
-      permissions: ['Read contacts', 'Read opportunities']
-    },
-    {
-      id: 'marketing-1',
-      name: 'Mailchimp',
-      icon: '📧',
-      status: 'disconnected',
-      lastSync: '1 week ago',
-      category: 'marketing',
-      permissions: ['Read campaigns', 'Write subscribers']
-    }
-  ]);
-
-  const settingsSections = [
-    { key: 'profile', label: 'Profile & Account', icon: User, color: 'from-blue-500 to-cyan-500' },
-    { key: 'subscription', label: 'Subscription & Billing', icon: CreditCard, color: 'from-green-500 to-emerald-500' },
-    { key: 'ai', label: 'AI Configuration', icon: Bot, color: 'from-purple-500 to-pink-500' },
-    { key: 'security', label: 'Security & Privacy', icon: Shield, color: 'from-red-500 to-orange-500' },
-    { key: 'notifications', label: 'Notifications', icon: Bell, color: 'from-yellow-500 to-amber-500' },
-    { key: 'integrations', label: 'Integrations', icon: Link, color: 'from-indigo-500 to-blue-500' },
-    { key: 'appearance', label: 'Appearance & UI', icon: Palette, color: 'from-pink-500 to-rose-500' },
-    { key: 'data', label: 'Data Management', icon: Database, color: 'from-gray-500 to-slate-500' }
-  ];
-
-  const handleSaveProfile = () => {
-    setIsEditing(false);
-    // Save profile logic here
-    console.log('Profile saved:', profileData);
-  };
-
-  const handleToggleTwoFactor = () => {
-    setProfileData(prev => ({
-      ...prev,
-      twoFactorEnabled: !prev.twoFactorEnabled
-    }));
-  };
-
-  const handleAISettingChange = (key: keyof AISettings, value: any) => {
-    setAiSettings(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
-
-  const handleNotificationChange = (category: keyof NotificationSettings, key: string, value: boolean) => {
-    setNotificationSettings(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category],
-        [key]: value
-      }
-    }));
-  };
-
-  const handleIntegrationAction = (id: string, action: 'connect' | 'disconnect' | 'reconnect') => {
-    setIntegrations(prev => prev.map(integration => {
-      if (integration.id === id) {
-        return {
-          ...integration,
-          status: action === 'connect' ? 'connected' : action === 'disconnect' ? 'disconnected' : 'pending'
-        };
-      }
-      return integration;
-    }));
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 p-4 sm:p-6 pb-20 pt-24">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
+    <div className="max-w-7xl mx-auto p-6 pt-32">
+      {/* Page Title */}
+      <MobilePageTitle 
+        title="Settings" 
+        subtitle="Customize your dashboard preferences"
+      />
+      
+      <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col">
+          {/* Chat Messages Area */}
+          <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]">
+            {activeView === 'overview' ? (
+              <div className="h-full flex items-center justify-center">
+                <div className="text-center max-w-2xl">
+                  <motion.h2
+                    initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">⚙️ System Settings</h1>
-            <p className="text-white/70 text-sm sm:text-base">Complete control over your AI-powered financial dashboard</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm font-medium">All Systems Active</span>
-            </div>
-            <div className="text-2xl">⚙️</div>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Navigation Tabs */}
-      <motion.div
+                    transition={{ delay: 0.3 }}
+                    className="text-xl font-bold text-white mb-1"
+                  >
+                    Settings
+                  </motion.h2>
+                  <motion.p
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex flex-wrap gap-3 mb-8"
-      >
-        {settingsSections.map(({ key, label, icon: Icon, color }) => (
+                    transition={{ delay: 0.4 }}
+                    className="text-white/60 text-sm mb-3"
+                  >
+                    Your intelligent guide to customization, security, and account management
+                  </motion.p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                    {[
+                      { icon: User, title: "Profile Settings", desc: "Account & personal info", color: "from-blue-500 to-cyan-500", view: "profile" },
+                      { icon: Shield, title: "Security & Privacy", desc: "Protect your account", color: "from-green-500 to-emerald-500", view: "security" },
+                      { icon: Bell, title: "Notifications", desc: "Alert preferences", color: "from-purple-500 to-violet-500", view: "notifications" },
+                      { icon: Palette, title: "Appearance", desc: "Theme & customization", color: "from-orange-500 to-yellow-500", view: "appearance" },
+                      { icon: Database, title: "Data Management", desc: "Backup & sync settings", color: "from-red-500 to-pink-500", view: "data" },
+                      { icon: Brain, title: "Chat with Assistant", desc: "AI settings helper", color: "from-indigo-500 to-purple-500", view: "chat" }
+                    ].map((item, index) => (
           <motion.button
-            key={key}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setActiveSection(key)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeSection === key
-                ? 'bg-indigo-500 text-white'
-                : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
+                        key={item.title}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 + index * 0.1 }}
+                        onClick={() => setActiveView(item.view)}
+                        className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-blue-500/10"
+                      >
+                        <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                          <item.icon className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                          <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
+                        </div>
           </motion.button>
         ))}
-      </motion.div>
-
-      {/* Profile & Account Section */}
-      {activeSection === 'profile' && (
+                  </div>
+                </div>
+              </div>
+            ) : activeView === 'profile' ? (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
           className="space-y-6"
         >
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-white">Profile Information</h3>
+                <div className="flex items-center gap-3 mb-6">
               <button
-                onClick={() => setIsEditing(!isEditing)}
-                className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm transition-colors"
-              >
-                <Edit className="w-4 h-4" />
-                {isEditing ? 'Cancel' : 'Edit'}
+                    onClick={() => setActiveView('overview')}
+                    className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Overview
               </button>
+                  <h2 className="text-xl font-bold text-white">Profile Settings</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Full Name</label>
-                  <input
-                    type="text"
-                    value={profileData.name}
-                    onChange={(e) => setProfileData(prev => ({ ...prev, name: e.target.value }))}
-                    disabled={!isEditing}
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
-                  />
+                <div className="text-center mb-6">
+                  <p className="text-white/70">Manage your account details and personal preferences</p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Email Address</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="email"
-                      value={profileData.email}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, email: e.target.value }))}
-                      disabled={!isEditing}
-                      className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
-                    />
-                    {profileData.emailVerified ? (
-                      <CheckCircle className="w-5 h-5 text-green-400" />
-                    ) : (
-                      <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Phone Number</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="tel"
-                      value={profileData.phone}
-                      onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
-                      disabled={!isEditing}
-                      className="flex-1 bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white placeholder-white/50 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
-                    />
-                    {profileData.phoneVerified ? (
-                      <CheckCircle className="w-5 h-5 text-green-400" />
-                    ) : (
-                      <AlertTriangle className="w-5 h-5 text-yellow-400" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Profile Picture</label>
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center">
-                      <User className="w-8 h-8 text-white" />
-                    </div>
-                    <button className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm transition-colors">
-                      <Camera className="w-4 h-4" />
-                      Change Photo
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Account Security</label>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white">Two-Factor Authentication</span>
-                      <button
-                        onClick={handleToggleTwoFactor}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          profileData.twoFactorEnabled ? 'bg-green-500' : 'bg-gray-600'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            profileData.twoFactorEnabled ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-white">Email Verified</span>
-                      <span className={`text-sm ${profileData.emailVerified ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {profileData.emailVerified ? 'Verified' : 'Pending'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-white">Phone Verified</span>
-                      <span className={`text-sm ${profileData.phoneVerified ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {profileData.phoneVerified ? 'Verified' : 'Pending'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {isEditing && (
-              <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-white/10">
-                <button
-                  onClick={() => setIsEditing(false)}
-                  className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveProfile}
-                  className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors"
-                >
-                  Save Changes
-                </button>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Subscription & Billing Section */}
-      {activeSection === 'subscription' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-6"
-        >
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-6">Current Plan</h3>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg p-4 mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-lg font-semibold text-white capitalize">{subscriptionData.plan} Plan</h4>
-                    <Crown className="w-5 h-5 text-yellow-400" />
-                  </div>
-                  <p className="text-white/70 text-sm mb-2">${subscriptionData.monthlyPrice}/month</p>
-                  <p className="text-white/60 text-xs">Renews on {subscriptionData.renewalDate}</p>
-                </div>
-
-                <div className="space-y-4">
-                  <h5 className="text-white font-medium">Plan Features</h5>
-                  <ul className="space-y-2">
-                    {subscriptionData.features.map((feature, index) => (
-                      <li key={index} className="flex items-center gap-2 text-white/70 text-sm">
-                        <CheckCircle className="w-4 h-4 text-green-400" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <h5 className="text-white font-medium">Usage This Month</h5>
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-sm text-white/70 mb-1">
-                      <span>AI Queries</span>
-                      <span>{subscriptionData.usage.aiQueries.toLocaleString()} / {subscriptionData.limits.maxAiQueries.toLocaleString()}</span>
-                    </div>
-                    <div className="w-full bg-white/10 rounded-full h-2">
-                      <div 
-                        className="bg-blue-500 h-2 rounded-full"
-                        style={{ width: `${(subscriptionData.usage.aiQueries / subscriptionData.limits.maxAiQueries) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-sm text-white/70 mb-1">
-                      <span>Data Storage</span>
-                      <span>{subscriptionData.usage.dataStorage}GB / {subscriptionData.limits.maxStorage}GB</span>
-                    </div>
-                    <div className="w-full bg-white/10 rounded-full h-2">
-                      <div 
-                        className="bg-green-500 h-2 rounded-full"
-                        style={{ width: `${(subscriptionData.usage.dataStorage / subscriptionData.limits.maxStorage) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex justify-between text-sm text-white/70 mb-1">
-                      <span>Integrations</span>
-                      <span>{subscriptionData.usage.integrations} / {subscriptionData.limits.maxIntegrations}</span>
-                    </div>
-                    <div className="w-full bg-white/10 rounded-full h-2">
-                      <div 
-                        className="bg-purple-500 h-2 rounded-full"
-                        style={{ width: `${(subscriptionData.usage.integrations / subscriptionData.limits.maxIntegrations) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-white/10">
-                  <button className="w-full px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors mb-2">
-                    Upgrade Plan
-                  </button>
-                  <button className="w-full px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">
-                    Billing History
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* AI Configuration Section */}
-      {activeSection === 'ai' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-6"
-        >
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-6">AI Configuration</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Primary AI Assistant</label>
-                  <select
-                    value={aiSettings.primaryAI}
-                    onChange={(e) => handleAISettingChange('primaryAI', e.target.value)}
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-4 hover:bg-white/15 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/20 h-[280px] flex flex-col"
                   >
-                    <option value="crystal">Crystal - Predictive Analytics</option>
-                    <option value="byte">Byte - Data Processing</option>
-                    <option value="tag">Tag - Pattern Recognition</option>
-                    <option value="prime">Prime - Strategic Analysis</option>
-                  </select>
-                </div>
-
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <User className="w-6 h-6 text-white" />
+                      </div>
                 <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Response Style</label>
-                  <select
-                    value={aiSettings.responseStyle}
-                    onChange={(e) => handleAISettingChange('responseStyle', e.target.value)}
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="professional">Professional</option>
-                    <option value="casual">Casual</option>
-                    <option value="technical">Technical</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">AI Personality</label>
-                  <select
-                    value={aiSettings.personality}
-                    onChange={(e) => handleAISettingChange('personality', e.target.value)}
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="analytical">Analytical</option>
-                    <option value="friendly">Friendly</option>
-                    <option value="direct">Direct</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-white/70 mb-2">Data Processing Level</label>
-                  <select
-                    value={aiSettings.dataProcessing}
-                    onChange={(e) => handleAISettingChange('dataProcessing', e.target.value)}
-                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="minimal">Minimal</option>
-                    <option value="standard">Standard</option>
-                    <option value="comprehensive">Comprehensive</option>
-                  </select>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-white">Learning Enabled</span>
-                    <button
-                      onClick={() => handleAISettingChange('learningEnabled', !aiSettings.learningEnabled)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        aiSettings.learningEnabled ? 'bg-green-500' : 'bg-gray-600'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          aiSettings.learningEnabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
+                        <h3 className="text-white font-bold text-lg mb-1">Personal Information</h3>
+                        <p className="text-white/60 text-xs">Account details</p>
                   </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-white">Auto Suggestions</span>
-                    <button
-                      onClick={() => handleAISettingChange('autoSuggestions', !aiSettings.autoSuggestions)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        aiSettings.autoSuggestions ? 'bg-green-500' : 'bg-gray-600'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          aiSettings.autoSuggestions ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-white">Voice Enabled</span>
-                    <button
-                      onClick={() => handleAISettingChange('voiceEnabled', !aiSettings.voiceEnabled)}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        aiSettings.voiceEnabled ? 'bg-green-500' : 'bg-gray-600'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          aiSettings.voiceEnabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
+                </div>
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center justify-between py-2">
+                <div>
+                          <span className="text-white font-medium text-sm">Full Name</span>
+                          <p className="text-white/60 text-xs">Darrell Warner</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-green-400 font-bold text-lg">Active</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-green-500 rounded-full"></div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Notifications Section */}
-      {activeSection === 'notifications' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-6"
-        >
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-6">Notification Preferences</h3>
-            
-            <div className="space-y-6">
-              <div>
-                <h4 className="text-white font-medium mb-4 flex items-center gap-2">
-                  <Mail className="w-5 h-5" />
-                  Email Notifications
-                </h4>
-                <div className="space-y-3">
-                  {Object.entries(notificationSettings.email).map(([key, value]) => (
-                    <div key={key} className="flex items-center justify-between">
-                      <span className="text-white capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                      <button
-                        onClick={() => handleNotificationChange('email', key, !value)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          value ? 'bg-green-500' : 'bg-gray-600'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            value ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
+                      <div className="flex items-center justify-between py-2">
+                <div>
+                          <span className="text-white font-medium text-sm">Email</span>
+                          <p className="text-white/60 text-xs">darrell@example.com</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-blue-400 font-bold text-lg">Verified</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-4/5 h-full bg-blue-500 rounded-full"></div>
                     </div>
-                  ))}
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <h4 className="text-white font-medium mb-4 flex items-center gap-2">
-                  <Bell className="w-5 h-5" />
-                  Push Notifications
-                </h4>
-                <div className="space-y-3">
-                  {Object.entries(notificationSettings.push).map(([key, value]) => (
-                    <div key={key} className="flex items-center justify-between">
-                      <span className="text-white capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                      <button
-                        onClick={() => handleNotificationChange('push', key, !value)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          value ? 'bg-green-500' : 'bg-gray-600'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            value ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
+                      <div className="flex items-center justify-between py-2">
+                <div>
+                          <span className="text-white font-medium text-sm">Phone</span>
+                          <p className="text-white/60 text-xs">+1 (555) 123-4567</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-purple-400 font-bold text-lg">Protected</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-3/5 h-full bg-purple-500 rounded-full"></div>
+                          </div>
+                        </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-white font-medium mb-4 flex items-center gap-2">
-                  <Smartphone className="w-5 h-5" />
-                  SMS Notifications
-                </h4>
-                <div className="space-y-3">
-                  {Object.entries(notificationSettings.sms).map(([key, value]) => (
-                    <div key={key} className="flex items-center justify-between">
-                      <span className="text-white capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                      <button
-                        onClick={() => handleNotificationChange('sms', key, !value)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          value ? 'bg-green-500' : 'bg-gray-600'
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            value ? 'translate-x-6' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
+                  </motion.div>
 
-      {/* Integrations Section */}
-      {activeSection === 'integrations' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-6"
-        >
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-white">Connected Integrations</h3>
-              <button className="flex items-center gap-2 px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm transition-colors">
-                <Plus className="w-4 h-4" />
-                Add Integration
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {integrations.map((integration) => (
-                <div key={integration.id} className="bg-white/5 rounded-lg p-4 border border-white/10">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="text-2xl">{integration.icon}</div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-4 hover:bg-white/15 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-green-500/20 h-[280px] flex flex-col"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <Globe className="w-6 h-6 text-white" />
+                      </div>
                       <div>
-                        <h4 className="text-white font-medium">{integration.name}</h4>
-                        <p className="text-white/60 text-sm">Last sync: {integration.lastSync}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className={`w-2 h-2 rounded-full ${
-                            integration.status === 'connected' ? 'bg-green-400' :
-                            integration.status === 'error' ? 'bg-red-400' :
-                            integration.status === 'pending' ? 'bg-yellow-400' : 'bg-gray-400'
-                          }`}></div>
-                          <span className="text-xs text-white/60 capitalize">{integration.status}</span>
+                        <h3 className="text-white font-bold text-lg mb-1">Preferences</h3>
+                        <p className="text-white/60 text-xs">Customization options</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Language</span>
+                          <p className="text-white/60 text-xs">English (US)</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-blue-400 font-bold text-lg">EN</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-blue-500 rounded-full"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Auto Backup</span>
+                          <p className="text-white/60 text-xs">Enabled</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-green-400 font-bold text-lg">On</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-green-500 rounded-full"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Privacy Mode</span>
+                          <p className="text-white/60 text-xs">Enhanced protection</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-purple-400 font-bold text-lg">Active</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-3/5 h-full bg-purple-500 rounded-full"></div>
+                  </div>
+                </div>
+              </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+                    className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-4 hover:bg-white/15 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20 h-[280px] flex flex-col"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-violet-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <Shield className="w-6 h-6 text-white" />
+              </div>
+                  <div>
+                        <h3 className="text-white font-bold text-lg mb-1">Security Status</h3>
+                        <p className="text-white/60 text-xs">Account protection</p>
+                    </div>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Two-Factor Auth</span>
+                          <p className="text-white/60 text-xs">SMS & Email</p>
+                  </div>
+                        <div className="text-right">
+                          <span className="text-green-400 font-bold text-lg">Enabled</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-green-500 rounded-full"></div>
+                    </div>
+                    </div>
+                  </div>
+                      <div className="flex items-center justify-between py-2">
+                  <div>
+                          <span className="text-white font-medium text-sm">Password Strength</span>
+                          <p className="text-white/60 text-xs">Strong</p>
+                    </div>
+                        <div className="text-right">
+                          <span className="text-blue-400 font-bold text-lg">95%</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-5/6 h-full bg-blue-500 rounded-full"></div>
+                    </div>
+                  </div>
+                </div>
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Login Activity</span>
+                          <p className="text-white/60 text-xs">No suspicious activity</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-green-400 font-bold text-lg">Safe</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-green-500 rounded-full"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-4 hover:bg-white/15 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-orange-500/20 h-[280px] flex flex-col"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <Database className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-white font-bold text-lg mb-1">Data Management</h3>
+                        <p className="text-white/60 text-xs">Storage & sync</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Storage Used</span>
+                          <p className="text-white/60 text-xs">2.3 GB of 10 GB</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-blue-400 font-bold text-lg">23%</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-1/4 h-full bg-blue-500 rounded-full"></div>
+                          </div>
+                        </div>
+                </div>
+                      <div className="flex items-center justify-between py-2">
+                <div>
+                          <span className="text-white font-medium text-sm">Last Backup</span>
+                          <p className="text-white/60 text-xs">2 hours ago</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-green-400 font-bold text-lg">Recent</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-green-500 rounded-full"></div>
+                          </div>
+                        </div>
+                </div>
+                      <div className="flex items-center justify-between py-2">
+                <div>
+                          <span className="text-white font-medium text-sm">Sync Status</span>
+                          <p className="text-white/60 text-xs">All devices</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-purple-400 font-bold text-lg">Synced</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-purple-500 rounded-full"></div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleIntegrationAction(integration.id, 'reconnect')}
-                        className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded text-sm transition-colors"
-                      >
-                        Reconnect
-                      </button>
-                      <button
-                        onClick={() => handleIntegrationAction(integration.id, 'disconnect')}
-                        className="px-3 py-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded text-sm transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3 pt-3 border-t border-white/10">
-                    <p className="text-xs text-white/60 mb-2">Permissions:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {integration.permissions.map((permission, index) => (
-                        <span key={index} className="px-2 py-1 bg-white/10 text-white/70 text-xs rounded">
-                          {permission}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                  </motion.div>
                 </div>
-              ))}
+              </motion.div>
+            ) : activeView === 'chat' ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <button
+                    onClick={() => setActiveView('overview')}
+                    className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Overview
+                  </button>
+                  <h2 className="text-xl font-bold text-white">Chat with Settings Assistant</h2>
+                </div>
+
+                <div className="space-y-4">
+                  {messages.map((message, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                        message.role === 'user'
+                          ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white'
+                          : 'bg-white/10 text-white border border-white/20'
+                      }`}>
+                        {message.role === 'assistant' && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                              <Brain className="w-3 h-3 text-white" />
+                            </div>
+                            <span className="text-xs font-semibold text-blue-400">Assistant</span>
+                          </div>
+                        )}
+                        <div className="whitespace-pre-wrap">{message.content}</div>
+                        <div className="text-xs opacity-60 mt-2">
+                          {new Date(message.timestamp).toLocaleTimeString()}
+                  </div>
+                  </div>
+                    </motion.div>
+                  ))}
+                  {isLoading && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-start"
+                    >
+                      <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                            <Brain className="w-3 h-3 text-white" />
+                  </div>
+                          <span className="text-xs font-semibold text-blue-400">Assistant</span>
+                </div>
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span className="text-sm">Analyzing your settings...</span>
             </div>
           </div>
         </motion.div>
       )}
-
-      {/* Other sections placeholder */}
-      {!['profile', 'subscription', 'ai', 'notifications', 'integrations'].includes(activeSection) && (
+                  <div ref={messagesEndRef} />
+                </div>
+              </motion.div>
+            ) : (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-8 text-center"
+          className="space-y-6"
         >
-          <div className="text-6xl mb-4">⚙️</div>
-          <h3 className="text-xl font-semibold text-white mb-2">
-            {activeSection === 'security' && 'Security & Privacy Coming Soon'}
-            {activeSection === 'appearance' && 'Appearance & UI Coming Soon'}
-            {activeSection === 'data' && 'Data Management Coming Soon'}
-          </h3>
-          <p className="text-white/70">
-            This section is being enhanced with advanced configuration options. Stay tuned!
-          </p>
+                <div className="flex items-center gap-3 mb-6">
+                      <button
+                    onClick={() => setActiveView('overview')}
+                    className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Overview
+                      </button>
+                  <h2 className="text-xl font-bold text-white">
+                    {activeView === 'security' ? 'Security & Privacy' :
+                     activeView === 'notifications' ? 'Notification Settings' :
+                     activeView === 'appearance' ? 'Appearance & Theme' :
+                     activeView === 'data' ? 'Data Management' :
+                     'Settings'}
+                  </h2>
+                </div>
+                
+                <div className="text-center mb-6">
+                  <p className="text-white/70">
+                    {activeView === 'security' ? 'Protect your account with advanced security features and privacy controls' :
+                     activeView === 'notifications' ? 'Customize your notification preferences and alert settings' :
+                     activeView === 'appearance' ? 'Personalize your experience with themes and visual customization' :
+                     activeView === 'data' ? 'Manage your data storage, backups, and synchronization settings' :
+                     'Advanced settings and configuration options'}
+                  </p>
+              </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 }}
+                    className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-4 hover:bg-white/15 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/20 h-[280px] flex flex-col"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <SettingsIcon className="w-6 h-6 text-white" />
+                      </div>
+              <div>
+                        <h3 className="text-white font-bold text-lg mb-1">Configuration</h3>
+                        <p className="text-white/60 text-xs">System settings</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Current Status</span>
+                          <p className="text-white/60 text-xs">All systems operational</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-green-400 font-bold text-lg">Active</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-green-500 rounded-full"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Optimization</span>
+                          <p className="text-white/60 text-xs">Performance tuned</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-blue-400 font-bold text-lg">95%</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-5/6 h-full bg-blue-500 rounded-full"></div>
+                          </div>
+                </div>
+              </div>
+                      <div className="flex items-center justify-between py-2">
+              <div>
+                          <span className="text-white font-medium text-sm">Updates</span>
+                          <p className="text-white/60 text-xs">Latest version</p>
+                    </div>
+                        <div className="text-right">
+                          <span className="text-purple-400 font-bold text-lg">Current</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-purple-500 rounded-full"></div>
+                </div>
+              </div>
+            </div>
+          </div>
         </motion.div>
-      )}
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                    className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-4 hover:bg-white/15 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-green-500/20 h-[280px] flex flex-col"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg">
+                        <CheckCircle className="w-6 h-6 text-white" />
+            </div>
+                      <div>
+                        <h3 className="text-white font-bold text-lg mb-1">Health Check</h3>
+                        <p className="text-white/60 text-xs">System diagnostics</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Security Scan</span>
+                          <p className="text-white/60 text-xs">No threats detected</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-green-400 font-bold text-lg">Clean</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-green-500 rounded-full"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Performance</span>
+                          <p className="text-white/60 text-xs">Optimal speed</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-blue-400 font-bold text-lg">Fast</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-4/5 h-full bg-blue-500 rounded-full"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between py-2">
+                        <div>
+                          <span className="text-white font-medium text-sm">Connectivity</span>
+                          <p className="text-white/60 text-xs">Stable connection</p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-purple-400 font-bold text-lg">Strong</span>
+                          <div className="w-16 h-1.5 bg-white/10 rounded-full mt-1">
+                            <div className="w-full h-full bg-purple-500 rounded-full"></div>
+                    </div>
+                    </div>
+                  </div>
+                    </div>
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          {/* Input Area */}
+          {activeView === 'chat' && (
+            <div className="mt-4 p-4 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Ask about settings, preferences, or account configuration..."
+                  className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-500"
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={isLoading || !input.trim()}
+                  className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
+                >
+                  {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
+
+export default SettingsPage;

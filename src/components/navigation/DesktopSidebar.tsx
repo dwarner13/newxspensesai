@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import NAV_ITEMS from '../../navigation/nav-registry';
 import { isActivePath } from '../../navigation/is-active';
+import { EMPLOYEES } from '../../data/aiEmployees';
 
 type NavItem = {
   label: string;
@@ -27,6 +28,35 @@ interface DesktopSidebarProps {
   collapsed?: boolean;
   onToggleCollapse?: (collapsed: boolean) => void;
 }
+
+// Map routes to AI employees
+const getAIEmployeeForRoute = (route: string) => {
+  const routeToEmployee: Record<string, string> = {
+    '/dashboard': 'prime',
+    '/dashboard/smart-import-ai': 'byte',
+    '/dashboard/ai-assistant': 'finley',
+    '/dashboard/smart-categories': 'tag',
+    '/dashboard/transactions': 'byte',
+    '/dashboard/goal-concierge': 'goalie',
+    '/dashboard/smart-automation': 'automa',
+    '/dashboard/spending-predictions': 'crystal',
+    '/dashboard/debt-payoff-planner': 'liberty',
+    '/dashboard/ai-financial-freedom': 'liberty',
+    '/dashboard/bill-reminders': 'chime',
+    '/dashboard/personal-podcast': 'roundtable',
+    '/dashboard/financial-story': 'roundtable',
+    '/dashboard/financial-therapist': 'harmony',
+    '/dashboard/wellness-studio': 'harmony',
+    '/dashboard/spotify': 'wave',
+    '/dashboard/tax-assistant': 'ledger',
+    '/dashboard/business-intelligence': 'intelia',
+    '/dashboard/analytics': 'dash',
+    '/dashboard/settings': 'prime',
+    '/dashboard/reports': 'prism'
+  };
+  
+  return routeToEmployee[route] || 'prime';
+};
 
 export default function DesktopSidebar({ 
   collapsed = false, 
@@ -126,20 +156,28 @@ export default function DesktopSidebar({
               <div className="px-2 space-y-1">
                 {groupItems.map((item) => {
                   const active = isActivePath(location.pathname, item.to);
+                  const employeeKey = getAIEmployeeForRoute(item.to);
+                  const employee = EMPLOYEES.find(emp => emp.key === employeeKey);
                   
                   const Item = (
                     <button
                       key={item.to}
                       onClick={() => handleNavigation(item.to)}
                       className={clsx(
-                        "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 hover:bg-zinc-900/60 active:scale-95",
+                        "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 hover:bg-zinc-900/60 active:scale-95 group relative",
                         active 
                           ? "bg-zinc-900 text-white" 
                           : "text-zinc-300 hover:text-white"
                       )}
                     >
-                      <span className="w-5 h-5 shrink-0">
+                      <span className="w-5 h-5 shrink-0 relative">
                         {item.icon}
+                        {/* AI Employee Badge */}
+                        {employee && (
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xs opacity-80 group-hover:opacity-100 transition-opacity">
+                            {employee.emoji}
+                          </div>
+                        )}
                       </span>
                       {!isCollapsed && (
                         <span className="truncate font-medium">{item.label}</span>

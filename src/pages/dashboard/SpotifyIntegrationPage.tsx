@@ -7,40 +7,16 @@ import {
   Volume2, 
   Send, 
   Loader2,
-  Headphones,
   Heart,
   TrendingUp,
-  TrendingDown,
-  DollarSign,
   Clock,
   Users,
   Share2,
-  Download,
-  Edit3,
-  Plus,
-  Settings,
-  Calendar,
-  Star,
   MessageCircle,
-  Bookmark,
   Zap,
   Target,
-  BarChart3,
-  Activity,
-  Eye,
-  Lightbulb,
-  Crown,
-  Sparkles,
-  CheckCircle,
-  AlertTriangle,
-  Moon,
-  Sun,
-  Coffee,
   BookOpen,
-  Shield,
-  RefreshCw,
-  ExternalLink,
-  Spotify
+  ExternalLink
 } from 'lucide-react';
 
 // AI Music Curator Interfaces
@@ -103,20 +79,13 @@ export default function SpotifyIntegrationPage() {
   const [selectedCurator, setSelectedCurator] = useState('prime');
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPlaylist, setCurrentPlaylist] = useState<Playlist | null>(null);
-  const [volume, setVolume] = useState(80);
+  const [volume] = useState(80);
   const [isMuted, setIsMuted] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [currentTime] = useState(0);
+  const [duration] = useState(0);
 
   // Chat state
-  const [messages, setMessages] = useState([
-    {
-      role: 'ai',
-      content: "🎵 Welcome to your AI Music Curator Studio! I'm Prime, your AI Music Director. I analyze your spending patterns and creates the perfect soundtrack for every financial moment - from budget planning to investment decisions. No more random playlists - just music that actually enhances your financial productivity! What financial moment would you like to soundtrack today?",
-      timestamp: new Date().toISOString(),
-      curator: 'prime'
-    }
-  ]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -496,11 +465,6 @@ I'm exploring new musical territories that will revolutionize how you experience
     setIsPlaying(!isPlaying);
   };
 
-  const handleVolumeChange = (newVolume: number) => {
-    setVolume(newVolume);
-    setIsMuted(false);
-  };
-
   const handleMute = () => {
     setIsMuted(!isMuted);
   };
@@ -509,18 +473,6 @@ I'm exploring new musical territories that will revolutionize how you experience
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const getPlaylistIcon = (type: string) => {
-    switch (type) {
-      case 'financial_focus': return <Target className="w-5 h-5 text-purple-400" />;
-      case 'budget_planning': return <BarChart3 className="w-5 h-5 text-blue-400" />;
-      case 'investment_confidence': return <TrendingUp className="w-5 h-5 text-green-400" />;
-      case 'debt_freedom': return <Zap className="w-5 h-5 text-orange-400" />;
-      case 'savings_motivation': return <Heart className="w-5 h-5 text-pink-400" />;
-      case 'financial_education': return <BookOpen className="w-5 h-5 text-indigo-400" />;
-      default: return <Music className="w-5 h-5 text-purple-400" />;
-    }
   };
 
   const getPlaylistColor = (type: string) => {
@@ -536,422 +488,551 @@ I'm exploring new musical territories that will revolutionize how you experience
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-green-900 to-slate-900">
-      <div className="container mx-auto px-4 py-4 pb-20">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mb-8"
-      >
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">🎵 AI Spotify Integration</h1>
-            <p className="text-white/70 text-sm sm:text-base">Finally, Music That Actually Gets Your Money - AI analyzes your spending patterns and creates the perfect soundtrack for every financial moment</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm font-medium">AI Active</span>
+    <>
+      <div className="max-w-7xl mx-auto p-6 pt-32">
+        {/* Main Chat Interface */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col">
+            {/* Chat Messages Area */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]">
+              {activeView === 'overview' ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center max-w-2xl">
+                    <motion.h2
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="text-xl font-bold text-white mb-1"
+                    >
+                      Spotify Integration
+                    </motion.h2>
+                    <motion.p
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="text-white/60 text-sm mb-3"
+                    >
+                      Finally, Music That Actually Gets Your Money - AI analyzes your spending patterns and creates the perfect soundtrack for every financial moment
+                    </motion.p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                      {[
+                        { icon: Music, title: "Create Playlist", desc: "AI-generated financial soundtracks", color: "from-green-500 to-emerald-500", view: "playlists" },
+                        { icon: Users, title: "AI Music Team", desc: "Meet your music curation experts", color: "from-blue-500 to-cyan-500", view: "team" },
+                        { icon: Heart, title: "Mood Analysis", desc: "Music that matches your emotions", color: "from-purple-500 to-violet-500", view: "mood" },
+                        { icon: Target, title: "Focus Music", desc: "Productivity-enhancing playlists", color: "from-orange-500 to-yellow-500", view: "focus" },
+                        { icon: TrendingUp, title: "Music Trends", desc: "Latest musical innovations", color: "from-red-500 to-pink-500", view: "trends" },
+                        { icon: MessageCircle, title: "AI Chat", desc: "Chat with your music curators", color: "from-indigo-500 to-purple-500", view: "chat" }
+                      ].map((item, index) => (
+                        <motion.button
+                          key={item.title}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.5 + index * 0.1 }}
+                          onClick={() => setActiveView(item.view)}
+                          className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
+                        >
+                          <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                            <item.icon className="w-6 h-6 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                            <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : activeView === 'team' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Your Personal AI Music Curators</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Meet the AI music experts who understand your financial journey and create the perfect soundtrack for every money moment</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {musicCurators.map((curator) => (
+                      <div key={curator.id} className={`p-4 rounded-xl border ${curator.bgColor} ${curator.borderColor}`}>
+                        <div className="flex items-start gap-3 mb-3">
+                          <div className="text-3xl">{curator.emoji}</div>
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-white mb-1">{curator.name}</h3>
+                            <p className={`text-sm font-medium ${curator.color} mb-1`}>{curator.title}</p>
+                            <p className="text-white/70 text-xs">{curator.specialty}</p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className={`w-2 h-2 rounded-full ${
+                              curator.status === 'active' ? 'bg-green-400' :
+                              curator.status === 'working' ? 'bg-yellow-400' : 'bg-gray-400'
+                            }`}></div>
+                            <span className="text-xs text-white/70 capitalize">{curator.status}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-white/80 text-sm font-medium">Superpower: {curator.superpower}</p>
+                          <p className="text-white/70 text-xs">{curator.description}</p>
+                          <p className="text-white/60 text-xs">{curator.bio}</p>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-white/70">Performance</span>
+                            <span className={`${curator.color} font-medium`}>{curator.performance}%</span>
+                          </div>
+                          {curator.currentTask && (
+                            <div className="text-xs text-white/60 italic">
+                              Currently: {curator.currentTask}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              ) : activeView === 'playlists' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">AI-Generated Financial Playlists</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Personalized playlists created by AI for your unique financial tasks and moods</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    {playlists.map((playlist) => (
+                      <div key={playlist.id} className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-lg flex items-center justify-center">
+                            <Music className="w-8 h-8 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="text-lg font-semibold text-white">{playlist.title}</h3>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPlaylistColor(playlist.type)}`}>
+                                {playlist.type.replace('_', ' ')}
+                              </span>
+                            </div>
+                            <p className="text-white/70 text-sm mb-3">{playlist.description}</p>
+                            <div className="flex items-center gap-4 text-sm text-white/60 mb-3">
+                              <div className="flex items-center gap-1">
+                                <Music className="w-4 h-4" />
+                                {playlist.tracks} tracks
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                {playlist.duration}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Heart className="w-4 h-4" />
+                                {playlist.mood}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => {
+                                  setCurrentPlaylist(playlist);
+                                  setIsPlaying(true);
+                                }}
+                                className="flex items-center gap-2 px-3 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors text-sm"
+                              >
+                                <Play className="w-4 h-4" />
+                                Play
+                              </button>
+                              <button className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm">
+                                <Share2 className="w-4 h-4" />
+                                Share
+                              </button>
+                              <button className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm">
+                                <ExternalLink className="w-4 h-4" />
+                                Spotify
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              ) : activeView === 'chat' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">AI Chat - Choose Your Curator</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Chat with individual AI music curators who can help in their specific areas of expertise</p>
+                  </div>
+
+                  {/* AI Selection */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    {musicCurators.map((curator) => (
+                      <button
+                        key={curator.id}
+                        onClick={() => setSelectedCurator(curator.id)}
+                        className={`p-4 rounded-xl border transition-all ${
+                          selectedCurator === curator.id
+                            ? `${curator.bgColor} ${curator.borderColor} scale-105`
+                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="text-center">
+                          <div className="text-3xl mb-2">{curator.emoji}</div>
+                          <h3 className="text-lg font-bold text-white mb-1">{curator.name}</h3>
+                          <p className={`text-sm font-medium ${curator.color} mb-2`}>{curator.specialty}</p>
+                          <p className="text-white/70 text-xs">{curator.superpower}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Chat Interface */}
+                  <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                      <div className="text-3xl">{musicCurators.find(c => c.id === selectedCurator)?.emoji}</div>
+                      <div>
+                        <h3 className="text-xl font-semibold text-white">
+                          Chat with {musicCurators.find(c => c.id === selectedCurator)?.name}
+                        </h3>
+                        <p className="text-white/70">
+                          {musicCurators.find(c => c.id === selectedCurator)?.title}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="h-96 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
+                      {messages.filter(msg => msg.curator === selectedCurator).map((message, index) => (
+                        <motion.div
+                          key={index}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                            message.role === 'user'
+                              ? 'bg-green-600 text-white'
+                              : 'bg-white/10 text-white border border-white/20'
+                          }`}>
+                            <div className="whitespace-pre-wrap">{message.content}</div>
+                            <div className="text-xs opacity-60 mt-2">
+                              {new Date(message.timestamp).toLocaleTimeString()}
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+
+                      {isLoading && (
+                        <motion.div
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="flex justify-start"
+                        >
+                          <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              <span>{musicCurators.find(c => c.id === selectedCurator)?.name} is curating...</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      <div ref={messagesEndRef} />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                        placeholder={`Share your musical preferences with ${musicCurators.find(c => c.id === selectedCurator)?.name}...`}
+                        className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-green-500"
+                        disabled={isLoading}
+                      />
+                      <button
+                        onClick={() => sendMessage(input)}
+                        disabled={isLoading || !input.trim()}
+                        className="bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
+                      >
+                        <Send className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : activeView === 'mood' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Mood Analysis & Music Matching</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">AI analyzes your emotional state and creates playlists that enhance your mood and support your financial decisions</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                      <h3 className="text-lg font-semibold text-white mb-4">Current Mood Analysis</h3>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Overall Mood</span>
+                          <span className="text-green-400 font-medium">Positive</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Stress Level</span>
+                          <span className="text-yellow-400 font-medium">Low</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Energy Level</span>
+                          <span className="text-blue-400 font-medium">High</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Focus State</span>
+                          <span className="text-purple-400 font-medium">Enhanced</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                      <h3 className="text-lg font-semibold text-white mb-4">Recommended Playlists</h3>
+                      <div className="space-y-3">
+                        <div className="p-3 bg-green-500/20 border border-green-500/30 rounded-lg">
+                          <h4 className="text-white font-medium">High Energy Focus</h4>
+                          <p className="text-white/70 text-sm">Perfect for budget planning sessions</p>
+                        </div>
+                        <div className="p-3 bg-blue-500/20 border border-blue-500/30 rounded-lg">
+                          <h4 className="text-white font-medium">Calm Confidence</h4>
+                          <p className="text-white/70 text-sm">Ideal for investment decisions</p>
+                        </div>
+                        <div className="p-3 bg-purple-500/20 border border-purple-500/30 rounded-lg">
+                          <h4 className="text-white font-medium">Motivational Boost</h4>
+                          <p className="text-white/70 text-sm">Great for achieving financial goals</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : activeView === 'focus' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Focus Enhancement Music</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Scientifically designed playlists to boost your concentration and productivity during financial tasks</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
+                          <Target className="w-6 h-6 text-green-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-white font-medium">Deep Focus</h3>
+                          <p className="text-white/70 text-sm">Complex analysis</p>
+                        </div>
+                      </div>
+                      <p className="text-white/60 text-xs">Instrumental tracks designed for sustained concentration during detailed financial planning</p>
+                    </div>
+
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                          <Zap className="w-6 h-6 text-blue-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-white font-medium">Quick Tasks</h3>
+                          <p className="text-white/70 text-sm">Routine updates</p>
+                        </div>
+                      </div>
+                      <p className="text-white/60 text-xs">Upbeat tracks for quick financial tasks and routine updates</p>
+                    </div>
+
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                          <BookOpen className="w-6 h-6 text-purple-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-white font-medium">Learning Mode</h3>
+                          <p className="text-white/70 text-sm">Education & research</p>
+                        </div>
+                      </div>
+                      <p className="text-white/60 text-xs">Calm, educational music for financial learning and research</p>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : activeView === 'trends' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">Music Trends & Innovation</h2>
+                  </div>
+                  
+                  <div className="text-center mb-6">
+                    <p className="text-white/70">Discover the latest musical innovations and trends that enhance financial productivity</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                      <h3 className="text-lg font-semibold text-white mb-4">Trending Now</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Ambient Focus</span>
+                          <span className="text-green-400 text-sm">+23%</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Lo-fi Beats</span>
+                          <span className="text-blue-400 text-sm">+18%</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Nature Sounds</span>
+                          <span className="text-purple-400 text-sm">+31%</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70">Binaural Beats</span>
+                          <span className="text-orange-400 text-sm">+27%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
+                      <h3 className="text-lg font-semibold text-white mb-4">Innovation Score</h3>
+                      <div className="text-center">
+                        <div className="text-4xl font-bold text-green-400 mb-2">88%</div>
+                        <p className="text-white/70 text-sm">Overall Innovation Rating</p>
+                        <div className="mt-4 space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-white/70">Genre Diversity</span>
+                            <span className="text-white">92%</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-white/70">Trend Accuracy</span>
+                            <span className="text-white">89%</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span className="text-white/70">User Engagement</span>
+                            <span className="text-white">94%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="text-6xl mb-4">🎵</div>
+                    <h3 className="text-xl font-bold text-white mb-2">Feature Coming Soon</h3>
+                    <p className="text-white/70">This feature is under development</p>
+                  </div>
+                </div>
+              )}
             </div>
-            <div className="text-2xl">🎵</div>
+
+            {/* Input Area */}
+            {messages.length > 0 && (
+              <div className="mt-4 p-4 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                    placeholder="Ask your AI music curators anything..."
+                    className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-green-500"
+                    disabled={isLoading}
+                  />
+                  <button
+                    onClick={() => sendMessage(input)}
+                    disabled={isLoading || !input.trim()}
+                    className="bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
+                  >
+                    <Send className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      </motion.div>
-
-      {/* Navigation Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex flex-wrap gap-3 mb-8"
-      >
-        {[
-          { key: 'overview', label: 'Music Overview', icon: BarChart3 },
-          { key: 'team', label: 'AI Music Team', icon: Users },
-          { key: 'playlists', label: 'My Playlists', icon: Music },
-          { key: 'mood', label: 'Mood Analysis', icon: Heart },
-          { key: 'focus', label: 'Focus Music', icon: Target },
-          { key: 'trends', label: 'Music Trends', icon: TrendingUp },
-          { key: 'chat', label: 'AI Chat', icon: MessageCircle }
-        ].map(({ key, label, icon: Icon }) => (
-          <motion.button
-            key={key}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setActiveView(key)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeView === key
-                ? 'bg-green-500 text-white'
-                : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </motion.button>
-        ))}
-      </motion.div>
-
-      {/* Overview Section */}
-      {activeView === 'overview' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          {/* Music Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Playlists Created</p>
-                  <p className="text-2xl font-bold text-green-400">{musicMetrics.playlistsCreated}</p>
-                </div>
-                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
-                  <Music className="w-6 h-6 text-green-400" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Total Plays</p>
-                  <p className="text-2xl font-bold text-blue-400">{musicMetrics.totalPlays.toLocaleString()}</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                  <Play className="w-6 h-6 text-blue-400" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">User Satisfaction</p>
-                  <p className="text-2xl font-bold text-purple-400">{musicMetrics.userSatisfaction}%</p>
-                </div>
-                <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                  <Star className="w-6 h-6 text-purple-400" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Productivity Boost</p>
-                  <p className="text-2xl font-bold text-orange-400">{musicMetrics.productivityBoost}x</p>
-                </div>
-                <div className="w-12 h-12 bg-orange-500/20 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-orange-400" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* AI Music Team Overview */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Your Personal AI Music Curators</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {musicCurators.map((curator) => (
-                <div key={curator.id} className={`p-4 rounded-lg border ${curator.bgColor} ${curator.borderColor}`}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="text-2xl">{curator.emoji}</div>
-                    <div>
-                      <h4 className="text-white font-medium">{curator.name}</h4>
-                      <p className={`text-xs ${curator.color}`}>{curator.title}</p>
-                    </div>
-                  </div>
-                  <p className="text-white/70 text-sm">{curator.specialty}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <button
-                onClick={() => setActiveView('playlists')}
-                className="flex items-center gap-3 p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-white transition-colors"
-              >
-                <Music className="w-5 h-5" />
-                <span>Create Playlist</span>
-              </button>
-              <button
-                onClick={() => setActiveView('mood')}
-                className="flex items-center gap-3 p-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-white transition-colors"
-              >
-                <Heart className="w-5 h-5" />
-                <span>Mood Analysis</span>
-              </button>
-              <button
-                onClick={() => setActiveView('focus')}
-                className="flex items-center gap-3 p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-white transition-colors"
-              >
-                <Target className="w-5 h-5" />
-                <span>Focus Music</span>
-              </button>
-              <button
-                onClick={() => setActiveView('chat')}
-                className="flex items-center gap-3 p-4 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-white transition-colors"
-              >
-                <MessageCircle className="w-5 h-5" />
-                <span>AI Chat</span>
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* AI Music Team Section */}
-      {activeView === 'team' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Your Personal AI Music Curators</h2>
-            <p className="text-white/70">Meet the AI music experts who understand your financial journey and create the perfect soundtrack for every money moment</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {musicCurators.map((curator) => (
-              <div key={curator.id} className={`p-6 rounded-xl border ${curator.bgColor} ${curator.borderColor}`}>
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="text-4xl">{curator.emoji}</div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white mb-1">{curator.name}</h3>
-                    <p className={`text-sm font-medium ${curator.color} mb-2`}>{curator.title}</p>
-                    <p className="text-white/70 text-sm">{curator.specialty}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full ${
-                      curator.status === 'active' ? 'bg-green-400' :
-                      curator.status === 'working' ? 'bg-yellow-400' : 'bg-gray-400'
-                    }`}></div>
-                    <span className="text-xs text-white/70 capitalize">{curator.status}</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-white/80 text-sm font-medium">Superpower: {curator.superpower}</p>
-                  <p className="text-white/70 text-sm">{curator.description}</p>
-                  <p className="text-white/60 text-sm">{curator.bio}</p>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white/70">Performance</span>
-                    <span className={`${curator.color} font-medium`}>{curator.performance}%</span>
-                  </div>
-                  {curator.currentTask && (
-                    <div className="text-xs text-white/60 italic">
-                      Currently: {curator.currentTask}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Playlists Section */}
-      {activeView === 'playlists' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">AI-Generated Financial Playlists</h2>
-            <p className="text-white/70">Personalized playlists created by AI for your unique financial tasks and moods</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {playlists.map((playlist) => (
-              <div key={playlist.id} className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-lg flex items-center justify-center">
-                    <Music className="w-8 h-8 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-lg font-semibold text-white">{playlist.title}</h3>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getPlaylistColor(playlist.type)}`}>
-                        {playlist.type.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <p className="text-white/70 text-sm mb-3">{playlist.description}</p>
-                    <div className="flex items-center gap-4 text-sm text-white/60 mb-4">
-                      <div className="flex items-center gap-1">
-                        <Music className="w-4 h-4" />
-                        {playlist.tracks} tracks
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {playlist.duration}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Heart className="w-4 h-4" />
-                        {playlist.mood}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-3 mb-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-white/70">Plays</span>
-                    <span className="text-green-400 font-medium">{playlist.stats.plays}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-white/70">Likes</span>
-                    <span className="text-blue-400 font-medium">{playlist.stats.likes}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-white/70">Completion Rate</span>
-                    <span className="text-purple-400 font-medium">{playlist.stats.completionRate}%</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => {
-                      setCurrentPlaylist(playlist);
-                      setIsPlaying(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
-                  >
-                    <Play className="w-4 h-4" />
-                    Play
-                  </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">
-                    <Share2 className="w-4 h-4" />
-                    Share
-                  </button>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors">
-                    <ExternalLink className="w-4 h-4" />
-                    Spotify
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* AI Chat Section */}
-      {activeView === 'chat' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">AI Chat - Choose Your Curator</h2>
-            <p className="text-white/70">Chat with individual AI music curators who can help in their specific areas of expertise</p>
-          </div>
-
-          {/* AI Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            {musicCurators.map((curator) => (
-              <button
-                key={curator.id}
-                onClick={() => setSelectedCurator(curator.id)}
-                className={`p-4 rounded-xl border transition-all ${
-                  selectedCurator === curator.id
-                    ? `${curator.bgColor} ${curator.borderColor} scale-105`
-                    : 'bg-white/5 border-white/10 hover:bg-white/10'
-                }`}
-              >
-                <div className="text-center">
-                  <div className="text-3xl mb-2">{curator.emoji}</div>
-                  <h3 className="text-lg font-bold text-white mb-1">{curator.name}</h3>
-                  <p className={`text-sm font-medium ${curator.color} mb-2`}>{curator.specialty}</p>
-                  <p className="text-white/70 text-xs">{curator.superpower}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Chat Interface */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="text-3xl">{musicCurators.find(c => c.id === selectedCurator)?.emoji}</div>
-              <div>
-                <h3 className="text-xl font-semibold text-white">
-                  Chat with {musicCurators.find(c => c.id === selectedCurator)?.name}
-                </h3>
-                <p className="text-white/70">
-                  {musicCurators.find(c => c.id === selectedCurator)?.title}
-                </p>
-              </div>
-            </div>
-
-            <div className="h-96 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
-              {messages.filter(msg => msg.curator === selectedCurator).map((message, index) => (
-                <motion.div
-                  key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    message.role === 'user'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-white/10 text-white border border-white/20'
-                  }`}>
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                    <div className="text-xs opacity-60 mt-2">
-                      {new Date(message.timestamp).toLocaleTimeString()}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-
-              {isLoading && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex justify-start"
-                >
-                  <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>{musicCurators.find(c => c.id === selectedCurator)?.name} is curating...</span>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-
-              <div ref={messagesEndRef} />
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                placeholder={`Share your musical preferences with ${musicCurators.find(c => c.id === selectedCurator)?.name}...`}
-                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-green-500"
-                disabled={isLoading}
-              />
-              <button
-                onClick={() => sendMessage(input)}
-                disabled={isLoading || !input.trim()}
-                className="bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
-              >
-                <Send className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      )}
+      </div>
 
       {/* Audio Player */}
       {currentPlaylist && (
@@ -996,7 +1077,6 @@ I'm exploring new musical territories that will revolutionize how you experience
           </div>
         </div>
       )}
-      </div>
-    </div>
+    </>
   );
 }

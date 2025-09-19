@@ -1,22 +1,41 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { EMPLOYEES } from '../../data/aiEmployees';
 
 const AITeamSidebar: React.FC = () => {
+  const navigate = useNavigate();
+  
+  // Get active AI employees with their current activities
+  const activeEmployees = EMPLOYEES.filter(emp => 
+    ['byte', 'crystal', 'tag', 'ledger', 'chime', 'dash', 'intelia'].includes(emp.key)
+  );
+
   const activities = [
-    { id: '1', aiName: 'Byte', title: 'processing chase statement', timestamp: '2 min ago' },
-    { id: '2', aiName: 'Crystal', title: 'analyzing trends', timestamp: '5 min ago' },
-    { id: '3', aiName: 'Tag', title: 'categorizing transactions', timestamp: '12 min ago' },
-    { id: '4', aiName: 'Ledger', title: 'tax analysis', timestamp: '8 min ago' },
-    { id: '5', aiName: 'Chime', title: 'bill reminder', timestamp: '18 min ago' }
+    { id: '1', aiName: 'Byte', title: 'processing chase statement', timestamp: '2 min ago', employeeKey: 'byte' },
+    { id: '2', aiName: 'Crystal', title: 'analyzing trends', timestamp: '5 min ago', employeeKey: 'crystal' },
+    { id: '3', aiName: 'Tag', title: 'categorizing transactions', timestamp: '12 min ago', employeeKey: 'tag' },
+    { id: '4', aiName: 'Ledger', title: 'tax analysis', timestamp: '8 min ago', employeeKey: 'ledger' },
+    { id: '5', aiName: 'Chime', title: 'bill reminder', timestamp: '18 min ago', employeeKey: 'chime' }
   ];
 
-  const workers = [
-    { name: 'Byte - Smart Import AI', progress: 67 },
-    { name: 'Crystal - Prediction Engine', progress: 45 },
-    { name: 'Tag - AI Categorization Engine', progress: 78 },
-    { name: 'Ledger - Tax Assistant', progress: 52 },
-    { name: 'Quantum - Analytics AI', progress: 89 },
-    { name: 'Nexus - Integration Engine', progress: 34 }
-  ];
+  // Create workers from active employees
+  const workers = activeEmployees.slice(0, 4).map(emp => ({
+    name: `${emp.name} - ${emp.short}`,
+    progress: Math.floor(Math.random() * 40) + 40, // Random progress between 40-80%
+    employeeKey: emp.key,
+    route: emp.route
+  }));
+
+  const handleActivityClick = (employeeKey: string) => {
+    const employee = EMPLOYEES.find(emp => emp.key === employeeKey);
+    if (employee) {
+      navigate(employee.route);
+    }
+  };
+
+  const handleWorkerClick = (route: string) => {
+    navigate(route);
+  };
 
 
   return (
@@ -35,11 +54,15 @@ const AITeamSidebar: React.FC = () => {
         <div className="flex-1 overflow-y-auto min-h-0">
           <div className="space-y-3">
             {activities.map((activity) => (
-              <div key={activity.id} className="flex items-start gap-3">
-                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
+              <div 
+                key={activity.id} 
+                className="flex items-start gap-3 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition-all duration-200 group"
+                onClick={() => handleActivityClick(activity.employeeKey)}
+              >
+                <div className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0 group-hover:bg-blue-300 transition-colors"></div>
                 <div className="flex-1 min-w-0">
                   <div className="text-white/60 text-xs mb-1">{activity.timestamp}</div>
-                  <div className="text-white/90 text-xs leading-relaxed">{activity.aiName} {activity.title}</div>
+                  <div className="text-white/90 text-xs leading-relaxed group-hover:text-white transition-colors">{activity.aiName} {activity.title}</div>
                 </div>
               </div>
             ))}
@@ -59,14 +82,18 @@ const AITeamSidebar: React.FC = () => {
         <div className="flex-1 overflow-hidden">
           <div className="space-y-2.5">
             {workers.slice(0, 4).map((worker, index) => (
-              <div key={index} className="space-y-1">
+              <div 
+                key={index} 
+                className="space-y-1 cursor-pointer hover:bg-white/5 rounded-lg p-2 transition-all duration-200 group"
+                onClick={() => handleWorkerClick(worker.route)}
+              >
                 <div className="flex items-center justify-between">
-                  <div className="text-xs text-white/90 font-medium">{worker.name}</div>
+                  <div className="text-xs text-white/90 font-medium group-hover:text-white transition-colors">{worker.name}</div>
                   <div className="text-xs text-white font-medium">{worker.progress}%</div>
                 </div>
                 <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
                   <div 
-                    className="bg-gradient-to-r from-blue-500 to-blue-400 h-1.5 rounded-full transition-all duration-700 ease-out"
+                    className="bg-gradient-to-r from-blue-500 to-blue-400 h-1.5 rounded-full transition-all duration-700 ease-out group-hover:from-blue-400 group-hover:to-blue-300"
                     style={{ width: `${worker.progress}%` }}
                   ></div>
                 </div>

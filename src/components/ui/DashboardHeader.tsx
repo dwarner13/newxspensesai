@@ -24,6 +24,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard/financial-story': { title: 'Financial Story', subtitle: 'Your financial journey visualized.' },
   '/dashboard/financial-therapist': { title: 'AI Financial Therapist', subtitle: 'Get emotional support for financial decisions.' },
   '/dashboard/wellness-studio': { title: 'Wellness Studio', subtitle: 'Mindful money management and wellness.' },
+  '/dashboard/spotify': { title: 'Spotify Integration', subtitle: 'Connect your music and financial wellness.' },
   '/dashboard/spotify-integration': { title: 'Spotify Integration', subtitle: 'Connect your music and financial wellness.' },
   '/dashboard/tax-assistant': { title: 'Tax Assistant', subtitle: 'AI-powered tax preparation and planning.' },
   '/dashboard/business-intelligence': { title: 'Business Intelligence', subtitle: 'Advanced analytics for your business.' },
@@ -115,34 +116,84 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
           
           {/* Notifications Dropdown */}
           {isNotificationsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-72 bg-[#0f172a]/95 backdrop-blur-md border border-purple-500/20 rounded-xl shadow-2xl z-50">
+            <div className="absolute right-0 top-full mt-2 w-80 bg-[#0f172a]/95 backdrop-blur-md border border-purple-500/20 rounded-xl shadow-2xl z-50">
               <div className="p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white font-semibold">Notifications</h3>
-                  <span className="text-xs text-slate-400">{unreadCount} unread</span>
+                  <h3 className="text-white font-semibold">AI Team Activity</h3>
+                  <span className="text-xs text-slate-400">{unreadCount} active</span>
                 </div>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3 p-2 rounded-lg bg-purple-500/10">
-                    <div className="w-2 h-2 bg-purple-400 rounded-full mt-2"></div>
+                
+                {/* AI Workers Status */}
+                <div className="space-y-2 mb-4">
+                  <div className="flex items-center gap-3 p-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 cursor-pointer transition-colors">
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white text-sm">🤖</div>
                     <div className="flex-1">
-                      <p className="text-sm text-white">Byte processed your Chase statement</p>
-                      <p className="text-xs text-slate-400">2 minutes ago</p>
+                      <p className="text-sm text-white font-medium">Byte</p>
+                      <p className="text-xs text-slate-400">Document Processing Wizard</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-green-400">● Active</div>
+                      <div className="text-xs text-slate-400">Processing</div>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 p-2 rounded-lg bg-blue-500/10">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full mt-2"></div>
+                  
+                  <div className="flex items-center gap-3 p-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 cursor-pointer transition-colors">
+                    <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-white text-sm">💎</div>
                     <div className="flex-1">
-                      <p className="text-sm text-white">Crystal found new spending patterns</p>
-                      <p className="text-xs text-slate-400">15 minutes ago</p>
+                      <p className="text-sm text-white font-medium">Crystal</p>
+                      <p className="text-xs text-slate-400">Data Analysis Expert</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-green-400">● Active</div>
+                      <div className="text-xs text-slate-400">Analyzing</div>
                     </div>
                   </div>
-                  <div className="flex items-start gap-3 p-2 rounded-lg bg-green-500/10">
-                    <div className="w-2 h-2 bg-green-400 rounded-full mt-2"></div>
+                  
+                  <div className="flex items-center gap-3 p-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 cursor-pointer transition-colors">
+                    <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center text-white text-sm">🏷️</div>
                     <div className="flex-1">
-                      <p className="text-sm text-white">Tag categorized 12 transactions</p>
-                      <p className="text-xs text-slate-400">1 hour ago</p>
+                      <p className="text-sm text-white font-medium">Tag</p>
+                      <p className="text-xs text-slate-400">Smart Categorization</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-green-400">● Active</div>
+                      <div className="text-xs text-slate-400">Categorizing</div>
                     </div>
                   </div>
+                  
+                  <div className="flex items-center gap-3 p-2 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 cursor-pointer transition-colors">
+                    <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-lg flex items-center justify-center text-white text-sm">👑</div>
+                    <div className="flex-1">
+                      <p className="text-sm text-white font-medium">Prime</p>
+                      <p className="text-xs text-slate-400">Team Coordinator</p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-green-400">● Active</div>
+                      <div className="text-xs text-slate-400">Coordinating</div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Quick Actions */}
+                <div className="border-t border-purple-500/20 pt-3">
+                  <button 
+                    onClick={() => {
+                      setIsNotificationsOpen(false);
+                      // This will be handled by the parent component
+                      window.dispatchEvent(new CustomEvent('openWatchMeWork', { 
+                        detail: { feature: 'AI Team Overview' } 
+                      }));
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-lg bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 transition-all duration-200"
+                  >
+                    <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white text-xs">👁️</span>
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-sm text-white font-medium">Watch Me Work</p>
+                      <p className="text-xs text-slate-400">See AI team in action</p>
+                    </div>
+                  </button>
                 </div>
               </div>
             </div>

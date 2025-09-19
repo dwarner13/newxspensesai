@@ -63,14 +63,7 @@ export default function AIFinancialFreedomPage() {
   const [selectedAI, setSelectedAI] = useState('liberty');
   
   // Chat state
-  const [messages, setMessages] = useState<FreedomMessage[]>([
-    {
-      role: 'ai',
-      content: "🗽 Welcome to the AI Financial Freedom Division! I'm Liberty, and together with my team (Crystal, Wisdom, Nova, and Finley), we're here to transform your financial stress into complete freedom with 87% stress reduction and personalized liberation strategies. What aspect of your financial freedom journey would you like to explore?",
-      timestamp: new Date().toISOString(),
-      ai: 'liberty'
-    }
-  ]);
+  const [messages, setMessages] = useState<FreedomMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -406,516 +399,132 @@ Hello! I'm Finley, your personal financial coach. I educate and empower you with
 
   return (
     <>
-      <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
-        {/* Content */}
-        <div>
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <div className="flex justify-end">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
-                  <span className="text-yellow-400 text-sm font-medium">Freedom AI Active</span>
-                </div>
-                <div className="text-2xl">🏆</div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-      {/* Navigation Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="flex flex-wrap gap-3 mb-8"
-      >
-        {[
-          { key: 'overview', label: 'Freedom Overview', icon: BarChart3 },
-          { key: 'team', label: 'AI Team', icon: Users },
-          { key: 'theater', label: 'Freedom Theater', icon: Play },
-          { key: 'calculator', label: 'Freedom Calculator', icon: Calculator },
-          { key: 'chat', label: 'AI Chat', icon: MessageCircle }
-        ].map(({ key, label, icon: Icon }) => (
-          <motion.button
-            key={key}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setActiveView(key)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeView === key
-                ? 'bg-green-500 text-white'
-                : 'bg-white/10 text-white/70 hover:bg-white/20 hover:text-white'
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </motion.button>
-        ))}
-      </motion.div>
-
-      {/* Overview Section */}
-      {activeView === 'overview' && (
-        <motion.div
+      <div className="max-w-7xl mx-auto p-6 pt-32">
+        {/* Main Chat Interface */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col">
+            {/* Chat Messages Area */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]" ref={messagesEndRef}>
+              {messages.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center max-w-2xl">
+                    <motion.h2
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          {/* Freedom Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Freedom Score</p>
-                  <p className="text-2xl font-bold text-green-400">{freedomStats.freedomScore}/100</p>
-                </div>
-                <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center">
-                  <Flag className="w-6 h-6 text-green-400" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Stress Reduction</p>
-                  <p className="text-2xl font-bold text-blue-400">{freedomStats.stressReduction}%</p>
-                </div>
-                <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-blue-400" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Time to Freedom</p>
-                  <p className="text-2xl font-bold text-purple-400">{freedomStats.timeToFreedom} years</p>
-                </div>
-                <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-purple-400" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-white/70 text-sm">Hidden Opportunities</p>
-                  <p className="text-2xl font-bold text-yellow-400">${freedomStats.hiddenOpportunities.toLocaleString()}</p>
-                </div>
-                <div className="w-12 h-12 bg-yellow-500/20 rounded-lg flex items-center justify-center">
-                  <Lightbulb className="w-6 h-6 text-yellow-400" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Liberation Progress */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Liberation Progress</h3>
-            <div className="space-y-4">
-              {liberationStages.map((stage, index) => (
-                <div key={stage.id} className="flex items-center gap-4">
-                  <div className={`text-2xl ${stage.color}`}>{stage.emoji}</div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-white font-medium">{stage.title}</h4>
-                      <span className={`text-sm ${stage.color}`}>{stage.progress}%</span>
-                    </div>
-                    <p className="text-white/70 text-sm mb-2">{stage.description}</p>
-                    <div className="w-full bg-white/10 rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          stage.status === 'completed' ? 'bg-green-500' :
-                          stage.status === 'current' ? 'bg-blue-500' : 'bg-white/20'
-                        }`}
-                        style={{ width: `${stage.progress}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <button
-                onClick={() => setActiveView('calculator')}
-                className="flex items-center gap-3 p-4 bg-green-500/20 hover:bg-green-500/30 border border-green-500/30 rounded-lg text-white transition-colors"
-              >
-                <Calculator className="w-5 h-5" />
-                <span>Freedom Calculator</span>
-              </button>
-              <button
-                onClick={() => setActiveView('team')}
-                className="flex items-center gap-3 p-4 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30 rounded-lg text-white transition-colors"
-              >
-                <Users className="w-5 h-5" />
-                <span>Meet AI Team</span>
-              </button>
-              <button
-                onClick={() => setActiveView('theater')}
-                className="flex items-center gap-3 p-4 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-lg text-white transition-colors"
-              >
-                <Play className="w-5 h-5" />
-                <span>Freedom Theater</span>
-              </button>
-              <button
-                onClick={() => setActiveView('chat')}
-                className="flex items-center gap-3 p-4 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 rounded-lg text-white transition-colors"
-              >
-                <MessageCircle className="w-5 h-5" />
-                <span>Chat with AI</span>
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* AI Team Section */}
-      {activeView === 'team' && (
-        <motion.div
+                      className="text-xl font-bold text-white mb-1"
+                    >
+                      Welcome to the AI Financial Freedom Division
+                    </motion.h2>
+                    <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Meet Your AI Financial Freedom Team</h2>
-            <p className="text-white/70">Meet the 5 AI specialists who work together to transform your financial stress into complete freedom</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {freedomTeam.map((member) => (
-              <div key={member.id} className={`p-6 rounded-xl border ${member.bgColor} ${member.borderColor}`}>
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="text-4xl">{member.emoji}</div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-white mb-1">{member.name}</h3>
-                    <p className={`text-sm font-medium ${member.color} mb-2`}>{member.title}</p>
-                    <p className="text-white/70 text-sm">{member.specialty}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className={`w-2 h-2 rounded-full ${
-                      member.status === 'active' ? 'bg-green-400' :
-                      member.status === 'working' ? 'bg-yellow-400' : 'bg-gray-400'
-                    }`}></div>
-                    <span className="text-xs text-white/70 capitalize">{member.status}</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-white/80 text-sm font-medium">{member.description}</p>
-                  <p className="text-white/70 text-sm">{member.bio}</p>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white/70">Performance</span>
-                    <span className={`${member.color} font-medium`}>{member.performance}%</span>
-                  </div>
-                  {member.currentTask && (
-                    <div className="text-xs text-white/60 italic">
-                      Currently: {member.currentTask}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Freedom Theater Section */}
-      {activeView === 'theater' && (
-        <motion.div
+                      transition={{ delay: 0.4 }}
+                      className="text-white/60 text-sm mb-3"
+                    >
+                      Your AI-powered team for complete financial liberation and stress-free wealth building
+                    </motion.p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                      {[
+                        { icon: Flag, title: "Freedom Assessment", desc: "Complete financial freedom analysis", color: "from-green-500 to-emerald-500" },
+                        { icon: Shield, title: "Stress Liberation", desc: "87% stress reduction strategies", color: "from-blue-500 to-cyan-500" },
+                        { icon: Users, title: "AI Freedom Team", desc: "Meet your liberation specialists", color: "from-purple-500 to-violet-500" },
+                        { icon: Calculator, title: "Freedom Calculator", desc: "Calculate your liberation timeline", color: "from-orange-500 to-yellow-500" },
+                        { icon: Play, title: "Liberation Theater", desc: "Live freedom strategy scenarios", color: "from-pink-500 to-rose-500" },
+                        { icon: MessageCircle, title: "Freedom Chat", desc: "Chat with AI liberation experts", color: "from-indigo-500 to-purple-500" }
+                      ].map((item, index) => (
+                        <motion.button
+                          key={item.title}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
+                          transition={{ delay: 0.5 + index * 0.1 }}
+                          onClick={() => sendMessage(`Help me with ${item.title.toLowerCase()}`)}
+                          className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
         >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Live Financial Freedom Theater</h2>
-            <p className="text-white/70">Experience our AI team working together in real-time to create your personalized freedom strategy</p>
+                          <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                            <item.icon className="w-6 h-6 text-white" />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                title: 'Financial Stress Liberation',
-                emoji: '😰',
-                opportunities: 2400,
-                currentState: 'Overwhelmed & Stuck',
-                freedomState: 'Complete Financial Freedom',
-                timeToFreedom: '4.2 years',
-                color: 'text-red-400',
-                bgColor: 'bg-red-500/20'
-              },
-              {
-                title: 'Debt Freedom Strategy',
-                emoji: '💳',
-                opportunities: 3200,
-                currentState: 'Trapped & Overwhelmed',
-                freedomState: 'Debt-Free & Free',
-                timeToFreedom: '3.8 years',
-                color: 'text-blue-400',
-                bgColor: 'bg-blue-500/20'
-              },
-              {
-                title: 'Savings Transformation',
-                emoji: '💰',
-                opportunities: 1800,
-                currentState: 'Struggling to Save',
-                freedomState: 'Automatic Wealth Builder',
-                timeToFreedom: '2.1 years',
-                color: 'text-green-400',
-                bgColor: 'bg-green-500/20'
-              },
-              {
-                title: 'Income Liberation',
-                emoji: '📈',
-                opportunities: 4200,
-                currentState: 'Income Stagnant',
-                freedomState: 'Income Magnet',
-                timeToFreedom: '18 months',
-                color: 'text-purple-400',
-                bgColor: 'bg-purple-500/20'
-              }
-            ].map((scenario, index) => (
-              <div key={`scenario-${index}`} className={`p-6 rounded-xl border ${scenario.bgColor} hover:scale-105 transition-transform cursor-pointer`}>
-                <div className="text-center">
-                  <div className="text-4xl mb-4">{scenario.emoji}</div>
-                  <h3 className={`font-bold text-lg ${scenario.color} mb-4`}>{scenario.title}</h3>
-                  
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-white/70">Hidden Opportunities</span>
-                      <span className="text-white font-semibold">${scenario.opportunities.toLocaleString()}</span>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                            <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/70">Current State</span>
-                      <span className="text-white">{scenario.currentState}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/70">Freedom State</span>
-                      <span className={`font-semibold ${scenario.color}`}>{scenario.freedomState}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-white/70">Time to Freedom</span>
-                      <span className="text-green-400 font-semibold">{scenario.timeToFreedom}</span>
+                        </motion.button>
+                      ))}
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* Freedom Calculator Section */}
-      {activeView === 'calculator' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Your Personal Financial Freedom Calculator</h2>
-            <p className="text-white/70">Input your financial situation and watch our AI team create your personalized freedom strategy</p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            {/* Input Form */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <h3 className="text-lg font-semibold text-white mb-6">Your Financial Situation</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-white/70 text-sm mb-2">Annual Income</label>
-                  <input
-                    type="number"
-                    placeholder="50000"
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-green-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-white/70 text-sm mb-2">Current Savings</label>
-                  <input
-                    type="number"
-                    placeholder="5000"
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:border-green-500"
-                  />
-                </div>
-
-            <div>
-                  <label className="block text-white/70 text-sm mb-2">Financial Stress Level (1-10)</label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-white/70 text-sm">Low Stress</span>
-                    <input
-                      type="range"
-                      min="1"
-                      max="10"
-                      defaultValue="8"
-                      className="flex-1"
-                    />
-                    <span className="text-white/70 text-sm">High Stress</span>
-                  </div>
-                </div>
-
-                <button className="w-full px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors font-medium">
-                  Calculate My Freedom Strategy
-                </button>
-              </div>
-            </div>
-
-            {/* Results */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-              <h3 className="text-lg font-semibold text-white mb-6">Your Freedom Results</h3>
-              
-              <div className="space-y-6">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-green-400 mb-2">30/100</div>
-                  <p className="text-white/70 text-sm">Current Score</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-blue-400 mb-2">75/100</div>
-                  <p className="text-white/70 text-sm">With AI Team</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-purple-400 mb-2">7.5 years</div>
-                  <p className="text-white/70 text-sm">Time to Financial Freedom</p>
-                  <p className="text-green-400 text-sm">Instead of 15+ years!</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-yellow-400 mb-2">$4,000</div>
-                  <p className="text-white/70 text-sm">Hidden Opportunities</p>
-                  <p className="text-green-400 text-sm">Discovered by our AI team!</p>
-                </div>
-            </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* AI Chat Section */}
-      {activeView === 'chat' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-8"
-        >
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">AI Chat - Choose Your Specialist</h2>
-            <p className="text-white/70">Chat with individual AI specialists who can help in their specific fields</p>
-          </div>
-
-          {/* AI Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-            {freedomTeam.map((member) => (
-              <button
-                key={member.id}
-                onClick={() => setSelectedAI(member.id)}
-                className={`p-4 rounded-xl border transition-all ${
-                  selectedAI === member.id
-                    ? `${member.bgColor} ${member.borderColor} scale-105`
-                    : 'bg-white/5 border-white/10 hover:bg-white/10'
-                }`}
-              >
-                <div className="text-center">
-                  <div className="text-3xl mb-2">{member.emoji}</div>
-                  <h3 className="text-lg font-bold text-white mb-1">{member.name}</h3>
-                  <p className={`text-sm font-medium ${member.color} mb-2`}>{member.specialty}</p>
-                  <p className="text-white/70 text-xs">{member.description}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Chat Interface */}
-          <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="text-3xl">{freedomTeam.find(ai => ai.id === selectedAI)?.emoji}</div>
-                  <div>
-                <h3 className="text-xl font-semibold text-white">
-                  Chat with {freedomTeam.find(ai => ai.id === selectedAI)?.name}
-                </h3>
-                <p className="text-white/70">
-                  {freedomTeam.find(ai => ai.id === selectedAI)?.title}
-                </p>
-                </div>
-              </div>
-
-            <div className="h-96 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
-              {messages.filter(msg => msg.ai === selectedAI).map((message, index) => (
+              ) : (
+                messages.map((message, index) => (
                   <motion.div
                     key={index}
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                    <div
+                      className={`max-w-md px-2 py-1.5 rounded text-left ${
                       message.role === 'user'
-                      ? 'bg-green-600 text-white'
-                        : 'bg-white/10 text-white border border-white/20'
-                    }`}>
-                      <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div className="text-xs opacity-60 mt-2">
-                        {new Date(message.timestamp).toLocaleTimeString()}
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white'
+                          : 'bg-white/10 text-white/90'
+                      }`}
+                    >
+                      <div className="text-xs opacity-70 mb-1">
+                        {message.role === 'user' ? 'You' : freedomTeam.find(ai => ai.id === message.ai)?.name} • {new Date(message.timestamp).toLocaleTimeString()}
                       </div>
+                      <div className="text-sm">{message.content}</div>
                     </div>
                   </motion.div>
-                ))}
-
+                ))
+              )}
                 {isLoading && (
                   <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
                     className="flex justify-start"
                   >
-                    <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
+                  <div className="bg-white/10 text-white/90 max-w-md px-2 py-1.5 rounded text-left">
                       <div className="flex items-center gap-2">
                         <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>{freedomTeam.find(ai => ai.id === selectedAI)?.name} is analyzing...</span>
-                      </div>
+                      <span className="text-sm">Liberty is thinking...</span>
+                    </div>
                     </div>
                   </motion.div>
                 )}
-
-                <div ref={messagesEndRef} />
               </div>
 
-                <div className="flex gap-2">
+            {/* High-Tech Input Area */}
+            <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-green-500/5 to-emerald-500/5">
+              <div className="flex gap-1">
+                <div className="flex-1 relative">
                   <input
                     type="text"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                placeholder={`Ask ${freedomTeam.find(ai => ai.id === selectedAI)?.name} about financial freedom...`}
-                className="flex-1 bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-green-500"
+                    onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                    placeholder="Ask about financial freedom, stress reduction, liberation strategies..."
+                    className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1.5 pr-10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:border-transparent transition-all text-sm"
                     disabled={isLoading}
                   />
+                </div>
                   <button
-                    onClick={() => sendMessage(input)}
+                  onClick={() => !isLoading && sendMessage(input)}
                     disabled={isLoading || !input.trim()}
-                className="bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-3 transition-colors"
-                  >
-                    <Send className="w-5 h-5" />
+                  className="px-2 py-1.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>Send</span>
+                    </>
+                  )}
                   </button>
                 </div>
               </div>
-            </motion.div>
-      )}
+          </div>
+        </div>
+
       </div>
     </>
   );

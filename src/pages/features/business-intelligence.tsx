@@ -47,7 +47,7 @@ interface AnalysisStage {
   icon: string;
 }
 
-const BusinessIntelligenceFeaturePage = () => {
+const BusinessIntelligence = () => {
   const [showBusinessStudio, setShowBusinessStudio] = useState(false);
   const [isAnalyzingBusiness, setIsAnalyzingBusiness] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState(0);
@@ -904,4 +904,4 @@ const BusinessIntelligenceFeaturePage = () => {
   );
 };
 
-export default BusinessIntelligenceFeaturePage;
+export default BusinessIntelligence;

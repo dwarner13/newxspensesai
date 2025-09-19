@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { 
   TrendingUp, 
   BarChart3, 
@@ -402,7 +403,23 @@ What would you like to know about your spending future?`;
   };
 
   return (
-    <div className="w-full h-screen pt-32 pb-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
+    <div className="w-full h-screen pt-4 pb-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      {/* Page Title */}
+      <MobilePageTitle 
+        title="Spending Predictions" 
+        subtitle="Predict and analyze your spending patterns"
+      />
+      
+      {/* Desktop Title */}
+      <div className="hidden md:block text-center mb-8">
+        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
+          Spending Predictions
+        </h1>
+        <p className="text-white/60 text-lg">
+          Predict and analyze your spending patterns
+        </p>
+      </div>
+      
       {/* Welcome Section */}
       <div className="text-center mb-4">
         <h2 className="text-xl font-bold text-white mb-1">
@@ -515,10 +532,10 @@ What would you like to know about your spending future?`;
           {/* Quick Actions */}
           <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4 mb-4">
             <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <button
                 onClick={() => setActiveView('predictions')}
-                className="flex items-center gap-3 p-3 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[60px]"
+                className="flex flex-col items-center justify-center gap-2 p-3 bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/30 rounded-xl text-white transition-all duration-200 hover:scale-105 min-h-[70px] text-center"
               >
                 <TrendingUp className="w-6 h-6 flex-shrink-0" />
                 <span className="font-medium">View Predictions</span>

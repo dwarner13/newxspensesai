@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { 
   FileText, 
   Download, 
@@ -215,6 +216,12 @@ const DashboardTransactionsPage: React.FC = () => {
 
   return (
     <div className="w-full pt-32 px-4 sm:px-6 lg:px-8">
+          {/* Page Title */}
+          <MobilePageTitle 
+            title="Transactions" 
+            subtitle="View and manage your financial transactions"
+          />
+          
           {/* Header with Crystal AI Assistant */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
