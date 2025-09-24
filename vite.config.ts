@@ -7,7 +7,10 @@ import path from 'path';
 export default defineConfig({
   base: '/', // Use relative base path for development
   plugins: [
-    react(),
+    react({
+      jsxRuntime: 'automatic',
+      jsxImportSource: 'react',
+    }),
     visualizer({ open: false }), // view bundle size with `npm run build`
   ],
   resolve: {
@@ -25,55 +28,12 @@ export default defineConfig({
     sourcemap: false,
     cssCodeSplit: true,
     brotliSize: false,
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       treeshake: true,
       external: ['tesseract.js', 'node-fetch'],
       output: {
-        manualChunks: (id) => {
-          // Vendor chunks
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'vendor-react';
-            }
-            if (id.includes('framer-motion')) {
-              return 'vendor-animations';
-            }
-            if (id.includes('chart.js') || id.includes('react-chartjs-2')) {
-              return 'vendor-charts';
-            }
-            if (id.includes('lucide-react')) {
-              return 'vendor-icons';
-            }
-            if (id.includes('@radix-ui')) {
-              return 'vendor-ui';
-            }
-            if (id.includes('@supabase') || id.includes('axios')) {
-              return 'vendor-api';
-            }
-            if (id.includes('pdf') || id.includes('jspdf')) {
-              return 'vendor-pdf';
-            }
-            // Other large libraries
-            if (id.includes('date-fns') || id.includes('dayjs') || id.includes('jotai') || id.includes('zustand')) {
-              return 'vendor-utils';
-            }
-            // Keep React-related libraries together
-            if (id.includes('@headlessui') || id.includes('@dnd-kit')) {
-              return 'vendor-react';
-            }
-            // Everything else goes to vendor-other
-            return 'vendor-other';
-          }
-          
-          // Page-specific chunks for large dashboard pages
-          if (id.includes('src/pages/dashboard/')) {
-            const pageName = id.split('/').pop()?.replace('.tsx', '') || 'unknown';
-            if (['AICategorizationPage', 'AIFinancialAssistantPage', 'SmartImportAIPage', 'TaxAssistant'].includes(pageName)) {
-              return `page-${pageName.toLowerCase()}`;
-            }
-          }
-        },
+        // Simplified chunking - let Vite handle it automatically
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
