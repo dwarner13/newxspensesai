@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2, X } from 'lucide-react';
+import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2, X, Bot } from 'lucide-react';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useAIMemory } from '../../hooks/useAIMemory';
+import { ByteDocumentChat } from '../../components/chat/ByteDocumentChat';
 
 interface ProcessingFile {
   id: string;
@@ -162,6 +163,7 @@ const SmartImportAIPage: React.FC = () => {
   });
   const [bytePopupOpen, setBytePopupOpen] = useState(false);
   const [watchMeWorkOpen, setWatchMeWorkOpen] = useState(false);
+  const [isByteChatOpen, setIsByteChatOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI Workers state
@@ -647,7 +649,7 @@ const SmartImportAIPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
             <motion.button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-              onClick={() => setBytePopupOpen(true)}
+              onClick={() => setIsByteChatOpen(true)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.1 }}
@@ -663,11 +665,7 @@ const SmartImportAIPage: React.FC = () => {
 
             <motion.button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
-              onClick={() => {
-                // Open camera scanning interface
-                setBytePopupOpen(true);
-                handleChatWithByte("I want to scan a receipt with my camera");
-              }}
+              onClick={() => setIsByteChatOpen(true)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
@@ -683,10 +681,7 @@ const SmartImportAIPage: React.FC = () => {
 
             <motion.button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-              onClick={() => {
-                setBytePopupOpen(true);
-                handleChatWithByte("I want to import my bank statement");
-              }}
+              onClick={() => setIsByteChatOpen(true)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.3 }}
@@ -702,10 +697,7 @@ const SmartImportAIPage: React.FC = () => {
 
             <motion.button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-              onClick={() => {
-                setBytePopupOpen(true);
-                handleChatWithByte("I want to import CSV data");
-              }}
+              onClick={() => setIsByteChatOpen(true)}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
@@ -1506,6 +1498,25 @@ const SmartImportAIPage: React.FC = () => {
       </AnimatePresence>
 
       </div>
+
+      {/* Byte Document Chat */}
+      <ByteDocumentChat
+        isOpen={isByteChatOpen}
+        onClose={() => setIsByteChatOpen(false)}
+      />
+
+      {/* Floating Byte Chat Button */}
+      <motion.button
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setIsByteChatOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white z-40 transition-all duration-200"
+        title="Chat with Byte AI"
+      >
+        <Bot className="w-6 h-6" />
+      </motion.button>
     </>
   );
 };
