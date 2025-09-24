@@ -10,6 +10,36 @@
    MOBILE DETECTION & BASE STYLES
    ================================================================================ */
 
+/* Hide mobile components on desktop */
+@media only screen and (min-width: 769px) {
+  .mobile-only {
+    display: none !important;
+  }
+  
+  .mobile-revolution-container {
+    display: none !important;
+  }
+  
+  .mobile-dashboard-title {
+    display: none !important;
+  }
+}
+
+/* Show mobile components on mobile */
+@media only screen and (max-width: 768px) {
+  .mobile-only {
+    display: block !important;
+  }
+  
+  .mobile-revolution-container {
+    display: block !important;
+  }
+  
+  .mobile-dashboard-title {
+    display: block !important;
+  }
+}
+
 /* Only apply these styles on mobile devices */
 /* @media only screen and (max-width: 768px) { */
   

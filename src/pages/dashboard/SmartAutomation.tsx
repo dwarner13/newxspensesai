@@ -129,7 +129,7 @@ export default function SmartAutomationPage() {
                       transition={{ delay: 0.3 }}
                       className="text-xl font-bold text-white mb-1"
                     >
-                      Welcome to Prime's Automation Command Center
+                      Welcome to Automa's Automation Command Center
                     </motion.h2>
                     <motion.p
                       initial={{ opacity: 0, y: 20 }}

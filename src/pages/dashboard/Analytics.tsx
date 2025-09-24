@@ -110,16 +110,6 @@ function AnalyticsPage() {
         subtitle="Comprehensive financial analytics and insights"
       />
       
-      {/* Desktop Title */}
-      <div className="hidden md:block text-center mb-8">
-        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
-          Analytics
-        </h1>
-        <p className="text-white/60 text-lg">
-          Comprehensive financial analytics and insights
-        </p>
-      </div>
-      
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col">
           {/* Chat Messages Area */}

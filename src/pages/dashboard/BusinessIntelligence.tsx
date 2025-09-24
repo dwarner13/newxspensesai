@@ -109,16 +109,6 @@ function BusinessIntelligencePage() {
         subtitle="AI-powered business insights and strategic analysis"
       />
       
-      {/* Desktop Title */}
-      <div className="hidden md:block text-center mb-8">
-        <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
-          Business Intelligence
-        </h1>
-        <p className="text-white/60 text-sm">
-          AI-powered business insights and strategic analysis
-        </p>
-      </div>
-      
       <AIEmployeeHeader
         employeeKey="intelia"
         pageTitle="Business Intelligence"

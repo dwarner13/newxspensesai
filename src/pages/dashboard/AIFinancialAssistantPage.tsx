@@ -631,16 +631,6 @@ export default function AIFinancialAssistantPage() {
         subtitle="Get personalized financial advice from AI"
       />
       
-      {/* Desktop Title */}
-      <div className="hidden md:block text-center mb-8">
-        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
-          AI Financial Assistant
-        </h1>
-        <p className="text-white/60 text-lg">
-          Get personalized financial advice from AI
-        </p>
-      </div>
-      
       {/* Main Chat Interface */}
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col">

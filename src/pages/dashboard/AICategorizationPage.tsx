@@ -492,35 +492,130 @@ What would you like to explore about your financial data?`;
           </p>
         </div>
         
+        {/* Main Chat Interface */}
+        <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col">
+            {/* Chat Messages Area */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]">
+              {!chatOpen ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center max-w-2xl">
+                    <motion.h2
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="text-xl font-bold text-white mb-1"
+                    >
+                      Welcome to Smart Categories
+                    </motion.h2>
+                    <motion.p
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="text-white/60 text-sm mb-3"
+                    >
+                      AI-powered transaction categorization with 96% accuracy
+                    </motion.p>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                      {[
+                        { icon: TrendingUp, title: "Category Overview", desc: "Real-time spending breakdown", color: "from-green-500 to-emerald-500", view: "category_overview" },
+                        { icon: Zap, title: "Quick Categorize", desc: "Bulk categorization tools", color: "from-purple-500 to-violet-500", view: "quick_categorize" },
+                        { icon: Bot, title: "Tag AI Chat", desc: "Chat with Tag AI", color: "from-pink-500 to-rose-500", view: "chat" },
+                        { icon: Search, title: "Category Rules", desc: "Manage categorization rules", color: "from-orange-500 to-yellow-500", view: "category_rules" },
+                        { icon: Bot, title: "Auto Category", desc: "Automatic categorization", color: "from-blue-500 to-cyan-500", view: "auto_category" },
+                        { icon: BarChart3, title: "Process Overview", desc: "See complete workflow", color: "from-indigo-500 to-purple-500", view: "process_overview" }
+                      ].map((item, index) => (
+                        <motion.button
+                          key={item.title}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.5 + index * 0.1 }}
+                          onClick={() => {
+                            if (item.view === 'chat') {
+                              setChatOpen(true);
+                            } else {
+                              // Handle other views
+                              console.log('Opening view:', item.view);
+                            }
+                          }}
+                          className="group flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[80px] hover:shadow-lg hover:shadow-purple-500/10"
+                        >
+                          <div className={`w-10 h-10 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                            <item.icon className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-xs font-semibold text-white mb-0.5">{item.title}</h3>
+                            <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
+                          </div>
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold text-white">Chat with Tag AI</h2>
+                    <button
+                      onClick={() => setChatOpen(false)}
+                      className="text-white/60 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {chatMessages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-md px-3 py-2 rounded-lg ${
+                            message.type === 'user'
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                              : 'bg-white/10 text-white border border-white/20'
+                          }`}
+                        >
+                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                          <p className="text-xs opacity-70 mt-1">{message.timestamp}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Input Area */}
+            <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-pink-500/5">
+              <div className="flex gap-1">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && chatMessage.trim() && sendMessage(chatMessage)}
+                    placeholder="Ask about categorization, rules, or transaction analysis..."
+                    className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1.5 pr-10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
+                  />
+                </div>
+                <button
+                  onClick={() => chatMessage.trim() && sendMessage(chatMessage)}
+                  disabled={!chatMessage.trim()}
+                  className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
+                >
+                  <Bot className="w-4 h-4" />
+                  <span>Send</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         {/* Content */}
         <div>
-        {/* Page Header */}
-        <div className="text-center mb-12">
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="text-xl font-bold text-white mb-1"
-          >
-            Smart Categories
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="text-white/60 text-sm mb-3"
-          >
-            AI-powered transaction categorization with 96% accuracy
-          </motion.p>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="text-white/60 text-base max-w-3xl mx-auto"
-          >
-            Your intelligent guide to mastering expense categorization and financial insights
-          </motion.p>
-        </div>
 
         {/* Feature Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import MobilePageTitle from '../ui/MobilePageTitle';
 import { 
   Upload, 
   MessageCircle, 
@@ -460,11 +459,15 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
             </motion.div>
           )}
 
-      {/* Page Title */}
-      <MobilePageTitle 
-        title="FinTech Entertainment Platform" 
-        subtitle="Welcome back, John! Here's your financial overview."
-      />
+      {/* Desktop Title */}
+      <div className="hidden md:block text-center mb-8">
+        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
+          FinTech Entertainment Platform
+        </h1>
+        <p className="text-white/60 text-lg">
+          Welcome back, John! Here's your financial overview.
+        </p>
+      </div>
 
       {/* CORE AI TOOLS Section */}
       <div className="space-y-3 mt-8 md:mt-12">
@@ -486,7 +489,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
-                <div className="text-right text-sm">
+                <div className="text-right text-sm h-[40px] flex flex-col justify-center">
                   {Object.entries(card.stats).map(([key, value]) => (
                     <div key={key} className="text-white/60 leading-tight">
                       {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90 font-medium">{value}</span>
@@ -496,16 +499,13 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               </div>
               
               {/* Title */}
-              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+              <h3 className="text-white font-bold text-base mb-2">
                 {card.title}
               </h3>
               
-              {/* Description - fixed height for consistent button alignment */}
+              {/* Description */}
               <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">
-                {card.title === 'Smart Import AI' ? 'Upload receipts and bank statements.' :
-                 card.title === 'AI Chat Assistant' ? 'Chat with our AI assistant for personalized advice.' :
-                 card.title === 'Smart Categories' ? 'Automatically categorize your transactions with AI.' :
-                 card.description}
+                {card.description}
               </p>
               
               {/* Button - always at bottom */}
@@ -550,7 +550,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 <div className={`w-8 h-8 bg-gradient-to-r ${card.color} rounded-lg flex items-center justify-center text-white`}>
                   {card.icon}
                 </div>
-                <div className="text-right text-sm">
+                <div className="text-right text-sm h-[40px] flex flex-col justify-center">
                   {Object.entries(card.stats).map(([key, value]) => (
                     <div key={key} className="text-white/60 leading-tight">
                       {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}: <span className="text-white/90 font-medium">{value}</span>
@@ -560,12 +560,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               </div>
               
               {/* Title */}
-              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+              <h3 className="text-white font-bold text-base mb-2">
                 {card.title}
               </h3>
               
-              {/* Description - fixed height for consistent button alignment */}
-              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">{card.description}</p>
+              {/* Description */}
+              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">
+                {card.description}
+              </p>
               
               {/* Button - always at bottom */}
               <div className="mt-auto">
@@ -619,12 +621,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               </div>
               
               {/* Title */}
-              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+              <h3 className="text-white font-bold text-base mb-2">
                 {card.title}
               </h3>
               
-              {/* Description - fixed height for consistent button alignment */}
-              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">{card.description}</p>
+              {/* Description */}
+              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">
+                {card.description}
+              </p>
               
               {/* Button - always at bottom */}
               <div className="mt-auto">
@@ -678,12 +682,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               </div>
               
               {/* Title */}
-              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+              <h3 className="text-white font-bold text-base mb-2">
                 {card.title}
               </h3>
               
-              {/* Description - fixed height for consistent button alignment */}
-              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">{card.description}</p>
+              {/* Description */}
+              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">
+                {card.description}
+              </p>
               
               {/* Button - always at bottom */}
               <div className="mt-auto">
@@ -737,12 +743,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               </div>
               
               {/* Title */}
-              <h3 className="text-white font-bold text-xs uppercase tracking-wider mb-2" style={{ color: 'rgba(255, 255, 255, 0.5)', letterSpacing: '1px' }}>
+              <h3 className="text-white font-bold text-base mb-2">
                 {card.title}
               </h3>
               
-              {/* Description - fixed height for consistent button alignment */}
-              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">{card.description}</p>
+              {/* Description */}
+              <p className="text-white/70 text-sm mb-4 h-[60px] overflow-hidden">
+                {card.description}
+              </p>
               
               {/* Button - always at bottom */}
               <div className="mt-auto">

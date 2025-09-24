@@ -74,18 +74,20 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
     <header id="dashboard-header" className="fixed top-0 left-64 right-0 bg-[#0f172a] z-40 border-b border-white/10">
       <div className="w-full px-4 sm:px-6 lg:px-8 py-1">
         <div className="flex items-center justify-between">
-          {/* Title on the left */}
-          <div className="flex-1">
-            <h1
-              className="font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#ff4db2] via-[#c084fc] to-[#38bdf8] text-left"
-              style={{ fontSize: "48px", lineHeight: 1.1, letterSpacing: "-0.02em" }}
-            >
-              {pageInfo.title}
-            </h1>
-            <p className="mt-0.5 text-slate-300/90 text-[17px] text-left">
-              {pageInfo.subtitle}
-            </p>
-          </div>
+          {/* Title on the left - Hidden for main dashboard to avoid duplication */}
+          {location.pathname !== '/dashboard' && (
+            <div className="flex-1">
+              <h1
+                className="font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#ff4db2] via-[#c084fc] to-[#38bdf8] text-left"
+                style={{ fontSize: "48px", lineHeight: 1.1, letterSpacing: "-0.02em" }}
+              >
+                {pageInfo.title}
+              </h1>
+              <p className="mt-0.5 text-slate-300/90 text-[17px] text-left">
+                {pageInfo.subtitle}
+              </p>
+            </div>
+          )}
           
           {/* Icons on the right */}
           <div className="flex items-center gap-3 ml-6">

@@ -882,7 +882,6 @@ const TeamRoom: React.FC = () => {
             </motion.div>
           </div>
         </div>
-        </div>
       </div>
     </div>
   );

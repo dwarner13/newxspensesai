@@ -626,10 +626,8 @@ const SmartImportAIPage: React.FC = () => {
           </p>
         </div>
         
-        {/* Main Content - Clean Workspace */}
+        {/* Welcome Banner */}
         <div className="max-w-6xl mx-auto">
-          
-          {/* Welcome Banner */}
           <motion.div
             className="text-center mb-6"
             initial={{ opacity: 0, y: 20 }}
@@ -643,6 +641,7 @@ const SmartImportAIPage: React.FC = () => {
               Your intelligent document processing wizard for financial data
             </p>
           </motion.div>
+          
 
           {/* Feature Modules Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">

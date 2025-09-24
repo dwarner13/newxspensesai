@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { 
   TrendingUp, 
   BarChart3, 
@@ -403,15 +402,9 @@ What would you like to know about your spending future?`;
   };
 
   return (
-    <div className="w-full h-screen pt-4 pb-8 px-4 sm:px-6 lg:px-8 overflow-hidden">
+    <div className="dashboard-main-content max-w-7xl mx-auto p-4 md:p-6 pt-20 md:pt-32">
       {/* Page Title */}
-      <MobilePageTitle 
-        title="Spending Predictions" 
-        subtitle="Predict and analyze your spending patterns"
-      />
-      
-      {/* Desktop Title */}
-      <div className="hidden md:block text-center mb-8">
+      <div className="text-center mb-8">
         <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
           Spending Predictions
         </h1>
