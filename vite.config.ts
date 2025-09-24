@@ -18,6 +18,7 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
     include: ['react', 'react-dom', 'react-router-dom', 'framer-motion'],
+    force: true,
   },
   build: {
     minify: 'esbuild',
@@ -56,6 +57,10 @@ export default defineConfig({
             // Other large libraries
             if (id.includes('date-fns') || id.includes('dayjs') || id.includes('jotai') || id.includes('zustand')) {
               return 'vendor-utils';
+            }
+            // Keep React-related libraries together
+            if (id.includes('@headlessui') || id.includes('@dnd-kit')) {
+              return 'vendor-react';
             }
             // Everything else goes to vendor-other
             return 'vendor-other';
