@@ -24,6 +24,7 @@ import { MockProcessingModal } from '../upload/MockProcessingModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { ProcessingResult } from '../../services/MockDocumentProcessor';
 import { useNavigate } from 'react-router-dom';
+import MobilePageTitle from '../ui/MobilePageTitle';
 
 interface ConnectedDashboardProps {
   className?: string;
@@ -458,6 +459,12 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               <span>{showNotification.message}</span>
             </motion.div>
           )}
+
+      {/* Page Title */}
+      <MobilePageTitle 
+        title="FinTech Entertainment Platform" 
+        subtitle="Welcome back, John! Here's your financial overview."
+      />
 
       {/* Desktop Title */}
       <div className="hidden md:block text-center mb-8">
