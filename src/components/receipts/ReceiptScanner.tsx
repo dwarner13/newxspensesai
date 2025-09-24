@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { extractTextFromImage, parseReceiptText, ParsedReceiptData } from '../../utils/ocrService';
 import { parseReceiptWithAI } from '../../utils/parseReceiptWithAI';
+import { redactDocument, generateAIEmployeeNotification, validateRedaction } from '../../utils/documentRedaction';
 import toast from 'react-hot-toast';
 
 interface ReceiptScannerProps {
@@ -22,7 +23,9 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
   const [extractedData, setExtractedData] = useState<ParsedReceiptData | null>(null);
   const [receiptInfo, setReceiptInfo] = useState<any>(null);
   const [rawOcrText, setRawOcrText] = useState<string>('');
+  const [redactedOcrText, setRedactedOcrText] = useState<string>('');
   const [showRawText, setShowRawText] = useState(false);
+  const [redactionSummary, setRedactionSummary] = useState<string>('');
   const [processingMessage, setProcessingMessage] = useState('');
   const [ocrError, setOcrError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -198,14 +201,52 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
 
         toast.success('Text extracted successfully!', { id: ocrToast });
         
-        // Stop OCR progress simulation and set to 60%
+        // Stop OCR progress simulation and set to 50%
         stopProgressSimulation();
-        setProgress(60);
+        setProgress(50);
         setProcessingStep('ai');
+        setProcessingMessage('🔒 AI Byte is redacting sensitive data for privacy...');
+        
+        // Start progress simulation for redaction phase (50% to 70%)
+        startProgressSimulation(50, 70, 2000);
+
+        // AI Redaction Process
+        try {
+          const redactionResult = await redactDocument(ocrResult.text);
+          setRedactedOcrText(redactionResult.redactedText);
+          setRedactionSummary(generateAIEmployeeNotification(redactionResult.redactedItems));
+          
+          // Validate redaction was successful
+          if (!validateRedaction(redactionResult.redactedText)) {
+            console.warn('Redaction validation failed - some sensitive data may remain');
+          }
+          
+          // AI Employee notification
+          toast.success('🔒 Byte: Document secured! Sensitive data redacted for privacy.', {
+            duration: 4000,
+            icon: '🤖'
+          });
+          
+          console.log('Redaction completed:', {
+            itemsRedacted: redactionResult.redactedItems.length,
+            confidence: redactionResult.confidence,
+            processingTime: redactionResult.processingTime
+          });
+          
+        } catch (redactionError) {
+          console.error('Redaction failed:', redactionError);
+          // Continue with original text if redaction fails
+          setRedactedOcrText(ocrResult.text);
+          toast.warning('Redaction failed - proceeding with original text');
+        }
+
+        // Stop redaction progress simulation and set to 70%
+        stopProgressSimulation();
+        setProgress(70);
         setProcessingMessage('🤖 AI is analyzing receipt data...');
         
-        // Start progress simulation for AI phase (60% to 80%)
-        startProgressSimulation(60, 80, 2000);
+        // Start progress simulation for AI phase (70% to 85%)
+        startProgressSimulation(70, 85, 2000);
 
         // Parse the extracted text with AI
         setProcessingMessage('🤖 AI is analyzing receipt data...');
@@ -237,14 +278,14 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
           console.log('Raw OCR Text Lines:', ocrResult.text.split('\n'));
         }
 
-        // Stop AI progress simulation and set to 80%
+        // Stop AI progress simulation and set to 85%
         stopProgressSimulation();
-        setProgress(80);
+        setProgress(85);
         setProcessingStep('save');
-        setProcessingMessage('💾 Saving receipt data...');
+        setProcessingMessage('💾 Saving redacted receipt data...');
         
-        // Start progress simulation for save phase (80% to 95%)
-        startProgressSimulation(80, 95, 1500);
+        // Start progress simulation for save phase (85% to 95%)
+        startProgressSimulation(85, 95, 1500);
 
         // Save receipt record to database
         const saveToast = toast.loading('Saving receipt data...', { id: 'save-toast' });
@@ -257,8 +298,10 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
             processing_status: 'completed',
             extracted_data: {
               ...parsedData,
-              raw_ocr_text: ocrResult.text,
-              ocr_confidence: ocrResult.confidence
+              redacted_ocr_text: redactedOcrText || ocrResult.text,
+              redaction_summary: redactionSummary,
+              ocr_confidence: ocrResult.confidence,
+              privacy_protected: true
             }
           })
           .select()
@@ -374,6 +417,8 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
     setExtractedData(null);
     setReceiptInfo(null);
     setRawOcrText('');
+    setRedactedOcrText('');
+    setRedactionSummary('');
     setShowRawText(false);
     setIsProcessing(false);
     setProgress(0);
@@ -657,6 +702,22 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                   </div>
                 )}
 
+                {/* Privacy Protection Summary */}
+                {redactionSummary && (
+                  <div className="mt-3 pt-3 border-t border-success-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">🔒</span>
+                      </div>
+                      <span className="text-xs text-success-700 font-medium">Privacy Protected by AI Byte</span>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded text-xs text-blue-800">
+                      <p className="font-medium mb-1">✅ Your data is secure!</p>
+                      <p>Sensitive information has been automatically redacted. Only vendor names and amounts are preserved for AI features.</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Raw OCR Text */}
                 <AnimatePresence>
                   {showRawText && rawOcrText && (
@@ -666,10 +727,17 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                       exit={{ opacity: 0, height: 0 }}
                       className="mt-3 pt-3 border-t border-success-200"
                     >
-                      <span className="text-xs text-success-700 font-medium">Raw OCR Text:</span>
+                      <span className="text-xs text-success-700 font-medium">
+                        {redactedOcrText ? 'Redacted OCR Text:' : 'Raw OCR Text:'}
+                      </span>
                       <div className="mt-1 p-2 bg-white rounded text-xs text-gray-600 max-h-32 overflow-y-auto font-mono">
-                        {rawOcrText}
+                        {redactedOcrText || rawOcrText}
                       </div>
+                      {redactedOcrText && (
+                        <p className="mt-1 text-xs text-blue-600">
+                          🔒 Sensitive data has been redacted for your privacy
+                        </p>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

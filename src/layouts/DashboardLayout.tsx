@@ -9,6 +9,8 @@ import MobileSidebar from "../components/layout/MobileSidebar";
 import MobileBottomNav from "../components/layout/MobileBottomNav";
 import MobileProfileModal from "../components/layout/MobileProfileModal";
 import BossBubble from "../components/boss/BossBubble";
+import { usePullToRefresh } from "../hooks/usePullToRefresh";
+import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
 
 export default function DashboardLayout() {
   const location = useLocation();
@@ -16,6 +18,31 @@ export default function DashboardLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Pull-to-refresh functionality for mobile
+  const handleRefresh = async () => {
+    try {
+      // Simulate refresh delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Dispatch a custom event for components to listen to
+      window.dispatchEvent(new CustomEvent('pullToRefresh', {
+        detail: { timestamp: Date.now() }
+      }));
+      
+      // Optionally reload the page for a full refresh
+      // window.location.reload();
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    }
+  };
+
+  const pullToRefresh = usePullToRefresh({
+    onRefresh: handleRefresh,
+    threshold: 80,
+    resistance: 0.5,
+    disabled: !isMobile
+  });
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -29,6 +56,23 @@ export default function DashboardLayout() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Add pull-to-refresh touch event listeners for mobile
+  useEffect(() => {
+    if (!isMobile) return;
+
+    const { onTouchStart, onTouchMove, onTouchEnd } = pullToRefresh.handlers;
+    
+    document.addEventListener('touchstart', onTouchStart, { passive: false });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd, { passive: false });
+
+    return () => {
+      document.removeEventListener('touchstart', onTouchStart);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [isMobile, pullToRefresh.handlers]);
+
   // Close mobile menu when route changes
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -37,6 +81,13 @@ export default function DashboardLayout() {
   if (isMobile) {
     return (
       <div className="flex flex-col h-screen bg-[#0f172a]">
+        {/* Pull-to-refresh indicator */}
+        <PullToRefreshIndicator
+          isRefreshing={pullToRefresh.isRefreshing}
+          pullDistance={pullToRefresh.pullDistance}
+          threshold={80}
+          isPulling={pullToRefresh.isPulling}
+        />
         {/* Mobile Header */}
         <div className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-white/10">
           {/* Top bar with menu, logo, and profile */}

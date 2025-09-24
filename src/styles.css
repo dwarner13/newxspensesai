@@ -2080,13 +2080,24 @@ input:focus, textarea:focus {
   line-height: 1.5;
 }
 
-/* Dashboard Styles */
-.dashboard-header {
-  background: var(--white);
-  padding: 24px 32px;
-  border-radius: 12px;
-  margin-bottom: 32px;
-  box-shadow: var(--shadow);
+/* Dashboard Styles - Removed conflicting header styles */
+
+/* Pull-to-refresh styles for mobile */
+@media (max-width: 768px) {
+  body {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Prevent default pull-to-refresh on mobile browsers */
+  html, body {
+    overscroll-behavior-y: none;
+  }
+  
+  /* Ensure smooth scrolling for pull-to-refresh */
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .dashboard-title {

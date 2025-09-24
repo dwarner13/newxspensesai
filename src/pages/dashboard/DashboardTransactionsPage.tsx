@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { 
   FileText, 
@@ -27,7 +28,12 @@ import {
   Mic,
   MicOff,
   Volume2,
-  VolumeX
+  VolumeX,
+  Upload,
+  Camera,
+  Mail,
+  FileSpreadsheet,
+  ReceiptScanner
 } from 'lucide-react';
 
 interface Transaction {
@@ -53,6 +59,7 @@ interface AIInsight {
 }
 
 const DashboardTransactionsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -176,7 +183,10 @@ const DashboardTransactionsPage: React.FC = () => {
   }, [transactions, searchTerm, selectedCategory]);
 
   const handleTransactionClick = (transaction: Transaction) => {
+    // Navigate to transaction details or open a modal
     console.log('Transaction clicked:', transaction);
+    // For now, we'll just show an alert with transaction details
+    alert(`Transaction Details:\n\nDescription: ${transaction.description}\nAmount: $${transaction.amount}\nCategory: ${transaction.category}\nDate: ${transaction.date}`);
   };
 
   const handleCrystalQuestion = (question: string) => {
@@ -271,6 +281,81 @@ const DashboardTransactionsPage: React.FC = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
             />
+          </div>
+        </motion.div>
+
+        {/* Feature Cards Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="mb-6"
+        >
+          <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Upload Receipt Card */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/dashboard/smart-import-ai')}
+              className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-4 cursor-pointer hover:bg-blue-500/30 transition-all duration-200"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mb-3">
+                  <Upload className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-white font-semibold text-sm mb-1">Upload Receipt</h3>
+                <p className="text-white/70 text-xs">Scan & process receipts</p>
+              </div>
+            </motion.div>
+
+            {/* Scan Receipt Card */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/dashboard/smart-import-ai')}
+              className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-4 cursor-pointer hover:bg-green-500/30 transition-all duration-200"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center mb-3">
+                  <Camera className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-white font-semibold text-sm mb-1">Scan Receipt</h3>
+                <p className="text-white/70 text-xs">Camera scanning</p>
+              </div>
+            </motion.div>
+
+            {/* Email Receipts Card */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/features/email-receipts')}
+              className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-4 cursor-pointer hover:bg-purple-500/30 transition-all duration-200"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center mb-3">
+                  <Mail className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-white font-semibold text-sm mb-1">Email Receipts</h3>
+                <p className="text-white/70 text-xs">Auto-process emails</p>
+              </div>
+            </motion.div>
+
+            {/* Smart Import Card */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/dashboard/smart-import-ai')}
+              className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-xl p-4 cursor-pointer hover:bg-orange-500/30 transition-all duration-200"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center mb-3">
+                  <FileSpreadsheet className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-white font-semibold text-sm mb-1">Smart Import</h3>
+                <p className="text-white/70 text-xs">AI-powered import</p>
+              </div>
+            </motion.div>
           </div>
         </motion.div>
 
