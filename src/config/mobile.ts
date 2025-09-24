@@ -18,7 +18,7 @@ export const MOBILE_CONFIG = {
   
   // Debug flags
   DEBUG_ENABLED: import.meta.env.VITE_MOBILE_DEBUG === 'true',
-  FORCE_ENABLED: true, // Force mobile for testing
+  FORCE_ENABLED: false, // Force mobile for testing - DISABLED
 } as const;
 
 export type MobileConfig = typeof MOBILE_CONFIG;
