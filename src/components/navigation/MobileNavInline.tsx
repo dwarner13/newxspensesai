@@ -36,7 +36,7 @@ export default function MobileNavInline() {
           <button
             type="button"
             aria-label="Open menu"
-            className="inline-flex items-center justify-center rounded-lg p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-600 transition-all duration-200"
+            className="inline-flex items-center justify-center rounded-lg p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-600 transition-all duration-200 ease-out"
             data-testid="mobile-hamburger"
           >
             <Menu className="h-6 w-6" />
@@ -48,9 +48,10 @@ export default function MobileNavInline() {
           side="left"
           className="
             w-[85%] max-w-sm
-            bg-zinc-950/40 backdrop-blur
+            bg-zinc-950/40 backdrop-blur-sm
             text-zinc-300 border-r border-zinc-800 shadow-2xl
             flex flex-col z-[9998] p-0
+            transition-transform duration-250 ease-out
           "
           data-testid="mobile-sidebar"
         >

@@ -12,7 +12,7 @@ export default function MobileNavTrigger() {
       type="button"
       aria-label="Open menu"
       onClick={handleClick}
-      className="inline-flex items-center justify-center rounded-lg p-2 text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 md:hidden"
+      className="inline-flex items-center justify-center rounded-lg p-2 text-white/90 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 md:hidden transition-all duration-200 ease-out"
       data-testid="mobile-hamburger"
     >
       <Menu className="h-6 w-6" />

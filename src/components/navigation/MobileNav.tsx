@@ -60,6 +60,7 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
           text-white
           border-none
           shadow-2xl
+          transition-transform duration-250 ease-out
         "
         data-testid="mobile-sidebar"
       >
@@ -116,8 +117,8 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
         </div>
 
         {/* Footer profile badge */}
-        <div className="px-4 pb-6">
-          <div className="rounded-2xl px-3 py-3 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-cyan-500">
+        <div className="px-4 pb-6 pt-2">
+          <div className="rounded-2xl px-3 py-3 bg-gradient-to-r from-violet-600 via-fuchsia-500 to-cyan-500 shadow-lg">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 rounded-xl bg-white/20 grid place-items-center">
                 <Crown className="h-5 w-5 text-white" />

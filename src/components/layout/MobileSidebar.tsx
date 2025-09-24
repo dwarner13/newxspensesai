@@ -99,7 +99,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
       </div>
 
       {/* Navigation */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 overflow-y-auto px-4 py-4 pb-2">
         {/* Main Dashboard */}
         <ul className="space-y-1 mb-4">
           <li>
@@ -449,8 +449,8 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-white/10 px-4 py-4">
-        <div className="p-4 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-xl border border-purple-500/30">
+      <div className="border-t border-white/10 px-4 py-4 pb-6">
+        <div className="p-4 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-xl border border-purple-500/30 shadow-lg">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
               <User size={20} className="text-white" />

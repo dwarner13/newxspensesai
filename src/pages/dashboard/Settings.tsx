@@ -105,7 +105,7 @@ function SettingsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6 pt-32">
+    <div className="max-w-7xl mx-auto p-6 pt-20">
       {/* Page Title */}
       <MobilePageTitle 
         title="Settings" 

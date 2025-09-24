@@ -215,7 +215,7 @@ const DashboardTransactionsPage: React.FC = () => {
   }
 
   return (
-    <div className="w-full pt-32 px-4 sm:px-6 lg:px-8">
+    <div className="w-full pt-20 px-4 sm:px-6 lg:px-8">
           {/* Page Title */}
           <MobilePageTitle 
             title="Transactions" 

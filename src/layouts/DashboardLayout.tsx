@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Crown } from "lucide-react";
 import DesktopSidebar from "../components/navigation/DesktopSidebar";
@@ -11,6 +11,7 @@ import MobileProfileModal from "../components/layout/MobileProfileModal";
 import BossBubble from "../components/boss/BossBubble";
 
 export default function DashboardLayout() {
+  const location = useLocation();
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -92,8 +93,20 @@ export default function DashboardLayout() {
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto pt-2 pb-16">
-          <div className="px-1 py-0">
-            <Outlet />
+          <div className="px-1 py-0 min-h-screen">
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ 
+                duration: 0.3,
+                ease: "easeOut"
+              }}
+              className="h-full"
+            >
+              <Outlet />
+            </motion.div>
           </div>
         </main>
 
