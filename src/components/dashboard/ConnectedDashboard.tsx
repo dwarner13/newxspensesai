@@ -15,7 +15,8 @@ import {
   Settings,
   Loader2,
   Tag,
-  BookOpen
+  BookOpen,
+  Bot
 } from 'lucide-react';
 import { UniversalAIController } from '../../services/UniversalAIController';
 import { UniversalChatInterface } from '../chat/UniversalChatInterface';
@@ -27,6 +28,7 @@ import { useNavigate } from 'react-router-dom';
 import MobilePageTitle from '../ui/MobilePageTitle';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+import { ByteDocumentChat } from '../chat/ByteDocumentChat';
 
 interface ConnectedDashboardProps {
   className?: string;
@@ -52,6 +54,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     aiAccuracy: 0
   });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [isByteChatOpen, setIsByteChatOpen] = useState(false);
 
   // Debug logging
   console.log('ConnectedDashboard render:', { user: !!user, loading, aiController: !!aiController });
@@ -250,47 +253,6 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     return () => window.removeEventListener('refreshDashboardStats', handleRefreshStats);
   }, [user]);
 
-  // Smart Import AI Connection
-  const handleImportNow = async () => {
-    if (!user) return;
-    
-    // Create file input programmatically
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.pdf,.csv,.xlsx,.jpg,.png,.jpeg';
-    input.multiple = true;
-    
-    input.onchange = async (event) => {
-      const files = Array.from((event.target as HTMLInputElement).files || []);
-      
-      if (files.length === 0) {
-        return;
-      }
-      
-      // Show mock processing modal for the first file
-      const firstFile = files[0];
-      setProcessingFileName(firstFile.name);
-      setShowProcessingModal(true);
-      
-      // Simulate processing
-      setIsProcessing(true);
-      setProcessingStatus('Byte is analyzing your document...');
-      
-      // Navigate to Smart Import AI page after a short delay
-      setTimeout(() => {
-        navigate('/dashboard/smart-import-ai');
-        setIsProcessing(false);
-        setShowProcessingModal(false);
-        
-        // Refresh dashboard stats after processing
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('refreshDashboardStats'));
-        }, 1000);
-      }, 2000);
-    };
-    
-    input.click();
-  };
 
   // Handle processing completion
   const handleProcessingComplete = (result: ProcessingResult) => {
@@ -385,7 +347,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         documentsProcessed: isLoadingStats ? "..." : dashboardStats.documentsProcessed 
       },
       buttonText: 'Import & Chat',
-      onClick: handleImportNow,
+      onClick: () => setIsByteChatOpen(true),
       color: 'from-blue-500 to-blue-600',
       isLoading: isProcessing && processingStatus.includes('Byte')
     },
@@ -991,6 +953,25 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         onComplete={handleProcessingComplete}
         fileName={processingFileName}
       />
+
+      {/* Byte Document Chat */}
+      <ByteDocumentChat
+        isOpen={isByteChatOpen}
+        onClose={() => setIsByteChatOpen(false)}
+      />
+
+      {/* Floating Byte Chat Button */}
+      <motion.button
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setIsByteChatOpen(true)}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white z-40 transition-all duration-200"
+        title="Chat with Byte AI"
+      >
+        <Bot className="w-6 h-6" />
+      </motion.button>
     </div>
   );
 }
