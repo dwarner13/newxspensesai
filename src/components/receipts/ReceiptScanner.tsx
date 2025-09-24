@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { extractTextFromImage, parseReceiptText, ParsedReceiptData } from '../../utils/ocrService';
 import { parseReceiptWithAI } from '../../utils/parseReceiptWithAI';
 import { redactDocument, generateAIEmployeeNotification, validateRedaction } from '../../utils/documentRedaction';
+import { processImageWithSmartOCR, SmartOCRResult } from '../../utils/smartOCRManager';
 import toast from 'react-hot-toast';
 
 interface ReceiptScannerProps {
@@ -28,6 +29,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
   const [redactionSummary, setRedactionSummary] = useState<string>('');
   const [processingMessage, setProcessingMessage] = useState('');
   const [ocrError, setOcrError] = useState<string | null>(null);
+  const [smartOCRResult, setSmartOCRResult] = useState<SmartOCRResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const progressIntervalRef = useRef<number | null>(null);
@@ -184,22 +186,39 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
       stopProgressSimulation();
       setProgress(30);
       setProcessingStep('ocr');
-      setProcessingMessage('🔍 Extracting text with OCR.space...');
+      setProcessingMessage('🤖 Smart OCR analyzing image complexity...');
       
       // Start progress simulation for OCR phase (30% to 60%)
       startProgressSimulation(30, 60, 3000);
 
-      // Extract text using OCR.space
+      // Use Smart OCR Manager for intelligent engine selection
       try {
-        const ocrToast = toast.loading('Processing with OCR...', { id: 'ocr-toast' });
-        const ocrResult = await extractTextFromImage(imageUrl);
-        setRawOcrText(ocrResult.text);
+        const ocrToast = toast.loading('Analyzing image with Smart OCR...', { id: 'ocr-toast' });
+        const smartResult = await processImageWithSmartOCR(selectedImage);
+        setSmartOCRResult(smartResult);
+        setRawOcrText(smartResult.text);
         
-        if (!ocrResult.text || ocrResult.text.trim().length === 0) {
-          throw new Error('OCR failed to extract any text from the image');
+        if (!smartResult.text || smartResult.text.trim().length === 0) {
+          throw new Error('Smart OCR failed to extract any text from the image');
         }
 
-        toast.success('Text extracted successfully!', { id: ocrToast });
+        // Update processing message based on engine used
+        const engineMessage = smartResult.engine === 'google-vision' 
+          ? '🔍 Google Vision API extracted text successfully!'
+          : smartResult.engine === 'ocr-space'
+          ? '🔍 OCR.space extracted text successfully!'
+          : '🔍 Fallback OCR extracted text successfully!';
+        
+        toast.success(engineMessage, { id: ocrToast });
+        
+        // Log OCR engine selection for monitoring
+        console.log('Smart OCR Result:', {
+          engine: smartResult.engine,
+          confidence: smartResult.confidence,
+          processingTime: smartResult.processingTime,
+          cost: smartResult.cost.estimatedCost,
+          reason: smartResult.cost.reason
+        });
         
         // Stop OCR progress simulation and set to 50%
         stopProgressSimulation();
@@ -212,7 +231,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
 
         // AI Redaction Process
         try {
-          const redactionResult = await redactDocument(ocrResult.text);
+          const redactionResult = await redactDocument(smartResult.text);
           setRedactedOcrText(redactionResult.redactedText);
           setRedactionSummary(generateAIEmployeeNotification(redactionResult.redactedItems));
           
@@ -236,7 +255,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
         } catch (redactionError) {
           console.error('Redaction failed:', redactionError);
           // Continue with original text if redaction fails
-          setRedactedOcrText(ocrResult.text);
+          setRedactedOcrText(smartResult.text);
           toast.warning('Redaction failed - proceeding with original text');
         }
 
@@ -248,34 +267,49 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
         // Start progress simulation for AI phase (70% to 85%)
         startProgressSimulation(70, 85, 2000);
 
-        // Parse the extracted text with AI
+        // Use Smart OCR parsed data (already processed with best engine)
         setProcessingMessage('🤖 AI is analyzing receipt data...');
-        const aiResult = await parseReceiptWithAI(ocrResult.text);
-        setReceiptInfo(aiResult);
         
-        if (aiResult) {
-          // Convert AI result to our expected format
+        if (smartResult.parsedData) {
+          // Use the parsed data from Smart OCR
           const parsedData: ParsedReceiptData = {
-            vendor: aiResult.title || 'Unknown Vendor',
-            amount: aiResult.amount || 0,
-            date: aiResult.date || new Date().toISOString().split('T')[0],
-            category: aiResult.category || 'Uncategorized',
-            confidence: Math.min(0.9, ocrResult.confidence) // AI parsing is more reliable
+            vendor: smartResult.parsedData.vendor,
+            date: smartResult.parsedData.date,
+            total: smartResult.parsedData.total,
+            items: smartResult.parsedData.items.map(item => ({
+              description: item.description,
+              amount: item.amount
+            })),
+            category: smartResult.parsedData.category,
+            confidence: smartResult.parsedData.confidence
           };
           setExtractedData(parsedData);
           
-          // Log AI parsing results for debugging
-          console.log('AI Parsing Result:', aiResult);
-          console.log('Converted to ParsedData:', parsedData);
+          // Also try AI enhancement for additional insights
+          try {
+            const aiResult = await parseReceiptWithAI(smartResult.text);
+            if (aiResult && aiResult.confidence > smartResult.parsedData.confidence) {
+              // Use AI result if it's more confident
+              const enhancedData: ParsedReceiptData = {
+                vendor: aiResult.vendor || parsedData.vendor,
+                date: aiResult.date || parsedData.date,
+                total: aiResult.total || parsedData.total,
+                items: aiResult.items || parsedData.items,
+                category: aiResult.category || parsedData.category,
+                confidence: aiResult.confidence || parsedData.confidence
+              };
+              setExtractedData(enhancedData);
+              console.log('AI enhancement improved parsing confidence');
+            }
+          } catch (aiError) {
+            console.warn('AI enhancement failed, using Smart OCR result:', aiError);
+          }
         } else {
-          // Fallback to basic parsing if AI fails
-          const parsedData = parseReceiptText(ocrResult.text);
-          parsedData.confidence = Math.min(parsedData.confidence || 0.5, ocrResult.confidence);
+          // Fallback to basic parsing if Smart OCR parsing fails
+          const parsedData = parseReceiptText(smartResult.text);
+          parsedData.confidence = Math.min(parsedData.confidence || 0.5, smartResult.confidence);
           setExtractedData(parsedData);
-          
-          // Log fallback parsing results for debugging
-          console.log('Fallback Parsing Result:', parsedData);
-          console.log('Raw OCR Text Lines:', ocrResult.text.split('\n'));
+          console.log('Fallback parsing used');
         }
 
         // Stop AI progress simulation and set to 85%
@@ -298,9 +332,12 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
             processing_status: 'completed',
             extracted_data: {
               ...parsedData,
-              redacted_ocr_text: redactedOcrText || ocrResult.text,
+              redacted_ocr_text: redactedOcrText || smartResult.text,
               redaction_summary: redactionSummary,
-              ocr_confidence: ocrResult.confidence,
+              ocr_confidence: smartResult.confidence,
+              ocr_engine: smartResult.engine,
+              ocr_processing_time: smartResult.processingTime,
+              ocr_cost: smartResult.cost.estimatedCost,
               privacy_protected: true
             }
           })
@@ -419,6 +456,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
     setRawOcrText('');
     setRedactedOcrText('');
     setRedactionSummary('');
+    setSmartOCRResult(null);
     setShowRawText(false);
     setIsProcessing(false);
     setProgress(0);
@@ -699,6 +737,34 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                     <span className="text-xs text-success-700">
                       OCR Confidence: {(extractedData.confidence * 100).toFixed(0)}%
                     </span>
+                  </div>
+                )}
+
+                {/* Smart OCR Engine Information */}
+                {smartOCRResult && (
+                  <div className="mt-3 pt-3 border-t border-success-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-4 h-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xs">🤖</span>
+                      </div>
+                      <span className="text-xs text-success-700 font-medium">Smart OCR Engine Used</span>
+                    </div>
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded text-xs">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-medium text-purple-800">
+                          {smartOCRResult.engine === 'google-vision' ? 'Google Vision API' : 
+                           smartOCRResult.engine === 'ocr-space' ? 'OCR.space API' : 'Fallback OCR'}
+                        </span>
+                        <span className="text-purple-600">
+                          {(smartOCRResult.confidence * 100).toFixed(0)}% confidence
+                        </span>
+                      </div>
+                      <p className="text-purple-700 mb-1">{smartOCRResult.cost.reason}</p>
+                      <div className="flex justify-between text-purple-600">
+                        <span>Processing: {smartOCRResult.processingTime}ms</span>
+                        <span>Cost: ${smartOCRResult.cost.estimatedCost.toFixed(4)}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
 
