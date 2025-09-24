@@ -466,15 +466,6 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         subtitle="Welcome back, John! Here's your financial overview."
       />
 
-      {/* Desktop Title */}
-      <div className="hidden md:block text-center mb-8">
-        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
-          FinTech Entertainment Platform
-        </h1>
-        <p className="text-white/60 text-lg">
-          Welcome back, John! Here's your financial overview.
-        </p>
-      </div>
 
       {/* CORE AI TOOLS Section */}
       <div className="space-y-3 mt-8 md:mt-12">
