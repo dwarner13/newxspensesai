@@ -5,6 +5,7 @@ import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
+import DocumentViewerModal from '../../components/ui/DocumentViewerModal';
 import { 
   FileText, 
   Download, 
@@ -52,6 +53,7 @@ interface Transaction {
   isRecurring?: boolean;
   confidence?: number;
   aiInsights?: string[];
+  receipt_url?: string;
 }
 
 interface AIInsight {
@@ -73,6 +75,8 @@ const DashboardTransactionsPage: React.FC = () => {
   const [crystalMessages, setCrystalMessages] = useState<Array<{type: 'user' | 'ai', text: string}>>([]);
   const [aiInsights, setAiInsights] = useState<AIInsight[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [documentViewerOpen, setDocumentViewerOpen] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<any>(null);
 
   // Fetch real transactions from Supabase
   useEffect(() => {
@@ -111,7 +115,8 @@ const DashboardTransactionsPage: React.FC = () => {
           merchant: tx.merchant,
           location: tx.location,
           confidence: tx.confidence || 0.9,
-          aiInsights: tx.ai_insights || []
+          aiInsights: tx.ai_insights || [],
+          receipt_url: tx.receipt_url
         }));
 
         setTransactions(formattedTransactions);
@@ -207,11 +212,40 @@ const DashboardTransactionsPage: React.FC = () => {
     setFilteredTransactions(filtered);
   }, [transactions, searchTerm, selectedCategory]);
 
-  const handleTransactionClick = (transaction: Transaction) => {
-    // Navigate to transaction details or open a modal
+  const handleTransactionClick = async (transaction: Transaction) => {
     console.log('Transaction clicked:', transaction);
-    // For now, we'll just show an alert with transaction details
-    alert(`Transaction Details:\n\nDescription: ${transaction.description}\nAmount: $${transaction.amount}\nCategory: ${transaction.category}\nDate: ${transaction.date}`);
+    
+    // Check if this transaction has a receipt URL
+    if (transaction.receipt_url) {
+      try {
+        // Fetch the receipt data from Supabase
+        const { data: receiptData, error: receiptError } = await supabase
+          .from('receipts')
+          .select('*')
+          .eq('user_id', user?.id)
+          .eq('image_url', transaction.receipt_url)
+          .single();
+
+        if (receiptError) {
+          console.error('Error fetching receipt:', receiptError);
+          toast.error('Failed to load document details');
+          return;
+        }
+
+        if (receiptData) {
+          setSelectedDocument(receiptData);
+          setDocumentViewerOpen(true);
+        } else {
+          toast.error('Document not found');
+        }
+      } catch (error) {
+        console.error('Error fetching receipt:', error);
+        toast.error('Failed to load document');
+      }
+    } else {
+      // Show transaction details in an alert if no receipt
+      alert(`Transaction Details:\n\nDescription: ${transaction.description}\nAmount: $${transaction.amount}\nCategory: ${transaction.category}\nDate: ${transaction.date}\n\nNo document available for this transaction.`);
+    }
   };
 
   const handleCrystalQuestion = (question: string) => {
@@ -250,6 +284,7 @@ const DashboardTransactionsPage: React.FC = () => {
   }
 
   return (
+    <>
     <div className="w-full pt-20 px-4 sm:px-6 lg:px-8">
           {/* Page Title */}
           <MobilePageTitle 
@@ -614,6 +649,14 @@ const DashboardTransactionsPage: React.FC = () => {
           )}
         </AnimatePresence>
     </div>
+    
+    {/* Document Viewer Modal */}
+    <DocumentViewerModal
+      isOpen={documentViewerOpen}
+      onClose={() => setDocumentViewerOpen(false)}
+      documentData={selectedDocument}
+    />
+  </>
   );
 };
 
