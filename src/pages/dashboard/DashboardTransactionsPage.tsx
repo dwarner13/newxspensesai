@@ -33,7 +33,8 @@ import {
   Camera,
   Mail,
   FileSpreadsheet,
-  ReceiptScanner
+  ReceiptScanner,
+  Building2
 } from 'lucide-react';
 
 interface Transaction {
@@ -354,6 +355,22 @@ const DashboardTransactionsPage: React.FC = () => {
                 </div>
                 <h3 className="text-white font-semibold text-sm mb-1">Smart Import</h3>
                 <p className="text-white/70 text-xs">AI-powered import</p>
+              </div>
+            </motion.div>
+
+            {/* Bank Accounts Card */}
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => navigate('/dashboard/bank-accounts')}
+              className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 rounded-xl p-4 cursor-pointer hover:bg-emerald-500/30 transition-all duration-200"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center mb-3">
+                  <Building2 className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-white font-semibold text-sm mb-1">Bank Accounts</h3>
+                <p className="text-white/70 text-xs">Connect & sync</p>
               </div>
             </motion.div>
           </div>
