@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabase';
+import toast from 'react-hot-toast';
 import { 
   FileText, 
   Download, 
@@ -33,7 +36,6 @@ import {
   Camera,
   Mail,
   FileSpreadsheet,
-  ReceiptScanner,
   Building2
 } from 'lucide-react';
 
@@ -61,108 +63,130 @@ interface AIInsight {
 
 const DashboardTransactionsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [dateRange, setDateRange] = useState('all');
-  const [viewMode, setViewMode] = useState<'table' | 'analytics' | 'insights'>('table');
+  const [selectedCategory] = useState('');
   const [crystalOpen, setCrystalOpen] = useState(false);
   const [crystalInput, setCrystalInput] = useState('');
   const [crystalMessages, setCrystalMessages] = useState<Array<{type: 'user' | 'ai', text: string}>>([]);
   const [aiInsights, setAiInsights] = useState<AIInsight[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data
+  // Fetch real transactions from Supabase
   useEffect(() => {
-    const mockTransactions: Transaction[] = [
-      {
-        id: '1',
-        date: '2024-01-15',
-        description: 'Coffee Shop',
-        category: 'Food & Drink',
-        amount: 4.50,
-        type: 'expense',
-        merchant: 'Starbucks',
-        location: 'San Francisco, CA',
-        confidence: 0.95,
-        aiInsights: ['Frequent coffee purchases', 'Consider monthly coffee budget']
-      },
-      {
-        id: '2',
-        date: '2024-01-14',
-        description: 'Uber Eats',
-        category: 'Food & Drink',
-        amount: 34.50,
-        type: 'expense',
-        merchant: 'Uber Eats',
-        location: 'San Francisco, CA',
-        confidence: 0.88,
-        aiInsights: ['High delivery cost - consider pickup', 'Food delivery frequency increasing']
-      },
-      {
-        id: '3',
-        date: '2024-01-14',
-        description: 'Salary Deposit',
-        category: 'Income',
-        amount: 3500.00,
-        type: 'income',
-        merchant: 'Employer Corp',
-        confidence: 1.0,
-        aiInsights: ['Regular income source', 'Consider automatic savings allocation']
-      },
-      {
-        id: '4',
-        date: '2024-01-13',
-        description: 'Grocery Store',
-        category: 'Food & Drink',
-        amount: 89.45,
-        type: 'expense',
-        merchant: 'Whole Foods',
-        location: 'San Francisco, CA',
-        confidence: 0.92,
-        aiInsights: ['Grocery spending within budget', 'Consider bulk buying for savings']
-      },
-      {
-        id: '5',
-        date: '2024-01-12',
-        description: 'Gas Station',
-        category: 'Transportation',
-        amount: 45.20,
-        type: 'expense',
-        merchant: 'Shell',
-        location: 'San Francisco, CA',
-        confidence: 0.98,
-        aiInsights: ['Regular fuel expense', 'Consider fuel-efficient vehicle']
+    const fetchTransactions = async () => {
+      if (!user) {
+        setIsLoading(false);
+        return;
       }
-    ];
 
-    const mockInsights: AIInsight[] = [
-      {
-        id: '1',
-        type: 'warning',
-        title: 'High Food Spending',
-        description: 'Your food expenses are 40% above your monthly average. Consider meal planning to reduce costs.'
-      },
-      {
-        id: '2',
-        type: 'tip',
-        title: 'Savings Opportunity',
-        description: 'You could save $200/month by reducing delivery orders and cooking at home.'
-      },
-      {
-        id: '3',
-        type: 'pattern',
-        title: 'Spending Pattern Detected',
-        description: 'You tend to spend more on weekends. Consider setting a weekend budget.'
+      try {
+        setIsLoading(true);
+        
+        // Fetch transactions from Supabase
+        const { data: transactionsData, error: transactionsError } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('date', { ascending: false })
+          .limit(100);
+
+        if (transactionsError) {
+          console.error('Error fetching transactions:', transactionsError);
+          toast.error('Failed to load transactions');
+          setIsLoading(false);
+          return;
+        }
+
+        // Transform Supabase data to match our Transaction interface
+        const formattedTransactions: Transaction[] = (transactionsData || []).map((tx: any) => ({
+          id: tx.id,
+          date: tx.date,
+          description: tx.description,
+          category: tx.category || 'Uncategorized',
+          amount: tx.amount,
+          type: tx.type === 'income' ? 'income' : 'expense',
+          merchant: tx.merchant,
+          location: tx.location,
+          confidence: tx.confidence || 0.9,
+          aiInsights: tx.ai_insights || []
+        }));
+
+        setTransactions(formattedTransactions);
+        setFilteredTransactions(formattedTransactions);
+
+        // Generate AI insights based on real data
+        const insights: AIInsight[] = [];
+        
+        if (formattedTransactions.length === 0) {
+          insights.push({
+            id: '1',
+            type: 'tip',
+            title: 'No Transactions Yet',
+            description: 'Upload receipts or connect bank accounts to start tracking your finances.'
+          });
+        } else {
+          // Analyze spending patterns
+          const totalExpenses = formattedTransactions
+            .filter(t => t.type === 'expense')
+            .reduce((sum, t) => sum + t.amount, 0);
+          
+          const totalIncome = formattedTransactions
+            .filter(t => t.type === 'income')
+            .reduce((sum, t) => sum + t.amount, 0);
+
+          if (totalExpenses > 0) {
+            insights.push({
+              id: '1',
+              type: 'pattern',
+              title: 'Spending Analysis',
+              description: `Total expenses: $${totalExpenses.toFixed(2)} across ${formattedTransactions.filter(t => t.type === 'expense').length} transactions.`
+            });
+          }
+
+          if (totalIncome > 0) {
+            insights.push({
+              id: '2',
+              type: 'tip',
+              title: 'Income Tracking',
+              description: `Total income: $${totalIncome.toFixed(2)}. Consider setting up automatic savings.`
+            });
+          }
+
+          // Check for frequent merchants
+          const merchantCounts = formattedTransactions
+            .filter(t => t.merchant)
+            .reduce((acc: Record<string, number>, t) => {
+              acc[t.merchant!] = (acc[t.merchant!] || 0) + 1;
+              return acc;
+            }, {});
+
+          const frequentMerchant = Object.entries(merchantCounts)
+            .find(([_, count]) => count >= 3);
+
+          if (frequentMerchant) {
+            insights.push({
+              id: '3',
+              type: 'pattern',
+              title: 'Frequent Merchant',
+              description: `You shop at ${frequentMerchant[0]} frequently (${frequentMerchant[1]} times). Consider loyalty programs.`
+            });
+          }
+        }
+
+        setAiInsights(insights);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching transactions:', error);
+        toast.error('Failed to load transactions');
+        setIsLoading(false);
       }
-    ];
+    };
 
-      setTransactions(mockTransactions);
-    setFilteredTransactions(mockTransactions);
-      setAiInsights(mockInsights);
-      setIsLoading(false);
-  }, []);
+    fetchTransactions();
+  }, [user]);
 
   // Filter transactions
   useEffect(() => {
@@ -229,8 +253,8 @@ const DashboardTransactionsPage: React.FC = () => {
     <div className="w-full pt-20 px-4 sm:px-6 lg:px-8">
           {/* Page Title */}
           <MobilePageTitle 
-            title="Transactions" 
-            subtitle="View and manage your financial transactions"
+            title="FinTech Entertainment Platform" 
+            subtitle="Welcome back, John! Here's your financial overview"
           />
           
           {/* Header with Crystal AI Assistant */}

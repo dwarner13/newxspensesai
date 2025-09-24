@@ -16,6 +16,7 @@ const NAV_ITEMS = [
 
   // PLANNING & ANALYSIS
   { label: "Transactions", to: "/dashboard/transactions", icon: <Receipt className="w-5 h-5" />, group: "PLANNING & ANALYSIS", description: "Track all your transactions" },
+  { label: "Bank Accounts", to: "/dashboard/bank-accounts", icon: <Shield className="w-5 h-5" />, group: "PLANNING & ANALYSIS", description: "Connect and manage bank accounts" },
   { label: "AI Goal Concierge", to: "/dashboard/goal-concierge", icon: <Brain className="w-5 h-5" />, group: "PLANNING & ANALYSIS", description: "Personal goal planning with AI" },
   { label: "Smart Automation", to: "/dashboard/smart-automation", icon: <Zap className="w-5 h-5" />, group: "PLANNING & ANALYSIS", description: "Automate your financial tasks" },
   { label: "Spending Predictions", to: "/dashboard/spending-predictions", icon: <TrendingUp className="w-5 h-5" />, group: "PLANNING & ANALYSIS", description: "Forecast your spending patterns" },

@@ -143,7 +143,7 @@ export default function DashboardLayout() {
         </AnimatePresence>
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto pt-2 pb-16">
+        <main className="flex-1 overflow-y-auto pt-16 pb-16">
           <div className="px-1 py-0 min-h-screen">
             <motion.div
               key={location.pathname}

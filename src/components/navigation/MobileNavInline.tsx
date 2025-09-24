@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Crown, Menu } from "lucide-react";
+import { Crown, Menu, X } from "lucide-react";
 import NAV_ITEMS from "@/navigation/nav-registry";
 import clsx from "clsx";
 
@@ -56,13 +56,20 @@ export default function MobileNavInline() {
           data-testid="mobile-sidebar"
         >
           {/* Header */}
-          <div className="flex items-center px-4 pt-4 pb-3 border-b border-zinc-800">
+          <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-zinc-800">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-xl flex items-center justify-center">
                 <Crown className="h-5 w-5 text-white" />
               </div>
               <span className="text-xl font-bold text-white">XspensesAI</span>
             </div>
+            <button
+              onClick={() => setOpen(false)}
+              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
+              aria-label="Close menu"
+            >
+              <X size={24} />
+            </button>
           </div>
 
           {/* Navigation list area */}
