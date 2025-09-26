@@ -576,7 +576,7 @@ I'm here to help you understand your financial documents! 💎`,
   };
 
   const generateDocumentAnalysis = async (smartResult: SmartOCRResult, redactionResult: any, file: File) => {
-    // Simulate AI analysis based on extracted data
+    // Enhanced AI analysis with actual document content
     const analysis = {
       documentType: file.type.startsWith('image/') ? 'Receipt/Invoice' : 'Financial Document',
       vendor: smartResult.parsedData?.vendor || 'Unknown Vendor',
@@ -586,12 +586,23 @@ I'm here to help you understand your financial documents! 💎`,
       confidence: smartResult.confidence,
       ocrEngine: smartResult.engine,
       redactedItems: redactionResult.redactedItems?.length || 0,
+      // Include actual document content for Crystal to analyze
+      extractedText: smartResult.text,
+      parsedData: smartResult.parsedData,
+      rawText: smartResult.text,
+      // Enhanced insights based on actual content
       keyInsights: [
         `Document processed with ${smartResult.engine} OCR engine`,
         `Confidence level: ${(smartResult.confidence * 100).toFixed(1)}%`,
         redactionResult.redactedItems?.length > 0 ? `${redactionResult.redactedItems.length} sensitive items redacted` : 'No sensitive data detected',
-        smartResult.parsedData?.vendor ? `Vendor identified: ${smartResult.parsedData.vendor}` : 'Vendor not clearly identified'
-      ]
+        smartResult.parsedData?.vendor ? `Vendor identified: ${smartResult.parsedData.vendor}` : 'Vendor not clearly identified',
+        `Total text extracted: ${smartResult.text.length} characters`,
+        smartResult.parsedData?.items?.length > 0 ? `${smartResult.parsedData.items.length} individual items found` : 'No individual items parsed'
+      ],
+      // Add transaction-specific data
+      isCreditCardStatement: smartResult.text.toLowerCase().includes('statement') || smartResult.text.toLowerCase().includes('credit card'),
+      total: smartResult.parsedData?.total || 0,
+      items: smartResult.parsedData?.items || []
     };
 
     return analysis;
@@ -1108,7 +1119,85 @@ Just ask me anything about document processing, or upload your files to get star
   const generateCrystalFallbackResponse = (userMessage: string, transactions: any[], recentDocuments: any[]) => {
     const message = userMessage.toLowerCase();
     
-    // Transaction-related questions
+    // Check if we have recent document data to analyze
+    const latestDocument = recentDocuments.find(doc => doc.analysis && doc.analysis.extractedText);
+    
+    if (latestDocument && latestDocument.analysis) {
+      const analysis = latestDocument.analysis;
+      const extractedText = analysis.extractedText || '';
+      
+      // Transaction-related questions with actual document data
+      if (message.includes('transaction') || message.includes('spending') || message.includes('expense') || message.includes('amount') || message.includes('total') || message.includes('purchase')) {
+        // Extract actual amounts from the document text
+        const amountMatches = extractedText.match(/\$[\d,]+\.?\d*/g) || [];
+        const amounts = amountMatches.map(amt => parseFloat(amt.replace(/[$,]/g, ''))).filter(amt => !isNaN(amt));
+        const totalAmount = amounts.reduce((sum, amt) => sum + amt, 0);
+        
+        return `💎 **Hello! I'm Crystal, your financial analysis expert.**
+
+I've analyzed your ${analysis.category || 'financial document'} and here's what I found:
+
+📊 **Document Analysis:**
+• **Document Type:** ${analysis.category || 'Financial Document'}
+• **Vendor:** ${analysis.vendor || 'Not specified'}
+• **Date:** ${analysis.date || 'Not specified'}
+• **Total Amounts Found:** ${amounts.length} transactions
+• **Processing Confidence:** ${(analysis.confidence * 100).toFixed(1)}%
+
+💰 **Financial Summary:**
+• **Total Amount:** $${totalAmount.toFixed(2)}
+• **Individual Transactions:** ${amounts.length}
+• **Average Transaction:** $${amounts.length > 0 ? (totalAmount / amounts.length).toFixed(2) : '0.00'}
+• **Largest Transaction:** $${amounts.length > 0 ? Math.max(...amounts).toFixed(2) : '0.00'}
+
+🔍 **Key Insights:**
+• ${amounts.length > 5 ? 'Multiple transactions detected' : 'Limited transaction data found'}
+• ${totalAmount > 1000 ? 'High-value document' : 'Standard transaction document'}
+• ${analysis.vendor !== 'Unknown Vendor' ? `Vendor: ${analysis.vendor}` : 'Vendor not clearly identified'}
+
+💡 **What I can help you with:**
+• Detailed transaction breakdown
+• Spending pattern analysis
+• Budget recommendations
+• Expense categorization
+• Financial goal tracking
+
+What specific aspect would you like me to analyze further? 💎`;
+      }
+      
+      // Document-specific questions
+      if (message.includes('document') || message.includes('statement') || message.includes('receipt')) {
+        return `💎 **Hello! I'm Crystal, your financial analysis expert.**
+
+I've processed your ${analysis.category || 'financial document'} and here's the detailed analysis:
+
+📄 **Document Details:**
+• **Filename:** ${latestDocument.filename || 'Unknown'}
+• **Type:** ${analysis.category || 'Financial Document'}
+• **Vendor:** ${analysis.vendor || 'Not specified'}
+• **Date:** ${analysis.date || 'Not specified'}
+• **Processing Engine:** ${analysis.ocrEngine || 'OCR'}
+• **Confidence:** ${(analysis.confidence * 100).toFixed(1)}%
+
+📊 **Content Analysis:**
+• **Text Extracted:** ${extractedText.length} characters
+• **Processing Status:** Complete
+• **Data Quality:** ${analysis.confidence > 0.8 ? 'High' : 'Moderate'}
+
+🔍 **What I found:**
+• ${analysis.keyInsights?.join('\n• ') || 'Standard financial document processing'}
+
+💡 **Next Steps:**
+• Ask me to analyze specific transactions
+• Request spending pattern insights
+• Get budget recommendations
+• Review expense categories
+
+What would you like me to focus on from this document? 💎`;
+      }
+    }
+    
+    // Fallback to generic responses if no document data
     if (message.includes('transaction') || message.includes('spending') || message.includes('purchase')) {
       if (transactions && transactions.length > 0) {
         const totalSpent = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
