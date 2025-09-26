@@ -159,20 +159,39 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         // Use enhanced OCR with proper parsing and OpenAI Vision fallback
         console.log('Using enhanced OCR with smart parsing...');
         
+        // Add progress message
+        const progressMessage: ChatMessage = {
+          id: `progress-${file.name}`,
+          type: 'byte',
+          content: `🔍 **Processing ${file.name}...**\n\nExtracting text and analyzing transactions. This may take up to 30 seconds for complex documents.`,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, progressMessage]);
+        
         const { processImageWithOCR, parseReceiptText, extractTextWithOpenAIVision } = await import('../../utils/ocrService');
         
         let ocrResult;
         let usedOpenAI = false;
         
         try {
-          // Try OCR.space first
-          ocrResult = await processImageWithOCR(file);
+          // Add timeout to OCR processing
+          const ocrPromise = processImageWithOCR(file);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('OCR timeout after 30 seconds')), 30000)
+          );
+          
+          ocrResult = await Promise.race([ocrPromise, timeoutPromise]);
           console.log('OCR.space result:', ocrResult);
         } catch (error) {
-          console.log('OCR.space failed, trying OpenAI Vision...', error);
+          console.log('OCR.space failed or timed out, trying OpenAI Vision...', error);
           try {
-            // Fallback to OpenAI Vision (like ChatGPT uses)
-            ocrResult = await extractTextWithOpenAIVision(file);
+            // Fallback to OpenAI Vision with shorter timeout
+            const openAIPromise = extractTextWithOpenAIVision(file);
+            const openAITimeout = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('OpenAI Vision timeout after 20 seconds')), 20000)
+            );
+            
+            ocrResult = await Promise.race([openAIPromise, openAITimeout]);
             usedOpenAI = true;
             console.log('OpenAI Vision result:', ocrResult);
           } catch (openaiError) {
@@ -579,23 +598,29 @@ Would you like me to categorize this transaction or extract any specific informa
         // Use real AI for Crystal
         await handleCrystalAIResponse(inputMessage);
       } else {
-        // Use mock responses for Byte (document processing)
+        // Byte should analyze uploaded documents intelligently
         const timeoutId = setTimeout(() => {
-          const responses = [
-            "I can help you analyze your uploaded documents. What specific information are you looking for?",
-            "Based on your documents, I can help categorize transactions, extract key data, or provide financial insights.",
-            "Would you like me to create automatic categorization rules for similar transactions?",
-            "I can help you identify spending patterns and suggest budget optimizations based on your documents.",
-            "Let me know if you need help with tax categorization or expense tracking for your uploaded receipts.",
-            "I've processed your document and extracted all the key information. Would you like me to explain any specific details?"
-          ];
+          // Check if there are any uploaded documents in the conversation
+          const hasDocuments = messages.some(msg => msg.attachments && msg.attachments.length > 0);
+          const hasAnalysis = messages.some(msg => msg.content.includes('Document Analysis'));
           
-          const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+          let response;
+          
+          if (hasDocuments && !hasAnalysis) {
+            // Document was uploaded but not analyzed yet
+            response = "I can see you've uploaded a document, but it seems the processing didn't complete properly. Let me try to analyze it again. Could you please re-upload the document?";
+          } else if (hasAnalysis) {
+            // Document was analyzed, provide specific help
+            response = "I can see your document has been processed! I've extracted the transaction data and can help you with:\n\n• Understanding the extracted information\n• Categorizing transactions\n• Identifying key financial details\n• Preparing data for further analysis\n\nWhat specific aspect would you like me to help you with?";
+          } else {
+            // No documents uploaded
+            response = "I don't see any documents uploaded yet. Please upload a document first, and I'll analyze it for you. I can process receipts, credit card statements, invoices, and other financial documents.";
+          }
           
           const byteResponse: ChatMessage = {
             id: (Date.now() + 1).toString(),
             type: 'byte',
-            content: randomResponse,
+            content: response,
             timestamp: new Date().toISOString()
           };
 
@@ -1099,6 +1124,21 @@ Be conversational, insightful, and provide specific, actionable advice. Use the 
               >
                 <Send className="w-5 h-5" />
               </button>
+              
+              {/* Clear button for stuck processing */}
+              {(isProcessing || isUploadProcessing) && (
+                <button
+                  onClick={() => {
+                    setIsProcessing(false);
+                    setIsUploadProcessing(false);
+                    toast.success('Processing state cleared');
+                  }}
+                  className="p-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors ml-2"
+                  title="Clear processing state"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
             </div>
             
             <div className="flex items-center justify-between mt-2">
