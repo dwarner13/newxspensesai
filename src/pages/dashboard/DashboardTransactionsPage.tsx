@@ -78,9 +78,8 @@ const DashboardTransactionsPage: React.FC = () => {
   const [documentViewerOpen, setDocumentViewerOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<any>(null);
 
-  // Fetch real transactions from Supabase
-  useEffect(() => {
-    const fetchTransactions = async () => {
+  // Function to fetch transactions
+  const fetchTransactions = async () => {
       if (!user) {
         setIsLoading(false);
         return;
@@ -182,15 +181,28 @@ const DashboardTransactionsPage: React.FC = () => {
 
         setAiInsights(insights);
         setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching transactions:', error);
-        toast.error('Failed to load transactions');
-        setIsLoading(false);
-      }
-    };
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      toast.error('Failed to load transactions');
+      setIsLoading(false);
+    }
+  };
 
+  // Fetch transactions on component mount
+  useEffect(() => {
     fetchTransactions();
   }, [user]);
+
+  // Listen for document upload events to refresh transactions
+  useEffect(() => {
+    const handleDocumentUpload = () => {
+      console.log('Document uploaded, refreshing transactions...');
+      fetchTransactions();
+    };
+
+    window.addEventListener('documentUploaded', handleDocumentUpload);
+    return () => window.removeEventListener('documentUploaded', handleDocumentUpload);
+  }, []);
 
   // Filter transactions
   useEffect(() => {
@@ -214,35 +226,44 @@ const DashboardTransactionsPage: React.FC = () => {
   const handleTransactionClick = async (transaction: Transaction) => {
     console.log('Transaction clicked:', transaction);
     
-    // Check if this transaction has a receipt URL
-    if (transaction.receipt_url) {
-      try {
-        // Fetch the receipt data from Supabase (temporarily show all for demo)
-        const { data: receiptData, error: receiptError } = await supabase
-          .from('receipts')
-          .select('*')
-          .eq('image_url', transaction.receipt_url)
-          .single();
+    try {
+      // First, try to find the receipt by transaction ID
+      const { data: receiptData, error: receiptError } = await supabase
+        .from('receipts')
+        .select('*')
+        .eq('id', transaction.id)
+        .single();
 
-        if (receiptError) {
-          console.error('Error fetching receipt:', receiptError);
-          toast.error('Failed to load document details');
-          return;
+      if (receiptError && receiptError.code !== 'PGRST116') {
+        console.error('Error fetching receipt:', receiptError);
+        // If no receipt found by ID, try by receipt_id if it exists
+        if (transaction.receipt_url) {
+          const { data: receiptData2, error: receiptError2 } = await supabase
+            .from('receipts')
+            .select('*')
+            .eq('image_url', transaction.receipt_url)
+            .single();
+          
+          if (receiptData2) {
+            setSelectedDocument(receiptData2);
+            setDocumentViewerOpen(true);
+            return;
+          }
         }
-
-        if (receiptData) {
-          setSelectedDocument(receiptData);
-          setDocumentViewerOpen(true);
-        } else {
-          toast.error('Document not found');
-        }
-      } catch (error) {
-        console.error('Error fetching receipt:', error);
-        toast.error('Failed to load document');
+        toast.error('Failed to load document details');
+        return;
       }
-    } else {
-      // Show transaction details in an alert if no receipt
-      alert(`Transaction Details:\n\nDescription: ${transaction.description}\nAmount: $${transaction.amount}\nCategory: ${transaction.category}\nDate: ${transaction.date}\n\nNo document available for this transaction.`);
+
+      if (receiptData) {
+        setSelectedDocument(receiptData);
+        setDocumentViewerOpen(true);
+      } else {
+        // Show transaction details in an alert if no receipt
+        alert(`Transaction Details:\n\nDescription: ${transaction.description}\nAmount: $${transaction.amount}\nCategory: ${transaction.category}\nDate: ${transaction.date}\n\nNo document available for this transaction.`);
+      }
+    } catch (error) {
+      console.error('Error fetching receipt:', error);
+      toast.error('Failed to load document');
     }
   };
 

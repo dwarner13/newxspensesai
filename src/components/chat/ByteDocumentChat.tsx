@@ -254,6 +254,9 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         };
         setMessages(prev => [...prev, analysisMessage]);
 
+        // Clear processing state after analysis is complete
+        setIsProcessing(false);
+
         // Add Crystal's document reading capability message
         const crystalMessage: ChatMessage = {
           id: `crystal-read-${file.name}`,
@@ -280,6 +283,9 @@ I'm here to help you understand your financial documents! 💎`,
 
         // Save to database
         await saveDocumentToDatabase(file, urlData.publicUrl, smartResult, redactionResult, analysis);
+
+        // Dispatch event to refresh transactions page
+        window.dispatchEvent(new CustomEvent('documentUploaded'));
 
         // Ensure processing state is cleared
         setIsUploadProcessing(false);
