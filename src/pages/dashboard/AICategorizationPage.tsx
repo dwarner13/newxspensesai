@@ -11,7 +11,8 @@ import {
   Download,
   FileText,
   Table,
-  FileSpreadsheet
+  FileSpreadsheet,
+  BarChart3
 } from 'lucide-react';
 // import { universalAIEmployeeManager } from '../../lib/universalAIEmployeeConnection';
 
