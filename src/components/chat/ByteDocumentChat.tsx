@@ -12,7 +12,9 @@ import {
   Eye,
   Download,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Brain,
+  Sparkles
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,7 +25,7 @@ import toast from 'react-hot-toast';
 
 interface ChatMessage {
   id: string;
-  type: 'user' | 'byte';
+  type: 'user' | 'byte' | 'crystal';
   content: string;
   timestamp: string;
   attachments?: {
@@ -53,6 +55,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
+  const [activeAI, setActiveAI] = useState<'byte' | 'crystal'>('byte');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,16 +64,24 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Initialize with welcome message
+  // Initialize with welcome messages
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      const welcomeMessage: ChatMessage = {
-        id: '1',
-        type: 'byte',
-        content: "Hello! I'm Byte, your document processing AI. You can upload receipts, invoices, bank statements, or any financial documents, and I'll read them, extract the information, and help you categorize and analyze them. Just drag and drop files or click the upload button!",
-        timestamp: new Date().toISOString()
-      };
-      setMessages([welcomeMessage]);
+      const welcomeMessages: ChatMessage[] = [
+        {
+          id: '1',
+          type: 'byte',
+          content: "Hello! I'm Byte, your document processing AI. I specialize in reading and analyzing receipts, invoices, bank statements, and financial documents. Upload your files and I'll extract all the important information for you!",
+          timestamp: new Date().toISOString()
+        },
+        {
+          id: '2',
+          type: 'crystal',
+          content: "Hi there! I'm Crystal, your financial analysis AI. I focus on spending patterns, budgeting insights, and financial advice. Once Byte processes your documents, I can help you understand your spending habits and provide personalized recommendations!",
+          timestamp: new Date().toISOString()
+        }
+      ];
+      setMessages(welcomeMessages);
     }
   }, [isOpen, messages.length]);
 
@@ -401,26 +412,43 @@ Would you like me to categorize this transaction or extract any specific informa
     setInputMessage('');
     setIsProcessing(true);
 
-    // Simulate Byte's response
+    // Simulate AI response based on active AI
     setTimeout(() => {
-      const responses = [
-        "I can help you analyze your uploaded documents. What specific information are you looking for?",
-        "Based on your documents, I can help categorize transactions, extract key data, or provide financial insights.",
-        "Would you like me to create automatic categorization rules for similar transactions?",
-        "I can help you identify spending patterns and suggest budget optimizations based on your documents.",
-        "Let me know if you need help with tax categorization or expense tracking for your uploaded receipts."
-      ];
+      let responses: string[];
+      let aiType: 'byte' | 'crystal';
+      
+      if (activeAI === 'byte') {
+        responses = [
+          "I can help you analyze your uploaded documents. What specific information are you looking for?",
+          "Based on your documents, I can help categorize transactions, extract key data, or provide financial insights.",
+          "Would you like me to create automatic categorization rules for similar transactions?",
+          "I can help you identify spending patterns and suggest budget optimizations based on your documents.",
+          "Let me know if you need help with tax categorization or expense tracking for your uploaded receipts.",
+          "I've processed your document and extracted all the key information. Would you like me to explain any specific details?"
+        ];
+        aiType = 'byte';
+      } else {
+        responses = [
+          "Based on your spending patterns, I can see some interesting trends. Would you like me to analyze your financial habits?",
+          "I can help you create a budget based on your transaction history and spending patterns.",
+          "Looking at your expenses, I have some recommendations for optimizing your spending. Shall I share them?",
+          "I can help you set financial goals and track your progress over time.",
+          "Would you like me to analyze your spending categories and suggest areas where you could save money?",
+          "I've analyzed your financial data and can provide personalized insights. What would you like to know?"
+        ];
+        aiType = 'crystal';
+      }
       
       const randomResponse = responses[Math.floor(Math.random() * responses.length)];
       
-      const byteResponse: ChatMessage = {
+      const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        type: 'byte',
+        type: aiType,
         content: randomResponse,
         timestamp: new Date().toISOString()
       };
 
-      setMessages(prev => [...prev, byteResponse]);
+      setMessages(prev => [...prev, aiResponse]);
       setIsProcessing(false);
     }, 1500);
   };
@@ -478,20 +506,64 @@ Would you like me to categorize this transaction or extract any specific informa
           {/* Header */}
           <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-700">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
-                <Bot className="w-5 h-5 text-white" />
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                activeAI === 'byte' 
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-500' 
+                  : 'bg-gradient-to-r from-purple-500 to-pink-500'
+              }`}>
+                {activeAI === 'byte' ? (
+                  <Bot className="w-5 h-5 text-white" />
+                ) : (
+                  <Brain className="w-5 h-5 text-white" />
+                )}
               </div>
               <div>
-                <h2 className="text-lg sm:text-xl font-bold text-white">Byte AI Document Chat</h2>
-                <p className="text-gray-400 text-xs sm:text-sm">Upload documents and chat with Byte</p>
+                <h2 className="text-lg sm:text-xl font-bold text-white">
+                  {activeAI === 'byte' ? 'Byte AI Document Chat' : 'Crystal AI Financial Chat'}
+                </h2>
+                <p className="text-gray-400 text-xs sm:text-sm">
+                  {activeAI === 'byte' 
+                    ? 'Upload documents and chat with Byte' 
+                    : 'Get financial insights and analysis from Crystal'
+                  }
+                </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            
+            {/* AI Employee Switcher */}
+            <div className="flex items-center gap-2">
+              <div className="flex bg-gray-800 rounded-lg p-1">
+                <button
+                  onClick={() => setActiveAI('byte')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                    activeAI === 'byte'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Bot className="w-4 h-4" />
+                  Byte
+                </button>
+                <button
+                  onClick={() => setActiveAI('crystal')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                    activeAI === 'crystal'
+                      ? 'bg-purple-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Brain className="w-4 h-4" />
+                  Crystal
+                </button>
+              </div>
+              
+              <button
+                onClick={onClose}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Chat Messages */}
@@ -518,6 +590,11 @@ Would you like me to categorize this transaction or extract any specific informa
                       {message.type === 'byte' && (
                         <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
                           <Bot className="w-3 h-3 text-white" />
+                        </div>
+                      )}
+                      {message.type === 'crystal' && (
+                        <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                          <Brain className="w-3 h-3 text-white" />
                         </div>
                       )}
                       <div className="flex-1">
@@ -595,7 +672,7 @@ Would you like me to categorize this transaction or extract any specific informa
                 {isProcessing && !isUploadProcessing && (
                   <>
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span>Byte is typing...</span>
+                    <span>{activeAI === 'byte' ? 'Byte is typing...' : 'Crystal is typing...'}</span>
                   </>
                 )}
               </div>
@@ -636,8 +713,10 @@ Would you like me to categorize this transaction or extract any specific informa
                   isUploadProcessing 
                     ? "Upload processing... You can still chat with me!" 
                     : isProcessing 
-                    ? "Byte is typing..." 
-                    : "Ask Byte about your documents..."
+                    ? `${activeAI === 'byte' ? 'Byte' : 'Crystal'} is typing...` 
+                    : activeAI === 'byte'
+                    ? "Ask Byte about your documents..."
+                    : "Ask Crystal about your finances..."
                 }
                 className="flex-1 bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
                 disabled={isProcessing}
@@ -653,7 +732,10 @@ Would you like me to categorize this transaction or extract any specific informa
             </div>
             
             <p className="text-xs text-gray-500 mt-2 text-center">
-              Drag and drop files here or click the upload button to analyze documents with Byte AI
+              {activeAI === 'byte' 
+                ? "Drag and drop files here or click the upload button to analyze documents with Byte AI"
+                : "Switch to Byte to upload documents, or ask Crystal about your financial insights"
+              }
             </p>
           </div>
         </motion.div>
