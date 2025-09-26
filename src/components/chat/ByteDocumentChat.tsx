@@ -360,7 +360,7 @@ Would you like me to categorize this transaction or extract any specific informa
         .insert({
           user_id: userId,
           source_url: imageUrl,
-          raw_text: data.text
+          raw_text: smartResult.text
         });
 
       if (userDocError) {
