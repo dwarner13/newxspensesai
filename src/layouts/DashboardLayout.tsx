@@ -61,6 +61,11 @@ export default function DashboardLayout() {
     console.log('Mobile detection:', { isMobile, windowWidth: window.innerWidth });
   }, [isMobile]);
 
+  // Debug mobile menu state
+  useEffect(() => {
+    console.log('Mobile menu state changed:', { isMobileMenuOpen, isMobile });
+  }, [isMobileMenuOpen, isMobile]);
+
   // Add pull-to-refresh touch event listeners for mobile
   useEffect(() => {
     if (!isMobile) return;
@@ -102,7 +107,10 @@ export default function DashboardLayout() {
           {/* Top bar with menu, logo, and profile */}
           <div className="flex items-center justify-between px-3 py-2">
             <button
-              onClick={() => setIsMobileMenuOpen(true)}
+              onClick={() => {
+                console.log('Mobile menu button clicked, setting isMobileMenuOpen to true');
+                setIsMobileMenuOpen(true);
+              }}
               className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,7 +143,9 @@ export default function DashboardLayout() {
         {/* Mobile Sidebar Overlay */}
         <AnimatePresence>
           {isMobileMenuOpen && (
-            <motion.div 
+            <>
+              {console.log('Rendering mobile sidebar overlay, isMobileMenuOpen:', isMobileMenuOpen)}
+              <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -153,6 +163,7 @@ export default function DashboardLayout() {
                 <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
               </div>
             </motion.div>
+            </>
           )}
         </AnimatePresence>
 
