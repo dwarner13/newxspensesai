@@ -77,7 +77,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         {
           id: '2',
           type: 'crystal',
-          content: "Hi there! I'm Crystal, your financial analysis AI. I focus on spending patterns, budgeting insights, and financial advice. Once Byte processes your documents, I can help you understand your spending habits and provide personalized recommendations!",
+          content: "Hello! I'm Crystal, your intelligent financial advisor AI. I specialize in analyzing your spending patterns, creating personalized budgets, and providing actionable financial insights. I can help you with debt management, investment strategies, goal setting, and expense optimization. Ask me anything about your finances - I'm here to help you make smarter money decisions!",
           timestamp: new Date().toISOString()
         }
       ];
@@ -412,45 +412,159 @@ Would you like me to categorize this transaction or extract any specific informa
     setInputMessage('');
     setIsProcessing(true);
 
-    // Simulate AI response based on active AI
-    setTimeout(() => {
-      let responses: string[];
-      let aiType: 'byte' | 'crystal';
-      
-      if (activeAI === 'byte') {
-        responses = [
-          "I can help you analyze your uploaded documents. What specific information are you looking for?",
-          "Based on your documents, I can help categorize transactions, extract key data, or provide financial insights.",
-          "Would you like me to create automatic categorization rules for similar transactions?",
-          "I can help you identify spending patterns and suggest budget optimizations based on your documents.",
-          "Let me know if you need help with tax categorization or expense tracking for your uploaded receipts.",
-          "I've processed your document and extracted all the key information. Would you like me to explain any specific details?"
-        ];
-        aiType = 'byte';
+    try {
+      if (activeAI === 'crystal') {
+        // Use real AI for Crystal
+        await handleCrystalAIResponse(inputMessage);
       } else {
-        responses = [
-          "Based on your spending patterns, I can see some interesting trends. Would you like me to analyze your financial habits?",
-          "I can help you create a budget based on your transaction history and spending patterns.",
-          "Looking at your expenses, I have some recommendations for optimizing your spending. Shall I share them?",
-          "I can help you set financial goals and track your progress over time.",
-          "Would you like me to analyze your spending categories and suggest areas where you could save money?",
-          "I've analyzed your financial data and can provide personalized insights. What would you like to know?"
-        ];
-        aiType = 'crystal';
+        // Use mock responses for Byte (document processing)
+        setTimeout(() => {
+          const responses = [
+            "I can help you analyze your uploaded documents. What specific information are you looking for?",
+            "Based on your documents, I can help categorize transactions, extract key data, or provide financial insights.",
+            "Would you like me to create automatic categorization rules for similar transactions?",
+            "I can help you identify spending patterns and suggest budget optimizations based on your documents.",
+            "Let me know if you need help with tax categorization or expense tracking for your uploaded receipts.",
+            "I've processed your document and extracted all the key information. Would you like me to explain any specific details?"
+          ];
+          
+          const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+          
+          const byteResponse: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            type: 'byte',
+            content: randomResponse,
+            timestamp: new Date().toISOString()
+          };
+
+          setMessages(prev => [...prev, byteResponse]);
+          setIsProcessing(false);
+        }, 1500);
       }
-      
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      
-      const aiResponse: ChatMessage = {
+    } catch (error) {
+      console.error('Error generating AI response:', error);
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCrystalAIResponse = async (userMessage: string) => {
+    try {
+      // Get conversation context
+      const conversationHistory = messages.slice(-10).map(msg => ({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      }));
+
+      // Get user's transaction data for context
+      const { data: transactions } = await supabase
+        .from('transactions')
+        .select('*')
+        .limit(20)
+        .order('date', { ascending: false });
+
+      // Create context for Crystal AI
+      const systemPrompt = `You are Crystal, a sophisticated financial AI assistant. You specialize in:
+- Financial analysis and insights
+- Spending pattern recognition
+- Budget recommendations
+- Financial goal setting
+- Investment advice
+- Expense optimization
+
+User's recent transactions: ${transactions ? JSON.stringify(transactions.slice(0, 5)) : 'No transactions yet'}
+
+Be conversational, insightful, and provide specific, actionable advice. Use the user's actual data when possible.`;
+
+      const response = await fetch('/.netlify/functions/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...conversationHistory,
+            { role: 'user', content: userMessage }
+          ],
+          model: 'gpt-4',
+          temperature: 0.7,
+          max_tokens: 500
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0].message.content;
+
+      const crystalResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        type: aiType,
-        content: randomResponse,
+        type: 'crystal',
+        content: aiResponse,
         timestamp: new Date().toISOString()
       };
 
-      setMessages(prev => [...prev, aiResponse]);
+      setMessages(prev => [...prev, crystalResponse]);
       setIsProcessing(false);
-    }, 1500);
+
+    } catch (error) {
+      console.error('Crystal AI error:', error);
+      
+      // Fallback to smart contextual responses
+      const contextualResponses = generateContextualResponse(userMessage);
+      
+      const fallbackResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: 'crystal',
+        content: contextualResponses,
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => [...prev, fallbackResponse]);
+      setIsProcessing(false);
+    }
+  };
+
+  const generateContextualResponse = (userMessage: string): string => {
+    const message = userMessage.toLowerCase();
+    
+    // Smart contextual responses based on user input
+    if (message.includes('budget') || message.includes('spending')) {
+      return "I'd love to help you with budgeting! Based on your transaction history, I can see patterns in your spending. Would you like me to analyze your expenses by category and suggest a personalized budget plan? I can also help you identify areas where you might be able to save money.";
+    }
+    
+    if (message.includes('save') || message.includes('saving')) {
+      return "Great question about saving! Looking at your spending patterns, I can help you identify opportunities to save more. I can analyze your recurring expenses, suggest alternatives, and help you set up automatic savings goals. What's your current savings target?";
+    }
+    
+    if (message.includes('debt') || message.includes('loan')) {
+      return "I understand you're thinking about debt management. I can help you create a debt payoff strategy, analyze your debt-to-income ratio, and suggest the best approach (debt snowball vs. avalanche method). Would you like me to analyze your current debt situation?";
+    }
+    
+    if (message.includes('investment') || message.includes('invest')) {
+      return "Investment planning is crucial for long-term financial health! I can help you understand different investment options, assess your risk tolerance, and create a diversified portfolio strategy. What's your investment timeline and risk preference?";
+    }
+    
+    if (message.includes('goal') || message.includes('target')) {
+      return "Setting financial goals is the first step to achieving them! I can help you create SMART financial goals (Specific, Measurable, Achievable, Relevant, Time-bound) and track your progress. What financial milestone are you working towards?";
+    }
+    
+    if (message.includes('category') || message.includes('categorize')) {
+      return "I can help you organize and categorize your expenses for better financial tracking! I can analyze your spending patterns, suggest custom categories, and help you set up automatic categorization rules. This will give you much clearer insights into where your money goes.";
+    }
+    
+    if (message.includes('trend') || message.includes('pattern')) {
+      return "I love analyzing spending trends! I can identify patterns in your financial behavior, seasonal spending variations, and help you understand your money habits. This analysis can reveal opportunities for optimization and better financial planning.";
+    }
+    
+    if (message.includes('emergency') || message.includes('fund')) {
+      return "Emergency funds are essential for financial security! I can help you calculate how much you need (typically 3-6 months of expenses), create a plan to build it up, and suggest the best place to keep it. How much do you currently have saved for emergencies?";
+    }
+    
+    // Default intelligent response
+    return "I'm here to help you with all aspects of your financial journey! I can analyze your spending patterns, help with budgeting, provide investment guidance, and assist with financial goal setting. What specific area of your finances would you like to focus on today?";
   };
 
   const handleDrop = (e: React.DragEvent) => {
