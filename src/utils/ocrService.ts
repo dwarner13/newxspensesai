@@ -1,4 +1,43 @@
-const OCR_API_KEY = "K88142274288957"; // Your OCR.space API key
+const OCR_API_KEY = "K82312040988957"; // Your new OCR.space API key
+
+// OpenAI Vision API fallback (like ChatGPT uses)
+export const extractTextWithOpenAIVision = async (imageFile: File): Promise<OCRResult> => {
+  try {
+    console.log('🔍 Using OpenAI Vision API for text extraction...');
+    
+    // Convert file to base64
+    const base64Image = await convertFileToBase64(imageFile);
+    
+    const response = await fetch('/.netlify/functions/openai-vision', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: base64Image,
+        prompt: "Extract all text from this document. If it's a financial document like a credit card statement or receipt, identify the vendor name, amounts, dates, and any transaction details."
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('OpenAI Vision API error');
+    }
+
+    const data = await response.json();
+    const extractedText = data.text || '';
+    
+    console.log('OpenAI Vision extracted text length:', extractedText.length);
+    console.log('First 500 chars from OpenAI Vision:', extractedText.substring(0, 500));
+
+    return {
+      text: extractedText,
+      confidence: 0.9 // OpenAI Vision is generally more accurate
+    };
+  } catch (error) {
+    console.error('OpenAI Vision API error:', error);
+    throw error;
+  }
+};
 
 export interface OCRResult {
   text: string;
@@ -33,13 +72,26 @@ export const extractTextFromImage = async (imageUrl: string): Promise<OCRResult>
 
     const result = await response.json();
     console.log('OCR API response:', result);
+    console.log('OCR API response structure:', {
+      IsErroredOnProcessing: result.IsErroredOnProcessing,
+      ErrorMessage: result.ErrorMessage,
+      ParsedResults: result.ParsedResults?.length || 0,
+      FirstResult: result.ParsedResults?.[0] ? {
+        ParsedText: result.ParsedResults[0].ParsedText?.substring(0, 200) + '...',
+        TextOverlay: result.ParsedResults[0].TextOverlay
+      } : null
+    });
     
     if (result.IsErroredOnProcessing) {
+      console.error('OCR processing error:', result.ErrorMessage);
       throw new Error(result.ErrorMessage || 'OCR processing failed');
     }
 
     const extractedText = result?.ParsedResults?.[0]?.ParsedText || "";
     const confidence = result?.ParsedResults?.[0]?.TextOverlay?.HasOverlay ? 0.8 : 0.6;
+    
+    console.log('Extracted text length:', extractedText.length);
+    console.log('First 500 chars of extracted text:', extractedText.substring(0, 500));
 
     // If no text was extracted, throw an error
     if (!extractedText || extractedText.trim().length === 0) {
@@ -308,14 +360,27 @@ export const processImageWithOCR = async (imageFile: File): Promise<OCRResult> =
       }
 
       const result = await response.json();
-      console.log('OCR API response:', result);
+      console.log('OCR API response for PDF:', result);
+      console.log('PDF OCR response structure:', {
+        IsErroredOnProcessing: result.IsErroredOnProcessing,
+        ErrorMessage: result.ErrorMessage,
+        ParsedResults: result.ParsedResults?.length || 0,
+        FirstResult: result.ParsedResults?.[0] ? {
+          ParsedText: result.ParsedResults[0].ParsedText?.substring(0, 200) + '...',
+          TextOverlay: result.ParsedResults[0].TextOverlay
+        } : null
+      });
       
       if (result.IsErroredOnProcessing) {
+        console.error('PDF OCR processing error:', result.ErrorMessage);
         throw new Error(result.ErrorMessage || 'OCR processing failed');
       }
 
       const extractedText = result?.ParsedResults?.[0]?.ParsedText || "";
       const confidence = result?.ParsedResults?.[0]?.TextOverlay?.HasOverlay ? 0.8 : 0.6;
+      
+      console.log('PDF extracted text length:', extractedText.length);
+      console.log('First 500 chars of PDF extracted text:', extractedText.substring(0, 500));
 
       return {
         text: extractedText,

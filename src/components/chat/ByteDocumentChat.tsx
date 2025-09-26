@@ -154,15 +154,35 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           setMessages(prev => [...prev, warningMessage]);
         }
         
-        // Use enhanced OCR with proper parsing
+        // Use enhanced OCR with proper parsing and OpenAI Vision fallback
         console.log('Using enhanced OCR with smart parsing...');
         
-        const { processImageWithOCR, parseReceiptText } = await import('../../utils/ocrService');
-        const ocrResult = await processImageWithOCR(file);
+        const { processImageWithOCR, parseReceiptText, extractTextWithOpenAIVision } = await import('../../utils/ocrService');
         
-        console.log('OCR result:', ocrResult);
+        let ocrResult;
+        let usedOpenAI = false;
+        
+        try {
+          // Try OCR.space first
+          ocrResult = await processImageWithOCR(file);
+          console.log('OCR.space result:', ocrResult);
+        } catch (error) {
+          console.log('OCR.space failed, trying OpenAI Vision...', error);
+          try {
+            // Fallback to OpenAI Vision (like ChatGPT uses)
+            ocrResult = await extractTextWithOpenAIVision(file);
+            usedOpenAI = true;
+            console.log('OpenAI Vision result:', ocrResult);
+          } catch (openaiError) {
+            console.error('Both OCR methods failed:', openaiError);
+            throw new Error('Failed to extract text from document. Please try a clearer image or different file format.');
+          }
+        }
+        
+        console.log('Final OCR result:', ocrResult);
         console.log('Extracted text length:', ocrResult.text?.length || 0);
         console.log('First 500 characters of extracted text:', ocrResult.text?.substring(0, 500));
+        console.log('Used OpenAI Vision:', usedOpenAI);
         
         // Parse the extracted text with enhanced logic
         const parsedData = parseReceiptText(ocrResult.text);
