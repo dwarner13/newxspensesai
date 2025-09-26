@@ -216,85 +216,100 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           
           {/* AI Employee Switcher */}
           <div className="flex items-center gap-2">
-            <div className="flex bg-gray-800 rounded-lg p-1 overflow-x-auto">
-              <button
-                onClick={() => setActiveAI('prime')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                  activeAI === 'prime'
-                    ? 'bg-yellow-500 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                }`}
+              <div 
+                className="flex bg-gray-800 rounded-lg p-1 employee-tabs"
+                style={{
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch',
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none'
+                }}
               >
-                <Sparkles className="w-4 h-4" />
-                Prime
-              </button>
-              <button
-                onClick={() => setActiveAI('byte')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                  activeAI === 'byte'
-                    ? 'bg-blue-500 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Bot className="w-4 h-4" />
-                Byte
-              </button>
-              <button
-                onClick={() => setActiveAI('crystal')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                  activeAI === 'crystal'
-                    ? 'bg-purple-500 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Brain className="w-4 h-4" />
-                Crystal
-              </button>
-              <button
-                onClick={() => setActiveAI('tag')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                  activeAI === 'tag'
-                    ? 'bg-green-500 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                Tag
-              </button>
-              <button
-                onClick={() => setActiveAI('ledger')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                  activeAI === 'ledger'
-                    ? 'bg-orange-500 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                Ledger
-              </button>
-              <button
-                onClick={() => setActiveAI('blitz')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                  activeAI === 'blitz'
-                    ? 'bg-red-500 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                Blitz
-              </button>
-              <button
-                onClick={() => setActiveAI('goalie')}
-                className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                  activeAI === 'goalie'
-                    ? 'bg-indigo-500 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                }`}
-              >
-                <Sparkles className="w-4 h-4" />
-                Goalie
-              </button>
-            </div>
+                <style>
+                  {`
+                    .employee-tabs::-webkit-scrollbar {
+                      display: none;
+                    }
+                  `}
+                </style>
+                <button
+                  onClick={() => setActiveAI('prime')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'prime'
+                      ? 'bg-yellow-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Prime
+                </button>
+                <button
+                  onClick={() => setActiveAI('byte')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'byte'
+                      ? 'bg-blue-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Bot className="w-4 h-4" />
+                  Byte
+                </button>
+                <button
+                  onClick={() => setActiveAI('crystal')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'crystal'
+                      ? 'bg-purple-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Brain className="w-4 h-4" />
+                  Crystal
+                </button>
+                <button
+                  onClick={() => setActiveAI('tag')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'tag'
+                      ? 'bg-green-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Tag
+                </button>
+                <button
+                  onClick={() => setActiveAI('ledger')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'ledger'
+                      ? 'bg-orange-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Ledger
+                </button>
+                <button
+                  onClick={() => setActiveAI('blitz')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'blitz'
+                      ? 'bg-red-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Blitz
+                </button>
+                <button
+                  onClick={() => setActiveAI('goalie')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'goalie'
+                      ? 'bg-indigo-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Goalie
+                </button>
+              </div>
             
             <button
               onClick={onClose}
