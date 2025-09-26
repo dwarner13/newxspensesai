@@ -25,7 +25,7 @@ import toast from 'react-hot-toast';
 
 interface ChatMessage {
   id: string;
-  type: 'user' | 'byte' | 'crystal';
+  type: 'user' | 'byte' | 'crystal' | 'system';
   content: string;
   timestamp: string;
   attachments?: {
@@ -36,6 +36,8 @@ interface ChatMessage {
     redactedText?: string;
     analysis?: any;
   }[];
+  hasAction?: boolean;
+  actionType?: 'crystal_handoff';
 }
 
 interface ByteDocumentChatProps {
@@ -254,6 +256,19 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         };
         setMessages(prev => [...prev, analysisMessage]);
 
+        // Add "Continue with Crystal" button for credit card statements
+        if (analysis.isCreditCardStatement && analysis.individualTransactions && analysis.individualTransactions.length > 0) {
+          const crystalHandoffMessage: ChatMessage = {
+            id: `crystal-handoff-${file.name}`,
+            type: 'system',
+            content: `💎 **Ready for detailed transaction analysis?**`,
+            timestamp: new Date().toISOString(),
+            hasAction: true,
+            actionType: 'crystal_handoff'
+          };
+          setMessages(prev => [...prev, crystalHandoffMessage]);
+        }
+
         // Clear processing state after analysis is complete
         setIsProcessing(false);
 
@@ -374,7 +389,9 @@ ${totalTransactions > 5 ? `... and ${totalTransactions - 5} more transactions` :
 
 **Privacy Protection:** ${analysis.redactedItems} sensitive items were automatically redacted to protect your privacy.
 
-I've extracted all ${totalTransactions} individual transactions from your statement! Would you like me to categorize them or analyze spending patterns?`;
+I've extracted all ${totalTransactions} individual transactions from your statement! 
+
+💎 **Ready for detailed analysis?** Click below to continue with Crystal AI for transaction-by-transaction breakdown, spending insights, and financial recommendations!`;
     } else {
       // Regular receipt analysis
       return `📄 **Document Analysis for ${filename}**
@@ -616,6 +633,22 @@ Would you like me to categorize this transaction or extract any specific informa
     ];
     
     return crystalKeywords.some(keyword => messageLower.includes(keyword));
+  };
+
+  // Handle Crystal handoff with conversation continuity
+  const handleCrystalHandoff = () => {
+    // Switch to Crystal AI
+    setActiveAI('crystal');
+    
+    // Add a seamless transition message
+    const handoffMessage: ChatMessage = {
+      id: `handoff-${Date.now()}`,
+      type: 'crystal',
+      content: `💎 **Hello! I'm Crystal, your financial analysis specialist.**\n\nI can see Byte has processed your document and extracted all the transaction data. I'm now ready to provide detailed analysis!\n\n**What would you like me to help you with?**\n• Summarize each individual transaction\n• Categorize your spending patterns\n• Identify your biggest expenses\n• Analyze spending trends\n• Provide budget recommendations\n\nJust ask me anything about your financial data! 💎`,
+      timestamp: new Date().toISOString()
+    };
+    
+    setMessages(prev => [...prev, handoffMessage]);
   };
 
   const handleCrystalAIResponse = async (userMessage: string) => {
@@ -900,6 +933,8 @@ Be conversational, insightful, and provide specific, actionable advice. Use the 
                     className={`p-4 rounded-2xl ${
                       message.type === 'user'
                         ? 'bg-blue-500 text-white'
+                        : message.type === 'system'
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
                         : 'bg-gray-800 text-gray-200'
                     }`}
                   >
@@ -914,8 +949,26 @@ Be conversational, insightful, and provide specific, actionable advice. Use the 
                           <Brain className="w-3 h-3 text-white" />
                         </div>
                       )}
+                      {message.type === 'system' && (
+                        <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                          <Zap className="w-3 h-3 text-white" />
+                        </div>
+                      )}
                       <div className="flex-1">
                         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        
+                        {/* Action Button for Crystal Handoff */}
+                        {message.hasAction && message.actionType === 'crystal_handoff' && (
+                          <div className="mt-3">
+                            <button
+                              onClick={handleCrystalHandoff}
+                              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2"
+                            >
+                              <Brain className="w-4 h-4" />
+                              Continue with Crystal AI
+                            </button>
+                          </div>
+                        )}
                         
                         {/* Attachments */}
                         {message.attachments && message.attachments.map((attachment, index) => (
