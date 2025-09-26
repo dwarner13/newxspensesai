@@ -332,27 +332,43 @@ Would you like me to categorize this transaction or extract any specific informa
       
       console.log('✅ Receipt saved successfully:', receiptData);
 
-      // Create transaction if we have valid data
-      if (analysis.amount > 0 && analysis.vendor !== 'Unknown Vendor') {
-        const { error: transactionError } = await supabase
-          .from('transactions')
-          .insert({
-            user_id: userId,
-            date: analysis.date,
-            description: analysis.vendor,
-            amount: analysis.amount,
-            type: 'expense',
-            category: analysis.category,
-            merchant: analysis.vendor,
-            receipt_url: imageUrl,
-            categorization_source: 'ai'
-          });
+      // Create transaction (even with basic data)
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: userId,
+          date: analysis.date || new Date().toISOString().split('T')[0],
+          description: analysis.vendor || 'Document Upload',
+          amount: analysis.amount || 0,
+          type: 'expense',
+          category: analysis.category || 'Uncategorized',
+          merchant: analysis.vendor || 'Unknown Vendor',
+          receipt_url: imageUrl,
+          categorization_source: 'ai'
+        });
 
-        if (transactionError) {
-          console.error('Error creating transaction:', transactionError);
-        } else {
-          console.log('✅ Transaction created successfully');
-        }
+      if (transactionError) {
+        console.error('Error creating transaction:', transactionError);
+      } else {
+        console.log('✅ Transaction created successfully');
+      }
+
+      // Create user_documents record
+      const { error: userDocError } = await supabase
+        .from('user_documents')
+        .insert({
+          user_id: userId,
+          filename: file.name,
+          file_type: file.type,
+          file_size: file.size,
+          upload_date: new Date().toISOString(),
+          processing_status: 'completed'
+        });
+
+      if (userDocError) {
+        console.error('Error creating user_documents record:', userDocError);
+      } else {
+        console.log('✅ User document record created successfully');
       }
 
       // Trigger dashboard stats refresh
