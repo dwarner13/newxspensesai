@@ -610,6 +610,7 @@ const DashboardTransactionsPage: React.FC = () => {
                 </motion.div>
               ))}
             </motion.div>
+          )}
 
         {/* Crystal AI Assistant Modal */}
         <AnimatePresence>
