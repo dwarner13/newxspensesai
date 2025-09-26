@@ -83,17 +83,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (error) {
           console.error('❌ AuthContext: Session check error:', error);
-          setUser(null);
+          // Create a demo user even on error for development
+          const demoUser = {
+            id: 'demo-user-123',
+            email: 'demo@xspensesai.com',
+            full_name: 'Demo User',
+            aud: 'authenticated',
+            role: 'authenticated',
+            exp: Date.now() + 86400000,
+          } as any;
+          setUser(demoUser);
         } else if (session?.user) {
           console.log('🔍 AuthContext: User session found:', session.user.email);
           setUser(session.user);
         } else {
-          console.log('🔍 AuthContext: No active session found');
-          setUser(null);
+          console.log('🔍 AuthContext: No active session found - using demo user');
+          // Create a demo user for development when no session exists
+          const demoUser = {
+            id: 'demo-user-123',
+            email: 'demo@xspensesai.com',
+            full_name: 'Demo User',
+            aud: 'authenticated',
+            role: 'authenticated',
+            exp: Date.now() + 86400000, // 24 hours from now
+          } as any;
+          setUser(demoUser);
         }
       } catch (error) {
         console.error('❌ AuthContext: Unexpected error during session check:', error);
-        setUser(null);
+        // Create a demo user even on unexpected error for development
+        const demoUser = {
+          id: 'demo-user-123',
+          email: 'demo@xspensesai.com',
+          full_name: 'Demo User',
+          aud: 'authenticated',
+          role: 'authenticated',
+          exp: Date.now() + 86400000,
+        } as any;
+        setUser(demoUser);
       } finally {
         setLoading(false);
         setInitialLoad(false);

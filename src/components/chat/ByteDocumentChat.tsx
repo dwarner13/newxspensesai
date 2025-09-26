@@ -228,6 +228,8 @@ Would you like me to categorize this transaction or extract any specific informa
   const saveDocumentToDatabase = async (file: File, imageUrl: string, smartResult: SmartOCRResult, redactionResult: any, analysis: any) => {
     // For development, use a default user ID if no user is available
     const userId = user?.id || 'demo-user-123';
+    
+    console.log('Saving document to database:', { userId, hasUser: !!user, hasSupabase: !!supabase });
 
     // Check if Supabase is available
     if (!supabase) {
