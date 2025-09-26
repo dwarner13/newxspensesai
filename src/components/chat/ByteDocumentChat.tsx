@@ -254,6 +254,30 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         };
         setMessages(prev => [...prev, analysisMessage]);
 
+        // Add Crystal's document reading capability message
+        const crystalMessage: ChatMessage = {
+          id: `crystal-read-${file.name}`,
+          type: 'crystal',
+          content: `📖 **I can now read your ${file.name} document!** 
+
+I have access to the complete text content and can answer detailed questions about:
+• Specific transactions and amounts
+• Vendor information and dates
+• Spending patterns and categories
+• Any discrepancies or unusual items
+• Financial insights and recommendations
+
+Try asking me questions like:
+- "What's the total amount on this statement?"
+- "Who is the vendor for the largest transaction?"
+- "Are there any unusual charges I should review?"
+- "What spending category does this fall under?"
+
+I'm here to help you understand your financial documents! 💎`,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, crystalMessage]);
+
         // Save to database
         await saveDocumentToDatabase(file, urlData.publicUrl, smartResult, redactionResult, analysis);
 
@@ -500,7 +524,17 @@ Would you like me to categorize this transaction or extract any specific informa
         .limit(20)
         .order('date', { ascending: false });
 
-      // Create context for Crystal AI
+      // Get document content from recent messages
+      const recentDocuments = messages
+        .filter(msg => msg.attachments && msg.attachments.length > 0)
+        .slice(-3) // Last 3 documents
+        .map(msg => ({
+          filename: msg.attachments?.[0]?.filename,
+          extractedText: msg.attachments?.[0]?.extractedText,
+          analysis: msg.attachments?.[0]?.analysis
+        }));
+
+      // Create enhanced context for Crystal AI
       const systemPrompt = `You are Crystal, a sophisticated financial AI assistant. You specialize in:
 - Financial analysis and insights
 - Spending pattern recognition
@@ -508,10 +542,20 @@ Would you like me to categorize this transaction or extract any specific informa
 - Financial goal setting
 - Investment advice
 - Expense optimization
+- Document analysis and interpretation
 
 User's recent transactions: ${transactions ? JSON.stringify(transactions.slice(0, 5)) : 'No transactions yet'}
 
-Be conversational, insightful, and provide specific, actionable advice. Use the user's actual data when possible.`;
+Recent documents uploaded: ${recentDocuments.length > 0 ? JSON.stringify(recentDocuments) : 'No recent documents'}
+
+You have access to the full text content of recently uploaded documents. When users ask questions about their documents, you can:
+- Read and analyze the complete document text
+- Answer specific questions about transactions, amounts, dates, vendors
+- Provide insights based on the actual document content
+- Compare information across multiple documents
+- Identify patterns and discrepancies
+
+Be conversational, insightful, and provide specific, actionable advice. Use the user's actual data and document content when possible.`;
 
       const response = await fetch('/.netlify/functions/chat', {
         method: 'POST',
