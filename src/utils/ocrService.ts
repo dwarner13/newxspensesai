@@ -130,6 +130,26 @@ export interface ParsedReceiptData {
   }>;
   category?: string;
   confidence?: number;
+  // Enhanced for credit card statements
+  isCreditCardStatement?: boolean;
+  individualTransactions?: Array<{
+    transactionDate: string;
+    postingDate: string;
+    description: string;
+    amount: number;
+    merchant?: string;
+  }>;
+  statementPeriod?: {
+    startDate: string;
+    endDate: string;
+  };
+  accountSummary?: {
+    previousBalance: number;
+    payments: number;
+    purchases: number;
+    newBalance: number;
+    availableCredit: number;
+  };
 }
 
 export const parseReceiptText = (text: string): ParsedReceiptData => {
@@ -140,8 +160,41 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
   let total = 0;
   let category = 'Uncategorized';
   const items: Array<{ description: string; amount: number }> = [];
+  let isCreditCardStatement = false;
+  const individualTransactions: Array<{
+    transactionDate: string;
+    postingDate: string;
+    description: string;
+    amount: number;
+    merchant?: string;
+  }> = [];
+  let statementPeriod = { startDate: '', endDate: '' };
+  let accountSummary = {
+    previousBalance: 0,
+    payments: 0,
+    purchases: 0,
+    newBalance: 0,
+    availableCredit: 0
+  };
 
   console.log('🔍 Parsing OCR text:', text);
+
+  // First, detect if this is a credit card statement
+  const textLower = text.toLowerCase();
+  isCreditCardStatement = textLower.includes('credit card') || 
+                         textLower.includes('mastercard') || 
+                         textLower.includes('visa') || 
+                         textLower.includes('statement') ||
+                         textLower.includes('account summary') ||
+                         textLower.includes('balance from your last statement') ||
+                         textLower.includes('purchases') ||
+                         textLower.includes('payments received');
+
+  console.log('📄 Is credit card statement:', isCreditCardStatement);
+
+  if (isCreditCardStatement) {
+    return parseCreditCardStatement(text, lines);
+  }
 
   // Enhanced vendor extraction for financial documents
   for (let i = 0; i < Math.min(lines.length, 10); i++) {
@@ -318,6 +371,168 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
 
   console.log('📊 Parsed result:', result);
   return result;
+};
+
+// Specialized parser for credit card statements
+const parseCreditCardStatement = (text: string, lines: string[]): ParsedReceiptData => {
+  console.log('💳 Parsing credit card statement...');
+  
+  let vendor = '';
+  let date = '';
+  let total = 0;
+  let category = 'Credit Card Statement';
+  const individualTransactions: Array<{
+    transactionDate: string;
+    postingDate: string;
+    description: string;
+    amount: number;
+    merchant?: string;
+  }> = [];
+  let statementPeriod = { startDate: '', endDate: '' };
+  let accountSummary = {
+    previousBalance: 0,
+    payments: 0,
+    purchases: 0,
+    newBalance: 0,
+    availableCredit: 0
+  };
+
+  // Extract vendor from header
+  for (let i = 0; i < Math.min(lines.length, 15); i++) {
+    const line = lines[i];
+    if (line.includes('Triangle') || line.includes('Mastercard') || line.includes('World Elite')) {
+      vendor = line.replace(/[^a-zA-Z0-9\s&'-]/g, '').trim();
+      break;
+    }
+  }
+
+  // Extract statement period
+  for (const line of lines) {
+    if (line.includes('For the period:')) {
+      const periodMatch = line.match(/For the period:\s*(\w+\s+\d+,\s+\d+)\s+to\s+(\w+\s+\d+,\s+\d+)/);
+      if (periodMatch) {
+        statementPeriod.startDate = periodMatch[1];
+        statementPeriod.endDate = periodMatch[2];
+      }
+    }
+  }
+
+  // Extract account summary
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Previous balance
+    if (line.includes('Balance from your last statement')) {
+      const amountMatch = line.match(/\$?([\d,]+\.?\d*)/);
+      if (amountMatch) {
+        accountSummary.previousBalance = parseFloat(amountMatch[1].replace(/,/g, ''));
+      }
+    }
+    
+    // Payments
+    if (line.includes('Payments received') && line.includes('Total payments received')) {
+      const amountMatch = line.match(/\$?([\d,]+\.?\d*)/);
+      if (amountMatch) {
+        accountSummary.payments = parseFloat(amountMatch[1].replace(/,/g, ''));
+      }
+    }
+    
+    // Purchases
+    if (line.includes('Total purchases') && line.includes('for')) {
+      const amountMatch = line.match(/\$?([\d,]+\.?\d*)/);
+      if (amountMatch) {
+        accountSummary.purchases = parseFloat(amountMatch[1].replace(/,/g, ''));
+      }
+    }
+    
+    // New balance
+    if (line.includes('Your New Balance')) {
+      const amountMatch = line.match(/\$?([\d,]+\.?\d*)/);
+      if (amountMatch) {
+        accountSummary.newBalance = parseFloat(amountMatch[1].replace(/,/g, ''));
+        total = accountSummary.newBalance;
+      }
+    }
+    
+    // Available credit
+    if (line.includes('Available credit')) {
+      const amountMatch = line.match(/\$?([\d,]+\.?\d*)/);
+      if (amountMatch) {
+        accountSummary.availableCredit = parseFloat(amountMatch[1].replace(/,/g, ''));
+      }
+    }
+  }
+
+  // Extract individual transactions
+  let inTransactionSection = false;
+  let transactionHeadersFound = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    // Look for transaction section headers
+    if (line.includes('TRANSACTION DATE') && line.includes('POSTING DATE') && line.includes('AMOUNT')) {
+      inTransactionSection = true;
+      transactionHeadersFound = true;
+      continue;
+    }
+    
+    // Look for "Purchases" section
+    if (line.includes('Purchases') && line.includes('Card #')) {
+      inTransactionSection = true;
+      continue;
+    }
+    
+    // Stop at end of transaction section
+    if (inTransactionSection && (line.includes('Total purchases') || line.includes('WAYS TO PAY') || line.includes('Information about'))) {
+      inTransactionSection = false;
+      break;
+    }
+    
+    // Parse transaction lines
+    if (inTransactionSection && transactionHeadersFound) {
+      // Pattern: "Nov 09", "Nov 11", "RMI-SPORTSNET.CA/NOW 416-637-1499 ON", "20.99"
+      const transactionMatch = line.match(/^(\w+\s+\d+)\s+(\w+\s+\d+)\s+(.+?)\s+([\d,]+\.?\d*)$/);
+      if (transactionMatch) {
+        const transactionDate = transactionMatch[1];
+        const postingDate = transactionMatch[2];
+        const description = transactionMatch[3].trim();
+        const amount = parseFloat(transactionMatch[4].replace(/,/g, ''));
+        
+        // Extract merchant name (first part before location)
+        let merchant = description;
+        const merchantMatch = description.match(/^([^A-Z]{2,})\s+[A-Z]{2}/);
+        if (merchantMatch) {
+          merchant = merchantMatch[1].trim();
+        }
+        
+        individualTransactions.push({
+          transactionDate,
+          postingDate,
+          description,
+          amount,
+          merchant
+        });
+        
+        console.log('💳 Found transaction:', { transactionDate, postingDate, merchant, amount });
+      }
+    }
+  }
+
+  console.log(`💳 Extracted ${individualTransactions.length} individual transactions`);
+  console.log('💳 Account summary:', accountSummary);
+
+  return {
+    vendor: vendor || 'Credit Card Statement',
+    date: statementPeriod.endDate || new Date().toISOString().split('T')[0],
+    total,
+    category,
+    confidence: 0.9,
+    isCreditCardStatement: true,
+    individualTransactions,
+    statementPeriod,
+    accountSummary
+  };
 };
 
 // Function to convert file to base64

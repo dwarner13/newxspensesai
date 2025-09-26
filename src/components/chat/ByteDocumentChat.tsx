@@ -340,7 +340,40 @@ I'm here to help you understand your financial documents! 💎`,
   };
 
   const generateByteAnalysis = (analysis: any, filename: string) => {
-    return `📄 **Document Analysis for ${filename}**
+    if (analysis.isCreditCardStatement && analysis.individualTransactions && analysis.individualTransactions.length > 0) {
+      // Enhanced analysis for credit card statements
+      const topTransactions = analysis.individualTransactions.slice(0, 5);
+      const totalTransactions = analysis.individualTransactions.length;
+      const totalAmount = analysis.individualTransactions.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0);
+      
+      return `💳 **Credit Card Statement Analysis for ${filename}**
+
+**Statement Period:** ${analysis.statementPeriod?.startDate || 'N/A'} to ${analysis.statementPeriod?.endDate || 'N/A'}
+**Card:** ${analysis.vendor}
+**Total Transactions:** ${totalTransactions}
+**Total Amount:** $${totalAmount.toFixed(2)}
+**New Balance:** $${analysis.amount || 0}
+**Confidence:** ${(analysis.confidence * 100).toFixed(1)}%
+
+**Account Summary:**
+• Previous Balance: $${analysis.accountSummary?.previousBalance || 0}
+• Payments Received: $${analysis.accountSummary?.payments || 0}
+• Total Purchases: $${analysis.accountSummary?.purchases || 0}
+• Available Credit: $${analysis.accountSummary?.availableCredit || 0}
+
+**Top Transactions:**
+${topTransactions.map((tx: any, index: number) => 
+  `${index + 1}. ${tx.merchant || tx.description} - $${tx.amount} (${tx.transactionDate})`
+).join('\n')}
+
+${totalTransactions > 5 ? `... and ${totalTransactions - 5} more transactions` : ''}
+
+**Privacy Protection:** ${analysis.redactedItems} sensitive items were automatically redacted to protect your privacy.
+
+I've extracted all ${totalTransactions} individual transactions from your statement! Would you like me to categorize them or analyze spending patterns?`;
+    } else {
+      // Regular receipt analysis
+      return `📄 **Document Analysis for ${filename}**
 
 **Document Type:** ${analysis.documentType}
 **Vendor:** ${analysis.vendor}
@@ -355,6 +388,7 @@ ${analysis.keyInsights.map((insight: string) => `• ${insight}`).join('\n')}
 **Privacy Protection:** ${analysis.redactedItems} sensitive items were automatically redacted to protect your privacy.
 
 Would you like me to categorize this transaction or extract any specific information?`;
+    }
   };
 
   const saveDocumentToDatabase = async (file: File, imageUrl: string, smartResult: SmartOCRResult, redactionResult: any, analysis: any) => {
@@ -408,26 +442,54 @@ Would you like me to categorize this transaction or extract any specific informa
       
       console.log('✅ Receipt saved successfully:', receiptData);
 
-      // Create transaction (even with basic data)
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
+      // Create transactions - handle both single receipts and credit card statements
+      if (analysis.isCreditCardStatement && analysis.individualTransactions && analysis.individualTransactions.length > 0) {
+        // Create multiple transactions for credit card statement
+        console.log(`💳 Creating ${analysis.individualTransactions.length} individual transactions...`);
+        
+        const transactionsToInsert = analysis.individualTransactions.map((tx: any) => ({
           user_id: userId,
-          receipt_id: receiptData.id, // Link to the receipt
-          date: analysis.date || new Date().toISOString().split('T')[0],
-          description: analysis.vendor || 'Document Upload',
-          amount: analysis.amount || 0,
+          receipt_id: receiptData.id,
+          date: tx.transactionDate || analysis.date || new Date().toISOString().split('T')[0],
+          description: tx.description || tx.merchant || 'Credit Card Transaction',
+          amount: tx.amount || 0,
           type: 'expense',
-          category: analysis.category || 'Uncategorized',
-          merchant: analysis.vendor || 'Unknown Vendor',
+          category: 'Credit Card Transaction',
+          merchant: tx.merchant || 'Unknown Merchant',
           receipt_url: imageUrl
-        });
+        }));
 
-      if (transactionError) {
-        console.error('Error creating transaction:', transactionError);
-        console.error('Transaction error details:', transactionError);
+        const { error: transactionsError } = await supabase
+          .from('transactions')
+          .insert(transactionsToInsert);
+
+        if (transactionsError) {
+          console.error('Error creating credit card transactions:', transactionsError);
+        } else {
+          console.log(`✅ Created ${transactionsToInsert.length} credit card transactions successfully`);
+        }
       } else {
-        console.log('✅ Transaction created successfully');
+        // Create single transaction for regular receipts
+        const { error: transactionError } = await supabase
+          .from('transactions')
+          .insert({
+            user_id: userId,
+            receipt_id: receiptData.id, // Link to the receipt
+            date: analysis.date || new Date().toISOString().split('T')[0],
+            description: analysis.vendor || 'Document Upload',
+            amount: analysis.amount || 0,
+            type: 'expense',
+            category: analysis.category || 'Uncategorized',
+            merchant: analysis.vendor || 'Unknown Vendor',
+            receipt_url: imageUrl
+          });
+
+        if (transactionError) {
+          console.error('Error creating transaction:', transactionError);
+          console.error('Transaction error details:', transactionError);
+        } else {
+          console.log('✅ Transaction created successfully');
+        }
       }
 
       // Create user_documents record
