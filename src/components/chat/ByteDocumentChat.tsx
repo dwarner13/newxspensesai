@@ -663,6 +663,12 @@ I've done the heavy lifting - now let's get you the insights you need! 🤖`;
             
             if (userMessage.includes('hi') || userMessage.includes('hello') || userMessage.includes('hey')) {
               response = `Hey there! 👋 I'm Byte, your document processing specialist. Ready to help you extract data from any financial document - just upload something and I'll take care of the rest!`;
+            } else if (userMessage.includes('name')) {
+              response = `I'm Byte! 🤖 Your AI document processing specialist. I can read and extract data from any financial document you upload. What would you like me to help you with?`;
+            } else if (userMessage.includes('download') || userMessage.includes('statement')) {
+              response = `I can't download statements for you, but I can definitely process them! Just upload any financial document (credit card statement, bank statement, receipt, etc.) and I'll extract all the data for you. What type of document do you have?`;
+            } else if (userMessage.includes('upload') || userMessage.includes('can i upload')) {
+              response = `Absolutely! You can upload right now. Just drag and drop any financial document into the upload area above, or click the upload button. I can handle PDFs, images, receipts, statements - pretty much any financial document!`;
             } else if (userMessage.includes('credit card') || userMessage.includes('credit cards')) {
               response = `Great question! I can process credit card statements from any major issuer. I'll extract all individual transactions, statement periods, account summaries, and spending patterns. Just upload your credit card statement (PDF or image) and I'll break down every transaction for you! 💳`;
             } else if (userMessage.includes('receipt') || userMessage.includes('receipts')) {
@@ -677,6 +683,8 @@ I've done the heavy lifting - now let's get you the insights you need! 🤖`;
               response = `I'm here to help! I can process any financial document you upload. Try uploading a receipt, credit card statement, or bank statement and I'll extract all the important data for you.`;
             } else if (userMessage.includes('how') || userMessage.includes('work')) {
               response = `I work by using advanced OCR technology to read your documents, then I use AI to intelligently parse and organize all the financial data. Just drag and drop any document above and I'll show you exactly how it works!`;
+            } else if (userMessage.includes('yes') || userMessage.includes('sure') || userMessage.includes('ok')) {
+              response = `Perfect! Go ahead and upload your document. I'm ready to process it and extract all the important information for you!`;
             } else {
               response = `I'm Byte, your document processing specialist! I can extract data from credit cards, receipts, bank statements, invoices, and more. What type of document would you like to process? Just upload it and I'll take care of the rest! 📄`;
             }
@@ -866,6 +874,10 @@ Be conversational yet professional, insightful yet accessible. You're not just a
       return "Hi there! 👋 I'm Crystal, your financial analyst. I can help you understand your spending and make better money decisions. What would you like to know?";
     }
     
+    if (message.includes('name')) {
+      return "I'm Crystal! 💎 Your AI financial analyst. I specialize in helping people understand their money, create budgets, and make smart financial decisions. What financial question can I help you with?";
+    }
+    
     if (message.includes('budget') || message.includes('spending')) {
       return "I'd love to help with your budget! I can analyze your spending patterns and suggest ways to optimize your money. What's your biggest spending challenge right now?";
     }
@@ -888,6 +900,14 @@ Be conversational yet professional, insightful yet accessible. You're not just a
     
     if (message.includes('help')) {
       return "I'm here to help with anything financial! I can analyze your spending, help with budgeting, suggest savings strategies, or answer money questions. What's on your mind?";
+    }
+    
+    if (message.includes('money') || message.includes('finance')) {
+      return "I'm all about helping you with your money! Whether it's budgeting, saving, investing, or just understanding your finances better, I'm here to help. What would you like to work on?";
+    }
+    
+    if (message.includes('yes') || message.includes('sure') || message.includes('ok')) {
+      return "Great! I'm ready to help you with your finances. What specific area would you like to focus on - budgeting, saving, investing, or something else?";
     }
     
     // Default response - keep it simple and friendly
