@@ -598,7 +598,6 @@ export const processImageWithOCR = async (imageFile: File): Promise<OCRResult> =
       formData.append("isOverlayRequired", "false");
       formData.append("scale", "true");
       formData.append("OCREngine", "2");
-      formData.append("filetype", "PDF");
       
       const response = await fetch("https://api.ocr.space/parse/image", {
         method: "POST",

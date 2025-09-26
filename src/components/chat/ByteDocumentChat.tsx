@@ -335,12 +335,12 @@ I'm here to help you understand your financial documents! 💎`,
         console.error('Error processing file:', error);
         toast.error(`Failed to process ${file.name}`);
         
-        // Update processing message with error
+        // Update processing message with error and helpful guidance
         setMessages(prev => prev.map(msg => 
           msg.id === `processing-${file.name}` 
             ? {
                 ...msg,
-                content: `❌ Failed to process ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`
+                content: `❌ **Failed to process ${file.name}**\n\n**Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n\n**Troubleshooting:**\n• Try a clearer image or PDF\n• Make sure the document is not password protected\n• Check that the file size is under 10MB\n• Try a different file format (PNG, JPG, PDF)\n\n**I can still help!** Ask me questions about document processing or try uploading a different file.`
               }
             : msg
         ));
