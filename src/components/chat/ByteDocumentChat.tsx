@@ -146,6 +146,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         // Process with Large File Processor
         console.log('Processing with Large File Processor...');
         
+        console.log('Starting large file processing...');
         const result = await processLargeFile(
           file,
           {
@@ -154,6 +155,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
             retryAttempts: 3
           },
           (progress) => {
+            console.log('Processing progress:', progress);
             setProcessingProgress(progress);
             
             // Update progress message
@@ -170,6 +172,8 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
             });
           }
         );
+        
+        console.log('Large file processing result:', result);
         
         if (!result.success) {
           throw new Error(result.error || 'Processing failed');
