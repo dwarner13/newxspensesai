@@ -120,9 +120,57 @@ body {
   
   /* Fix mobile menu animations */
   .mobile-menu,
-  .sidebar {
+  .sidebar,
+  .mobile-sidebar-optimized {
     transform: translateZ(0) !important;
     -webkit-transform: translateZ(0) !important;
+    will-change: transform, opacity !important;
+  }
+  
+  /* Optimize mobile sidebar animations */
+  .mobile-sidebar-optimized {
+    transition: transform 0.2s ease-out, opacity 0.2s ease-out !important;
+    -webkit-transition: transform 0.2s ease-out, opacity 0.2s ease-out !important;
+    position: relative !important;
+    z-index: 51 !important;
+    background: rgba(15, 23, 42, 0.98) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+  
+  /* Reduce backdrop blur on mobile for better performance */
+  .mobile-sidebar-optimized .backdrop-blur-md {
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+  }
+  
+  /* Optimize navigation item animations */
+  .mobile-sidebar-optimized .transition-all {
+    transition: background-color 0.15s ease-out !important;
+  }
+  
+  /* Remove scale transforms on mobile for better performance */
+  .mobile-sidebar-optimized .active\:scale-95:active {
+    transform: none !important;
+  }
+  
+  /* Ensure mobile sidebar overlay covers content properly */
+  .mobile-sidebar-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 50 !important;
+    background: rgba(0, 0, 0, 0.6) !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+  }
+  
+  /* Hide main content when mobile sidebar is open */
+  .mobile-sidebar-open .main-content {
+    overflow: hidden !important;
+    pointer-events: none !important;
   }
   
   /* Optimize dashboard cards */
@@ -187,9 +235,21 @@ body {
     transform: translate3d(0, 0, 0);
   }
   
-  /* Fix iOS scroll bounce */
+  /* Fix iOS scroll bounce and enable pull-to-refresh */
   body {
     overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Enable pull-to-refresh on mobile */
+  main {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Ensure touch events work properly */
+  .mobile-content {
+    touch-action: pan-y;
     -webkit-overflow-scrolling: touch;
   }
   

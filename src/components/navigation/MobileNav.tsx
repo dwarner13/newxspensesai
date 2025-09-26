@@ -60,7 +60,8 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
           text-white
           border-none
           shadow-2xl
-          transition-transform duration-250 ease-out
+          transition-transform duration-200 ease-out
+          mobile-nav-optimized
         "
         data-testid="mobile-sidebar"
       >
@@ -93,7 +94,7 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
                       onClick={() => setOpen(false)}
                       className={cn(
                         "flex items-center gap-3 rounded-xl px-4 py-3",
-                        "bg-transparent hover:bg-white/10 transition-colors",
+                        "bg-transparent hover:bg-white/10 transition-colors duration-150",
                         active && "bg-white/10 ring-1 ring-white/10"
                       )}
                     >

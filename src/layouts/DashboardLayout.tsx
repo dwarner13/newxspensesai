@@ -23,15 +23,15 @@ export default function DashboardLayout() {
   const handleRefresh = async () => {
     try {
       // Simulate refresh delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Dispatch a custom event for components to listen to
       window.dispatchEvent(new CustomEvent('pullToRefresh', {
         detail: { timestamp: Date.now() }
       }));
       
-      // Optionally reload the page for a full refresh
-      // window.location.reload();
+      // Reload the page for a full refresh
+      window.location.reload();
     } catch (error) {
       console.error('Refresh failed:', error);
     }
@@ -67,15 +67,19 @@ export default function DashboardLayout() {
 
     const { onTouchStart, onTouchMove, onTouchEnd } = pullToRefresh.handlers;
     
-    document.addEventListener('touchstart', onTouchStart, { passive: false });
-    document.addEventListener('touchmove', onTouchMove, { passive: false });
-    document.addEventListener('touchend', onTouchEnd, { passive: false });
+    // Add touch events to the main content area instead of document
+    const mainContent = document.querySelector('main');
+    if (mainContent) {
+      mainContent.addEventListener('touchstart', onTouchStart, { passive: false });
+      mainContent.addEventListener('touchmove', onTouchMove, { passive: false });
+      mainContent.addEventListener('touchend', onTouchEnd, { passive: false });
 
-    return () => {
-      document.removeEventListener('touchstart', onTouchStart);
-      document.removeEventListener('touchmove', onTouchMove);
-      document.removeEventListener('touchend', onTouchEnd);
-    };
+      return () => {
+        mainContent.removeEventListener('touchstart', onTouchStart);
+        mainContent.removeEventListener('touchmove', onTouchMove);
+        mainContent.removeEventListener('touchend', onTouchEnd);
+      };
+    }
   }, [isMobile, pullToRefresh.handlers]);
 
   // Close mobile menu when route changes
@@ -136,13 +140,18 @@ export default function DashboardLayout() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ 
-                duration: 0.3,
-                ease: "easeInOut"
+                duration: 0.2,
+                ease: "easeOut"
               }}
               className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" 
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
+              <div 
+                className="fixed left-0 top-0 h-full w-80 z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

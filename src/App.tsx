@@ -19,6 +19,7 @@ import { BossProvider } from './lib/agents/context';
 import MobileLayoutGate from './components/layout/MobileLayoutGate';
 import MobileRevolution from './components/mobile/MobileRevolution';
 import DesktopDashboard from './components/DesktopDashboard';
+import RouteScrollReset from './components/util/RouteScrollReset';
 
 // Critical components - load immediately
 import HomePage from './pages/HomePage';

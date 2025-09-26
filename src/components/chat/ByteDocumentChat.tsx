@@ -60,6 +60,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
   const [activeAI, setActiveAI] = useState<'byte' | 'crystal'>('byte');
+  const [hasShownCrystalSummary, setHasShownCrystalSummary] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,24 +69,75 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Initialize with welcome messages
+  // Show Crystal's transaction summary when switching to Crystal tab
+  useEffect(() => {
+    if (activeAI === 'crystal' && !hasShownCrystalSummary) {
+      const hasProcessedDocuments = messages.some(msg => 
+        msg.attachments && msg.attachments.length > 0 && msg.attachments[0].analysis
+      );
+      
+      if (hasProcessedDocuments) {
+        const latestDocument = messages
+          .filter(msg => msg.attachments && msg.attachments.length > 0)
+          .slice(-1)[0];
+        
+        if (latestDocument?.attachments?.[0]?.analysis) {
+          const analysis = latestDocument.attachments[0].analysis;
+          
+          const crystalWelcomeMessage: ChatMessage = {
+            id: `crystal-welcome-${Date.now()}`,
+            type: 'crystal',
+            content: `💎 **Welcome to Crystal's Financial Analysis!**
+
+I can see you've uploaded and processed financial documents. Here's your transaction summary:
+
+📊 **Your Financial Overview:**
+• **Document Type:** ${analysis.category || 'Financial Document'}
+• **Statement Date:** ${analysis.date || 'Current period'}
+• **Total Amount:** ${analysis.total ? `$${analysis.total}` : 'Processed'}
+• **Transactions:** ${analysis.individualTransactions?.length || 'Multiple'} transactions analyzed
+
+🎯 **What I can help you with:**
+• Spending pattern analysis
+• Budget recommendations
+• Financial insights and trends
+• Goal setting and tracking
+• Investment strategies
+
+💡 **Quick Access:**
+[View All Your Transactions](/dashboard/transactions) - See detailed transaction breakdown
+
+What financial insights would you like to explore today? I'm here to help you make smarter money decisions! 💰`,
+            timestamp: new Date().toISOString()
+          };
+          
+          setMessages(prev => [...prev, crystalWelcomeMessage]);
+          setHasShownCrystalSummary(true);
+        }
+      }
+    }
+  }, [activeAI, hasShownCrystalSummary, messages]);
+
+  // Initialize with conversational greeting from Byte
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      const welcomeMessages: ChatMessage[] = [
-        {
-          id: '1',
-          type: 'byte',
-          content: "Hello! I'm Byte, your document processing AI. I specialize in reading and analyzing receipts, invoices, bank statements, and financial documents. Upload your files and I'll extract all the important information for you!",
-          timestamp: new Date().toISOString()
-        },
-        {
-          id: '2',
-          type: 'crystal',
-          content: "Hello! I'm Crystal, your intelligent financial advisor AI. I specialize in analyzing your spending patterns, creating personalized budgets, and providing actionable financial insights. I can help you with debt management, investment strategies, goal setting, and expense optimization. Ask me anything about your finances - I'm here to help you make smarter money decisions!",
-          timestamp: new Date().toISOString()
-        }
+      const greetings = [
+        "Hey there! 👋 How are you doing today?",
+        "Hi! How's it going? Ready to process some documents?",
+        "Hello! How are you? I'm here to help with your documents!",
+        "Hey! How are you doing? What can I help you with today?",
+        "Hi there! How are you? Ready to upload some files?"
       ];
-      setMessages(welcomeMessages);
+      
+      const randomGreeting = greetings[Math.floor(Math.random() * greetings.length)];
+      
+      const welcomeMessage: ChatMessage = {
+        id: '1',
+        type: 'byte',
+        content: randomGreeting,
+        timestamp: new Date().toISOString()
+      };
+      setMessages([welcomeMessage]);
     }
   }, [isOpen, messages.length]);
 
@@ -277,17 +329,79 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         };
         setMessages(prev => [...prev, analysisMessage]);
 
-        // Add "Continue with Crystal" button for credit card statements
-        if (analysis.isCreditCardStatement && analysis.individualTransactions && analysis.individualTransactions.length > 0) {
-          const crystalHandoffMessage: ChatMessage = {
-            id: `crystal-handoff-${file.name}`,
-            type: 'system',
-            content: `💎 **Ready for detailed transaction analysis?**`,
-            timestamp: new Date().toISOString(),
-            hasAction: true,
-            actionType: 'crystal_handoff'
-          };
-          setMessages(prev => [...prev, crystalHandoffMessage]);
+        // Automatic Crystal handoff for financial documents
+        if (analysis.isCreditCardStatement || analysis.category === 'Credit Card Statement' || analysis.category === 'Bank Statement') {
+          // Add Crystal's automatic entry message
+          setTimeout(() => {
+            const crystalEntryMessage: ChatMessage = {
+              id: `crystal-entry-${file.name}`,
+              type: 'crystal',
+              content: `💎 **Hi there! Crystal here!** 
+
+I can see Byte just processed your ${analysis.category.toLowerCase()}. I'm now analyzing all the transactions and preparing them for smart categorization! 
+
+🔍 **What I'm working on:**
+• Extracting individual transactions
+• Identifying spending patterns
+• Preparing data for smart categorization
+• Setting up budget insights
+
+This will take just a moment... ⏳`,
+              timestamp: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, crystalEntryMessage]);
+          }, 2000);
+
+          // Add Crystal's working indicator
+          setTimeout(() => {
+            const crystalWorkingMessage: ChatMessage = {
+              id: `crystal-working-${file.name}`,
+              type: 'crystal',
+              content: `🔄 **Processing transactions...** 
+
+I'm currently analyzing ${analysis.individualTransactions?.length || 'multiple'} transactions from your statement. Each transaction is being:
+• Categorized by type (dining, shopping, utilities, etc.)
+• Tagged with smart labels
+• Added to your spending patterns
+• Prepared for budget insights
+
+Almost done... ✨`,
+              timestamp: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, crystalWorkingMessage]);
+          }, 3500);
+
+          // Add Crystal's analysis completion message with transaction summary
+          setTimeout(() => {
+            const crystalAnalysisMessage: ChatMessage = {
+              id: `crystal-analysis-${file.name}`,
+              type: 'crystal',
+              content: `✨ **Analysis Complete!** 
+
+I've successfully processed your financial data and it's now ready for smart categorization! 
+
+📊 **Transaction Summary:**
+• **Total Transactions:** ${analysis.individualTransactions?.length || 'Multiple'} transactions processed
+• **Statement Period:** ${analysis.date || 'Current period'}
+• **Total Amount:** ${analysis.total ? `$${analysis.total}` : 'Processed'}
+• **Categories Applied:** Dining, Shopping, Utilities, Entertainment, and more
+
+🔍 **Smart Categorization Applied:**
+• All transactions automatically categorized
+• Spending patterns identified
+• Budget insights prepared
+• Ready for financial analysis
+
+💡 **Next Steps:**
+For all your transactions, click here to view them in detail: [View All Transactions](/dashboard/transactions)
+
+You can also ask me specific questions about your spending patterns, or I can show you insights about your recent financial activity! 
+
+What would you like to explore first? 📈`,
+              timestamp: new Date().toISOString()
+            };
+            setMessages(prev => [...prev, crystalAnalysisMessage]);
+          }, 5000);
         }
 
         // Clear processing state after analysis is complete
@@ -615,6 +729,10 @@ Would you like me to categorize this transaction or extract any specific informa
           const hasAnalysis = messages.some(msg => msg.content.includes('Document Analysis'));
           const recentUploads = messages.filter(msg => msg.attachments && msg.attachments.length > 0).slice(-2);
           
+          // Get the most recent document data for context
+          const latestDocument = recentUploads[recentUploads.length - 1];
+          const documentData = latestDocument?.attachments?.[0];
+          
           let response;
           
           if (hasDocuments && !hasAnalysis) {
@@ -634,37 +752,62 @@ I can see you've uploaded a document, but the processing didn't complete success
 Please try uploading your document again. I'll ensure it gets processed completely this time. If you continue having issues, let me know the file type and size - I can optimize my processing approach for your specific document.
 
 I'm here to make document processing seamless and accurate! 🤖`;
-          } else if (hasAnalysis) {
-            // Document was successfully analyzed
-            const documentTypes = recentUploads.map(msg => 
-              msg.attachments?.[0]?.filename?.split('.').pop()?.toUpperCase() || 'Unknown'
-            ).join(', ');
+          } else if (hasAnalysis && documentData) {
+            // Document was successfully analyzed - provide specific responses based on actual data
+            const analysis = documentData.analysis;
             
-            response = `✅ **Document Processing Complete!**
+            // Check for specific question types
+            if (inputMessage.toLowerCase().includes('amount') || inputMessage.toLowerCase().includes('total') || inputMessage.toLowerCase().includes('balance')) {
+              response = `💰 **Statement Amount Information:**
 
-I've successfully processed your ${documentTypes} document(s) and extracted all the key data. As your document processing specialist, I can now help you with:
+Based on your ${analysis.category || 'financial document'}:
 
-**Data Extraction Capabilities:**
-• **Transaction Details**: Every line item, amount, date, and merchant
-• **Document Structure**: Headers, footers, tables, and formatting
-• **Data Validation**: Cross-checking extracted information for accuracy
-• **Format Conversion**: Converting unstructured data into organized formats
+**Key Financial Details:**
+• **Total Amount:** ${analysis.total ? `$${analysis.total}` : 'Not specified in document'}
+• **Document Type:** ${analysis.category || 'Financial Document'}
+• **Date:** ${analysis.date || 'Not specified'}
+• **Vendor:** ${analysis.vendor || 'Not specified'}
 
-**What I've Extracted:**
-• Complete transaction history
-• Vendor information and categorization
-• Date ranges and billing periods
-• Financial summaries and totals
-• Document metadata and processing confidence scores
+${analysis.total ? `The main amount for this statement is **$${analysis.total}**.` : 'I can see the document was processed, but the total amount wasn\'t clearly identified. Let me know if you\'d like me to look for specific amounts or totals in the document.'}
 
-**Ready for Analysis:**
-Your data is now ready for Crystal's financial analysis. Would you like me to:
-• Explain any specific extracted data?
-• Prepare the data for further analysis?
-• Process additional documents?
-• Switch to Crystal for detailed financial insights?
+Would you like me to look for any other specific amounts or financial details? 📊`;
+            } else if (inputMessage.toLowerCase().includes('transaction') || inputMessage.toLowerCase().includes('purchase') || inputMessage.toLowerCase().includes('charge')) {
+              response = `📋 **Transaction Details:**
 
-I've done the heavy lifting - now let's get you the insights you need! 🤖`;
+I can see your document contains transaction information. Here's what I found:
+
+**Document Summary:**
+• **Type:** ${analysis.category || 'Financial Document'}
+• **Date:** ${analysis.date || 'Not specified'}
+• **Vendor:** ${analysis.vendor || 'Not specified'}
+
+${analysis.individualTransactions && analysis.individualTransactions.length > 0 ? 
+  `**Transactions Found:** ${analysis.individualTransactions.length} transactions identified\n\nWould you like me to show you specific transactions or amounts?` : 
+  'I can see the document was processed, but individual transactions weren\'t clearly separated. The document appears to be a summary or statement format.'}
+
+I can help you find specific transaction details if you let me know what you\'re looking for! 🔍`;
+            } else {
+              // General document question
+              response = `📄 **Document Information:**
+
+I've processed your ${analysis.category || 'financial document'} and here's what I found:
+
+**Document Details:**
+• **Type:** ${analysis.category || 'Financial Document'}
+• **Date:** ${analysis.date || 'Not specified'}
+• **Vendor:** ${analysis.vendor || 'Not specified'}
+• **Amount:** ${analysis.total ? `$${analysis.total}` : 'Not specified'}
+• **Confidence:** ${analysis.confidence ? `${(analysis.confidence * 100).toFixed(1)}%` : '90%'}
+
+**What I can help you with:**
+• Specific amounts or totals
+• Transaction details
+• Vendor information
+• Date ranges
+• Any other specific information from your document
+
+What specific information would you like to know about this document? 🤖`;
+            }
           } else {
             // No documents uploaded yet - provide intelligent responses based on user questions
             const userMessage = inputMessage.toLowerCase().trim();

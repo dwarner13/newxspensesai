@@ -25,7 +25,6 @@ import {
   Users,
   Crown
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { EMPLOYEES } from '../../data/aiEmployees';
 
 interface MobileSidebarProps {
@@ -68,19 +67,14 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
   if (!open) return null;
 
   return (
-    <motion.div
-      initial={{ x: '-100%', opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: '-100%', opacity: 0 }}
-      transition={{ 
-        type: 'spring', 
-        damping: 30, 
-        stiffness: 300,
-        mass: 0.6,
-        duration: 0.3
-      }}
-      className="fixed left-0 top-0 h-full w-80 bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20 flex flex-col z-50 backdrop-blur-md"
+    <div
+      className="h-full w-full bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20 flex flex-col backdrop-blur-sm mobile-sidebar-optimized"
       onClick={(e) => e.stopPropagation()}
+      style={{
+        transform: 'translateX(0)',
+        opacity: 1,
+        transition: 'transform 0.2s ease-out, opacity 0.2s ease-out'
+      }}
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-white/10">
@@ -92,7 +86,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
         </div>
         <button
           onClick={onClose}
-          className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-300"
+          className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-xl transition-colors duration-150"
         >
           <X size={24} />
         </button>
@@ -107,7 +101,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -128,7 +122,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/smart-import-ai" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -142,7 +136,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/ai-financial-assistant" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -156,7 +150,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/team-room" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -170,7 +164,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/ai-categorization" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -191,7 +185,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/transactions" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -205,7 +199,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/goal-concierge" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -219,7 +213,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/smart-automation" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -233,7 +227,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/spending-predictions" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -247,7 +241,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/debt-payoff-planner" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -261,7 +255,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/ai-financial-freedom" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -275,7 +269,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/bill-reminders" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -296,7 +290,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/podcast" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -310,7 +304,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/financial-story" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -324,7 +318,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/financial-therapist" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -338,7 +332,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/wellness-studio" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -352,7 +346,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/spotify-integration" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -373,7 +367,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/tax-assistant" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -387,7 +381,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/business-intelligence" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -408,7 +402,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/analytics" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -422,7 +416,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/settings" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -436,7 +430,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
               to="/dashboard/reports" 
               onClick={onClose}
               className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-all duration-200 hover:bg-white/10 active:scale-95 ${
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
                   isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                 }`
               }
@@ -465,6 +459,6 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

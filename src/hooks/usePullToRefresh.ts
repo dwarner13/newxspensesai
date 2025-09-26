@@ -31,21 +31,14 @@ export const usePullToRefresh = ({
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (disabled || state.isRefreshing) {
-      console.log('Pull-to-refresh disabled or refreshing:', { disabled, isRefreshing: state.isRefreshing });
       return;
     }
     
     startY.current = e.touches[0].clientY;
     currentY.current = e.touches[0].clientY;
     
-    // Check if we're at the top of the page
-    isScrolledToTop.current = window.scrollY === 0;
-    
-    console.log('Touch start:', { 
-      startY: startY.current, 
-      scrollY: window.scrollY, 
-      isScrolledToTop: isScrolledToTop.current 
-    });
+    // Check if we're at the top of the page or very close to it
+    isScrolledToTop.current = window.scrollY <= 5;
     
     if (isScrolledToTop.current) {
       setState(prev => ({ ...prev, isPulling: true }));
@@ -58,14 +51,9 @@ export const usePullToRefresh = ({
     currentY.current = e.touches[0].clientY;
     const deltaY = currentY.current - startY.current;
     
-    console.log('Touch move:', { 
-      deltaY, 
-      isScrolledToTop: isScrolledToTop.current,
-      isPulling: state.isPulling 
-    });
-    
     if (deltaY > 0 && isScrolledToTop.current) {
       e.preventDefault();
+      e.stopPropagation();
       
       const pullDistance = Math.min(deltaY * resistance, threshold * 1.5);
       setState(prev => ({ ...prev, pullDistance }));
