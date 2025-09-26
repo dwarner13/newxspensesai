@@ -56,6 +56,11 @@ export default function DashboardLayout() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Debug mobile detection
+  useEffect(() => {
+    console.log('Mobile detection:', { isMobile, windowWidth: window.innerWidth });
+  }, [isMobile]);
+
   // Add pull-to-refresh touch event listeners for mobile
   useEffect(() => {
     if (!isMobile) return;

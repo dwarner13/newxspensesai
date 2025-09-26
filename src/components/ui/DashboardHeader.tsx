@@ -8,7 +8,7 @@ interface DashboardHeaderProps {
 }
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  '/dashboard': { title: 'Dashboard', subtitle: 'Welcome back, John! Here\'s your financial overview.' },
+  '/dashboard': { title: 'FinTech Entertainment Platform', subtitle: 'Welcome back, John! Here\'s your financial overview.' },
   '/dashboard/transactions': { title: 'Transactions', subtitle: 'View and manage your financial transactions.' },
   '/dashboard/ai-financial-assistant': { title: 'AI Financial Assistant', subtitle: 'Get personalized financial advice from AI.' },
   '/dashboard/smart-import-ai': { title: 'Smart Import AI', subtitle: 'Automatically import and categorize your financial data.' },
