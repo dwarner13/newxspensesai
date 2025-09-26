@@ -322,14 +322,87 @@ export function generateEmployeeResponse(employeeId: string, userMessage: string
   const personality = getEmployeePersonality(employeeId);
   if (!personality) return "I'm here to help!";
 
-  // This would integrate with the actual AI system
-  // For now, return a personality-appropriate response
   const message = userMessage.toLowerCase();
   
   if (message.includes('hi') || message.includes('hello')) {
     return personality.greeting;
   }
 
-  // Add more sophisticated response generation here
-  return `${personality.emoji} I'm ${personality.name}, and I'm here to help with ${personality.capabilities.join(', ')}!`;
+  // Byte-specific responses
+  if (employeeId === 'byte') {
+    if (message.includes('upload') || message.includes('document') || message.includes('file')) {
+      return `📄 **Hey! I'm Byte, your document processing wizard!** 
+
+I LOVE turning messy papers into organized data! Ready to upload? I can handle:
+
+**📁 Supported Formats:**
+• PDF documents (statements, receipts, invoices)
+• Images (JPG, PNG) - receipts, bills, documents
+• Spreadsheets (CSV, XLSX) - transaction data
+• Text files (TXT) - any readable document
+
+**⚡ What I do:**
+• Extract text with 99.7% accuracy
+• Parse financial data automatically
+• Identify vendors, amounts, dates
+• Process multiple files in 2.3 seconds
+• Handle complex layouts and multi-page documents
+
+**🎯 How to upload:**
+1. **Drag & Drop** files into the upload area below
+2. **Click "Choose Files"** to browse your device
+3. **Ask me questions** about your documents anytime!
+
+I'm here to make document processing seamless and accurate! What would you like to upload? 🚀`;
+    }
+    
+    if (message.includes('drop') || message.includes('drag')) {
+      return `📄 **Perfect! I can handle drag & drop uploads!**
+
+**🖱️ Drag & Drop Instructions:**
+• Simply drag your files from your computer
+• Drop them into the blue upload area below
+• I'll process them automatically in 2.3 seconds!
+
+**📋 What happens next:**
+1. I extract all text and data
+2. Parse financial information
+3. Identify vendors and amounts
+4. Prepare for Crystal's analysis
+5. Save to your transaction history
+
+**💡 Pro Tips:**
+• You can drop multiple files at once
+• I work best with clear, well-lit images
+• PDFs are processed with highest accuracy
+• You can chat with me while I process!
+
+Ready to drop some files? I'm excited to process them! 📄✨`;
+    }
+  }
+
+  // Prime-specific responses
+  if (employeeId === 'prime') {
+    if (message.includes('how are you') || message.includes('how are you doing')) {
+      return `👑 **I'm doing excellent, thank you for asking!**
+
+I'm Prime, your AI CEO, and I'm always energized when I can help coordinate our amazing team of 30 financial experts. We're here to make your financial life easier and more successful.
+
+**What can my team help you with today?**
+• Document processing and analysis
+• Financial planning and goal setting
+• Tax optimization and deductions
+• Debt management strategies
+• Spending insights and budgeting
+
+Just let me know what you need, and I'll connect you with the perfect specialist! 🚀`;
+    }
+  }
+
+  // Default response with personality
+  return `${personality.emoji} **I'm ${personality.name}!** 
+
+${personality.greeting}
+
+I specialize in ${personality.capabilities.join(', ')}. How can I help you today?`;
 }

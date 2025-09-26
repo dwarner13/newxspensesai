@@ -350,6 +350,40 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
+        {/* File Upload Area for Byte */}
+        {activeAI === 'byte' && (
+          <div className="p-4 border-t border-gray-700">
+            <div className="border-2 border-dashed border-blue-500/30 rounded-lg p-6 text-center bg-blue-500/5">
+              <Upload className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+              <p className="text-blue-300 font-medium mb-1">Drop files here or click to upload</p>
+              <p className="text-xs text-gray-400 mb-3">
+                Max 5 files, 10MB each • Supports: PDF, JPG, PNG, CSV, XLSX
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.jpg,.jpeg,.png,.csv,.xlsx,.xls,.txt"
+                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+              >
+                Choose Files
+              </button>
+              {uploadedFileCount > 0 && (
+                <div className="mt-2">
+                  <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
+                    {uploadedFileCount} files uploaded
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Input */}
         <div className="p-4 border-t border-gray-700">
           <div className="flex gap-2">
@@ -374,20 +408,6 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
               )}
             </button>
           </div>
-          
-          {/* File Upload Info */}
-          {activeAI === 'byte' && (
-            <div className="flex items-center gap-2 mt-2">
-              <p className="text-xs text-gray-400">
-                Max 5 files, 10MB each • Supports: PDF, JPG, PNG, CSV, XLSX
-              </p>
-              {uploadedFileCount > 0 && (
-                <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
-                  {uploadedFileCount} uploaded
-                </span>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </div>
