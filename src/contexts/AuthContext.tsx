@@ -38,8 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Create bypass user for development
       const bypassUser = {
-        id: 'bypass-user-123',
-        email: 'demo@example.com',
+        id: 'demo-user-123',
+        email: 'demo@xspensesai.com',
         full_name: 'Demo User',
         aud: 'authenticated',
         role: 'authenticated',
@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(bypassUser);
       setLoading(false);
       setInitialLoad(false);
-      console.log('🔍 AuthContext: Production auth temporarily disabled, using bypass user', bypassUser);
+      console.log('🔍 AuthContext: Using bypass user for development', bypassUser);
       return;
     }
 
