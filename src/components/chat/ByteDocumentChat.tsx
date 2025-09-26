@@ -49,6 +49,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isUploadProcessing, setIsUploadProcessing] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
@@ -104,13 +105,13 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     // Process each file
     for (const file of fileArray) {
       try {
-        setIsProcessing(true);
+        setIsUploadProcessing(true);
         
         // Add processing message
         const processingMessage: ChatMessage = {
           id: `processing-${file.name}`,
           type: 'byte',
-          content: `🔍 Analyzing ${file.name}...`,
+          content: `🔍 Analyzing ${file.name}... This may take up to 3 minutes for large files.\n\n💬 **You can still chat with me while I process your document!** Ask me questions or give me instructions.`,
           timestamp: new Date().toISOString()
         };
         setMessages(prev => [...prev, processingMessage]);
@@ -243,7 +244,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       }
     }
 
-    setIsProcessing(false);
+    setIsUploadProcessing(false);
     setIsUploading(false);
     setUploadedFiles([]);
   };
@@ -567,7 +568,7 @@ Would you like me to categorize this transaction or extract any specific informa
               
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || isProcessing}
+                disabled={isUploading}
                 className="p-2 sm:p-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Upload Documents"
               >
@@ -583,7 +584,7 @@ Would you like me to categorize this transaction or extract any specific informa
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Ask Byte about your documents..."
+                placeholder={isUploadProcessing ? "Upload processing... You can still chat with me!" : "Ask Byte about your documents..."}
                 className="flex-1 bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
                 disabled={isProcessing}
               />
