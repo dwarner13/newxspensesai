@@ -348,6 +348,14 @@ I'm here to help you understand your financial documents! 💎`,
         // Ensure processing state is cleared even on error
         setIsUploadProcessing(false);
         setIsUploading(false);
+        setIsProcessing(false);
+        
+        // Force clear any stuck states with a timeout
+        setTimeout(() => {
+          setIsProcessing(false);
+          setIsUploadProcessing(false);
+          setIsUploading(false);
+        }, 1000);
       }
     }
 
@@ -1211,16 +1219,18 @@ Be conversational yet professional, insightful yet accessible. You're not just a
                 <Send className="w-5 h-5" />
               </button>
               
-              {/* Clear button for stuck processing */}
+              {/* Clear button for stuck processing - always visible when processing */}
               {(isProcessing || isUploadProcessing) && (
                 <button
                   onClick={() => {
                     setIsProcessing(false);
                     setIsUploadProcessing(false);
-                    toast.success('Processing state cleared');
+                    setIsUploading(false);
+                    setUploadedFiles([]);
+                    toast.success('Processing state cleared - you can now type!');
                   }}
-                  className="p-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors ml-2"
-                  title="Clear processing state"
+                  className="p-3 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors ml-2 animate-pulse"
+                  title="Clear processing state - click if Byte is stuck"
                 >
                   <X className="w-5 h-5" />
                 </button>
