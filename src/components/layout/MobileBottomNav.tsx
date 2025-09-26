@@ -4,6 +4,7 @@ import { Home, Upload, Mic, Bot, Settings, Bell, MessageCircle } from 'lucide-re
 import { motion } from 'framer-motion';
 import { EMPLOYEES } from '../../data/aiEmployees';
 import MobileChatbotModal from './MobileChatbotModal';
+import { ByteDocumentChat } from '../chat/ByteDocumentChat';
 
 interface MobileBottomNavProps {
   activeEmployee?: string;
@@ -51,6 +52,7 @@ export default function MobileBottomNav({
 }: MobileBottomNavProps) {
   const location = useLocation();
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [isByteChatOpen, setIsByteChatOpen] = useState(false);
   
   // Get current AI employee based on route
   const currentEmployeeKey = getAIEmployeeForRoute(location.pathname);
@@ -58,7 +60,7 @@ export default function MobileBottomNav({
 
   const navItems = [
     { icon: Home, label: "Dashboard", to: "/dashboard" },
-    { icon: Upload, label: "Import", to: "/dashboard/smart-import-ai" },
+    { icon: Upload, label: "Import", to: "/dashboard/smart-import-ai", isByteChat: true },
     { icon: Mic, label: "Podcast", to: "/dashboard/podcast" },
     { 
       icon: MessageCircle, 
@@ -80,6 +82,9 @@ export default function MobileBottomNav({
             if (item.isChatbot) {
               e.preventDefault();
               setIsChatbotOpen(true);
+            } else if (item.isByteChat) {
+              e.preventDefault();
+              setIsByteChatOpen(true);
             }
           };
           
@@ -138,6 +143,12 @@ export default function MobileBottomNav({
         isOpen={isChatbotOpen}
         onClose={() => setIsChatbotOpen(false)}
         employeeKey={currentEmployeeKey}
+      />
+
+      {/* Byte Document Chat Modal */}
+      <ByteDocumentChat
+        isOpen={isByteChatOpen}
+        onClose={() => setIsByteChatOpen(false)}
       />
     </div>
   );

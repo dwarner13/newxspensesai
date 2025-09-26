@@ -336,6 +336,19 @@ Would you like me to categorize this transaction or extract any specific informa
     });
   };
 
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
@@ -351,18 +364,18 @@ Would you like me to categorize this transaction or extract any specific informa
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl max-w-4xl max-h-[90vh] w-full mx-4 overflow-hidden flex flex-col"
+          className="bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl max-w-4xl max-h-[95vh] w-full mx-2 sm:mx-4 overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-700">
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-700">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center">
                 <Bot className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white">Byte AI Document Chat</h2>
-                <p className="text-gray-400 text-sm">Upload documents and chat with Byte</p>
+                <h2 className="text-lg sm:text-xl font-bold text-white">Byte AI Document Chat</h2>
+                <p className="text-gray-400 text-xs sm:text-sm">Upload documents and chat with Byte</p>
               </div>
             </div>
             <button
@@ -375,7 +388,7 @@ Would you like me to categorize this transaction or extract any specific informa
 
           {/* Chat Messages */}
           <div 
-            className="flex-1 overflow-y-auto p-6 space-y-4"
+            className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
           >
@@ -462,8 +475,8 @@ Would you like me to categorize this transaction or extract any specific informa
           </div>
 
           {/* Input Area */}
-          <div className="p-6 border-t border-gray-700">
-            <div className="flex gap-3">
+          <div className="p-4 sm:p-6 border-t border-gray-700">
+            <div className="flex gap-2 sm:gap-3">
               <input
                 type="file"
                 ref={fileInputRef}
@@ -476,7 +489,7 @@ Would you like me to categorize this transaction or extract any specific informa
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading || isProcessing}
-                className="p-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 sm:p-3 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Upload Documents"
               >
                 {isUploading ? (
