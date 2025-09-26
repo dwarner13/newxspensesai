@@ -61,6 +61,8 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
   const [activeAI, setActiveAI] = useState<'byte' | 'crystal'>('byte');
   const [hasShownCrystalSummary, setHasShownCrystalSummary] = useState(false);
+  const [uploadedFileCount, setUploadedFileCount] = useState(0);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -144,6 +146,47 @@ What financial insights would you like to explore today? I'm here to help you ma
   const handleFileUpload = async (files: FileList) => {
     console.log('🚀 File upload started:', files.length, 'files');
     
+    // File limits and validation
+    const MAX_FILES = 5; // Reduced for better performance
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+    const SUPPORTED_TYPES = ['.pdf', '.csv', '.xlsx', '.xls', '.txt', '.jpg', '.jpeg', '.png'];
+    
+    // Check total file count
+    if (files.length > MAX_FILES) {
+      toast.error(`Maximum ${MAX_FILES} files allowed per upload. Please select fewer files.`);
+      return;
+    }
+    
+    // Validate each file
+    const validFiles: File[] = [];
+    const invalidFiles: string[] = [];
+    
+    Array.from(files).forEach(file => {
+      // Check file size
+      if (file.size > MAX_FILE_SIZE) {
+        invalidFiles.push(`${file.name} (too large - max 10MB)`);
+        return;
+      }
+      
+      // Check file type
+      const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+      if (!SUPPORTED_TYPES.includes(fileExtension)) {
+        invalidFiles.push(`${file.name} (unsupported format)`);
+        return;
+      }
+      
+      validFiles.push(file);
+    });
+    
+    // Show validation errors
+    if (invalidFiles.length > 0) {
+      toast.error(`Invalid files:\n${invalidFiles.join('\n')}`);
+    }
+    
+    if (validFiles.length === 0) {
+      return;
+    }
+    
     // For development, allow uploads even without authentication
     if (!user) {
       console.log('No user found, but allowing upload for development');
@@ -152,7 +195,8 @@ What financial insights would you like to explore today? I'm here to help you ma
 
     setIsUploading(true);
     setIsProcessing(true);
-    const fileArray = Array.from(files);
+    setUploadProgress({ current: 0, total: validFiles.length });
+    const fileArray = validFiles;
 
     // Add user message showing uploaded files
     const userMessage: ChatMessage = {
@@ -170,9 +214,11 @@ What financial insights would you like to explore today? I'm here to help you ma
     setMessages(prev => [...prev, userMessage]);
 
     // Process each file
-    for (const file of fileArray) {
+    for (let i = 0; i < fileArray.length; i++) {
+      const file = fileArray[i];
       try {
         setIsUploadProcessing(true);
+        setUploadProgress({ current: i + 1, total: fileArray.length });
         
         // Add processing message
         const processingMessage: ChatMessage = {
@@ -236,6 +282,11 @@ What financial insights would you like to explore today? I'm here to help you ma
           
           ocrResult = await Promise.race([ocrPromise, timeoutPromise]);
           console.log('OCR.space result:', ocrResult);
+          
+          // Check if OCR actually extracted any text
+          if (!ocrResult.text || ocrResult.text.trim().length === 0) {
+            throw new Error('OCR.space extracted no text from the image');
+          }
         } catch (error) {
           console.log('OCR.space failed or timed out, trying OpenAI Vision...', error);
           try {
@@ -248,9 +299,29 @@ What financial insights would you like to explore today? I'm here to help you ma
             ocrResult = await Promise.race([openAIPromise, openAITimeout]);
             usedOpenAI = true;
             console.log('OpenAI Vision result:', ocrResult);
+            
+            // Check if OpenAI Vision actually extracted any text
+            if (!ocrResult.text || ocrResult.text.trim().length === 0) {
+              throw new Error('OpenAI Vision extracted no text from the image');
+            }
           } catch (openaiError) {
             console.error('Both OCR methods failed:', openaiError);
-            throw new Error('Failed to extract text from document. Please try a clearer image or different file format.');
+            
+            // Provide more specific error messages based on the error type
+            let errorMessage = 'Failed to extract text from document. ';
+            if (openaiError instanceof Error) {
+              if (openaiError.message.includes('timeout')) {
+                errorMessage += 'The image processing is taking too long. ';
+              } else if (openaiError.message.includes('API key')) {
+                errorMessage += 'OCR service configuration issue. ';
+              } else if (openaiError.message.includes('No text')) {
+                errorMessage += 'The image may be too blurry, poorly lit, or not contain readable text. ';
+              }
+            }
+            
+            errorMessage += 'Please try:\n• A clearer, well-lit image\n• A different file format (PNG, JPG, PDF)\n• Making sure the document is not password protected\n• Checking that the file size is under 10MB';
+            
+            throw new Error(errorMessage);
           }
         }
         
@@ -262,6 +333,13 @@ What financial insights would you like to explore today? I'm here to help you ma
         // Parse the extracted text with enhanced logic
         const parsedData = parseReceiptText(ocrResult.text);
         console.log('Enhanced parsing result:', parsedData);
+        console.log('Document analysis details:', {
+          category: parsedData.category,
+          vendor: parsedData.vendor,
+          total: parsedData.total,
+          isCreditCardStatement: parsedData.isCreditCardStatement,
+          individualTransactions: parsedData.individualTransactions?.length || 0
+        });
         
         // Create result structure
         const data = {
@@ -330,7 +408,24 @@ What financial insights would you like to explore today? I'm here to help you ma
         setMessages(prev => [...prev, analysisMessage]);
 
         // Automatic Crystal handoff for financial documents
-        if (analysis.isCreditCardStatement || analysis.category === 'Credit Card Statement' || analysis.category === 'Bank Statement') {
+        const shouldHandoffToCrystal = analysis.isCreditCardStatement || 
+            analysis.category === 'Credit Card Statement' || 
+            analysis.category === 'Bank Statement' ||
+            analysis.category === 'Financial Document' ||
+            analysis.category === 'Invoice' ||
+            analysis.category === 'Receipt' ||
+            (analysis.total && analysis.total > 0) ||
+            (analysis.vendor && analysis.vendor !== 'Unknown Vendor');
+            
+        console.log('Crystal handoff decision:', {
+          shouldHandoff: shouldHandoffToCrystal,
+          isCreditCardStatement: analysis.isCreditCardStatement,
+          category: analysis.category,
+          total: analysis.total,
+          vendor: analysis.vendor
+        });
+        
+        if (shouldHandoffToCrystal) {
           // Add Crystal's automatic entry message
           setTimeout(() => {
             const crystalEntryMessage: ChatMessage = {
@@ -477,6 +572,7 @@ I'm here to help you understand your financial documents! 💎`,
     setIsUploadProcessing(false);
     setIsUploading(false);
     setUploadedFiles([]);
+    setUploadedFileCount(prev => prev + fileArray.length);
   };
 
   const generateDocumentAnalysis = async (smartResult: SmartOCRResult, redactionResult: any, file: File) => {
@@ -687,8 +783,8 @@ Would you like me to categorize this transaction or extract any specific informa
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isProcessing) {
-      console.log('Message blocked:', { hasMessage: !!inputMessage.trim(), isProcessing, isUploadProcessing });
+    if (!inputMessage.trim()) {
+      console.log('Message blocked: No message content');
       return;
     }
 
@@ -1355,12 +1451,12 @@ Be conversational yet professional, insightful yet accessible. You're not just a
                     : "Ask Crystal about your finances..."
                 }
                 className="flex-1 bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
-                disabled={isProcessing && !isUploadProcessing}
+                disabled={false}
               />
               
               <button
                 onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || (isProcessing && !isUploadProcessing)}
+                disabled={!inputMessage.trim()}
                 className="p-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="w-5 h-5" />
@@ -1385,12 +1481,31 @@ Be conversational yet professional, insightful yet accessible. You're not just a
             </div>
             
             <div className="flex items-center justify-between mt-2">
-              <p className="text-xs text-gray-500">
-                {activeAI === 'byte' 
-                  ? "Drag and drop files here or click the upload button to analyze documents with Byte AI"
-                  : "Switch to Byte to upload documents, or ask Crystal about your financial insights"
-                }
-              </p>
+              <div className="flex flex-col">
+                <p className="text-xs text-gray-500">
+                  {activeAI === 'byte' 
+                    ? "Drag and drop files here or click the upload button to analyze documents with Byte AI"
+                    : "Switch to Byte to upload documents, or ask Crystal about your financial insights"
+                  }
+                </p>
+                {activeAI === 'byte' && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs text-gray-400">
+                      Max 5 files, 10MB each • Supports: PDF, JPG, PNG, CSV, XLSX
+                    </p>
+                    {uploadedFileCount > 0 && (
+                      <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
+                        {uploadedFileCount} uploaded
+                      </span>
+                    )}
+                    {isUploading && uploadProgress.total > 1 && (
+                      <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full">
+                        {uploadProgress.current}/{uploadProgress.total} processing
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
               {isProcessing && (
                 <button
                   onClick={() => {
