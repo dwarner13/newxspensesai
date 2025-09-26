@@ -143,69 +143,30 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           setMessages(prev => [...prev, warningMessage]);
         }
         
-        // Process with Large File Processor
-        console.log('Processing with Large File Processor...');
+        // Use fast simple OCR directly
+        console.log('Using fast simple OCR...');
         
-        console.log('Starting large file processing...');
-        const result = await processLargeFile(
-          file,
-          {
-            maxFileSize: 100 * 1024 * 1024, // 100MB
-            timeoutMs: 2 * 60 * 1000, // 2 minutes (reduced from 10)
-            retryAttempts: 2 // reduced from 3
+        const { processImageWithOCR } = await import('../../utils/ocrService');
+        const ocrResult = await processImageWithOCR(file);
+        
+        console.log('Simple OCR result:', ocrResult);
+        
+        // Create result structure
+        const data = {
+          text: ocrResult.text,
+          parsedData: {
+            vendor: 'Unknown Vendor',
+            date: new Date().toISOString().split('T')[0],
+            total: 0,
+            items: [],
+            category: 'Uncategorized',
+            confidence: ocrResult.confidence,
+            rawText: ocrResult.text
           },
-          (progress) => {
-            console.log('Processing progress:', progress);
-            setProcessingProgress(progress);
-            
-            // Update progress message
-            const progressMessage: ChatMessage = {
-              id: `progress-${file.name}`,
-              type: 'byte',
-              content: `🔄 **${progress.stage.toUpperCase()}** (${progress.progress}%)\n${progress.message}`,
-              timestamp: new Date().toISOString()
-            };
-            
-            setMessages(prev => {
-              const filtered = prev.filter(msg => msg.id !== `progress-${file.name}`);
-              return [...filtered, progressMessage];
-            });
-          }
-        );
-        
-        console.log('Large file processing result:', result);
-        
-        if (!result.success) {
-          console.log('Large file processing failed, trying fallback OCR...');
-          
-          // Fallback to simple OCR if large file processing fails
-          const { processImageWithOCR } = await import('../../utils/ocrService');
-          const fallbackResult = await processImageWithOCR(file);
-          
-          console.log('Fallback OCR result:', fallbackResult);
-          
-          // Create a simplified result structure
-          const fallbackData = {
-            text: fallbackResult.text,
-            parsedData: {
-              vendor: 'Unknown Vendor',
-              date: new Date().toISOString().split('T')[0],
-              total: 0,
-              items: [],
-              category: 'Uncategorized',
-              confidence: fallbackResult.confidence,
-              rawText: fallbackResult.text
-            },
-            redactedText: fallbackResult.text, // No redaction for fallback
-            redactionSummary: 'Fallback processing - no redaction applied',
-            processingTime: Date.now() - Date.now()
-          };
-          
-          // Use fallback data
-          var data = fallbackData;
-        } else {
-          var data = result.data;
-        }
+          redactedText: ocrResult.text, // No redaction for now
+          redactionSummary: 'Simple OCR processing - no redaction applied',
+          processingTime: Date.now() - Date.now()
+        };
         
         if (!data) {
           throw new Error('No processing data returned');
