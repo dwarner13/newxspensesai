@@ -337,18 +337,19 @@ Would you like me to categorize this transaction or extract any specific informa
         .from('transactions')
         .insert({
           user_id: userId,
+          receipt_id: receiptData.id, // Link to the receipt
           date: analysis.date || new Date().toISOString().split('T')[0],
           description: analysis.vendor || 'Document Upload',
           amount: analysis.amount || 0,
           type: 'expense',
           category: analysis.category || 'Uncategorized',
           merchant: analysis.vendor || 'Unknown Vendor',
-          receipt_url: imageUrl,
-          categorization_source: 'ai'
+          receipt_url: imageUrl
         });
 
       if (transactionError) {
         console.error('Error creating transaction:', transactionError);
+        console.error('Transaction error details:', transactionError);
       } else {
         console.log('✅ Transaction created successfully');
       }
@@ -358,15 +359,13 @@ Would you like me to categorize this transaction or extract any specific informa
         .from('user_documents')
         .insert({
           user_id: userId,
-          filename: file.name,
-          file_type: file.type,
-          file_size: file.size,
-          upload_date: new Date().toISOString(),
-          processing_status: 'completed'
+          source_url: imageUrl,
+          raw_text: data.text
         });
 
       if (userDocError) {
         console.error('Error creating user_documents record:', userDocError);
+        console.error('User document error details:', userDocError);
       } else {
         console.log('✅ User document record created successfully');
       }
