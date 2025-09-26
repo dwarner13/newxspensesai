@@ -418,7 +418,7 @@ Would you like me to categorize this transaction or extract any specific informa
         await handleCrystalAIResponse(inputMessage);
       } else {
         // Use mock responses for Byte (document processing)
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           const responses = [
             "I can help you analyze your uploaded documents. What specific information are you looking for?",
             "Based on your documents, I can help categorize transactions, extract key data, or provide financial insights.",
@@ -440,6 +440,18 @@ Would you like me to categorize this transaction or extract any specific informa
           setMessages(prev => [...prev, byteResponse]);
           setIsProcessing(false);
         }, 1500);
+
+        // Add a safety timeout to prevent getting stuck
+        const safetyTimeout = setTimeout(() => {
+          console.log('Byte response timeout - forcing completion');
+          setIsProcessing(false);
+        }, 10000); // 10 second safety timeout
+
+        // Clear safety timeout when response completes
+        return () => {
+          clearTimeout(timeoutId);
+          clearTimeout(safetyTimeout);
+        };
       }
     } catch (error) {
       console.error('Error generating AI response:', error);
@@ -833,24 +845,37 @@ Be conversational, insightful, and provide specific, actionable advice. Use the 
                     : "Ask Crystal about your finances..."
                 }
                 className="flex-1 bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
-                disabled={isProcessing}
+                disabled={isProcessing && !isUploadProcessing}
               />
               
               <button
                 onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || isProcessing}
+                disabled={!inputMessage.trim() || (isProcessing && !isUploadProcessing)}
                 className="p-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="w-5 h-5" />
               </button>
             </div>
             
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              {activeAI === 'byte' 
-                ? "Drag and drop files here or click the upload button to analyze documents with Byte AI"
-                : "Switch to Byte to upload documents, or ask Crystal about your financial insights"
-              }
-            </p>
+            <div className="flex items-center justify-between mt-2">
+              <p className="text-xs text-gray-500">
+                {activeAI === 'byte' 
+                  ? "Drag and drop files here or click the upload button to analyze documents with Byte AI"
+                  : "Switch to Byte to upload documents, or ask Crystal about your financial insights"
+                }
+              </p>
+              {isProcessing && (
+                <button
+                  onClick={() => {
+                    setIsProcessing(false);
+                    console.log('Processing manually cleared');
+                  }}
+                  className="text-xs text-red-400 hover:text-red-300 underline"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </div>
         </motion.div>
       </motion.div>
