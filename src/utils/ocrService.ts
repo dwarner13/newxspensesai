@@ -337,7 +337,6 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
 
   // Enhanced category detection for financial documents
   const vendorLower = vendor.toLowerCase();
-  const textLower = text.toLowerCase();
   
   // Check for financial document types first
   if (vendorLower.includes('credit') || vendorLower.includes('card') || vendorLower.includes('mastercard') || 

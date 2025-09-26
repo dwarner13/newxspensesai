@@ -270,6 +270,10 @@ I have access to the complete text content and can answer detailed questions abo
 • Any discrepancies or unusual items
 • Financial insights and recommendations
 
+${analysis.isCreditCardStatement && analysis.individualTransactions && analysis.individualTransactions.length > 0 
+  ? `💳 **I can also provide detailed analysis of all ${analysis.individualTransactions.length} transactions!**\n\nTry asking me:\n• "Summarize each transaction"\n• "Categorize my spending"\n• "What are my biggest expenses?"\n• "Show me spending patterns"\n• "List all merchants and amounts"` 
+  : ''}
+
 Try asking me questions like:
 - "What's the total amount on this statement?"
 - "Who is the vendor for the largest transaction?"
@@ -540,7 +544,21 @@ Would you like me to categorize this transaction or extract any specific informa
     setIsProcessing(true);
 
     try {
-      if (activeAI === 'crystal') {
+      // Smart routing: Check if user is asking for detailed analysis
+      const shouldRouteToCrystal = shouldRouteToCrystalAI(inputMessage);
+      
+      if (shouldRouteToCrystal && activeAI === 'byte') {
+        // Auto-switch to Crystal for detailed analysis
+        setActiveAI('crystal');
+        const switchMessage: ChatMessage = {
+          id: `system-${Date.now()}`,
+          type: 'crystal',
+          content: `💎 **Switching to Crystal AI for detailed analysis...**\n\nI'm better equipped to handle your request for detailed transaction analysis and financial insights!`,
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, switchMessage]);
+        await handleCrystalAIResponse(inputMessage);
+      } else if (activeAI === 'crystal') {
         // Use real AI for Crystal
         await handleCrystalAIResponse(inputMessage);
       } else {
@@ -586,6 +604,20 @@ Would you like me to categorize this transaction or extract any specific informa
     }
   };
 
+  // Smart routing function to determine if user needs Crystal AI
+  const shouldRouteToCrystalAI = (message: string): boolean => {
+    const messageLower = message.toLowerCase();
+    const crystalKeywords = [
+      'summarize', 'analyze', 'categorize', 'spending', 'transactions', 'merchants',
+      'expenses', 'budget', 'financial', 'insights', 'patterns', 'trends',
+      'breakdown', 'list all', 'each transaction', 'detailed', 'explain',
+      'what are my', 'show me', 'tell me about', 'how much', 'where did',
+      'biggest expense', 'largest transaction', 'spending category'
+    ];
+    
+    return crystalKeywords.some(keyword => messageLower.includes(keyword));
+  };
+
   const handleCrystalAIResponse = async (userMessage: string) => {
     try {
       // Get conversation context
@@ -620,6 +652,7 @@ Would you like me to categorize this transaction or extract any specific informa
 - Investment advice
 - Expense optimization
 - Document analysis and interpretation
+- Transaction-by-transaction analysis and summarization
 
 User's recent transactions: ${transactions ? JSON.stringify(transactions.slice(0, 5)) : 'No transactions yet'}
 
@@ -631,6 +664,17 @@ You have access to the full text content of recently uploaded documents. When us
 - Provide insights based on the actual document content
 - Compare information across multiple documents
 - Identify patterns and discrepancies
+- Summarize each individual transaction from credit card statements
+- Categorize transactions by merchant type and spending patterns
+- Provide spending insights and recommendations
+
+SPECIAL CAPABILITY: When analyzing credit card statements, you can:
+- List each individual transaction with merchant, amount, and date
+- Categorize transactions (e.g., "Entertainment", "Food & Dining", "Shopping", "Bills")
+- Identify spending patterns and trends
+- Suggest budget optimizations
+- Flag unusual or high-value transactions
+- Provide monthly spending summaries
 
 Be conversational, insightful, and provide specific, actionable advice. Use the user's actual data and document content when possible.`;
 
