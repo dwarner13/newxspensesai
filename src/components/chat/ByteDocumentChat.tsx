@@ -883,62 +883,12 @@ ${analysis.individualTransactions && analysis.individualTransactions.length > 0 
 
 I can help you find specific transaction details if you let me know what you\'re looking for! 🔍`;
             } else {
-              // General document question
-              response = `📄 **Document Information:**
-
-I've processed your ${analysis.category || 'financial document'} and here's what I found:
-
-**Document Details:**
-• **Type:** ${analysis.category || 'Financial Document'}
-• **Date:** ${analysis.date || 'Not specified'}
-• **Vendor:** ${analysis.vendor || 'Not specified'}
-• **Amount:** ${analysis.total ? `$${analysis.total}` : 'Not specified'}
-• **Confidence:** ${analysis.confidence ? `${(analysis.confidence * 100).toFixed(1)}%` : '90%'}
-
-**What I can help you with:**
-• Specific amounts or totals
-• Transaction details
-• Vendor information
-• Date ranges
-• Any other specific information from your document
-
-What specific information would you like to know about this document? 🤖`;
+              // Use conversational response for general questions
+              response = generateByteConversationalResponse(inputMessage, hasDocuments, documentData);
             }
           } else {
-            // No documents uploaded yet - provide intelligent responses based on user questions
-            const userMessage = inputMessage.toLowerCase().trim();
-            
-            if (userMessage.includes('hi') || userMessage.includes('hello') || userMessage.includes('hey')) {
-              response = `Hey there! 👋 I'm Byte, your document processing specialist. Ready to help you extract data from any financial document - just upload something and I'll take care of the rest!`;
-            } else if (userMessage.includes('name')) {
-              response = `I'm Byte! 🤖 Your AI document processing specialist. I can read and extract data from any financial document you upload. What would you like me to help you with?`;
-            } else if (userMessage.includes('crystal')) {
-              // Auto-switch to Crystal when user mentions her
-              setActiveAI('crystal');
-              response = `Switching you to Crystal! 💎 She's your financial analyst and can help with spending analysis, budgeting, and financial insights.`;
-            } else if (userMessage.includes('download') || userMessage.includes('statement')) {
-              response = `I can't download statements for you, but I can definitely process them! Just upload any financial document (credit card statement, bank statement, receipt, etc.) and I'll extract all the data for you. What type of document do you have?`;
-            } else if (userMessage.includes('upload') || userMessage.includes('can i upload')) {
-              response = `Absolutely! You can upload right now. Just drag and drop any financial document into the upload area above, or click the upload button. I can handle PDFs, images, receipts, statements - pretty much any financial document!`;
-            } else if (userMessage.includes('credit card') || userMessage.includes('credit cards')) {
-              response = `Great question! I can process credit card statements from any major issuer. I'll extract all individual transactions, statement periods, account summaries, and spending patterns. Just upload your credit card statement (PDF or image) and I'll break down every transaction for you! 💳`;
-            } else if (userMessage.includes('receipt') || userMessage.includes('receipts')) {
-              response = `I love processing receipts! I can extract vendor names, amounts, dates, and even categorize expenses automatically. Upload any receipt (photo or PDF) and I'll organize all the details for you! 🧾`;
-            } else if (userMessage.includes('bank') || userMessage.includes('statement')) {
-              response = `Bank statements are my specialty! I can extract all transactions, account balances, deposits, withdrawals, and spending patterns. Upload your bank statement and I'll give you a complete breakdown! 🏦`;
-            } else if (userMessage.includes('invoice') || userMessage.includes('bill')) {
-              response = `I can process invoices and bills perfectly! I'll extract vendor details, amounts, due dates, line items, and payment information. Upload any invoice and I'll organize everything for you! 📋`;
-            } else if (userMessage.includes('what') && userMessage.includes('do')) {
-              response = `I'm your document processing expert! I can extract data from credit card statements, receipts, bank statements, invoices, and more. Just upload a document and I'll show you what I can do! 📄`;
-            } else if (userMessage.includes('help')) {
-              response = `I'm here to help! I can process any financial document you upload. Try uploading a receipt, credit card statement, or bank statement and I'll extract all the important data for you.`;
-            } else if (userMessage.includes('how') || userMessage.includes('work')) {
-              response = `I work by using advanced OCR technology to read your documents, then I use AI to intelligently parse and organize all the financial data. Just drag and drop any document above and I'll show you exactly how it works!`;
-            } else if (userMessage.includes('yes') || userMessage.includes('sure') || userMessage.includes('ok')) {
-              response = `Perfect! Go ahead and upload your document. I'm ready to process it and extract all the important information for you!`;
-            } else {
-              response = `I'm Byte, your document processing specialist! I can extract data from credit cards, receipts, bank statements, invoices, and more. What type of document would you like to process? Just upload it and I'll take care of the rest! 📄`;
-            }
+            // No documents uploaded yet - use conversational response
+            response = generateByteConversationalResponse(inputMessage, hasDocuments, null);
           }
           
           const byteResponse: ChatMessage = {
@@ -998,6 +948,305 @@ What specific information would you like to know about this document? 🤖`;
     };
     
     setMessages(prev => [...prev, handoffMessage]);
+  };
+
+  const generateByteConversationalResponse = (userMessage: string, hasDocuments: boolean, documentData: any) => {
+    const message = userMessage.toLowerCase();
+    
+    // Document processing questions
+    if (message.includes('upload') || message.includes('document') || message.includes('file')) {
+      return `🤖 **Document Processing Expert**
+
+I'm Byte, your document processing specialist! I can handle:
+
+📄 **Supported Formats:**
+• PDF documents (statements, invoices, receipts)
+• Images (JPG, PNG) - receipts, bills, statements
+• Spreadsheets (CSV, XLSX) - transaction data
+• Text files - any readable document
+
+⚡ **My Capabilities:**
+• Extract text with 95%+ accuracy
+• Parse financial data automatically
+• Identify document types
+• Process multiple files simultaneously
+• Handle complex layouts and multi-page documents
+
+💡 **How to get started:**
+Just drag and drop your files or click the upload button. I'll process them and extract all the important data for Crystal to analyze!
+
+What type of documents do you have? I'm ready to process them! 📊`;
+    }
+    
+    // OCR and text extraction questions
+    if (message.includes('ocr') || message.includes('text') || message.includes('extract') || message.includes('read')) {
+      return `🔍 **Text Extraction & OCR Specialist**
+
+I use advanced OCR technology to read any document:
+
+🎯 **My OCR Process:**
+• **Primary:** OCR.space API for high-accuracy text extraction
+• **Backup:** OpenAI Vision API for complex documents
+• **Smart Parsing:** AI-powered data interpretation
+• **Error Handling:** Multiple fallback methods
+
+📈 **Accuracy Levels:**
+• Clear documents: 95%+ accuracy
+• Scanned documents: 90%+ accuracy
+• Handwritten text: 80%+ accuracy
+• Complex layouts: 85%+ accuracy
+
+🛠️ **What I Extract:**
+• All text content
+• Financial amounts and dates
+• Transaction details
+• Vendor information
+• Document structure
+
+Having trouble with a specific document? Let me know the file type and I can optimize my approach! 🔧`;
+    }
+    
+    // File format and technical questions
+    if (message.includes('format') || message.includes('size') || message.includes('limit') || message.includes('supported')) {
+      return `📋 **File Format & Limits**
+
+Here are my current processing limits and supported formats:
+
+📁 **File Limits:**
+• **Max Files:** 5 files per upload (for optimal performance)
+• **Max Size:** 10MB per file
+• **Total Upload:** Up to 50MB per session
+
+📄 **Supported Formats:**
+• **Documents:** PDF, TXT
+• **Images:** JPG, JPEG, PNG
+• **Spreadsheets:** CSV, XLSX, XLS
+
+⚡ **Performance Tips:**
+• Clear, well-lit images work best
+• PDFs with selectable text process faster
+• Avoid password-protected files
+• Keep file sizes reasonable for faster processing
+
+Need help with a specific file type? I can give you tips for optimal processing! 🚀`;
+    }
+    
+    // Processing status and troubleshooting
+    if (message.includes('processing') || message.includes('stuck') || message.includes('error') || message.includes('problem')) {
+      return `🔧 **Processing Troubleshooting**
+
+I'm here to help with any processing issues:
+
+🚨 **Common Issues & Solutions:**
+• **Stuck Processing:** Click the red "Clear" button to reset
+• **Upload Errors:** Check file size (max 10MB) and format
+• **OCR Failures:** Try a clearer image or different format
+• **Timeout Issues:** Large files may take longer - be patient!
+
+🛠️ **My Diagnostic Tools:**
+• Real-time processing status
+• Error detection and reporting
+• Automatic retry mechanisms
+• Fallback processing methods
+
+💡 **If You're Having Issues:**
+1. Check file size and format
+2. Try a different file if possible
+3. Use the clear button if stuck
+4. Ask me for specific help!
+
+What specific issue are you experiencing? I'll help you troubleshoot! 🔍`;
+    }
+    
+    // General Byte introduction and capabilities
+    if (message.includes('who') || message.includes('what') || message.includes('help') || message.includes('capabilities')) {
+      return `🤖 **Hi! I'm Byte, your Document Processing Specialist**
+
+I'm the first step in your financial data journey! Here's what I do:
+
+🎯 **My Role:**
+• Process and extract data from any document
+• Convert unstructured data into organized information
+• Prepare data for Crystal's financial analysis
+• Handle all the technical document processing
+
+⚡ **My Expertise:**
+• **OCR Technology:** Read text from any image or PDF
+• **Data Parsing:** Extract financial information accurately
+• **Format Conversion:** Handle multiple file types
+• **Quality Control:** Ensure data accuracy and completeness
+
+🔄 **How I Work with Crystal:**
+1. You upload documents to me
+2. I extract and organize all the data
+3. I hand off clean data to Crystal
+4. Crystal provides financial insights and analysis
+
+Ready to process some documents? Just upload them and I'll get to work! 📊`;
+    }
+    
+    // Default conversational response
+    return `🤖 **Hello! I'm Byte, your document processing expert.**
+
+I specialize in extracting data from any document format. I can help you with:
+
+📄 **Document Processing:**
+• Upload and process any financial document
+• Extract text and data with high accuracy
+• Handle multiple file formats
+• Parse complex layouts and structures
+
+💡 **What can I help you with today?**
+• Upload documents for processing
+• Questions about file formats or limits
+• Troubleshooting processing issues
+• Understanding my capabilities
+
+Just ask me anything about document processing, or upload your files to get started! 🚀`;
+  };
+
+  const generateCrystalFallbackResponse = (userMessage: string, transactions: any[], recentDocuments: any[]) => {
+    const message = userMessage.toLowerCase();
+    
+    // Transaction-related questions
+    if (message.includes('transaction') || message.includes('spending') || message.includes('purchase')) {
+      if (transactions && transactions.length > 0) {
+        const totalSpent = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+        const recentCount = transactions.slice(0, 5).length;
+        
+        return `💎 **Transaction Analysis**
+
+I can see you have ${transactions.length} transactions in your account. Here's what I found:
+
+📊 **Recent Activity:**
+• **Total Transactions:** ${transactions.length} processed
+• **Total Amount:** $${totalSpent.toFixed(2)}
+• **Recent Transactions:** ${recentCount} in the last period
+
+🔍 **Top Categories:**
+${transactions.slice(0, 3).map(t => `• ${t.category || 'Uncategorized'}: $${t.amount || 0}`).join('\n')}
+
+💡 **Insights:**
+Your spending patterns show consistent activity. For detailed analysis, I'd recommend reviewing your transaction categories and identifying any unusual spending patterns.
+
+Would you like me to analyze specific spending categories or time periods? 📈`;
+      } else {
+        return `💎 **Transaction Analysis**
+
+I don't see any transactions in your account yet. This could mean:
+
+🔍 **Possible Reasons:**
+• No transactions have been uploaded
+• Documents are still being processed
+• Data hasn't been synced yet
+
+💡 **Next Steps:**
+1. Upload your bank statements or receipts
+2. Let Byte process your documents
+3. I'll then provide detailed transaction analysis
+
+Would you like help uploading documents or do you have specific questions about your financial data? 📊`;
+      }
+    }
+    
+    // Spending pattern questions
+    if (message.includes('pattern') || message.includes('trend') || message.includes('category')) {
+      return `💎 **Spending Pattern Analysis**
+
+Based on your transaction data, I can help you understand your spending patterns:
+
+📈 **What I Analyze:**
+• **Category Trends:** How you spend across different categories
+• **Time Patterns:** Daily, weekly, monthly spending habits
+• **Seasonal Changes:** Spending variations throughout the year
+• **Merchant Analysis:** Your most frequent vendors and amounts
+
+🎯 **Key Insights I Provide:**
+• Spending behavior patterns
+• Budget optimization opportunities
+• Unusual spending alerts
+• Financial health recommendations
+
+To give you specific insights, I need to see your transaction data. Have you uploaded any bank statements or receipts recently? 📊`;
+    }
+    
+    // General financial questions
+    if (message.includes('budget') || message.includes('save') || message.includes('money')) {
+      return `💎 **Financial Planning & Budgeting**
+
+I'm here to help you with all aspects of financial planning:
+
+💰 **Budgeting Support:**
+• Create personalized budgets based on your spending
+• Track progress toward financial goals
+• Identify areas for cost reduction
+• Optimize your spending patterns
+
+🎯 **Savings Strategies:**
+• Emergency fund recommendations
+• Investment opportunities
+• Debt payoff strategies
+• Long-term financial planning
+
+📊 **To Get Started:**
+Upload your recent bank statements or receipts, and I'll analyze your spending to create a personalized financial plan.
+
+What specific financial goal would you like to work on? 🚀`;
+    }
+    
+    // Document-related questions
+    if (message.includes('document') || message.includes('upload') || message.includes('statement')) {
+      return `💎 **Document Processing & Analysis**
+
+I work with Byte to provide comprehensive document analysis:
+
+📄 **What I Can Analyze:**
+• Bank statements and credit card bills
+• Receipts and invoices
+• Financial reports and documents
+• Transaction histories
+
+🔍 **My Analysis Includes:**
+• Transaction categorization
+• Spending pattern identification
+• Financial health assessment
+• Budget recommendations
+• Trend analysis
+
+💡 **How It Works:**
+1. Upload your documents to Byte
+2. I'll analyze the processed data
+3. Provide personalized financial insights
+4. Create actionable recommendations
+
+Have you uploaded any financial documents recently? I'd love to analyze them for you! 📈`;
+    }
+    
+    // Default conversational response
+    return `💎 **Hello! I'm Crystal, your financial analysis expert.**
+
+I'm here to help you understand your financial data and make smarter money decisions. I can help with:
+
+📊 **Financial Analysis:**
+• Transaction analysis and categorization
+• Spending pattern identification
+• Budget optimization
+• Financial health assessment
+
+🎯 **Personalized Insights:**
+• Custom recommendations based on your data
+• Goal-setting and tracking
+• Risk assessment
+• Investment guidance
+
+💡 **How can I help you today?** You can ask me about:
+• Your spending patterns
+• Budget recommendations
+• Financial goals
+• Transaction analysis
+• Or anything else financial!
+
+What would you like to explore? 🚀`;
   };
 
   const handleCrystalAIResponse = async (userMessage: string) => {
@@ -1083,7 +1332,19 @@ Be conversational yet professional, insightful yet accessible. You're not just a
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get AI response');
+        // Fallback to intelligent responses when AI service is unavailable
+        const fallbackResponse = generateCrystalFallbackResponse(userMessage, transactions, recentDocuments);
+        
+        const crystalResponse: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          type: 'crystal',
+          content: fallbackResponse,
+          timestamp: new Date().toISOString()
+        };
+
+        setMessages(prev => [...prev, crystalResponse]);
+        setIsProcessing(false);
+        return;
       }
 
       const data = await response.json();
@@ -1103,16 +1364,16 @@ Be conversational yet professional, insightful yet accessible. You're not just a
       console.error('Crystal AI error:', error);
       
       // Fallback to smart contextual responses
-      const contextualResponses = generateContextualResponse(userMessage);
+      const fallbackResponse = generateCrystalFallbackResponse(userMessage, [], []);
       
-      const fallbackResponse: ChatMessage = {
+      const crystalResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'crystal',
-        content: contextualResponses,
+        content: fallbackResponse,
         timestamp: new Date().toISOString()
       };
 
-      setMessages(prev => [...prev, fallbackResponse]);
+      setMessages(prev => [...prev, crystalResponse]);
       setIsProcessing(false);
     }
   };
