@@ -473,7 +473,8 @@ const parseCreditCardStatement = (text: string, lines: string[]): ParsedReceiptD
     if ((line.includes('TRANSACTION DATE') && line.includes('POSTING DATE')) || 
         (line.includes('Date') && line.includes('Description') && line.includes('Amount')) ||
         line.includes('Transaction Details') ||
-        line.includes('Purchase Details')) {
+        line.includes('Purchase Details') ||
+        line.includes('Purchases - Card #')) {
       inTransactionSection = true;
       transactionHeadersFound = true;
       continue;
@@ -488,7 +489,8 @@ const parseCreditCardStatement = (text: string, lines: string[]): ParsedReceiptD
     // Stop at end of transaction section
     if (inTransactionSection && (line.includes('Total purchases') || line.includes('WAYS TO PAY') || 
         line.includes('Information about') || line.includes('Payment Information') || 
-        line.includes('Statement date') || line.includes('Page 1 of'))) {
+        line.includes('Statement date') || line.includes('Page 1 of') || 
+        line.includes('Interest charges') || line.includes('Other details'))) {
       inTransactionSection = false;
       break;
     }
@@ -507,27 +509,68 @@ const parseCreditCardStatement = (text: string, lines: string[]): ParsedReceiptD
         }
       }
       
-      // Pattern 3: Just look for lines with amounts at the end
+      // Pattern 3: Look for lines with amounts at the end (more flexible)
       if (!transactionMatch) {
         const amountMatch = line.match(/(.+?)\s+([\d,]+\.?\d*)$/);
         if (amountMatch && amountMatch[2] && parseFloat(amountMatch[2].replace(/,/g, '')) > 0) {
           const description = amountMatch[1].trim();
           const amount = parseFloat(amountMatch[2].replace(/,/g, ''));
           
-          // Skip if it looks like a summary line
+          // Skip if it looks like a summary line or header
           if (!description.includes('Total') && !description.includes('Balance') && 
               !description.includes('Payment') && !description.includes('Credit') &&
-              description.length > 3) {
+              !description.includes('TRANSACTION') && !description.includes('POSTING') &&
+              !description.includes('DATE') && !description.includes('AMOUNT') &&
+              !description.includes('Purchases') && !description.includes('Card #') &&
+              description.length > 3 && amount > 0) {
+            
+            // Extract merchant name (first part before location codes)
+            let merchant = description;
+            const merchantMatch = description.match(/^([^A-Z]{2,})\s+[A-Z]{2}/);
+            if (merchantMatch) {
+              merchant = merchantMatch[1].trim();
+            } else {
+              // Take first few words as merchant
+              merchant = description.split(' ').slice(0, 3).join(' ');
+            }
             
             individualTransactions.push({
               transactionDate: 'Unknown',
               postingDate: 'Unknown',
               description,
               amount,
-              merchant: description.split(' ')[0] // First word as merchant
+              merchant
             });
             
-            console.log('💳 Found transaction (pattern 3):', { description, amount });
+            console.log('💳 Found transaction (pattern 3):', { description, amount, merchant });
+          }
+        }
+      }
+      
+      // Pattern 4: Look for lines that start with dates and have amounts
+      if (!transactionMatch) {
+        const dateAmountMatch = line.match(/^(\w+\s+\d+)\s+(.+?)\s+([\d,]+\.?\d*)$/);
+        if (dateAmountMatch) {
+          const date = dateAmountMatch[1];
+          const description = dateAmountMatch[2].trim();
+          const amount = parseFloat(dateAmountMatch[3].replace(/,/g, ''));
+          
+          if (amount > 0 && !description.includes('Total') && !description.includes('Balance')) {
+            let merchant = description;
+            const merchantMatch = description.match(/^([^A-Z]{2,})\s+[A-Z]{2}/);
+            if (merchantMatch) {
+              merchant = merchantMatch[1].trim();
+            }
+            
+            individualTransactions.push({
+              transactionDate: date,
+              postingDate: date,
+              description,
+              amount,
+              merchant
+            });
+            
+            console.log('💳 Found transaction (pattern 4):', { date, description, amount, merchant });
           }
         }
       }

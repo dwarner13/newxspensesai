@@ -673,6 +673,10 @@ I've done the heavy lifting - now let's get you the insights you need! 🤖`;
               response = `Hey there! 👋 I'm Byte, your document processing specialist. Ready to help you extract data from any financial document - just upload something and I'll take care of the rest!`;
             } else if (userMessage.includes('name')) {
               response = `I'm Byte! 🤖 Your AI document processing specialist. I can read and extract data from any financial document you upload. What would you like me to help you with?`;
+            } else if (userMessage.includes('crystal')) {
+              // Auto-switch to Crystal when user mentions her
+              setActiveAI('crystal');
+              response = `Switching you to Crystal! 💎 She's your financial analyst and can help with spending analysis, budgeting, and financial insights.`;
             } else if (userMessage.includes('download') || userMessage.includes('statement')) {
               response = `I can't download statements for you, but I can definitely process them! Just upload any financial document (credit card statement, bank statement, receipt, etc.) and I'll extract all the data for you. What type of document do you have?`;
             } else if (userMessage.includes('upload') || userMessage.includes('can i upload')) {
