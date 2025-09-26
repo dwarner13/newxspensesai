@@ -1129,6 +1129,71 @@ Just ask me anything about document processing, or upload your files to get star
     // Check if we have recent document data to analyze
     const latestDocument = recentDocuments.find(doc => doc.analysis && doc.analysis.extractedText);
     
+    // Handle specific question types with better AI employee integration
+    if (message.includes('upload') || message.includes('document') || message.includes('statement') || message.includes('receipt')) {
+      return `💎 **Hey there!** 
+
+I can see you're asking about uploading documents! 😊 
+
+For document uploads and processing, you'll want to talk to **Byte** - our document processing expert! 📄 He's amazing at:
+• Processing bank statements and receipts
+• Extracting transaction data with high accuracy  
+• Handling multiple file formats
+• OCR and text extraction
+
+**Want me to connect you with Byte?** Just switch to his tab or ask me to transfer you! He'll get your documents processed in no time! 🚀
+
+Is there anything else I can help you with while you're here? 💎`;
+    }
+    
+    if (message.includes('categor') || message.includes('categoriz') || message.includes('tag') || message.includes('label')) {
+      return `💎 **Great question about categorization!** 
+
+For smart transaction categorization and tagging, you'll want to talk to **Tag** - our categorization specialist! 🏷️ He's incredible at:
+• Automatically categorizing transactions
+• Learning your spending patterns
+• Creating custom categories
+• Smart expense tagging
+
+**Want me to connect you with Tag?** He can help organize all your transactions perfectly! 
+
+Or if you have documents to upload first, start with **Byte** and then Tag will automatically categorize everything! 🎯
+
+What would you like to do? 💎`;
+    }
+    
+    if (message.includes('tax') || message.includes('deduct') || message.includes('irs') || message.includes('filing')) {
+      return `💎 **Tax questions - my specialty!** 
+
+For tax optimization and deductions, you'll want to talk to **Ledger** - our tax expert! 📊 He's fantastic at:
+• Finding tax deductions you might miss
+• Business expense optimization
+• Tax planning strategies
+• Filing assistance
+
+**Want me to connect you with Ledger?** He'll help you save money on taxes! 💰
+
+Or if you need to upload tax documents first, **Byte** can process them, then Ledger will analyze everything! 
+
+What's your tax situation? 💎`;
+    }
+    
+    if (message.includes('debt') || message.includes('payoff') || message.includes('credit card') || message.includes('loan')) {
+      return `💎 **Debt management - I love helping with this!** 
+
+For debt payoff strategies and credit optimization, you'll want to talk to **Blitz** - our debt specialist! ⚡ He's amazing at:
+• Creating debt payoff plans
+• Credit card optimization
+• Loan consolidation strategies
+• Financial freedom planning
+
+**Want me to connect you with Blitz?** He'll create a personalized plan to get you debt-free! 🎯
+
+And **Goalie** can help set up goals to track your progress! 
+
+What kind of debt are you dealing with? 💎`;
+    }
+    
     if (latestDocument && latestDocument.analysis) {
       const analysis = latestDocument.analysis;
       const extractedText = analysis.extractedText || '';
@@ -1202,6 +1267,80 @@ I've processed your ${analysis.category || 'financial document'} and here's the 
 
 What would you like me to focus on from this document? 💎`;
       }
+    }
+    
+    // Handle general conversational questions
+    if (message.includes('who are you') || message.includes('what are you') || message.includes('introduce')) {
+      return `💎 **Hi there! I'm Crystal!** 😊
+
+I'm your AI financial analyst and personal finance coach! Think of me as your smart, empathetic financial advisor who's always here to help! 
+
+**What I do best:**
+• 📊 Analyze your spending patterns and trends
+• 💰 Help create budgets that actually work
+• 🎯 Set and track financial goals
+• 📈 Provide investment insights and strategies
+• 🧠 Understand the psychology behind your money decisions
+
+**My superpower?** I make complex financial stuff simple and actually fun to understand! 
+
+I work with an amazing team of AI specialists - **Byte** for documents, **Tag** for categorization, **Ledger** for taxes, **Blitz** for debt, and **Goalie** for goal setting!
+
+**What would you like to explore about your finances today?** I'm excited to help! 💎✨`;
+    }
+    
+    if (message.includes('how are you') || message.includes('how do you do') || message.includes('hello') || message.includes('hi')) {
+      return `💎 **I'm doing fantastic, thank you for asking!** 😊
+
+I'm always excited when someone wants to take control of their finances - it's literally my favorite thing to help with! 
+
+**I'm feeling particularly energized today because:**
+• I love analyzing spending patterns (weird, I know! 😄)
+• I get excited about helping people save money
+• I'm always learning new ways to optimize finances
+• I genuinely care about your financial success!
+
+**How are YOU doing?** And more importantly - what's your biggest financial challenge or goal right now? I'm here to help make it happen! 💪
+
+Let's chat about your money! 💎`;
+    }
+    
+    if (message.includes('math') || message.includes('calculate') || message.includes('+') || message.includes('-') || message.includes('=')) {
+      return `💎 **Haha, I can do math!** 😄
+
+But honestly? I get WAY more excited about financial calculations! 💰
+
+**Instead of basic math, let me help you with:**
+• 📊 Budget calculations and projections
+• 💡 Savings goal timelines
+• 📈 Investment return calculations  
+• 🎯 Debt payoff strategies
+• 💰 Tax optimization math
+
+**Now THAT'S the kind of math that changes lives!** 
+
+Want to calculate something financial instead? I'm your girl! 💎✨`;
+    }
+    
+    if (message.includes('boss') || message.includes('manager') || message.includes('supervisor')) {
+      return `💎 **Great question!** 😊
+
+I don't have a traditional boss, but I work closely with **Prime** - our AI CEO who orchestrates our whole team! 👑
+
+**Prime** makes sure all of us AI specialists work together seamlessly to give you the best financial experience possible!
+
+**Our team structure:**
+• 👑 **Prime** - CEO & orchestrator
+• 📄 **Byte** - Document processing
+• 🏷️ **Tag** - Categorization  
+• 📊 **Ledger** - Tax expert
+• ⚡ **Blitz** - Debt specialist
+• 🎯 **Goalie** - Goal setting
+• 💎 **Me (Crystal)** - Financial analysis
+
+**Prime** is amazing at connecting you with the right specialist for whatever you need! 
+
+Want to meet the team? Just ask! 💎`;
     }
     
     // Fallback to generic responses if no document data
@@ -1345,6 +1484,47 @@ I'm here to help you understand your financial data and make smarter money decis
 What would you like to explore? 🚀`;
   };
 
+  // Typewriter effect for natural conversation flow
+  const typewriterResponse = async (text: string, messageId: string) => {
+    const words = text.split(' ');
+    let currentText = '';
+    
+    // Show typing indicator first
+    const typingMessage: ChatMessage = {
+      id: messageId,
+      type: 'crystal',
+      content: '💎 Crystal is thinking...',
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, typingMessage]);
+    
+    // Wait a moment before starting to type
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    
+    // Type out the response word by word
+    for (let i = 0; i < words.length; i++) {
+      currentText += (i > 0 ? ' ' : '') + words[i];
+      
+      // Update the message with current text
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, content: currentText + (i < words.length - 1 ? '|' : '') }
+          : msg
+      ));
+      
+      // Variable delay between words for natural flow
+      const delay = Math.random() * 150 + 50; // 50-200ms between words
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
+    // Remove the cursor
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, content: currentText }
+        : msg
+    ));
+  };
+
   const handleCrystalAIResponse = async (userMessage: string) => {
     console.log('Crystal AI response called with:', userMessage);
     try {
@@ -1447,14 +1627,9 @@ Be conversational yet professional, insightful yet accessible. You're not just a
       const data = await response.json();
       const aiResponse = data.choices[0].message.content;
 
-      const crystalResponse: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        type: 'crystal',
-        content: aiResponse,
-        timestamp: new Date().toISOString()
-      };
-
-      setMessages(prev => [...prev, crystalResponse]);
+      // Use typewriter effect for natural conversation flow
+      const messageId = (Date.now() + 1).toString();
+      await typewriterResponse(aiResponse, messageId);
       setIsProcessing(false);
 
     } catch (error) {
@@ -1464,14 +1639,9 @@ Be conversational yet professional, insightful yet accessible. You're not just a
       // Fallback to smart contextual responses
       const fallbackResponse = generateCrystalFallbackResponse(userMessage, [], []);
       
-      const crystalResponse: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        type: 'crystal',
-        content: fallbackResponse,
-        timestamp: new Date().toISOString()
-      };
-
-      setMessages(prev => [...prev, crystalResponse]);
+      // Use typewriter effect for fallback responses too
+      const messageId = (Date.now() + 1).toString();
+      await typewriterResponse(fallbackResponse, messageId);
       setIsProcessing(false);
     }
   };
