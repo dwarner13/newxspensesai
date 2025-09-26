@@ -35,7 +35,7 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    const openaiApiKey = process.env.OPENAI_API_KEY;
+    const openaiApiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
     if (!openaiApiKey) {
       console.error('OpenAI API key not found in environment variables');
       return {
