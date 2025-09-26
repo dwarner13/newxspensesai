@@ -119,7 +119,7 @@ export default function DesktopSidebar({
       data-testid="desktop-sidebar"
       className={clsx(
         "hidden md:flex flex-col border-r border-zinc-800 bg-zinc-950/40 backdrop-blur transition-all duration-300 h-screen",
-        isCollapsed ? "w-[68px]" : "w-64"
+        isCollapsed ? "w-[68px]" : "w-56"
       )}
     >
       {/* Header with Logo and Toggle Button */}

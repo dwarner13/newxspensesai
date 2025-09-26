@@ -192,22 +192,24 @@ export default function DashboardLayout() {
         />
       </div>
       
-      {/* Middle + Right rail */}
-      <div className={`flex flex-1 min-w-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
-        {/* Middle column */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          <DashboardHeader />
-          <main className="flex-1 overflow-y-auto">
-            <div className={`max-w-7xl mx-auto px-8 py-4 transition-all duration-300 ${isSidebarCollapsed ? 'pr-72' : 'pr-72'}`}>
-              <Outlet />
+      {/* Main content area */}
+      <div className={`flex-1 min-w-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
+        <div className="flex h-full">
+          {/* Main content column */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            <DashboardHeader />
+            <main className="flex-1 overflow-y-auto">
+              <div className="w-full px-8 py-6">
+                <Outlet />
+              </div>
+            </main>
+          </div>
+          
+          {/* Right sidebar - only show on larger screens */}
+          <div className="hidden xl:block w-80 bg-zinc-900/90 backdrop-blur-sm border-l border-zinc-700 flex-shrink-0 overflow-y-auto">
+            <div className="h-full">
+              <AITeamSidebar />
             </div>
-          </main>
-        </div>
-        
-        {/* Right sidebar */}
-        <div className="hidden lg:block w-64 bg-zinc-900/90 backdrop-blur-sm border-l border-zinc-700 flex-shrink-0 fixed right-0 top-32 h-[calc(100vh-8rem)] z-10 overflow-y-auto ml-4">
-          <div className="h-full">
-            <AITeamSidebar />
           </div>
         </div>
       </div>

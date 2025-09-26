@@ -624,12 +624,13 @@ export default function AIFinancialAssistantPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto p-6 pt-4">
+    <div className="w-full">
       {/* Page Title */}
       <MobilePageTitle 
         title="AI Financial Assistant" 
         subtitle="Get personalized financial advice from AI"
       />
+      
       
       {/* Main Chat Interface */}
       <div className="flex-1 flex flex-col">
