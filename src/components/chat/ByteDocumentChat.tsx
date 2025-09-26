@@ -18,6 +18,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { processImageWithSmartOCR, SmartOCRResult } from '../../utils/smartOCRManager';
 import { redactDocument, generateAIEmployeeNotification } from '../../utils/documentRedaction';
+import { processLargeFile, getFileRecommendations, ProcessingProgress } from '../../utils/largeFileProcessor';
 import toast from 'react-hot-toast';
 
 interface ChatMessage {
@@ -50,6 +51,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -128,27 +130,69 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           .from('receipts')
           .getPublicUrl(fileName);
 
-        // Process with Smart OCR (with timeout)
-        console.log('Processing with Smart OCR...');
+        // Check file recommendations
+        const recommendations = getFileRecommendations(file);
+        if (!recommendations.recommended) {
+          const warningMessage: ChatMessage = {
+            id: Date.now().toString(),
+            type: 'byte',
+            content: `⚠️ **File Warnings:**\n${recommendations.warnings.map(w => `• ${w}`).join('\n')}\n\n**Suggestions:**\n${recommendations.suggestions.map(s => `• ${s}`).join('\n')}`,
+            timestamp: new Date().toISOString()
+          };
+          setMessages(prev => [...prev, warningMessage]);
+        }
         
-        // Add progress message
-        const progressMessage: ChatMessage = {
-          id: Date.now().toString(),
-          role: 'assistant',
-          content: '🔍 Processing document with Smart OCR... This may take up to 3 minutes for large files.',
-          timestamp: new Date().toISOString()
+        // Process with Large File Processor
+        console.log('Processing with Large File Processor...');
+        
+        const result = await processLargeFile(
+          file,
+          {
+            maxFileSize: 100 * 1024 * 1024, // 100MB
+            timeoutMs: 10 * 60 * 1000, // 10 minutes
+            retryAttempts: 3
+          },
+          (progress) => {
+            setProcessingProgress(progress);
+            
+            // Update progress message
+            const progressMessage: ChatMessage = {
+              id: `progress-${file.name}`,
+              type: 'byte',
+              content: `🔄 **${progress.stage.toUpperCase()}** (${progress.progress}%)\n${progress.message}`,
+              timestamp: new Date().toISOString()
+            };
+            
+            setMessages(prev => {
+              const filtered = prev.filter(msg => msg.id !== `progress-${file.name}`);
+              return [...filtered, progressMessage];
+            });
+          }
+        );
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Processing failed');
+        }
+        
+        const { data } = result;
+        if (!data) {
+          throw new Error('No processing data returned');
+        }
+        
+        // Create SmartOCRResult from processed data
+        const smartResult: SmartOCRResult = {
+          text: data.text,
+          parsedData: data.parsedData,
+          confidence: 0.9, // High confidence for processed results
+          processingTime: data.processingTime,
+          engine: 'large-file-processor'
         };
-        setMessages(prev => [...prev, progressMessage]);
         
-        const smartResult = await Promise.race([
-          processImageWithSmartOCR(file),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('OCR processing timeout after 3 minutes')), 180000)
-          )
-        ]) as SmartOCRResult;
-        
-        // Apply redaction
-        const redactionResult = await redactDocument(smartResult.text);
+        // Use already processed redaction data
+        const redactionResult = {
+          redactedText: data.redactedText,
+          summary: data.redactionSummary
+        };
         
         // Generate AI analysis
         const analysis = await generateDocumentAnalysis(smartResult, redactionResult, file);
