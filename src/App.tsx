@@ -48,6 +48,7 @@ const NavCheck = lazy(() => import('./pages/debug/NavCheck'));
 const SheetCheck = lazy(() => import('./pages/debug/SheetCheck'));
 const PodcastDashboard = lazy(() => import('./pages/PodcastDashboard'));
 const TaxAssistant = lazy(() => import('./pages/features/tax-assistant'));
+const PrimeAITestPage = lazy(() => import('./pages/test/PrimeAITestPage'));
 const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistant')); // 🚀🚀🚀 BRAND NEW VERSION
 const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
 const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligence'));
@@ -204,7 +205,10 @@ function App() {
             <Route path="/debug/mobile" element={<MobileCheck />} />
             <Route path="/debug/mobile-test" element={<MobileTest />} />
             <Route path="/debug/navcheck" element={<NavCheck />} />
-            <Route path="/debug/sheet" element={<SheetCheck />} />
+                      <Route path="/debug/sheet" element={<SheetCheck />} />
+                        
+                        {/* Prime AI Test Page */}
+                        <Route path="/test/prime-ai" element={<PrimeAITestPage />} />
                         
                                               {/* Feature pages */}
                       <Route path="/features/smart-import" element={<SmartImportAIFeaturePage />} />
