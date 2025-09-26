@@ -814,6 +814,12 @@ Would you like me to categorize this transaction or extract any specific informa
       // Smart routing: Check if user is asking for detailed analysis
       const shouldRouteToCrystal = shouldRouteToCrystalAI(inputMessage);
       
+      console.log('Message routing debug:', {
+        activeAI,
+        shouldRouteToCrystal,
+        inputMessage: inputMessage.substring(0, 50)
+      });
+      
       if (shouldRouteToCrystal && activeAI === 'byte') {
         // Auto-switch to Crystal for detailed analysis
         setActiveAI('crystal');
@@ -826,7 +832,8 @@ Would you like me to categorize this transaction or extract any specific informa
         setMessages(prev => [...prev, switchMessage]);
         await handleCrystalAIResponse(inputMessage);
       } else if (activeAI === 'crystal') {
-        // Use real AI for Crystal
+        // Use real AI for Crystal - this should always happen when Crystal tab is active
+        console.log('Routing to Crystal AI response');
         await handleCrystalAIResponse(inputMessage);
       } else {
         // Byte AI - Document Processing Specialist
@@ -1339,6 +1346,7 @@ What would you like to explore? 🚀`;
   };
 
   const handleCrystalAIResponse = async (userMessage: string) => {
+    console.log('Crystal AI response called with:', userMessage);
     try {
       // Get conversation context
       const conversationHistory = messages.slice(-10).map(msg => ({
@@ -1451,6 +1459,7 @@ Be conversational yet professional, insightful yet accessible. You're not just a
 
     } catch (error) {
       console.error('Crystal AI error:', error);
+      console.log('Falling back to Crystal fallback response');
       
       // Fallback to smart contextual responses
       const fallbackResponse = generateCrystalFallbackResponse(userMessage, [], []);
