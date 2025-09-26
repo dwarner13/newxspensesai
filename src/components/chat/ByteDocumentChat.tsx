@@ -328,7 +328,7 @@ Would you like me to categorize this transaction or extract any specific informa
         const { error: transactionError } = await supabase
           .from('transactions')
           .insert({
-            user_id: user.id,
+            user_id: userId,
             date: analysis.date,
             description: analysis.vendor,
             amount: analysis.amount,
@@ -349,6 +349,12 @@ Would you like me to categorize this transaction or extract any specific informa
 
     } catch (error) {
       console.error('Error saving to database:', error);
+      console.error('Error details:', {
+        userId,
+        hasUser: !!user,
+        hasSupabase: !!supabase,
+        error: error instanceof Error ? error.message : error
+      });
     }
   };
 
