@@ -658,36 +658,18 @@ Your data is now ready for Crystal's financial analysis. Would you like me to:
 
 I've done the heavy lifting - now let's get you the insights you need! 🤖`;
           } else {
-            // No documents uploaded yet
-            response = `🤖 **Byte AI - Document Processing Specialist**
-
-I'm your expert document processing assistant, specialized in extracting and organizing financial data from any document type.
-
-**My Specializations:**
-• **OCR Technology**: Advanced text extraction from images, PDFs, and scans
-• **Financial Documents**: Credit card statements, receipts, invoices, bank statements
-• **Data Parsing**: Intelligent extraction of transactions, amounts, dates, and vendors
-• **Quality Assurance**: 95%+ accuracy with confidence scoring
-• **Multi-format Support**: PDF, PNG, JPG, TIFF, and more
-
-**What I Can Process:**
-• Credit card statements (all major issuers)
-• Bank statements and transaction records
-• Receipts and invoices
-• Tax documents and financial reports
-• Business expense reports
-
-**How I Work:**
-1. **Upload Detection**: Automatically identify document type and structure
-2. **Text Extraction**: Use advanced OCR to extract all readable text
-3. **Data Parsing**: Intelligently parse financial data and transactions
-4. **Validation**: Cross-check extracted data for accuracy
-5. **Organization**: Structure data for easy analysis
-
-**Ready to Process:**
-Upload any financial document and I'll extract all the data you need. I work fast, accurately, and I'm always learning to improve my processing capabilities!
-
-What document would you like me to analyze? 📄`;
+            // No documents uploaded yet - keep it simple and conversational
+            const userMessage = inputMessage.toLowerCase().trim();
+            
+            if (userMessage.includes('hi') || userMessage.includes('hello') || userMessage.includes('hey')) {
+              response = `Hey there! 👋 I'm Byte, your document processing specialist. Ready to help you extract data from any financial document - just upload something and I'll take care of the rest!`;
+            } else if (userMessage.includes('what') && userMessage.includes('do')) {
+              response = `I'm your document processing expert! I can extract data from credit card statements, receipts, bank statements, and more. Just upload a document and I'll show you what I can do! 📄`;
+            } else if (userMessage.includes('help')) {
+              response = `I'm here to help! I can process any financial document you upload. Try uploading a receipt, credit card statement, or bank statement and I'll extract all the important data for you.`;
+            } else {
+              response = `Hi! I'm Byte, your document processing specialist. Upload any financial document and I'll extract all the data you need. What would you like to process today? 📄`;
+            }
           }
           
           const byteResponse: ChatMessage = {
@@ -869,41 +851,37 @@ Be conversational yet professional, insightful yet accessible. You're not just a
   const generateContextualResponse = (userMessage: string): string => {
     const message = userMessage.toLowerCase();
     
-    // Smart contextual responses based on user input
+    // Keep responses conversational and natural
+    if (message.includes('hi') || message.includes('hello') || message.includes('hey')) {
+      return "Hi there! 👋 I'm Crystal, your financial analyst. I can help you understand your spending and make better money decisions. What would you like to know?";
+    }
+    
     if (message.includes('budget') || message.includes('spending')) {
-      return "I'd love to help you with budgeting! Based on your transaction history, I can see patterns in your spending. Would you like me to analyze your expenses by category and suggest a personalized budget plan? I can also help you identify areas where you might be able to save money.";
+      return "I'd love to help with your budget! I can analyze your spending patterns and suggest ways to optimize your money. What's your biggest spending challenge right now?";
     }
     
     if (message.includes('save') || message.includes('saving')) {
-      return "Great question about saving! Looking at your spending patterns, I can help you identify opportunities to save more. I can analyze your recurring expenses, suggest alternatives, and help you set up automatic savings goals. What's your current savings target?";
+      return "Saving money is so important! I can help you find opportunities to save more based on your spending habits. What are you saving for?";
     }
     
     if (message.includes('debt') || message.includes('loan')) {
-      return "I understand you're thinking about debt management. I can help you create a debt payoff strategy, analyze your debt-to-income ratio, and suggest the best approach (debt snowball vs. avalanche method). Would you like me to analyze your current debt situation?";
+      return "Debt can be stressful, but I'm here to help! I can create a payoff strategy that works for your situation. What type of debt are you dealing with?";
     }
     
     if (message.includes('investment') || message.includes('invest')) {
-      return "Investment planning is crucial for long-term financial health! I can help you understand different investment options, assess your risk tolerance, and create a diversified portfolio strategy. What's your investment timeline and risk preference?";
+      return "Investments are a great way to grow your wealth! I can help you understand your options and create a strategy. What's your investment timeline?";
     }
     
     if (message.includes('goal') || message.includes('target')) {
-      return "Setting financial goals is the first step to achieving them! I can help you create SMART financial goals (Specific, Measurable, Achievable, Relevant, Time-bound) and track your progress. What financial milestone are you working towards?";
+      return "I love helping people reach their financial goals! What are you working towards? I can create a plan to get you there.";
     }
     
-    if (message.includes('category') || message.includes('categorize')) {
-      return "I can help you organize and categorize your expenses for better financial tracking! I can analyze your spending patterns, suggest custom categories, and help you set up automatic categorization rules. This will give you much clearer insights into where your money goes.";
+    if (message.includes('help')) {
+      return "I'm here to help with anything financial! I can analyze your spending, help with budgeting, suggest savings strategies, or answer money questions. What's on your mind?";
     }
     
-    if (message.includes('trend') || message.includes('pattern')) {
-      return "I love analyzing spending trends! I can identify patterns in your financial behavior, seasonal spending variations, and help you understand your money habits. This analysis can reveal opportunities for optimization and better financial planning.";
-    }
-    
-    if (message.includes('emergency') || message.includes('fund')) {
-      return "Emergency funds are essential for financial security! I can help you calculate how much you need (typically 3-6 months of expenses), create a plan to build it up, and suggest the best place to keep it. How much do you currently have saved for emergencies?";
-    }
-    
-    // Default intelligent response
-    return "I'm here to help you with all aspects of your financial journey! I can analyze your spending patterns, help with budgeting, provide investment guidance, and assist with financial goal setting. What specific area of your finances would you like to focus on today?";
+    // Default response - keep it simple and friendly
+    return "Hi! I'm Crystal, your financial analyst. I can help you understand your money better - whether it's budgeting, saving, investing, or just answering questions. What would you like to work on?";
   };
 
   const handleDrop = (e: React.DragEvent) => {
