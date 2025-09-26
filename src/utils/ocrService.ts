@@ -215,47 +215,89 @@ export const convertFileToBase64 = (file: File): Promise<string> => {
 // Function to directly process an image file with OCR
 export const processImageWithOCR = async (imageFile: File): Promise<OCRResult> => {
   try {
-    // Convert to base64
-    const base64Image = await convertFileToBase64(imageFile);
-    
-    // Send to OCR.space API
-    const formData = new FormData();
-    formData.append("base64Image", base64Image.split(',')[1]);
-    formData.append("language", "eng");
-    formData.append("isOverlayRequired", "false");
-    formData.append("scale", "true");
-    formData.append("OCREngine", "2");
-    
-    console.log('Sending OCR request for image file:', imageFile.name);
-    
-    const response = await fetch("https://api.ocr.space/parse/image", {
-      method: "POST",
-      headers: {
-        "apikey": OCR_API_KEY,
-      },
-      body: formData
-    });
+    // Check if it's a PDF file
+    if (imageFile.type === 'application/pdf') {
+      console.log('Processing PDF file:', imageFile.name);
+      
+      // For PDF files, use the file upload endpoint
+      const formData = new FormData();
+      formData.append("file", imageFile);
+      formData.append("language", "eng");
+      formData.append("isOverlayRequired", "false");
+      formData.append("scale", "true");
+      formData.append("OCREngine", "2");
+      
+      const response = await fetch("https://api.ocr.space/parse/image", {
+        method: "POST",
+        headers: {
+          "apikey": OCR_API_KEY,
+        },
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('OCR API error response:', errorText);
+        throw new Error(`OCR API error: ${response.status} - ${errorText}`);
+      }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('OCR API error response:', errorText);
-      throw new Error(`OCR API error: ${response.status} - ${errorText}`);
+      const result = await response.json();
+      console.log('OCR API response:', result);
+      
+      if (result.IsErroredOnProcessing) {
+        throw new Error(result.ErrorMessage || 'OCR processing failed');
+      }
+
+      const extractedText = result?.ParsedResults?.[0]?.ParsedText || "";
+      const confidence = result?.ParsedResults?.[0]?.TextOverlay?.HasOverlay ? 0.8 : 0.6;
+
+      return {
+        text: extractedText,
+        confidence
+      };
+    } else {
+      // For image files, use base64
+      const base64Image = await convertFileToBase64(imageFile);
+      
+      // Send to OCR.space API
+      const formData = new FormData();
+      formData.append("base64Image", base64Image.split(',')[1]);
+      formData.append("language", "eng");
+      formData.append("isOverlayRequired", "false");
+      formData.append("scale", "true");
+      formData.append("OCREngine", "2");
+      
+      console.log('Sending OCR request for image file:', imageFile.name);
+      
+      const response = await fetch("https://api.ocr.space/parse/image", {
+        method: "POST",
+        headers: {
+          "apikey": OCR_API_KEY,
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('OCR API error response:', errorText);
+        throw new Error(`OCR API error: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('OCR API response:', result);
+      
+      if (result.IsErroredOnProcessing) {
+        throw new Error(result.ErrorMessage || 'OCR processing failed');
+      }
+
+      const extractedText = result?.ParsedResults?.[0]?.ParsedText || "";
+      const confidence = result?.ParsedResults?.[0]?.TextOverlay?.HasOverlay ? 0.8 : 0.6;
+
+      return {
+        text: extractedText,
+        confidence
+      };
     }
-
-    const result = await response.json();
-    console.log('OCR API response:', result);
-    
-    if (result.IsErroredOnProcessing) {
-      throw new Error(result.ErrorMessage || 'OCR processing failed');
-    }
-
-    const extractedText = result?.ParsedResults?.[0]?.ParsedText || "";
-    const confidence = result?.ParsedResults?.[0]?.TextOverlay?.HasOverlay ? 0.8 : 0.6;
-
-    return {
-      text: extractedText,
-      confidence
-    };
   } catch (error) {
     console.error('OCR processing error:', error);
     throw error;
