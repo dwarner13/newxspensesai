@@ -72,6 +72,8 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   }, [isOpen, messages.length]);
 
   const handleFileUpload = async (files: FileList) => {
+    console.log('🚀 File upload started:', files.length, 'files');
+    
     // For development, allow uploads even without authentication
     if (!user) {
       console.log('No user found, but allowing upload for development');
@@ -79,6 +81,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     }
 
     setIsUploading(true);
+    setIsProcessing(true);
     const fileArray = Array.from(files);
 
     // Add user message showing uploaded files
@@ -125,8 +128,14 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           .from('receipts')
           .getPublicUrl(fileName);
 
-        // Process with Smart OCR
-        const smartResult = await processImageWithSmartOCR(file);
+        // Process with Smart OCR (with timeout)
+        console.log('Processing with Smart OCR...');
+        const smartResult = await Promise.race([
+          processImageWithSmartOCR(file),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('OCR processing timeout after 60 seconds')), 60000)
+          )
+        ]) as SmartOCRResult;
         
         // Apply redaction
         const redactionResult = await redactDocument(smartResult.text);
