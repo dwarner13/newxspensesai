@@ -130,10 +130,20 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
 
         // Process with Smart OCR (with timeout)
         console.log('Processing with Smart OCR...');
+        
+        // Add progress message
+        const progressMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: '🔍 Processing document with Smart OCR... This may take up to 3 minutes for large files.',
+          timestamp: new Date().toISOString()
+        };
+        setMessages(prev => [...prev, progressMessage]);
+        
         const smartResult = await Promise.race([
           processImageWithSmartOCR(file),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('OCR processing timeout after 60 seconds')), 60000)
+            setTimeout(() => reject(new Error('OCR processing timeout after 3 minutes')), 180000)
           )
         ]) as SmartOCRResult;
         
