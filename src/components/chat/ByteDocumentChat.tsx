@@ -18,6 +18,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { AIEmployeeOrchestrator } from '../../systems/AIEmployeeOrchestrator';
+import { getEmployeePersonality, generateEmployeeResponse } from '../../systems/EmployeePersonalities';
 import { processImageWithSmartOCR, SmartOCRResult } from '../../utils/smartOCRManager';
 import { redactDocument, generateAIEmployeeNotification } from '../../utils/documentRedaction';
 import { processLargeFile, getFileRecommendations, ProcessingProgress } from '../../utils/largeFileProcessor';
@@ -59,12 +61,13 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
-  const [activeAI, setActiveAI] = useState<'byte' | 'crystal'>('byte');
+  const [activeAI, setActiveAI] = useState<'prime' | 'byte' | 'crystal' | 'tag' | 'ledger' | 'blitz' | 'goalie'>('prime');
   const [hasShownCrystalSummary, setHasShownCrystalSummary] = useState(false);
   const [uploadedFileCount, setUploadedFileCount] = useState(0);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const orchestrator = useRef(new AIEmployeeOrchestrator());
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -811,32 +814,66 @@ Would you like me to categorize this transaction or extract any specific informa
     setIsProcessing(true);
 
     try {
-      // Smart routing: Check if user is asking for detailed analysis
-      const shouldRouteToCrystal = shouldRouteToCrystalAI(inputMessage);
-      
+      // Use the AI Employee Orchestrator for proper routing
       console.log('Message routing debug:', {
         activeAI,
-        shouldRouteToCrystal,
         inputMessage: inputMessage.substring(0, 50)
       });
       
-      if (shouldRouteToCrystal && activeAI === 'byte') {
-        // Auto-switch to Crystal for detailed analysis
-        setActiveAI('crystal');
-        const switchMessage: ChatMessage = {
-          id: `system-${Date.now()}`,
-          type: 'crystal',
-          content: `💎 **Switching to Crystal AI for detailed analysis...**\n\nI'm better equipped to handle your request for detailed transaction analysis and financial insights!`,
+      // Route the message through the orchestrator
+      const response = await orchestrator.current.routeMessage(inputMessage, { messages, user });
+      
+      if (response.shouldHandoff && response.handoff) {
+        // Execute handoff to another employee
+        orchestrator.current.executeHandoff(response.handoff);
+        setActiveAI(response.handoff.to as any);
+        
+        // Show handoff message
+        const handoffMessage: ChatMessage = {
+          id: `handoff-${Date.now()}`,
+          type: response.handoff.to as any,
+          content: response.message,
           timestamp: new Date().toISOString()
         };
-        setMessages(prev => [...prev, switchMessage]);
-        await handleCrystalAIResponse(inputMessage);
-      } else if (activeAI === 'crystal') {
-        // Use real AI for Crystal - this should always happen when Crystal tab is active
-        console.log('Routing to Crystal AI response');
-        await handleCrystalAIResponse(inputMessage);
+        setMessages(prev => [...prev, handoffMessage]);
+        
+        // Get the new employee's response
+        const newEmployeeResponse = await getEmployeeResponse(response.handoff.to, inputMessage);
+        const messageId = (Date.now() + 1).toString();
+        await typewriterResponse(newEmployeeResponse, messageId);
       } else {
-        // Byte AI - Document Processing Specialist
+        // Handle response from current employee
+        const employeeResponse = await getEmployeeResponse(activeAI, inputMessage);
+        const messageId = (Date.now() + 1).toString();
+        await typewriterResponse(employeeResponse, messageId);
+      }
+      
+      setIsProcessing(false);
+    } catch (error) {
+      console.error('Message handling error:', error);
+      
+      // Fallback to current employee
+      const fallbackResponse = await getEmployeeResponse(activeAI, inputMessage);
+      const messageId = (Date.now() + 1).toString();
+      await typewriterResponse(fallbackResponse, messageId);
+      setIsProcessing(false);
+    }
+  };
+
+  // Get employee-specific response
+  const getEmployeeResponse = async (employeeId: string, userMessage: string): Promise<string> => {
+    const personality = getEmployeePersonality(employeeId);
+    if (!personality) return "I'm here to help!";
+
+    // For now, use the personality-based response generation
+    // This would integrate with the actual AI system
+    return generateEmployeeResponse(employeeId, userMessage, { messages, user });
+  };
+
+  // Legacy code for document processing (keep for now)
+  const handleLegacyMessage = async () => {
+    try {
+      // Byte AI - Document Processing Specialist
         const timeoutId = setTimeout(() => {
           // Check conversation context for intelligent responses
           const hasDocuments = messages.some(msg => msg.attachments && msg.attachments.length > 0);
@@ -931,7 +968,7 @@ I can help you find specific transaction details if you let me know what you\'re
           clearTimeout(timeoutId);
           clearTimeout(safetyTimeout);
         };
-      }
+      };
     } catch (error) {
       console.error('Error generating AI response:', error);
       setIsProcessing(false);
@@ -1773,10 +1810,21 @@ Be conversational yet professional, insightful yet accessible. You're not just a
             
             {/* AI Employee Switcher */}
             <div className="flex items-center gap-2">
-              <div className="flex bg-gray-800 rounded-lg p-1">
+              <div className="flex bg-gray-800 rounded-lg p-1 overflow-x-auto">
+                <button
+                  onClick={() => setActiveAI('prime')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'prime'
+                      ? 'bg-yellow-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Prime
+                </button>
                 <button
                   onClick={() => setActiveAI('byte')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'byte'
                       ? 'bg-blue-500 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-700'
@@ -1787,7 +1835,7 @@ Be conversational yet professional, insightful yet accessible. You're not just a
                 </button>
                 <button
                   onClick={() => setActiveAI('crystal')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'crystal'
                       ? 'bg-purple-500 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-700'
@@ -1795,6 +1843,50 @@ Be conversational yet professional, insightful yet accessible. You're not just a
                 >
                   <Brain className="w-4 h-4" />
                   Crystal
+                </button>
+                <button
+                  onClick={() => setActiveAI('tag')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'tag'
+                      ? 'bg-green-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Tag
+                </button>
+                <button
+                  onClick={() => setActiveAI('ledger')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'ledger'
+                      ? 'bg-orange-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Ledger
+                </button>
+                <button
+                  onClick={() => setActiveAI('blitz')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'blitz'
+                      ? 'bg-red-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Blitz
+                </button>
+                <button
+                  onClick={() => setActiveAI('goalie')}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                    activeAI === 'goalie'
+                      ? 'bg-indigo-500 text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Goalie
                 </button>
               </div>
               
