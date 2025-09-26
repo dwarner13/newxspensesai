@@ -290,146 +290,180 @@ const DashboardTransactionsPage: React.FC = () => {
             subtitle="Welcome back, John! Here's your financial overview"
           />
           
-          {/* Header with Crystal AI Assistant */}
+          {/* Header Section */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4"
+            className="mb-8"
           >
-            <div>
-              <h2 className="text-xl font-bold text-white mb-1">
-                Welcome to Crystal's Transaction Lab
-              </h2>
-              <p className="text-white/60 text-sm mb-3">
-                Your intelligent guide to mastering transaction analysis and financial insights
-              </p>
-              <p className="text-white/70 text-sm sm:text-base">AI-powered insights and analysis</p>
-            </div>
-          
-          {/* Crystal AI Assistant Button */}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setCrystalOpen(!crystalOpen)}
-            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm sm:text-base transition-all duration-200"
-          >
-            <Brain className="w-4 h-4" />
-            {crystalOpen ? 'Hide Crystal' : 'Ask Crystal'}
-            {crystalMessages.length > 0 && (
-              <div className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                {crystalMessages.length}
+            <div className="flex flex-col lg:flex-row gap-6">
+              {/* Main Content */}
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2">
+                  Transactions
+                </h1>
+                <p className="text-white/70 mb-4">
+                  View and manage your financial transactions. Click on any transaction to see the full document.
+                </p>
+                
+                {/* Stats Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                        <DollarSign className="w-5 h-5 text-green-400" />
+                      </div>
+                      <div>
+                        <p className="text-white/70 text-sm">Total Transactions</p>
+                        <p className="text-white font-semibold text-lg">{transactions.length}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                        <FileText className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <div>
+                        <p className="text-white/70 text-sm">Documents</p>
+                        <p className="text-white font-semibold text-lg">{transactions.filter(t => t.receipt_url).length}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                        <Brain className="w-5 h-5 text-purple-400" />
+                      </div>
+                      <div>
+                        <p className="text-white/70 text-sm">AI Processed</p>
+                        <p className="text-white font-semibold text-lg">{transactions.filter(t => t.confidence).length}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            )}
-          </motion.button>
-        </motion.div>
+              
+              {/* Crystal AI Sidebar */}
+              <div className="lg:w-80">
+                <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 rounded-xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                      <Brain className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-white font-semibold">Crystal AI</h3>
+                      <p className="text-white/70 text-sm">Your financial assistant</p>
+                    </div>
+                  </div>
+                  
+                  <p className="text-white/80 text-sm mb-4">
+                    Ask me anything about your transactions, spending patterns, or get insights on your financial data.
+                  </p>
+                  
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setCrystalOpen(!crystalOpen)}
+                    className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2 transition-all duration-200"
+                  >
+                    <Brain className="w-4 h-4" />
+                    {crystalOpen ? 'Hide Chat' : 'Ask Crystal'}
+                    {crystalMessages.length > 0 && (
+                      <div className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        {crystalMessages.length}
+                      </div>
+                    )}
+                  </motion.button>
+                  
+                  {/* Quick Questions */}
+                  <div className="mt-4 space-y-2">
+                    <p className="text-white/70 text-xs font-medium">Quick Questions:</p>
+                    {[
+                      "What are my top spending categories?",
+                      "Show me recent transactions",
+                      "Analyze my spending patterns"
+                    ].map((question, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleQuickQuestion(question)}
+                        className="w-full text-left text-white/80 text-xs p-2 bg-white/5 rounded-lg hover:bg-white/10 transition-colors"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
 
-        {/* Search and Filter Bar */}
+        {/* Search and Actions Bar */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="mb-6"
         >
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 sm:w-5 sm:h-5" />
-            <input
-              type="text"
-              placeholder="Search transactions..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-            />
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Search Bar */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 sm:w-5 sm:h-5" />
+              <input
+                type="text"
+                placeholder="Search transactions..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+            
+            {/* Quick Upload Button */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/dashboard/smart-import-ai')}
+              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-all duration-200"
+            >
+              <Upload className="w-4 h-4" />
+              Upload Document
+            </motion.button>
           </div>
         </motion.div>
 
-        {/* Feature Cards Section */}
+        {/* Transactions Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
           className="mb-6"
         >
-          <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {/* Upload Receipt Card */}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/dashboard/smart-import-ai')}
-              className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-4 cursor-pointer hover:bg-blue-500/30 transition-all duration-200"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center mb-3">
-                  <Upload className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-white">
+              Your Transactions ({filteredTransactions.length})
+            </h2>
+            {filteredTransactions.length === 0 && (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileText className="w-8 h-8 text-white/50" />
                 </div>
-                <h3 className="text-white font-semibold text-sm mb-1">Upload Receipt</h3>
-                <p className="text-white/70 text-xs">Scan & process receipts</p>
+                <h3 className="text-white/70 text-lg mb-2">No transactions yet</h3>
+                <p className="text-white/50 text-sm mb-4">
+                  Upload your first document to get started with AI-powered transaction analysis
+                </p>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => navigate('/dashboard/smart-import-ai')}
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 mx-auto transition-all duration-200"
+                >
+                  <Upload className="w-4 h-4" />
+                  Upload Your First Document
+                </motion.button>
               </div>
-            </motion.div>
-
-            {/* Scan Receipt Card */}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/dashboard/smart-import-ai')}
-              className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-4 cursor-pointer hover:bg-green-500/30 transition-all duration-200"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center mb-3">
-                  <Camera className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-white font-semibold text-sm mb-1">Scan Receipt</h3>
-                <p className="text-white/70 text-xs">Camera scanning</p>
-              </div>
-            </motion.div>
-
-            {/* Email Receipts Card */}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/features/email-receipts')}
-              className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-4 cursor-pointer hover:bg-purple-500/30 transition-all duration-200"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center mb-3">
-                  <Mail className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-white font-semibold text-sm mb-1">Email Receipts</h3>
-                <p className="text-white/70 text-xs">Auto-process emails</p>
-              </div>
-            </motion.div>
-
-            {/* Smart Import Card */}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/dashboard/smart-import-ai')}
-              className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-xl p-4 cursor-pointer hover:bg-orange-500/30 transition-all duration-200"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center mb-3">
-                  <FileSpreadsheet className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-white font-semibold text-sm mb-1">Smart Import</h3>
-                <p className="text-white/70 text-xs">AI-powered import</p>
-              </div>
-            </motion.div>
-
-            {/* Bank Accounts Card */}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => navigate('/dashboard/bank-accounts')}
-              className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 rounded-xl p-4 cursor-pointer hover:bg-emerald-500/30 transition-all duration-200"
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center mb-3">
-                  <Building2 className="w-6 h-6 text-white" />
-                </div>
-                <h3 className="text-white font-semibold text-sm mb-1">Bank Accounts</h3>
-                <p className="text-white/70 text-xs">Connect & sync</p>
-              </div>
-            </motion.div>
+            )}
           </div>
         </motion.div>
 
@@ -475,43 +509,74 @@ const DashboardTransactionsPage: React.FC = () => {
         )}
 
         {/* Transactions List */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="space-y-4"
-        >
-          {filteredTransactions.map((transaction, index) => (
-            <motion.div
-              key={transaction.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 * index }}
-              className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-4 hover:bg-white/10 transition-all duration-200 cursor-pointer"
-              onClick={() => handleTransactionClick(transaction)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${
-                    transaction.type === 'income' ? 'bg-green-500' : 'bg-red-500'
-                  }`} />
-                  <div>
-                    <h3 className="font-semibold text-white">{transaction.description}</h3>
-                    <p className="text-sm text-white/70">{transaction.category}</p>
-                          {transaction.merchant && (
-                      <p className="text-xs text-white/50">{transaction.merchant}</p>
-                          )}
+        {filteredTransactions.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-4"
+          >
+            {filteredTransactions.map((transaction, index) => (
+              <motion.div
+                key={transaction.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 * index }}
+                className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all duration-200 cursor-pointer group"
+                onClick={() => handleTransactionClick(transaction)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {/* Document Indicator */}
+                    <div className="flex-shrink-0">
+                      {transaction.receipt_url ? (
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-lg flex items-center justify-center">
+                          <FileText className="w-6 h-6 text-blue-400" />
                         </div>
-                            </div>
-                <div className="text-right">
-                  <p className={`font-semibold ${
-                          transaction.type === 'income' ? 'text-green-400' : 'text-red-400'
-                        }`}>
-                    {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
-                  </p>
-                  <p className="text-sm text-white/70">{transaction.date}</p>
+                      ) : (
+                        <div className="w-12 h-12 bg-white/10 border border-white/20 rounded-lg flex items-center justify-center">
+                          <DollarSign className="w-6 h-6 text-white/50" />
+                        </div>
+                      )}
                     </div>
-              </div>
+                    
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-white text-lg">{transaction.description}</h3>
+                        {transaction.receipt_url && (
+                          <div className="flex items-center gap-1 bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">
+                            <FileText className="w-3 h-3" />
+                            Document
+                          </div>
+                        )}
+                        {transaction.confidence && (
+                          <div className="flex items-center gap-1 bg-purple-500/20 text-purple-400 text-xs px-2 py-1 rounded-full">
+                            <Brain className="w-3 h-3" />
+                            AI Processed
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm text-white/70 mb-1">{transaction.category}</p>
+                      {transaction.merchant && (
+                        <p className="text-xs text-white/50">{transaction.merchant}</p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="text-right">
+                    <p className={`font-bold text-xl ${
+                      transaction.type === 'income' ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+                    </p>
+                    <p className="text-sm text-white/70">{transaction.date}</p>
+                    {transaction.receipt_url && (
+                      <p className="text-xs text-blue-400 mt-1 group-hover:text-blue-300">
+                        Click to view document →
+                      </p>
+                    )}
+                  </div>
+                </div>
 
               {/* AI Insights for this transaction */}
               {transaction.aiInsights && transaction.aiInsights.length > 0 && (
