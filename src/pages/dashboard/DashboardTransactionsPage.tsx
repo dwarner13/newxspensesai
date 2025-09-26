@@ -89,11 +89,10 @@ const DashboardTransactionsPage: React.FC = () => {
       try {
         setIsLoading(true);
         
-        // Fetch transactions from Supabase
+        // Fetch transactions from Supabase (temporarily show all for demo)
         const { data: transactionsData, error: transactionsError } = await supabase
           .from('transactions')
           .select('*')
-          .eq('user_id', user.id)
           .order('date', { ascending: false })
           .limit(100);
 
@@ -218,11 +217,10 @@ const DashboardTransactionsPage: React.FC = () => {
     // Check if this transaction has a receipt URL
     if (transaction.receipt_url) {
       try {
-        // Fetch the receipt data from Supabase
+        // Fetch the receipt data from Supabase (temporarily show all for demo)
         const { data: receiptData, error: receiptError } = await supabase
           .from('receipts')
           .select('*')
-          .eq('user_id', user?.id)
           .eq('image_url', transaction.receipt_url)
           .single();
 
