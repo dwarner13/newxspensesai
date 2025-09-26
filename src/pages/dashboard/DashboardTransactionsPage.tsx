@@ -307,42 +307,54 @@ const DashboardTransactionsPage: React.FC = () => {
                 </p>
                 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                        <DollarSign className="w-5 h-5 text-green-400" />
-                      </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-sm border border-green-500/20 rounded-xl p-6"
+                  >
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-white/70 text-sm">Total Transactions</p>
-                        <p className="text-white font-semibold text-lg">{transactions.length}</p>
+                        <p className="text-white/70 text-sm font-medium">Total Transactions</p>
+                        <p className="text-white font-bold text-2xl mt-1">{transactions.length}</p>
+                        <p className="text-green-400 text-xs mt-1">All processed</p>
+                      </div>
+                      <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
+                        <DollarSign className="w-6 h-6 text-white" />
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                   
-                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
-                        <FileText className="w-5 h-5 text-blue-400" />
-                      </div>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-sm border border-blue-500/20 rounded-xl p-6"
+                  >
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-white/70 text-sm">Documents</p>
-                        <p className="text-white font-semibold text-lg">{transactions.filter(t => t.receipt_url).length}</p>
+                        <p className="text-white/70 text-sm font-medium">Documents</p>
+                        <p className="text-white font-bold text-2xl mt-1">{transactions.filter(t => t.receipt_url).length}</p>
+                        <p className="text-blue-400 text-xs mt-1">With receipts</p>
+                      </div>
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-white" />
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                   
-                  <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-lg p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-500/20 rounded-lg flex items-center justify-center">
-                        <Brain className="w-5 h-5 text-purple-400" />
-                      </div>
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-sm border border-purple-500/20 rounded-xl p-6"
+                  >
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-white/70 text-sm">AI Processed</p>
-                        <p className="text-white font-semibold text-lg">{transactions.filter(t => t.confidence).length}</p>
+                        <p className="text-white/70 text-sm font-medium">AI Processed</p>
+                        <p className="text-white font-bold text-2xl mt-1">{transactions.filter(t => t.confidence).length}</p>
+                        <p className="text-purple-400 text-xs mt-1">Smart analysis</p>
+                      </div>
+                      <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
+                        <Brain className="w-6 h-6 text-white" />
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
               </div>
               
@@ -358,6 +370,22 @@ const DashboardTransactionsPage: React.FC = () => {
                       <p className="text-white/70 text-sm">Your financial assistant</p>
                     </div>
                   </div>
+                  
+                  {/* Crystal's Summary */}
+                  {transactions.length > 0 && (
+                    <div className="mb-4 p-3 bg-white/5 rounded-lg border border-white/10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Brain className="w-4 h-4 text-purple-400" />
+                        <span className="text-purple-400 text-sm font-medium">Crystal's Summary</span>
+                      </div>
+                      <p className="text-white/80 text-xs">
+                        {transactions.length === 1 
+                          ? "I've analyzed 1 transaction for you. Click below to get detailed insights!"
+                          : `I've analyzed ${transactions.length} transactions. Your total spending is $${transactions.reduce((sum, t) => sum + (t.type === 'expense' ? t.amount : 0), 0).toFixed(2)}.`
+                        }
+                      </p>
+                    </div>
+                  )}
                   
                   <p className="text-white/80 text-sm mb-4">
                     Ask me anything about your transactions, spending patterns, or get insights on your financial data.
@@ -384,7 +412,8 @@ const DashboardTransactionsPage: React.FC = () => {
                     {[
                       "What are my top spending categories?",
                       "Show me recent transactions",
-                      "Analyze my spending patterns"
+                      "Analyze my spending patterns",
+                      "View document summaries"
                     ].map((question, index) => (
                       <button
                         key={index}
@@ -440,31 +469,31 @@ const DashboardTransactionsPage: React.FC = () => {
           transition={{ delay: 0.15 }}
           className="mb-6"
         >
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-white">
-              Your Transactions ({filteredTransactions.length})
-            </h2>
-            {filteredTransactions.length === 0 && (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <FileText className="w-8 h-8 text-white/50" />
-                </div>
-                <h3 className="text-white/70 text-lg mb-2">No transactions yet</h3>
-                <p className="text-white/50 text-sm mb-4">
-                  Upload your first document to get started with AI-powered transaction analysis
-                </p>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => navigate('/dashboard/smart-import-ai')}
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-6 py-3 rounded-lg flex items-center gap-2 mx-auto transition-all duration-200"
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload Your First Document
-                </motion.button>
+          <h2 className="text-xl font-semibold text-white mb-4">
+            Your Transactions ({filteredTransactions.length})
+          </h2>
+          
+          {/* Empty State */}
+          {filteredTransactions.length === 0 && (
+            <div className="text-center py-12">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-full flex items-center justify-center mx-auto mb-6">
+                <FileText className="w-10 h-10 text-blue-400" />
               </div>
-            )}
-          </div>
+              <h3 className="text-white/80 text-xl mb-3">No transactions yet</h3>
+              <p className="text-white/60 text-sm mb-6 max-w-md mx-auto">
+                Upload your first document to get started with AI-powered transaction analysis and insights
+              </p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/dashboard/smart-import-ai')}
+                className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white px-8 py-4 rounded-xl flex items-center gap-3 mx-auto transition-all duration-200 text-lg font-semibold"
+              >
+                <Upload className="w-5 h-5" />
+                Upload Your First Document
+              </motion.button>
+            </div>
+          )}
         </motion.div>
 
         {/* AI Insights Section */}
@@ -648,6 +677,40 @@ const DashboardTransactionsPage: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
+                  {/* Document Previews */}
+                  {transactions.filter(t => t.receipt_url).length > 0 && (
+                    <div className="bg-white/10 rounded-lg p-4">
+                      <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        Your Documents ({transactions.filter(t => t.receipt_url).length})
+                      </h4>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {transactions.filter(t => t.receipt_url).slice(0, 3).map((transaction) => (
+                          <div key={transaction.id} className="flex items-center gap-3 p-2 bg-white/5 rounded-lg">
+                            <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                              <FileText className="w-4 h-4 text-blue-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-white text-sm font-medium truncate">{transaction.description}</p>
+                              <p className="text-white/60 text-xs">${transaction.amount.toFixed(2)} • {transaction.date}</p>
+                            </div>
+                            <button
+                              onClick={() => handleTransactionClick(transaction)}
+                              className="text-blue-400 hover:text-blue-300 text-xs"
+                            >
+                              View
+                            </button>
+                          </div>
+                        ))}
+                        {transactions.filter(t => t.receipt_url).length > 3 && (
+                          <p className="text-white/60 text-xs text-center">
+                            +{transactions.filter(t => t.receipt_url).length - 3} more documents
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="bg-white/10 rounded-lg p-4">
                     <h4 className="font-semibold text-white mb-2">Quick Questions</h4>
                     <div className="space-y-2">
@@ -662,6 +725,12 @@ const DashboardTransactionsPage: React.FC = () => {
                         className="w-full text-left text-sm text-white/80 hover:text-white hover:bg-white/10 p-2 rounded transition-colors"
                       >
                         Show me my spending patterns
+                      </button>
+                      <button
+                        onClick={() => handleCrystalQuestion("Analyze my uploaded documents")}
+                        className="w-full text-left text-sm text-white/80 hover:text-white hover:bg-white/10 p-2 rounded transition-colors"
+                      >
+                        Analyze my uploaded documents
                       </button>
                       <button
                         onClick={() => handleCrystalQuestion("How can I save more money?")}
