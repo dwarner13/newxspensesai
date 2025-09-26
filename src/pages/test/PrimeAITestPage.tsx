@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { Crown, Bot, Sparkles, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import EnhancedPrimeChat from '../../components/chat/EnhancedPrimeChat';
 import { ByteDocumentChat } from '../../components/chat/ByteDocumentChat';
 import AISystemToggle from '../../components/settings/AISystemToggle';
 
@@ -171,10 +170,34 @@ const PrimeAITestPage: React.FC = () => {
 
       {/* Chat Modals */}
       {isPrimeOpen && (
-        <EnhancedPrimeChat 
-          isOpen={isPrimeOpen} 
-          onClose={() => setIsPrimeOpen(false)} 
-        />
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <Crown className="w-6 h-6 text-blue-400" />
+              <h3 className="text-lg font-semibold text-white">Prime AI System</h3>
+            </div>
+            <p className="text-gray-300 mb-4">
+              The Prime AI Employee System is coming soon! For now, you can test the enhanced Byte and Crystal chat system.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setIsPrimeOpen(false);
+                  setIsLegacyOpen(true);
+                }}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+              >
+                Test Legacy System
+              </button>
+              <button
+                onClick={() => setIsPrimeOpen(false)}
+                className="px-4 py-2 text-gray-400 hover:text-white transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       
       {isLegacyOpen && (

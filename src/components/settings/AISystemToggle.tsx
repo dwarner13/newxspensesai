@@ -22,8 +22,9 @@ const AISystemToggle: React.FC<AISystemToggleProps> = ({ className = '' }) => {
       if (!user) return;
       
       try {
-        const settings = await learningService.getSystemSettings(user.id);
-        setIsPrimeEnabled(settings.ai_system === 'prime');
+        // For now, use localStorage until database is set up
+        const savedPreference = localStorage.getItem('ai_system_preference');
+        setIsPrimeEnabled(savedPreference === 'prime');
       } catch (error) {
         console.error('Error loading AI system preference:', error);
       } finally {
@@ -41,11 +42,8 @@ const AISystemToggle: React.FC<AISystemToggleProps> = ({ className = '' }) => {
     setIsPrimeEnabled(enabled);
     
     try {
-      await learningService.updateSystemSetting(
-        user.id,
-        'ai_system',
-        enabled ? 'prime' : 'legacy'
-      );
+      // For now, use localStorage until database is set up
+      localStorage.setItem('ai_system_preference', enabled ? 'prime' : 'legacy');
       
       // Dispatch event to notify other components
       window.dispatchEvent(new CustomEvent('aiSystemChanged', {
