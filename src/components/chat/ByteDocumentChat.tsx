@@ -293,7 +293,18 @@ Would you like me to categorize this transaction or extract any specific informa
     // For development, use a default user ID if no user is available
     const userId = user?.id || 'demo-user-123';
     
-    console.log('Saving document to database:', { userId, hasUser: !!user, hasSupabase: !!supabase });
+    console.log('Saving document to database:', { 
+      userId, 
+      hasUser: !!user, 
+      hasSupabase: !!supabase,
+      redactionResult,
+      analysis,
+      smartResult: {
+        text: smartResult.text?.substring(0, 100) + '...',
+        confidence: smartResult.confidence,
+        engine: smartResult.engine
+      }
+    });
 
     // Check if Supabase is available
     if (!supabase) {
@@ -313,7 +324,7 @@ Would you like me to categorize this transaction or extract any specific informa
           extracted_data: {
             ...smartResult.parsedData,
             redacted_ocr_text: redactionResult.redactedText,
-            redaction_summary: generateAIEmployeeNotification(redactionResult.redactedItems),
+            redaction_summary: redactionResult.redactedItems ? generateAIEmployeeNotification(redactionResult.redactedItems) : 'No sensitive data detected',
             ocr_confidence: smartResult.confidence,
             ocr_engine: smartResult.engine,
             analysis: analysis
@@ -322,7 +333,12 @@ Would you like me to categorize this transaction or extract any specific informa
         .select()
         .single();
 
-      if (receiptError) throw receiptError;
+      if (receiptError) {
+        console.error('Receipt save error:', receiptError);
+        throw receiptError;
+      }
+      
+      console.log('✅ Receipt saved successfully:', receiptData);
 
       // Create transaction if we have valid data
       if (analysis.amount > 0 && analysis.vendor !== 'Unknown Vendor') {
@@ -342,6 +358,8 @@ Would you like me to categorize this transaction or extract any specific informa
 
         if (transactionError) {
           console.error('Error creating transaction:', transactionError);
+        } else {
+          console.log('✅ Transaction created successfully');
         }
       }
 
