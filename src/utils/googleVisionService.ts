@@ -453,6 +453,60 @@ export const parseReceiptWithGoogleVision = (visionResult: GoogleVisionResult): 
 };
 
 /**
+ * Main function for large file processor integration
+ */
+export const detectTextFromImage = async (imageFile: File): Promise<{
+  text: string;
+  parsedData: any;
+  confidence: number;
+  processingTime: number;
+}> => {
+  const startTime = Date.now();
+  
+  try {
+    // Use Google Vision for text detection
+    const visionResult = await extractTextWithGoogleVision(imageFile);
+    
+    // Parse the receipt data
+    const parsedData = parseReceiptWithGoogleVision(visionResult);
+    
+    const processingTime = Date.now() - startTime;
+    
+    return {
+      text: visionResult.text,
+      parsedData,
+      confidence: visionResult.confidence,
+      processingTime
+    };
+    
+  } catch (error) {
+    console.error('Google Vision detection failed:', error);
+    
+    // Fallback to OCR.space
+    console.log('Falling back to OCR.space...');
+    const { processImageWithOCR } = await import('./ocrService');
+    const ocrResult = await processImageWithOCR(imageFile);
+    
+    const processingTime = Date.now() - startTime;
+    
+    return {
+      text: ocrResult.text,
+      parsedData: {
+        vendor: 'Unknown Vendor',
+        date: new Date().toISOString().split('T')[0],
+        total: 0,
+        items: [],
+        category: 'Uncategorized',
+        confidence: ocrResult.confidence,
+        rawText: ocrResult.text
+      },
+      confidence: ocrResult.confidence,
+      processingTime
+    };
+  }
+};
+
+/**
  * Fallback OCR service when Google Vision fails
  */
 export const fallbackToOCRSpace = async (imageFile: File): Promise<{

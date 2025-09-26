@@ -5,6 +5,7 @@
 
 import { processImageWithSmartOCR, SmartOCRResult } from './smartOCRManager';
 import { redactDocument } from './documentRedaction';
+import { detectTextFromImage } from './googleVisionService';
 
 export interface LargeFileConfig {
   maxFileSize: number; // in bytes
@@ -184,25 +185,68 @@ export async function processLargeFile(
       onProgress?.({
         stage: 'ocr',
         progress: chunkProgress,
-        message: `Processing chunk ${i + 1}/${chunks.length}...`
+        message: `Processing chunk ${i + 1}/${chunks.length} with ${chunk.size > 1024 * 1024 ? 'Google Vision' : 'Smart OCR'}...`
       });
       
-      // Process chunk with retry logic
+      // Process chunk with Google Vision (primary) and Smart OCR (fallback)
       let chunkResult: SmartOCRResult | null = null;
       let lastError: Error | null = null;
+      let usedEngine = 'unknown';
       
       for (let attempt = 0; attempt < finalConfig.retryAttempts; attempt++) {
         try {
-          chunkResult = await Promise.race([
-            processImageWithSmartOCR(chunk),
-            new Promise<never>((_, reject) => 
-              setTimeout(() => reject(new Error('Chunk processing timeout')), finalConfig.timeoutMs / chunks.length)
-            )
-          ]);
-          break;
+          // Try Google Vision first for large files (better accuracy)
+          if (chunk.size > 1024 * 1024) { // Files > 1MB
+            console.log(`Using Google Vision for chunk ${i + 1} (${chunk.size} bytes)`);
+            const visionResult = await Promise.race([
+              detectTextFromImage(chunk),
+              new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error('Google Vision timeout')), finalConfig.timeoutMs / chunks.length)
+              )
+            ]);
+            
+            chunkResult = {
+              text: visionResult.text,
+              parsedData: visionResult.parsedData,
+              confidence: visionResult.confidence,
+              processingTime: visionResult.processingTime,
+              engine: 'google-vision'
+            };
+            usedEngine = 'google-vision';
+            break;
+          } else {
+            // Use Smart OCR for smaller files
+            console.log(`Using Smart OCR for chunk ${i + 1} (${chunk.size} bytes)`);
+            chunkResult = await Promise.race([
+              processImageWithSmartOCR(chunk),
+              new Promise<never>((_, reject) => 
+                setTimeout(() => reject(new Error('Smart OCR timeout')), finalConfig.timeoutMs / chunks.length)
+              )
+            ]);
+            usedEngine = 'smart-ocr';
+            break;
+          }
         } catch (error) {
           lastError = error as Error;
-          console.warn(`Chunk ${i + 1} attempt ${attempt + 1} failed:`, error);
+          console.warn(`Chunk ${i + 1} attempt ${attempt + 1} failed with ${usedEngine}:`, error);
+          
+          // If Google Vision failed, try Smart OCR as fallback
+          if (usedEngine === 'google-vision' && attempt < finalConfig.retryAttempts - 1) {
+            console.log(`Falling back to Smart OCR for chunk ${i + 1}`);
+            try {
+              chunkResult = await Promise.race([
+                processImageWithSmartOCR(chunk),
+                new Promise<never>((_, reject) => 
+                  setTimeout(() => reject(new Error('Smart OCR fallback timeout')), finalConfig.timeoutMs / chunks.length)
+                )
+              ]);
+              usedEngine = 'smart-ocr-fallback';
+              break;
+            } catch (fallbackError) {
+              lastError = fallbackError as Error;
+              console.warn(`Smart OCR fallback also failed for chunk ${i + 1}:`, fallbackError);
+            }
+          }
           
           if (attempt < finalConfig.retryAttempts - 1) {
             // Wait before retry
