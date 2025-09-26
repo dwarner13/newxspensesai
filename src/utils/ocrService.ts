@@ -89,11 +89,40 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
   let category = 'Uncategorized';
   const items: Array<{ description: string; amount: number }> = [];
 
-  // Extract vendor (usually first few lines)
-  if (lines.length > 0) {
-    vendor = lines[0];
-    // Clean up vendor name
-    vendor = vendor.replace(/[^a-zA-Z0-9\s&'-]/g, '').trim();
+  console.log('🔍 Parsing OCR text:', text);
+
+  // Enhanced vendor extraction for financial documents
+  for (let i = 0; i < Math.min(lines.length, 10); i++) {
+    const line = lines[i];
+    
+    // Skip lines that are clearly not vendor names
+    if (line.match(/^\d+[-/]\d+[-/]\d+/) || // Date patterns
+        line.match(/^\$?\d+\.?\d*$/) || // Just amounts
+        line.match(/^(total|subtotal|tax|change|balance|amount|due|paid)/i) ||
+        line.match(/^(store|address|phone|website|email)/i) ||
+        line.match(/^(thank|receipt|copy|original|void)/i) ||
+        line.match(/^(statement|account|card|number)/i) ||
+        line.length < 3) {
+      continue;
+    }
+    
+    // Look for financial institution names or merchant names
+    if (line.length > 3 && line.length < 100 && !line.match(/^[0-9\s\-\(\)]+$/)) {
+      // Check if it looks like a financial institution or merchant
+      const financialKeywords = ['bank', 'credit', 'card', 'mastercard', 'visa', 'amex', 'chase', 'wells', 'fargo', 'bank of america', 'citibank', 'capital one', 'discover', 'triangle', 'world elite'];
+      const isFinancial = financialKeywords.some(keyword => line.toLowerCase().includes(keyword));
+      
+      if (isFinancial || (!vendor && line.length > 5)) {
+        vendor = line.replace(/[^a-zA-Z0-9\s&'-]/g, '').trim();
+        console.log('🏦 Found vendor:', vendor);
+        break;
+      }
+    }
+  }
+
+  // Fallback to first line if no vendor found
+  if (!vendor && lines.length > 0) {
+    vendor = lines[0].replace(/[^a-zA-Z0-9\s&'-]/g, '').trim();
   }
 
   // Extract date
@@ -117,27 +146,50 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
     }
   }
 
-  // Extract total amount
+  // Enhanced amount extraction for financial documents
   const totalPatterns = [
     /total[:\s]*\$?(\d+\.?\d*)/i,
     /amount[:\s]*\$?(\d+\.?\d*)/i,
     /balance[:\s]*\$?(\d+\.?\d*)/i,
+    /current[:\s]*balance[:\s]*\$?(\d+\.?\d*)/i,
+    /new[:\s]*balance[:\s]*\$?(\d+\.?\d*)/i,
+    /statement[:\s]*balance[:\s]*\$?(\d+\.?\d*)/i,
     /\$(\d+\.\d{2})\s*$/,
-    /(\d+\.\d{2})\s*$/ // Last number with 2 decimals
+    /(\d+\.\d{2})\s*$/, // Last number with 2 decimals
+    /\$(\d{1,3}(?:,\d{3})*\.\d{2})/, // Formatted amounts like $1,234.56
+    /(\d{1,3}(?:,\d{3})*\.\d{2})/ // Formatted amounts without $ sign
   ];
 
-  for (const line of lines.reverse()) { // Start from bottom
+  // Look for amounts in the text
+  for (const line of lines) {
     for (const pattern of totalPatterns) {
       const match = line.match(pattern);
       if (match) {
-        const amount = parseFloat(match[1]);
-        if (amount > 0 && amount < 10000) { // Reasonable range
+        let amountStr = match[1].replace(/,/g, ''); // Remove commas
+        const amount = parseFloat(amountStr);
+        if (amount > 0 && amount < 100000) { // Expanded range for credit card statements
           total = amount;
+          console.log('💰 Found amount:', total, 'from line:', line);
           break;
         }
       }
     }
     if (total > 0) break;
+  }
+
+  // If no total found, look for any reasonable amount in the document
+  if (total === 0) {
+    for (const line of lines) {
+      const amountMatch = line.match(/\$?(\d{1,3}(?:,\d{3})*\.\d{2})/);
+      if (amountMatch) {
+        const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+        if (amount > 0 && amount < 100000) {
+          total = amount;
+          console.log('💰 Found fallback amount:', total, 'from line:', line);
+          break;
+        }
+      }
+    }
   }
 
   // Extract line items - be more selective to avoid false positives
@@ -178,9 +230,18 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
     }
   }
 
-  // Determine category based on vendor name
+  // Enhanced category detection for financial documents
   const vendorLower = vendor.toLowerCase();
-  if (vendorLower.includes('grocery') || vendorLower.includes('market') || vendorLower.includes('food')) {
+  const textLower = text.toLowerCase();
+  
+  // Check for financial document types first
+  if (vendorLower.includes('credit') || vendorLower.includes('card') || vendorLower.includes('mastercard') || 
+      vendorLower.includes('visa') || vendorLower.includes('amex') || vendorLower.includes('discover') ||
+      vendorLower.includes('triangle') || vendorLower.includes('world elite')) {
+    category = 'Credit Card Statement';
+  } else if (vendorLower.includes('bank') || textLower.includes('bank statement') || textLower.includes('account statement')) {
+    category = 'Bank Statement';
+  } else if (vendorLower.includes('grocery') || vendorLower.includes('market') || vendorLower.includes('food')) {
     category = 'Groceries';
   } else if (vendorLower.includes('gas') || vendorLower.includes('fuel') || vendorLower.includes('shell') || vendorLower.includes('exxon')) {
     category = 'Transportation';
@@ -190,9 +251,11 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
     category = 'Shopping';
   } else if (vendorLower.includes('pharmacy') || vendorLower.includes('cvs') || vendorLower.includes('walgreens')) {
     category = 'Healthcare';
+  } else if (textLower.includes('statement') || textLower.includes('balance') || textLower.includes('account')) {
+    category = 'Financial Document';
   }
 
-  return {
+  const result = {
     vendor: vendor || 'Unknown Vendor',
     date: date || new Date().toISOString().split('T')[0],
     total: total || 0,
@@ -200,6 +263,9 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
     category,
     confidence: 0.75
   };
+
+  console.log('📊 Parsed result:', result);
+  return result;
 };
 
 // Function to convert file to base64
