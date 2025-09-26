@@ -151,8 +151,8 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           file,
           {
             maxFileSize: 100 * 1024 * 1024, // 100MB
-            timeoutMs: 10 * 60 * 1000, // 10 minutes
-            retryAttempts: 3
+            timeoutMs: 2 * 60 * 1000, // 2 minutes (reduced from 10)
+            retryAttempts: 2 // reduced from 3
           },
           (progress) => {
             console.log('Processing progress:', progress);
@@ -176,10 +176,37 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         console.log('Large file processing result:', result);
         
         if (!result.success) {
-          throw new Error(result.error || 'Processing failed');
+          console.log('Large file processing failed, trying fallback OCR...');
+          
+          // Fallback to simple OCR if large file processing fails
+          const { processImageWithOCR } = await import('../../utils/ocrService');
+          const fallbackResult = await processImageWithOCR(file);
+          
+          console.log('Fallback OCR result:', fallbackResult);
+          
+          // Create a simplified result structure
+          const fallbackData = {
+            text: fallbackResult.text,
+            parsedData: {
+              vendor: 'Unknown Vendor',
+              date: new Date().toISOString().split('T')[0],
+              total: 0,
+              items: [],
+              category: 'Uncategorized',
+              confidence: fallbackResult.confidence,
+              rawText: fallbackResult.text
+            },
+            redactedText: fallbackResult.text, // No redaction for fallback
+            redactionSummary: 'Fallback processing - no redaction applied',
+            processingTime: Date.now() - Date.now()
+          };
+          
+          // Use fallback data
+          var data = fallbackData;
+        } else {
+          var data = result.data;
         }
         
-        const { data } = result;
         if (!data) {
           throw new Error('No processing data returned');
         }
