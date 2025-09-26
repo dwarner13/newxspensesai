@@ -360,7 +360,10 @@ Would you like me to categorize this transaction or extract any specific informa
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isProcessing) return;
+    if (!inputMessage.trim() || isProcessing) {
+      console.log('Message blocked:', { hasMessage: !!inputMessage.trim(), isProcessing, isUploadProcessing });
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -554,6 +557,26 @@ Would you like me to categorize this transaction or extract any specific informa
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Status indicator */}
+          {(isUploadProcessing || isProcessing) && (
+            <div className="px-4 sm:px-6 py-2 bg-gray-800 border-t border-gray-700">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                {isUploadProcessing && (
+                  <>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                    <span>Processing document... You can still chat!</span>
+                  </>
+                )}
+                {isProcessing && !isUploadProcessing && (
+                  <>
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span>Byte is typing...</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+          
           {/* Input Area */}
           <div className="p-4 sm:p-6 border-t border-gray-700">
             <div className="flex gap-2 sm:gap-3">
@@ -584,7 +607,13 @@ Would you like me to categorize this transaction or extract any specific informa
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder={isUploadProcessing ? "Upload processing... You can still chat with me!" : "Ask Byte about your documents..."}
+                placeholder={
+                  isUploadProcessing 
+                    ? "Upload processing... You can still chat with me!" 
+                    : isProcessing 
+                    ? "Byte is typing..." 
+                    : "Ask Byte about your documents..."
+                }
                 className="flex-1 bg-gray-800 text-white px-4 py-3 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
                 disabled={isProcessing}
               />
