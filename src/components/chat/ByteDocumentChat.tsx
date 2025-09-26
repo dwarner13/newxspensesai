@@ -154,28 +154,34 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           setMessages(prev => [...prev, warningMessage]);
         }
         
-        // Use fast simple OCR directly
-        console.log('Using fast simple OCR...');
+        // Use enhanced OCR with proper parsing
+        console.log('Using enhanced OCR with smart parsing...');
         
-        const { processImageWithOCR } = await import('../../utils/ocrService');
+        const { processImageWithOCR, parseReceiptText } = await import('../../utils/ocrService');
         const ocrResult = await processImageWithOCR(file);
         
-        console.log('Simple OCR result:', ocrResult);
+        console.log('OCR result:', ocrResult);
+        console.log('Extracted text length:', ocrResult.text?.length || 0);
+        console.log('First 500 characters of extracted text:', ocrResult.text?.substring(0, 500));
+        
+        // Parse the extracted text with enhanced logic
+        const parsedData = parseReceiptText(ocrResult.text);
+        console.log('Enhanced parsing result:', parsedData);
         
         // Create result structure
         const data = {
           text: ocrResult.text,
           parsedData: {
-            vendor: 'Unknown Vendor',
-            date: new Date().toISOString().split('T')[0],
-            total: 0,
-            items: [],
-            category: 'Uncategorized',
-            confidence: ocrResult.confidence,
+            vendor: parsedData.vendor || 'Unknown Vendor',
+            date: parsedData.date || new Date().toISOString().split('T')[0],
+            total: parsedData.total || 0,
+            items: parsedData.items || [],
+            category: parsedData.category || 'Uncategorized',
+            confidence: parsedData.confidence || ocrResult.confidence,
             rawText: ocrResult.text
           },
           redactedText: ocrResult.text, // No redaction for now
-          redactionSummary: 'Simple OCR processing - no redaction applied',
+          redactionSummary: 'Enhanced OCR processing with smart parsing - no redaction applied',
           processingTime: Date.now() - Date.now()
         };
         
