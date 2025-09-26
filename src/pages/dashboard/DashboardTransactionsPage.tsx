@@ -143,7 +143,7 @@ const DashboardTransactionsPage: React.FC = () => {
 
           if (totalExpenses > 0) {
             insights.push({
-              id: '1',
+        id: '1',
               type: 'pattern',
               title: 'Spending Analysis',
               description: `Total expenses: $${totalExpenses.toFixed(2)} across ${formattedTransactions.filter(t => t.type === 'expense').length} transactions.`
@@ -152,8 +152,8 @@ const DashboardTransactionsPage: React.FC = () => {
 
           if (totalIncome > 0) {
             insights.push({
-              id: '2',
-              type: 'tip',
+        id: '2',
+        type: 'tip',
               title: 'Income Tracking',
               description: `Total income: $${totalIncome.toFixed(2)}. Consider setting up automatic savings.`
             });
@@ -172,8 +172,8 @@ const DashboardTransactionsPage: React.FC = () => {
 
           if (frequentMerchant) {
             insights.push({
-              id: '3',
-              type: 'pattern',
+        id: '3',
+        type: 'pattern',
               title: 'Frequent Merchant',
               description: `You shop at ${frequentMerchant[0]} frequently (${frequentMerchant[1]} times). Consider loyalty programs.`
             });
@@ -209,7 +209,7 @@ const DashboardTransactionsPage: React.FC = () => {
     }
 
     setFilteredTransactions(filtered);
-  }, [transactions, searchTerm, selectedCategory]);
+  }, [transactions, searchTerm]);
 
   const handleTransactionClick = async (transaction: Transaction) => {
     console.log('Transaction clicked:', transaction);
@@ -365,12 +365,12 @@ const DashboardTransactionsPage: React.FC = () => {
                     <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
                       <Brain className="w-5 h-5 text-white" />
                     </div>
-                    <div>
+            <div>
                       <h3 className="text-white font-semibold">Crystal AI</h3>
                       <p className="text-white/70 text-sm">Your financial assistant</p>
                     </div>
-                  </div>
-                  
+            </div>
+          
                   {/* Crystal's Summary */}
                   {transactions.length > 0 && (
                     <div className="mb-4 p-3 bg-white/5 rounded-lg border border-white/10">
@@ -391,20 +391,20 @@ const DashboardTransactionsPage: React.FC = () => {
                     Ask me anything about your transactions, spending patterns, or get insights on your financial data.
                   </p>
                   
-                  <motion.button
+          <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => setCrystalOpen(!crystalOpen)}
+            onClick={() => setCrystalOpen(!crystalOpen)}
                     className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-4 py-3 rounded-lg flex items-center justify-center gap-2 transition-all duration-200"
-                  >
-                    <Brain className="w-4 h-4" />
+          >
+            <Brain className="w-4 h-4" />
                     {crystalOpen ? 'Hide Chat' : 'Ask Crystal'}
-                    {crystalMessages.length > 0 && (
-                      <div className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                        {crystalMessages.length}
-                      </div>
-                    )}
-                  </motion.button>
+            {crystalMessages.length > 0 && (
+              <div className="bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                {crystalMessages.length}
+              </div>
+            )}
+          </motion.button>
                   
                   {/* Quick Questions */}
                   <div className="mt-4 space-y-2">
@@ -427,7 +427,7 @@ const DashboardTransactionsPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+        </motion.div>
 
         {/* Search and Actions Bar */}
         <motion.div
@@ -439,15 +439,15 @@ const DashboardTransactionsPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-4">
             {/* Search Bar */}
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 sm:w-5 sm:h-5" />
-              <input
-                type="text"
-                placeholder="Search transactions..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
-            </div>
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/50 w-4 h-4 sm:w-5 sm:h-5" />
+            <input
+              type="text"
+              placeholder="Search transactions..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            />
+          </div>
             
             {/* Quick Upload Button */}
             <motion.button
@@ -539,22 +539,22 @@ const DashboardTransactionsPage: React.FC = () => {
 
         {/* Transactions List */}
         {filteredTransactions.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="space-y-4"
-          >
-            {filteredTransactions.map((transaction, index) => (
-              <motion.div
-                key={transaction.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 * index }}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="space-y-4"
+        >
+          {filteredTransactions.map((transaction, index) => (
+            <motion.div
+              key={transaction.id}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 * index }}
                 className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all duration-200 cursor-pointer group"
-                onClick={() => handleTransactionClick(transaction)}
-              >
-                <div className="flex items-center justify-between">
+              onClick={() => handleTransactionClick(transaction)}
+            >
+              <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     {/* Document Indicator */}
                     <div className="flex-shrink-0">
@@ -586,26 +586,26 @@ const DashboardTransactionsPage: React.FC = () => {
                         )}
                       </div>
                       <p className="text-sm text-white/70 mb-1">{transaction.category}</p>
-                      {transaction.merchant && (
-                        <p className="text-xs text-white/50">{transaction.merchant}</p>
-                      )}
-                    </div>
-                  </div>
+                          {transaction.merchant && (
+                      <p className="text-xs text-white/50">{transaction.merchant}</p>
+                          )}
+                        </div>
+                            </div>
                   
-                  <div className="text-right">
+                <div className="text-right">
                     <p className={`font-bold text-xl ${
-                      transaction.type === 'income' ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
-                    </p>
-                    <p className="text-sm text-white/70">{transaction.date}</p>
+                          transaction.type === 'income' ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                    {transaction.type === 'income' ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+                  </p>
+                  <p className="text-sm text-white/70">{transaction.date}</p>
                     {transaction.receipt_url && (
                       <p className="text-xs text-blue-400 mt-1 group-hover:text-blue-300">
                         Click to view document →
                       </p>
                     )}
-                  </div>
-                </div>
+                    </div>
+              </div>
 
               {/* AI Insights for this transaction */}
               {transaction.aiInsights && transaction.aiInsights.length > 0 && (

@@ -281,6 +281,10 @@ I'm here to help you understand your financial documents! 💎`,
         // Save to database
         await saveDocumentToDatabase(file, urlData.publicUrl, smartResult, redactionResult, analysis);
 
+        // Ensure processing state is cleared
+        setIsUploadProcessing(false);
+        setIsUploading(false);
+
       } catch (error) {
         console.error('Error processing file:', error);
         toast.error(`Failed to process ${file.name}`);
@@ -294,9 +298,14 @@ I'm here to help you understand your financial documents! 💎`,
               }
             : msg
         ));
+        
+        // Ensure processing state is cleared even on error
+        setIsUploadProcessing(false);
+        setIsUploading(false);
       }
     }
 
+    // Final cleanup
     setIsUploadProcessing(false);
     setIsUploading(false);
     setUploadedFiles([]);
