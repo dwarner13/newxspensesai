@@ -658,17 +658,27 @@ Your data is now ready for Crystal's financial analysis. Would you like me to:
 
 I've done the heavy lifting - now let's get you the insights you need! 🤖`;
           } else {
-            // No documents uploaded yet - keep it simple and conversational
+            // No documents uploaded yet - provide intelligent responses based on user questions
             const userMessage = inputMessage.toLowerCase().trim();
             
             if (userMessage.includes('hi') || userMessage.includes('hello') || userMessage.includes('hey')) {
               response = `Hey there! 👋 I'm Byte, your document processing specialist. Ready to help you extract data from any financial document - just upload something and I'll take care of the rest!`;
+            } else if (userMessage.includes('credit card') || userMessage.includes('credit cards')) {
+              response = `Great question! I can process credit card statements from any major issuer. I'll extract all individual transactions, statement periods, account summaries, and spending patterns. Just upload your credit card statement (PDF or image) and I'll break down every transaction for you! 💳`;
+            } else if (userMessage.includes('receipt') || userMessage.includes('receipts')) {
+              response = `I love processing receipts! I can extract vendor names, amounts, dates, and even categorize expenses automatically. Upload any receipt (photo or PDF) and I'll organize all the details for you! 🧾`;
+            } else if (userMessage.includes('bank') || userMessage.includes('statement')) {
+              response = `Bank statements are my specialty! I can extract all transactions, account balances, deposits, withdrawals, and spending patterns. Upload your bank statement and I'll give you a complete breakdown! 🏦`;
+            } else if (userMessage.includes('invoice') || userMessage.includes('bill')) {
+              response = `I can process invoices and bills perfectly! I'll extract vendor details, amounts, due dates, line items, and payment information. Upload any invoice and I'll organize everything for you! 📋`;
             } else if (userMessage.includes('what') && userMessage.includes('do')) {
-              response = `I'm your document processing expert! I can extract data from credit card statements, receipts, bank statements, and more. Just upload a document and I'll show you what I can do! 📄`;
+              response = `I'm your document processing expert! I can extract data from credit card statements, receipts, bank statements, invoices, and more. Just upload a document and I'll show you what I can do! 📄`;
             } else if (userMessage.includes('help')) {
               response = `I'm here to help! I can process any financial document you upload. Try uploading a receipt, credit card statement, or bank statement and I'll extract all the important data for you.`;
+            } else if (userMessage.includes('how') || userMessage.includes('work')) {
+              response = `I work by using advanced OCR technology to read your documents, then I use AI to intelligently parse and organize all the financial data. Just drag and drop any document above and I'll show you exactly how it works!`;
             } else {
-              response = `Hi! I'm Byte, your document processing specialist. Upload any financial document and I'll extract all the data you need. What would you like to process today? 📄`;
+              response = `I'm Byte, your document processing specialist! I can extract data from credit cards, receipts, bank statements, invoices, and more. What type of document would you like to process? Just upload it and I'll take care of the rest! 📄`;
             }
           }
           

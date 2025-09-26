@@ -462,39 +462,79 @@ const parseCreditCardStatement = (text: string, lines: string[]): ParsedReceiptD
     }
   }
 
-  // Extract individual transactions
+  // Extract individual transactions - look for various patterns
   let inTransactionSection = false;
   let transactionHeadersFound = false;
   
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     
-    // Look for transaction section headers
-    if (line.includes('TRANSACTION DATE') && line.includes('POSTING DATE') && line.includes('AMOUNT')) {
+    // Look for transaction section headers (multiple variations)
+    if ((line.includes('TRANSACTION DATE') && line.includes('POSTING DATE')) || 
+        (line.includes('Date') && line.includes('Description') && line.includes('Amount')) ||
+        line.includes('Transaction Details') ||
+        line.includes('Purchase Details')) {
       inTransactionSection = true;
       transactionHeadersFound = true;
       continue;
     }
     
-    // Look for "Purchases" section
-    if (line.includes('Purchases') && line.includes('Card #')) {
+    // Look for "Purchases" section or similar
+    if (line.includes('Purchases') || line.includes('Transactions') || line.includes('Activity')) {
       inTransactionSection = true;
       continue;
     }
     
     // Stop at end of transaction section
-    if (inTransactionSection && (line.includes('Total purchases') || line.includes('WAYS TO PAY') || line.includes('Information about'))) {
+    if (inTransactionSection && (line.includes('Total purchases') || line.includes('WAYS TO PAY') || 
+        line.includes('Information about') || line.includes('Payment Information') || 
+        line.includes('Statement date') || line.includes('Page 1 of'))) {
       inTransactionSection = false;
       break;
     }
     
-    // Parse transaction lines
-    if (inTransactionSection && transactionHeadersFound) {
-      // Pattern: "Nov 09", "Nov 11", "RMI-SPORTSNET.CA/NOW 416-637-1499 ON", "20.99"
-      const transactionMatch = line.match(/^(\w+\s+\d+)\s+(\w+\s+\d+)\s+(.+?)\s+([\d,]+\.?\d*)$/);
-      if (transactionMatch) {
+    // Parse transaction lines with multiple patterns
+    if (inTransactionSection) {
+      // Pattern 1: "Nov 09", "Nov 11", "RMI-SPORTSNET.CA/NOW 416-637-1499 ON", "20.99"
+      let transactionMatch = line.match(/^(\w+\s+\d+)\s+(\w+\s+\d+)\s+(.+?)\s+([\d,]+\.?\d*)$/);
+      
+      // Pattern 2: "Nov 09", "RMI-SPORTSNET.CA/NOW 416-637-1499 ON", "20.99" (no posting date)
+      if (!transactionMatch) {
+        transactionMatch = line.match(/^(\w+\s+\d+)\s+(.+?)\s+([\d,]+\.?\d*)$/);
+        if (transactionMatch) {
+          // Add empty posting date
+          transactionMatch = [transactionMatch[0], transactionMatch[1], transactionMatch[1], transactionMatch[2], transactionMatch[3]];
+        }
+      }
+      
+      // Pattern 3: Just look for lines with amounts at the end
+      if (!transactionMatch) {
+        const amountMatch = line.match(/(.+?)\s+([\d,]+\.?\d*)$/);
+        if (amountMatch && amountMatch[2] && parseFloat(amountMatch[2].replace(/,/g, '')) > 0) {
+          const description = amountMatch[1].trim();
+          const amount = parseFloat(amountMatch[2].replace(/,/g, ''));
+          
+          // Skip if it looks like a summary line
+          if (!description.includes('Total') && !description.includes('Balance') && 
+              !description.includes('Payment') && !description.includes('Credit') &&
+              description.length > 3) {
+            
+            individualTransactions.push({
+              transactionDate: 'Unknown',
+              postingDate: 'Unknown',
+              description,
+              amount,
+              merchant: description.split(' ')[0] // First word as merchant
+            });
+            
+            console.log('💳 Found transaction (pattern 3):', { description, amount });
+          }
+        }
+      }
+      
+      if (transactionMatch && transactionMatch.length >= 4) {
         const transactionDate = transactionMatch[1];
-        const postingDate = transactionMatch[2];
+        const postingDate = transactionMatch[2] || transactionMatch[1];
         const description = transactionMatch[3].trim();
         const amount = parseFloat(transactionMatch[4].replace(/,/g, ''));
         
@@ -558,6 +598,8 @@ export const processImageWithOCR = async (imageFile: File): Promise<OCRResult> =
       formData.append("isOverlayRequired", "false");
       formData.append("scale", "true");
       formData.append("OCREngine", "2");
+      formData.append("pages", "1,2,3"); // Try to get multiple pages
+      formData.append("filetype", "PDF");
       
       const response = await fetch("https://api.ocr.space/parse/image", {
         method: "POST",
@@ -590,8 +632,20 @@ export const processImageWithOCR = async (imageFile: File): Promise<OCRResult> =
         throw new Error(result.ErrorMessage || 'OCR processing failed');
       }
 
-      const extractedText = result?.ParsedResults?.[0]?.ParsedText || "";
-      const confidence = result?.ParsedResults?.[0]?.TextOverlay?.HasOverlay ? 0.8 : 0.6;
+      // Combine text from all pages
+      let extractedText = '';
+      let confidence = 0.6;
+      
+      if (result.ParsedResults && result.ParsedResults.length > 0) {
+        for (const page of result.ParsedResults) {
+          if (page.ParsedText) {
+            extractedText += page.ParsedText + '\n';
+          }
+          if (page.TextOverlay?.HasOverlay) {
+            confidence = Math.max(confidence, 0.8);
+          }
+        }
+      }
       
       console.log('PDF extracted text length:', extractedText.length);
       console.log('First 500 chars of PDF extracted text:', extractedText.substring(0, 500));
