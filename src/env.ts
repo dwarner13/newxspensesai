@@ -15,16 +15,14 @@ export function isPrimeEnabled(): boolean {
 }
 
 export function getSupabaseUrl(): string {
-  return import.meta.env?.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  return import.meta.env?.VITE_SUPABASE_URL || '';
 }
 
 export function getSupabaseAnonKey(): string {
-  return import.meta.env?.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+  return import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
 }
 
+// Browser-safe version - server-side functions removed
 export function getSupabaseServiceRole(): string {
-  if (typeof process !== 'undefined' && process.env) {
-    return process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-  }
   throw new Error('Service role key only available server-side');
 }

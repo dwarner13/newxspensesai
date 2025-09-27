@@ -31,7 +31,17 @@ export default defineConfig({
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
       treeshake: true,
-      external: ['tesseract.js', 'node-fetch'],
+      external: [
+        'tesseract.js', 
+        'node-fetch',
+        'jose',
+        'zod-to-json-schema',
+        'tiktoken',
+        'zod',
+        'undici',
+        'jsdom',
+        '@mozilla/readability'
+      ],
       output: {
         // Simplified chunking - let Vite handle it automatically
         chunkFileNames: 'assets/[name]-[hash].js',
