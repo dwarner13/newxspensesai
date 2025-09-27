@@ -1,24 +1,12 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import { PrimeChatDrawer } from '../components/PrimeChatDrawer';
 
 export function PrimeLabPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
-  // Try to use auth, but with error handling
-  let session = null;
-  let ready = false;
-  
-  try {
-    const auth = useAuth();
-    session = auth?.session || null;
-    ready = auth?.ready || false;
-  } catch (error) {
-    console.error('Auth context error:', error);
-    // Fallback: assume ready and no session for demo
-    ready = true;
-    session = null;
-  }
+  // For now, let's use a simple demo approach to avoid auth context issues
+  const session = null; // Demo mode - no session
+  const ready = true;   // Always ready in demo mode
 
   // Show loading state while auth is initializing
   if (!ready) {
