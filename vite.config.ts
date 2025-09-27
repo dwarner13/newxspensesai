@@ -32,6 +32,7 @@ export default defineConfig({
     rollupOptions: {
       treeshake: true,
       external: [
+        // Server-side packages
         'tesseract.js', 
         'node-fetch',
         'jose',
@@ -40,7 +41,26 @@ export default defineConfig({
         'zod',
         'undici',
         'jsdom',
-        '@mozilla/readability'
+        '@mozilla/readability',
+        'pdf-lib',
+        'pdf-parse',
+        // Node.js built-in modules
+        'crypto',
+        'fs',
+        'path',
+        'os',
+        'stream',
+        'util',
+        'events',
+        'http',
+        'https',
+        'url',
+        'querystring',
+        'buffer',
+        'child_process',
+        'cluster',
+        'worker_threads',
+        'crypto-js'
       ],
       output: {
         // Simplified chunking - let Vite handle it automatically
