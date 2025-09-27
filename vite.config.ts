@@ -30,7 +30,7 @@ export default defineConfig({
     brotliSize: false,
     chunkSizeWarningLimit: 2000,
     target: 'esnext',
-    format: 'es',
+    format: 'esm',
     rollupOptions: {
       treeshake: true,
       external: [

@@ -1,5 +1,4 @@
 import { Result, Ok, Err } from '../../types/result';
-import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 
 export interface FileValidationResult {
@@ -141,7 +140,9 @@ export class FileValidator {
   
   private async validateImage(buffer: Buffer): Promise<Result<{ dimensions: any }>> {
     try {
-      const metadata = await sharp(buffer).metadata();
+      // Dynamic import to avoid bundling Sharp in client
+      const sharp = await import('sharp');
+      const metadata = await sharp.default(buffer).metadata();
       
       // Check for suspicious dimensions
       if (metadata.width! > 10000 || metadata.height! > 10000) {

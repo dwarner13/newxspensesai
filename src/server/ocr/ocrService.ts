@@ -76,11 +76,12 @@ export class OCRService {
   }
   
   private async preprocessImage(buffer: Buffer): Promise<Buffer> {
-    const sharp = require('sharp');
-    
     try {
+      // Dynamic import to avoid bundling Sharp in client
+      const sharp = await import('sharp');
+      
       // Auto-rotate, enhance contrast, convert to grayscale
-      const processed = await sharp(buffer)
+      const processed = await sharp.default(buffer)
         .rotate() // Auto-rotate based on EXIF
         .normalize() // Enhance contrast
         .grayscale() // Better OCR accuracy
