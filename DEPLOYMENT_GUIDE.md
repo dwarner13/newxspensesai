@@ -3,7 +3,7 @@
 ## Quick Deploy to Netlify
 
 ### Method 1: One-Click Deploy
-[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/your-username/project-bolt-fixed)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/dwarner13/newxspensesai)
 
 ### Method 2: Manual Deploy
 
