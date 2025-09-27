@@ -66,3 +66,24 @@ export async function requireAuth(request: Request): Promise<Result<AuthUser>> {
   
   return validateJWT(token);
 }
+
+export async function validateToken(event: any): Promise<string | null> {
+  try {
+    const token = extractToken(event);
+    
+    if (!token) {
+      return null;
+    }
+    
+    const result = await validateJWT(token);
+    
+    if (result.ok) {
+      return result.value.id;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Token validation error:', error);
+    return null;
+  }
+}
