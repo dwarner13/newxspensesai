@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
+// import { toast } from 'react-hot-toast'; // Temporarily disabled for debugging
 import { getSupabase } from '../lib/supabase';
 
 interface AuthContextType {
@@ -190,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const supabase = getSupabase();
       if (!supabase || !supabase.auth) {
         console.log('⚡ Dev mode: Google sign-in skipped');
-        toast.success('Development mode - sign-in simulated');
+        console.log('Development mode - sign-in simulated');
         return;
       }
 
@@ -203,12 +203,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('❌ AuthContext: Google sign-in error:', error);
-        toast.error('Failed to sign in with Google. Please try again.');
+        console.error('Failed to sign in with Google. Please try again.');
         throw error;
       }
     } catch (error) {
       console.error('❌ AuthContext: Unexpected error during Google sign-in:', error);
-      toast.error('An unexpected error occurred. Please try again.');
+      console.error('An unexpected error occurred. Please try again.');
       throw error;
     }
   };
@@ -220,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const supabase = getSupabase();
       if (!supabase || !supabase.auth) {
         console.log('⚡ Dev mode: Apple sign-in skipped');
-        toast.success('Development mode - sign-in simulated');
+        console.log('Development mode - sign-in simulated');
         return;
       }
 
@@ -233,12 +233,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         console.error('❌ AuthContext: Apple sign-in error:', error);
-        toast.error('Failed to sign in with Apple. Please try again.');
+        console.error('Failed to sign in with Apple. Please try again.');
         throw error;
       }
     } catch (error) {
       console.error('❌ AuthContext: Unexpected error during Apple sign-in:', error);
-      toast.error('An unexpected error occurred. Please try again.');
+      console.error('An unexpected error occurred. Please try again.');
       throw error;
     }
   };
@@ -253,7 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('⚡ Dev mode: sign-out simulated');
         setUser(null);
         sessionStorage.removeItem('xspensesai-intended-path');
-        toast.success('Signed out successfully');
+        console.log('Signed out successfully');
         navigate('/login', { replace: true });
         return;
       }
@@ -268,7 +268,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       navigate('/login', { replace: true });
     } catch (error) {
       console.error('❌ AuthContext: Logout error:', error);
-      toast.error('Failed to sign out. Please try again.');
+      console.error('Failed to sign out. Please try again.');
       throw error;
     }
   };
