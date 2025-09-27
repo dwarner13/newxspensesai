@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { isPrimeEnabled } from '../../env';
-import toast from 'react-hot-toast';
+// import toast from 'react-hot-toast'; // Removed for simplification
 
 interface PrimeChatDrawerProps {
   isOpen: boolean;
@@ -47,7 +47,7 @@ export function PrimeChatDrawer({ isOpen, onClose, conversationId }: PrimeChatDr
         setIsLoading(false);
       }, 1000);
     } catch (error) {
-      toast.error('Failed to send message');
+      console.error('Failed to send message');
       setIsLoading(false);
     }
   };
