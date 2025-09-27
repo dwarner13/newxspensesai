@@ -1,123 +1,25 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 export function PrimeLabPage() {
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-6">
-            <h1 className="text-3xl font-bold text-gray-900">Prime Lab</h1>
-            <p className="mt-2 text-gray-600">
-              Test and interact with the Prime Agent Kernel
-            </p>
-          </div>
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">🚀 Prime Agent Kernel</h1>
+        <p className="text-xl text-gray-600 mb-8">AI-Powered Financial Assistant</p>
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
+          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Status: Active</h2>
+          <p className="text-gray-600 mb-6">Your Prime Agent Kernel is ready to help with:</p>
+          <ul className="text-left space-y-2 text-gray-600">
+            <li>✅ Receipt Processing</li>
+            <li>✅ Expense Categorization</li>
+            <li>✅ Financial Analysis</li>
+            <li>✅ General Assistance</li>
+          </ul>
+          <button className="mt-6 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+            Start Chatting
+          </button>
         </div>
       </div>
-      
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Status Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">System Status</h2>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Prime Kernel</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  Active
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">PII Redaction</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  Enabled
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Audit Logging</span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  Active
-                </span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Features Card */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Features</h2>
-            <div className="space-y-3">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="text-sm text-gray-600">Data Management (Export/Delete)</span>
-              </div>
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="text-sm text-gray-600">Receipt Processing</span>
-              </div>
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="text-sm text-gray-600">Pricing Analysis</span>
-              </div>
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="text-sm text-gray-600">General Assistance</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Chat Interface Card */}
-          <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Prime Agent Kernel</h2>
-            <div className="text-center py-8">
-              <button
-                onClick={() => setIsDrawerOpen(true)}
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-4l-4 4z" />
-                </svg>
-                Open Prime Assistant
-              </button>
-              <p className="mt-4 text-sm text-gray-600">
-                Click the button above to start chatting with your AI assistant
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Simple Chat Interface */}
-      {isDrawerOpen && (
-        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 z-50 flex justify-end">
-          <div className="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-xl flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold text-gray-900">Prime Assistant</h2>
-              <button onClick={() => setIsDrawerOpen(false)} className="text-gray-500 hover:text-gray-700">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            {/* Messages */}
-            <div className="flex-1 p-4">
-              <p className="text-gray-600">Prime Assistant is ready! This is a simplified demo version.</p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
