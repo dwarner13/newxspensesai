@@ -7,9 +7,10 @@
   skip_processing = true
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "18"
   NPM_VERSION = "9"
   NODE_ENV = "production"
+  NODE_OPTIONS = "--max-old-space-size=4096"
 
 [[redirects]]
   from = "/api/*"

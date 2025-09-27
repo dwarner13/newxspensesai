@@ -23,17 +23,18 @@ export default defineConfig({
     include: ['react', 'react-dom', 'react-router-dom', 'framer-motion'],
     force: true,
   },
-  build: {
-    minify: 'esbuild',
-    sourcemap: false,
-    cssCodeSplit: true,
-    brotliSize: false,
-    chunkSizeWarningLimit: 2000,
-    target: 'esnext',
-    format: 'esm',
-    rollupOptions: {
-      treeshake: true,
-      external: [
+         build: {
+           minify: 'esbuild',
+           sourcemap: false,
+           cssCodeSplit: true,
+           brotliSize: false,
+           chunkSizeWarningLimit: 2000,
+           target: 'esnext',
+           format: 'esm',
+           rollupOptions: {
+             maxParallelFileOps: 2,
+             treeshake: true,
+             external: [
         // Server-side packages
         'tesseract.js', 
         'node-fetch',
@@ -65,12 +66,16 @@ export default defineConfig({
         'worker_threads',
         'crypto-js'
       ],
-      output: {
-        // Simplified chunking - let Vite handle it automatically
-        chunkFileNames: 'assets/[name]-[hash].js',
-        entryFileNames: 'assets/[name]-[hash].js',
-        assetFileNames: 'assets/[name]-[hash].[ext]',
-      },
+             output: {
+               manualChunks: {
+                 vendor: ['react', 'react-dom', 'react-router-dom'],
+                 ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs'],
+                 charts: ['chart.js', 'react-chartjs-2'],
+               },
+               chunkFileNames: 'assets/[name]-[hash].js',
+               entryFileNames: 'assets/[name]-[hash].js',
+               assetFileNames: 'assets/[name]-[hash].[ext]',
+             },
     },
   },
   server: {
