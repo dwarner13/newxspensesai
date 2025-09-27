@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const navigate = useNavigate();
   
-  console.log('AuthProvider render:', { user: !!user, loading, initialLoad });
+  console.log('AuthProvider render:', { user: !!user, loading, initialLoad, ready });
   
   // Refs for cleanup (currently unused due to bypass)
   // const authTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -187,6 +187,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setSession(authSession);
               break;
               
+            case 'INITIAL_SESSION':
+              console.log('🔍 AuthContext: Initial session event');
+              // Handle initial session - don't change state, just log
+              break;
+              
             default:
               console.log('🔍 AuthContext: Unhandled auth event:', event);
           }
@@ -309,8 +314,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }
 
+  const contextValue = {
+    user,
+    loading,
+    signInWithGoogle,
+    signInWithApple,
+    signOut,
+    session,
+    ready
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithApple, signOut, session, ready }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

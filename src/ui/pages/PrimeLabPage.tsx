@@ -11,8 +11,8 @@ export function PrimeLabPage() {
   
   try {
     const auth = useAuth();
-    session = auth.session;
-    ready = auth.ready;
+    session = auth?.session || null;
+    ready = auth?.ready || false;
   } catch (error) {
     console.error('Auth context error:', error);
     // Fallback: assume ready and no session for demo
