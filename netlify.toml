@@ -1,14 +1,20 @@
 [build]
   command = "npm run build"
+  functions = "netlify/functions"
   publish = "dist"
 
 [build.processing]
   skip_processing = true
 
 [build.environment]
-  NODE_VERSION = "18.12.0"
+  NODE_VERSION = "20"
   NPM_VERSION = "9"
   NODE_ENV = "production"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
 
 [[redirects]]
   from = "/*"
@@ -23,6 +29,13 @@
     X-Frame-Options = "DENY"
     X-XSS-Protection = "1; mode=block"
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Headers = "Content-Type, Authorization"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
 
 [[headers]]
   for = "/assets/*"
