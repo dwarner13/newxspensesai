@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { PrimeDockButton } from '../components/PrimeDockButton';
-import { PrimeChatDrawer } from '../components/PrimeChatDrawer';
 
 export function PrimeLabPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -99,14 +97,27 @@ export function PrimeLabPage() {
         </div>
       </div>
       
-      {/* Prime Dock Button */}
-      <PrimeDockButton />
-      
-      {/* Chat Drawer */}
-      <PrimeChatDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-      />
+      {/* Simple Chat Interface */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 bg-gray-800 bg-opacity-75 z-50 flex justify-end">
+          <div className="relative w-full md:w-1/2 lg:w-1/3 bg-white shadow-xl flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-900">Prime Assistant</h2>
+              <button onClick={() => setIsDrawerOpen(false)} className="text-gray-500 hover:text-gray-700">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Messages */}
+            <div className="flex-1 p-4">
+              <p className="text-gray-600">Prime Assistant is ready! This is a simplified demo version.</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
