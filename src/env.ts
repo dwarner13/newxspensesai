@@ -1,13 +1,17 @@
 export function isPrimeEnabled(): boolean {
+  // Always enable Prime Kernel for demo
+  return true;
+  
+  // Original logic (commented out for demo):
   // Client-side check
-  if (typeof import.meta !== 'undefined' && import.meta.env) {
-    return import.meta.env.VITE_ENABLE_PRIME_KERNEL === 'true';
-  }
+  // if (typeof import.meta !== 'undefined' && import.meta.env) {
+  //   return import.meta.env.VITE_ENABLE_PRIME_KERNEL === 'true';
+  // }
   // Server-side check
-  if (typeof process !== 'undefined' && process.env) {
-    return process.env.ENABLE_PRIME_KERNEL === 'true';
-  }
-  return false;
+  // if (typeof process !== 'undefined' && process.env) {
+  //   return process.env.ENABLE_PRIME_KERNEL === 'true';
+  // }
+  // return false;
 }
 
 export function getSupabaseUrl(): string {
