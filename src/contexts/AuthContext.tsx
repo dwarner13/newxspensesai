@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 // import { toast } from 'react-hot-toast'; // Temporarily disabled for debugging
 import { getSupabase } from '../lib/supabase';
@@ -9,6 +9,8 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
+  session: any;
+  ready: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,6 +19,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
+  const [session, setSession] = useState<any>(null);
+  const [ready, setReady] = useState(false);
   const navigate = useNavigate();
   
   console.log('AuthProvider render:', { user: !!user, loading, initialLoad });
@@ -47,8 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } as any;
       
       setUser(bypassUser);
+      setSession({ user: bypassUser, access_token: 'bypass-token' });
       setLoading(false);
       setInitialLoad(false);
+      setReady(true);
       console.log('🔍 AuthContext: Using bypass user for development', bypassUser);
       return;
     }
@@ -74,12 +80,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             exp: Date.now() + 86400000,
           } as any;
           setUser(bypassUser);
+          setSession({ user: bypassUser, access_token: 'bypass-token' });
           setLoading(false);
           setInitialLoad(false);
+          setReady(true);
           return;
         }
         
-        const { data: { session }, error } = await supabase.auth.getSession();
+        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('❌ AuthContext: Session check error:', error);
@@ -93,9 +101,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             exp: Date.now() + 86400000,
           } as any;
           setUser(demoUser);
-        } else if (session?.user) {
-          console.log('🔍 AuthContext: User session found:', session.user.email);
-          setUser(session.user);
+          setSession({ user: demoUser, access_token: 'demo-token' });
+        } else if (currentSession?.user) {
+          console.log('🔍 AuthContext: User session found:', currentSession.user.email);
+          setUser(currentSession.user);
+          setSession(currentSession);
         } else {
           console.log('🔍 AuthContext: No active session found - using demo user');
           // Create a demo user for development when no session exists
@@ -108,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             exp: Date.now() + 86400000, // 24 hours from now
           } as any;
           setUser(demoUser);
+          setSession({ user: demoUser, access_token: 'demo-token' });
         }
       } catch (error) {
         console.error('❌ AuthContext: Unexpected error during session check:', error);
@@ -121,9 +132,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           exp: Date.now() + 86400000,
         } as any;
         setUser(demoUser);
+        setSession({ user: demoUser, access_token: 'demo-token' });
       } finally {
         setLoading(false);
         setInitialLoad(false);
+        setReady(true);
       }
     };
 
@@ -134,34 +147,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       const supabase = getSupabase();
+      if (!supabase) {
+        console.log('🔍 AuthContext: Supabase not available for auth listener');
+        return;
+      }
       const { data } = supabase.auth.onAuthStateChange(
-        async (event: string, session: any) => {
-          console.log('🔍 AuthContext: Auth state change:', event, session?.user?.email);
+        async (event: string, authSession: any) => {
+          console.log('🔍 AuthContext: Auth state change:', event, authSession?.user?.email);
           
           switch (event) {
             case 'SIGNED_IN':
               console.log('🔍 AuthContext: User signed in');
-              setUser(session?.user || null);
+              setUser(authSession?.user || null);
+              setSession(authSession);
               setLoading(false);
               setInitialLoad(false);
+              setReady(true);
               break;
               
             case 'SIGNED_OUT':
               console.log('🔍 AuthContext: User signed out');
               setUser(null);
+              setSession(null);
               setLoading(false);
               setInitialLoad(false);
+              setReady(true);
               navigate('/login', { replace: true });
               break;
               
             case 'TOKEN_REFRESHED':
               console.log('🔍 AuthContext: Token refreshed');
-              setUser(session?.user || null);
+              setUser(authSession?.user || null);
+              setSession(authSession);
               break;
               
             case 'USER_UPDATED':
               console.log('🔍 AuthContext: User updated');
-              setUser(session?.user || null);
+              setUser(authSession?.user || null);
+              setSession(authSession);
               break;
               
             default:
@@ -264,7 +287,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(null);
       sessionStorage.removeItem('xspensesai-intended-path');
-      toast.success('Signed out successfully');
+      // toast.success('Signed out successfully'); // Temporarily disabled
+      console.log('Signed out successfully');
       navigate('/login', { replace: true });
     } catch (error) {
       console.error('❌ AuthContext: Logout error:', error);
@@ -286,7 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithApple, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithApple, signOut, session, ready }}>
       {children}
     </AuthContext.Provider>
   );
@@ -308,6 +332,7 @@ export function AppWithAuth({ children }: { children: ReactNode }) {
     console.log('🔍 AppWithAuth: Starting auth initialization...');
 
     // Check if Supabase is available
+    const supabase = getSupabase();
     if (supabase) {
       console.log('🔍 AppWithAuth: Supabase available, checking auth status...');
       
