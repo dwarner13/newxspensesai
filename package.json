@@ -12,9 +12,9 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "rimraf dist && vite build && copyfiles public/_redirects dist/",
-    "build:analyze": "rimraf dist && vite build --mode analyze && copyfiles public/_redirects dist/",
-    "build:prod": "rimraf dist && vite build --mode production && copyfiles public/_redirects dist/",
+    "build": "vite build",
+    "build:analyze": "vite build --mode analyze",
+    "build:prod": "vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview",
     "check:main": "node scripts/check-main-balance.js",
