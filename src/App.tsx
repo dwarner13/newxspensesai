@@ -195,6 +195,7 @@ function App() {
                         
                         {/* Spotify integration routes */}
                         <Route path="/callback" element={<SpotifyCallbackPage />} />
+                        <Route path="/spotify/callback" element={<SpotifyCallbackPage />} />
                         <Route path="/spotify-player" element={<SpotifyPlayerPage />} />
                         
                         {/* Reports route - redirect to dashboard */}

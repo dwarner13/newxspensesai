@@ -56,7 +56,7 @@ export const handler: Handler = async (event) => {
   try {
     const clientId = process.env.VITE_SPOTIFY_CLIENT_ID;
     const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
-    const redirectUri = process.env.VITE_SPOTIFY_REDIRECT_URI || 'https://xspensesai.com/api/spotify/callback';
+    const redirectUri = process.env.VITE_SPOTIFY_REDIRECT_URI || 'https://xspensesai.com/spotify/callback';
 
     if (!clientId || !clientSecret) {
       throw new Error('Spotify credentials not configured');

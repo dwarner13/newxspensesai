@@ -1,5 +1,5 @@
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '464607e5d7c24f36a9b464c15899c29f';
-const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'https://xspensesai.com/callback';
+const REDIRECT_URI = import.meta.env.VITE_SPOTIFY_REDIRECT_URI || 'https://xspensesai.com/spotify/callback';
 const SCOPES = [
   'user-read-playback-state',
   'user-read-currently-playing',

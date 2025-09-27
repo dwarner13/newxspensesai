@@ -15,7 +15,11 @@ import {
   CheckCircle,
   Music,
   LogOut,
-  RefreshCw
+  RefreshCw,
+  Play,
+  Heart,
+  Target,
+  Sparkles
 } from 'lucide-react';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
 import { getSpotifyLoginUrl } from '../../utils/SpotifyAuth';
@@ -45,6 +49,45 @@ function SettingsPage() {
   // Spotify integration state
   const [isSpotifyConnected, setIsSpotifyConnected] = useState(false);
   const [isSpotifyLoading, setIsSpotifyLoading] = useState(false);
+
+  // Check Spotify connection status on mount
+  useEffect(() => {
+    const token = localStorage.getItem('spotify_access_token');
+    const expiresAt = localStorage.getItem('spotify_token_expires');
+    
+    if (token && expiresAt) {
+      const now = Date.now();
+      const expires = parseInt(expiresAt);
+      
+      if (now < expires) {
+        setIsSpotifyConnected(true);
+      } else {
+        localStorage.removeItem('spotify_access_token');
+        localStorage.removeItem('spotify_token_expires');
+        setIsSpotifyConnected(false);
+      }
+    } else {
+      setIsSpotifyConnected(false);
+    }
+  }, []);
+
+  // Spotify integration functions
+  const handleSpotifyLogin = async () => {
+    setIsSpotifyLoading(true);
+    try {
+      const authUrl = getSpotifyLoginUrl();
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Spotify login error:', error);
+      setIsSpotifyLoading(false);
+    }
+  };
+
+  const handleSpotifyLogout = () => {
+    localStorage.removeItem('spotify_access_token');
+    localStorage.removeItem('spotify_token_expires');
+    setIsSpotifyConnected(false);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -150,6 +193,7 @@ function SettingsPage() {
                       { icon: Bell, title: "Notifications", desc: "Alert preferences", color: "from-purple-500 to-violet-500", view: "notifications" },
                       { icon: Palette, title: "Appearance", desc: "Theme & customization", color: "from-orange-500 to-yellow-500", view: "appearance" },
                       { icon: Database, title: "Data Management", desc: "Backup & sync settings", color: "from-red-500 to-pink-500", view: "data" },
+                      { icon: Music, title: "Integrations", desc: "Spotify & external services", color: "from-green-500 to-emerald-500", view: "integrations" },
                       { icon: Brain, title: "Chat with Assistant", desc: "AI settings helper", color: "from-indigo-500 to-purple-500", view: "chat" }
                     ].map((item, index) => (
           <motion.button
@@ -415,6 +459,119 @@ function SettingsPage() {
                       </div>
                     </div>
                   </motion.div>
+                </div>
+              </motion.div>
+            ) : activeView === 'integrations' ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <button
+                    onClick={() => setActiveView('overview')}
+                    className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Back to Overview
+                  </button>
+                  <h2 className="text-xl font-bold text-white">Integrations</h2>
+                </div>
+
+                <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl shadow-2xl p-8">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                      <Music size={32} className="text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-white">Spotify Integration</h2>
+                      <p className="text-white/80">Connect your Spotify account for personalized music experiences</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {isSpotifyConnected ? (
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2 bg-green-500/20 px-4 py-2 rounded-full">
+                            <CheckCircle size={20} className="text-green-400" />
+                            <span className="text-green-400 font-semibold">Connected</span>
+                          </div>
+                          <button
+                            onClick={handleSpotifyLogout}
+                            className="bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center gap-2"
+                          >
+                            <LogOut size={16} />
+                            Disconnect
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleSpotifyLogin}
+                          disabled={isSpotifyLoading}
+                          className="bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center gap-2"
+                        >
+                          {isSpotifyLoading ? (
+                            <>
+                              <RefreshCw size={20} className="animate-spin" />
+                              Connecting...
+                            </>
+                          ) : (
+                            <>
+                              <Music size={20} />
+                              Connect Your Spotify
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {isSpotifyConnected && (
+                    <div className="mt-6 p-4 bg-white/10 rounded-xl">
+                      <h3 className="text-lg font-semibold text-white mb-3">Connected Features</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                            <Play size={16} className="text-blue-400" />
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">Music Player</p>
+                            <p className="text-white/60 text-sm">Control playback from dashboard</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-purple-500/20 rounded-lg flex items-center justify-center">
+                            <Heart size={16} className="text-purple-400" />
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">Mood Playlists</p>
+                            <p className="text-white/60 text-sm">Personalized music for your emotions</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-orange-500/20 rounded-lg flex items-center justify-center">
+                            <Target size={16} className="text-orange-400" />
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">Focus Music</p>
+                            <p className="text-white/60 text-sm">Productivity-enhancing tracks</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-pink-500/20 rounded-lg flex items-center justify-center">
+                            <Sparkles size={16} className="text-pink-400" />
+                          </div>
+                          <div>
+                            <p className="text-white font-medium">AI Music Creator</p>
+                            <p className="text-white/60 text-sm">Generate custom tracks with AI</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ) : activeView === 'chat' ? (
