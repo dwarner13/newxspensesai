@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { PrimeDockButton } from '../ui/components/PrimeDockButton';
-import { PrimeChatDrawer } from '../ui/components/PrimeChatDrawer';
+import { PrimeDockButton } from '../components/PrimeDockButton';
+import { PrimeChatDrawer } from '../components/PrimeChatDrawer';
 
 export function PrimeLabPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
