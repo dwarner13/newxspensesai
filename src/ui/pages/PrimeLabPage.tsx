@@ -3,8 +3,22 @@ import { useAuth } from '../../contexts/AuthContext';
 import { PrimeChatDrawer } from '../components/PrimeChatDrawer';
 
 export function PrimeLabPage() {
-  const { session, ready } = useAuth();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  
+  // Try to use auth, but with error handling
+  let session = null;
+  let ready = false;
+  
+  try {
+    const auth = useAuth();
+    session = auth.session;
+    ready = auth.ready;
+  } catch (error) {
+    console.error('Auth context error:', error);
+    // Fallback: assume ready and no session for demo
+    ready = true;
+    session = null;
+  }
 
   // Show loading state while auth is initializing
   if (!ready) {
