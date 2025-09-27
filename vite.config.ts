@@ -29,6 +29,8 @@ export default defineConfig({
     cssCodeSplit: true,
     brotliSize: false,
     chunkSizeWarningLimit: 2000,
+    target: 'esnext',
+    format: 'es',
     rollupOptions: {
       treeshake: true,
       external: [
@@ -44,6 +46,7 @@ export default defineConfig({
         '@mozilla/readability',
         'pdf-lib',
         'pdf-parse',
+        'sharp',
         // Node.js built-in modules
         'crypto',
         'fs',
