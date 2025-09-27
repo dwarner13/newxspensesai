@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Create bypass user for development
       const bypassUser = {
-        id: 'demo-user-123',
+        id: '12345678-1234-1234-1234-123456789abc',
         email: 'demo@xspensesai.com',
         full_name: 'Demo User',
         aud: 'authenticated',
