@@ -518,40 +518,6 @@ What would you like to explore about your financial data?`;
                       AI-powered transaction categorization with 96% accuracy
                     </motion.p>
                     
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
-                      {[
-                        { icon: TrendingUp, title: "Category Overview", desc: "Real-time spending breakdown", color: "from-green-500 to-emerald-500", view: "category_overview" },
-                        { icon: Zap, title: "Quick Categorize", desc: "Bulk categorization tools", color: "from-purple-500 to-violet-500", view: "quick_categorize" },
-                        { icon: Bot, title: "Tag AI Chat", desc: "Chat with Tag AI", color: "from-pink-500 to-rose-500", view: "chat" },
-                        { icon: Search, title: "Category Rules", desc: "Manage categorization rules", color: "from-orange-500 to-yellow-500", view: "category_rules" },
-                        { icon: Bot, title: "Auto Category", desc: "Automatic categorization", color: "from-blue-500 to-cyan-500", view: "auto_category" },
-                        { icon: BarChart3, title: "Process Overview", desc: "See complete workflow", color: "from-indigo-500 to-purple-500", view: "process_overview" }
-                      ].map((item, index) => (
-                        <motion.button
-                          key={item.title}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.5 + index * 0.1 }}
-                          onClick={() => {
-                            if (item.view === 'chat') {
-                              setChatOpen(true);
-                            } else {
-                              // Handle other views
-                              console.log('Opening view:', item.view);
-                            }
-                          }}
-                          className="group flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[80px] hover:shadow-lg hover:shadow-purple-500/10"
-                        >
-                          <div className={`w-10 h-10 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                            <item.icon className="w-5 h-5 text-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-xs font-semibold text-white mb-0.5">{item.title}</h3>
-                            <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
-                          </div>
-                        </motion.button>
-                      ))}
-                    </div>
                   </div>
                 </div>
               ) : (

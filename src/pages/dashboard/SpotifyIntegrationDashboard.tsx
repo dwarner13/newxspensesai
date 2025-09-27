@@ -23,9 +23,14 @@ import {
   MessageCircle,
   Send,
   Loader2,
-  X
+  X,
+  Sparkles,
+  Wand2,
+  Download,
+  Share2
 } from 'lucide-react';
 import DashboardHeader from '../../components/ui/DashboardHeader';
+import { getSpotifyLoginUrl } from '../../utils/SpotifyAuth';
 
 interface Message {
   role: 'user' | 'djzen';
@@ -37,6 +42,29 @@ const SpotifyIntegrationDashboard = () => {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Check if user is already connected on component mount
+  useEffect(() => {
+    const token = localStorage.getItem('spotify_access_token');
+    const expiresAt = localStorage.getItem('spotify_token_expires');
+    
+    if (token && expiresAt) {
+      const now = Date.now();
+      const expires = parseInt(expiresAt);
+      
+      // Check if token is still valid (not expired)
+      if (now < expires) {
+        setIsConnected(true);
+      } else {
+        // Token expired, remove it
+        localStorage.removeItem('spotify_access_token');
+        localStorage.removeItem('spotify_token_expires');
+        setIsConnected(false);
+      }
+    } else {
+      setIsConnected(false);
+    }
+  }, []);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -48,6 +76,13 @@ const SpotifyIntegrationDashboard = () => {
   const [input, setInput] = useState('');
   const [isLoadingMessage, setIsLoadingMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // AI Music Creation state
+  const [isCreatingMusic, setIsCreatingMusic] = useState(false);
+  const [musicPrompt, setMusicPrompt] = useState('');
+  const [generatedMusic, setGeneratedMusic] = useState<any>(null);
+  const [musicStyle, setMusicStyle] = useState('ambient');
+  const [musicMood, setMusicMood] = useState('calm');
   
   const [currentTrack, setCurrentTrack] = useState({
     name: "Lo-fi Study Beats",
@@ -63,11 +98,59 @@ const SpotifyIntegrationDashboard = () => {
 
   const handleSpotifyLogin = async () => {
     setIsLoading(true);
-    // Simulate OAuth flow
-    setTimeout(() => {
-      setIsConnected(true);
+    try {
+      // Use popup-based OAuth flow
+      const authUrl = getSpotifyLoginUrl();
+      
+      // Open Spotify authorization in a popup window
+      const popup = window.open(
+        authUrl,
+        'spotify-auth',
+        'width=500,height=700,scrollbars=yes,resizable=yes'
+      );
+
+      // Listen for the popup to close or receive a message
+      const checkClosed = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkClosed);
+          setIsLoading(false);
+        }
+      }, 1000);
+
+      // Listen for messages from the popup (when OAuth completes)
+      const messageListener = (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+        
+        if (event.data.type === 'SPOTIFY_AUTH_SUCCESS') {
+          const { access_token, expires_in } = event.data;
+          localStorage.setItem('spotify_access_token', access_token);
+          localStorage.setItem('spotify_token_expires', (Date.now() + expires_in * 1000).toString());
+          setIsConnected(true);
+          setIsLoading(false);
+          popup?.close();
+          clearInterval(checkClosed);
+          window.removeEventListener('message', messageListener);
+        } else if (event.data.type === 'SPOTIFY_AUTH_ERROR') {
+          console.error('Spotify auth error:', event.data.error);
+          setIsLoading(false);
+          popup?.close();
+          clearInterval(checkClosed);
+          window.removeEventListener('message', messageListener);
+        }
+      };
+
+      window.addEventListener('message', messageListener);
+      
+    } catch (error) {
+      console.error('Spotify login error:', error);
       setIsLoading(false);
-    }, 2000);
+    }
+  };
+
+  const handleSpotifyLogout = () => {
+    localStorage.removeItem('spotify_access_token');
+    localStorage.removeItem('spotify_refresh_token');
+    setIsConnected(false);
   };
 
   const togglePlayPause = () => {
@@ -141,6 +224,51 @@ const SpotifyIntegrationDashboard = () => {
     }
   };
 
+  // AI Music Creation functions
+  const createAIMusic = async () => {
+    if (!musicPrompt.trim()) return;
+    
+    setIsCreatingMusic(true);
+    
+    try {
+      // Simulate AI music generation
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const mockMusic = {
+        id: Date.now().toString(),
+        title: `AI Generated: ${musicPrompt}`,
+        style: musicStyle,
+        mood: musicMood,
+        duration: '3:45',
+        bpm: musicStyle === 'ambient' ? 60 : musicStyle === 'electronic' ? 128 : 90,
+        key: 'C Major',
+        instruments: musicStyle === 'ambient' ? ['Piano', 'Strings', 'Pad'] : ['Synth', 'Drums', 'Bass'],
+        url: '#', // Would be actual audio file URL
+        createdAt: new Date().toISOString()
+      };
+      
+      setGeneratedMusic(mockMusic);
+    } catch (error) {
+      console.error('Music generation failed:', error);
+    } finally {
+      setIsCreatingMusic(false);
+    }
+  };
+
+  const downloadMusic = () => {
+    if (generatedMusic) {
+      // In a real implementation, this would download the actual audio file
+      console.log('Downloading:', generatedMusic.title);
+    }
+  };
+
+  const shareMusic = () => {
+    if (generatedMusic) {
+      // In a real implementation, this would share the music
+      console.log('Sharing:', generatedMusic.title);
+    }
+  };
+
   const [activeView, setActiveView] = useState('overview');
 
   return (
@@ -177,7 +305,8 @@ const SpotifyIntegrationDashboard = () => {
                         { icon: Heart, title: "Mood Playlists", desc: "Music for your emotions", color: "from-purple-500 to-violet-500", view: "mood" },
                         { icon: Target, title: "Focus Music", desc: "Productivity-enhancing tracks", color: "from-orange-500 to-yellow-500", view: "focus" },
                         { icon: TrendingUp, title: "Music Analytics", desc: "Track your listening habits", color: "from-red-500 to-pink-500", view: "analytics" },
-                        { icon: MessageCircle, title: "Chat with DJ Zen", desc: "AI music companion", color: "from-indigo-500 to-purple-500", view: "chat" }
+                        { icon: MessageCircle, title: "Chat with DJ Zen", desc: "AI music companion", color: "from-indigo-500 to-purple-500", view: "chat" },
+                        { icon: Sparkles, title: "AI Music Creator", desc: "Generate custom tracks", color: "from-pink-500 to-rose-500", view: "ai-music" }
                       ].map((item, index) => (
         <motion.button
                           key={item.title}
@@ -216,47 +345,56 @@ const SpotifyIntegrationDashboard = () => {
                       Back to Overview
                     </button>
                     <h2 className="text-xl font-bold text-white">Connect Your Spotify Account</h2>
-      </div>
+                  </div>
 
-        <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl shadow-2xl p-8">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                <Music size={32} className="text-white" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-white">Spotify Account</h2>
-                <p className="text-white/80">Connect your Spotify for seamless music control</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {isConnected ? (
-                <div className="flex items-center gap-2 bg-green-500/20 px-4 py-2 rounded-full">
-                  <CheckCircle size={20} className="text-green-400" />
-                  <span className="text-green-400 font-semibold">Connected</span>
-                </div>
-              ) : (
-                <button
-                  onClick={handleSpotifyLogin}
-                  disabled={isLoading}
-                  className="bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <RefreshCw size={20} className="animate-spin" />
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <Music size={20} />
-                      Connect Spotify
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+                  <div className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-2xl shadow-2xl p-8">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                          <Music size={32} className="text-white" />
+                        </div>
+                        <div>
+                          <h2 className="text-2xl font-bold text-white">Spotify Account</h2>
+                          <p className="text-white/80">Connect your Spotify for seamless music control</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {isConnected ? (
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 bg-green-500/20 px-4 py-2 rounded-full">
+                              <CheckCircle size={20} className="text-green-400" />
+                              <span className="text-green-400 font-semibold">Connected</span>
+                            </div>
+                            <button
+                              onClick={handleSpotifyLogout}
+                              className="bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center gap-2"
+                            >
+                              <LogOut size={16} />
+                              Disconnect
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={handleSpotifyLogin}
+                            disabled={isLoading}
+                            className="bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center gap-2"
+                          >
+                            {isLoading ? (
+                              <>
+                                <RefreshCw size={20} className="animate-spin" />
+                                Connecting...
+                              </>
+                            ) : (
+                              <>
+                                <Music size={20} />
+                                Connect Your Spotify
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </motion.div>
               ) : activeView === 'player' ? (
                 <motion.div
@@ -540,6 +678,172 @@ const SpotifyIntegrationDashboard = () => {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </motion.div>
+              ) : activeView === 'ai-music' ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setActiveView('overview')}
+                      className="flex items-center gap-2 text-white/60 hover:text-white transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                      </svg>
+                      Back to Overview
+                    </button>
+                    <h2 className="text-xl font-bold text-white">AI Music Creator</h2>
+                  </div>
+
+                  <div className="bg-gradient-to-br from-pink-600 to-rose-700 rounded-2xl shadow-2xl p-8">
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
+                        <Sparkles size={32} className="text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-white">Create Your Music</h2>
+                        <p className="text-white/80">Generate custom tracks with AI based on your mood and preferences</p>
+                      </div>
+                    </div>
+
+                    {!generatedMusic ? (
+                      <div className="space-y-6">
+                        <div>
+                          <label className="block text-white font-medium mb-2">Describe your music</label>
+                          <textarea
+                            value={musicPrompt}
+                            onChange={(e) => setMusicPrompt(e.target.value)}
+                            placeholder="e.g., 'A calming ambient track for studying with soft piano and gentle strings'"
+                            className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-pink-500 resize-none"
+                            rows={3}
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-white font-medium mb-2">Style</label>
+                            <select
+                              value={musicStyle}
+                              onChange={(e) => setMusicStyle(e.target.value)}
+                              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-pink-500"
+                            >
+                              <option value="ambient">Ambient</option>
+                              <option value="electronic">Electronic</option>
+                              <option value="acoustic">Acoustic</option>
+                              <option value="jazz">Jazz</option>
+                              <option value="classical">Classical</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-white font-medium mb-2">Mood</label>
+                            <select
+                              value={musicMood}
+                              onChange={(e) => setMusicMood(e.target.value)}
+                              className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-pink-500"
+                            >
+                              <option value="calm">Calm</option>
+                              <option value="energetic">Energetic</option>
+                              <option value="melancholic">Melancholic</option>
+                              <option value="uplifting">Uplifting</option>
+                              <option value="mysterious">Mysterious</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={createAIMusic}
+                          disabled={isCreatingMusic || !musicPrompt.trim()}
+                          className="w-full bg-white/20 hover:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-3"
+                        >
+                          {isCreatingMusic ? (
+                            <>
+                              <Loader2 size={20} className="animate-spin" />
+                              Creating Your Music...
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 size={20} />
+                              Generate Music
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <div className="bg-white/10 rounded-xl p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold text-white">{generatedMusic.title}</h3>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={downloadMusic}
+                                className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                              >
+                                <Download size={16} className="text-white" />
+                              </button>
+                              <button
+                                onClick={shareMusic}
+                                className="p-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
+                              >
+                                <Share2 size={16} className="text-white" />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-white/70">Style:</span>
+                              <span className="text-white ml-2 capitalize">{generatedMusic.style}</span>
+                            </div>
+                            <div>
+                              <span className="text-white/70">Mood:</span>
+                              <span className="text-white ml-2 capitalize">{generatedMusic.mood}</span>
+                            </div>
+                            <div>
+                              <span className="text-white/70">Duration:</span>
+                              <span className="text-white ml-2">{generatedMusic.duration}</span>
+                            </div>
+                            <div>
+                              <span className="text-white/70">BPM:</span>
+                              <span className="text-white ml-2">{generatedMusic.bpm}</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-4">
+                            <span className="text-white/70 text-sm">Instruments:</span>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {generatedMusic.instruments.map((instrument: string, index: number) => (
+                                <span key={index} className="bg-white/20 text-white px-3 py-1 rounded-full text-xs">
+                                  {instrument}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => {
+                              setGeneratedMusic(null);
+                              setMusicPrompt('');
+                            }}
+                            className="flex-1 bg-white/20 hover:bg-white/30 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200"
+                          >
+                            Create Another
+                          </button>
+                          <button
+                            onClick={() => setActiveView('player')}
+                            className="flex-1 bg-pink-500 hover:bg-pink-600 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+                          >
+                            <Play size={16} />
+                            Play Now
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ) : (

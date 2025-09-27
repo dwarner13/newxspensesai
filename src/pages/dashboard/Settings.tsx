@@ -12,9 +12,13 @@ import {
   Loader2,
   Palette,
   Database,
-  CheckCircle
+  CheckCircle,
+  Music,
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
 import { useWorkspace } from '../../contexts/WorkspaceContext';
+import { getSpotifyLoginUrl } from '../../utils/SpotifyAuth';
 
 interface SettingsMessage {
   role: 'user' | 'assistant';
@@ -37,6 +41,10 @@ function SettingsPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Spotify integration state
+  const [isSpotifyConnected, setIsSpotifyConnected] = useState(false);
+  const [isSpotifyLoading, setIsSpotifyLoading] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
