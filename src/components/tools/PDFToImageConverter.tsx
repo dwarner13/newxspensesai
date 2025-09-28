@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { extractPdfTextFromFile } from '../../client/pdf/extractText';
+import * as pdfjsLib from "pdfjs-dist";
 
 interface PDFToImageConverterProps {
   onImageGenerated: (imageData: string, fileName: string) => void;
@@ -31,9 +32,17 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
 
   const analyzePDF = async (pdfFile: File): Promise<PDFAnalysis> => {
     setProgress('Analyzing PDF for text content...');
+    console.log('Starting PDF analysis for file:', pdfFile.name, 'size:', pdfFile.size);
     
     try {
       const result = await extractPdfTextFromFile(pdfFile, 5);
+      console.log('PDF analysis result:', {
+        hasTextLayer: result.hasTextLayer,
+        pages: result.pages,
+        textSampleLength: result.textSample.length,
+        textByPageCount: result.textByPage.length
+      });
+      
       return {
         hasTextLayer: result.hasTextLayer,
         textSample: result.textSample,
@@ -42,10 +51,11 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
         metadata: undefined // Metadata not available in the new function
       };
     } catch (error) {
-      console.warn('PDF text analysis failed:', error);
+      console.error('PDF text analysis failed:', error);
+      onError(`PDF analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return {
         hasTextLayer: false,
-        textSample: '',
+        textSample: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         pages: 0,
         textByPage: [],
         metadata: undefined

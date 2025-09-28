@@ -29,22 +29,36 @@ type ExtractResult = {
 
 // Improved PDF text extraction function
 export async function extractPdfTextFromFile(file: File, maxPages = 5): Promise<ExtractResult> {
+  console.log('Extracting text from PDF file:', file.name, 'size:', file.size);
+  
   const ab = await file.arrayBuffer();
   const data = new Uint8Array(ab.slice(0));
 
   let pdf;
   try {
+    console.log('Attempting to load PDF with worker...');
     pdf = await pdfjsLib.getDocument({ data }).promise;
-  } catch {
-    pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
+    console.log('PDF loaded successfully with worker');
+  } catch (workerError) {
+    console.warn('Worker failed, trying without worker:', workerError);
+    try {
+      pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
+      console.log('PDF loaded successfully without worker');
+    } catch (noWorkerError) {
+      console.error('PDF loading failed completely:', noWorkerError);
+      throw new Error(`Failed to load PDF: ${noWorkerError instanceof Error ? noWorkerError.message : 'Unknown error'}`);
+    }
   }
 
   const pages = pdf.numPages;
+  console.log('PDF has', pages, 'pages');
+  
   const take = Math.min(pages, maxPages);
   const textByPage: string[] = [];
   let itemsCount = 0;
 
   for (let i = 1; i <= take; i++) {
+    console.log('Processing page', i);
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
     itemsCount += content.items.length;
@@ -52,10 +66,21 @@ export async function extractPdfTextFromFile(file: File, maxPages = 5): Promise<
     textByPage.push(text.replace(/\s+/g, " ").trim());
   }
 
+  const hasTextLayer = itemsCount > 25;
+  const textSample = textByPage.join("\n\n").slice(0, 4000);
+  
+  console.log('Text extraction complete:', {
+    pages,
+    itemsCount,
+    hasTextLayer,
+    textSampleLength: textSample.length,
+    textByPageCount: textByPage.length
+  });
+
   return {
     pages,
-    hasTextLayer: itemsCount > 25,
-    textSample: textByPage.join("\n\n").slice(0, 4000),
+    hasTextLayer,
+    textSample,
     textByPage
   };
 }
