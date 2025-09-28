@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import { extractPdfTextFromFile } from '../../client/pdf/extractText';
-import * as pdfjsLib from "pdfjs-dist";
+import { PdfService } from '../../client/pdf/pdfService';
+import { isScannedPdf, extractWithOCR } from '../../client/pdf/ocrFallback';
 
 interface PDFToImageConverterProps {
   onImageGenerated: (imageData: string, fileName: string) => void;
@@ -35,21 +35,41 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
     console.log('Starting PDF analysis for file:', pdfFile.name, 'size:', pdfFile.size);
     
     try {
-      const result = await extractPdfTextFromFile(pdfFile, 5);
-      console.log('PDF analysis result:', {
-        hasTextLayer: result.hasTextLayer,
-        pages: result.pages,
-        textSampleLength: result.textSample.length,
-        textByPageCount: result.textByPage.length
-      });
+      // Use the new PdfService for robust extraction
+      const result = await PdfService.processPdf(pdfFile);
       
-      return {
-        hasTextLayer: result.hasTextLayer,
-        textSample: result.textSample,
-        pages: result.pages,
-        textByPage: result.textByPage,
-        metadata: undefined // Metadata not available in the new function
-      };
+      if (result.success && result.text) {
+        const textLength = result.text.length;
+        const hasTextLayer = textLength > 100; // Heuristic: if we got substantial text
+        
+        console.log('PDF analysis result:', {
+          hasTextLayer,
+          textLength,
+          method: result.method
+        });
+        
+        return {
+          hasTextLayer,
+          textSample: result.text.substring(0, 4000),
+          pages: 1, // We'll extract all pages
+          textByPage: [result.text],
+          metadata: undefined
+        };
+      } else {
+        // Try to detect if it's a scanned PDF
+        const isScanned = await isScannedPdf(pdfFile);
+        if (isScanned) {
+          return {
+            hasTextLayer: false,
+            textSample: 'Scanned PDF detected - OCR processing required',
+            pages: 0,
+            textByPage: [],
+            metadata: undefined
+          };
+        } else {
+          throw new Error(result.error || 'No text could be extracted');
+        }
+      }
     } catch (error) {
       console.error('PDF text analysis failed:', error);
       onError(`PDF analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`);

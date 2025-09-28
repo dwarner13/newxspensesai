@@ -16,21 +16,23 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Fix worker resolution - map to the correct worker file
+      'pdfjs-dist/build/pdf.worker.min.js': 
+        'pdfjs-dist/build/pdf.worker.min.mjs'
     },
   },
-        optimizeDeps: {
-          exclude: ['lucide-react'],
-          include: [
-            'react', 
-            'react-dom', 
-            'react-router-dom', 
-            'framer-motion',
-            'pdfjs-dist/build/pdf.worker.min.js',
-            'pdfjs-dist',
-            'pdf-lib'
-          ],
-          force: true,
-        },
+  optimizeDeps: {
+    exclude: ['lucide-react', 'pdfjs-dist/build/pdf.worker.entry'],
+    include: [
+      'react', 
+      'react-dom', 
+      'react-router-dom', 
+      'framer-motion',
+      'pdfjs-dist',
+      'pdf-lib'
+    ],
+    force: true,
+  },
          build: {
            minify: 'esbuild',
            sourcemap: false,

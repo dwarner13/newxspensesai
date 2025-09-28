@@ -13,13 +13,17 @@
   "scripts": {
     "dev": "vite",
     "dev:prime-only": "VITE_ENABLE_PRIME_MODULE=true vite --open /prime-lab",
-    "build": "vite build",
+    "dev:netlify": "netlify dev --port 8889",
+    "build": "tsc && vite build",
+    "build:functions": "netlify functions:build",
     "build:analyze": "vite build --mode analyze",
     "build:prod": "vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview",
     "check:main": "node scripts/check-main-balance.js",
-    "analyze": "npm run build:analyze && open dist/stats.html"
+    "analyze": "npm run build:analyze && open dist/stats.html",
+    "clean": "rm -rf node_modules package-lock.json dist .netlify",
+    "reinstall": "npm run clean && npm install"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -80,8 +84,10 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
+    "@netlify/functions": "^2.6.0",
     "@types/crypto-js": "^4.2.2",
     "@types/papaparse": "^5.3.14",
+    "@types/pdfjs-dist": "^2.10.378",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
