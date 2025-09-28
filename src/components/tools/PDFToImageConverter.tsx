@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { extractPdfTextSafe } from '../../client/pdf/extractText';
+import { extractPdfTextFromFile } from '../../client/pdf/extractText';
 
 interface PDFToImageConverterProps {
   onImageGenerated: (imageData: string, fileName: string) => void;
@@ -31,16 +31,15 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
 
   const analyzePDF = async (pdfFile: File): Promise<PDFAnalysis> => {
     setProgress('Analyzing PDF for text content...');
-    const arrayBuffer = await pdfFile.arrayBuffer();
     
     try {
-      const result = await extractPdfTextSafe(arrayBuffer, { includeMetadata: true });
+      const result = await extractPdfTextFromFile(pdfFile, 5);
       return {
         hasTextLayer: result.hasTextLayer,
         textSample: result.textSample,
         pages: result.pages,
         textByPage: result.textByPage,
-        metadata: result.metadata
+        metadata: undefined // Metadata not available in the new function
       };
     } catch (error) {
       console.warn('PDF text analysis failed:', error);

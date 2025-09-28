@@ -27,42 +27,65 @@ type ExtractResult = {
   };
 };
 
-function normalizeSpaces(s: string) {
-  return s.replace(/\s+/g, " ").trim();
+// Improved PDF text extraction function
+export async function extractPdfTextFromFile(file: File, maxPages = 5): Promise<ExtractResult> {
+  const ab = await file.arrayBuffer();
+  const data = new Uint8Array(ab.slice(0));
+
+  let pdf;
+  try {
+    pdf = await pdfjsLib.getDocument({ data }).promise;
+  } catch {
+    pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
+  }
+
+  const pages = pdf.numPages;
+  const take = Math.min(pages, maxPages);
+  const textByPage: string[] = [];
+  let itemsCount = 0;
+
+  for (let i = 1; i <= take; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    itemsCount += content.items.length;
+    const text = content.items.map((it: any) => (it.str ?? "")).join(" ");
+    textByPage.push(text.replace(/\s+/g, " ").trim());
+  }
+
+  return {
+    pages,
+    hasTextLayer: itemsCount > 25,
+    textSample: textByPage.join("\n\n").slice(0, 4000),
+    textByPage
+  };
 }
 
+// Legacy function for backward compatibility
 export async function extractPdfText(arrayBuffer: ArrayBuffer, options?: { maxPages?: number, includeMetadata?: boolean }): Promise<ExtractResult> {
-  const loadingTask = pdfjsLib.getDocument({ 
-    data: arrayBuffer,
-    useWorkerFetch: false,
-    disableWorker: false,
-    // Optimize for text extraction
-    maxImageSize: 1024 * 1024,
-    disableFontFace: false,
-    disableRange: false,
-    disableStream: false,
-    // Add timeout
-    timeout: 10000
-  });
+  const data = new Uint8Array(arrayBuffer.slice(0));
   
-  const pdf = await loadingTask.promise;
-  const pageCount = pdf.numPages;
-  const maxPages = Math.min(options?.maxPages ?? pageCount, pageCount);
+  let pdf;
+  try {
+    pdf = await pdfjsLib.getDocument({ data }).promise;
+  } catch {
+    pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
+  }
+
+  const pages = pdf.numPages;
+  const maxPages = Math.min(options?.maxPages ?? pages, pages);
   const textByPage: string[] = [];
-  let textItemCount = 0;
+  let itemsCount = 0;
 
   for (let i = 1; i <= maxPages; i++) {
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
-    textItemCount += content.items.length;
-    const pageText = content.items
-      .map((it: any) => ("str" in it ? it.str : ""))
-      .join(" ");
-    textByPage.push(normalizeSpaces(pageText));
+    itemsCount += content.items.length;
+    const text = content.items.map((it: any) => (it.str ?? "")).join(" ");
+    textByPage.push(text.replace(/\s+/g, " ").trim());
   }
 
-  const hasTextLayer = textItemCount > 25; // threshold: tweak if needed
-  const joined = textByPage.join("\n\n").slice(0, 4000); // clamp sample
+  const hasTextLayer = itemsCount > 25;
+  const textSample = textByPage.join("\n\n").slice(0, 4000);
   
   // Get metadata if requested
   let metadata;
@@ -75,45 +98,11 @@ export async function extractPdfText(arrayBuffer: ArrayBuffer, options?: { maxPa
   }
   
   return {
-    pages: pageCount,
+    pages,
     hasTextLayer,
     textByPage,
-    textSample: joined,
+    textSample,
     metadata
-  };
-}
-
-// Fallback function for when worker fails
-export async function extractPdfTextFallback(arrayBuffer: ArrayBuffer, options?: { maxPages?: number }): Promise<ExtractResult> {
-  const loadingTask = pdfjsLib.getDocument({ 
-    data: arrayBuffer,
-    disableWorker: true,
-    useWorkerFetch: false
-  });
-  
-  const pdf = await loadingTask.promise;
-  const pageCount = pdf.numPages;
-  const maxPages = Math.min(options?.maxPages ?? pageCount, pageCount);
-  const textByPage: string[] = [];
-  let textItemCount = 0;
-
-  for (let i = 1; i <= maxPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    textItemCount += content.items.length;
-    const pageText = content.items
-      .map((it: any) => ("str" in it ? it.str : ""))
-      .join(" ");
-    textByPage.push(normalizeSpaces(pageText));
-  }
-
-  const hasTextLayer = textItemCount > 25;
-  const joined = textByPage.join("\n\n").slice(0, 4000);
-  return {
-    pages: pageCount,
-    hasTextLayer,
-    textByPage,
-    textSample: joined
   };
 }
 
@@ -122,23 +111,14 @@ export async function extractPdfTextSafe(arrayBuffer: ArrayBuffer, options?: { m
   try {
     return await extractPdfText(arrayBuffer, options);
   } catch (error) {
-    console.warn('PDF text extraction failed with worker, trying fallback:', error);
+    console.error('PDF text extraction failed:', error);
     
-    // Disable worker completely for fallback
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
-    
-    try {
-      return await extractPdfTextFallback(arrayBuffer, options);
-    } catch (fallbackError) {
-      console.error('PDF text extraction completely failed:', fallbackError);
-      
-      // Return a minimal result instead of throwing
-      return {
-        pages: 0,
-        hasTextLayer: false,
-        textByPage: [],
-        textSample: 'PDF text extraction failed. This may be a scanned PDF or corrupted file.'
-      };
-    }
+    // Return a minimal result instead of throwing
+    return {
+      pages: 0,
+      hasTextLayer: false,
+      textByPage: [],
+      textSample: 'PDF text extraction failed. This may be a scanned PDF or corrupted file.'
+    };
   }
 }
