@@ -41,7 +41,7 @@ function redactSensitiveInfo(text: string): string {
 
 export const handler: Handler = async (event) => {
   try {
-    const { fileData, fileName, fileType, userId } = JSON.parse(event.body || '{}');
+    const { fileData, fileName, fileType, userId, isTextData } = JSON.parse(event.body || '{}');
     if (!fileData) {
       return { 
         statusCode: 400, 
@@ -50,30 +50,34 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Step 1: OCR (Handle PDFs and images)
+    // Step 1: Handle text data or OCR
     let ocrText = '';
-    try {
-      const buffer = Buffer.from(fileData, 'base64');
-      
-      // Process images with Tesseract (PDFs are now handled client-side)
-      const result = await Tesseract.recognize(buffer, 'eng');
-      ocrText = result.data.text.trim();
-      
-      if (!ocrText) {
+    
+    if (isTextData) {
+      // Direct text data from PDF text extraction
+      ocrText = fileData;
+    } else {
+      // Process images with Tesseract
+      try {
+        const buffer = Buffer.from(fileData, 'base64');
+        const result = await Tesseract.recognize(buffer, 'eng');
+        ocrText = result.data.text.trim();
+        
+        if (!ocrText) {
+          return { 
+            statusCode: 500, 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ success: false, error: 'No text could be extracted from the image' }) 
+          };
+        }
+      } catch (err) {
+        console.error('OCR processing failed', err);
         return { 
           statusCode: 500, 
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ success: false, error: 'No text could be extracted from the image' }) 
+          body: JSON.stringify({ success: false, error: 'OCR processing failed - please try with a different file' }) 
         };
       }
-      
-    } catch (err) {
-      console.error('Processing failed', err);
-      return { 
-        statusCode: 500, 
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ success: false, error: 'Processing failed - please try with a different file' }) 
-      };
     }
 
     // Step 2: Clean and redact sensitive information

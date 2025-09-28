@@ -9,15 +9,60 @@ export default function OCRTester() {
   const [showPDFConverter, setShowPDFConverter] = useState(false);
 
   const handleImageFromPDF = (imageData: string, fileName: string) => {
-    // Convert data URL to base64
-    const base64Data = imageData.split(',')[1];
+    // Check if this is text data (from PDF text extraction)
+    const isTextData = !imageData.startsWith('data:');
     
-    // Create a mock file object for the converted image
-    const mockFile = new File([], fileName, { type: 'image/jpeg' });
-    setFile(mockFile);
-    
-    // Process the image immediately
-    processImage(base64Data, fileName);
+    if (isTextData) {
+      // This is text data from PDF text extraction
+      const mockFile = new File([], fileName, { type: 'text/plain' });
+      setFile(mockFile);
+      processTextData(imageData, fileName);
+    } else {
+      // This is image data (from PDF to image conversion)
+      const base64Data = imageData.split(',')[1];
+      const mockFile = new File([], fileName, { type: 'image/jpeg' });
+      setFile(mockFile);
+      processImage(base64Data, fileName);
+    }
+  };
+
+  const processTextData = async (textData: string, fileName: string) => {
+    setLoading(true);
+    setResult(null);
+    setStep('Processing extracted text...');
+
+    try {
+      setStep('Sending text to AI for parsing...');
+      const res = await fetch('/.netlify/functions/ocr-ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          fileData: textData, 
+          fileName: fileName,
+          fileType: 'text/plain',
+          userId: 'demo-user',
+          isTextData: true
+        })
+      });
+
+      setStep('Processing with AI...');
+      const json = await res.json();
+      
+      setStep('Complete!');
+      setResult(json);
+      
+    } catch (error) {
+      console.error('Text processing error:', error);
+      setResult({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      setStep('Error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const processImage = async (base64Data: string, fileName: string) => {
