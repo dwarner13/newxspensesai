@@ -38,6 +38,9 @@ export default defineConfig({
     // Replace server-side modules with empty objects in client build
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
     global: 'globalThis',
+    // Polyfill Node.js modules for browser
+    'process': '{}',
+    'Buffer': 'undefined',
   },
   build: {
     minify: 'esbuild',
@@ -79,6 +82,21 @@ export default defineConfig({
         'cluster',
         'worker_threads',
         'crypto-js',
+        // Additional Node.js modules that might be imported by dependencies
+        'module',
+        'assert',
+        'constants',
+        'domain',
+        'freelist',
+        'punycode',
+        'readline',
+        'repl',
+        'string_decoder',
+        'sys',
+        'tls',
+        'tty',
+        'vm',
+        'zlib'
       ],
       output: {
         manualChunks: {
