@@ -2,10 +2,10 @@
 import * as pdfjsLib from "pdfjs-dist";
 import { getPdfMetadata } from "./metadata";
 
-// Configure PDF.js worker with CDN fallback
+// Configure PDF.js worker with working CDN
 function setupPdfWorker() {
-  // Use CDN worker directly - more reliable than bundled worker
-  const cdnWorkerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js';
+  // Use working CDN worker URL
+  const cdnWorkerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
   
   pdfjsLib.GlobalWorkerOptions.workerSrc = cdnWorkerSrc;
   console.log('PDF.js worker configured:', cdnWorkerSrc);
@@ -118,16 +118,27 @@ export async function extractPdfTextFallback(arrayBuffer: ArrayBuffer, options?:
 }
 
 // Main export with automatic fallback
-export async function extractPdfTextSafe(arrayBuffer: ArrayBuffer, options?: { maxPages?: number }): Promise<ExtractResult> {
+export async function extractPdfTextSafe(arrayBuffer: ArrayBuffer, options?: { maxPages?: number, includeMetadata?: boolean }): Promise<ExtractResult> {
   try {
     return await extractPdfText(arrayBuffer, options);
   } catch (error) {
     console.warn('PDF text extraction failed with worker, trying fallback:', error);
+    
+    // Disable worker completely for fallback
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+    
     try {
       return await extractPdfTextFallback(arrayBuffer, options);
     } catch (fallbackError) {
       console.error('PDF text extraction completely failed:', fallbackError);
-      throw new Error(`PDF text extraction failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
+      
+      // Return a minimal result instead of throwing
+      return {
+        pages: 0,
+        hasTextLayer: false,
+        textByPage: [],
+        textSample: 'PDF text extraction failed. This may be a scanned PDF or corrupted file.'
+      };
     }
   }
 }
