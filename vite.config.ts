@@ -29,6 +29,15 @@ const nodeModulesReplacement = () => ({
     if (id.startsWith('\0') && nodeModules.includes(id.slice(1))) {
       return 'export default {}; export const fs = {}; export const path = {}; export const os = {}; export const crypto = {}; export const buffer = {}; export const util = {}; export const events = {}; export const stream = {};';
     }
+  },
+  // Add transform hook to catch imports at parse time
+  transform(code, id) {
+    if (code.includes('require("fs")') || code.includes('import fs from "fs"') || code.includes('import {') && code.includes('from "fs"')) {
+      return code
+        .replace(/require\(["']fs["']\)/g, '({})')
+        .replace(/import\s+.*\s+from\s+["']fs["']/g, '')
+        .replace(/import\s+fs\s+from\s+["']fs["']/g, 'const fs = {};');
+    }
   }
 });
 
@@ -98,6 +107,12 @@ export default defineConfig({
             id === 'tiktoken' || id === 'zod' || id === 'undici' || id === 'jsdom' ||
             id === '@mozilla/readability' || id === 'pdf-lib' || id === 'sharp' ||
             id === 'crypto-js') {
+          return true;
+        }
+        
+        // Externalize any module that might import Node.js built-ins
+        if (id.includes('fs') || id.includes('path') || id.includes('os') || 
+            id.includes('crypto') || id.includes('buffer') || id.includes('util')) {
           return true;
         }
         
