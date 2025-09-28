@@ -34,6 +34,11 @@ export default defineConfig({
       target: 'es2020'
     }
   },
+  define: {
+    // Replace server-side modules with empty objects in client build
+    'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
+    global: 'globalThis',
+  },
   build: {
     minify: 'esbuild',
     sourcemap: false,
@@ -73,7 +78,7 @@ export default defineConfig({
         'child_process',
         'cluster',
         'worker_threads',
-        'crypto-js'
+        'crypto-js',
       ],
       output: {
         manualChunks: {
