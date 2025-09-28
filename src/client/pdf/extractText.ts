@@ -2,11 +2,38 @@
 import * as pdfjsLib from "pdfjs-dist";
 import { getPdfMetadata } from "./metadata";
 
-// Configure PDF.js worker - use bundled worker to avoid CDN issues
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url
-).toString();
+// Configure PDF.js worker with multiple fallback options
+function setupPdfWorker() {
+  // Try multiple worker sources in order of preference
+  const workerSources = [
+    // 1. Try bundled worker first
+    () => new URL('pdfjs-dist/build/pdf.worker.min.js', import.meta.url).toString(),
+    // 2. Try CDN as fallback
+    () => 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js',
+    // 3. Try alternative CDN
+    () => 'https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.worker.min.js',
+    // 4. Try jsDelivr CDN
+    () => 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js'
+  ];
+  
+  for (const getWorkerSrc of workerSources) {
+    try {
+      const workerSrc = getWorkerSrc();
+      pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
+      console.log('PDF.js worker configured:', workerSrc);
+      return;
+    } catch (error) {
+      console.warn('Failed to configure PDF.js worker:', error);
+      continue;
+    }
+  }
+  
+  // If all fail, disable worker
+  console.warn('All PDF.js worker sources failed, disabling worker');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+}
+
+setupPdfWorker();
 
 type ExtractResult = {
   pages: number;
@@ -30,7 +57,12 @@ export async function extractPdfText(arrayBuffer: ArrayBuffer, options?: { maxPa
   const loadingTask = pdfjsLib.getDocument({ 
     data: arrayBuffer,
     useWorkerFetch: false,
-    disableWorker: false
+    disableWorker: false,
+    // Add timeout and error handling
+    maxImageSize: 1024 * 1024,
+    disableFontFace: false,
+    disableRange: false,
+    disableStream: false
   });
   
   const pdf = await loadingTask.promise;
@@ -75,7 +107,8 @@ export async function extractPdfText(arrayBuffer: ArrayBuffer, options?: { maxPa
 export async function extractPdfTextFallback(arrayBuffer: ArrayBuffer, options?: { maxPages?: number }): Promise<ExtractResult> {
   const loadingTask = pdfjsLib.getDocument({ 
     data: arrayBuffer,
-    disableWorker: true
+    disableWorker: true,
+    useWorkerFetch: false
   });
   
   const pdf = await loadingTask.promise;
