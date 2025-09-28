@@ -18,18 +18,19 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  optimizeDeps: {
-    exclude: ['lucide-react'],
-    include: [
-      'react', 
-      'react-dom', 
-      'react-router-dom', 
-      'framer-motion',
-      'pdfjs-dist/build/pdf.worker.min.js',
-      'pdfjs-dist'
-    ],
-    force: true,
-  },
+        optimizeDeps: {
+          exclude: ['lucide-react'],
+          include: [
+            'react', 
+            'react-dom', 
+            'react-router-dom', 
+            'framer-motion',
+            'pdfjs-dist/build/pdf.worker.min.js',
+            'pdfjs-dist',
+            'pdf-lib'
+          ],
+          force: true,
+        },
          build: {
            minify: 'esbuild',
            sourcemap: false,
