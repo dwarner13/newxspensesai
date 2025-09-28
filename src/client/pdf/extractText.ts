@@ -2,13 +2,14 @@
 import * as pdfjsLib from "pdfjs-dist";
 import { getPdfMetadata } from "./metadata";
 
-// Configure PDF.js worker with working CDN
+// Configure PDF.js worker with matching version
 function setupPdfWorker() {
-  // Use working CDN worker URL
-  const cdnWorkerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  // Use CDN worker URL that matches the installed pdfjs-dist version (5.4.149)
+  const version = '5.4.149'; // Match the installed version
+  const cdnWorkerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.js`;
   
   pdfjsLib.GlobalWorkerOptions.workerSrc = cdnWorkerSrc;
-  console.log('PDF.js worker configured:', cdnWorkerSrc);
+  console.log('PDF.js worker configured:', cdnWorkerSrc, 'version:', version);
 }
 
 setupPdfWorker();
@@ -31,18 +32,29 @@ type ExtractResult = {
 export async function extractPdfTextFromFile(file: File, maxPages = 5): Promise<ExtractResult> {
   console.log('Extracting text from PDF file:', file.name, 'size:', file.size);
   
+  // Clone the ArrayBuffer to avoid detachment issues
   const ab = await file.arrayBuffer();
-  const data = new Uint8Array(ab.slice(0));
+  const data = new Uint8Array(ab.slice(0)); // This creates a copy
 
   let pdf;
   try {
     console.log('Attempting to load PDF with worker...');
-    pdf = await pdfjsLib.getDocument({ data }).promise;
+    // Try with worker first
+    pdf = await pdfjsLib.getDocument({ 
+      data: data.buffer.slice(0), // Ensure we have a fresh buffer
+      useWorkerFetch: false,
+      disableWorker: false
+    }).promise;
     console.log('PDF loaded successfully with worker');
   } catch (workerError) {
     console.warn('Worker failed, trying without worker:', workerError);
     try {
-      pdf = await pdfjsLib.getDocument({ data, disableWorker: true }).promise;
+      // Try without worker using a fresh buffer
+      pdf = await pdfjsLib.getDocument({ 
+        data: data.buffer.slice(0), // Fresh buffer for fallback
+        disableWorker: true,
+        useWorkerFetch: false
+      }).promise;
       console.log('PDF loaded successfully without worker');
     } catch (noWorkerError) {
       console.error('PDF loading failed completely:', noWorkerError);
