@@ -38,9 +38,6 @@ export default defineConfig({
     // Replace server-side modules with empty objects in client build
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'production'),
     global: 'globalThis',
-    // Polyfill Node.js modules for browser
-    'process': '{}',
-    'Buffer': 'undefined',
   },
   build: {
     minify: 'esbuild',
