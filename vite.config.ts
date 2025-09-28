@@ -15,10 +15,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
-      // Fix worker resolution - map to the correct worker file
-      'pdfjs-dist/build/pdf.worker.min.js': 
-        'pdfjs-dist/build/pdf.worker.min.mjs'
+      '@': path.resolve(__dirname, './src')
     },
   },
   optimizeDeps: {
@@ -33,19 +30,22 @@ export default defineConfig({
       'tesseract.js'
     ],
     force: true,
+    esbuildOptions: {
+      target: 'es2020'
+    }
   },
-         build: {
-           minify: 'esbuild',
-           sourcemap: false,
-           cssCodeSplit: true,
-           brotliSize: false,
-           chunkSizeWarningLimit: 2000,
-           target: 'esnext',
-           format: 'esm',
-           rollupOptions: {
-             maxParallelFileOps: 2,
-             treeshake: true,
-             external: [
+  build: {
+    minify: 'esbuild',
+    sourcemap: false,
+    cssCodeSplit: true,
+    brotliSize: false,
+    chunkSizeWarningLimit: 2000,
+    target: 'es2020',
+    format: 'esm',
+    rollupOptions: {
+      maxParallelFileOps: 2,
+      treeshake: true,
+      external: [
         // Server-side packages
         'node-fetch',
         'jose',
@@ -75,17 +75,20 @@ export default defineConfig({
         'worker_threads',
         'crypto-js'
       ],
-             output: {
-               manualChunks: {
-                 vendor: ['react', 'react-dom', 'react-router-dom'],
-                 ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs'],
-                 charts: ['chart.js', 'react-chartjs-2'],
-               },
-               chunkFileNames: 'assets/[name]-[hash].js',
-               entryFileNames: 'assets/[name]-[hash].js',
-               assetFileNames: 'assets/[name]-[hash].[ext]',
-             },
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs'],
+          charts: ['chart.js', 'react-chartjs-2'],
+        },
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]',
+      },
     },
+  },
+  worker: {
+    format: 'es'
   },
   server: {
     port: 5173,
@@ -96,6 +99,10 @@ export default defineConfig({
       usePolling: false,
       interval: 1000,
     },
+    headers: {
+      'Cross-Origin-Embedder-Policy': 'credentialless',
+      'Cross-Origin-Opener-Policy': 'same-origin'
+    }
   },
   preview: {
     port: 3000,

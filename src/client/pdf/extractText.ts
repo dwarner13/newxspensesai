@@ -1,27 +1,63 @@
 // src/client/pdf/extractText.ts
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = 
-  `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure worker properly
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
-// Main safe extraction function that was MISSING
+// Safe extraction with proper error handling
 export async function extractPdfTextSafe(file: File): Promise<string> {
   try {
+    console.log('Starting PDF extraction for:', file.name);
+    
+    // Convert file to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    
+    // Load PDF with specific settings to handle encoding
+    const loadingTask = pdfjsLib.getDocument({
+      data: arrayBuffer,
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/'
+    });
+    
+    const pdf = await loadingTask.promise;
+    console.log('PDF loaded, pages:', pdf.numPages);
+    
     let fullText = '';
     
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
+    // Extract text from each page
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
+      
+      // Properly handle text items
       const pageText = textContent.items
-        .map((item: any) => item.str)
+        .map((item: any) => {
+          if (typeof item.str === 'string') {
+            return item.str;
+          }
+          return '';
+        })
+        .filter(text => text.length > 0)
         .join(' ');
+        
       fullText += pageText + '\n';
     }
     
-    return fullText.trim();
+    // Clean up the text
+    fullText = fullText
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove control characters
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+    
+    console.log('Extraction complete, text length:', fullText.length);
+    
+    if (fullText.length === 0) {
+      throw new Error('No readable text found in PDF');
+    }
+    
+    return fullText;
   } catch (error) {
     console.error('PDF extraction error:', error);
     throw new Error(`Failed to extract PDF text: ${error.message}`);
@@ -41,21 +77,42 @@ export async function extractStructuredData(file: File): Promise<{
 }> {
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const loadingTask = pdfjsLib.getDocument({
+      data: arrayBuffer,
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/'
+    });
+    
+    const pdf = await loadingTask.promise;
     const metadata = await pdf.getMetadata();
     let fullText = '';
     
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
+      
       const pageText = textContent.items
-        .map((item: any) => item.str)
+        .map((item: any) => {
+          if (typeof item.str === 'string') {
+            return item.str;
+          }
+          return '';
+        })
+        .filter(text => text.length > 0)
         .join(' ');
+        
       fullText += pageText + '\n';
     }
     
+    // Clean up the text
+    fullText = fullText
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
     return {
-      text: fullText.trim(),
+      text: fullText,
       pageCount: pdf.numPages,
       metadata: metadata.info
     };
