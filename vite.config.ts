@@ -8,14 +8,26 @@ const nodeModulesReplacement = () => ({
   name: 'node-modules-replacement',
   resolveId(id) {
     // Replace Node.js modules with empty objects
-    if (['fs', 'path', 'os', 'crypto', 'buffer', 'util', 'events', 'stream'].includes(id)) {
-      return id;
+    const nodeModules = ['fs', 'path', 'os', 'crypto', 'buffer', 'util', 'events', 'stream', 
+                        'http', 'https', 'url', 'querystring', 'child_process', 'cluster', 
+                        'worker_threads', 'module', 'assert', 'constants', 'domain', 'freelist', 
+                        'punycode', 'readline', 'repl', 'string_decoder', 'sys', 'tls', 'tty', 
+                        'vm', 'zlib'];
+    
+    if (nodeModules.includes(id)) {
+      return '\0' + id; // Virtual module
     }
   },
   load(id) {
     // Return empty module for Node.js built-ins
-    if (['fs', 'path', 'os', 'crypto', 'buffer', 'util', 'events', 'stream'].includes(id)) {
-      return 'export default {};';
+    const nodeModules = ['fs', 'path', 'os', 'crypto', 'buffer', 'util', 'events', 'stream',
+                        'http', 'https', 'url', 'querystring', 'child_process', 'cluster',
+                        'worker_threads', 'module', 'assert', 'constants', 'domain', 'freelist',
+                        'punycode', 'readline', 'repl', 'string_decoder', 'sys', 'tls', 'tty',
+                        'vm', 'zlib'];
+    
+    if (id.startsWith('\0') && nodeModules.includes(id.slice(1))) {
+      return 'export default {}; export const fs = {}; export const path = {}; export const os = {}; export const crypto = {}; export const buffer = {}; export const util = {}; export const events = {}; export const stream = {};';
     }
   }
 });
