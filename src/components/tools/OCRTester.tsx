@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import PDFToImageConverter from './PDFToImageConverter';
+import { OCRService } from '@/client/services/ocrService';
 
 export default function OCRTester() {
   const [file, setFile] = useState<File | null>(null);
@@ -71,25 +72,34 @@ export default function OCRTester() {
     setStep('Starting OCR processing...');
 
     try {
-      setStep('Running OCR with Tesseract...');
-      const res = await fetch('/.netlify/functions/ocr-ingest', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          fileData: base64Data, 
-          fileName: fileName,
-          fileType: 'image/jpeg',
-          userId: 'demo-user' 
-        })
-      });
-
-      setStep('Processing with AI...');
-      const json = await res.json();
+      // Create a mock File object for the OCR service
+      const blob = await fetch(`data:image/jpeg;base64,${base64Data}`).then(r => r.blob());
+      const mockFile = new File([blob], fileName, { type: 'image/jpeg' });
       
-      setStep('Complete!');
-      setResult(json);
+      setStep('Running OCR with Tesseract...');
+      const result = await OCRService.processImage(mockFile);
+      
+      if (result.success) {
+        setStep('Complete!');
+        setResult({
+          success: true,
+          text: result.text,
+          confidence: result.confidence,
+          parsed: result.parsed
+        });
+        console.log('OCR successful, confidence:', result.confidence);
+        
+        // Show parsed data
+        if (result.parsed) {
+          console.log('Parsed expense data:', result.parsed);
+        }
+      } else {
+        setResult({
+          success: false,
+          error: result.error || 'OCR processing failed'
+        });
+        setStep('Error occurred');
+      }
       
     } catch (error) {
       console.error('OCR Error:', error);
@@ -110,20 +120,36 @@ export default function OCRTester() {
     setStep('Starting OCR processing...');
 
     try {
-      setStep('Converting file to base64...');
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Remove data:image/jpeg;base64, prefix
-          const base64Data = result.split(',')[1];
-          resolve(base64Data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      // Validate image first
+      const isValid = await OCRService.validateImage(file);
+      if (!isValid) {
+        throw new Error('Selected file is not a valid image');
+      }
       
-      await processImage(base64, file.name);
+      setStep('Running OCR with Tesseract...');
+      const result = await OCRService.processImage(file);
+      
+      if (result.success) {
+        setStep('Complete!');
+        setResult({
+          success: true,
+          text: result.text,
+          confidence: result.confidence,
+          parsed: result.parsed
+        });
+        console.log('OCR successful, confidence:', result.confidence);
+        
+        // Show parsed data
+        if (result.parsed) {
+          console.log('Parsed expense data:', result.parsed);
+        }
+      } else {
+        setResult({
+          success: false,
+          error: result.error || 'OCR processing failed'
+        });
+        setStep('Error occurred');
+      }
       
     } catch (error) {
       console.error('OCR Error:', error);
