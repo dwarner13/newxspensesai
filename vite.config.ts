@@ -20,7 +20,14 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['lucide-react'],
-    include: ['react', 'react-dom', 'react-router-dom', 'framer-motion'],
+    include: [
+      'react', 
+      'react-dom', 
+      'react-router-dom', 
+      'framer-motion',
+      'pdfjs-dist/build/pdf.worker.min.js',
+      'pdfjs-dist'
+    ],
     force: true,
   },
          build: {
@@ -46,7 +53,6 @@ export default defineConfig({
         'jsdom',
         '@mozilla/readability',
         'pdf-lib',
-        'pdf-parse',
         'sharp',
         // Node.js built-in modules
         'crypto',
