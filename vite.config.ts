@@ -29,7 +29,8 @@ export default defineConfig({
       'react-router-dom', 
       'framer-motion',
       'pdfjs-dist',
-      'pdf-lib'
+      'pdf-lib',
+      'tesseract.js'
     ],
     force: true,
   },
@@ -46,7 +47,6 @@ export default defineConfig({
              treeshake: true,
              external: [
         // Server-side packages
-        'tesseract.js', 
         'node-fetch',
         'jose',
         'zod-to-json-schema',

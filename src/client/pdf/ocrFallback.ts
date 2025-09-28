@@ -1,11 +1,14 @@
 // src/client/pdf/ocrFallback.ts
-import Tesseract from 'tesseract.js';
 
 export async function extractWithOCR(file: File): Promise<string> {
   try {
     console.log('Starting OCR extraction for:', file.name);
     
-    const { data: { text } } = await Tesseract.recognize(
+    // Dynamic import to avoid build issues
+    const Tesseract = await import('tesseract.js');
+    const TesseractJS = Tesseract.default || Tesseract;
+    
+    const { data: { text } } = await TesseractJS.recognize(
       file,
       'eng',
       {
