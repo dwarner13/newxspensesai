@@ -57,54 +57,17 @@ export const handler: Handler = async (event) => {
       
       // Check if it's a PDF
       if (fileType === 'application/pdf' || fileName?.toLowerCase().endsWith('.pdf')) {
-        try {
-          // Dynamic import to avoid initialization issues
-          const pdf = await import('pdf-parse');
-          
-          // Create a temporary file to satisfy pdf-parse's internal requirements
-          const fs = await import('fs');
-          const path = await import('path');
-          const os = await import('os');
-          
-          // Create temp directory and file if they don't exist
-          const tempDir = path.join(os.tmpdir(), 'pdf-parse-test');
-          if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-          }
-          
-          const testFilePath = path.join(tempDir, '05-versions-space.pdf');
-          if (!fs.existsSync(testFilePath)) {
-            // Create an empty PDF file to satisfy the library
-            fs.writeFileSync(testFilePath, Buffer.from(''));
-          }
-          
-          const pdfData = await pdf.default(buffer);
-          ocrText = pdfData.text.trim();
-          
-          if (!ocrText) {
-            return {
-              statusCode: 400,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                success: false, 
-                error: 'No text could be extracted from the PDF. The PDF might be image-based or scanned.',
-                suggestion: 'Try converting the PDF to images first, or use a PDF with selectable text.'
-              })
-            };
-          }
-          
-        } catch (pdfError) {
-          console.error('PDF parsing failed:', pdfError);
-          return {
-            statusCode: 500,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              success: false, 
-              error: 'PDF processing failed. The PDF might be corrupted or password-protected.',
-              suggestion: 'Try with a different PDF file or convert to images first.'
-            })
-          };
-        }
+        // For now, return a helpful error message for PDFs
+        // TODO: Implement proper PDF processing without problematic dependencies
+        return {
+          statusCode: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            success: false, 
+            error: 'PDF processing is temporarily disabled due to technical issues.',
+            suggestion: 'Please convert your PDF to images (JPG/PNG) and upload those instead. You can use online PDF to image converters or screenshot tools.'
+          })
+        };
       } else {
         // Process images with Tesseract
         const result = await Tesseract.recognize(buffer, 'eng');
