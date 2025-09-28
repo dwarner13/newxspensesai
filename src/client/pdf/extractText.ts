@@ -2,35 +2,13 @@
 import * as pdfjsLib from "pdfjs-dist";
 import { getPdfMetadata } from "./metadata";
 
-// Configure PDF.js worker with multiple fallback options
+// Configure PDF.js worker with CDN fallback
 function setupPdfWorker() {
-  // Try multiple worker sources in order of preference
-  const workerSources = [
-    // 1. Try bundled worker first
-    () => new URL('pdfjs-dist/build/pdf.worker.min.js', import.meta.url).toString(),
-    // 2. Try CDN as fallback
-    () => 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js',
-    // 3. Try alternative CDN
-    () => 'https://unpkg.com/pdfjs-dist@4.4.168/build/pdf.worker.min.js',
-    // 4. Try jsDelivr CDN
-    () => 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.js'
-  ];
+  // Use CDN worker directly - more reliable than bundled worker
+  const cdnWorkerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js';
   
-  for (const getWorkerSrc of workerSources) {
-    try {
-      const workerSrc = getWorkerSrc();
-      pdfjsLib.GlobalWorkerOptions.workerSrc = workerSrc;
-      console.log('PDF.js worker configured:', workerSrc);
-      return;
-    } catch (error) {
-      console.warn('Failed to configure PDF.js worker:', error);
-      continue;
-    }
-  }
-  
-  // If all fail, disable worker
-  console.warn('All PDF.js worker sources failed, disabling worker');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = cdnWorkerSrc;
+  console.log('PDF.js worker configured:', cdnWorkerSrc);
 }
 
 setupPdfWorker();
@@ -58,11 +36,13 @@ export async function extractPdfText(arrayBuffer: ArrayBuffer, options?: { maxPa
     data: arrayBuffer,
     useWorkerFetch: false,
     disableWorker: false,
-    // Add timeout and error handling
+    // Optimize for text extraction
     maxImageSize: 1024 * 1024,
     disableFontFace: false,
     disableRange: false,
-    disableStream: false
+    disableStream: false,
+    // Add timeout
+    timeout: 10000
   });
   
   const pdf = await loadingTask.promise;
