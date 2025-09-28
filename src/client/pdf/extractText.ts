@@ -1,5 +1,5 @@
 // src/client/pdf/extractText.ts
-import { getDocument } from "@/client/pdf/pdfjs";
+import { getDocument } from "./pdfjs";
 
 export async function extractPdfTextFromFile(file: File, maxPages = 5) {
   // read once
