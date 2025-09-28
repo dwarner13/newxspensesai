@@ -4,23 +4,58 @@ export default function OCRTester() {
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState('');
 
   async function handleRun() {
     if (!file) return;
     setLoading(true);
+    setResult(null);
+    setStep('Starting OCR processing...');
 
-    const url = URL.createObjectURL(file);
-    const res = await fetch('/.netlify/functions/ocr-ingest', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ fileUrl: url, userId: 'demo-user' })
-    });
+    try {
+      setStep('Converting file to base64...');
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Remove data:image/jpeg;base64, prefix
+          const base64Data = result.split(',')[1];
+          resolve(base64Data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      
+      setStep('Running OCR with Tesseract...');
+      const res = await fetch('/.netlify/functions/ocr-ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          fileData: base64, 
+          fileName: file.name,
+          fileType: file.type,
+          userId: 'demo-user' 
+        })
+      });
 
-    const json = await res.json();
-    setResult(json);
-    setLoading(false);
+      setStep('Processing with AI...');
+      const json = await res.json();
+      
+      setStep('Complete!');
+      setResult(json);
+      
+    } catch (error) {
+      console.error('OCR Error:', error);
+      setResult({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      setStep('Error occurred');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -44,6 +79,15 @@ export default function OCRTester() {
           {loading ? 'Processing…' : 'Run OCR + AI'}
         </button>
 
+        {loading && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+              <span className="text-blue-700">{step}</span>
+            </div>
+          </div>
+        )}
+
         {result && (
           <div className="mt-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-3">Results:</h3>
@@ -56,6 +100,7 @@ export default function OCRTester() {
     </div>
   );
 }
+
 
 
 

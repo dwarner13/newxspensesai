@@ -3,6 +3,10 @@
   functions = "netlify/functions"
   publish = "dist"
 
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["tesseract.js", "openai", "@supabase/supabase-js"]
+
 [build.processing]
   skip_processing = true
 

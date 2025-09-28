@@ -42,6 +42,9 @@ const FinancialTherapistPage = lazy(() => import('./pages/dashboard/FinancialThe
 const TherapistDemoPage = lazy(() => import('./pages/dashboard/TherapistDemoPage'));
 const PersonalPodcastPage = lazy(() => import('./pages/dashboard/PersonalPodcastPage'));
 const OCRTesterPage = lazy(() => import('./pages/OCRTesterPage'));
+const LocalOCRTester = lazy(() => import('./pages/LocalOCRTester'));
+
+// Prime Module - conditionally loaded (replacing existing PrimeLabPage)
 const MobileCheck = lazy(() => import('./pages/debug/MobileCheck'));
 const MobileTest = lazy(() => import('./pages/debug/MobileTest'));
 const NavCheck = lazy(() => import('./pages/debug/NavCheck'));
@@ -52,7 +55,7 @@ const PrimeAITestPage = lazy(() => import('./pages/test/PrimeAITestPage'));
 const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistant')); // 🚀🚀🚀 BRAND NEW VERSION
 const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
 const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligence'));
-const PrimeLabPage = lazy(() => import('./ui/pages/PrimeLabPage'));
+const PrimeLabPage = lazy(() => import('../prime-module/pages/PrimeLabPage'));
 const TeamRoom = lazy(() => import('./pages/dashboard/TeamRoom'));
 const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
 const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
@@ -202,8 +205,10 @@ function App() {
                         {/* Reports route - redirect to dashboard */}
                         <Route path="/reports" element={<Navigate to="/dashboard/reports" replace />} />
                         
-                        {/* OCR Tester route */}
+                        {/* OCR Tester routes */}
                         <Route path="/ocr-tester" element={<OCRTesterPage />} />
+                        <Route path="/local-ocr-test" element={<LocalOCRTester />} />
+                        
             <Route path="/debug/mobile" element={<MobileCheck />} />
             <Route path="/debug/mobile-test" element={<MobileTest />} />
             <Route path="/debug/navcheck" element={<NavCheck />} />
