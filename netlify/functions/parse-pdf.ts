@@ -4,7 +4,7 @@ import type { Handler } from '@netlify/functions';
 // Use dynamic import to handle ESM/CJS issues
 const parsePdf = async (buffer: Buffer): Promise<string> => {
   // Dynamic import to avoid build issues
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.js');
+  const pdfjsLib = await import('pdfjs-dist');
   const pdfjs = pdfjsLib.default || pdfjsLib;
   
   try {

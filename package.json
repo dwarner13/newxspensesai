@@ -84,7 +84,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
-    "@netlify/functions": "^2.6.0",
+    "@netlify/functions": "^2.8.2",
     "@types/crypto-js": "^4.2.2",
     "@types/papaparse": "^5.3.14",
     "@types/pdfjs-dist": "^2.10.378",
