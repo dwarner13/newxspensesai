@@ -60,6 +60,24 @@ export const handler: Handler = async (event) => {
         try {
           // Dynamic import to avoid initialization issues
           const pdf = await import('pdf-parse');
+          
+          // Create a temporary file to satisfy pdf-parse's internal requirements
+          const fs = await import('fs');
+          const path = await import('path');
+          const os = await import('os');
+          
+          // Create temp directory and file if they don't exist
+          const tempDir = path.join(os.tmpdir(), 'pdf-parse-test');
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+          }
+          
+          const testFilePath = path.join(tempDir, '05-versions-space.pdf');
+          if (!fs.existsSync(testFilePath)) {
+            // Create an empty PDF file to satisfy the library
+            fs.writeFileSync(testFilePath, Buffer.from(''));
+          }
+          
           const pdfData = await pdf.default(buffer);
           ocrText = pdfData.text.trim();
           
