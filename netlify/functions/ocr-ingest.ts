@@ -1,7 +1,16 @@
 // netlify/functions/ocr-ingest.ts
 import { Handler } from '@netlify/functions';
-import Tesseract from 'tesseract.js';
-import sharp from 'sharp';
+
+// Use dynamic imports to reduce bundle size
+const loadTesseract = async () => {
+  const Tesseract = await import('tesseract.js');
+  return Tesseract.default || Tesseract;
+};
+
+const loadSharp = async () => {
+  const sharp = await import('sharp');
+  return sharp.default || sharp;
+};
 
 // Helper to convert base64 to buffer
 const base64ToBuffer = (base64: string): Buffer => {
@@ -13,6 +22,9 @@ const base64ToBuffer = (base64: string): Buffer => {
 // Preprocess image for better OCR results
 const preprocessImage = async (buffer: Buffer): Promise<Buffer> => {
   try {
+    // Dynamically load sharp to reduce bundle size
+    const sharp = await loadSharp();
+    
     // Use sharp to preprocess the image
     const processedImage = await sharp(buffer)
       .grayscale() // Convert to grayscale
@@ -109,9 +121,12 @@ export const handler: Handler = async (event) => {
     // Perform OCR with error handling
     console.log('Starting OCR processing...');
     
-    try {
-      // Create worker with explicit configuration
-      const worker = await Tesseract.createWorker({
+           try {
+             // Dynamically load Tesseract to reduce bundle size
+             const Tesseract = await loadTesseract();
+             
+             // Create worker with explicit configuration
+             const worker = await Tesseract.createWorker({
         logger: (m) => {
           if (m.status === 'recognizing text') {
             console.log(`OCR Progress: ${Math.round((m.progress || 0) * 100)}%`);
