@@ -55,31 +55,16 @@ export const handler: Handler = async (event) => {
     try {
       const buffer = Buffer.from(fileData, 'base64');
       
-      // Check if it's a PDF
-      if (fileType === 'application/pdf' || fileName?.toLowerCase().endsWith('.pdf')) {
-        // For now, return a helpful error message for PDFs
-        // TODO: Implement proper PDF processing without problematic dependencies
-        return {
-          statusCode: 400,
+      // Process images with Tesseract (PDFs are now handled client-side)
+      const result = await Tesseract.recognize(buffer, 'eng');
+      ocrText = result.data.text.trim();
+      
+      if (!ocrText) {
+        return { 
+          statusCode: 500, 
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            success: false, 
-            error: 'PDF processing is temporarily disabled due to technical issues.',
-            suggestion: 'Please convert your PDF to images (JPG/PNG) and upload those instead. You can use online PDF to image converters or screenshot tools.'
-          })
+          body: JSON.stringify({ success: false, error: 'No text could be extracted from the image' }) 
         };
-      } else {
-        // Process images with Tesseract
-        const result = await Tesseract.recognize(buffer, 'eng');
-        ocrText = result.data.text.trim();
-        
-        if (!ocrText) {
-          return { 
-            statusCode: 500, 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ success: false, error: 'No text could be extracted from the image' }) 
-          };
-        }
       }
       
     } catch (err) {
