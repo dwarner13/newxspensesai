@@ -3,6 +3,23 @@ import react from '@vitejs/plugin-react';
 import { visualizer } from 'rollup-plugin-visualizer';
 import path from 'path';
 
+// Plugin to replace Node.js modules with empty objects
+const nodeModulesReplacement = () => ({
+  name: 'node-modules-replacement',
+  resolveId(id) {
+    // Replace Node.js modules with empty objects
+    if (['fs', 'path', 'os', 'crypto', 'buffer', 'util', 'events', 'stream'].includes(id)) {
+      return id;
+    }
+  },
+  load(id) {
+    // Return empty module for Node.js built-ins
+    if (['fs', 'path', 'os', 'crypto', 'buffer', 'util', 'events', 'stream'].includes(id)) {
+      return 'export default {};';
+    }
+  }
+});
+
 // https://vitejs.dev/config/
 export default defineConfig({
   base: '/', // Use relative base path for development
@@ -12,6 +29,7 @@ export default defineConfig({
       jsxImportSource: 'react',
     }),
     visualizer({ open: false }), // view bundle size with `npm run build`
+    nodeModulesReplacement(), // Replace Node.js modules with empty objects
   ],
   resolve: {
     alias: {
@@ -50,51 +68,29 @@ export default defineConfig({
     rollupOptions: {
       maxParallelFileOps: 2,
       treeshake: true,
-      external: [
-        // Server-side packages
-        'node-fetch',
-        'jose',
-        'zod-to-json-schema',
-        'tiktoken',
-        'zod',
-        'undici',
-        'jsdom',
-        '@mozilla/readability',
-        'pdf-lib',
-        'sharp',
-        // Node.js built-in modules
-        'crypto',
-        'fs',
-        'path',
-        'os',
-        'stream',
-        'util',
-        'events',
-        'http',
-        'https',
-        'url',
-        'querystring',
-        'buffer',
-        'child_process',
-        'cluster',
-        'worker_threads',
-        'crypto-js',
-        // Additional Node.js modules that might be imported by dependencies
-        'module',
-        'assert',
-        'constants',
-        'domain',
-        'freelist',
-        'punycode',
-        'readline',
-        'repl',
-        'string_decoder',
-        'sys',
-        'tls',
-        'tty',
-        'vm',
-        'zlib'
-      ],
+      external: (id) => {
+        // Externalize all Node.js built-in modules
+        if (id === 'fs' || id === 'path' || id === 'os' || id === 'crypto' || 
+            id === 'buffer' || id === 'util' || id === 'events' || id === 'stream' ||
+            id === 'http' || id === 'https' || id === 'url' || id === 'querystring' ||
+            id === 'child_process' || id === 'cluster' || id === 'worker_threads' ||
+            id === 'module' || id === 'assert' || id === 'constants' || id === 'domain' ||
+            id === 'freelist' || id === 'punycode' || id === 'readline' || id === 'repl' ||
+            id === 'string_decoder' || id === 'sys' || id === 'tls' || id === 'tty' ||
+            id === 'vm' || id === 'zlib') {
+          return true;
+        }
+        
+        // Externalize server-side packages
+        if (id === 'node-fetch' || id === 'jose' || id === 'zod-to-json-schema' ||
+            id === 'tiktoken' || id === 'zod' || id === 'undici' || id === 'jsdom' ||
+            id === '@mozilla/readability' || id === 'pdf-lib' || id === 'sharp' ||
+            id === 'crypto-js') {
+          return true;
+        }
+        
+        return false;
+      },
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
