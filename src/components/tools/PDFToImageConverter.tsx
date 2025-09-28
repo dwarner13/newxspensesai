@@ -1,8 +1,20 @@
 import { useState, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker with multiple fallbacks
+const configurePDFWorker = () => {
+  const version = pdfjsLib.version;
+  const workerUrls = [
+    `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.js`,
+    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${version}/pdf.worker.min.js`,
+    `https://cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.js`
+  ];
+  
+  // Try to set the worker source
+  pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrls[0];
+};
+
+configurePDFWorker();
 
 interface PDFToImageConverterProps {
   onImageGenerated: (imageData: string, fileName: string) => void;
@@ -22,7 +34,20 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
     
     try {
       const arrayBuffer = await pdfFile.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      // Configure worker with error handling
+      try {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
+      } catch (workerError) {
+        console.warn('Worker configuration failed, trying fallback:', workerError);
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      }
+      
+      const pdf = await pdfjsLib.getDocument({ 
+        data: arrayBuffer,
+        useWorkerFetch: false,
+        disableWorker: false
+      }).promise;
       
       const images: string[] = [];
       const totalPages = pdf.numPages;
@@ -71,6 +96,69 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
       
     } catch (error) {
       console.error('PDF conversion error:', error);
+      
+      // If worker failed, try without worker as fallback
+      if (error instanceof Error && error.message.includes('worker')) {
+        try {
+          setProgress('Retrying without worker...');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = '';
+          
+          const arrayBuffer = await pdfFile.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ 
+            data: arrayBuffer,
+            disableWorker: true
+          }).promise;
+          
+          const images: string[] = [];
+          const totalPages = pdf.numPages;
+          
+          setProgress(`Converting ${totalPages} page(s) to images...`);
+          
+          // Convert each page to an image
+          for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+            setProgress(`Processing page ${pageNum} of ${totalPages}...`);
+            
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 2.0 });
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            if (!context) {
+              throw new Error('Could not get canvas context');
+            }
+            
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            
+            const renderContext = {
+              canvasContext: context,
+              viewport: viewport
+            };
+            
+            await page.render(renderContext).promise;
+            
+            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            images.push(imageDataUrl);
+          }
+          
+          setPreviewImages(images);
+          setProgress(`Successfully converted ${totalPages} page(s) to images!`);
+          
+          if (images.length === 1) {
+            const fileName = pdfFile.name.replace('.pdf', '_page1.jpg');
+            onImageGenerated(images[0], fileName);
+          }
+          
+          return; // Success with fallback
+          
+        } catch (fallbackError) {
+          console.error('Fallback conversion also failed:', fallbackError);
+          onError('PDF conversion failed. Please try converting to images manually or use a different PDF file.');
+          return;
+        }
+      }
+      
       onError(error instanceof Error ? error.message : 'Failed to convert PDF');
     } finally {
       setLoading(false);
@@ -119,6 +207,13 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
           accept=".pdf"
           className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
         />
+        
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <p className="text-sm text-blue-700">
+            <strong>Note:</strong> If PDF conversion fails, the system will automatically retry without the worker. 
+            For best results, ensure your PDF has selectable text or high-quality images.
+          </p>
+        </div>
         
         {loading && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
