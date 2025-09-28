@@ -1,31 +1,27 @@
 // netlify/functions/parse-pdf.ts
 import type { Handler } from '@netlify/functions';
 
-// Use dynamic import to handle ESM/CJS issues
-const parsePdf = async (buffer: Buffer): Promise<string> => {
-  // Dynamic import to avoid build issues
-  const pdfjsLib = await import('pdfjs-dist');
-  const pdfjs = pdfjsLib.default || pdfjsLib;
+// Simple text extraction for PDFs with text layer
+const extractTextFromPdfBuffer = (buffer: Buffer): string => {
+  const text = buffer.toString('latin1');
   
-  try {
-    const pdf = await pdfjs.getDocument({ data: buffer }).promise;
-    let fullText = '';
-    
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str || '')
-        .filter(Boolean)
-        .join(' ');
-      fullText += pageText + '\n';
-    }
-    
-    return fullText.trim();
-  } catch (error) {
-    console.error('PDF parsing error:', error);
-    throw new Error(`PDF parsing failed: ${error.message}`);
+  // Look for text content in PDF streams
+  const textMatches = text.match(/\(([^)]+)\)/g);
+  if (!textMatches) {
+    return '';
   }
+  
+  // Extract text from matches and clean up
+  const extractedText = textMatches
+    .map(match => match.slice(1, -1)) // Remove parentheses
+    .filter(str => str.length > 0 && !/^[\s\d\-\.]+$/.test(str)) // Filter out numbers and whitespace
+    .join(' ')
+    .replace(/\\n/g, ' ')
+    .replace(/\\r/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+    
+  return extractedText;
 };
 
 export const handler: Handler = async (event) => {
@@ -74,7 +70,7 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const extractedText = await parsePdf(buffer);
+           const extractedText = extractTextFromPdfBuffer(buffer);
 
     return {
       statusCode: 200,
