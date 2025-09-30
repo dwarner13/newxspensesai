@@ -130,16 +130,16 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
           onClick={onClose}
         >
         <motion.div
-          initial={{ y: '100%' }}
+          initial={{ y: '-100%' }}
           animate={{ y: 0 }}
-          exit={{ y: '100%' }}
+          exit={{ y: '-100%' }}
           transition={{ 
             type: 'spring', 
             damping: 25, 
             stiffness: 200,
             mass: 0.8
           }}
-          className="fixed bottom-0 left-0 right-0 bg-[#0f172a] border-t border-white/10 rounded-t-2xl max-h-[85vh] flex flex-col"
+          className="fixed inset-0 bg-[#0f172a] flex flex-col z-50"
           onClick={(e) => e.stopPropagation()}
         >
             {/* Header */}
@@ -172,7 +172,7 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
             </div>
 
             {/* Content Area */}
-            <div className="px-4 py-2 max-h-96 overflow-y-auto">
+            <div className="flex-1 px-4 py-2 overflow-y-auto">
               {currentView === 'main' && (
                 <>
                   <h4 className="text-sm font-semibold text-white/80 mb-2 uppercase tracking-wide">Account</h4>

@@ -48,9 +48,9 @@ export default function MobileNavInline() {
           side="left"
           className="
             w-[85%] max-w-sm
-            bg-zinc-950/40 backdrop-blur-sm
+            bg-zinc-950/95 backdrop-blur-sm
             text-zinc-300 border-r border-zinc-800 shadow-2xl
-            flex flex-col z-[9998] p-0
+            flex flex-col z-[9999] p-0
             transition-transform duration-250 ease-out
           "
           data-testid="mobile-sidebar"

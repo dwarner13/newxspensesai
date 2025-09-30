@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
-import { Crown } from "lucide-react";
+import { Crown, Bot } from "lucide-react";
 import DesktopSidebar from "../navigation/DesktopSidebar";
 import MobileNavInline from "../navigation/MobileNavInline";
 import BossBubble from "../boss/BossBubble";
 import DashboardHeader from "../ui/DashboardHeader";
 import RightSidebar from "../ui/RightSidebar";
+import AIEmployeeRoom from "../ai/AIEmployeeRoom";
 
 
 
 export default function DashboardLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isAIEmployeeRoomOpen, setIsAIEmployeeRoomOpen] = useState(false);
 
 
   // Dev-only guard to detect duplicate sidebars
@@ -52,7 +54,7 @@ export default function DashboardLayout() {
           {/* Middle column */}
           <div className="flex-1 min-w-0 flex flex-col">
             {/* Mobile Header - Only visible on mobile */}
-            <div className="lg:hidden w-full p-4 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2 flex items-center justify-between flex-shrink-0">
+            <div className="lg:hidden w-full px-4 py-3 border-b border-purple-500/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/2 flex items-center justify-between flex-shrink-0">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-yellow-500 rounded-xl flex items-center justify-center">
                   <div className="flex flex-col items-center">
@@ -62,7 +64,16 @@ export default function DashboardLayout() {
                 </div>
                 <span className="text-xl font-bold text-white">XspensesAI</span>
               </div>
-              <MobileNavInline />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsAIEmployeeRoomOpen(true)}
+                  className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
+                  title="AI Employee Room"
+                >
+                  <Bot className="h-5 w-5" />
+                </button>
+                <MobileNavInline />
+              </div>
             </div>
 
             {/* Shared Dashboard Header - Desktop only */}
@@ -81,6 +92,12 @@ export default function DashboardLayout() {
 
         {/* Prime Chatbot - Using the main BossBubble */}
         <BossBubble />
+
+        {/* AI Employee Room */}
+        <AIEmployeeRoom 
+          isVisible={isAIEmployeeRoomOpen} 
+          onClose={() => setIsAIEmployeeRoomOpen(false)} 
+        />
       </div>
   </>
 );
