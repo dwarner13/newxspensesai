@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bot, 
   FileText, 
@@ -122,14 +121,14 @@ const AIEmployeeRoom: React.FC<AIEmployeeRoomProps> = ({ isVisible, onClose }) =
   const activeEmployees = employees.filter(emp => emp.isActive);
 
   return (
-    <AnimatePresence>
+    <>
       {isVisible && (
-        <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        <div
           className="fixed right-0 top-0 h-full w-80 bg-slate-900/95 backdrop-blur-sm border-l border-white/10 z-50 flex flex-col"
+          style={{
+            transform: isVisible ? 'translateX(0)' : 'translateX(100%)',
+            transition: 'transform 0.3s ease-out'
+          }}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-white/10">
@@ -216,16 +215,15 @@ const AIEmployeeRoom: React.FC<AIEmployeeRoomProps> = ({ isVisible, onClose }) =
                   </button>
 
                   {/* Employee Details */}
-                  <AnimatePresence>
-                    {activeEmployee === employee.id && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="ml-13 mt-2 p-3 bg-white/5 rounded-lg space-y-2">
+                  {activeEmployee === employee.id && (
+                    <div
+                      className="ml-13 mt-2 p-3 bg-white/5 rounded-lg space-y-2"
+                      style={{
+                        height: 'auto',
+                        opacity: 1,
+                        transition: 'all 0.2s ease-out'
+                      }}
+                    >
                           <div className="flex items-center gap-2">
                             <Brain className="h-3 w-3 text-white/60" />
                             <span className="text-xs text-white/60">Capabilities</span>
@@ -240,10 +238,8 @@ const AIEmployeeRoom: React.FC<AIEmployeeRoomProps> = ({ isVisible, onClose }) =
                             <MessageCircle className="h-3 w-3" />
                             Chat with {employee.name}
                           </button>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -256,9 +252,9 @@ const AIEmployeeRoom: React.FC<AIEmployeeRoomProps> = ({ isVisible, onClose }) =
               <span>AI Team powered by XspensesAI</span>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 };
 
