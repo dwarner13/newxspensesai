@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { 
   ArrowRight, 
   Mail, 
@@ -108,9 +107,7 @@ const SignupPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col justify-center py-12 px-6 sm:px-6 lg:px-8">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="sm: sm:w-full sm:"
       >
         <div className="flex items-center justify-center space-x-2 mb-6">
@@ -130,13 +127,10 @@ const SignupPage = () => {
             Sign in
           </Link>
         </p>
-      </motion.div>
+      </div>
 
       <div className="mt-8 sm: sm:w-full sm:">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="bg-gray-800 py-8 px-6 shadow rounded-lg sm:px-10 border border-gray-700"
         >
           {error && (
@@ -317,12 +311,9 @@ const SignupPage = () => {
               </div>
             </form>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="mt-8 text-center"
         >
           <p className="text-sm text-gray-400">
@@ -346,7 +337,7 @@ const SignupPage = () => {
               <span>Basic reports & insights</span>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -18,8 +18,7 @@ const TransactionList = ({ transactions, onCategoryCorrection }) => {
         try {
             await AIService.correctCategory(transaction.id, {
                 category: newCategory,
-                subcategory: newCategory
-            });
+                subcategory: newCategory});
 
             // Update local state
             onCategoryCorrection(transaction.id, newCategory);

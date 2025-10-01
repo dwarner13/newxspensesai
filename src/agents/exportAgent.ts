@@ -27,18 +27,18 @@ async function transactionsToPDF(transactions: Transaction[], userName: string, 
   });
 
   y -= 30;
-  page.drawText('Date', { x: 50, y, size: 12, font });
-  page.drawText('Vendor', { x: 150, y, size: 12, font });
-  page.drawText('Category', { x: 350, y, size: 12, font });
-  page.drawText('Amount', { x: 500, y, size: 12, font });
+  page.drawText('Date', { x: 50, y, size: 12, font});
+  page.drawText('Vendor', { x: 150, y, size: 12, font});
+  page.drawText('Category', { x: 350, y, size: 12, font});
+  page.drawText('Amount', { x: 500, y, size: 12, font});
 
   y -= 20;
   for (const tx of transactions) {
     if (y < 40) break; // prevent overflow
-    page.drawText(tx.date, { x: 50, y, size: 10, font });
-    page.drawText(tx.description || '', { x: 150, y, size: 10, font });
-    page.drawText(tx.category || '', { x: 350, y, size: 10, font });
-    page.drawText(String(tx.amount), { x: 500, y, size: 10, font });
+    page.drawText(tx.date, { x: 50, y, size: 10, font});
+    page.drawText(tx.description || '', { x: 150, y, size: 10, font});
+    page.drawText(tx.category || '', { x: 350, y, size: 10, font});
+    page.drawText(String(tx.amount), { x: 500, y, size: 10, font});
     y -= 16;
   }
 

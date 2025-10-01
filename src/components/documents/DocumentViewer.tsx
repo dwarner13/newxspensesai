@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, Eye, FileText, Image, BarChart3, CheckCircle, AlertTriangle } from 'lucide-react';
 
 interface DocumentData {
@@ -193,19 +192,13 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, isOpen, onClo
   };
 
   return (
-    <AnimatePresence>
+    
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
+          <div
             className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-6xl max-h-[90vh] overflow-hidden mx-4"
             onClick={(e) => e.stopPropagation()}
           >
@@ -267,10 +260,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ document, isOpen, onClo
             <div className="p-6 h-[calc(90vh-200px)] overflow-y-auto">
               {activeTab === 'preview' ? renderDocumentPreview() : renderExtractedData()}
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    
   );
 };
 

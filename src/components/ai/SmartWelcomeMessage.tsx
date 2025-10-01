@@ -1,6 +1,5 @@
 // Smart Welcome Message - Personalized greeting with handoff context
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { MessageCircle, Sparkles, User, Clock } from 'lucide-react';
 import { useSmartHandoff } from '../../hooks/useSmartHandoff';
 import { HandoffContext } from '../../lib/smartHandoff';
@@ -96,10 +95,7 @@ export default function SmartWelcomeMessage({
   }, [hasHandoff, handoffContext, employeeName, employeeEmoji, defaultMessage]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.2 }}
+    <div
       className={`bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-cyan-500/10 border border-blue-400/20 rounded-xl p-4 mb-6 backdrop-blur-sm ${className}`}
     >
       <div className="flex items-start gap-3">
@@ -137,6 +133,6 @@ export default function SmartWelcomeMessage({
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

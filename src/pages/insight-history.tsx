@@ -27,7 +27,7 @@ export default function InsightHistoryPage() {
     const { data, error } = await supabase
       .from('ai_feedback')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false});
     if (error) {
       toast.error('Failed to load suggestions');
       setRows([]);
@@ -116,7 +116,7 @@ export default function InsightHistoryPage() {
                   disabled={runLoading === row.id}
                   onClick={() => handleRunAgain(row)}
                 >
-                  {runLoading === row.id ? <Loader2 className="animate-spin" size={14} /> : <><RefreshCw size={14} /> Run Again</>}
+                  {runLoading === row.id ? <Loader2 className="animate-spin" size={14} /> : <><RefreshCw size={14} /> Run Again}
                 </button>
               </div>
             </div>

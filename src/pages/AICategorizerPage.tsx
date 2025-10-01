@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Brain, Zap, FileText, Target, Star, DollarSign, Info } from 'lucide-react';
 import TransactionCategorizer from '../components/upload/TransactionCategorizer';
 import { Link } from 'react-router-dom';
@@ -6,9 +5,7 @@ import { Link } from 'react-router-dom';
 const AICategorizerPage = () => {
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="text-center mb-8"
       >
         <div className="flex items-center justify-center space-x-3 mb-4">
@@ -19,13 +16,10 @@ const AICategorizerPage = () => {
           Upload your transaction data and let our AI automatically categorize each transaction 
           with intelligent pattern recognition and learning capabilities.
         </p>
-      </motion.div>
+      </div>
 
       {/* Features Overview */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
+      <div
         className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8"
       >
         <div className="card text-center">
@@ -57,13 +51,10 @@ const AICategorizerPage = () => {
             Process up to 20 transactions at a time with intelligent batching to ensure optimal performance and accuracy.
           </p>
         </div>
-      </motion.div>
+      </div>
 
       {/* API Key Notice */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
+      <div
         className="card bg-blue-50 border border-blue-200 mb-8"
       >
         <div className="flex items-start space-x-4">
@@ -100,26 +91,20 @@ const AICategorizerPage = () => {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Main Categorizer Component */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+      <div
       >
         <TransactionCategorizer 
           onComplete={(transactions) => {
             console.log('Categorization complete:', transactions);
           }}
         />
-      </motion.div>
+      </div>
 
       {/* Tips Section */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.6 }}
+      <div
         className="card bg-gradient-to-r from-primary-50 to-secondary-50 border-primary-200"
       >
         <div className="flex items-start space-x-4">
@@ -155,13 +140,10 @@ const AICategorizerPage = () => {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Example Formats */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.7 }}
+      <div
         className="card"
       >
         <h3 className="text-lg font-semibold mb-4">Example File Formats</h3>
@@ -192,13 +174,10 @@ const AICategorizerPage = () => {
             </pre>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Navigation */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.8 }}
+      <div
         className="text-center"
       >
         <div className="flex justify-center space-x-4">
@@ -209,7 +188,7 @@ const AICategorizerPage = () => {
             View All Transactions →
           </Link>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

@@ -14,7 +14,7 @@ export class DocumentProcessor {
   private openai: OpenAI;
   
   constructor() {
-    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY});
   }
   
   async processDocument(

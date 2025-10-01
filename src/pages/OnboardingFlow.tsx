@@ -19,7 +19,7 @@ const OnboardingFlow = () => {
   useEffect(() => {
     // Redirect to login if not authenticated
     if (!loading && !user) {
-      navigate('/login', { replace: true });
+      navigate('/login', { replace: true});
     }
     
     // Check if onboarding is already completed

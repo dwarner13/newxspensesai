@@ -18,8 +18,7 @@ const ReceiptCamera = ({ onReceiptProcessed, user }) => {
                     width: { ideal: 1920 },
                     height: { ideal: 1080 }
                 },
-                audio: false
-            });
+                audio: false});
             
             streamRef.current = stream;
             videoRef.current.srcObject = stream;
@@ -86,8 +85,7 @@ const ReceiptCamera = ({ onReceiptProcessed, user }) => {
                 type: 'receipt_scan',
                 document: uploadResult,
                 transactions: transactions.transactions,
-                image: capturedImage.url
-            });
+                image: capturedImage.url});
             
             // Clean up
             setCapturedImage(null);

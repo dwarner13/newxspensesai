@@ -10,7 +10,6 @@ import { parsePDF } from '../utils/pdfParser';
 import { generateTransactionHash } from '../utils/hashGenerator';
 import { uploadFile, saveTransactions, getCurrentUser } from '../lib/supabase';
 import { Transaction, ParsedFileData } from '../types/database.types';
-import { motion } from 'framer-motion';
 import { awardFileUploadXP } from '../utils/xpTriggers';
 import { useAuth } from '../contexts/AuthContext';
 import { runCategorizer } from '../utils/runCategorizer';
@@ -54,8 +53,7 @@ const UploadPage = () => {
       setParsedData({
         transactions: result.executiveSummary.keyMetrics.documentsProcessed || 0,
         fileName: uploadedFiles[0]?.name || 'Unknown',
-        fileType: 'pdf' as const
-      });
+        fileType: 'pdf' as const});
     }
     
     toast.success('🎉 Your financial story is ready!');
@@ -282,18 +280,13 @@ const UploadPage = () => {
     <div className="space-y-6">
       <PageHeader />
       <div className="max-w-4xl">
-        <motion.h1 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <h1
           className="text-3xl font-bold mb-6"
         >
           Upload Bank Statements
-        </motion.h1>
+        </h1>
         
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="mb-8 sticky top-16 z-10"
         >
           <div className="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl p-6 border border-primary-100 shadow-sm">
@@ -330,13 +323,10 @@ const UploadPage = () => {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Upload Options */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
         >
           {/* Bank Statements Upload */}
@@ -494,7 +484,7 @@ const UploadPage = () => {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
         
         <div className="bg-gray-50 px-6 py-4 border-t border-gray-100 rounded-b-lg">
           <h3 className="text-sm font-medium text-gray-700 mb-3">Supported Formats</h3>

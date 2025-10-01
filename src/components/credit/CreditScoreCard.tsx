@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Info, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface CreditScoreCardProps {
@@ -10,9 +9,7 @@ interface CreditScoreCardProps {
 
 const CreditScoreCard = ({ score, change = 0, lastUpdated, nextUpdate }: CreditScoreCardProps) => {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="bg-white rounded-xl shadow-lg p-5"
     >
       <div className="flex items-center justify-between mb-4">
@@ -68,7 +65,7 @@ const CreditScoreCard = ({ score, change = 0, lastUpdated, nextUpdate }: CreditS
           VIEW MORE DETAILS
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

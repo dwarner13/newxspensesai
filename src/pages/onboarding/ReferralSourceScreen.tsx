@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Search, Youtube, Users, BookOpen, ExternalLink, MessageSquare } from 'lucide-react';
 import ProgressBar from '../../components/onboarding/ProgressBar';
@@ -98,10 +97,7 @@ const ReferralSourceScreen = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-8 ">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-8">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -125,11 +121,8 @@ const ReferralSourceScreen = () => {
           
           <div className="space-y-4 mb-8">
             {referralSources.map((source) => (
-              <motion.div
+              <div
                 key={source.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: referralSources.indexOf(source) * 0.1 }}
                 className={`bg-gray-800 rounded-xl p-4 border-2 cursor-pointer transition-all duration-300 ${
                   selectedSource === source.id 
                     ? 'border-primary-500 bg-gray-800/80' 
@@ -161,14 +154,11 @@ const ReferralSourceScreen = () => {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.7 }}
+          <div
             className="mb-8"
           >
             <label htmlFor="referrer" className="block text-sm font-medium text-gray-300 mb-2">
@@ -182,7 +172,7 @@ const ReferralSourceScreen = () => {
               placeholder="e.g. @name or website"
               className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
-          </motion.div>
+          </div>
           
           <div className="flex justify-between">
             <button
@@ -218,7 +208,7 @@ const ReferralSourceScreen = () => {
               )}
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

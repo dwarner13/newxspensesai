@@ -31,8 +31,7 @@ const TagWorkspace: React.FC = () => {
   const [teachingStats, setTeachingStats] = useState({
     patternsLearned: 47,
     accuracy: 94.2,
-    categories: 23
-  });
+    categories: 23});
 
   // Initialize data
   useEffect(() => {

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Send, Loader2, Mic, Upload, Camera, FileText, 
   Paperclip, Image, FileSpreadsheet, File, AlertCircle,
@@ -387,11 +386,7 @@ export function MobileChatInterface({ employeeId, aiController, userId, onClose 
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: '100%' }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: '100%' }}
-      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+    <div
       className="fixed inset-0 bg-white z-50 flex flex-col"
       style={{ paddingBottom: keyboardHeight }}
     >
@@ -438,13 +433,10 @@ export function MobileChatInterface({ employeeId, aiController, userId, onClose 
             </div>
           </div>
         ) : (
-          <AnimatePresence>
+          <>
             {messages.map((message) => (
-              <motion.div
+              <div
                 key={message.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
                 className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
@@ -488,15 +480,13 @@ export function MobileChatInterface({ employeeId, aiController, userId, onClose 
                     <span>{message.timestamp.toLocaleTimeString()}</span>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </AnimatePresence>
+          </>
         )}
         
         {isTyping && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="flex justify-start"
           >
             <div className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-3">
@@ -510,7 +500,7 @@ export function MobileChatInterface({ employeeId, aiController, userId, onClose 
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
         
         <div ref={messagesEndRef} />
@@ -589,6 +579,6 @@ export function MobileChatInterface({ employeeId, aiController, userId, onClose 
         onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
         className="hidden"
       />
-    </motion.div>
+    </div>
   );
 }

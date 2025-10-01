@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAudio, AudioTrack } from '../../contexts/AudioContext';
 import { 
   Play, 
@@ -70,14 +69,11 @@ export function FloatingAudioPlayer({ className = '' }: FloatingAudioPlayerProps
   }
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ y: 100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 100, opacity: 0 }}
+    
+      <div
         className={`fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 ${className}`}
       >
-        <motion.div
+        <div
           layout
           className={`
             bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700
@@ -139,16 +135,14 @@ export function FloatingAudioPlayer({ className = '' }: FloatingAudioPlayerProps
                 onClick={handleProgressClick}
                 className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full cursor-pointer relative overflow-hidden"
               >
-                <motion.div
+                <div
                   className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
                   style={{
                     width: `${(state.progress / (state.currentTrack.duration || 1)) * 100}%`
                   }}
-                  initial={{ width: 0 }}
                   animate={{
                     width: `${(state.progress / (state.currentTrack.duration || 1)) * 100}%`
                   }}
-                  transition={{ duration: 0.3 }}
                 />
               </div>
               <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -193,12 +187,9 @@ export function FloatingAudioPlayer({ className = '' }: FloatingAudioPlayerProps
                     {state.volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
                   </button>
                   
-                  <AnimatePresence>
+                  
                     {showVolumeSlider && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
+                      <div
                         className="absolute bottom-full right-0 mb-2 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
                       >
                         <input
@@ -210,21 +201,18 @@ export function FloatingAudioPlayer({ className = '' }: FloatingAudioPlayerProps
                           onChange={(e) => setVolume(parseFloat(e.target.value))}
                           className="w-20 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
                         />
-                      </motion.div>
+                      </div>
                     )}
-                  </AnimatePresence>
+                  
                 </div>
               </div>
             </div>
           </div>
 
           {/* Expanded Queue View */}
-          <AnimatePresence>
+          
             {showQueue && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
+              <div
                 className="border-t border-gray-200 dark:border-gray-700 overflow-hidden"
               >
                 <div className="p-4 max-h-48 overflow-y-auto">
@@ -263,11 +251,11 @@ export function FloatingAudioPlayer({ className = '' }: FloatingAudioPlayerProps
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+          
+        </div>
+      </div>
+    
   );
 } 

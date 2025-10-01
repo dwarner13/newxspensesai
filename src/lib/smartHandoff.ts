@@ -65,8 +65,7 @@ export async function createSmartHandoff(request: SmartHandoffRequest): Promise<
         routed_employee_key: employee.key,
         context_data,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-        used: false
-      });
+        used: false});
 
     if (error) {
       console.error('Error creating smart handoff:', error);

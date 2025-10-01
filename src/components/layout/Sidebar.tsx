@@ -41,7 +41,6 @@ import {
   Users
 } from 'lucide-react';
 import Logo from '../common/Logo';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from "../../contexts/UserContext";
 
 export default function Sidebar({ 

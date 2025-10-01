@@ -122,7 +122,7 @@ export class RateLimiter {
         'Monthly token limit exceeded',
         'TOKEN_LIMIT_EXCEEDED',
         429,
-        { used, limit }
+        { used, limit}
       );
     }
   }

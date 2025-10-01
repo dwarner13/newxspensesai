@@ -251,7 +251,6 @@ export const simulateTherapistTrigger = (type: 'category_repeated_edit' | 'spend
     setTherapistTrigger({
       active: true,
       reason: triggers[type].reason,
-      context: triggers[type].context
-    });
+      context: triggers[type].context});
   }
 }; 

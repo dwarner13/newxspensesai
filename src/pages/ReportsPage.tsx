@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { 
   BarChart3, 
   PieChart, 
@@ -196,9 +195,7 @@ const ReportsPage = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 
             
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+            <div
               className="flex flex-wrap gap-3"
             >
               <div className="flex items-center space-x-2">
@@ -252,13 +249,11 @@ const ReportsPage = () => {
                 <Download size={16} className="mr-2" />
                 Export PDF
               </button>
-            </motion.div>
+            </div>
           </div>
 
           {selectedPeriod === 'custom' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
+            <div
               className="bg-white/5 rounded-xl p-4 border border-white/10"
             >
               <div className="flex items-center space-x-4">
@@ -270,12 +265,11 @@ const ReportsPage = () => {
                   onChange={(startDate, endDate) => {
                     setDateRange({
                       startDate: startDate || dateRange.startDate,
-                      endDate: endDate || dateRange.endDate
-                    });
+                      endDate: endDate || dateRange.endDate});
                   }}
                 />
               </div>
-            </motion.div>
+            </div>
           )}
 
           {transactions.length > 0 ? (

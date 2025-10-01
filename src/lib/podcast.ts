@@ -43,7 +43,7 @@ export const getPodcastEpisodes = async (userId: string, filters?: {
     .from('podcast_episodes')
     .select('*')
     .eq('user_id', userId)
-    .order('generated_at', { ascending: false });
+    .order('generated_at', { ascending: false});
 
   if (filters?.episode_type) {
     query = query.eq('episode_type', filters.episode_type);
@@ -192,7 +192,7 @@ export const getPodcastAIInsights = async (episodeId: string): Promise<PodcastAI
     .from('podcast_ai_insights')
     .select('*')
     .eq('episode_id', episodeId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true});
 
   if (error) {
     console.error('Error fetching AI insights:', error);
@@ -251,7 +251,7 @@ export const getListeningHistory = async (userId: string, limit?: number): Promi
     .from('podcast_listening_history')
     .select('*')
     .eq('user_id', userId)
-    .order('started_at', { ascending: false });
+    .order('started_at', { ascending: false});
 
   if (limit) {
     query = query.limit(limit);
@@ -277,7 +277,7 @@ export const getEpisodeTemplates = async (): Promise<PodcastEpisodeTemplate[]> =
     .from('podcast_episode_templates')
     .select('*')
     .eq('is_active', true)
-    .order('template_name', { ascending: true });
+    .order('template_name', { ascending: true});
 
   if (error) {
     console.error('Error fetching episode templates:', error);

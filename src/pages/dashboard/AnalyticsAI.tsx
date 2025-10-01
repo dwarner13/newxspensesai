@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -1158,9 +1157,7 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
   return (
     <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
         {/* Dash Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="text-center mb-8"
         >
           <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
@@ -1174,14 +1171,12 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
               <span className="text-green-400 text-sm">AI Active</span>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Chat Interface */}
           <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
             >
               {/* Chat Header */}
@@ -1198,10 +1193,8 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
               {/* Messages */}
               <div className="h-96 overflow-y-auto p-4 space-y-4">
                 {messages.map((message, index) => (
-                  <motion.div
+                  <div
                     key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
@@ -1214,13 +1207,11 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
                         {new Date(message.timestamp).toLocaleTimeString()}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
 
                 {isLoading && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                  <div
                     className="flex justify-start"
                   >
                     <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
@@ -1229,7 +1220,7 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
                         <span>Dash is analyzing...</span>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
 
                 <div ref={messagesEndRef} />
@@ -1264,12 +1255,9 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
                  </div>
                  
                  {/* File Upload Area */}
-                 <AnimatePresence>
+                 
                    {showFileUpload && (
-                     <motion.div
-                       initial={{ opacity: 0, height: 0 }}
-                       animate={{ opacity: 1, height: 'auto' }}
-                       exit={{ opacity: 0, height: 0 }}
+                     <div
                        className="mt-4 pt-4 border-t border-white/10"
                      >
                        <FileUpload
@@ -1279,19 +1267,17 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
                          maxSize={10}
                          disabled={isLoading}
                        />
-                     </motion.div>
+                     </div>
                    )}
-                 </AnimatePresence>
+                 
                </div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4">Analytics Actions</h3>
@@ -1307,13 +1293,10 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
                   </button>
                 ))}
               </div>
-            </motion.div>
+            </div>
 
             {/* Key Metrics */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4">Key Metrics</h3>
@@ -1337,13 +1320,10 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
                   </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
 
             {/* Dash's Tips */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4">Dash's Tips</h3>
@@ -1358,13 +1338,10 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
                   </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
 
             {/* Dash's Stats */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4">Dash's Stats</h3>
@@ -1386,7 +1363,7 @@ Could you tell me more specifically what analytics topic you'd like to discuss? 
                   <span className="text-orange-400">24</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>

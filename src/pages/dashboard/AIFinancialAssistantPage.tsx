@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useLocation } from 'react-router-dom';
 import { 
@@ -640,22 +639,16 @@ export default function AIFinancialAssistantPage() {
             {messages.length === 0 ? (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center max-w-2xl">
-                  <motion.h2
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
+                  <h2
                     className="text-xl font-bold text-white mb-1"
                   >
                     Welcome to XspensesAI Assistant
-                  </motion.h2>
-                  <motion.p
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
+                  </h2>
+                  <p
                     className="text-white/60 text-sm mb-3"
                   >
                     Your intelligent guide to mastering expense management and financial insights
-                  </motion.p>
+                  </p>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
                     {[
                       { icon: Upload, title: "Smart Import AI", desc: "Upload and categorize transactions", color: "from-blue-500 to-cyan-500" },
@@ -665,11 +658,8 @@ export default function AIFinancialAssistantPage() {
                       { icon: FileText, title: "Receipt Processing", desc: "Scan and process receipts", color: "from-orange-500 to-yellow-500" },
                       { icon: Zap, title: "Smart Automation", desc: "Automate workflows", color: "from-indigo-500 to-purple-500" }
                     ].map((item, index) => (
-                      <motion.button
+                      <button
                         key={item.title}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 + index * 0.1 }}
                         onClick={() => {
                           sendMessage(`Help me with ${item.title.toLowerCase()}`);
                           setCurrentFeature(item.title);
@@ -726,17 +716,15 @@ export default function AIFinancialAssistantPage() {
                           <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
                           <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                         </div>
-                      </motion.button>
+                      </button>
                     ))}
                   </div>
                 </div>
               </div>
             ) : (
               messages.map((message, index) => (
-                <motion.div
+                <div
                   key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
@@ -751,13 +739,11 @@ export default function AIFinancialAssistantPage() {
                       {new Date(message.timestamp).toLocaleTimeString()}
                     </p>
                   </div>
-                </motion.div>
+                </div>
               ))
             )}
             {isLoading && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
+              <div
                 className="flex justify-start"
               >
                 <div className="bg-white/10 px-3 py-2 rounded-lg border border-white/20">
@@ -771,7 +757,7 @@ export default function AIFinancialAssistantPage() {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
               </div>
 
@@ -842,19 +828,13 @@ export default function AIFinancialAssistantPage() {
       </div>
 
       {/* Watch Me Work Modal */}
-      <AnimatePresence>
+      
         {watchMeWorkOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setWatchMeWorkOpen(false)}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-6xl max-h-[95vh] overflow-hidden mx-2 md:mx-4"
               onClick={(e) => e.stopPropagation()}
             >
@@ -889,10 +869,8 @@ export default function AIFinancialAssistantPage() {
                   <h3 className="text-base md:text-lg font-semibold text-white mb-3 md:mb-4">AI Workers</h3>
                   <div className="space-y-2 md:space-y-4">
                     {aiWorkers.map((worker) => (
-                      <motion.div
+                      <div
                         key={worker.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
                         className="bg-white/5 rounded-lg md:rounded-xl p-2 md:p-4 border border-white/10"
                       >
                         <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-3">
@@ -919,15 +897,13 @@ export default function AIFinancialAssistantPage() {
                             <span className="flex-shrink-0 text-xs">{worker.progress}%</span>
                           </div>
                           <div className="w-full bg-white/10 rounded-full h-1 md:h-2">
-                            <motion.div
+                            <div
                               className={`h-1 md:h-2 rounded-full bg-gradient-to-r ${worker.color}`}
-                              initial={{ width: 0 }}
                               animate={{ width: `${worker.progress}%` }}
-                              transition={{ duration: 0.5 }}
                             />
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -940,10 +916,8 @@ export default function AIFinancialAssistantPage() {
                     className="space-y-1.5 md:space-y-3 max-h-[calc(25vh-60px)] md:max-h-[calc(40vh-100px)] overflow-y-auto mb-3 md:mb-4"
                   >
                     {workerMessages.map((message) => (
-                      <motion.div
+                      <div
                         key={message.id}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
                         className={`p-1.5 md:p-3 rounded-md md:rounded-lg ${
                           message.type === 'chat' ? 'bg-blue-500/10 border border-blue-500/20' :
                           message.type === 'status' ? 'bg-green-500/10 border border-green-500/20' :
@@ -964,7 +938,7 @@ export default function AIFinancialAssistantPage() {
                           </span>
                         </div>
                         <p className="text-white/80 text-xs">{message.content}</p>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
 
@@ -978,11 +952,8 @@ export default function AIFinancialAssistantPage() {
                         <h4 className="text-sm font-medium text-white/80 mb-2">Updated Categories</h4>
                         <div className="space-y-1.5 md:space-y-2 max-h-24 md:max-h-32 overflow-y-auto">
                           {realCategories.map((category, index) => (
-                            <motion.div
+                            <div
                               key={category.name}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.1 }}
                               className="flex items-center justify-between p-1.5 md:p-2 bg-white/5 rounded-md md:rounded-lg"
                             >
                               <div className="flex items-center gap-1.5 md:gap-2">
@@ -993,7 +964,7 @@ export default function AIFinancialAssistantPage() {
                                 <div className="text-white text-xs font-medium">${category.amount.toFixed(2)}</div>
                                 <div className="text-white/60 text-xs">{category.count} txns</div>
                               </div>
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -1005,11 +976,8 @@ export default function AIFinancialAssistantPage() {
                         <h4 className="text-sm font-medium text-white/80 mb-2">Recent Transactions</h4>
                         <div className="space-y-2 max-h-32 overflow-y-auto">
                           {realTransactions.slice(-3).map((transaction, index) => (
-                            <motion.div
+                            <div
                               key={transaction.id}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.1 }}
                               className={`flex items-center justify-between p-2 rounded-lg ${
                                 transaction.type === 'income' ? 'bg-green-500/10 border border-green-500/20' :
                                 transaction.type === 'analysis' ? 'bg-orange-500/10 border border-orange-500/20' :
@@ -1025,7 +993,7 @@ export default function AIFinancialAssistantPage() {
                               }`}>
                                 ${Math.abs(transaction.amount).toFixed(2)}
                               </div>
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -1037,11 +1005,8 @@ export default function AIFinancialAssistantPage() {
                         <h4 className="text-sm font-medium text-white/80 mb-2">Active Automations</h4>
                         <div className="space-y-2 max-h-32 overflow-y-auto">
                           {realAutomations.map((automation, index) => (
-                            <motion.div
+                            <div
                               key={automation.id}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.1 }}
                               className="p-2 bg-white/5 rounded-lg"
                             >
                               <div className="flex items-center justify-between mb-1">
@@ -1050,7 +1015,7 @@ export default function AIFinancialAssistantPage() {
                               </div>
                               <div className="text-white/60 text-xs mb-1">{automation.rule}</div>
                               <div className="text-white/40 text-xs">Last run: {automation.lastRun}</div>
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -1062,11 +1027,8 @@ export default function AIFinancialAssistantPage() {
                         <h4 className="text-sm font-medium text-white/80 mb-2">Goal Progress</h4>
                         <div className="space-y-2 max-h-32 overflow-y-auto">
                           {realGoals.map((goal, index) => (
-                            <motion.div
+                            <div
                               key={goal.id}
-                              initial={{ opacity: 0, y: 10 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.1 }}
                               className="p-2 bg-white/5 rounded-lg"
                             >
                               <div className="flex items-center justify-between mb-1">
@@ -1074,17 +1036,15 @@ export default function AIFinancialAssistantPage() {
                                 <span className="text-white text-xs">{goal.progress}%</span>
                               </div>
                               <div className="w-full bg-white/10 rounded-full h-1.5 mb-1">
-                                <motion.div
+                                <div
                                   className="h-1.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"
-                                  initial={{ width: 0 }}
                                   animate={{ width: `${goal.progress}%` }}
-                                  transition={{ duration: 1, delay: index * 0.2 }}
                                 />
                               </div>
                               <div className="text-white/60 text-xs">
                                 ${goal.current.toLocaleString()} / ${goal.target.toLocaleString()}
                               </div>
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -1155,10 +1115,10 @@ export default function AIFinancialAssistantPage() {
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </div>
   );
 } 

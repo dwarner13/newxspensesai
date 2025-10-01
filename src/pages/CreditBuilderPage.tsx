@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   ChevronDown, 
   Info, 
@@ -99,9 +98,7 @@ const CreditBuilderPage = () => {
         <p className="text-xl text-gray-600 mb-6">Hello {userProfile.display_name}, welcome!</p>
 
         {/* Overview Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
+        <div
           className="bg-white rounded-lg shadow-md p-6 mb-6"
         >
           <h3 className="text-2xl text-gray-700 mb-4">Overview</h3>
@@ -132,25 +129,19 @@ const CreditBuilderPage = () => {
           <button className="w-full text-center text-indigo-600 font-bold py-2">
             VIEW AGREEMENTS
           </button>
-        </motion.div>
+        </div>
 
         {/* Improvement Section */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="mb-6"
         >
           <h3 className="text-xl font-bold text-gray-800">
             Let's further improve your <span className="underline">credit mix</span> and <span className="underline">payment history</span>!
           </h3>
-        </motion.div>
+        </div>
 
         {/* Tradeline Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="bg-white rounded-lg shadow-md p-4 mb-6"
         >
           <div className="flex items-start">
@@ -159,13 +150,10 @@ const CreditBuilderPage = () => {
             </div>
             <div className="font-semibold text-gray-800">Open tradeline</div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Rent Advantage Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="bg-white rounded-lg shadow-md p-4 mb-20"
         >
           <div className="flex items-start">
@@ -184,7 +172,7 @@ const CreditBuilderPage = () => {
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Bottom Navigation */}

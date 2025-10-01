@@ -183,7 +183,7 @@ export class WebResearcher {
       const html = await response.text();
       
       // Extract readable content
-      const doc = new JSDOM(html, { url });
+      const doc = new JSDOM(html, { url});
       const reader = new Readability(doc.window.document);
       const article = reader.parse();
       

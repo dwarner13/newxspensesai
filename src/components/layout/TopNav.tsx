@@ -13,7 +13,6 @@ import {
   Sun,
   X
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -200,14 +199,10 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
             )}
           </button>
           
-          <AnimatePresence>
+          
             {isNotificationsOpen && (
-              <motion.div
+              <div
                 ref={notificationsRef}
-                initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                transition={{ duration: 0.2 }}
                 className={`absolute right-0 mt-2 w-80 rounded-lg shadow-lg border py-2 z-50 ${
                   darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                 }`}
@@ -284,9 +279,9 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
                     View all notifications
                   </button>
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
         </div>
         
         {toggleDarkMode && (
@@ -315,14 +310,10 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
             </div>
           </button>
 
-          <AnimatePresence>
+          
             {isUserMenuOpen && (
-              <motion.div
+              <div
                 ref={userMenuRef}
-                initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                transition={{ duration: 0.2 }}
                 className={`absolute right-0 mt-2 w-64 rounded-lg shadow-lg border py-2 z-50 ${
                   darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                 }`}
@@ -385,9 +376,9 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
                     Sign Out
                   </button>
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
         </div>
       </div>
     </div>

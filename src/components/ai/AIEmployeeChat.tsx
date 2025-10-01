@@ -6,7 +6,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useAIEmployees, useAIEmployee, useAICollaboration } from '../../hooks/useAIEmployees';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, 
   Bot, 
@@ -112,8 +111,7 @@ const AIEmployeeChat: React.FC<AIEmployeeChatProps> = ({ userId, initialEmployee
         response = await askAIEmployee({
           userInput: input,
           requestedEmployee: selectedEmployee || undefined,
-          includeFinancialData: true
-        });
+          includeFinancialData: true});
       }
 
       const aiMessage: Message = {
@@ -210,12 +208,9 @@ const AIEmployeeChat: React.FC<AIEmployeeChatProps> = ({ userId, initialEmployee
           </button>
         </div>
 
-        <AnimatePresence>
+        
           {showEmployeeSelector && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
+            <div
               className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2"
             >
               {availableEmployees.map(employee => (
@@ -238,18 +233,16 @@ const AIEmployeeChat: React.FC<AIEmployeeChatProps> = ({ userId, initialEmployee
                   </div>
                 </button>
               ))}
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
-          <motion.div
+          <div
             key={message.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
             className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div className={`max-w-3xl ${message.type === 'user' ? 'order-2' : 'order-1'}`}>
@@ -322,20 +315,18 @@ const AIEmployeeChat: React.FC<AIEmployeeChatProps> = ({ userId, initialEmployee
                 )}
               </div>
             </div>
-          </motion.div>
+          </div>
         ))}
         
         {isLoading && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="flex justify-start"
           >
             <div className="flex items-center gap-3 p-4 bg-white/5 rounded-2xl border border-white/10">
               <Loader2 size={20} className="text-white animate-spin" />
               <span className="text-white">AI team is analyzing your request...</span>
             </div>
-          </motion.div>
+          </div>
         )}
         
         <div ref={messagesEndRef} />

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Star, 
   Zap, 
@@ -155,9 +154,7 @@ const XPDisplay = ({ showDetails = false, className = '' }: XPDisplayProps) => {
   return (
     <div className={className}>
       {/* Main XP Display */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
+      <div
         className="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl p-4 border border-primary-100"
       >
         <div className="flex items-center justify-between">
@@ -194,10 +191,8 @@ const XPDisplay = ({ showDetails = false, className = '' }: XPDisplayProps) => {
                   <span>{Math.ceil(nextLevelXP)} XP needed</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <motion.div
-                    initial={{ width: 0 }}
+                  <div
                     animate={{ width: `${progress}%` }}
-                    transition={{ duration: 1, ease: "easeOut" }}
                     className="bg-gradient-to-r from-primary-500 to-secondary-500 h-2 rounded-full"
                   />
                 </div>
@@ -205,14 +200,11 @@ const XPDisplay = ({ showDetails = false, className = '' }: XPDisplayProps) => {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Detailed View */}
       {showDetails && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="mt-6 space-y-4"
         >
           {/* XP Earning Tips */}
@@ -262,10 +254,8 @@ const XPDisplay = ({ showDetails = false, className = '' }: XPDisplayProps) => {
               </h4>
               <div className="space-y-2">
                 {recentActivities.map((activity) => (
-                  <motion.div
+                  <div
                     key={activity.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                   >
                     <div className="flex items-center space-x-3">
@@ -282,12 +272,12 @@ const XPDisplay = ({ showDetails = false, className = '' }: XPDisplayProps) => {
                     <div className="text-sm font-semibold text-primary-600">
                       +{activity.xp_earned} XP
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </div>
           )}
-        </motion.div>
+        </div>
       )}
     </div>
   );

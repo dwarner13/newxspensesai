@@ -330,8 +330,7 @@ function parseTransactionsWithPatterns(text: string): OpenAITransaction[] {
             date,
             description: description.trim(),
             amount,
-            type
-          });
+            type});
           
           break; // Found a match, move to next line
         } catch (error) {

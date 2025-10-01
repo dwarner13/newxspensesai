@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { 
   Upload, FileText, Camera, Bot, Shield, Zap, Brain, MessageCircle, 
   ArrowRight, CheckCircle, Users, Award, Clock, Star, TrendingUp, Lock, 
@@ -101,53 +100,38 @@ const SmartImportAIFeaturePage = () => {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32">
           <div className="text-center">
             {/* Prime's Crown Badge */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8 }}
+            <div
               className="mb-8"
             >
               <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-sm rounded-full text-lg mb-6 font-semibold border border-purple-500/30">
                 <Crown size={20} className="mr-3" />
                 Prime's AI Processing Theater
               </div>
-            </motion.div>
+            </div>
             
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+            <h1
               className="text-4xl md:text-6xl font-bold text-white mb-8"
             >
               Watch <span className="text-pink-400 font-extrabold drop-shadow-lg">AI Magic</span> Transform Your Data
-            </motion.h1>
+            </h1>
             
-            <motion.h2 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
+            <h2
               className="text-2xl md:text-3xl font-bold text-white/90 mb-6"
             >
               Powered by <span className="text-yellow-400 font-extrabold drop-shadow-lg">Prime</span> & His AI Dream Team
-            </motion.h2>
+            </h2>
             
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+            <p
               className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
             >
               Step into the AI Processing Theater where <span className="text-yellow-300 font-bold">Prime</span> orchestrates a team of AI specialists to transform 
               messy bank statements, receipts, and documents into crystal-clear financial insights. 
               Watch the magic happen in real-time with <span className="text-yellow-300 font-bold">99.7% accuracy</span> and 
               <span className="text-cyan-300 font-bold"> 2.3-second processing</span>.
-            </motion.p>
+            </p>
 
             {/* CTA Buttons */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+            <div
               className="flex flex-col sm:flex-row gap-6 justify-center mb-12"
             >
               <Link 
@@ -164,13 +148,10 @@ const SmartImportAIFeaturePage = () => {
                 <Play size={24} />
                 Watch Live Demo
               </button>
-            </motion.div>
+            </div>
 
             {/* Performance Stats */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
+            <div
               className="grid grid-cols-2 md:grid-cols-4 gap-6"
             >
               <div className="text-center">
@@ -189,17 +170,14 @@ const SmartImportAIFeaturePage = () => {
                 <div className="text-3xl font-bold text-orange-400">24/7</div>
                 <div className="text-white/70 text-sm">AI Processing</div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Prime's Leadership Spotlight */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-3xl p-8 border border-white/20 text-center"
         >
           <div className="flex items-center justify-center mb-6">
@@ -218,15 +196,12 @@ const SmartImportAIFeaturePage = () => {
             With strategic intelligence and flawless coordination, he ensures every transaction 
             is perfectly categorized, every pattern is discovered, and every insight is crystal clear.
           </p>
-        </motion.div>
+        </div>
       </div>
 
       {/* AI Team Showcase */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
@@ -236,15 +211,12 @@ const SmartImportAIFeaturePage = () => {
             Prime coordinates these AI specialists to deliver flawless document processing. 
             Each team member has unique superpowers designed for maximum efficiency.
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {aiTeam.map((member, index) => (
-            <motion.div 
+            <div 
               key={member.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 hover:scale-105 transition-all duration-300 group"
             >
               <div className="text-center mb-6">
@@ -259,17 +231,14 @@ const SmartImportAIFeaturePage = () => {
               <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl p-4">
                 <p className="text-white font-semibold text-sm">⚡ {member.superpower}</p>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* Live AI Processing Demo */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-md rounded-3xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -305,11 +274,9 @@ const SmartImportAIFeaturePage = () => {
 
           {/* Progress Bar */}
           <div className="w-full bg-white/20 rounded-full h-3 mb-8">
-            <motion.div 
+            <div 
               className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full"
-              initial={{ width: 0 }}
               animate={{ width: `${processingProgress}%` }}
-              transition={{ duration: 0.5 }}
             />
           </div>
 
@@ -357,15 +324,12 @@ const SmartImportAIFeaturePage = () => {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Supported Formats */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
@@ -375,7 +339,7 @@ const SmartImportAIFeaturePage = () => {
             From messy CSV exports to scanned receipts, our AI handles any format and instantly 
             organizes your financial data with surgical precision.
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[
@@ -404,11 +368,8 @@ const SmartImportAIFeaturePage = () => {
               color: 'from-orange-500 to-red-600'
             }
           ].map((format, index) => (
-            <motion.div 
+            <div 
               key={format.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 text-center"
             >
               <div className={`w-16 h-16 bg-gradient-to-r ${format.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
@@ -418,17 +379,14 @@ const SmartImportAIFeaturePage = () => {
               </div>
               <h3 className="text-xl font-bold text-white mb-3">{format.title}</h3>
               <p className="text-white/70 text-sm">{format.description}</p>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* How It Works */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -471,15 +429,12 @@ const SmartImportAIFeaturePage = () => {
               </p>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Call to Action */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -502,7 +457,7 @@ const SmartImportAIFeaturePage = () => {
               Meet Your AI Team
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

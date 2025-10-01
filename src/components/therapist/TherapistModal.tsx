@@ -2,8 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Heart, X, Send, Sparkles } from 'lucide-react';
 import { useAtom } from 'jotai';
 import { isTherapistModalOpenAtom, therapistTriggerAtom } from '../../lib/uiStore';
-import { motion, AnimatePresence } from 'framer-motion';
-
 interface TherapistMessage {
   id: string;
   type: 'therapist' | 'user';
@@ -127,20 +125,13 @@ const TherapistModal: React.FC = () => {
   };
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setIsOpen(false)}
         >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            transition={{ duration: 0.3 }}
+          <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -240,10 +231,10 @@ const TherapistModal: React.FC = () => {
                 </button>
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 };
 

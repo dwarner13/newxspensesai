@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Award, 
   Star, 
@@ -129,8 +128,7 @@ const BadgeSystem = ({ showProgress = true, compact = false, className = '' }: B
     receipts: 0,
     transactions: 0,
     streak: 0,
-    level: 1
-  });
+    level: 1});
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
 
@@ -147,7 +145,7 @@ const BadgeSystem = ({ showProgress = true, compact = false, className = '' }: B
         .from('badges')
         .select('*')
         .eq('user_id', user?.id)
-        .order('earned_at', { ascending: false });
+        .order('earned_at', { ascending: false});
 
       if (error) throw error;
 
@@ -195,8 +193,7 @@ const BadgeSystem = ({ showProgress = true, compact = false, className = '' }: B
         receipts: receiptCount || 0,
         transactions: profile?.transaction_count || 0,
         streak: profile?.streak || 0,
-        level: profile?.level || 1
-      });
+        level: profile?.level || 1});
     } catch (error) {
       console.error('Error loading user stats:', error);
     } finally {
@@ -299,9 +296,7 @@ const BadgeSystem = ({ showProgress = true, compact = false, className = '' }: B
 
   return (
     <div className={className}>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="card"
       >
         <div className="flex items-center justify-between mb-6">
@@ -326,10 +321,8 @@ const BadgeSystem = ({ showProgress = true, compact = false, className = '' }: B
             <span>{Math.round((earnedCount / totalCount) * 100)}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
-            <motion.div
-              initial={{ width: 0 }}
+            <div
               animate={{ width: `${(earnedCount / totalCount) * 100}%` }}
-              transition={{ duration: 1, ease: "easeOut" }}
               className="bg-gradient-to-r from-yellow-500 to-orange-500 h-2 rounded-full"
             />
           </div>
@@ -354,7 +347,7 @@ const BadgeSystem = ({ showProgress = true, compact = false, className = '' }: B
 
         {/* Badge Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <AnimatePresence>
+          
             {filteredBadges.map((badge, index) => {
               const def = BADGE_DEFINITIONS.find(d => d.key === badge.badge_key);
               const IconComponent = def?.icon || Award;
@@ -363,11 +356,8 @@ const BadgeSystem = ({ showProgress = true, compact = false, className = '' }: B
               const progressPercent = (progress.progress / progress.total) * 100;
 
               return (
-                <motion.div
+                <div
                   key={badge.badge_key}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.1 }}
                   className={`relative p-4 rounded-lg border-2 transition-all duration-300 ${
                     isEarned
                       ? 'border-yellow-300 bg-gradient-to-br from-yellow-50 to-orange-50 shadow-md'
@@ -432,20 +422,18 @@ const BadgeSystem = ({ showProgress = true, compact = false, className = '' }: B
 
                   {/* Earned Badge Overlay */}
                   {isEarned && (
-                    <motion.div
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
+                    <div
                       className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white shadow-lg"
                     >
                       <Award size={16} />
-                    </motion.div>
+                    </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
-          </AnimatePresence>
+          
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

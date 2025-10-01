@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Receipt, Eye, Download } from 'lucide-react';
 
 interface Transaction {
@@ -54,14 +53,14 @@ const TransactionCards: React.FC<TransactionCardsProps> = ({
   };
 
   return (
-    <motion.div 
+    <div 
       variants={container}
       initial="hidden"
       animate="show"
       className="space-y-4"
     >
       {transactions.map(tx => (
-        <motion.div 
+        <div 
           key={tx.id} 
           variants={item}
           className="border rounded-lg overflow-hidden shadow-sm bg-white hover:shadow-md transition-shadow"
@@ -120,9 +119,9 @@ const TransactionCards: React.FC<TransactionCardsProps> = ({
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       ))}
-    </motion.div>
+    </div>
   );
 };
 

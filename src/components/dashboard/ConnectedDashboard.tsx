@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Upload, 
   MessageCircle, 
@@ -51,13 +50,12 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     lastDocumentUpload: null as string | null,
     totalTransactions: 0,
     categoriesLearned: 0,
-    aiAccuracy: 0
-  });
+    aiAccuracy: 0});
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isByteChatOpen, setIsByteChatOpen] = useState(false);
 
   // Debug logging
-  console.log('ConnectedDashboard render:', { user: !!user, loading, aiController: !!aiController });
+  console.log('ConnectedDashboard render:', { user: !!user, loading, aiController: !!aiController});
 
   // Show loading state while auth is initializing
   if (loading) {
@@ -115,7 +113,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           .from('receipts')
           .select('id, created_at')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false});
 
         if (receiptsError) {
           console.error('Error fetching receipts:', receiptsError);
@@ -189,7 +187,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
             .from('receipts')
             .select('id, created_at')
             .eq('user_id', user.id)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false});
 
           if (receiptsError) {
             console.error('Error fetching receipts:', receiptsError);
@@ -588,22 +586,17 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     <div className={`space-y-8 ${className}`}>
       {/* Processing Status */}
       {isProcessing && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="bg-orange-500 text-white p-4 rounded-lg flex items-center space-x-3"
         >
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>{processingStatus}</span>
-        </motion.div>
+        </div>
       )}
 
       {/* Notification */}
       {showNotification && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
+            <div
               className={`p-4 rounded-lg flex items-center space-x-3 ${
                 showNotification.type === 'success' 
                   ? 'bg-green-500 text-white' 
@@ -611,7 +604,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
               }`}
             >
               <span>{showNotification.message}</span>
-            </motion.div>
+            </div>
           )}
 
       {/* Page Title */}
@@ -629,11 +622,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {aiWorkspaceCards.map((card, index) => (
-            <motion.div
+            <div
               key={card.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/20 h-[240px] flex flex-col"
             >
               {/* Header with icon and stats */}
@@ -677,7 +667,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                   )}
                 </button>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -690,11 +680,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {planningAnalysisCards.map((card, index) => (
-            <motion.div
+            <div
               key={card.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: (index + 3) * 0.1 }}
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-blue-500/20 h-[240px] flex flex-col"
             >
               {/* Header with icon and stats */}
@@ -738,7 +725,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                   )}
                 </button>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -751,11 +738,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         </div>
         <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
           {entertainmentWellnessCards.map((card, index) => (
-            <motion.div
+            <div
               key={card.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: (index + 10) * 0.1 }}
                              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
@@ -799,7 +783,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 )}
                 </button>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -812,11 +796,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         </div>
         <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
           {businessTaxCards.map((card, index) => (
-            <motion.div
+            <div
               key={card.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: (index + 15) * 0.1 }}
                              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
@@ -860,7 +841,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 )}
                 </button>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -873,11 +854,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         </div>
         <div className={`grid gap-4 ${isSidebarCollapsed ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
           {toolsSettingsCards.map((card, index) => (
-            <motion.div
+            <div
               key={card.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: (index + 17) * 0.1 }}
                              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300 flex flex-col h-[240px]"
             >
               {/* Header with icon and stats */}
@@ -921,7 +899,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
                 )}
                 </button>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -961,9 +939,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       />
 
       {/* Floating Byte Chat Button */}
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
+      <button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsByteChatOpen(true)}
@@ -971,7 +947,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         title="Chat with Byte AI"
       >
         <Bot className="w-6 h-6" />
-      </motion.button>
+      </button>
     </div>
   );
 }

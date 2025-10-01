@@ -10,8 +10,6 @@ import {
   PieChart, Download, Upload, Globe, Lock, Key, Wifi, Smartphone,
   Flame, Rocket, Gem, Compass, Telescope, Crown as CrownIcon
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-
 interface AIBoss {
   id: string;
   name: string;
@@ -445,10 +443,7 @@ const AIEmployees = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-blue-600/20"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-32">
           <div className="text-center">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.8 }}
+            <div
               className="mb-8"
             >
               <div className={`w-32 h-32 bg-gradient-to-r ${aiBoss.color} rounded-full flex items-center justify-center mx-auto mb-6 shadow-2xl`}>
@@ -458,33 +453,24 @@ const AIEmployees = () => {
                 <CrownIcon size={16} className="mr-2" />
                 AI Boss & Strategic Mastermind
               </div>
-            </motion.div>
+            </div>
             
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+            <h1
               className="text-4xl md:text-6xl font-bold text-white mb-8"
             >
               Meet <span className="text-pink-400 font-extrabold drop-shadow-lg">{aiBoss.name}</span> & Your AI Dream Team
-            </motion.h1>
+            </h1>
             
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+            <p
               className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
             >
               {aiBoss.bio} Prime orchestrates a team of {teamStats.totalEmployees} AI specialists across {teamStats.departments} departments, 
               creating the world's most intelligent financial ecosystem. From data processing to entertainment, 
               every AI employee has a unique superpower designed to transform your financial life.
-            </motion.p>
+            </p>
 
             {/* Prime Hero Card */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+            <div
               className="rounded-2xl border border-white/10 bg-white/5 p-6 mb-6 max-w-2xl mx-auto"
             >
               <div className="text-2xl">{PRIME.emoji}</div>
@@ -494,13 +480,10 @@ const AIEmployees = () => {
                 <a href={PRIME.learnMorePath || '/ai-employees'} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10">Learn more</a>
                 <a href={PRIME.route} className="px-4 py-2 rounded-lg bg-cyan-500 text-slate-900 font-semibold hover:bg-cyan-400">Ask Prime</a>
               </div>
-            </motion.div>
+            </div>
 
             {/* Team Stats */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+            <div
               className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12"
             >
               <div className="text-center">
@@ -519,12 +502,9 @@ const AIEmployees = () => {
                 <div className="text-3xl font-bold text-orange-400">{teamStats.userSatisfaction}</div>
                 <div className="text-white/70 text-sm">User Satisfaction</div>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
+            <div
               className="flex flex-col sm:flex-row gap-6 justify-center"
             >
               <Link 
@@ -538,17 +518,14 @@ const AIEmployees = () => {
                 <Play size={24} />
                 Watch Prime in Action
               </button>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Prime's Command Center */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-3xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -596,15 +573,12 @@ const AIEmployees = () => {
               <p className="text-white font-semibold text-lg">"{aiBoss.superpower}"</p>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* AI Podcast Hosts - Your Financial Storytellers */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
@@ -615,7 +589,7 @@ const AIEmployees = () => {
             motivational content, and engaging storytelling. {teamStats.totalPodcasters} unique personalities 
             create content specifically about YOUR money story.
           </p>
-        </motion.div>
+        </div>
 
         {/* Positive Podcasters */}
         <div className="mb-16">
@@ -624,11 +598,8 @@ const AIEmployees = () => {
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {positivePodcasters.map((podcaster, index) => (
-            <motion.div 
+            <div 
                 key={podcaster.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 flex flex-col group"
             >
               <div className="text-center mb-4">
@@ -654,7 +625,7 @@ const AIEmployees = () => {
                 <Mic size={16} />
                   Listen to {podcaster.name}
               </button>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -666,11 +637,8 @@ const AIEmployees = () => {
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {roastingPodcasters.map((podcaster, index) => (
-              <motion.div 
+              <div 
                 key={podcaster.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 flex flex-col group"
               >
                 <div className="text-center mb-4">
@@ -696,7 +664,7 @@ const AIEmployees = () => {
                   <Flame size={16} />
                   Get Roasted by {podcaster.name}
                 </button>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -704,10 +672,7 @@ const AIEmployees = () => {
 
       {/* Core AI Employees - Organized by Department */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
@@ -717,16 +682,13 @@ const AIEmployees = () => {
             Specialized AI experts organized by department, each with unique superpowers designed to maximize your financial success. 
             From data processing to business intelligence, this team covers every aspect of modern financial management.
           </p>
-        </motion.div>
+        </div>
 
         {/* Department Organization */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {aiEmployees.map((employee, index) => (
-            <motion.div 
+            <div 
               key={employee.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.05 }}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 flex flex-col group"
             >
               <div className="flex items-start gap-4 mb-4">
@@ -756,17 +718,14 @@ const AIEmployees = () => {
                 <MessageCircle size={16} />
                 Chat with {employee.name}
               </button>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* Team Collaboration Showcase */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -809,15 +768,12 @@ const AIEmployees = () => {
               </p>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Call to Action Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -840,7 +796,7 @@ const AIEmployees = () => {
               See Team in Action
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

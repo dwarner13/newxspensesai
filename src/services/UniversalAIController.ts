@@ -50,8 +50,7 @@ export class UniversalAIController {
     if (openaiKey && openaiKey !== 'your-api-key-here') {
       this.openAI = new OpenAI({
         apiKey: openaiKey,
-        dangerouslyAllowBrowser: true
-      });
+        dangerouslyAllowBrowser: true});
     } else {
       console.warn('OpenAI API key not configured, AI features will be limited');
       this.openAI = null as any;
@@ -494,8 +493,7 @@ export class UniversalAIController {
         model: "gpt-4-turbo",
         messages: messages,
         temperature: 0.8,
-        max_tokens: 1000
-      });
+        max_tokens: 1000});
 
       const aiMessage = response.choices[0].message.content;
       
@@ -1599,7 +1597,7 @@ Use this context to provide personalized, relevant responses that reference the 
         .select('*')
         .eq('user_id', userId)
         .gte('date', startDate.toISOString())
-        .order('date', { ascending: false });
+        .order('date', { ascending: false});
 
       const { data: categories } = await this.supabase
         .from('categories')
@@ -1696,8 +1694,7 @@ Make this feel like a personalized financial reality show episode starring the u
         { role: "user", content: prompt }
       ],
       temperature: 0.8,
-      max_tokens: 4000
-    });
+      max_tokens: 4000});
 
     return {
       script: completion.choices[0].message.content,

@@ -187,7 +187,7 @@ export class FileValidator {
         return Err(new Error('PDF contains JavaScript'));
       }
       
-      return Ok({ pageCount });
+      return Ok({ pageCount});
     } catch (error) {
       return Err(error as Error);
     }

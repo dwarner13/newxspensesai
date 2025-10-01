@@ -279,7 +279,7 @@ async function bulkInsertTransactions(transactions: any[]): Promise<Result<{ cou
   
   if (error) throw error;
   
-  return Ok({ count: data?.length || 0 });
+  return Ok({ count: data?.length || 0});
 }
 
 async function updateAnalyticsCache(userId: string, transactions: any[]): Promise<void> {

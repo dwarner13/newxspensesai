@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Award, Trophy, Star } from 'lucide-react';
 import BadgeSystem from '../components/gamification/BadgeSystem';
 import StreakTracker from '../components/gamification/StreakTracker';
@@ -7,9 +6,7 @@ import XPDisplay from '../components/gamification/XPDisplay';
 const BadgesPage = () => {
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center space-x-3 mb-8"
       >
         <Trophy size={32} className="text-yellow-600" />
@@ -17,40 +14,28 @@ const BadgesPage = () => {
           <h1 className="text-2xl font-bold">Achievements & Badges</h1>
           <p className="text-gray-600">Track your progress and unlock rewards</p>
         </div>
-      </motion.div>
+      </div>
 
       {/* XP Overview */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
+      <div
       >
         <XPDisplay showDetails={false} />
-      </motion.div>
+      </div>
 
       {/* Streak Tracker */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+      <div
       >
         <StreakTracker showCalendar={true} />
-      </motion.div>
+      </div>
 
       {/* Badge System */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+      <div
       >
         <BadgeSystem showProgress={true} />
-      </motion.div>
+      </div>
 
       {/* Motivational Section */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.5 }}
+      <div
         className="card bg-gradient-to-r from-primary-50 to-secondary-50 border-primary-200"
       >
         <div className="flex items-start space-x-4">
@@ -81,7 +66,7 @@ const BadgesPage = () => {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

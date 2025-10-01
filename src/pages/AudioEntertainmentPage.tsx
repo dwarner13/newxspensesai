@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useAudio } from '../contexts/AudioContext';
 import { AudioDiscovery } from '../components/audio/AudioDiscovery';
 import { useAudioTriggers } from '../components/audio/AudioTriggerSystem';
@@ -21,8 +20,6 @@ import {
   Clock,
   Users
 } from 'lucide-react';
-import { AnimatePresence } from 'framer-motion';
-
 export default function AudioEntertainmentPage() {
   const { state, playTrack, pauseTrack, resumeTrack, skipTrack, previousTrack, setVolume, connectSpotify } = useAudio();
   const { triggerExpenseUpload, triggerBudgetReview, triggerGoalAchievement } = useAudioTriggers();
@@ -73,9 +70,7 @@ export default function AudioEntertainmentPage() {
     <div className="max-w-6xl mx-auto">
       {/* Header */}
       <div className="text-center mb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="flex items-center justify-center space-x-3 mb-4"
         >
           <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
@@ -84,7 +79,7 @@ export default function AudioEntertainmentPage() {
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
             Audio Entertainment
           </h1>
-        </motion.div>
+        </div>
         <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
           Experience the world's first FinTech Entertainment Platform. 
           Manage your money while enjoying curated music, podcasts, and AI-powered recommendations.
@@ -121,11 +116,8 @@ export default function AudioEntertainmentPage() {
       {/* Content Sections */}
       <AnimatePresence mode="wait">
         {activeSection === 'overview' && (
-          <motion.div
+          <div
             key="overview"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
             {/* Features Grid */}
@@ -168,11 +160,8 @@ export default function AudioEntertainmentPage() {
                   color: 'from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20'
                 }
               ].map((feature, index) => (
-                <motion.div
+                <div
                   key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
                   className={`bg-gradient-to-br ${feature.color} rounded-xl p-6 border border-gray-200 dark:border-gray-700`}
                 >
                   <div className="flex items-center space-x-3 mb-3">
@@ -184,7 +173,7 @@ export default function AudioEntertainmentPage() {
                   <p className="text-gray-600 dark:text-gray-400">
                     {feature.description}
                   </p>
-                </motion.div>
+                </div>
               ))}
             </div>
 
@@ -208,26 +197,20 @@ export default function AudioEntertainmentPage() {
                 ))}
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
 
         {activeSection === 'discovery' && (
-          <motion.div
+          <div
             key="discovery"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
           >
             <AudioDiscovery />
-          </motion.div>
+          </div>
         )}
 
         {activeSection === 'spotify' && (
-          <motion.div
+          <div
             key="spotify"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
             className="text-center"
           >
             {!state.isSpotifyConnected ? (
@@ -268,15 +251,12 @@ export default function AudioEntertainmentPage() {
                 </div>
               </div>
             )}
-          </motion.div>
+          </div>
         )}
 
         {activeSection === 'demo' && (
-          <motion.div
+          <div
             key="demo"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
             className="space-y-6"
           >
             <div className="text-center mb-8">
@@ -291,7 +271,7 @@ export default function AudioEntertainmentPage() {
             {/* Demo Tracks */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {demoTracks.map((track) => (
-                <motion.div
+                <div
                   key={track.id}
                   whileHover={{ scale: 1.02 }}
                   className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-200 dark:border-gray-700"
@@ -316,7 +296,7 @@ export default function AudioEntertainmentPage() {
                   >
                     Play Track
                   </button>
-                </motion.div>
+                </div>
               ))}
             </div>
 
@@ -352,9 +332,9 @@ export default function AudioEntertainmentPage() {
                 </button>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </div>
   );
 } 

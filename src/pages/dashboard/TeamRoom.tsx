@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import DashboardHeader from '../../components/ui/DashboardHeader';
 import { 
@@ -58,7 +57,7 @@ const TeamRoom: React.FC = () => {
     loadTasks
   } = useTeamRoomStore();
   
-  console.log('TeamRoom store data:', { status, agents: agents?.length, messages: messages?.length });
+  console.log('TeamRoom store data:', { status, agents: agents?.length, messages: messages?.length});
 
   const [messageText, setMessageText] = useState('');
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -214,10 +213,7 @@ const TeamRoom: React.FC = () => {
       {/* Content */}
       <div>
         {/* Hero Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
+        <div
           className="mb-12"
         >
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
@@ -239,10 +235,7 @@ const TeamRoom: React.FC = () => {
             
             {/* Status Cards */}
             <div className="flex flex-wrap gap-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 }}
+              <div
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 min-w-[200px]"
               >
                 <div className="flex items-center gap-3 mb-2">
@@ -251,12 +244,9 @@ const TeamRoom: React.FC = () => {
                 </div>
                 <div className="text-2xl font-bold text-white">{agents?.filter(a => a.active).length || 0} Active</div>
                 <div className="text-white/60 text-sm">of {agents?.length || 0} AI Employees</div>
-              </motion.div>
+              </div>
               
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3 }}
+              <div
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/20 min-w-[200px]"
               >
                 <div className="flex items-center gap-3 mb-2">
@@ -270,19 +260,16 @@ const TeamRoom: React.FC = () => {
                     style={{ width: `${systemsHealth}%` }}
                   ></div>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           {/* Left Column - AI Team Roster */}
           <div className="xl:col-span-1 space-y-6">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.4 }}
+            <div
               className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6"
             >
               <div className="flex items-center gap-3 mb-6">
@@ -298,11 +285,8 @@ const TeamRoom: React.FC = () => {
               <ScrollArea className="h-[600px]">
                 <div className="space-y-4">
                   {departments.map((dept, deptIndex) => (
-                    <motion.div
+                    <div
                       key={dept.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.5 + deptIndex * 0.1 }}
                       className="bg-white/5 rounded-xl p-4 border border-white/10"
                     >
                       <button
@@ -323,20 +307,14 @@ const TeamRoom: React.FC = () => {
                         )}
                       </button>
                       
-                      <AnimatePresence>
+                      
                         {!collapsedSections[dept.id] && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
+                          <div
                             className="space-y-3 mt-4"
                           >
                             {dept.agents.map((agent, index) => (
-                              <motion.div
+                              <div
                                 key={agent.id}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.1 * index }}
                                 className="flex items-center gap-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-all duration-200 group"
                               >
                                 <div 
@@ -357,24 +335,21 @@ const TeamRoom: React.FC = () => {
                                   onCheckedChange={() => toggleAgent(agent.id)}
                                   className="data-[state=checked]:bg-green-600"
                                 />
-                              </motion.div>
+                              </div>
                             ))}
-                          </motion.div>
+                          </div>
                         )}
-                      </AnimatePresence>
-                    </motion.div>
+                      
+                    </div>
                   ))}
                 </div>
               </ScrollArea>
-            </motion.div>
+            </div>
           </div>
 
           {/* Center Column - Collaboration Feed */}
           <div className="xl:col-span-2 space-y-6">
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.6 }}
+            <div
               className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6"
             >
               <div className="flex items-center justify-between mb-6">
@@ -454,9 +429,7 @@ const TeamRoom: React.FC = () => {
                   {/* Sample AI Team Activity Messages */}
                   {!messages || messages.length === 0 ? (
                     <div className="space-y-4">
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
+                      <div
                         className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl p-4 border border-purple-500/30"
                       >
                         <div className="flex items-start gap-4">
@@ -479,12 +452,9 @@ const TeamRoom: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
 
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
+                      <div
                         className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 rounded-xl p-4 border border-cyan-500/30"
                       >
                         <div className="flex items-start gap-4">
@@ -515,12 +485,9 @@ const TeamRoom: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
 
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
+                      <div
                         className="bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-xl p-4 border border-emerald-500/30"
                       >
                         <div className="flex items-start gap-4">
@@ -551,12 +518,9 @@ const TeamRoom: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
 
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.6 }}
+                      <div
                         className="bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-xl p-4 border border-orange-500/30"
                       >
                         <div className="flex items-start gap-4">
@@ -587,7 +551,7 @@ const TeamRoom: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     </div>
                   ) : (
                     messages?.map((message, index) => {
@@ -595,11 +559,8 @@ const TeamRoom: React.FC = () => {
                     const toAgent = message.to ? agents?.find(a => a.id === message.to) : null;
                     
                     return (
-                      <motion.div
+                      <div
                         key={message.id}
-                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ delay: index * 0.1 }}
                         className="bg-white/5 rounded-xl p-4 border border-white/10 hover:bg-white/10 transition-all duration-200 group"
                       >
                         <div className="flex items-start gap-4">
@@ -656,7 +617,7 @@ const TeamRoom: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     );
                   })
                 )}
@@ -711,16 +672,13 @@ const TeamRoom: React.FC = () => {
                   </Button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Right Column - Memory / Tasks / Tools */}
           <div className="xl:col-span-1 space-y-6">
             {/* Shared Memory */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.8 }}
+            <div
               className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6"
             >
               <div className="flex items-center gap-3 mb-6">
@@ -776,13 +734,10 @@ const TeamRoom: React.FC = () => {
                   ))}
                 </TabsContent>
               </Tabs>
-            </motion.div>
+            </div>
 
             {/* Open Tasks */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 1.0 }}
+            <div
               className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6"
             >
               <div className="flex items-center gap-3 mb-6">
@@ -799,11 +754,8 @@ const TeamRoom: React.FC = () => {
                 {tasks?.map((task, index) => {
                   const assignee = agents?.find(a => a.id === task.assignee);
                   return (
-                    <motion.div
+                    <div
                       key={task.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 1.1 + index * 0.1 }}
                       className="flex items-center gap-4 p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-all duration-200"
                     >
                       <div className="flex-1 min-w-0">
@@ -830,17 +782,14 @@ const TeamRoom: React.FC = () => {
                           <SelectItem value="done" className="text-white hover:bg-white/10">Done</SelectItem>
                         </SelectContent>
                       </Select>
-                    </motion.div>
+                    </div>
                   );
                 })}
               </div>
-            </motion.div>
+            </div>
 
             {/* Tools */}
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 1.2 }}
+            <div
               className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-6"
             >
               <div className="flex items-center gap-3 mb-6">
@@ -879,7 +828,7 @@ const TeamRoom: React.FC = () => {
                   BI Snapshot
                 </Button>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>

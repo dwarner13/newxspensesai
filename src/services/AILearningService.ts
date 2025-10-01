@@ -56,8 +56,7 @@ export class AILearningService {
           handoff_from: conversation.handoff_from,
           handoff_to: conversation.handoff_to,
           handoff_reason: conversation.handoff_reason,
-          success_rating: conversation.success_rating
-        });
+          success_rating: conversation.success_rating});
 
       if (error) {
         console.error('Error storing conversation:', error);
@@ -100,8 +99,7 @@ export class AILearningService {
           employee_id: preference.employee_id,
           preference_type: preference.preference_type,
           preference_value: preference.preference_value,
-          confidence_score: preference.confidence_score
-        });
+          confidence_score: preference.confidence_score});
 
       if (error) {
         console.error('Error storing user preference:', error);
@@ -149,8 +147,7 @@ export class AILearningService {
           user_id: pattern.user_id,
           pattern_type: pattern.pattern_type,
           pattern_data: pattern.pattern_data,
-          confidence_score: pattern.confidence_score
-        });
+          confidence_score: pattern.confidence_score});
 
       if (error) {
         console.error('Error storing learning pattern:', error);
@@ -167,7 +164,7 @@ export class AILearningService {
         .from('ai_learning')
         .select('*')
         .eq('user_id', userId)
-        .order('confidence_score', { ascending: false });
+        .order('confidence_score', { ascending: false});
 
       if (patternType) {
         query = query.eq('pattern_type', patternType);
@@ -197,8 +194,7 @@ export class AILearningService {
           merchant_name: rule.merchant_name,
           category: rule.category,
           subcategory: rule.subcategory,
-          confidence_score: rule.confidence_score
-        });
+          confidence_score: rule.confidence_score});
 
       if (error) {
         console.error('Error storing categorization rule:', error);
@@ -215,7 +211,7 @@ export class AILearningService {
         .from('ai_categorization_rules')
         .select('*')
         .eq('user_id', userId)
-        .order('confidence_score', { ascending: false });
+        .order('confidence_score', { ascending: false});
 
       if (error) {
         console.error('Error fetching categorization rules:', error);
@@ -259,8 +255,7 @@ export class AILearningService {
         p_from_employee: handoff.from_employee,
         p_to_employee: handoff.to_employee,
         p_reason: handoff.reason,
-        p_success: handoff.success
-      });
+        p_success: handoff.success});
 
       if (error) {
         console.error('Error recording handoff:', error);
@@ -313,8 +308,7 @@ export class AILearningService {
           employee_id: employeeId,
           feedback_type: feedbackType,
           feedback_value: feedbackValue,
-          rating: rating
-        });
+          rating: rating});
 
       if (error) {
         console.error('Error storing user feedback:', error);
@@ -357,8 +351,7 @@ export class AILearningService {
         .upsert({
           user_id: userId,
           setting_name: settingName,
-          setting_value: settingValue
-        });
+          setting_value: settingValue});
 
       if (error) {
         console.error('Error updating system setting:', error);

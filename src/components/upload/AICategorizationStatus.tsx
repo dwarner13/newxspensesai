@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Brain, Zap, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
 
 interface AICategorizationStatusProps {
@@ -56,9 +55,7 @@ const AICategorizationStatus = ({
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
     >
       <div className="flex items-center justify-between mb-3">
@@ -82,10 +79,8 @@ const AICategorizationStatus = ({
 
       {/* Progress Bar */}
       <div className="w-full bg-gray-200 rounded-full h-2">
-        <motion.div
-          initial={{ width: 0 }}
+        <div
           animate={{ width: `${progress}%` }}
-          transition={{ duration: 0.3 }}
           className={`h-2 rounded-full bg-gradient-to-r ${getStepColor()}`}
         />
       </div>
@@ -117,7 +112,7 @@ const AICategorizationStatus = ({
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

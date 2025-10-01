@@ -44,8 +44,7 @@ export default function MobileLayoutGate({ Mobile, Desktop, mobileProps, desktop
     isExcludedRoute: data.debugData?.isExcludedRoute,
     shouldRenderMobile: data.shouldRenderMobile,
     forced: force || null,
-    final: shouldRenderMobile
-  });
+    final: shouldRenderMobile});
 
   // Determine what to render based on route
   const isDashboardRoot = pathname === '/dashboard';

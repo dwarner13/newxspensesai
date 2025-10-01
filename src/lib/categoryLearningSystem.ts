@@ -320,8 +320,7 @@ export class CategoryLearningSystem {
             weight: 0.7,
             custom_rules: [],
             exceptions: [],
-            last_updated: feedback.timestamp
-          });
+            last_updated: feedback.timestamp});
       }
 
     } catch (error) {
@@ -374,8 +373,7 @@ export class CategoryLearningSystem {
           corrected_subcategory: feedback.correctedSubcategory,
           confidence: feedback.confidence,
           reasoning: feedback.reasoning,
-          timestamp: feedback.timestamp
-        });
+          timestamp: feedback.timestamp});
 
       // Clear cached metrics
       this.metrics.delete(feedback.userId);

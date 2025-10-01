@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { FileText, Upload, Clipboard, Check, RefreshCw } from 'lucide-react';
 import ReceiptInterpreter from '../components/receipts/ReceiptInterpreter';
 
@@ -102,9 +101,7 @@ Category: ${interpretationResult.category}`;
 
   return (
     <div className="max-w-4xl  py-8 px-4">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="mb-8"
       >
         <div className="flex items-center space-x-3 mb-2">
@@ -114,13 +111,10 @@ Category: ${interpretationResult.category}`;
         <p className="text-gray-600">
           Enter receipt text below to extract vendor, amount, and category information.
         </p>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="card"
         >
           <h2 className="text-xl font-semibold mb-6 flex items-center">
@@ -161,26 +155,20 @@ Category: ${interpretationResult.category}`;
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
+        <div
         >
           <ReceiptInterpreter
             receiptText={receiptText}
             onInterpreted={handleInterpreted}
             className="h-full"
           />
-        </motion.div>
+        </div>
       </div>
 
       {interpretationResult && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="mt-8 p-6 rounded-lg bg-green-50 border border-green-200"
         >
           <div className="flex items-start">
@@ -229,20 +217,15 @@ Category: ${interpretationResult.category}`;
                   ) : (
                     <>
                       <Clipboard size={16} className="mr-2" />
-                      Copy Results
-                    </>
-                  )}
+                      Copy Results)}
                 </button>
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
+      <div
         className="mt-8 bg-gray-50 rounded-lg p-6 border border-gray-200"
       >
         <h3 className="text-lg font-medium mb-4">How It Works</h3>
@@ -277,7 +260,7 @@ Category: ${interpretationResult.category}`;
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

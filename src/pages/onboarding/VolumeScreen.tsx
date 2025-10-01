@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import ProgressBar from '../../components/onboarding/ProgressBar';
@@ -50,10 +49,7 @@ const VolumeScreen = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-8 ">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-8">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -77,11 +73,8 @@ const VolumeScreen = () => {
           
           <div className="space-y-4 mb-8">
             {volumeOptions.map((option) => (
-              <motion.div
+              <div
                 key={option.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: volumeOptions.indexOf(option) * 0.1 }}
                 className={`bg-gray-800 rounded-xl p-4 border-2 cursor-pointer transition-all duration-300 ${
                   selectedOption === option.id 
                     ? 'border-primary-500 bg-gray-800/80' 
@@ -104,7 +97,7 @@ const VolumeScreen = () => {
                     <p className="text-sm text-gray-400">{option.description}</p>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
           
@@ -130,7 +123,7 @@ const VolumeScreen = () => {
               <ArrowRight className="w-5 h-5 ml-2" />
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

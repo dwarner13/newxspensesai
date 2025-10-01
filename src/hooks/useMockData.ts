@@ -42,8 +42,7 @@ export const useMockData = (initialMockMode = false) => {
           acc[cat.category] = cat.amount;
           return acc;
         }, {} as Record<string, number>),
-        transactions: mockDashboardData.recentTransactions
-      });
+        transactions: mockDashboardData.recentTransactions});
     }
   }, [initialMockMode, mockMode, setMockMode, setDashboardData]);
 

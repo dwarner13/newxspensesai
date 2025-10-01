@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { 
   PieChart, 
   BarChart3, 
@@ -179,11 +178,8 @@ const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
             <h4 className="text-lg font-semibold text-white">Category Details</h4>
             <div className="space-y-3">
               {displayData.map((item, index) => (
-                <motion.div
+                <div
                   key={item.category}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
                   className="flex items-center justify-between p-3 bg-slate-700 rounded-lg hover:bg-slate-600 transition-colors"
                 >
                   <div className="flex items-center gap-3">
@@ -197,7 +193,7 @@ const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
                     <div className="text-white font-semibold">{formatCurrency(item.total)}</div>
                     <div className="text-sm text-slate-400">{item.percentage.toFixed(1)}%</div>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
           </div>
@@ -221,9 +217,6 @@ const CategoryBreakdownChart: React.FC<CategoryBreakdownChartProps> = ({
                 {displayData.map((item, index) => (
                   <motion.tr
                     key={item.category}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
                     className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors"
                   >
                     <td className="py-3 px-4">

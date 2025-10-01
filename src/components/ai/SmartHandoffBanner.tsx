@@ -1,6 +1,5 @@
 // Smart Handoff Banner - Displays context from Prime Boss handoff
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, MessageCircle, User, Clock, DollarSign, Target } from 'lucide-react';
 import { useSmartHandoff } from '../../hooks/useSmartHandoff';
 import { HandoffContext } from '../../lib/smartHandoff';
@@ -28,12 +27,8 @@ export default function SmartHandoffBanner({ onDismiss, className = '' }: SmartH
   const originalQuestion = handoffContext.original_question;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -50, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -50, scale: 0.95 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
+    
+      <div
         className={`bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-cyan-500/10 border border-blue-400/20 rounded-xl p-4 mb-6 backdrop-blur-sm ${className}`}
       >
         <div className="flex items-start justify-between">
@@ -86,7 +81,7 @@ export default function SmartHandoffBanner({ onDismiss, className = '' }: SmartH
             <X className="w-4 h-4 text-white/60" />
           </button>
         </div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+    
   );
 }

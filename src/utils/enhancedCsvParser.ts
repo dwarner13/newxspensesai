@@ -164,8 +164,7 @@ const categorizeWithAI = async (
             ...original,
             category: smartResult.category,
             subcategory: smartResult.subcategory,
-            categorization_source: smartResult.source
-          });
+            categorization_source: smartResult.source});
         }
       }
       
@@ -185,8 +184,7 @@ const categorizeWithAI = async (
             ...transaction,
             category: smartResult.category,
             subcategory: smartResult.subcategory,
-            categorization_source: smartResult.source
-          });
+            categorization_source: smartResult.source});
         } catch (fallbackError) {
           // Ultimate fallback
           categorizedTransactions.push({

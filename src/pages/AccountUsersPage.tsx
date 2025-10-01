@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Users, Settings, HelpCircle } from 'lucide-react';
 import AccountCard from '../components/dashboard/AccountCard';
 import UsersCard from '../components/dashboard/UsersCard';
@@ -46,18 +45,14 @@ const AccountUsersPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-        <motion.h1 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <h1
           className={`text-2xl font-bold flex items-center ${darkMode ? 'text-white' : 'text-gray-900'}`}
         >
           <Users className="mr-2" size={24} />
           Account & Users
-        </motion.h1>
+        </h1>
         
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+        <div
           className="flex flex-wrap gap-3"
         >
           <button className={`px-4 py-2 rounded-lg flex items-center ${
@@ -68,7 +63,7 @@ const AccountUsersPage = () => {
             <Settings size={16} className="mr-2" />
             Settings
           </button>
-        </motion.div>
+        </div>
       </div>
 
       {/* Account Card */}
@@ -88,10 +83,7 @@ const AccountUsersPage = () => {
       />
       
       {/* Help Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+      <div
         className={`mt-6 p-4 rounded-lg ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}
       >
         <div className="flex items-start">
@@ -103,7 +95,7 @@ const AccountUsersPage = () => {
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

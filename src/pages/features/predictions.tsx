@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { 
   Crown, Bot, Calculator, BarChart3, Brain, Headphones, 
   Users, Zap, Target, TrendingUp, ArrowRight, Star,
@@ -275,50 +274,35 @@ const PredictionsFeaturePage = () => {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           {/* Prime's Crown Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="inline-flex items-center bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 text-white px-4 py-2 rounded-full mb-8 shadow-2xl"
           >
             <Crown size={20} className="mr-2" />
             <span className="font-bold">Prime's AI Prediction Division</span>
-          </motion.div>
+          </div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+          <h1
             className="text-4xl md:text-7xl font-bold text-white mb-8"
           >
             Welcome to <span className="text-purple-400 font-extrabold drop-shadow-lg">Crystal's</span> AI Crystal Ball Theater
-          </motion.h1>
+          </h1>
 
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
+          <h2
             className="text-2xl md:text-3xl font-bold text-white/90 mb-6"
           >
             Where AI Fortune Telling Meets Financial Predictions with 94% Accuracy
-          </motion.h2>
+          </h2>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
+          <p
             className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
           >
             Step into the world's first AI Crystal Ball Theater where <span className="text-purple-300 font-bold">Crystal</span>, your AI Fortune Teller, 
             works with <span className="text-blue-300 font-bold">Finley</span>, <span className="text-teal-300 font-bold">Nova</span>, and <span className="text-cyan-300 font-bold">Wisdom</span> 
             to reveal your financial future with mystical precision. Experience AI predictions wrapped in magical entertainment!
-          </motion.p>
+          </p>
 
           {/* CTA Buttons */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
+          <div
             className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
           >
             <button
@@ -335,13 +319,10 @@ const PredictionsFeaturePage = () => {
               <Users size={24} className="mr-2" />
               Meet the AI Fortune Team
             </Link>
-          </motion.div>
+          </div>
 
           {/* Crystal's Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
+          <div
             className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
           >
             <div className="text-center">
@@ -360,16 +341,13 @@ const PredictionsFeaturePage = () => {
               <div className="text-3xl md:text-4xl font-bold text-cyan-400 mb-2">∞</div>
               <div className="text-white/70">Future Visions</div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
       {/* Crystal's AI Fortune Team */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -378,15 +356,12 @@ const PredictionsFeaturePage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Meet the AI specialists who make Crystal's predictions possible with their unique abilities and expertise
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
           {crystalTeam.map((member, index) => (
-            <motion.div
+            <div
               key={member.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.2 }}
               className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:border-white/40 transition-all duration-300 hover:scale-105"
             >
               <div className="text-center mb-6">
@@ -408,17 +383,14 @@ const PredictionsFeaturePage = () => {
                 </div>
                 <p className="text-white/80 text-sm leading-relaxed">{member.description}</p>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* Live Crystal Ball Theater */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -427,7 +399,7 @@ const PredictionsFeaturePage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Experience Crystal's mystical predictions in real-time as she consults with her AI team to reveal your financial future
           </p>
-        </motion.div>
+        </div>
 
         <div className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20">
           {/* Prediction Type Selector */}
@@ -566,10 +538,7 @@ const PredictionsFeaturePage = () => {
 
       {/* Crystal's Fortune Cards */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -578,15 +547,12 @@ const PredictionsFeaturePage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Let Crystal reveal your financial fortune with these mystical prediction cards
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
           {fortuneCards.map((card, index) => (
-            <motion.div
+            <div
               key={card.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:border-white/40 transition-all duration-300 hover:scale-105"
             >
               <div className="text-center mb-4">
@@ -599,7 +565,7 @@ const PredictionsFeaturePage = () => {
                   Crystal's Confidence: {card.confidence}
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
@@ -616,10 +582,7 @@ const PredictionsFeaturePage = () => {
 
       {/* Crystal's Learning Journey */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -628,7 +591,7 @@ const PredictionsFeaturePage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Watch how Crystal evolves from a novice fortune teller to your personal financial oracle
           </p>
-        </motion.div>
+        </div>
 
         <div className="relative">
           {/* Connection Line */}
@@ -636,11 +599,8 @@ const PredictionsFeaturePage = () => {
           
           <div className="grid lg:grid-cols-5 gap-8">
             {crystalLearningStages.map((stage, index) => (
-              <motion.div
+              <div
                 key={stage.stage}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="relative text-center"
               >
                 <div className={`w-20 h-20 bg-gradient-to-r ${stage.color} rounded-full flex items-center justify-center mx-auto mb-4 shadow-2xl text-3xl`}>
@@ -654,7 +614,7 @@ const PredictionsFeaturePage = () => {
                 <div className="text-xs text-purple-300">
                   <strong>AI Team:</strong> {stage.aiTeam.join(', ')}
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -662,10 +622,7 @@ const PredictionsFeaturePage = () => {
 
       {/* Call to Action */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 via-indigo-500/20 to-pink-500/20 backdrop-blur-md rounded-3xl p-12 border border-white/20 text-center"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -691,7 +648,7 @@ const PredictionsFeaturePage = () => {
               Meet the Full AI Team
             </Link>
           </div>
-        </motion.div>
+        </div>
       </div>
     </>
   );

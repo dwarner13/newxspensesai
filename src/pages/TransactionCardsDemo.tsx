@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { ArrowLeft, Filter, SortAsc, SortDesc } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import TransactionCards from '../components/transactions/TransactionCards';
@@ -70,9 +69,7 @@ const TransactionCardsDemo = () => {
 
   return (
     <div className="max-w-4xl  py-8 px-4">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="mb-8"
       >
         <div className="flex items-center space-x-3 mb-4">
@@ -84,7 +81,7 @@ const TransactionCardsDemo = () => {
         <p className="text-gray-600">
           View your transactions with receipt images in a card layout.
         </p>
-      </motion.div>
+      </div>
 
       <div className="mb-6 flex flex-wrap gap-3">
         <div className="flex items-center space-x-2 bg-white rounded-lg shadow-sm p-2 border border-gray-200">

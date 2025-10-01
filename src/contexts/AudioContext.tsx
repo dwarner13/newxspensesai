@@ -140,16 +140,16 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   // Audio control functions
   const playTrack = (track: AudioTrack) => {
-    dispatch({ type: 'SET_CURRENT_TRACK', payload: track });
-    dispatch({ type: 'SET_PLAYING', payload: true });
+    dispatch({ type: 'SET_CURRENT_TRACK', payload: track});
+    dispatch({ type: 'SET_PLAYING', payload: true});
   };
 
   const pauseTrack = () => {
-    dispatch({ type: 'SET_PLAYING', payload: false });
+    dispatch({ type: 'SET_PLAYING', payload: false});
   };
 
   const resumeTrack = () => {
-    dispatch({ type: 'SET_PLAYING', payload: true });
+    dispatch({ type: 'SET_PLAYING', payload: true});
   };
 
   const skipTrack = () => {
@@ -161,15 +161,15 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   };
 
   const setVolume = (volume: number) => {
-    dispatch({ type: 'SET_VOLUME', payload: volume });
+    dispatch({ type: 'SET_VOLUME', payload: volume});
   };
 
   const addToQueue = (track: AudioTrack) => {
-    dispatch({ type: 'ADD_TO_QUEUE', payload: track });
+    dispatch({ type: 'ADD_TO_QUEUE', payload: track});
   };
 
   const removeFromQueue = (trackId: string) => {
-    dispatch({ type: 'REMOVE_FROM_QUEUE', payload: trackId });
+    dispatch({ type: 'REMOVE_FROM_QUEUE', payload: trackId});
   };
 
   const clearQueue = () => {
@@ -181,15 +181,15 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     try {
       // TODO: Implement Spotify OAuth
       console.log('Connecting to Spotify...');
-      dispatch({ type: 'SET_SPOTIFY_CONNECTED', payload: true });
+      dispatch({ type: 'SET_SPOTIFY_CONNECTED', payload: true});
     } catch (error) {
       console.error('Failed to connect to Spotify:', error);
     }
   };
 
   const disconnectSpotify = () => {
-    dispatch({ type: 'SET_SPOTIFY_CONNECTED', payload: false });
-    dispatch({ type: 'SET_SPOTIFY_USER', payload: null });
+    dispatch({ type: 'SET_SPOTIFY_CONNECTED', payload: false});
+    dispatch({ type: 'SET_SPOTIFY_USER', payload: null});
   };
 
   // Get AI-powered recommendations
@@ -225,7 +225,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       },
     ];
 
-    dispatch({ type: 'SET_RECOMMENDATIONS', payload: mockRecommendations });
+    dispatch({ type: 'SET_RECOMMENDATIONS', payload: mockRecommendations});
     return mockRecommendations;
   };
 

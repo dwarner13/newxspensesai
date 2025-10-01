@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { ChevronDown, Edit } from 'lucide-react';
 
 interface AccountCardProps {
@@ -50,9 +49,7 @@ const AccountCard = ({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className={`rounded-lg shadow-sm ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}
     >
       <div className="p-6">
@@ -216,7 +213,7 @@ const AccountCard = ({
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

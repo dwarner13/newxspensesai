@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FileText, 
   Brain, 
@@ -86,13 +85,9 @@ export function QuickActionButtons({
   const regularActions = actions.filter(action => !action.isPopular);
 
   return (
-    <AnimatePresence>
+    <>
       {isVisible && (
-        <motion.div
-          initial={{ opacity: 0, y: -20, height: 0 }}
-          animate={{ opacity: 1, y: 0, height: 'auto' }}
-          exit={{ opacity: 0, y: -20, height: 0 }}
-          transition={{ duration: 0.3, ease: 'easeInOut' }}
+        <div
           className={`bg-gray-50 border-b border-gray-200 p-4 ${className}`}
         >
           {/* Header */}
@@ -105,15 +100,12 @@ export function QuickActionButtons({
                 {employeeName} is ready to help with these common tasks
               </p>
             </div>
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2 }}
+            <div
               className="flex items-center space-x-1"
             >
               <Sparkles className="w-4 h-4 text-orange-500" />
               <span className="text-xs text-orange-600 font-medium">AI Powered</span>
-            </motion.div>
+            </div>
           </div>
 
           {/* Popular Actions */}
@@ -125,11 +117,8 @@ export function QuickActionButtons({
               </div>
               <div className={`grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 {popularActions.map((action, index) => (
-                  <motion.button
+                  <button
                     key={action.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => onActionClick(action)}
@@ -147,7 +136,7 @@ export function QuickActionButtons({
                     <div className="flex-shrink-0">
                       <Star className="w-3 h-3 text-yellow-500" />
                     </div>
-                  </motion.button>
+                  </button>
                 ))}
               </div>
             </div>
@@ -162,11 +151,8 @@ export function QuickActionButtons({
               </div>
               <div className={`grid gap-2 ${isMobile ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 {regularActions.map((action, index) => (
-                  <motion.button
+                  <button
                     key={action.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: (popularActions.length + index) * 0.1 }}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => onActionClick(action)}
@@ -181,26 +167,23 @@ export function QuickActionButtons({
                         <p className="text-xs opacity-75 mt-1">{action.description}</p>
                       )}
                     </div>
-                  </motion.button>
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
           {/* Footer */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
+          <div
             className="mt-4 pt-3 border-t border-gray-200"
           >
             <p className="text-xs text-gray-500 text-center">
               💡 Tip: Click any action to start a conversation with {employeeName}
             </p>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }
 

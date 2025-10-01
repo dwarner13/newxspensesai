@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { FileText, RefreshCw, Search, Camera, ChevronLeft, ChevronRight, Eye, Download, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -41,7 +40,7 @@ const ReceiptsList = () => {
         .from('receipts')
         .select('*')
         .eq('user_id', user?.id)
-        .order('upload_date', { ascending: false });
+        .order('upload_date', { ascending: false});
       
       if (error) {
         console.error('Error fetching receipts:', error);

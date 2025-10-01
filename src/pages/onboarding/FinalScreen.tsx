@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, CheckCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -82,10 +81,7 @@ const FinalScreen = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-8 ">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-8">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -96,16 +92,13 @@ const FinalScreen = () => {
             <span className="text-2xl font-bold">XspensesAI</span>
           </div>
           
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5 }}
+          <div
             className="flex justify-center mb-8"
           >
             <div className="w-24 h-24 bg-green-600 rounded-full flex items-center justify-center">
               <CheckCircle className="w-12 h-12 text-white" />
             </div>
-          </motion.div>
+          </div>
           
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-4">
@@ -117,10 +110,7 @@ const FinalScreen = () => {
             </p>
           </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+          <div
             className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-8"
           >
             <h3 className="font-semibold text-lg mb-4">Here's what you can do next:</h3>
@@ -159,12 +149,9 @@ const FinalScreen = () => {
                 <span className="text-gray-300">Set up your first savings goal</span>
               </li>
             </ul>
-          </motion.div>
+          </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+          <div
             className="flex justify-center"
           >
             <button
@@ -191,8 +178,8 @@ const FinalScreen = () => {
                 </>
               )}
             </button>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     </div>
   );

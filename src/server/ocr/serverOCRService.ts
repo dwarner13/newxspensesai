@@ -162,7 +162,7 @@ export class ServerOCRService {
       if (analysis.quality < 0.4) {
         pipeline = pipeline
           .normalize()
-          .sharpen({ sigma: 1.0, flat: 1.0, jagged: 2.0 });
+          .sharpen({ sigma: 1.0, flat: 1.0, jagged: 2.0});
       }
       
       // Convert to optimal format for OCR

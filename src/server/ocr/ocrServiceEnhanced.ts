@@ -269,7 +269,7 @@ export class EnhancedOCRService {
       if (analysis.quality < 0.4) {
         pipeline = pipeline
           .normalize() // Enhance contrast
-          .sharpen({ sigma: 1.0, flat: 1.0, jagged: 2.0 });
+          .sharpen({ sigma: 1.0, flat: 1.0, jagged: 2.0});
       }
       
       // Convert to optimal format for OCR
@@ -488,8 +488,7 @@ class GoogleVisionProvider extends OCRProvider {
       // Google Vision doesn't provide confidence scores directly
       // Use text block size and quality as proxy
       const area = this.calculateBoundingBoxArea(block.boundingPoly);
-      return Math.min(area / 10000, 1); // Normalize area to confidence
-    });
+      return Math.min(area / 10000, 1); // Normalize area to confidence});
     
     return blockConfidences.reduce((sum, conf) => sum + conf, 0) / blockConfidences.length;
   }

@@ -285,8 +285,7 @@ export async function logAIInteraction(
         response_length: responseLength,
         processing_time_ms: processingTimeMs,
         success: success,
-        error_message: errorMessage
-      });
+        error_message: errorMessage});
 
     if (error) {
       console.error('Error logging AI interaction:', error);
@@ -315,7 +314,7 @@ export async function getEmployeeAnalytics(
       .select('*')
       .eq('employee_key', employeeKey)
       .gte('created_at', startDate.toISOString())
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false});
 
     if (error) {
       console.error('Error fetching employee analytics:', error);

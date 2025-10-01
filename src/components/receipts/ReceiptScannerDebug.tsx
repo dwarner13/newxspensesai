@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { Camera, Upload, X, Check, AlertTriangle, Brain, Zap, FileImage, Eye, Info } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -111,8 +110,7 @@ const ReceiptScannerDebug = ({ onClose }: ReceiptScannerDebugProps) => {
           .from('receipts')
           .upload(fileName, selectedImage, {
             cacheControl: '3600',
-            upsert: false
-          });
+            upsert: false});
           
         if (error) {
           console.error('Storage upload error:', error);
@@ -150,8 +148,7 @@ const ReceiptScannerDebug = ({ onClose }: ReceiptScannerDebugProps) => {
         headers: {
           "apikey": ocrApiKey,
         },
-        body: formData
-      });
+        body: formData});
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -208,9 +205,7 @@ const ReceiptScannerDebug = ({ onClose }: ReceiptScannerDebugProps) => {
 
   return (
     <div className="max-w-2xl ">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="card"
       >
         <div className="flex items-center justify-between mb-6">
@@ -376,9 +371,7 @@ const ReceiptScannerDebug = ({ onClose }: ReceiptScannerDebugProps) => {
 
             {/* OCR Results */}
             {rawOcrText && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+              <div
                 className="bg-success-50 border border-success-200 rounded-lg p-4"
               >
                 <div className="flex items-center justify-between mb-3">
@@ -395,20 +388,17 @@ const ReceiptScannerDebug = ({ onClose }: ReceiptScannerDebugProps) => {
                   </button>
                 </div>
                 
-                <AnimatePresence>
+                
                   {showRawText && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
+                    <div
                       className="mt-3"
                     >
                       <div className="bg-white p-3 rounded border border-success-200 max-h-64 overflow-y-auto">
                         <pre className="text-xs text-gray-700 whitespace-pre-wrap">{rawOcrText}</pre>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
-                </AnimatePresence>
+                
                 
                 <div className="mt-3 text-sm text-success-700">
                   <p>OCR extracted {rawOcrText.length} characters of text.</p>
@@ -427,14 +417,12 @@ const ReceiptScannerDebug = ({ onClose }: ReceiptScannerDebugProps) => {
                     Parse Receipt Data
                   </button>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {/* OCR Error */}
             {ocrError && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+              <div
                 className="bg-error-50 border border-error-200 rounded-lg p-4"
               >
                 <div className="flex items-start space-x-3">
@@ -481,11 +469,11 @@ const ReceiptScannerDebug = ({ onClose }: ReceiptScannerDebugProps) => {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 };

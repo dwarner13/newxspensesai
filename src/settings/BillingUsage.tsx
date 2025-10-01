@@ -2,7 +2,7 @@ import React, { useState } from "react";
 
 export default function BillingUsage() {
   const [plan, setPlan] = useState("Pro");
-  const [usage] = useState({ receipts: 120, aiInsights: 45, teamMembers: 3 });
+  const [usage] = useState({ receipts: 120, aiInsights: 45, teamMembers: 3});
   const [invoices] = useState([
     { id: 1, date: "2024-06-01", amount: 29.99, status: "Paid" },
     { id: 2, date: "2024-05-01", amount: 29.99, status: "Paid" }

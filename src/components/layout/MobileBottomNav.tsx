@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Home, Upload, Mic, Bot, Settings, Bell, MessageCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { EMPLOYEES } from '../../data/aiEmployees';
 import MobileChatbotModal from './MobileChatbotModal';
 import { ByteDocumentChat } from '../chat/ByteDocumentChat';
@@ -99,9 +98,7 @@ export default function MobileBottomNav({
                   : 'text-white/60 hover:text-white/80 hover:bg-white/5'
               }`}
             >
-              <motion.div
-                animate={{ scale: isActive ? 1.1 : 1 }}
-                transition={{ duration: 0.2 }}
+              <div
                 className="relative"
               >
                 {/* Show AI employee emoji for AI Chat, otherwise show icon */}
@@ -125,10 +122,10 @@ export default function MobileBottomNav({
                     {notifications}
                   </div>
                 )}
-              </motion.div>
+              </div>
               <span className="text-xs font-medium text-center truncate">{item.label}</span>
               {isActive && (
-                <motion.div
+                <div
                   layoutId="activeTab"
                   className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-purple-400 rounded-full"
                 />

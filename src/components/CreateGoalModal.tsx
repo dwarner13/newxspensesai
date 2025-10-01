@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
   Target, 
@@ -350,19 +349,13 @@ const CreateGoalModal: React.FC<CreateGoalModalProps> = ({ isOpen, onClose, onGo
   };
 
   return (
-    <AnimatePresence>
+    
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
+          <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
@@ -436,7 +429,7 @@ const CreateGoalModal: React.FC<CreateGoalModalProps> = ({ isOpen, onClose, onGo
                   {/* Templates Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {filteredTemplates.map((template) => (
-                      <motion.div
+                      <div
                         key={template.id}
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
@@ -478,7 +471,7 @@ const CreateGoalModal: React.FC<CreateGoalModalProps> = ({ isOpen, onClose, onGo
                             </div>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
 
@@ -753,17 +746,15 @@ const CreateGoalModal: React.FC<CreateGoalModalProps> = ({ isOpen, onClose, onGo
                     ) : (
                       <>
                         <Plus className="h-4 w-4" />
-                        Create Goal
-                      </>
-                    )}
+                        Create Goal)}
                   </button>
                 )}
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    
   );
 };
 

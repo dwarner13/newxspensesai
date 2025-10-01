@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Shield, Users, Settings, BarChart3, Zap, Crown, Eye, Database, Mail, ToggleLeft as Toggle, Activity, DollarSign, FileText, Camera, Brain, Star, TrendingUp, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAdminAccess } from '../hooks/useAdminAccess';
@@ -53,8 +52,7 @@ const AdminPanelPage = () => {
     totalReceipts: 0,
     totalXPEarned: 0,
     premiumUsers: 0,
-    recentSignups: 0
-  });
+    recentSignups: 0});
   const [users, setUsers] = useState<UserData[]>([]);
   const [features, setFeatures] = useState<FeatureToggle[]>([
     {
@@ -127,7 +125,7 @@ const AdminPanelPage = () => {
       // Get user stats
       const { count: totalUsers } = await supabase
         .from('profiles')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true});
 
       const { count: premiumUsers } = await supabase
         .from('profiles')
@@ -142,12 +140,12 @@ const AdminPanelPage = () => {
       // Get transaction stats
       const { count: totalTransactions } = await supabase
         .from('transactions')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true});
 
       // Get receipt stats
       const { count: totalReceipts } = await supabase
         .from('receipts')
-        .select('*', { count: 'exact', head: true });
+        .select('*', { count: 'exact', head: true});
 
       // Get XP stats
       const { data: xpData } = await supabase
@@ -169,8 +167,7 @@ const AdminPanelPage = () => {
         totalReceipts: totalReceipts || 0,
         totalXPEarned,
         premiumUsers: premiumUsers || 0,
-        recentSignups: recentSignups || 0
-      });
+        recentSignups: recentSignups || 0});
     } catch (error) {
       console.error('Error loading stats:', error);
     }
@@ -243,8 +240,7 @@ const AdminPanelPage = () => {
     setGodMode(!godMode);
     toast.success(`God Mode ${!godMode ? 'ACTIVATED' : 'DEACTIVATED'}`, {
       icon: !godMode ? '⚡' : '🔒',
-      duration: 2000
-    });
+      duration: 2000});
   };
 
   if (!userIsAdmin) {
@@ -270,9 +266,7 @@ const AdminPanelPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center justify-between"
       >
         <div className="flex items-center space-x-3">
@@ -294,13 +288,11 @@ const AdminPanelPage = () => {
           <span className="text-sm text-gray-500">Admin Access</span>
           <Crown size={20} className="text-yellow-600" />
         </div>
-      </motion.div>
+      </div>
 
       {/* God Mode Banner */}
       {godMode && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
+        <div
           className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white p-4 rounded-lg border-2 border-purple-300"
         >
           <div className="flex items-center justify-between">
@@ -320,7 +312,7 @@ const AdminPanelPage = () => {
               Deactivate
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Tab Navigation */}
@@ -347,11 +339,8 @@ const AdminPanelPage = () => {
       </div>
 
       {/* Tab Content */}
-      <motion.div
+      <div
         key={activeTab}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
       >
         {activeTab === 'overview' && (
           <div className="space-y-6">
@@ -719,7 +708,7 @@ const AdminPanelPage = () => {
             </div>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 };

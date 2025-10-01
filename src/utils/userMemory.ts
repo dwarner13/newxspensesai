@@ -123,8 +123,7 @@ class UserMemoryManager {
       timestamp: new Date(),
       userMessage,
       aiResponse,
-      context
-    });
+      context});
 
     // Keep only last 20 conversations per section
     if (this.currentUser.conversationHistory[section].length > 20) {

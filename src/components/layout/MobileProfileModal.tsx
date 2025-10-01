@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-// import { motion, AnimatePresence } from 'framer-motion';
-import { 
+// import { 
   User, 
   Settings, 
   Bell, 
@@ -26,7 +25,7 @@ import {
   Lock,
   Eye,
   EyeOff
-} from 'lucide-react';
+// } from 'lucide-react';
 
 interface MobileProfileModalProps {
   isOpen: boolean;

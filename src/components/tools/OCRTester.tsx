@@ -85,8 +85,7 @@ export default function OCRTester() {
           success: true,
           text: result.text,
           confidence: result.confidence,
-          parsed: result.parsed
-        });
+          parsed: result.parsed});
         console.log('OCR successful, confidence:', result.confidence);
         
         // Show parsed data
@@ -135,8 +134,7 @@ export default function OCRTester() {
           success: true,
           text: result.text,
           confidence: result.confidence,
-          parsed: result.parsed
-        });
+          parsed: result.parsed});
         console.log('OCR successful, confidence:', result.confidence);
         
         // Show parsed data

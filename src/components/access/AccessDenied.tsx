@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Shield, Mail, Crown, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -88,20 +87,15 @@ const AccessDenied = ({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className=" w-full"
       >
         <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2 }}
+          <div
             className="w-20 h-20  mb-6 bg-gray-100 rounded-full flex items-center justify-center"
           >
             {content.icon}
-          </motion.div>
+          </div>
           
           <h1 className="text-2xl font-bold text-gray-900 mb-4">
             {content.title}
@@ -112,20 +106,14 @@ const AccessDenied = ({
           </p>
           
           {content.action && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
+            <div
             >
               {content.action}
-            </motion.div>
+            </div>
           )}
         </div>
         
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
+        <div
           className="text-center"
         >
           <Link 
@@ -135,8 +123,8 @@ const AccessDenied = ({
             <ArrowLeft size={16} className="mr-2" />
             Back to Dashboard
           </Link>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
     </div>
   );
 };

@@ -178,7 +178,7 @@ export class TeamManager {
         )
       `)
       .eq('org_id', orgId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true});
     
     return members || [];
   }

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { FileText, Upload, Download, Trash2, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
@@ -40,7 +39,7 @@ const UploadedFilesList = ({ month, className = '' }: UploadedFilesListProps) =>
         .from('files')
         .select('*')
         .eq('user_id', user?.id)
-        .order('upload_date', { ascending: false });
+        .order('upload_date', { ascending: false});
       
       if (error) throw error;
       
@@ -54,7 +53,7 @@ const UploadedFilesList = ({ month, className = '' }: UploadedFilesListProps) =>
       
       const filteredFiles = data.filter(file => {
         const fileDate = new Date(file.upload_date);
-        return isWithinInterval(fileDate, { start: startDate, end: endDate });
+        return isWithinInterval(fileDate, { start: startDate, end: endDate});
       });
       
       setFiles(filteredFiles);
@@ -112,10 +111,7 @@ const UploadedFilesList = ({ month, className = '' }: UploadedFilesListProps) =>
 
   if (loading) {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+      <div
         className={`card ${className}`}
       >
         <div className="flex items-center justify-between mb-6">
@@ -124,15 +120,12 @@ const UploadedFilesList = ({ month, className = '' }: UploadedFilesListProps) =>
         <div className="flex justify-center p-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.4 }}
+    <div
       className={`card ${className}`}
     >
       <div className="flex items-center justify-between mb-6">
@@ -194,7 +187,7 @@ const UploadedFilesList = ({ month, className = '' }: UploadedFilesListProps) =>
           </Link>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

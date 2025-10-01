@@ -14,7 +14,6 @@ import {
   Bell,
   Music
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { getProfile } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -223,14 +222,10 @@ const Header = ({
               )}
             </button>
 
-            <AnimatePresence>
+            
               {isNotificationsOpen && (
-                <motion.div
+                <div
                   ref={notificationsRef}
-                  initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                  transition={{ duration: 0.2 }}
                   className="absolute right-0 mt-2 w-80 rounded-xl shadow-lg border border-white/10 bg-[rgba(15,23,42,0.95)] backdrop-blur-md py-2 z-50"
                 >
                   <div className="px-4 py-3 border-b border-white/10">
@@ -277,9 +272,9 @@ const Header = ({
                       ))
                     )}
                   </div>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
+            
           </div>
 
           {/* Spotify Icon */}
@@ -304,14 +299,10 @@ const Header = ({
               <User size={20} className="text-white" />
             </button>
 
-            <AnimatePresence>
+            
               {isUserMenuOpen && (
-                <motion.div
+                <div
                   ref={userMenuRef}
-                  initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                  transition={{ duration: 0.2 }}
                   className={`absolute right-0 mt-2 w-64 rounded-lg shadow-lg border py-2 z-50 ${
                     darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
                   }`}
@@ -374,9 +365,9 @@ const Header = ({
                       Sign Out
                     </button>
                   </div>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
+            
           </div>
         </div>
       </div>

@@ -30,8 +30,7 @@ const AIIntegrationTest = () => {
             setTestResult({
                 category: categorizationResult.category,
                 confidence: categorizationResult.confidence,
-                reasoning: categorizationResult.reasoning
-            });
+                reasoning: categorizationResult.reasoning});
 
         } catch (error) {
             setStatus('failed');

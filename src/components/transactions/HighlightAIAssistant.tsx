@@ -60,7 +60,7 @@ export const HighlightAIAssistant: React.FC<{ transactions: any[], refresh?: () 
       // Get bounding rect of selection
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
-      setIconPos({ x: rect.right + window.scrollX, y: rect.top + window.scrollY });
+      setIconPos({ x: rect.right + window.scrollX, y: rect.top + window.scrollY});
       setSelectedText(text);
       setSelectedRow(tx);
       setShowIcon(true);

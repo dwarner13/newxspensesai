@@ -4,9 +4,7 @@ import { Link } from 'react-router-dom';
 import { 
   Crown, Zap, Brain, Play, RefreshCw, Calculator
 } from 'lucide-react';
-// import { motion, AnimatePresence } from 'framer-motion';
-
-interface AIEmployee {
+// interface AIEmployee {
   name: string;
   role: string;
   avatar: string;
@@ -466,9 +464,7 @@ const HomePage = () => {
             ) : (
               <>
                 <Calculator size={24} />
-                Calculate My Savings
-              </>
-            )}
+                Calculate My Savings)}
           </button>
 
           {userSavings > 0 && (

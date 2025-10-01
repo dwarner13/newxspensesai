@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Star, Zap, Trophy, Award } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -149,9 +148,6 @@ const XPProgressRing = ({
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           strokeDasharray={circumference}
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset }}
-          transition={{ duration: 1, ease: "easeOut" }}
           transform="rotate(-90 60 60)"
         />
         
@@ -193,16 +189,13 @@ const XPProgressRing = ({
       
       {/* Level Up Animation */}
       {showLevelUpAnimation && (
-        <motion.div
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: [0, 1.2, 1], opacity: [0, 1, 1] }}
-          transition={{ duration: 0.5 }}
+        <div
           className="absolute inset-0 flex items-center justify-center"
         >
           <div className="bg-yellow-400 rounded-full p-8 flex items-center justify-center">
             <Trophy size={32} className="text-white" />
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );

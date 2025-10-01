@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, FileText, CheckCircle, Loader2, Sparkles, Upload, Send, MessageCircle } from 'lucide-react';
 import { MockDocumentProcessor, ProcessingStep, ProcessingResult } from '../../services/MockDocumentProcessor';
 
@@ -341,10 +340,7 @@ startxref
 
   return createPortal(
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
+      <div
         className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
         style={{ position: 'relative', zIndex: 10000 }}
       >
@@ -398,13 +394,10 @@ startxref
                      {/* Left Column - Processing Results */}
            <div className="flex-1 p-6 space-y-6 overflow-y-auto processing-content-area">
           {/* Byte's Messages */}
-          <AnimatePresence>
+          
             {byteMessages.map((message, index) => (
-              <motion.div
+              <div
                 key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.5 }}
                 className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4"
               >
                 <div className="flex items-start gap-3">
@@ -416,9 +409,9 @@ startxref
                     <p className="text-white mt-1">{message}</p>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </AnimatePresence>
+          
 
           {/* Processing Steps */}
           <div className="space-y-3">
@@ -428,11 +421,8 @@ startxref
             </h3>
             
             {processingSteps.map((step, index) => (
-              <motion.div
+              <div
                 key={step.step}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.2 }}
                 className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
                   step.status === 'completed' 
                     ? 'bg-green-500/10 border-green-500/20' 
@@ -466,15 +456,13 @@ startxref
                   </p>
                   <p className="text-sm text-slate-400">{step.description}</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
 
           {/* Download Sample */}
           {showDownload && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <div
               className="bg-slate-700/50 border border-slate-600 rounded-lg p-4"
             >
               <div>
@@ -499,7 +487,7 @@ startxref
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
           </div>
 
@@ -647,7 +635,7 @@ startxref
             )}
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>,
     document.body
   );

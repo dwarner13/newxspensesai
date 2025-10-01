@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TrendingUp, 
   BarChart3, 
@@ -433,10 +432,7 @@ What would you like to know about your spending future?`;
       <div>
 
       {/* Navigation Tabs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+      <div
         className="flex flex-wrap gap-2 mb-4"
       >
         {[
@@ -446,7 +442,7 @@ What would you like to know about your spending future?`;
           { key: 'alerts', label: 'Alerts', icon: AlertTriangle },
           { key: 'insights', label: 'Crystal Insights', icon: Brain }
         ].map(({ key, label, icon: Icon }) => (
-          <motion.button
+          <button
             key={key}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -459,16 +455,13 @@ What would you like to know about your spending future?`;
           >
             <Icon className="w-4 h-4" />
             {label}
-          </motion.button>
+          </button>
         ))}
-      </motion.div>
+      </div>
 
       {/* Overview Section */}
       {activeView === 'overview' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="space-y-6"
         >
           {/* Live Stats Cards */}
@@ -556,15 +549,12 @@ What would you like to know about your spending future?`;
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Predictions Section */}
       {activeView === 'predictions' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="space-y-6"
         >
           {/* Search and Filter */}
@@ -640,15 +630,12 @@ What would you like to know about your spending future?`;
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Patterns Section */}
       {activeView === 'patterns' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="space-y-6"
         >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -677,15 +664,12 @@ What would you like to know about your spending future?`;
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Alerts Section */}
       {activeView === 'alerts' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="space-y-6"
         >
           <div className="space-y-4">
@@ -703,15 +687,12 @@ What would you like to know about your spending future?`;
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Crystal Insights Section */}
       {activeView === 'insights' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="space-y-6"
         >
           <div className="space-y-4">
@@ -729,15 +710,12 @@ What would you like to know about your spending future?`;
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Chat Section */}
       {activeView === 'chat' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="space-y-6"
         >
           <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6">
@@ -751,10 +729,8 @@ What would you like to know about your spending future?`;
 
             <div className="h-96 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
               {messages.map((message, index) => (
-                <motion.div
+                <div
                   key={index}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
@@ -767,13 +743,11 @@ What would you like to know about your spending future?`;
                       {new Date(message.timestamp).toLocaleTimeString()}
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ))}
 
               {isLoading && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                <div
                   className="flex justify-start"
                 >
                   <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
@@ -782,7 +756,7 @@ What would you like to know about your spending future?`;
                       <span>Crystal is analyzing...</span>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               )}
 
               <div ref={messagesEndRef} />
@@ -807,23 +781,17 @@ What would you like to know about your spending future?`;
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Crystal Chat Modal */}
-      <AnimatePresence>
+      
         {showCrystalChat && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
             onClick={() => setShowCrystalChat(false)}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-slate-800 rounded-xl border border-white/20 p-6 w-full max-w-2xl h-[600px] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
@@ -845,10 +813,8 @@ What would you like to know about your spending future?`;
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
                 {messages.map((message, index) => (
-                  <motion.div
+                  <div
                     key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
@@ -861,13 +827,11 @@ What would you like to know about your spending future?`;
                         {new Date(message.timestamp).toLocaleTimeString()}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
 
                 {isLoading && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                  <div
                     className="flex justify-start"
                   >
                     <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
@@ -876,7 +840,7 @@ What would you like to know about your spending future?`;
                         <span>Crystal is analyzing...</span>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
 
                 <div ref={messagesEndRef} />
@@ -900,10 +864,10 @@ What would you like to know about your spending future?`;
                   <Send className="w-5 h-5" />
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
       </div>
     </div>
   );

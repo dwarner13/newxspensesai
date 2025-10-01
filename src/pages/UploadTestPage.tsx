@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { Upload, Check, X, AlertTriangle, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -81,8 +80,7 @@ const UploadTestPage = () => {
         .from('receipts') // Use the receipts bucket
         .upload(filePath, file, {
           cacheControl: '3600',
-          upsert: false
-        });
+          upsert: false});
 
       stopProgressSimulation();
       
@@ -107,8 +105,7 @@ const UploadTestPage = () => {
           success: true,
           message: 'Upload successful!',
           details: JSON.stringify(data, null, 2),
-          url: urlData.publicUrl
-        });
+          url: urlData.publicUrl});
         setUploadProgress(100);
         toast.success('Upload successful!');
       }
@@ -129,9 +126,7 @@ const UploadTestPage = () => {
 
   return (
     <div className="max-w-2xl ">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center space-x-3 mb-8"
       >
         <Upload size={32} className="text-primary-600" />
@@ -139,7 +134,7 @@ const UploadTestPage = () => {
           <h1 className="text-2xl font-bold">Upload Test Tool</h1>
           <p className="text-gray-600">Test file uploads to Supabase Storage</p>
         </div>
-      </motion.div>
+      </div>
 
       <div className="card mb-6">
         <h2 className="text-lg font-semibold mb-4">1. Select a File to Upload</h2>
@@ -180,9 +175,7 @@ const UploadTestPage = () => {
               ) : (
                 <>
                   <Upload size={16} className="mr-2" />
-                  Upload to Supabase
-                </>
-              )}
+                  Upload to Supabase)}
             </button>
           </div>
         )}
@@ -217,9 +210,7 @@ const UploadTestPage = () => {
 
       {/* Upload Result */}
       {uploadResult && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className={`card mb-6 ${
             uploadResult.success ? 'bg-success-50 border-success-200' : 'bg-error-50 border-error-200'
           }`}
@@ -282,14 +273,11 @@ const UploadTestPage = () => {
               )}
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Environment Check */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
+      <div
         className="card"
       >
         <h2 className="text-lg font-semibold mb-4">Environment Check</h2>
@@ -323,7 +311,7 @@ const UploadTestPage = () => {
             </span>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

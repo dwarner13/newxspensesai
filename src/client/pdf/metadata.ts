@@ -30,7 +30,7 @@ export async function getPdfMetadata(arrayBuffer: ArrayBuffer) {
   }
   
   try {
-    const doc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+    const doc = await PDFDocument.load(arrayBuffer, { ignoreEncryption: true});
     const title = doc.getTitle() || undefined;
     const author = doc.getAuthor() || undefined;
     const subject = doc.getSubject() || undefined;

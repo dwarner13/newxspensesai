@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { 
   Heart, Crown, Zap, Play, RefreshCw
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import WebsiteLayout from '../../components/layout/WebsiteLayout';
 
 interface AIEmployee {
@@ -164,55 +163,40 @@ const WellnessStudioFeaturePage = () => {
           <div className="text-center mb-16">
             {/* Prime Badge */}
             <div className="text-center mb-8">
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md border border-white/20 rounded-full px-6 py-3 mb-8"
               >
                 <Crown size={20} className="text-yellow-400" />
                 <span className="text-white font-semibold">Prime's AI Wellness Division</span>
-              </motion.div>
+              </div>
             </div>
 
             {/* Urgency Banner */}
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 rounded-full px-6 py-2 mb-8 inline-block"
             >
               <span className="text-red-300 text-sm font-medium">
                 🧘‍♀️ Limited Time: First month FREE for new users
               </span>
-            </motion.div>
+            </div>
 
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+            <h1
               className="text-4xl md:text-6xl font-bold text-white mb-6"
             >
               Finally, Financial Stress Relief That{' '}
               <span className="text-purple-400 drop-shadow-lg">
                 Actually Works
               </span>
-            </motion.h1>
+            </h1>
             
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+            <p
               className="text-xl md:text-2xl text-white/90 mb-8 max-w-4xl mx-auto leading-relaxed font-medium"
             >
               Stop losing sleep over money. Our AI analyzes your financial anxiety patterns and creates personalized meditation, sleep therapy, and mindfulness sessions that actually eliminate financial stress - not just mask it.
-            </motion.p>
+            </p>
 
             {/* Social Proof Bar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-8 mb-8 text-white/80"
             >
               <div className="flex items-center gap-2">
@@ -227,12 +211,9 @@ const WellnessStudioFeaturePage = () => {
                 <Crown className="w-5 h-5 text-purple-400" />
                 <span className="font-semibold">8 hours saved monthly</span>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+            <div
               className="flex flex-col sm:flex-row gap-6 justify-center"
             >
               {!isConnected ? (
@@ -276,13 +257,10 @@ const WellnessStudioFeaturePage = () => {
                   </button>
                 </>
               )}
-            </motion.div>
+            </div>
 
             {/* Trust Indicators */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.7 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-6 mt-8 text-white/60 text-sm"
             >
               <div className="flex items-center gap-2">
@@ -297,14 +275,11 @@ const WellnessStudioFeaturePage = () => {
                 <Zap className="w-4 h-4" />
                 <span>Setup in 2 minutes</span>
               </div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Testimonials Section */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-white/5 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
           >
             <h3 className="text-2xl font-bold text-white text-center mb-8">
@@ -371,13 +346,10 @@ const WellnessStudioFeaturePage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* AI Wellness Team Showcase */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="mb-16"
           >
             <h2 className="text-3xl font-bold text-white text-center mb-6">Your Personal AI Financial Therapists</h2>
@@ -386,11 +358,8 @@ const WellnessStudioFeaturePage = () => {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {aiWellnessTeam.map((member, index) => (
-                <motion.div 
+                <div 
                   key={member.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
                   className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
                 >
                   <div className="text-center">
@@ -401,19 +370,16 @@ const WellnessStudioFeaturePage = () => {
                     <div className={`w-full h-1 bg-gradient-to-r ${member.color} rounded-full`}></div>
                     <p className="text-white/60 text-xs mt-3">{member.wellnessStyle}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
             </div>
           </div>
 
       {/* Live AI Wellness Generation Theater */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -447,10 +413,7 @@ const WellnessStudioFeaturePage = () => {
 
           {/* Generated Session Display */}
           {currentSession && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
+            <div
               className="bg-white/10 rounded-xl p-6"
             >
               <div className="flex items-center gap-4 mb-4">
@@ -477,7 +440,7 @@ const WellnessStudioFeaturePage = () => {
                   Save for Later
                 </button>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Wellness Features */}
@@ -502,11 +465,8 @@ const WellnessStudioFeaturePage = () => {
                 color: "from-green-500 to-emerald-500"
               }
             ].map((feature, index) => (
-              <motion.div 
+              <div 
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className={`w-16 h-16 bg-gradient-to-r ${feature.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
@@ -514,18 +474,15 @@ const WellnessStudioFeaturePage = () => {
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3 text-center">{feature.title}</h3>
                 <p className="text-white/80 text-sm leading-relaxed text-center">{feature.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
         </div>
 
       {/* Financial Stress Reality Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-red-500/20 to-orange-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <h2 className="text-3xl font-bold text-center text-white mb-12">
@@ -594,22 +551,19 @@ const WellnessStudioFeaturePage = () => {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
         </div>
 
       {/* AI Wellness Capabilities Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl font-bold text-white mb-4">
             The World's First AI Financial Therapist
           </h2>
           <p className="text-white/80 text-lg">Advanced AI capabilities that understand both your finances and your emotions</p>
-        </motion.div>
+        </div>
         
           <div className="grid md:grid-cols-3 gap-8">
           {[
@@ -635,11 +589,8 @@ const WellnessStudioFeaturePage = () => {
               color: "from-green-500 to-blue-500"
             }
           ].map((capability, index) => (
-            <motion.div 
+            <div 
               key={capability.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
             >
               <div className={`w-16 h-16 bg-gradient-to-r ${capability.color} rounded-full flex items-center justify-center mx-auto mb-6`}>
@@ -654,24 +605,21 @@ const WellnessStudioFeaturePage = () => {
                   <li key={idx}>• {feature}</li>
                 ))}
               </ul>
-            </motion.div>
+            </div>
           ))}
           </div>
         </div>
 
       {/* Wellness Programs Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Comprehensive Financial Wellness Programs</h2>
           <p className="text-xl text-white/80 max-w-3xl mx-auto">
             From quick stress relief to deep financial healing, our AI-powered programs address every aspect of your financial wellness journey.
           </p>
-        </motion.div>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {[
@@ -700,11 +648,8 @@ const WellnessStudioFeaturePage = () => {
               features: ["15-45 minute stories", "Reduces nighttime money worry", "Positive financial visualization", "Better sleep quality"]
             }
           ].map((program, index) => (
-            <motion.div 
+            <div 
               key={program.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
             >
               <div className="text-3xl mb-4">{program.icon}</div>
@@ -715,17 +660,14 @@ const WellnessStudioFeaturePage = () => {
                   <div key={idx}>• {feature}</div>
                 ))}
               </div>
-            </motion.div>
+            </div>
           ))}
           </div>
         </div>
 
       {/* Social Proof Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <h2 className="text-3xl font-bold text-center text-white mb-12">
@@ -780,15 +722,12 @@ const WellnessStudioFeaturePage = () => {
             </div>
             ))}
                 </div>
-        </motion.div>
+        </div>
         </div>
 
       {/* Benefits Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-green-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <h2 className="text-3xl font-bold text-center text-white mb-12">
@@ -836,15 +775,12 @@ const WellnessStudioFeaturePage = () => {
                   </div>
                 </div>
               </div>
-        </motion.div>
+        </div>
         </div>
 
       {/* Final CTA Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl p-8 text-center"
         >
           <h2 className="text-3xl font-bold text-white mb-6">
@@ -877,23 +813,17 @@ const WellnessStudioFeaturePage = () => {
           <div className="mt-6 text-purple-200 text-sm">
             ✓ 14-day free trial ✓ No credit card required ✓ Instant access to all wellness programs
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* AI Wellness Studio Modal */}
-      <AnimatePresence>
+      
         {showWellnessStudio && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowWellnessStudio(false)}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
               onClick={(e) => e.stopPropagation()}
             >
@@ -946,10 +876,10 @@ const WellnessStudioFeaturePage = () => {
                   Generate Session
                 </button>
         </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </WebsiteLayout>
   );
 };

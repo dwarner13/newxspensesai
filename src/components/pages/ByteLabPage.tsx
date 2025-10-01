@@ -1,5 +1,4 @@
 import React, { useState, useRef } from 'react';
-import { motion } from 'framer-motion';
 import './ByteLabPage.css';
 
 interface ProcessingItem {
@@ -128,27 +127,15 @@ const ByteLabPage: React.FC = () => {
         {/* Main Workspace */}
         <div className="main-workspace">
           {/* Byte's Header */}
-          <motion.div 
+          <div 
             className="byte-header"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
           >
             <div className="byte-intro">
-              <motion.div 
+              <div 
                 className="byte-main-avatar"
-                animate={{ 
-                  y: [0, -10, 0],
-                  rotate: [-5, 5, -5]
-                }}
-                transition={{ 
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
               >
                 📄
-              </motion.div>
+              </div>
               <div className="byte-greeting">
                 <h1 className="page-title">Byte's Document Processing Lab</h1>
                 <p className="page-subtitle">Welcome to my laboratory! I'm absolutely THRILLED to organize your documents!</p>
@@ -172,22 +159,19 @@ const ByteLabPage: React.FC = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* Content Grid */}
           <div className="workspace-content">
             {/* Left: Main Upload Area */}
             <div>
               {/* Upload Lab */}
-              <motion.div 
+              <div 
                 className={`upload-lab ${dragOver ? 'drag-over' : ''} ${isUploadActive ? 'active' : ''}`}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
               >
                 <input
                   ref={fileInputRef}
@@ -198,13 +182,11 @@ const ByteLabPage: React.FC = () => {
                   style={{ display: 'none' }}
                 />
                 <div className="lab-equipment">
-                  <motion.div 
+                  <div 
                     className="beaker-icon"
-                    animate={{ y: [0, -15, 0] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                   >
                     🧪
-                  </motion.div>
+                  </div>
                   <div className="upload-message">
                     {isUploadActive ? 'Processing your documents...' : 'Drop Your Financial Documents Here!'}
                   </div>
@@ -236,14 +218,11 @@ const ByteLabPage: React.FC = () => {
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Recent Processing Feed */}
-              <motion.div 
+              <div 
                 className="processing-feed"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
               >
                 <div className="feed-header">
                   <div className="feed-title">📚 Recent Experiments</div>
@@ -251,12 +230,9 @@ const ByteLabPage: React.FC = () => {
                 </div>
 
                 {recentProcessing.map((item, index) => (
-                  <motion.div 
+                  <div 
                     key={item.id}
                     className="processing-item"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5, delay: 0.6 + index * 0.1 }}
                   >
                     <div className="doc-icon">{getDocIcon(item.type)}</div>
                     <div className="doc-info">
@@ -264,19 +240,16 @@ const ByteLabPage: React.FC = () => {
                       <div className="doc-stats">{item.transactions} transactions • {item.time} • {item.accuracy} accuracy</div>
                       <div className="byte-comment">"{item.comment}"</div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
-              </motion.div>
+              </div>
             </div>
 
             {/* Right Panel */}
             <div className="right-panel">
               {/* Byte's Achievements */}
-              <motion.div 
+              <div 
                 className="byte-card"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
               >
                 <div className="card-title">
                   <span>🏆</span>
@@ -284,7 +257,7 @@ const ByteLabPage: React.FC = () => {
                 </div>
                 <div className="achievement-grid">
                   {achievements.map((achievement) => (
-                    <motion.div 
+                    <div 
                       key={achievement.id}
                       className={`achievement ${achievement.unlocked ? 'unlocked' : 'locked'}`}
                       whileHover={{ scale: 1.05 }}
@@ -292,17 +265,14 @@ const ByteLabPage: React.FC = () => {
                     >
                       <div className="achievement-icon">{achievement.icon}</div>
                       <div className="achievement-label">{achievement.label}</div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
 
               {/* Patterns I've Learned */}
-              <motion.div 
+              <div 
                 className="byte-card"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
               >
                 <div className="card-title">
                   <span>🧠</span>
@@ -310,26 +280,20 @@ const ByteLabPage: React.FC = () => {
                 </div>
                 <div className="pattern-list">
                   {patterns.map((pattern, index) => (
-                    <motion.div 
+                    <div 
                       key={index}
                       className="pattern-item"
-                      initial={{ opacity: 0, x: 10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: 0.5 + index * 0.1 }}
                     >
                       <span className="pattern-icon">✓</span>
                       <span className="pattern-text">{pattern}</span>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
 
               {/* Daily Progress */}
-              <motion.div 
+              <div 
                 className="byte-card"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.5 }}
               >
                 <div className="card-title">
                   <span>📈</span>
@@ -338,40 +302,32 @@ const ByteLabPage: React.FC = () => {
                 <div className="progress-indicator">
                   <div className="progress-label">Daily Goal: 100 documents</div>
                   <div className="progress-bar">
-                    <motion.div 
+                    <div 
                       className="progress-fill"
-                      initial={{ width: 0 }}
-                      animate={{ width: '73%' }}
-                      transition={{ duration: 1, delay: 0.8 }}
                     />
                   </div>
                 </div>
                 <div style={{ marginTop: '1rem', textAlign: 'center', color: '#00ff88', fontWeight: '600' }}>
                   73/100 - Almost there!
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Floating Byte Chat */}
-        <motion.div 
+        <div 
           className="byte-chat"
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ duration: 0.5, delay: 1 }}
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
         >
-          <motion.div 
+          <div 
             className="chat-bubble"
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
           >
             Ask me anything!
-          </motion.div>
+          </div>
           <span>💬</span>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

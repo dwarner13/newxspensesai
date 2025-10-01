@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Star, Zap, Trophy, Award } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -128,8 +127,7 @@ const XPTracker = ({
           </div>
         </div>
         <div className="mt-2 w-full bg-white/20 rounded-full h-1.5">
-          <motion.div
-            initial={{ width: 0 }}
+          <div
             animate={{ width: `${getProgress()}%` }}
             className="bg-yellow-300 h-1.5 rounded-full"
           />
@@ -155,8 +153,7 @@ const XPTracker = ({
       </div>
       
       <div className="w-full bg-white/20 rounded-full h-2.5 mb-2">
-        <motion.div
-          initial={{ width: 0 }}
+        <div
           animate={{ width: `${getProgress()}%` }}
           className="bg-yellow-300 h-2.5 rounded-full"
         />

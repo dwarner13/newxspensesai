@@ -1,8 +1,6 @@
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X, Check, FileText, File, Brain } from 'lucide-react';
-import { motion } from 'framer-motion';
-
 interface FileUploaderProps {
   onFilesSelected: (files: File[]) => void;
   isUploading: boolean;
@@ -36,8 +34,7 @@ const FileUploader = ({
       'text/csv': ['.csv'],
       'application/pdf': ['.pdf'],
     },
-    multiple
-  });
+    multiple});
 
   const getFileIcon = (file: File) => {
     const extension = file.name.split('.').pop()?.toLowerCase();
@@ -62,10 +59,7 @@ const FileUploader = ({
       >
         <input {...getInputProps()} disabled={isUploading} />
         
-        <motion.div 
-          initial={{ scale: 0.95 }}
-          animate={{ scale: isDragActive ? 1.05 : 1 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        <div
           className="flex flex-col items-center"
         >
           <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${
@@ -106,7 +100,7 @@ const FileUploader = ({
               <span>PDF (AI-powered)</span>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
       
       {acceptedFiles.length > 0 && !isUploading && (

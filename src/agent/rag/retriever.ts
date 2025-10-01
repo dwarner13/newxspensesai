@@ -36,7 +36,7 @@ export class KnowledgeRetriever {
   private cache: Map<string, { result: any; expires: number }>;
   
   constructor() {
-    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY});
     this.cache = new Map();
   }
   
@@ -92,8 +92,7 @@ export class KnowledgeRetriever {
     // Cache results
     this.cache.set(cacheKey, {
       result: results,
-      expires: Date.now() + 60 * 60 * 1000, // 1 hour
-    });
+      expires: Date.now() + 60 * 60 * 1000, // 1 hour});
     
     // Log for feedback
     await this.logRetrieval(query, results);

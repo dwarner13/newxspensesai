@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { Transaction } from '../../types/database.types';
 import SpendingChart from '../dashboard/SpendingChart';
 
@@ -13,10 +12,7 @@ const IncomeExpensesBreakdown = ({ transactions, className = '' }: IncomeExpense
 
   return (
     <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 ${className}`}>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+      <div
         className="card"
       >
         <h2 className="text-xl font-bold mb-6">Spending by Category</h2>
@@ -27,12 +23,9 @@ const IncomeExpensesBreakdown = ({ transactions, className = '' }: IncomeExpense
             <p className="text-gray-500">No data available</p>
           </div>
         )}
-      </motion.div>
+      </div>
       
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+      <div
         className="card"
       >
         <h2 className="text-xl font-bold mb-6">Distribution</h2>
@@ -43,7 +36,7 @@ const IncomeExpensesBreakdown = ({ transactions, className = '' }: IncomeExpense
             <p className="text-gray-500">No data available</p>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 };

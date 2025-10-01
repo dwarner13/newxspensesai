@@ -45,8 +45,7 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
         console.log('PDF analysis result:', {
           hasTextLayer,
           textLength,
-          method: result.method
-        });
+          method: result.method});
         
         return {
           hasTextLayer,
@@ -136,7 +135,7 @@ export default function PDFToImageConverter({ onImageGenerated, onError }: PDFTo
             setProgress(`Processing page ${pageNum} of ${totalPages}...`);
             
             const page = await pdf.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 2.0 });
+            const viewport = page.getViewport({ scale: 2.0});
             
             const canvas = document.createElement('canvas');
             const context = canvas.getContext('2d');

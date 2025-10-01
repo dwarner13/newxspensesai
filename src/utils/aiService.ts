@@ -53,8 +53,7 @@ export const getAIResponse = async (
       messages,
       model: "gpt-4o",
       max_tokens: 500,
-      temperature: 0.7, // Slightly creative but focused
-    });
+      temperature: 0.7, // Slightly creative but focused});
 
     const aiMessage = response.choices[0]?.message?.content || "I'm sorry, I couldn't process that request.";
 

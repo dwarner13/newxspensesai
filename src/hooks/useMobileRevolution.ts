@@ -76,8 +76,7 @@ export const useMobileRevolution = () => {
       finalIsMobile,
       isExcludedRoute,
       shouldRenderMobile,
-      forceMobileForTesting
-    });
+      forceMobileForTesting});
   }
   
   // Determine initial view based on current route
@@ -232,8 +231,7 @@ export const useMobileRevolution = () => {
         shouldRenderMobile,
         forceMobile,
         currentView,
-        forceMobileForTesting
-      });
+        forceMobileForTesting});
     }
   }, [pathname, width, finalIsMobile, isMobileByWidth, isLikelyMobileUA, isExcludedRoute, shouldRenderMobile, forceMobile, currentView]);
   

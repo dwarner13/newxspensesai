@@ -5,8 +5,7 @@ const EphemeralUploadDemo = () => {
     const [demoStats, setDemoStats] = useState({
         totalProcessed: 0,
         totalDeleted: 0,
-        privacyVerified: 0
-    });
+        privacyVerified: 0});
 
     const handleProcessingComplete = (result) => {
         setDemoStats(prev => ({

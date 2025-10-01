@@ -655,8 +655,7 @@ Respond with JSON:
           last_updated: new Date().toISOString()
         }, {
           onConflict: 'user_id,category,amount_range_min',
-          ignoreDuplicates: false
-        });
+          ignoreDuplicates: false});
 
     } catch (error) {
       console.error('Spending pattern update error:', error);

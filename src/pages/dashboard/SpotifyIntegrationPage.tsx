@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Music, 
   Play, 
@@ -99,8 +98,7 @@ export default function SpotifyIntegrationPage() {
     moodImprovement: 87,
     focusEnhancement: 78,
     timeSaved: 12,
-    spotifyConnected: true
-  });
+    spotifyConnected: true});
 
   // AI Music Curator Team
   const musicCurators: AIMusicCurator[] = [
@@ -498,22 +496,16 @@ I'm exploring new musical territories that will revolutionize how you experience
               {activeView === 'overview' ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center max-w-2xl">
-                    <motion.h2
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
+                    <h2
                       className="text-xl font-bold text-white mb-1"
                     >
                       Spotify Integration
-                    </motion.h2>
-                    <motion.p
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
+                    </h2>
+                    <p
                       className="text-white/60 text-sm mb-3"
                     >
                       Finally, Music That Actually Gets Your Money - AI analyzes your spending patterns and creates the perfect soundtrack for every financial moment
-                    </motion.p>
+                    </p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
                       {[
                         { icon: Music, title: "Create Playlist", desc: "AI-generated financial soundtracks", color: "from-green-500 to-emerald-500", view: "playlists" },
@@ -523,11 +515,8 @@ I'm exploring new musical territories that will revolutionize how you experience
                         { icon: TrendingUp, title: "Music Trends", desc: "Latest musical innovations", color: "from-red-500 to-pink-500", view: "trends" },
                         { icon: MessageCircle, title: "AI Chat", desc: "Chat with your music curators", color: "from-indigo-500 to-purple-500", view: "chat" }
                       ].map((item, index) => (
-                        <motion.button
+                        <button
                           key={item.title}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.5 + index * 0.1 }}
                           onClick={() => setActiveView(item.view)}
                           className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
                         >
@@ -538,15 +527,13 @@ I'm exploring new musical territories that will revolutionize how you experience
                             <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
                             <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                           </div>
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                   </div>
                 </div>
               ) : activeView === 'team' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -601,11 +588,9 @@ I'm exploring new musical territories that will revolutionize how you experience
                       </div>
                     ))}
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'playlists' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -679,11 +664,9 @@ I'm exploring new musical territories that will revolutionize how you experience
                       </div>
                     ))}
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'chat' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -741,10 +724,8 @@ I'm exploring new musical territories that will revolutionize how you experience
 
                     <div className="h-96 overflow-y-auto p-4 space-y-4 bg-white/5 rounded-lg mb-4">
                       {messages.filter(msg => msg.curator === selectedCurator).map((message, index) => (
-                        <motion.div
+                        <div
                           key={index}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
                           className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                           <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
@@ -757,13 +738,11 @@ I'm exploring new musical territories that will revolutionize how you experience
                               {new Date(message.timestamp).toLocaleTimeString()}
                             </div>
                           </div>
-                        </motion.div>
+                        </div>
                       ))}
 
                       {isLoading && (
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
+                        <div
                           className="flex justify-start"
                         >
                           <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
@@ -772,7 +751,7 @@ I'm exploring new musical territories that will revolutionize how you experience
                               <span>{musicCurators.find(c => c.id === selectedCurator)?.name} is curating...</span>
                             </div>
                           </div>
-                        </motion.div>
+                        </div>
                       )}
 
                       <div ref={messagesEndRef} />
@@ -797,11 +776,9 @@ I'm exploring new musical territories that will revolutionize how you experience
                       </button>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'mood' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -862,11 +839,9 @@ I'm exploring new musical territories that will revolutionize how you experience
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'focus' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -926,11 +901,9 @@ I'm exploring new musical territories that will revolutionize how you experience
                       <p className="text-white/60 text-xs">Calm, educational music for financial learning and research</p>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'trends' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -995,7 +968,7 @@ I'm exploring new musical territories that will revolutionize how you experience
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ) : (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">

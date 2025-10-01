@@ -4,12 +4,12 @@ export default function GoalSettings() {
   const [goals, setGoals] = useState([
     { id: 1, name: "Save $5,000 Emergency Fund", target: 5000, current: 1200, due: "2026-01-01", xp: true }
   ]);
-  const [newGoal, setNewGoal] = useState({ name: "", target: 0, due: "", xp: false });
+  const [newGoal, setNewGoal] = useState({ name: "", target: 0, due: "", xp: false});
 
   const addGoal = () => {
     if (newGoal.name && newGoal.target && newGoal.due) {
       setGoals([...goals, { ...newGoal, id: Date.now(), current: 0 }]);
-      setNewGoal({ name: "", target: 0, due: "", xp: false });
+      setNewGoal({ name: "", target: 0, due: "", xp: false});
     }
   };
 

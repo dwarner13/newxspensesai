@@ -407,7 +407,7 @@ export class PredictiveCategorizationSystem {
       if (complexityMatch) confidence += 0.1;
       
       if (confidence > 0.3) {
-        predictions.push({ merchant: signature.name, confidence });
+        predictions.push({ merchant: signature.name, confidence});
       }
     }
     
@@ -463,7 +463,7 @@ export class PredictiveCategorizationSystem {
       if (brightnessMatch) confidence += 0.2;
       
       if (confidence > 0.2) {
-        predictions.push({ category: name, confidence });
+        predictions.push({ category: name, confidence});
       }
     }
     
@@ -512,8 +512,7 @@ export class PredictiveCategorizationSystem {
         const bin = Math.floor(color / 255 * histogram.length);
         if (histogram[bin] > 0) matchCount++;
       });
-      return matchCount >= pattern.length * 0.5; // 50% match threshold
-    });
+      return matchCount >= pattern.length * 0.5; // 50% match threshold});
   }
 
   private checkComplexityMatch(complexity: string, signature: MerchantSignature): boolean {

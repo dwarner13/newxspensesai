@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -95,10 +94,7 @@ const OnboardingStepSix = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-12 max-w-4xl">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-12">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -120,11 +116,8 @@ const OnboardingStepSix = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
             {features.map((feature, index) => (
-              <motion.div
+              <div
                 key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="bg-gray-800 rounded-xl p-6 border border-gray-700"
               >
                 <div className="flex items-start">
@@ -136,15 +129,12 @@ const OnboardingStepSix = () => {
                     <p className="text-sm text-gray-400">{feature.description}</p>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
           
           {/* Disclaimer */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.7 }}
+          <div
             className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-8"
           >
             <div className="flex items-start">
@@ -156,13 +146,10 @@ const OnboardingStepSix = () => {
                 </p>
               </div>
             </div>
-          </motion.div>
+          </div>
           
           {/* Terms Acceptance */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.8 }}
+          <div
             className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-12"
           >
             <div className="flex items-start">
@@ -182,7 +169,7 @@ const OnboardingStepSix = () => {
                 </label>
               </div>
             </div>
-          </motion.div>
+          </div>
           
           <div className="flex justify-between">
             <button
@@ -218,7 +205,7 @@ const OnboardingStepSix = () => {
               )}
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -67,10 +66,7 @@ const OnboardingStepTwo = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-12 max-w-4xl">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-12">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -92,11 +88,8 @@ const OnboardingStepTwo = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
             {options.map((option) => (
-              <motion.div
+              <div
                 key={option.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: options.indexOf(option) * 0.1 }}
                 className={`bg-gray-800 rounded-xl p-6 border-2 cursor-pointer transition-all duration-300 ${
                   selectedOptions.includes(option.id) 
                     ? 'border-primary-500 bg-gray-800/80 shadow-lg shadow-primary-500/20' 
@@ -119,15 +112,13 @@ const OnboardingStepTwo = () => {
                 </div>
                 
                 {selectedOptions.includes(option.id) && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                  <div
                     className="absolute top-4 right-4"
                   >
                     <CheckCircle className="w-6 h-6 text-primary-500" />
-                  </motion.div>
+                  </div>
                 )}
-              </motion.div>
+              </div>
             ))}
           </div>
           
@@ -153,7 +144,7 @@ const OnboardingStepTwo = () => {
               <ArrowRight className="w-5 h-5 ml-2" />
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -45,8 +45,7 @@ export function useAIEmployees(userId?: string): UseAIEmployeesReturn {
     initialized: false,
     dataLoaded: false,
     availableEmployees: [] as string[],
-    lastDataUpdate: null as Date | null
-  });
+    lastDataUpdate: null as Date | null});
 
   // Load financial data
   const loadFinancialData = useCallback(async (userId: string) => {
@@ -202,8 +201,7 @@ export function useAIEmployee(employeeName: string, userId?: string) {
       userInput: question,
       requestedEmployee: employeeName,
       context,
-      includeFinancialData: true
-    });
+      includeFinancialData: true});
   }, [askAIEmployee, employeeName]);
 
   return {
@@ -224,24 +222,21 @@ export function useAICollaboration(userId?: string) {
     return await askAIEmployee({
       userInput: question,
       context: { collaboration: true },
-      includeFinancialData: true
-    });
+      includeFinancialData: true});
   }, [askAIEmployee]);
 
   const requestDebtOptimization = useCallback(async (question: string = "Help me optimize my debt payoff strategy") => {
     return await askAIEmployee({
       userInput: question,
       context: { collaboration: 'debt_optimization' },
-      includeFinancialData: true
-    });
+      includeFinancialData: true});
   }, [askAIEmployee]);
 
   const requestSpendingAnalysis = useCallback(async (question: string = "Analyze my spending patterns") => {
     return await askAIEmployee({
       userInput: question,
       context: { collaboration: 'spending_analysis' },
-      includeFinancialData: true
-    });
+      includeFinancialData: true});
   }, [askAIEmployee]);
 
   return {

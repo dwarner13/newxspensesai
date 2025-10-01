@@ -36,7 +36,7 @@ export const useXpSystem = (): XpSystemHook => {
 
   const awardXp = async (amount: number, activityType: string, description?: string) => {
     // Gamification disabled - not awarding XP
-    console.log('Gamification disabled - XP not awarded:', { amount, activityType, description });
+    console.log('Gamification disabled - XP not awarded:', { amount, activityType, description});
   };
 
   const checkDailyStreak = async () => {

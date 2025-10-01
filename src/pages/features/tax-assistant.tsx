@@ -7,9 +7,6 @@ import {
   Calendar, Target, BarChart3, PieChart, ArrowRight, 
   Upload, Download, Eye, Brain, Sparkles, Award
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-
-
 interface AIEmployee {
   name: string;
   role: string;
@@ -200,55 +197,40 @@ const TaxAssistantFeaturePage = () => {
           <div className="text-center mb-16">
             {/* Prime Badge */}
             <div className="text-center mb-8">
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md border border-white/20 rounded-full px-6 py-3 mb-8"
               >
                 <Crown size={20} className="text-yellow-400" />
                 <span className="text-white font-semibold">Prime's AI Tax Division</span>
-              </motion.div>
+              </div>
             </div>
 
             {/* Urgency Banner */}
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 rounded-full px-6 py-2 mb-8 inline-block"
             >
               <span className="text-red-300 text-sm font-medium">
                 📊 Tax Season Special: First analysis FREE for small businesses
               </span>
-            </motion.div>
+            </div>
 
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+            <h1
               className="text-4xl md:text-6xl font-bold text-white mb-6"
             >
               Finally, an AI That{' '}
               <span className="text-blue-400 drop-shadow-lg">
                 Actually Gets Small Business Taxes
               </span>
-            </motion.h1>
+            </h1>
             
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+            <p
               className="text-xl md:text-2xl text-white/90 mb-8 max-w-4xl mx-auto leading-relaxed font-medium"
             >
               Stop asking ChatGPT "what expenses can I claim?" Upload your bank statements, receipts, and P&L statements. Our AI analyzes everything, answers your tax questions, and prepares a complete report ready for your accountant.
-            </motion.p>
+            </p>
 
             {/* Social Proof Bar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-8 mb-8 text-white/80"
             >
               <div className="flex items-center gap-2">
@@ -263,12 +245,9 @@ const TaxAssistantFeaturePage = () => {
                 <TrendingUp className="w-5 h-5 text-yellow-400" />
                 <span className="font-semibold">5 hours saved monthly</span>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+            <div
               className="flex flex-col sm:flex-row gap-6 justify-center"
             >
               {!isConnected ? (
@@ -312,13 +291,10 @@ const TaxAssistantFeaturePage = () => {
                   </button>
                 </>
               )}
-            </motion.div>
+            </div>
 
             {/* Trust Indicators */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.7 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-6 mt-8 text-white/60 text-sm"
             >
               <div className="flex items-center gap-2">
@@ -333,14 +309,11 @@ const TaxAssistantFeaturePage = () => {
                 <Calculator className="w-4 h-4" />
                 <span>Setup in 2 minutes</span>
               </div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Testimonials Section */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-white/5 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
           >
             <h3 className="text-2xl font-bold text-white text-center mb-8">
@@ -407,13 +380,10 @@ const TaxAssistantFeaturePage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* AI Tax Team Showcase */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="mb-16"
           >
             <h2 className="text-3xl font-bold text-white text-center mb-6">Your Personal AI Tax Experts</h2>
@@ -422,11 +392,8 @@ const TaxAssistantFeaturePage = () => {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {aiTaxTeam.map((member, index) => (
-                <motion.div 
+                <div 
                   key={member.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
                   className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
                 >
                   <div className="text-center">
@@ -437,19 +404,16 @@ const TaxAssistantFeaturePage = () => {
                     <div className={`w-full h-1 bg-gradient-to-r ${member.color} rounded-full`}></div>
                     <p className="text-white/60 text-xs mt-3">{member.taxStyle}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
       {/* Live AI Tax Analysis Theater */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -483,10 +447,7 @@ const TaxAssistantFeaturePage = () => {
 
           {/* Tax Suggestions Display */}
           {currentSuggestions.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
+            <div
               className="bg-white/10 rounded-xl p-6 mb-6"
             >
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -519,7 +480,7 @@ const TaxAssistantFeaturePage = () => {
                   Export Report
                 </button>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Tax Features */}
@@ -544,11 +505,8 @@ const TaxAssistantFeaturePage = () => {
                 color: "from-purple-500 to-pink-500"
               }
             ].map((feature, index) => (
-              <motion.div 
+              <div 
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className={`w-16 h-16 bg-gradient-to-r ${feature.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
@@ -556,18 +514,15 @@ const TaxAssistantFeaturePage = () => {
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3 text-center">{feature.title}</h3>
                 <p className="text-white/80 text-sm leading-relaxed text-center">{feature.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Upload & Analysis Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -602,11 +557,8 @@ const TaxAssistantFeaturePage = () => {
                 features: ["24/7 tax support", "Small business focused", "Instant responses"]
               }
             ].map((feature, index) => (
-              <motion.div 
+              <div 
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 rounded-xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className="text-4xl mb-4">{feature.icon}</div>
@@ -620,18 +572,15 @@ const TaxAssistantFeaturePage = () => {
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Expense Categories Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -641,11 +590,8 @@ const TaxAssistantFeaturePage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {expenseCategories.map((category, index) => (
-              <motion.div 
+              <div 
                 key={category.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 rounded-xl p-6 border border-white/20"
               >
                 <div className="flex items-center justify-between mb-4">
@@ -672,18 +618,15 @@ const TaxAssistantFeaturePage = () => {
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Call to Action */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -712,23 +655,17 @@ const TaxAssistantFeaturePage = () => {
               <span>See It In Action</span>
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* AI Tax Studio Modal */}
-      <AnimatePresence>
+      
         {showTaxStudio && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowTaxStudio(false)}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
               onClick={(e) => e.stopPropagation()}
             >
@@ -777,10 +714,10 @@ const TaxAssistantFeaturePage = () => {
                   Start Analysis
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </>
   );
 };

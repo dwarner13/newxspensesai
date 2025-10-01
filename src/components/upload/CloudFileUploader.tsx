@@ -113,8 +113,7 @@ export const CloudFileUploader: React.FC<CloudFileUploaderProps> = ({
         onUploadComplete({
           url: result.url,
           key: result.key,
-          filename: file.name
-        });
+          filename: file.name});
       } else {
         throw new Error(result.error || 'Upload failed');
       }

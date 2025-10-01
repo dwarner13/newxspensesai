@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { 
   ArrowRight, 
@@ -158,10 +157,7 @@ export default function PersonalPodcastPage() {
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-orange-50 to-red-50 py-20 px-4">
         <div className="container max-w-5xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+          <div
             className="text-center"
           >
             <div className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500/20 to-red-500/20 backdrop-blur-md border border-orange-200 rounded-full px-6 py-3 mb-6">
@@ -209,34 +205,28 @@ export default function PersonalPodcastPage() {
                 <div className="text-sm text-gray-600">Personalized</div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* AI Employee Showcase */}
       <section className="py-20 px-4 bg-white">
         <div className="container max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Meet Your AI Podcast Hosts</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Each AI employee brings their unique personality and expertise to your financial podcasts
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {aiEmployees.map((employee, index) => (
-              <motion.div
+              <div
                 key={employee.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 hover:shadow-xl transition-all duration-300"
               >
                 <div className={`w-16 h-16 bg-gradient-to-r ${employee.color} rounded-full flex items-center justify-center text-2xl mb-4 mx-auto`}>
@@ -255,7 +245,7 @@ export default function PersonalPodcastPage() {
                 <div className="bg-gray-50 rounded-lg p-3">
                   <p className="text-sm text-gray-700 italic">"{employee.quote}"</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -264,27 +254,21 @@ export default function PersonalPodcastPage() {
       {/* Episode Types */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="container max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Choose Your Episode Type</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Different episode formats for different needs and time constraints
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {episodeTypes.map((episode, index) => (
-              <motion.div
+              <div
                 key={episode.type}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 hover:shadow-xl transition-all duration-300"
               >
                 <div className="flex items-center justify-between mb-4">
@@ -323,7 +307,7 @@ export default function PersonalPodcastPage() {
                     ))}
                   </ul>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -332,27 +316,21 @@ export default function PersonalPodcastPage() {
       {/* Features */}
       <section className="py-20 px-4 bg-white">
         <div className="container max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Why Choose Personal Podcasts?</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Transform your financial data into engaging audio content that fits your lifestyle
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {features.map((feature, index) => (
-              <motion.div
+              <div
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="flex gap-6"
               >
                 <div className="flex-shrink-0">
@@ -370,7 +348,7 @@ export default function PersonalPodcastPage() {
                     ))}
                   </ul>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -379,27 +357,21 @@ export default function PersonalPodcastPage() {
       {/* Benefits */}
       <section className="py-20 px-4 bg-gradient-to-r from-orange-50 to-red-50">
         <div className="container max-w-6xl mx-auto">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Real Results from Real Users</h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               See how personal podcasts are transforming financial management
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {benefits.map((benefit, index) => (
-              <motion.div
+              <div
                 key={benefit.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: index * 0.1 }}
                 className="bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-xl transition-all duration-300"
               >
                 <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center text-white mx-auto mb-4">
@@ -408,7 +380,7 @@ export default function PersonalPodcastPage() {
                 <h3 className="text-xl font-bold text-gray-900 mb-2">{benefit.title}</h3>
                 <p className="text-gray-700 mb-4">{benefit.description}</p>
                 <div className="text-2xl font-bold text-orange-600">{benefit.stat}</div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -417,11 +389,8 @@ export default function PersonalPodcastPage() {
       {/* CTA Section */}
       <section className="py-20 px-4 bg-gradient-to-r from-orange-500 to-red-500">
         <div className="container max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
           >
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
               Start Your Personal Financial Podcast Today
@@ -443,7 +412,7 @@ export default function PersonalPodcastPage() {
                 Listen to Demo
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
     </WebsiteLayout>

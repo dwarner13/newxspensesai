@@ -15,8 +15,7 @@ const TrustBuildingUI = ({
         usersTrusted: 10000,
         dataProcessed: 50000,
         privacyScore: 100,
-        complianceScore: 100
-    });
+        complianceScore: 100});
 
     useEffect(() => {
         setCurrentState(processingState);

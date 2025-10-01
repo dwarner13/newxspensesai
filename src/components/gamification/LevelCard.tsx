@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Star, 
   Award, 
@@ -179,10 +178,8 @@ const LevelCard = ({ compact = false, className = '' }: LevelCardProps) => {
           </div>
           
           <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
-            <motion.div
-              initial={{ width: 0 }}
+            <div
               animate={{ width: `${getProgress()}%` }}
-              transition={{ duration: 1, ease: "easeOut" }}
               className="bg-gradient-to-r from-primary-500 to-secondary-500 h-2 rounded-full"
             />
           </div>

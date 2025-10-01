@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Crown, ExternalLink, CreditCard, Calendar, AlertTriangle, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -105,9 +104,7 @@ const SubscriptionManager = () => {
   const hasActiveSubscription = ['active', 'trialing', 'lifetime'].includes(subscription.subscription_status || '');
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="card"
     >
       <div className="flex items-center justify-between mb-6">
@@ -258,7 +255,7 @@ const SubscriptionManager = () => {
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

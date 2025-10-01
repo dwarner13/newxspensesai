@@ -1,12 +1,8 @@
-import { motion } from 'framer-motion';
 import { Key } from 'lucide-react';
 
 const RentAdvantageCard = () => {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
+    <div
       className="bg-white rounded-xl shadow-lg p-5"
     >
       <div className="flex items-center mb-3">
@@ -23,7 +19,7 @@ const RentAdvantageCard = () => {
           LEARN MORE
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

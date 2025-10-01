@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Camera, ArrowLeft, Receipt, Zap, FileImage, Brain, AlertTriangle, Info } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import ReceiptScanner from '../components/receipts/ReceiptScanner';
@@ -24,9 +23,7 @@ const ReceiptScannerPage = () => {
 
   return (
     <div className="max-w-4xl ">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center space-x-3 mb-8"
       >
         <Link 
@@ -46,13 +43,10 @@ const ReceiptScannerPage = () => {
             {debugMode ? 'Exit Debug Mode' : 'Debug Mode'}
           </button>
         )}
-      </motion.div>
+      </div>
 
       {userIsAdmin && debugMode ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="mb-8"
         >
           <div className="bg-purple-50 rounded-xl p-6 border border-purple-200 mb-6">
@@ -79,13 +73,10 @@ const ReceiptScannerPage = () => {
           </div>
           
           <ReceiptScannerDebug onClose={() => setDebugMode(false)} />
-        </motion.div>
+        </div>
       ) : (
         <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
+          <div
             className="mb-8"
           >
             <div className="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl p-6 border border-primary-100">
@@ -122,24 +113,18 @@ const ReceiptScannerPage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+          <div
           >
             <ReceiptScanner 
               onReceiptProcessed={handleReceiptProcessed}
               onClose={() => navigate('/upload')}
             />
-          </motion.div>
+          </div>
 
           {/* Tips Section */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
+          <div
             className="mt-8 card"
           >
             <h3 className="text-lg font-semibold mb-4">📋 Tips for Best OCR Results</h3>
@@ -178,7 +163,7 @@ const ReceiptScannerPage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </>
       )}
     </div>

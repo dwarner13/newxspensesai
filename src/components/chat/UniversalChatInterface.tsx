@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Loader2, Mic, Headphones, Zap, Target, TrendingUp, Heart, Banknote } from 'lucide-react';
 import { UniversalAIController } from '../../services/UniversalAIController';
 import { EnhancedChatInterface } from './EnhancedChatInterface';

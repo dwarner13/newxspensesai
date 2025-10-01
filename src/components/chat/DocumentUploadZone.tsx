@@ -1,5 +1,4 @@
 import React, { useCallback, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
   FileText, 
@@ -150,9 +149,7 @@ export function DocumentUploadZone({
     <div className={`space-y-4 ${className}`}>
       {/* Upload Trigger Button */}
       {!showUploadArea && attachments.length === 0 && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
+        <button
           onClick={() => setShowUploadArea(true)}
           className={`w-full p-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all duration-200 group ${isMobile ? 'p-6' : ''}`}
         >
@@ -172,16 +169,13 @@ export function DocumentUploadZone({
               </p>
             </div>
           </div>
-        </motion.button>
+        </button>
       )}
 
       {/* Upload Area */}
-      <AnimatePresence>
+      
         {showUploadArea && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+          <div
             className="space-y-4"
           >
             {/* Drag & Drop Zone */}
@@ -253,17 +247,14 @@ export function DocumentUploadZone({
                 Cancel
               </button>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* File Attachments */}
-      <AnimatePresence>
+      
         {attachments.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+          <div
             className="space-y-3"
           >
             <div className="flex items-center justify-between">
@@ -280,11 +271,8 @@ export function DocumentUploadZone({
 
             <div className="space-y-2">
               {attachments.map((attachment) => (
-                <motion.div
+                <div
                   key={attachment.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
                   className="flex items-center space-x-3 p-3 bg-white border border-gray-200 rounded-lg"
                 >
                   <div className="flex-shrink-0">
@@ -330,25 +318,23 @@ export function DocumentUploadZone({
                       </div>
                     )}
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* Upload Status */}
       {isUploading && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="flex items-center justify-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-lg"
         >
           <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
           <span className="text-sm text-blue-700">
             {employeeName} is processing your documents...
           </span>
-        </motion.div>
+        </div>
       )}
     </div>
   );

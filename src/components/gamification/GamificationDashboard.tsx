@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Trophy, 
   Target, 
@@ -37,8 +36,7 @@ const GamificationDashboard = ({ compact = false, className = '' }: Gamification
     streak: 0,
     badgesEarned: 0,
     totalBadges: 0,
-    lastActivity: null as Date | null
-  });
+    lastActivity: null as Date | null});
   const [completedTasks, setCompletedTasks] = useState<string[]>([]);
 
   useEffect(() => {
@@ -79,8 +77,7 @@ const GamificationDashboard = ({ compact = false, className = '' }: Gamification
         streak: profile?.streak || 0,
         badgesEarned: badges?.length || 0,
         totalBadges,
-        lastActivity: profile?.last_activity_date ? new Date(profile.last_activity_date) : null
-      });
+        lastActivity: profile?.last_activity_date ? new Date(profile.last_activity_date) : null});
       
     } catch (error) {
       console.error('Error loading user stats:', error);
@@ -156,9 +153,7 @@ const GamificationDashboard = ({ compact = false, className = '' }: Gamification
 
   return (
     <div className={`space-y-6 ${className}`}>
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center space-x-3 mb-4"
       >
         <Trophy size={32} className="text-primary-600" />
@@ -166,7 +161,7 @@ const GamificationDashboard = ({ compact = false, className = '' }: Gamification
           <h2 className="text-2xl font-bold">Gamification Dashboard</h2>
           <p className="text-gray-600">Track your progress and earn rewards</p>
         </div>
-      </motion.div>
+      </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column */}

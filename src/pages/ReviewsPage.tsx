@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Star, Quote, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 // WebsiteLayout removed - navigation handled by MarketingLayout
@@ -68,41 +67,29 @@ const ReviewsPage = () => {
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white py-20">
         <div className="container mx-auto px-4 text-center">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="inline-flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm mb-8"
           >
             <span className="mr-2">⭐</span>
             <span>Trusted by 10,000+ Users</span>
-          </motion.div>
+          </div>
           
-          <motion.h1 
+          <h1 
             className="text-5xl md:text-7xl font-bold mb-6"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
           >
             What Our Users Are <span className="text-orange-400 drop-shadow-lg">Saying</span>
-          </motion.h1>
+          </h1>
           
-          <motion.p 
+          <p 
             className="text-xl md:text-2xl text-gray-300 mb-12 max-w-3xl mx-auto"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
           >
             Join thousands of satisfied users who've transformed their financial lives 
             with AI-powered insights and personalized audio experiences.
-          </motion.p>
+          </p>
           
           {/* Stats */}
-          <motion.div 
+          <div 
             className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
           >
             {stats.map((stat, index) => (
               <div key={stat.label} className="text-center">
@@ -113,26 +100,20 @@ const ReviewsPage = () => {
                 <div className="text-gray-300 text-sm">{stat.label}</div>
               </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Reviews Grid */}
       <section className="py-20">
         <div className="container mx-auto px-4">
-          <motion.div 
+          <div 
             className="grid md:grid-cols-2 lg:grid-cols-3 gap-8"
-            initial={{ opacity: 0, y: 50 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
             viewport={{ once: true }}
           >
             {reviews.map((review, index) => (
-              <motion.div 
+              <div 
                 key={review.name}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 viewport={{ once: true }}
                 className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-100"
               >
@@ -158,20 +139,17 @@ const ReviewsPage = () => {
                 <div className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
                   {review.highlight}
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Testimonial Highlight */}
       <section className="bg-gradient-to-r from-purple-600 to-blue-600 text-white py-20">
         <div className="container mx-auto px-4">
-          <motion.div 
+          <div 
             className="max-w-4xl mx-auto text-center"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
             viewport={{ once: true }}
           >
             <Quote className="h-16 w-16 mx-auto mb-8 text-orange-300" />
@@ -188,36 +166,27 @@ const ReviewsPage = () => {
                 <div className="text-orange-200">Small Business Owner</div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* CTA Section */}
       <section className="py-20">
         <div className="container mx-auto px-4 text-center">
-          <motion.h2 
+          <h2 
             className="text-4xl font-bold text-gray-900 mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
             viewport={{ once: true }}
           >
             Ready to Join Our Happy Users?
-          </motion.h2>
-          <motion.p 
+          </h2>
+          <p 
             className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
             viewport={{ once: true }}
           >
             Start your journey to better financial management today with AI-powered insights and personalized experiences.
-          </motion.p>
-          <motion.div 
+          </p>
+          <div 
             className="flex flex-col sm:flex-row gap-4 justify-center"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
             viewport={{ once: true }}
           >
             <Link 
@@ -233,7 +202,7 @@ const ReviewsPage = () => {
             >
               Try AI Demo
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
     </>

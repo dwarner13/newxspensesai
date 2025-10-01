@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
 import { Crown } from "lucide-react";
 import DesktopSidebar from "../components/navigation/DesktopSidebar";
 import DashboardHeader from "../components/ui/DashboardHeader";
@@ -41,8 +40,7 @@ export default function DashboardLayout() {
     onRefresh: handleRefresh,
     threshold: 80,
     resistance: 0.5,
-    disabled: !isMobile
-  });
+    disabled: !isMobile});
 
   // Check if mobile on mount and resize
   useEffect(() => {
@@ -58,12 +56,12 @@ export default function DashboardLayout() {
 
   // Debug mobile detection
   useEffect(() => {
-    console.log('Mobile detection:', { isMobile, windowWidth: window.innerWidth });
+    console.log('Mobile detection:', { isMobile, windowWidth: window.innerWidth});
   }, [isMobile]);
 
   // Debug mobile menu state
   useEffect(() => {
-    console.log('Mobile menu state changed:', { isMobileMenuOpen, isMobile });
+    console.log('Mobile menu state changed:', { isMobileMenuOpen, isMobile});
   }, [isMobileMenuOpen, isMobile]);
 
   // Add pull-to-refresh touch event listeners for mobile
@@ -75,9 +73,9 @@ export default function DashboardLayout() {
     // Add touch events to the main content area instead of document
     const mainContent = document.querySelector('main');
     if (mainContent) {
-      mainContent.addEventListener('touchstart', onTouchStart, { passive: false });
-      mainContent.addEventListener('touchmove', onTouchMove, { passive: false });
-      mainContent.addEventListener('touchend', onTouchEnd, { passive: false });
+      mainContent.addEventListener('touchstart', onTouchStart, { passive: false});
+      mainContent.addEventListener('touchmove', onTouchMove, { passive: false});
+      mainContent.addEventListener('touchend', onTouchEnd, { passive: false});
 
       return () => {
         mainContent.removeEventListener('touchstart', onTouchStart);
@@ -141,18 +139,11 @@ export default function DashboardLayout() {
         </div>
 
         {/* Mobile Sidebar Overlay */}
-        <AnimatePresence>
+        
           {isMobileMenuOpen && (
             <>
               {console.log('Rendering mobile sidebar overlay, isMobileMenuOpen:', isMobileMenuOpen)}
-              <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ 
-                duration: 0.2,
-                ease: "easeOut"
-              }}
+              <div
               className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" 
               onClick={() => setIsMobileMenuOpen(false)}
             >
@@ -162,27 +153,20 @@ export default function DashboardLayout() {
               >
                 <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
               </div>
-            </motion.div>
+            </div>
             </>
           )}
-        </AnimatePresence>
+        
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto pt-16 pb-16">
           <div className="px-1 py-0 min-h-screen">
-            <motion.div
+            <div
               key={location.pathname}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ 
-                duration: 0.3,
-                ease: "easeOut"
-              }}
               className="h-full"
             >
               <Outlet />
-            </motion.div>
+            </div>
           </div>
         </main>
 

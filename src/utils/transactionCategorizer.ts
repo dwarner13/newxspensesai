@@ -75,8 +75,7 @@ export const categorizeBatch = async (transactions: TransactionInput[]): Promise
         results.push({
           category: 'Other',
           reason: `Categorization failed: ${result.reason}`,
-          flag_for_review: true
-        });
+          flag_for_review: true});
       }
     });
     

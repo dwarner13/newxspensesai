@@ -1,6 +1,5 @@
 // Prime Chat Interface - Main AI Employee Orchestration System
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Upload, Crown, Users, Zap, Brain, Target, DollarSign } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AIEmployees, AIRouter, ConversationManager, handoffTemplates } from '../../systems/AIEmployeeSystem';
@@ -261,9 +260,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
     if (!employee) return null;
 
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="bg-gray-800 border border-gray-600 rounded-lg p-3 mb-2"
       >
         <div className="flex items-center gap-2">
@@ -279,7 +276,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
             Connect
           </button>
         </div>
-      </motion.div>
+      </div>
     );
   };
 
@@ -287,10 +284,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
+      <div
         className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col"
       >
         {/* Header */}
@@ -452,7 +446,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
             Prime coordinates your complete AI financial team • 30+ specialized employees ready to help
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

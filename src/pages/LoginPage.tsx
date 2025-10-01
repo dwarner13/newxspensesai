@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { motion } from 'framer-motion';
 import { AlertTriangle, Mail, Lock, Eye, EyeOff, Check, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -28,11 +27,11 @@ export default function LoginPage() {
       
       if (intendedPath && intendedPath !== '/login') {
         sessionStorage.removeItem('xspensesai-intended-path');
-        navigate(intendedPath, { replace: true });
+        navigate(intendedPath, { replace: true});
       } else if (from && from !== '/login') {
-        navigate(from, { replace: true });
+        navigate(from, { replace: true});
       } else {
-        navigate('/', { replace: true });
+        navigate('/', { replace: true});
       }
     }
   }, [user, navigate, location.state]);
@@ -132,8 +131,7 @@ export default function LoginPage() {
         console.log('Signing in with email:', email);
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
-          password
-        });
+          password});
         
         if (error) throw error;
         
@@ -168,9 +166,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className=" w-full space-y-8 bg-gray-800 p-8 rounded-xl shadow-xl border border-gray-700"
       >
         <div className="text-center">
@@ -200,9 +196,7 @@ export default function LoginPage() {
         </div>
 
         {hasError && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
+          <div
             className="bg-error-900 border border-error-800 text-white p-4 rounded-lg flex items-start space-x-3"
           >
             <AlertTriangle size={20} className="flex-shrink-0 mt-0.5" />
@@ -212,7 +206,7 @@ export default function LoginPage() {
                 {typeof hasError === 'string' ? hasError : 'Please try signing in again. If the problem persists, contact support.'}
               </p>
             </div>
-          </motion.div>
+          </div>
         )}
 
         <div className="mt-8 space-y-6">
@@ -424,12 +418,9 @@ export default function LoginPage() {
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
       
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.3 }}
+      <div
         className="mt-8 text-center"
       >
         <p className="text-sm text-gray-400">
@@ -443,7 +434,7 @@ export default function LoginPage() {
             ← Back to homepage
           </Link>
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 }

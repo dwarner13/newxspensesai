@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import WebsiteLayout from '../../components/layout/WebsiteLayout';
 
@@ -20,10 +19,7 @@ const FinancialStoryPage = () => {
           <div className="absolute inset-0 bg-gradient-to-b from-[#0a0e27] to-[#1a1f3a]"></div>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(102,126,234,0.1)_0%,transparent_50%),radial-gradient(circle_at_80%_50%,rgba(118,75,162,0.1)_0%,transparent_50%)]"></div>
           
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="text-center max-w-6xl mx-auto relative z-10"
           >
             {/* Badge */}
@@ -58,10 +54,7 @@ const FinancialStoryPage = () => {
             </p>
             
             {/* Stats Row */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
+            <div
               className="flex flex-wrap gap-12 justify-center mb-12"
             >
               <div className="text-center p-5 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-all hover:-translate-y-1">
@@ -82,42 +75,33 @@ const FinancialStoryPage = () => {
                 </div>
                 <div className="text-white/60 text-sm">Average Episode</div>
               </div>
-            </motion.div>
+            </div>
             
             {/* CTA Button */}
-            <motion.button 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
+            <button
               className="inline-flex items-center gap-3 bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white px-9 py-4 rounded-xl font-semibold text-lg hover:scale-105 transition-all shadow-[0_10px_30px_rgba(102,126,234,0.3)] hover:shadow-[0_15px_40px_rgba(102,126,234,0.4)]"
             >
               📖 Create My First Story
               <span className="bg-[#00ff88] text-[#0a0e27] px-2 py-1 rounded text-xs font-bold">
                 FREE
               </span>
-            </motion.button>
+            </button>
             
             {/* Security Badges */}
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.6 }}
+            <div
               className="flex flex-wrap gap-6 justify-center mt-8 text-white/50 text-sm"
             >
               <span>🔒 Bank-level security</span>
               <span>📊 Your data stays private</span>
               <span>⚡ Setup in 2 minutes</span>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         </section>
 
         {/* The Story Behind Our Stories Section */}
         <section className="py-20 px-5 bg-gradient-to-b from-[#0a0e27] to-[#1a1f3a]">
           <div className="max-w-7xl mx-auto">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="text-center mb-16"
             >
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
@@ -126,13 +110,10 @@ const FinancialStoryPage = () => {
               <p className="text-white/60 text-lg max-w-3xl mx-auto">
                 How we turned the most boring part of personal finance into the most entertaining
               </p>
-            </motion.div>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center mb-20">
-              <motion.div 
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
               >
                 <h3 className="text-3xl font-bold mb-6">The Problem We Solved</h3>
                 <div className="space-y-4 text-white/70">
@@ -152,12 +133,9 @@ const FinancialStoryPage = () => {
                     educational.
                   </p>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-8"
               >
                 <div className="text-center">
@@ -171,7 +149,7 @@ const FinancialStoryPage = () => {
                     — Prime, Chief Story Officer
                   </div>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
@@ -179,10 +157,7 @@ const FinancialStoryPage = () => {
         {/* Meet Our AI Storytellers Section */}
         <section className="py-20 px-5 bg-[#0a0e27]">
           <div className="max-w-7xl mx-auto">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="text-center mb-16"
             >
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
@@ -191,14 +166,11 @@ const FinancialStoryPage = () => {
               <p className="text-white/60 text-lg max-w-3xl mx-auto">
                 Each AI has a unique personality and storytelling style, creating diverse narratives from your financial data
               </p>
-            </motion.div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
               {/* Spark */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.1 }}
+              <div
                 className="bg-gradient-to-br from-[#667eea]/10 to-[#764ba2]/10 border border-[#667eea]/20 rounded-2xl p-6 hover:bg-gradient-to-br hover:from-[#667eea]/20 hover:to-[#764ba2]/20 transition-all"
               >
                 <div className="text-center mb-4">
@@ -214,13 +186,10 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   <strong>Specialty:</strong> Spending pattern analysis, budget mysteries
                 </div>
-              </motion.div>
+              </div>
 
               {/* Wisdom */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
+              <div
                 className="bg-gradient-to-br from-[#667eea]/10 to-[#764ba2]/10 border border-[#667eea]/20 rounded-2xl p-6 hover:bg-gradient-to-br hover:from-[#667eea]/20 hover:to-[#764ba2]/20 transition-all"
               >
                 <div className="text-center mb-4">
@@ -236,13 +205,10 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   <strong>Specialty:</strong> Financial planning, goal setting, investment advice
                 </div>
-              </motion.div>
+              </div>
 
               {/* Roast Master */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
+              <div
                 className="bg-gradient-to-br from-[#667eea]/10 to-[#764ba2]/10 border border-[#667eea]/20 rounded-2xl p-6 hover:bg-gradient-to-br hover:from-[#667eea]/20 hover:to-[#764ba2]/20 transition-all"
               >
                 <div className="text-center mb-4">
@@ -258,13 +224,10 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   <strong>Specialty:</strong> Reality checks, habit breaking, tough love
                 </div>
-              </motion.div>
+              </div>
 
               {/* Fortune */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
+              <div
                 className="bg-gradient-to-br from-[#667eea]/10 to-[#764ba2]/10 border border-[#667eea]/20 rounded-2xl p-6 hover:bg-gradient-to-br hover:from-[#667eea]/20 hover:to-[#764ba2]/20 transition-all"
               >
                 <div className="text-center mb-4">
@@ -280,13 +243,10 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   <strong>Specialty:</strong> Investment opportunities, positive reinforcement, growth mindset
                 </div>
-              </motion.div>
+              </div>
 
               {/* Nova */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
+              <div
                 className="bg-gradient-to-br from-[#667eea]/10 to-[#764ba2]/10 border border-[#667eea]/20 rounded-2xl p-6 hover:bg-gradient-to-br hover:from-[#667eea]/20 hover:to-[#764ba2]/20 transition-all"
               >
                 <div className="text-center mb-4">
@@ -302,13 +262,10 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   <strong>Specialty:</strong> Personal growth, habit formation, life transitions
                 </div>
-              </motion.div>
+              </div>
 
               {/* Serenity */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.6 }}
+              <div
                 className="bg-gradient-to-br from-[#667eea]/10 to-[#764ba2]/10 border border-[#667eea]/20 rounded-2xl p-6 hover:bg-gradient-to-br hover:from-[#667eea]/20 hover:to-[#764ba2]/20 transition-all"
               >
                 <div className="text-center mb-4">
@@ -324,7 +281,7 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   <strong>Specialty:</strong> Financial therapy, anxiety reduction, mindful spending
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
@@ -332,10 +289,7 @@ const FinancialStoryPage = () => {
         {/* How It Works Section */}
         <section className="py-20 px-5 bg-gradient-to-b from-[#0a0e27] to-[#1a1f3a]">
           <div className="max-w-7xl mx-auto">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="text-center mb-16"
             >
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
@@ -344,13 +298,10 @@ const FinancialStoryPage = () => {
               <p className="text-white/60 text-lg max-w-3xl mx-auto">
                 From raw financial data to engaging narratives in just a few steps
               </p>
-            </motion.div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.1 }}
+              <div
                 className="text-center"
               >
                 <div className="w-16 h-16 bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
@@ -360,12 +311,9 @@ const FinancialStoryPage = () => {
                 <p className="text-white/70 text-sm">
                   Connect your bank accounts or upload statements. Our AI securely processes your financial data.
                 </p>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
+              <div
                 className="text-center"
               >
                 <div className="w-16 h-16 bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
@@ -375,12 +323,9 @@ const FinancialStoryPage = () => {
                 <p className="text-white/70 text-sm">
                   Our AI storytellers analyze your spending patterns, identify themes, and create character profiles.
                 </p>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
+              <div
                 className="text-center"
               >
                 <div className="w-16 h-16 bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
@@ -390,12 +335,9 @@ const FinancialStoryPage = () => {
                 <p className="text-white/70 text-sm">
                   Each AI storyteller creates their unique narrative based on your data, complete with characters and plot.
                 </p>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
+              <div
                 className="text-center"
               >
                 <div className="w-16 h-16 bg-gradient-to-br from-[#667eea] to-[#764ba2] rounded-full flex items-center justify-center text-2xl mx-auto mb-4">
@@ -405,7 +347,7 @@ const FinancialStoryPage = () => {
                 <p className="text-white/70 text-sm">
                   Enjoy your personalized financial podcast episodes and gain insights about your money habits.
                 </p>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
@@ -413,10 +355,7 @@ const FinancialStoryPage = () => {
         {/* Sample Episodes Section */}
         <section className="py-20 px-5 bg-[#0a0e27]">
           <div className="max-w-7xl mx-auto">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="text-center mb-16"
             >
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
@@ -425,14 +364,11 @@ const FinancialStoryPage = () => {
               <p className="text-white/60 text-lg max-w-2xl mx-auto">
                 Listen to how we transform financial data into compelling stories
               </p>
-            </motion.div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
               {/* Episode 1 */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.1 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all hover:-translate-y-1 cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-4">
@@ -455,13 +391,10 @@ const FinancialStoryPage = () => {
                     🧠
                   </div>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Episode 2 */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all hover:-translate-y-1 cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-4">
@@ -484,13 +417,10 @@ const FinancialStoryPage = () => {
                     💰
                   </div>
                 </div>
-              </motion.div>
+              </div>
 
               {/* Episode 3 */}
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all hover:-translate-y-1 cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-4">
@@ -513,7 +443,7 @@ const FinancialStoryPage = () => {
                     🌙
                   </div>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
@@ -521,10 +451,7 @@ const FinancialStoryPage = () => {
         {/* Story Types Section */}
         <section className="py-20 px-5 bg-gradient-to-b from-[#0a0e27] to-[#1a1f3a]">
           <div className="max-w-7xl mx-auto">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="text-center mb-16"
             >
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
@@ -533,13 +460,10 @@ const FinancialStoryPage = () => {
               <p className="text-white/60 text-lg max-w-3xl mx-auto">
                 From mysteries to adventures, your financial data becomes the foundation for engaging narratives
               </p>
-            </motion.div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.1 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all"
               >
                 <div className="text-4xl mb-4">🔍</div>
@@ -550,12 +474,9 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   Perfect for: Budget analysis, spending pattern discovery
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.2 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all"
               >
                 <div className="text-4xl mb-4">🏆</div>
@@ -566,12 +487,9 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   Perfect for: Goal tracking, milestone celebrations
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all"
               >
                 <div className="text-4xl mb-4">💔</div>
@@ -582,12 +500,9 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   Perfect for: Habit awareness, reality checks
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all"
               >
                 <div className="text-4xl mb-4">🌱</div>
@@ -598,12 +513,9 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   Perfect for: Personal development, habit changes
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all"
               >
                 <div className="text-4xl mb-4">🧘</div>
@@ -614,12 +526,9 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   Perfect for: Stress reduction, mindful spending
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.6 }}
+              <div
                 className="bg-white/5 border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all"
               >
                 <div className="text-4xl mb-4">🎯</div>
@@ -630,7 +539,7 @@ const FinancialStoryPage = () => {
                 <div className="text-xs text-white/50">
                   Perfect for: Long-term planning, investment strategy
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
@@ -638,10 +547,7 @@ const FinancialStoryPage = () => {
         {/* Final CTA Section */}
         <section className="py-20 px-5 bg-[#0a0e27]">
           <div className="max-w-4xl mx-auto text-center">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
             >
               <h2 className="text-4xl md:text-5xl font-bold mb-6">
                 Ready to Turn Your <span className="bg-gradient-to-r from-[#667eea] to-[#764ba2] bg-clip-text text-transparent">Money Into Stories?</span>
@@ -650,7 +556,7 @@ const FinancialStoryPage = () => {
                 Join thousands of users who've transformed their financial anxiety into entertainment and education. 
                 Your money has a story to tell - let our AI storytellers help you discover it.
               </p>
-              <motion.button 
+              <button 
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="inline-flex items-center gap-3 bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white px-9 py-4 rounded-xl font-semibold text-lg hover:shadow-[0_15px_40px_rgba(102,126,234,0.4)] transition-all"
@@ -659,8 +565,8 @@ const FinancialStoryPage = () => {
                 <span className="bg-[#00ff88] text-[#0a0e27] px-2 py-1 rounded text-xs font-bold">
                   FREE
                 </span>
-              </motion.button>
-            </motion.div>
+              </button>
+            </div>
           </div>
         </section>
       </div>

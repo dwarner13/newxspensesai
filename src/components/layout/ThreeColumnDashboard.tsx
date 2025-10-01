@@ -13,7 +13,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import AITeamSidebar from './AITeamSidebar';
 import './ThreeColumnDashboard.css';
 
@@ -125,17 +124,14 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
   return (
     <div className="three-column-dashboard">
       {/* Mobile Menu Overlay */}
-      <AnimatePresence>
+      
         {isMobileMenuOpen && (
-          <motion.div
+          <div
             className="mobile-menu-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
             onClick={handleMobileMenuToggle}
           />
         )}
-      </AnimatePresence>
+      
 
       {/* Mobile Header */}
       <div className="mobile-header">
@@ -152,11 +148,8 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
 
       <div className="dashboard-container">
         {/* LEFT SIDEBAR */}
-        <motion.aside 
+        <aside 
           className={`left-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''} ${isLeftSidebarCollapsed ? 'collapsed' : ''}`}
-          initial={{ x: -360 }}
-          animate={{ x: 0 }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
         >
           <div className="logo-section">
             <div className="logo-icon">👑</div>
@@ -242,7 +235,7 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
               </div>
             </div>
           </div>
-        </motion.aside>
+        </aside>
 
         {/* MAIN CONTENT */}
         <main className={`main-content ${isLeftSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
@@ -292,7 +285,7 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
           {showToolCards && (
             <div className="cards-grid">
               {toolCards.map((tool, index) => (
-                <motion.div
+                <div
                   key={index}
                   className="tool-card"
                   whileHover={{ y: -8 }}
@@ -307,7 +300,7 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
                   </div>
                   <div className="tool-name">{tool.name}</div>
                   <div className="tool-description">{tool.description}</div>
-                </motion.div>
+                </div>
               ))}
             </div>
           )}
@@ -317,14 +310,11 @@ const ThreeColumnDashboard: React.FC<ThreeColumnDashboardProps> = ({
         </main>
 
         {/* RIGHT SIDEBAR - AI TEAM */}
-        <motion.aside 
+        <aside 
           className={`right-sidebar ${isTabletSidebarOpen ? 'tablet-open' : ''}`}
-          initial={{ x: 320 }}
-          animate={{ x: 0 }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
         >
           <AITeamSidebar />
-        </motion.aside>
+        </aside>
       </div>
     </div>
   );

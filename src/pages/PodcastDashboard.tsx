@@ -50,8 +50,7 @@ const PodcastDashboard: React.FC = () => {
         total_episodes: totalEpisodes,
         total_listens: totalListens,
         average_rating: averageRating,
-        average_completion_rate: 0.85 // Mock data
-      });
+        average_completion_rate: 0.85 // Mock data});
     } catch (error) {
       console.error('Error loading podcast data:', error);
     } finally {

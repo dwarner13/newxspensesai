@@ -37,8 +37,7 @@ const ReceiptInterpreter = ({
     
     try {
       const response = await interpretReceipt({
-        receiptText
-      });
+        receiptText});
       
       setResult(response);
       
@@ -46,8 +45,7 @@ const ReceiptInterpreter = ({
         onInterpreted({
           vendor: response.vendor,
           amount: response.amount,
-          category: response.category
-        });
+          category: response.category});
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to interpret receipt');

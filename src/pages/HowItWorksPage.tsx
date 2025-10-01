@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { 
   ArrowRight, 
@@ -22,10 +21,7 @@ const HowItWorksPage = () => {
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-primary-50 to-secondary-50 py-20 px-4">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+          <div
             className="text-center"
           >
             <h1 className="text-4xl md:text-5xl font-bold mb-6">How XspensesAI Works</h1>
@@ -39,18 +35,15 @@ const HowItWorksPage = () => {
               Try It in Action
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Step 1: Upload & Scan Receipts */}
       <section className="py-20 px-4 bg-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
           >
             <div>
@@ -93,18 +86,15 @@ const HowItWorksPage = () => {
                 className="w-full h-auto object-cover"
               />
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Step 2: AI Categorization & Smart Tagging */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
           >
             <div className="order-2 md:order-1 rounded-xl overflow-hidden shadow-lg">
@@ -168,18 +158,15 @@ const HowItWorksPage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Step 3: Real-Time Insights & Budgeting */}
       <section className="py-20 px-4 bg-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center"
           >
             <div>
@@ -222,18 +209,15 @@ const HowItWorksPage = () => {
                 className="w-full h-auto object-cover"
               />
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Final CTA Section */}
       <section className="py-20 px-4 bg-gradient-to-r from-primary-600 to-secondary-600 text-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Start Smarter Today</h2>
@@ -247,7 +231,7 @@ const HowItWorksPage = () => {
               Create My Free Account
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
 

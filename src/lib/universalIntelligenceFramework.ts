@@ -335,8 +335,7 @@ export class UniversalIntelligenceFramework implements UniversalIntelligence {
       query: request,
       response: response.content,
       timestamp: new Date(),
-      context
-    });
+      context});
 
     return response;
   }

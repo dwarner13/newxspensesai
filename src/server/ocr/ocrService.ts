@@ -159,7 +159,7 @@ export class OCRService {
       
       // Filter out totals and tax
       if (!desc.match(/total|tax|subtotal|tip/i) && amount > 0 && amount < (fields.total || Infinity)) {
-        items.push({ description: desc, amount });
+        items.push({ description: desc, amount});
       }
     }
     

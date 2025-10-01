@@ -64,7 +64,7 @@ const MyComponent = () => {
         ));
         
         // Call AI service to learn
-        AIService.correctCategory(id, { category: newCategory });
+        AIService.correctCategory(id, { category: newCategory});
     };
     
     return (

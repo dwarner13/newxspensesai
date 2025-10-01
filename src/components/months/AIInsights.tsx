@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { Brain, TrendingUp, Calendar } from 'lucide-react';
 import { Transaction } from '../../types/database.types';
 
@@ -76,10 +75,7 @@ const AIInsights = ({ transactions, month, className = '' }: AIInsightsProps) =>
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 }}
+    <div
       className={`card bg-gradient-to-r from-primary-50 to-secondary-50 border-primary-100 ${className}`}
     >
       <div className="flex items-start space-x-4">
@@ -107,7 +103,7 @@ const AIInsights = ({ transactions, month, className = '' }: AIInsightsProps) =>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

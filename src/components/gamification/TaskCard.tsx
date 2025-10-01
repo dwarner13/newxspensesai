@@ -1,5 +1,4 @@
 import { ReactNode } from 'react';
-import { motion } from 'framer-motion';
 import { Zap } from 'lucide-react';
 
 interface TaskCardProps {
@@ -22,7 +21,7 @@ const TaskCard = ({
   className = ''
 }: TaskCardProps) => {
   return (
-    <motion.div
+    <div
       whileHover={{ scale: onClick && !completed ? 1.02 : 1 }}
       whileTap={{ scale: onClick && !completed ? 0.98 : 1 }}
       className={`relative overflow-hidden rounded-xl border transition-all duration-200 ${
@@ -69,7 +68,7 @@ const TaskCard = ({
       {!completed && (
         <div className="h-1 w-full bg-gradient-to-r from-primary-500 to-secondary-500"></div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

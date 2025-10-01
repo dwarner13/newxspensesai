@@ -56,8 +56,7 @@ const ByteProcessingModal: React.FC<ByteProcessingModalProps> = ({
     accuracy: 99.7,
     documentsProcessed: files.length,
     savingsFound: 0,
-    deductionsFound: 0
-  });
+    deductionsFound: 0});
   const [activeEmployees, setActiveEmployees] = useState<string[]>(['Byte']);
   const [chatMessages, setChatMessages] = useState<Array<{sender: string, message: string, timestamp: number}>>([]);
   const [userInput, setUserInput] = useState('');

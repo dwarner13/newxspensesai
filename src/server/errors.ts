@@ -36,7 +36,7 @@ export class NotFoundError extends AppError {
 
 export class RateLimitError extends AppError {
   constructor(message: string, resetAt: number) {
-    super(message, 'RATE_LIMIT', 429, { resetAt });
+    super(message, 'RATE_LIMIT', 429, { resetAt});
   }
 }
 

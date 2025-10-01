@@ -6,7 +6,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building2, 
   CreditCard, 
@@ -257,9 +256,7 @@ const BankAccountsPage: React.FC = () => {
       </div>
 
       {/* Connect new account */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="mb-6"
       >
         <div className="bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 rounded-xl p-6">
@@ -280,16 +277,13 @@ const BankAccountsPage: React.FC = () => {
             size="md"
           />
         </div>
-      </motion.div>
+      </div>
 
       {/* Bank connections */}
       <div className="space-y-4">
         {connections.map((connection, index) => (
-          <motion.div
+          <div
             key={connection.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
             className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6"
           >
             {/* Connection header */}
@@ -377,15 +371,13 @@ const BankAccountsPage: React.FC = () => {
                 <span>Last synced: {new Date(connection.lastSync).toLocaleString()}</span>
               </div>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
       {/* Empty state */}
       {connections.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+        <div
           className="text-center py-12"
         >
           <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -400,7 +392,7 @@ const BankAccountsPage: React.FC = () => {
             variant="primary"
             size="lg"
           />
-        </motion.div>
+        </div>
       )}
     </div>
   );

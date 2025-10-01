@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -300,10 +299,8 @@ const XspensesScoreCard = ({
       
       {/* Score Progress Bar */}
       <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full mb-4 overflow-hidden">
-        <motion.div
-          initial={{ width: 0 }}
+        <div
           animate={{ width: `${score / 10}%` }}
-          transition={{ duration: 1, ease: "easeOut" }}
           className={`h-full rounded-full ${
             score >= 800 ? 'bg-green-500' :
             score >= 650 ? 'bg-blue-500' :

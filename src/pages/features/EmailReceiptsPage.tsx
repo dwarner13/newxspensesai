@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { 
   Mail, 
@@ -58,10 +57,7 @@ const EmailReceiptsPage = () => {
       {/* Hero Section */}
       <section className="bg-white py-16 px-4 sm:px-6 lg:px-8 border-b border-gray-200">
         <div className="max-w-5xl ">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+          <div
             className="text-center"
           >
             <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6">
@@ -77,13 +73,11 @@ const EmailReceiptsPage = () => {
               <Mail className="mr-2" size={20} />
               Get My Forwarding Address
             </button>
-          </motion.div>
+          </div>
           
           {/* Email Address Display */}
           {showEmailAddress && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <div
               className="mt-8 bg-primary-50 border border-primary-200 rounded-lg p-4  "
             >
               <div className="flex items-center justify-between">
@@ -99,7 +93,7 @@ const EmailReceiptsPage = () => {
                   <Copy size={18} />
                 </button>
               </div>
-            </motion.div>
+            </div>
           )}
         </div>
       </section>
@@ -107,10 +101,7 @@ const EmailReceiptsPage = () => {
       {/* How It Works Section */}
       <section className="py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl ">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+          <div
           >
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-8 text-center">
               How It Works
@@ -171,17 +162,14 @@ const EmailReceiptsPage = () => {
                 </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* AI Can Handle Section */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-5xl ">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+          <div
           >
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-8 text-center">
               AI Can Handle
@@ -210,30 +198,24 @@ const EmailReceiptsPage = () => {
                   icon: <CheckCircle className="text-primary-600" size={24} />
                 }
               ].map((item, index) => (
-                <motion.div
+                <div
                   key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
                   className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
                 >
                   <div className="mb-4">{item.icon}</div>
                   <h3 className="font-semibold text-gray-900 mb-2">{item.title}</h3>
                   <p className="text-sm text-gray-600">{item.description}</p>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Supported Email Clients */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-5xl ">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+          <div
           >
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-8 text-center">
               Supported Email Clients
@@ -241,31 +223,25 @@ const EmailReceiptsPage = () => {
             
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-6 text-center">
               {["Gmail", "Outlook", "iCloud", "Yahoo", "Any Email"].map((client, index) => (
-                <motion.div
+                <div
                   key={client}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.3, delay: 0.4 + index * 0.1 }}
                   className="bg-white p-4 rounded-lg shadow-sm border border-gray-200"
                 >
                   <div className="w-12 h-12  mb-3 flex items-center justify-center">
                     <Mail className="text-primary-600" size={24} />
                   </div>
                   <h3 className="font-medium text-gray-900">{client}</h3>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Auto-Forwarding Tip Section */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-primary-50">
         <div className="max-w-5xl ">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+          <div
             className="bg-white rounded-lg shadow-md p-8 border border-primary-100"
           >
             <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
@@ -300,17 +276,14 @@ const EmailReceiptsPage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Use Cases */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-white">
         <div className="max-w-5xl ">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.5 }}
+          <div
           >
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-8 text-center">
               Use Cases
@@ -334,11 +307,8 @@ const EmailReceiptsPage = () => {
                   icon: <AlertCircle className="text-primary-600" size={24} />
                 }
               ].map((item, index) => (
-                <motion.div
+                <div
                   key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.6 + index * 0.1 }}
                   className="bg-white p-6 rounded-lg shadow-sm border border-gray-200"
                 >
                   <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mb-4">
@@ -346,20 +316,17 @@ const EmailReceiptsPage = () => {
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-2">{item.title}</h3>
                   <p className="text-sm text-gray-600">{item.description}</p>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Export Capabilities */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-50">
         <div className="max-w-5xl ">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
+          <div
           >
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4 text-center">
               Always Organized. Always Exportable.
@@ -386,11 +353,8 @@ const EmailReceiptsPage = () => {
                   icon: <FileText className="text-primary-600" size={24} />
                 }
               ].map((item, index) => (
-                <motion.div
+                <div
                   key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.7 + index * 0.1 }}
                   className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 text-center"
                 >
                   <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mb-4 ">
@@ -398,20 +362,17 @@ const EmailReceiptsPage = () => {
                   </div>
                   <h3 className="font-semibold text-gray-900 mb-2">{item.title}</h3>
                   <p className="text-sm text-gray-600">{item.description}</p>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Final CTA Section */}
       <section className="py-16 px-4 sm:px-6 lg:px-8 bg-gradient-to-r from-primary-600 to-primary-700 text-white">
         <div className="max-w-5xl  text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.7 }}
+          <div
           >
             <h2 className="text-2xl md:text-3xl font-bold mb-4">
               Let Your Inbox Do the Work
@@ -435,7 +396,7 @@ const EmailReceiptsPage = () => {
                 Get My Forwarding Address
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 

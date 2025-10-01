@@ -433,8 +433,7 @@ export class AIEmployeeDocumentProcessor {
       const existing = categoryMap.get(result.category) || { count: 0, totalConfidence: 0 };
       categoryMap.set(result.category, {
         count: existing.count + 1,
-        totalConfidence: existing.totalConfidence + result.confidence
-      });
+        totalConfidence: existing.totalConfidence + result.confidence});
     });
 
     return Array.from(categoryMap.entries())

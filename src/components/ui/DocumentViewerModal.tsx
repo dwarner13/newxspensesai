@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Download, Eye, FileText, Image as ImageIcon, AlertCircle, Bot, Send, CheckCircle, Brain, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -171,19 +170,13 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   };
 
   return (
-    <AnimatePresence>
+    
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
+          <div
             className="bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl max-w-6xl max-h-[90vh] w-full mx-4 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
@@ -460,10 +453,10 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 </div>
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    
   );
 };
 

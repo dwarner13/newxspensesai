@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { TrendingUp } from 'lucide-react';
 
 interface CreditBoostCardProps {
@@ -7,10 +6,7 @@ interface CreditBoostCardProps {
 
 const CreditBoostCard = ({ image }: CreditBoostCardProps) => {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
+    <div
       className="bg-amber-50 rounded-xl shadow-lg overflow-hidden"
     >
       <div className="p-5">
@@ -35,7 +31,7 @@ const CreditBoostCard = ({ image }: CreditBoostCardProps) => {
           Get Started
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

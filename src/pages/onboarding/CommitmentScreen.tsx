@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, ThumbsUp, ThumbsDown } from 'lucide-react';
 import ProgressBar from '../../components/onboarding/ProgressBar';
@@ -71,10 +70,7 @@ const CommitmentScreen = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-8 ">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-8">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -98,11 +94,8 @@ const CommitmentScreen = () => {
           
           <div className="grid grid-cols-2 gap-4 mb-8">
             {commitmentOptions.map((option) => (
-              <motion.div
+              <div
                 key={option.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: commitmentOptions.indexOf(option) * 0.1 }}
                 className={`bg-gray-800 rounded-xl p-4 border-2 cursor-pointer transition-all duration-300 ${
                   selectedOption === option.id 
                     ? 'border-primary-500 bg-gray-800/80' 
@@ -121,20 +114,17 @@ const CommitmentScreen = () => {
                   <h3 className="font-semibold text-lg">{option.title}</h3>
                   <p className="text-sm text-gray-400 mt-1">{option.description}</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+          <div
             className="bg-gray-800 rounded-xl p-4 border border-gray-700 mb-8"
           >
             <p className="text-sm text-gray-300">
               Users who commit to tracking their finances at least once a week save an average of 15% more money and have better financial outcomes.
             </p>
-          </motion.div>
+          </div>
           
           <div className="flex justify-between">
             <button
@@ -170,7 +160,7 @@ const CommitmentScreen = () => {
               )}
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

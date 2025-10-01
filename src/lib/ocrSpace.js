@@ -66,8 +66,7 @@ async function ocrFile(buffer, filename) {
             const pageText = page.ParsedText.trim();
             pages.push({
               page: index + 1,
-              text: pageText
-            });
+              text: pageText});
             fullText += pageText + '\n\n';
           }
         });

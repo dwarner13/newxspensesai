@@ -38,7 +38,6 @@ import {
   WifiOff
 } from 'lucide-react';
 import Logo from '../common/Logo';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from "../../contexts/UserContext";
 import { EMPLOYEES } from '../../data/aiEmployees';
 
@@ -69,17 +68,14 @@ const AIActivityIndicator = ({ isProcessing }: { isProcessing: boolean }) => {
   if (!isProcessing) return null;
 
   return (
-    <motion.div 
+    <div 
       className="ai-activity-indicator"
-      initial={{ opacity: 0, scale: 0.8 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.8 }}
     >
       <div className="flex items-center gap-2 px-2 py-1 bg-blue-500/20 rounded-lg border border-blue-500/30">
         <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
         <span className="text-xs text-blue-400 font-medium">AI Processing...</span>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -559,6 +555,7 @@ export default function AIEnhancedSidebar({
     </aside>
   );
 }
+
 
 
 

@@ -9,8 +9,7 @@ const TrustBuildingDemo = () => {
     const [showComponents, setShowComponents] = useState({
         trustIndicators: true,
         privacyStatus: true,
-        fullUI: true
-    });
+        fullUI: true});
 
     const handleStartProcessing = () => {
         setProcessingState('processing');

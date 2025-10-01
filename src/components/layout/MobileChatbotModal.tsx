@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
   Send, 
@@ -106,26 +105,13 @@ const MobileChatbotModal: React.FC<MobileChatbotModalProps> = ({
   if (!employee) return null;
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+        <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ 
-              type: 'spring', 
-              damping: 25, 
-              stiffness: 200,
-              mass: 0.8
-            }}
+          <div
             className="fixed bottom-0 left-0 right-0 bg-[#0f172a] border-t border-white/10 rounded-t-2xl max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -151,11 +137,8 @@ const MobileChatbotModal: React.FC<MobileChatbotModalProps> = ({
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
               {messages.map((message, index) => (
-                <motion.div
+                <div
                   key={index}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
@@ -166,20 +149,18 @@ const MobileChatbotModal: React.FC<MobileChatbotModalProps> = ({
                     <p className="text-sm">{message.content}</p>
                     <p className="text-xs opacity-60 mt-1">{message.timestamp}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
               
               {isLoading && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                <div
                   className="flex justify-start"
                 >
                   <div className="bg-white/10 rounded-2xl px-4 py-3 flex items-center gap-2">
                     <Loader2 className="w-4 h-4 animate-spin text-white/60" />
                     <span className="text-sm text-white/60">Thinking...</span>
                   </div>
-                </motion.div>
+                </div>
               )}
               
               <div ref={messagesEndRef} />
@@ -232,10 +213,10 @@ const MobileChatbotModal: React.FC<MobileChatbotModalProps> = ({
                 </button>
               </form>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 };
 

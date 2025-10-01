@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { FileText, File, Download, Trash2 } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { getUploadedFiles, getFileUrl, supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { formatDate } from '../../utils/formatters';
@@ -94,10 +93,8 @@ const FileList = () => {
   return (
     <div className="space-y-4">
       {files.map((file) => (
-        <motion.div
+        <div
           key={file.id}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-lg shadow p-4 flex items-center justify-between"
         >
           <div className="flex items-center space-x-4">
@@ -129,7 +126,7 @@ const FileList = () => {
               <Trash2 size={20} />
             </button>
           </div>
-        </motion.div>
+        </div>
       ))}
     </div>
   );

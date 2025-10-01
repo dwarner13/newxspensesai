@@ -379,8 +379,7 @@ export class ComprehensiveFinancialAutomation {
         filename: document.name,
         processed: true,
         keyData,
-        confidence
-      });
+        confidence});
     }
 
     return summaries;

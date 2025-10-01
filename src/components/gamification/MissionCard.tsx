@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Zap, CheckCircle } from 'lucide-react';
 import { ReactNode } from 'react';
 
@@ -25,9 +24,7 @@ const MissionCard = ({
   const progressPercent = Math.min((progress / goal) * 100, 100);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       whileHover={{ scale: onClick && !isCompleted ? 1.02 : 1 }}
       whileTap={{ scale: onClick && !isCompleted ? 0.98 : 1 }}
       className={`bg-white rounded-lg shadow p-4 ${onClick && !isCompleted ? 'cursor-pointer' : ''} ${className}`}
@@ -55,8 +52,7 @@ const MissionCard = ({
       </div>
 
       <div className="w-full bg-gray-200 rounded-full h-2">
-        <motion.div
-          initial={{ width: 0 }}
+        <div
           animate={{ width: `${progressPercent}%` }}
           className={`h-2 rounded-full ${
             isCompleted 
@@ -72,7 +68,7 @@ const MissionCard = ({
           <span>Mission completed!</span>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

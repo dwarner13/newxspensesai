@@ -98,7 +98,7 @@ export const analyzeImageQuality = (imageFile: File): Promise<{
         complexity = 'moderate';
       }
       
-      resolve({ blur, brightness, contrast, resolution, complexity });
+      resolve({ blur, brightness, contrast, resolution, complexity});
     };
     
     img.src = URL.createObjectURL(imageFile);
@@ -417,8 +417,7 @@ export const parseReceiptWithGoogleVision = (visionResult: GoogleVisionResult): 
         items.push({
           description: description.replace(/[^a-zA-Z0-9\s&'-]/g, '').trim(),
           amount,
-          confidence: block.confidence || 0.8
-        });
+          confidence: block.confidence || 0.8});
       }
     }
   }

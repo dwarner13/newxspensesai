@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Trophy, 
   Star, 
@@ -28,8 +27,7 @@ const MobileGamificationDashboard = () => {
   const [userStats, setUserStats] = useState({
     xp: 0,
     level: 1,
-    streak: 0
-  });
+    streak: 0});
   const [completedTasks, setCompletedTasks] = useState<string[]>([]);
   const [weeklyMissions, setWeeklyMissions] = useState([
     {
@@ -81,14 +79,12 @@ const MobileGamificationDashboard = () => {
         setUserStats({
           xp: 0,
           level: 1,
-          streak: 0
-        });
+          streak: 0});
       } else {
         setUserStats({
           xp: profile?.xp || 0,
           level: profile?.level || 1,
-          streak: profile?.streak || 0
-        });
+          streak: profile?.streak || 0});
       }
       
       // In a real app, we would load completed tasks from the database
@@ -113,9 +109,7 @@ const MobileGamificationDashboard = () => {
   return (
     <div className="mobile-dashboard-container p-4">
       {/* Dashboard Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="dashboard-header mb-4"
       >
         <h2 className="text-xl font-bold">Welcome back, {user?.email?.split('@')[0] || 'User'} 👋</h2>
@@ -123,22 +117,17 @@ const MobileGamificationDashboard = () => {
           You've earned <strong className="text-primary-600">{userStats.xp} XP</strong> so far. Keep going!
         </p>
         <div className="floating-xp-bar mt-2 w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-          <motion.div
-            initial={{ width: 0 }}
+          <div
             animate={{ width: `${(userStats.xp % 100) / 100 * 100}%` }}
-            transition={{ duration: 1, ease: "easeOut" }}
             className="h-full bg-gradient-to-r from-primary-500 to-secondary-500"
           />
         </div>
-      </motion.div>
+      </div>
 
       {/* Dashboard Cards */}
       <div className="dashboard-cards space-y-4">
         {/* XP Level Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="card bg-white p-4 rounded-xl shadow"
         >
           <div className="flex items-center justify-between mb-2">
@@ -167,10 +156,8 @@ const MobileGamificationDashboard = () => {
               </div>
               
               <div className="w-full bg-gray-200 rounded-full h-2">
-                <motion.div
-                  initial={{ width: 0 }}
+                <div
                   animate={{ width: `${(userStats.xp % 100) / 100 * 100}%` }}
-                  transition={{ duration: 1, ease: "easeOut" }}
                   className="bg-gradient-to-r from-primary-500 to-secondary-500 h-2 rounded-full"
                 />
               </div>
@@ -181,13 +168,10 @@ const MobileGamificationDashboard = () => {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Streak Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="card bg-white p-4 rounded-xl shadow"
         >
           <h3 className="font-semibold text-gray-900 flex items-center mb-3">
@@ -217,13 +201,10 @@ const MobileGamificationDashboard = () => {
               <span>Streak goal reached! 🎉</span>
             )}
           </div>
-        </motion.div>
+        </div>
 
         {/* Weekly Missions Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="card bg-white p-4 rounded-xl shadow"
         >
           <div className="flex items-center justify-between mb-3">
@@ -271,13 +252,10 @@ const MobileGamificationDashboard = () => {
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
 
         {/* Quick Actions Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+        <div
           className="card bg-white p-4 rounded-xl shadow"
         >
           <h3 className="font-semibold text-gray-900 flex items-center mb-3">
@@ -322,7 +300,7 @@ const MobileGamificationDashboard = () => {
               <span className="text-xs text-yellow-600">View All</span>
             </Link>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -3,8 +3,6 @@ import {
   Mic, Play, Headphones, CheckCircle, Flame, Crown, 
   Zap, Heart, Star, Clock, ArrowRight, Shield, Lock, Key
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-
 interface PositivePodcaster {
   id: string;
   name: string;
@@ -346,44 +344,32 @@ export default function PersonalPodcastFeaturePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           {/* Prime's Crown Badge */}
           <div className="text-center mb-8">
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="inline-flex items-center bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 text-white px-4 py-2 rounded-full shadow-2xl"
             >
               <Crown size={20} className="mr-2" />
               <span className="font-bold">Prime's AI Podcast Division</span>
-            </motion.div>
+            </div>
           </div>
 
           {/* Hero Content */}
           <div className="text-center mb-16">
-        <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+        <h1
               className="text-4xl md:text-6xl font-bold text-white mb-6"
         >
               Finally, Financial Advice That{' '}
               <span className="text-orange-400 drop-shadow-lg">
                 Actually Gets You
               </span>
-        </motion.h1>
-        <motion.p
-              initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+        </h1>
+        <p
               className="text-xl md:text-2xl text-white/90 mb-8 max-w-5xl mx-auto leading-relaxed font-medium"
         >
               12 AI podcasters who know your spending patterns, celebrate your wins, and call out your mistakes - all personalized to your money story
-        </motion.p>
+        </p>
         
         {/* Social Proof Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
+        <div
           className="flex flex-wrap items-center justify-center gap-6 mb-8 text-sm text-white/70"
         >
           <div className="flex items-center gap-2">
@@ -402,11 +388,8 @@ export default function PersonalPodcastFeaturePage() {
             <span className="text-cyan-400">$2,400</span>
             <span>avg. savings increase</span>
           </div>
-        </motion.div>
-        <motion.div
-              initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+        </div>
+        <div
               className="flex flex-col sm:flex-row gap-6 justify-center"
             >
               <button 
@@ -424,13 +407,10 @@ export default function PersonalPodcastFeaturePage() {
                 <Play size={24} />
                 See How It Works
               </button>
-        </motion.div>
+        </div>
         
         {/* Urgency Banner */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
+        <div
           className="mt-8 bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 rounded-xl p-4 max-w-2xl mx-auto"
         >
           <div className="flex items-center justify-center gap-2 text-white">
@@ -438,14 +418,11 @@ export default function PersonalPodcastFeaturePage() {
             <span className="font-semibold">Limited Time:</span>
             <span>First month free for new users - No credit card required</span>
           </div>
-        </motion.div>
+        </div>
           </div>
 
           {/* Testimonials Section */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-white/5 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
           >
             <h3 className="text-2xl font-bold text-white text-center mb-8">
@@ -506,13 +483,10 @@ export default function PersonalPodcastFeaturePage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* AI Team Showcase */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
           >
             <div className="text-center mb-8">
@@ -525,11 +499,8 @@ export default function PersonalPodcastFeaturePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {aiTeam.map((member, index) => (
-                <motion.div
+                <div
                   key={member.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
                   className="text-center bg-white/5 rounded-xl p-4 hover:bg-white/10 transition-all duration-300"
                 >
                   <div className={`w-16 h-16 bg-gradient-to-r ${member.color} rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg`}>
@@ -538,19 +509,16 @@ export default function PersonalPodcastFeaturePage() {
                   <h4 className="text-lg font-bold text-white mb-2">{member.name}</h4>
                   <p className="text-white/70 text-sm mb-2">{member.role}</p>
                   <p className="text-white/60 text-xs leading-relaxed">{member.specialty}</p>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
       {/* Live AI Podcast Generation Demo */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -564,9 +532,7 @@ export default function PersonalPodcastFeaturePage() {
 
           {/* Generation Progress */}
           {isGenerating && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
+            <div
               className="mb-8"
             >
               <div className="bg-white/10 rounded-xl p-6">
@@ -575,11 +541,9 @@ export default function PersonalPodcastFeaturePage() {
                   <span className="text-cyan-400 font-bold">{generationProgress}%</span>
                 </div>
                 <div className="w-full bg-white/20 rounded-full h-3 mb-4">
-                  <motion.div 
+                  <div 
                     className="bg-gradient-to-r from-cyan-400 to-purple-400 h-3 rounded-full"
-                    initial={{ width: 0 }}
                     animate={{ width: `${generationProgress}%` }}
-                    transition={{ duration: 0.3 }}
                   />
                 </div>
                 <div className="text-center">
@@ -588,14 +552,12 @@ export default function PersonalPodcastFeaturePage() {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Generated Episode Display */}
           {currentEpisode && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <div
               className="bg-white/10 rounded-xl p-6"
             >
               <div className="flex items-center justify-between mb-4">
@@ -608,7 +570,7 @@ export default function PersonalPodcastFeaturePage() {
                 <span className="text-white/60">Category: <span className="text-white font-semibold">{currentEpisode.category}</span></span>
                 <span className="text-white/60">Mood: <span className="text-white font-semibold">{currentEpisode.mood}</span></span>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Episode Generation Controls */}
@@ -622,15 +584,12 @@ export default function PersonalPodcastFeaturePage() {
               {isGenerating ? 'Generating...' : 'Generate New Episode'}
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Positive Podcasters - Your Financial Cheerleaders */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
@@ -639,15 +598,12 @@ export default function PersonalPodcastFeaturePage() {
           <p className="text-lg text-white/80 leading-relaxed max-w-4xl mx-auto">
             Tired of feeling guilty about your spending? These AI podcasters celebrate your wins, motivate your journey, and turn every financial milestone into a victory lap. They're your personal hype squad that actually understands your money story and makes financial success feel achievable.
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
           {positivePodcasters.map((podcaster, index) => (
-            <motion.div 
+            <div 
               key={podcaster.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 flex flex-col group"
             >
               <div className="text-center mb-4">
@@ -676,17 +632,14 @@ export default function PersonalPodcastFeaturePage() {
                 <Mic size={16} />
                 Listen to {podcaster.name}
               </button>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* Roasting Podcasters - Your Financial Reality Checkers */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
@@ -695,15 +648,12 @@ export default function PersonalPodcastFeaturePage() {
           <p className="text-lg text-white/80 leading-relaxed max-w-4xl mx-auto">
             Sometimes you need someone to call out your BS. These AI podcasters deliver the brutal truth with style and humor. They'll roast your $400/month coffee habit, call out your impulse purchases, and make you laugh while they're making you better with money. Tough love that actually works.
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
           {roastingPodcasters.map((podcaster, index) => (
-            <motion.div 
+            <div 
               key={podcaster.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 flex flex-col group"
             >
               <div className="text-center mb-4">
@@ -732,17 +682,14 @@ export default function PersonalPodcastFeaturePage() {
                 <Flame size={16} />
                 Get Roasted by {podcaster.name}
               </button>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* AI Learning Journey */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
@@ -751,15 +698,12 @@ export default function PersonalPodcastFeaturePage() {
           <p className="text-lg text-white/80 leading-relaxed max-w-3xl mx-auto">
             Our AI podcasters don't just create content - they learn, adapt, and improve with every interaction. Here's how they become your perfect financial companions.
           </p>
-        </motion.div>
+        </div>
 
         <div className="space-y-8">
           {learningStages.map((stage, index) => (
-            <motion.div 
+            <div 
               key={stage.stage}
-              initial={{ opacity: 0, x: index % 2 === 0 ? -50 : 50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="flex items-center gap-6"
             >
               <div className={`w-16 h-16 bg-gradient-to-r ${stage.color} rounded-full flex items-center justify-center flex-shrink-0`}>
@@ -774,17 +718,14 @@ export default function PersonalPodcastFeaturePage() {
                   <ArrowRight size={24} className="text-white/40" />
                 </div>
               )}
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* Revolutionary Fintech Experience */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -834,15 +775,12 @@ export default function PersonalPodcastFeaturePage() {
               </div>
           </div>
           </div>
-        </motion.div>
+        </div>
         </div>
 
       {/* Call to Action Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-orange-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -884,23 +822,17 @@ export default function PersonalPodcastFeaturePage() {
               <span>Cancel anytime</span>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* AI Podcast Studio Modal */}
-      <AnimatePresence>
+      
         {showPodcastStudio && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
             onClick={() => setShowPodcastStudio(false)}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
@@ -963,10 +895,10 @@ export default function PersonalPodcastFeaturePage() {
                   Generate {selectedMood === 'motivational' ? 'Motivational' : 'Roasting'} Episode
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </div>
   );
 } 

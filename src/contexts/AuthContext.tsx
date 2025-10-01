@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const navigate = useNavigate();
   
-  console.log('AuthProvider render:', { user: !!user, loading, initialLoad, ready });
+  console.log('AuthProvider render:', { user: !!user, loading, initialLoad, ready});
   
   // Refs for cleanup (currently unused due to bypass)
   // const authTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setLoading(false);
               setInitialLoad(false);
               setReady(true);
-              navigate('/login', { replace: true });
+              navigate('/login', { replace: true});
               break;
               
             case 'TOKEN_REFRESHED':
@@ -282,7 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         sessionStorage.removeItem('xspensesai-intended-path');
         console.log('Signed out successfully');
-        navigate('/login', { replace: true });
+        navigate('/login', { replace: true});
         return;
       }
 
@@ -294,7 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem('xspensesai-intended-path');
       // toast.success('Signed out successfully'); // Temporarily disabled
       console.log('Signed out successfully');
-      navigate('/login', { replace: true });
+      navigate('/login', { replace: true});
     } catch (error) {
       console.error('❌ AuthContext: Logout error:', error);
       console.error('Failed to sign out. Please try again.');

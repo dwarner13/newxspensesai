@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Bot, MessageCircle, Upload, Brain, Target, Music, Mic } from 'lucide-react';
 import WebsiteLayout from '../components/layout/WebsiteLayout';
 
@@ -8,9 +7,7 @@ export default function AIAssistantPage() {
     <WebsiteLayout>
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 p-6">
       {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="text-center mb-8"
       >
         <div className="flex items-center justify-center space-x-3 mb-4">
@@ -26,13 +23,10 @@ export default function AIAssistantPage() {
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* AI Capabilities Grid */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+      <div
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
       >
         {[
@@ -76,13 +70,10 @@ export default function AIAssistantPage() {
             </p>
           </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Upload Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+      <div
         className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 mb-8 shadow-lg"
       >
         <div className="flex items-center space-x-3 mb-6">
@@ -107,13 +98,10 @@ export default function AIAssistantPage() {
             Choose File
           </button>
         </div>
-      </motion.div>
+      </div>
 
       {/* AI Insights */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+      <div
         className="bg-gradient-to-br from-green-600 to-emerald-700 rounded-xl p-6 mb-8 shadow-lg"
       >
         <div className="flex items-center justify-between mb-6">
@@ -167,13 +155,10 @@ export default function AIAssistantPage() {
             </div>
           ))}
         </div>
-      </motion.div>
+      </div>
 
       {/* Recent Transactions */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+      <div
         className="bg-gradient-to-br from-purple-600 to-pink-700 rounded-xl p-6 mb-8 shadow-lg"
       >
         <div className="flex items-center justify-between mb-6">
@@ -230,7 +215,7 @@ export default function AIAssistantPage() {
             </div>
           ))}
         </div>
-      </motion.div>
+      </div>
 
       {/* Floating Chat Button */}
       <button className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 flex items-center justify-center">

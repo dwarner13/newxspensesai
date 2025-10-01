@@ -3,8 +3,6 @@ import {
   Music, Heart, Crown, Zap, Play, SkipBack, SkipForward, 
   Volume2, RefreshCw, CheckCircle, Headphones
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-
 interface MusicRecommendation {
   id: string;
   title: string;
@@ -159,57 +157,42 @@ export default function SpotifyIntegrationFeaturePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           {/* Prime's Crown Badge */}
           <div className="text-center mb-8">
-        <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+        <div
               className="inline-flex items-center bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 text-white px-4 py-2 rounded-full shadow-2xl"
             >
               <Crown size={20} className="mr-2" />
               <span className="font-bold">Prime's AI Music Division</span>
-        </motion.div>
+        </div>
           </div>
 
           {/* Hero Content */}
           <div className="text-center mb-16">
             {/* Urgency Banner */}
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 rounded-full px-6 py-2 mb-8 inline-block"
             >
               <span className="text-red-300 text-sm font-medium">
                 🎵 Limited Time: First month FREE for Spotify users
               </span>
-            </motion.div>
+            </div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <h1
               className="text-4xl md:text-6xl font-bold text-white mb-6"
             >
               Finally, Music That{' '}
               <span className="text-green-400 drop-shadow-lg">
                 Actually Gets Your Money
               </span>
-            </motion.h1>
+            </h1>
             
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+            <p
               className="text-xl md:text-2xl text-white/90 mb-8 max-w-4xl mx-auto leading-relaxed font-medium"
             >
               Stop listening to random playlists while managing your finances. Our AI analyzes your spending patterns and creates the perfect soundtrack for every financial moment - from budget planning to investment decisions.
-            </motion.p>
+            </p>
 
             {/* Social Proof Bar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-8 mb-8 text-white/80"
             >
               <div className="flex items-center gap-2">
@@ -224,12 +207,9 @@ export default function SpotifyIntegrationFeaturePage() {
                 <Zap className="w-5 h-5 text-yellow-400" />
                 <span className="font-semibold">3x faster financial tasks</span>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+            <div
               className="flex flex-col sm:flex-row gap-6 justify-center"
             >
               {!isConnected ? (
@@ -273,13 +253,10 @@ export default function SpotifyIntegrationFeaturePage() {
                   </button>
                 </>
               )}
-            </motion.div>
+            </div>
 
             {/* Trust Indicators */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-6 mt-8 text-white/60 text-sm"
             >
               <div className="flex items-center gap-2">
@@ -294,14 +271,11 @@ export default function SpotifyIntegrationFeaturePage() {
                 <Play className="w-4 h-4" />
                 <span>Works with your existing playlists</span>
               </div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Testimonials Section */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-white/5 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
           >
             <h3 className="text-2xl font-bold text-white text-center mb-8">
@@ -368,13 +342,10 @@ export default function SpotifyIntegrationFeaturePage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* AI Music Team Showcase */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
           >
             <h3 className="text-2xl font-bold text-white text-center mb-8">
@@ -385,11 +356,8 @@ export default function SpotifyIntegrationFeaturePage() {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {aiMusicTeam.map((member, index) => (
-                <motion.div
+                <div
                   key={member.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
                   className="text-center"
                 >
                   <div className={`w-16 h-16 bg-gradient-to-r ${member.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
@@ -398,20 +366,17 @@ export default function SpotifyIntegrationFeaturePage() {
                   <h4 className="text-lg font-bold text-white mb-2">{member.name}</h4>
                   <p className="text-white/70 text-sm mb-2">{member.role}</p>
                   <p className="text-white/60 text-xs">{member.specialty}</p>
-                </motion.div>
+                </div>
               ))}
             </div>
-        </motion.div>
+        </div>
         </div>
       </div>
 
       {/* Spotify Integration Demo */}
       {isConnected && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
           >
             <div className="text-center mb-8">
@@ -493,16 +458,13 @@ export default function SpotifyIntegrationFeaturePage() {
                 ))}
               </div>
             </div>
-          </motion.div>
+          </div>
           </div>
       )}
 
       {/* Live AI Music Generation Demo */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -516,9 +478,7 @@ export default function SpotifyIntegrationFeaturePage() {
 
           {/* Playlist Generation Progress */}
           {isGeneratingPlaylist && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
+            <div
               className="mb-8"
             >
               <div className="bg-white/10 rounded-xl p-6">
@@ -527,11 +487,9 @@ export default function SpotifyIntegrationFeaturePage() {
                   <span className="text-green-400 font-bold">{playlistProgress}%</span>
                 </div>
                 <div className="w-full bg-white/20 rounded-full h-3 mb-4">
-                  <motion.div 
+                  <div 
                     className="bg-gradient-to-r from-green-400 to-emerald-400 h-3 rounded-full"
-                    initial={{ width: 0 }}
                     animate={{ width: `${playlistProgress}%` }}
-                    transition={{ duration: 0.3 }}
                   />
           </div>
                 <div className="text-center">
@@ -540,14 +498,12 @@ export default function SpotifyIntegrationFeaturePage() {
                   </p>
           </div>
         </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Generated Music Recommendation Display */}
           {currentRecommendation && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <div
               className="bg-white/10 rounded-xl p-6"
             >
               <div className="flex items-center justify-between mb-4">
@@ -563,7 +519,7 @@ export default function SpotifyIntegrationFeaturePage() {
                 <span className="text-white/60">Mood: <span className="text-white font-semibold">{currentRecommendation.mood}</span></span>
                 <span className="text-white/60">Energy: <span className="text-white font-semibold">{currentRecommendation.energy}%</span></span>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Playlist Generation Controls */}
@@ -577,15 +533,12 @@ export default function SpotifyIntegrationFeaturePage() {
               {isGeneratingPlaylist ? 'Generating...' : 'Generate New AI Playlist'}
             </button>
           </div>
-        </motion.div>
+        </div>
             </div>
 
       {/* AI Music Features */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-12"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
@@ -594,7 +547,7 @@ export default function SpotifyIntegrationFeaturePage() {
           <p className="text-lg text-white/80 leading-relaxed max-w-4xl mx-auto">
             Our AI doesn't just play music - it creates the perfect soundtrack for your financial journey. From mood analysis to productivity enhancement, experience music like never before.
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
           {[
@@ -635,11 +588,8 @@ export default function SpotifyIntegrationFeaturePage() {
               color: 'from-yellow-500 to-orange-500'
             }
           ].map((feature, index) => (
-            <motion.div 
+            <div 
               key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
             >
               <div className={`w-16 h-16 bg-gradient-to-r ${feature.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
@@ -647,17 +597,14 @@ export default function SpotifyIntegrationFeaturePage() {
               </div>
               <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
               <p className="text-white/80 text-sm leading-relaxed">{feature.description}</p>
-            </motion.div>
+            </div>
           ))}
               </div>
             </div>
 
       {/* Call to Action Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -686,23 +633,17 @@ export default function SpotifyIntegrationFeaturePage() {
               <span>See It In Action</span>
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* AI Music Studio Modal */}
-      <AnimatePresence>
+      
         {showMusicStudio && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4"
             onClick={() => setShowMusicStudio(false)}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
@@ -765,10 +706,10 @@ export default function SpotifyIntegrationFeaturePage() {
                   Generate {selectedMood === 'motivated' ? 'Motivated' : 'Calm'} Playlist
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </div>
   );
 }; 

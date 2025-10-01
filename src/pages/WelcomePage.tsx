@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   ArrowRight, 
@@ -58,10 +57,7 @@ const WelcomePage = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-12 md:py-20">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
           className="max-w-3xl  text-center"
         >
           <div className="flex items-center justify-center space-x-2 mb-8">
@@ -103,11 +99,8 @@ const WelcomePage = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
             {features.map((feature, index) => (
-              <motion.div
+              <div
                 key={index}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 + (index * 0.1) }}
                 className="bg-gray-800 rounded-xl p-5 border border-gray-700"
               >
                 <div className="w-10 h-10 bg-gray-700 rounded-lg flex items-center justify-center mb-3">
@@ -115,14 +108,11 @@ const WelcomePage = () => {
                 </div>
                 <h3 className="font-semibold mb-1">{feature.title}</h3>
                 <p className="text-sm text-gray-400">{feature.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
+          <div
             className="bg-gradient-to-r from-gray-800 to-gray-900 rounded-xl p-8 border border-gray-700 mb-8"
           >
             <h3 className="text-xl font-semibold mb-4">Here's what you can do next:</h3>
@@ -144,12 +134,9 @@ const WelcomePage = () => {
                 <span>Explore your spending patterns in the dashboard</span>
               </li>
             </ul>
-          </motion.div>
+          </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.8 }}
+          <div
           >
             <Link 
               to="/" 
@@ -162,8 +149,8 @@ const WelcomePage = () => {
             <p className="mt-6 text-gray-400 text-sm">
               Need help? <a href="mailto:support@xspensesai.com" className="text-primary-400 hover:text-primary-300">Contact our support team</a>
             </p>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     </div>
   );

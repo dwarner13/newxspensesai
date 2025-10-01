@@ -5,8 +5,6 @@ import {
   CheckCircle, Sparkles, Bot, Send, Zap, Brain, 
   Users, Award, Star, ArrowRight, Play, RefreshCw
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-
 interface AIEmployee {
   name: string;
   role: string;
@@ -204,39 +202,27 @@ const ContactPage = () => {
           <div className="text-center mb-16">
             {/* Prime Badge */}
             <div className="text-center mb-8">
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md border border-white/20 rounded-full px-6 py-3 mb-8"
               >
                 <Crown size={20} className="text-yellow-400" />
                 <span className="text-white font-semibold">Prime's AI Contact Division</span>
-              </motion.div>
+              </div>
             </div>
 
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+            <h1
               className="text-4xl md:text-6xl font-bold text-white mb-6"
             >
               Revolutionary AI Support
-            </motion.h1>
+            </h1>
             
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+            <p
               className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
             >
               Experience the future of customer support with Prime, Byte, Tag, and Crystal AI team. Get instant AI responses, smart routing, and 24/7 support that's faster and more helpful than ever before.
-            </motion.p>
+            </p>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+            <div
               className="flex flex-col sm:flex-row gap-6 justify-center"
             >
               <button 
@@ -253,24 +239,18 @@ const ContactPage = () => {
                 <Play size={24} />
                 Watch AI Support Demo
               </button>
-            </motion.div>
+            </div>
           </div>
 
           {/* AI Contact Team Showcase */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="mb-16"
           >
             <h2 className="text-3xl font-bold text-white text-center mb-12">Meet Your AI Contact Team</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {aiContactTeam.map((member, index) => (
-                <motion.div 
+                <div 
                   key={member.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
                   className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
                 >
                   <div className="text-center">
@@ -281,20 +261,17 @@ const ContactPage = () => {
                     <div className={`w-full h-1 bg-gradient-to-r ${member.color} rounded-full`}></div>
                     <p className="text-white/60 text-xs mt-3">{member.contactBenefit}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
         </div>
-          </motion.div>
+          </div>
                   </div>
                 </div>
 
       {/* Live AI Chat Demo */}
       {isAIChatting && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
           >
             <div className="text-center mb-8">
@@ -324,10 +301,7 @@ const ContactPage = () => {
                 </div>
 
             {currentChatScenarios.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
+              <div
                 className="bg-white/10 rounded-xl p-6"
               >
                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -351,18 +325,15 @@ const ContactPage = () => {
               </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
             )}
-          </motion.div>
+          </div>
         </div>
       )}
 
       {/* Contact Methods */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -372,11 +343,8 @@ const ContactPage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {contactMethods.map((method, index) => (
-              <motion.div 
+              <div 
                 key={method.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className="text-center">
@@ -389,18 +357,15 @@ const ContactPage = () => {
                   </div>
                   <div className={`w-full h-1 bg-gradient-to-r ${method.color} rounded-full mt-4`}></div>
                 </div>
-              </motion.div>
+              </div>
             ))}
               </div>
-        </motion.div>
+        </div>
             </div>
 
             {/* Contact Form */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -482,9 +447,7 @@ const ContactPage = () => {
                   ) : (
                     <>
                       <Send size={24} />
-                      Send Message to AI Team
-                    </>
-                  )}
+                      Send Message to AI Team)}
                 </button>
                 
                 <p className="text-white/60 text-sm text-center">
@@ -492,10 +455,7 @@ const ContactPage = () => {
                 </p>
               </form>
             ) : (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
+              <div
                 className="text-center bg-white/10 rounded-xl p-8"
               >
                 <CheckCircle size={64} className="text-green-400 mx-auto mb-4" />
@@ -510,18 +470,15 @@ const ContactPage = () => {
                 >
                   Send Another Message
                 </button>
-              </motion.div>
+              </div>
             )}
             </div>
-        </motion.div>
+        </div>
           </div>
 
       {/* Call to Action */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -546,23 +503,17 @@ const ContactPage = () => {
               Try Free Demo
             </button>
         </div>
-        </motion.div>
+        </div>
             </div>
 
       {/* AI Chat Modal */}
-      <AnimatePresence>
+      
         {showAIChat && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowAIChat(false)}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
               onClick={(e) => e.stopPropagation()}
             >
@@ -616,10 +567,10 @@ const ContactPage = () => {
                   Start Chat
                 </button>
           </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </>
   );
 };

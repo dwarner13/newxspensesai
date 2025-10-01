@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, MessageSquare, Zap, DollarSign, FileText } from 'lucide-react';
 import ProgressBar from '../../components/onboarding/ProgressBar';
@@ -56,10 +55,7 @@ const AIPreferencesScreen = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-8 ">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-8">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -83,11 +79,8 @@ const AIPreferencesScreen = () => {
           
           <div className="space-y-4 mb-8">
             {aiPreferences.map((preference) => (
-              <motion.div
+              <div
                 key={preference.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: aiPreferences.indexOf(preference) * 0.1 }}
                 className={`bg-gray-800 rounded-xl p-4 border-2 cursor-pointer transition-all duration-300 ${
                   selectedPreferences.includes(preference.id) 
                     ? 'border-primary-500 bg-gray-800/80' 
@@ -121,7 +114,7 @@ const AIPreferencesScreen = () => {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
           
@@ -142,7 +135,7 @@ const AIPreferencesScreen = () => {
               <ArrowRight className="w-5 h-5 ml-2" />
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -213,14 +213,14 @@ export function PersonalPodcastProvider({ children }: { children: ReactNode }) {
 
   // Generate a new episode
   const generateEpisode = async (triggerType: string, financialData?: any): Promise<PodcastEpisode> => {
-    dispatch({ type: 'SET_GENERATING', payload: true });
-    dispatch({ type: 'SET_GENERATION_PROGRESS', payload: 0 });
+    dispatch({ type: 'SET_GENERATING', payload: true});
+    dispatch({ type: 'SET_GENERATION_PROGRESS', payload: 0});
 
     try {
       // Simulate generation progress
       for (let i = 0; i <= 100; i += 20) {
         await new Promise(resolve => setTimeout(resolve, 200));
-        dispatch({ type: 'SET_GENERATION_PROGRESS', payload: i });
+        dispatch({ type: 'SET_GENERATION_PROGRESS', payload: i});
       }
 
       // Mock financial data if not provided
@@ -274,15 +274,15 @@ export function PersonalPodcastProvider({ children }: { children: ReactNode }) {
         playProgress: 0,
       };
 
-      dispatch({ type: 'ADD_EPISODE', payload: newEpisode });
-      dispatch({ type: 'SET_GENERATING', payload: false });
-      dispatch({ type: 'SET_GENERATION_PROGRESS', payload: 0 });
+      dispatch({ type: 'ADD_EPISODE', payload: newEpisode});
+      dispatch({ type: 'SET_GENERATING', payload: false});
+      dispatch({ type: 'SET_GENERATION_PROGRESS', payload: 0});
 
       return newEpisode;
     } catch (error) {
       console.error('Failed to generate episode:', error);
-      dispatch({ type: 'SET_GENERATING', payload: false });
-      dispatch({ type: 'SET_GENERATION_PROGRESS', payload: 0 });
+      dispatch({ type: 'SET_GENERATING', payload: false});
+      dispatch({ type: 'SET_GENERATION_PROGRESS', payload: 0});
       throw error;
     }
   };
@@ -363,12 +363,12 @@ I'm excited to see what next month brings for you! Keep up the fantastic work, a
 
   // Play episode
   const playEpisode = (episodeId: string) => {
-    dispatch({ type: 'PLAY_EPISODE', payload: episodeId });
+    dispatch({ type: 'PLAY_EPISODE', payload: episodeId});
   };
 
   // Pause episode
   const pauseEpisode = (episodeId: string) => {
-    dispatch({ type: 'PAUSE_EPISODE', payload: episodeId });
+    dispatch({ type: 'PAUSE_EPISODE', payload: episodeId});
   };
 
   // Update play progress
@@ -378,12 +378,12 @@ I'm excited to see what next month brings for you! Keep up the fantastic work, a
 
   // Update preferences
   const updatePreferences = (preferences: Partial<PodcastPreferences>) => {
-    dispatch({ type: 'SET_PREFERENCES', payload: preferences });
+    dispatch({ type: 'SET_PREFERENCES', payload: preferences});
   };
 
   // Delete episode
   const deleteEpisode = (episodeId: string) => {
-    dispatch({ type: 'DELETE_EPISODE', payload: episodeId });
+    dispatch({ type: 'DELETE_EPISODE', payload: episodeId});
   };
 
   // Get episode insights

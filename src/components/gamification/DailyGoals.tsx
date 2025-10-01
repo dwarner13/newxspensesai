@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   CheckCircle, 
   Upload, 
@@ -139,10 +138,8 @@ const DailyGoals = () => {
           <span className="text-sm font-medium text-gray-700">{completedGoals}/{goals.length} completed</span>
         </div>
         <div className="w-full bg-white rounded-full h-2.5">
-          <motion.div
-            initial={{ width: 0 }}
+          <div
             animate={{ width: `${(completedGoals / goals.length) * 100}%` }}
-            transition={{ duration: 1, ease: "easeOut" }}
             className="bg-gradient-to-r from-primary-500 to-secondary-500 h-2.5 rounded-full"
           />
         </div>
@@ -167,10 +164,8 @@ const DailyGoals = () => {
       {/* Goals List */}
       <div className="space-y-3">
         {goals.map((goal) => (
-          <motion.div
+          <div
             key={goal.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
             className={`flex items-center p-3 rounded-lg border ${
               goal.completed 
                 ? 'bg-gray-50 border-gray-200' 
@@ -212,7 +207,7 @@ const DailyGoals = () => {
                 </svg>
               </Link>
             )}
-          </motion.div>
+          </div>
         ))}
       </div>
     </div>

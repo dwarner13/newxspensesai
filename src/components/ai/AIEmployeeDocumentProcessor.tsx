@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
   FileText, 
@@ -210,9 +209,7 @@ const AIEmployeeDocumentProcessor: React.FC<AIEmployeeDocumentProcessorProps> = 
 
       {/* File Upload Area */}
       {!selectedFile && !isProcessing && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors"
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -238,14 +235,12 @@ const AIEmployeeDocumentProcessor: React.FC<AIEmployeeDocumentProcessorProps> = 
             onChange={handleFileInputChange}
             className="hidden"
           />
-        </motion.div>
+        </div>
       )}
 
       {/* Selected File */}
       {selectedFile && !isProcessing && !result && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="border border-gray-200 rounded-lg p-6 mb-6"
         >
           <div className="flex items-center justify-between">
@@ -276,14 +271,12 @@ const AIEmployeeDocumentProcessor: React.FC<AIEmployeeDocumentProcessorProps> = 
             <Zap className="w-5 h-5" />
             <span>Process with Byte AI</span>
           </button>
-        </motion.div>
+        </div>
       )}
 
       {/* Processing Progress */}
       {isProcessing && currentProgress && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="border border-gray-200 rounded-lg p-6 mb-6"
         >
           <div className="flex items-center space-x-3 mb-4">
@@ -297,25 +290,21 @@ const AIEmployeeDocumentProcessor: React.FC<AIEmployeeDocumentProcessorProps> = 
           </div>
           
           <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-            <motion.div
+            <div
               className={`h-2 rounded-full ${getStageColor(currentProgress.stage)}`}
-              initial={{ width: 0 }}
               animate={{ width: `${currentProgress.progress}%` }}
-              transition={{ duration: 0.5 }}
             />
           </div>
           
           <p className="text-sm text-gray-600">
             {currentProgress.progress}% complete
           </p>
-        </motion.div>
+        </div>
       )}
 
       {/* Results */}
       {result && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="space-y-6"
         >
           {/* AI Employee Response */}
@@ -428,7 +417,7 @@ const AIEmployeeDocumentProcessor: React.FC<AIEmployeeDocumentProcessorProps> = 
               <span>Export Results</span>
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );

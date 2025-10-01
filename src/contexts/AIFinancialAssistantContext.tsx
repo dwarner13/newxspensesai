@@ -223,7 +223,7 @@ export function AIFinancialAssistantProvider({ children }: { children: ReactNode
 
       for (let i = 0; i < steps.length; i++) {
         await new Promise(resolve => setTimeout(resolve, 800));
-        dispatch({ type: 'SET_PROCESSING_PROGRESS', payload: ((i + 1) / steps.length) * 100 });
+        dispatch({ type: 'SET_PROCESSING_PROGRESS', payload: ((i + 1) / steps.length) * 100});
         dispatch({ type: 'SET_PROCESSING', payload: { isProcessing: true, task: steps[i] } });
       }
 
@@ -261,7 +261,7 @@ export function AIFinancialAssistantProvider({ children }: { children: ReactNode
         },
       ];
 
-      dispatch({ type: 'ADD_TRANSACTIONS', payload: mockTransactions });
+      dispatch({ type: 'ADD_TRANSACTIONS', payload: mockTransactions});
 
       // Generate insights
       const insights: AIInsight[] = [
@@ -406,7 +406,7 @@ export function AIFinancialAssistantProvider({ children }: { children: ReactNode
     };
 
     const suggestion = audioSuggestions[context] || 'Lo-fi beats for focus';
-    dispatch({ type: 'ADD_TO_AUDIO_QUEUE', payload: suggestion });
+    dispatch({ type: 'ADD_TO_AUDIO_QUEUE', payload: suggestion});
     
     return suggestion;
   };

@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAIFinancialAssistant } from '../../contexts/AIFinancialAssistantContext';
 import { usePersonalPodcast } from '../../contexts/PersonalPodcastContext';
 import { useAudio } from '../../contexts/AudioContext';
@@ -105,7 +104,7 @@ export function AIFinancialAssistant() {
     const file = event.target.files?.[0];
     if (file) {
       addUserMessage(`I just uploaded my ${file.name}`);
-      await processStatement({ fileName: file.name });
+      await processStatement({ fileName: file.name});
     }
   };
 
@@ -126,12 +125,9 @@ export function AIFinancialAssistant() {
   return (
     <>
       {/* Floating Chat Button */}
-      <AnimatePresence>
+      
         {!isOpen && (
-          <motion.button
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
+          <button
             onClick={() => setIsOpen(true)}
             className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full shadow-lg hover:shadow-xl transition-all duration-200 z-50 flex items-center justify-center"
           >
@@ -141,17 +137,14 @@ export function AIFinancialAssistant() {
                 <span className="text-xs font-bold">{state.insights.length}</span>
               </div>
             )}
-          </motion.button>
+          </button>
         )}
-      </AnimatePresence>
+      
 
       {/* Chat Window */}
-      <AnimatePresence>
+      
         {isOpen && (
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.8, opacity: 0, y: 20 }}
+          <div
             className={`fixed bottom-6 right-6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden ${
               isMinimized ? 'w-80 h-16' : 'w-96 h-[600px]'
             }`}
@@ -196,11 +189,9 @@ export function AIFinancialAssistant() {
                       </span>
                     </div>
                     <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-                      <motion.div
+                      <div
                         className="bg-blue-500 h-2 rounded-full"
-                        initial={{ width: 0 }}
                         animate={{ width: `${state.processingProgress}%` }}
-                        transition={{ duration: 0.3 }}
                       />
                     </div>
                   </div>
@@ -235,13 +226,10 @@ export function AIFinancialAssistant() {
 
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 max-h-80">
-                  <AnimatePresence>
+                  
                     {state.conversationHistory.map((message) => (
-                      <motion.div
+                      <div
                         key={message.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
                         className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                       >
                         <div
@@ -266,15 +254,13 @@ export function AIFinancialAssistant() {
                             {message.message}
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
-                  </AnimatePresence>
+                  
 
                   {/* Typing Indicator */}
                   {isTyping && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
+                    <div
                       className="flex justify-start"
                     >
                       <div className="flex items-start space-x-2">
@@ -289,7 +275,7 @@ export function AIFinancialAssistant() {
                           </div>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
 
                   <div ref={messagesEndRef} />
@@ -346,9 +332,9 @@ export function AIFinancialAssistant() {
                 </div>
               </>
             )}
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </>
   );
 } 

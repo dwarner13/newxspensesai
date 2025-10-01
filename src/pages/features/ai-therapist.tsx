@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { 
   Heart, Brain, Shield, Sparkles, Users, Award, Clock, 
   Star, TrendingUp, Lock, Target, BarChart3, PieChart, 
@@ -208,50 +207,35 @@ const AITherapistFeaturePage = () => {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
           {/* Prime's Crown Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="inline-flex items-center bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 text-white px-4 py-2 rounded-full mb-8 shadow-2xl"
           >
             <Crown size={20} className="mr-2" />
             <span className="font-bold">Prime's AI Mental Wellness Division</span>
-          </motion.div>
+          </div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+          <h1
             className="text-4xl md:text-7xl font-bold text-white mb-8"
           >
             Meet Your AI <span className="text-blue-400 font-extrabold drop-shadow-lg">Financial Therapist</span>
-          </motion.h1>
+          </h1>
 
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
+          <h2
             className="text-2xl md:text-3xl font-bold text-white/90 mb-6"
           >
             Where Money Meets Mental Wellness - Your Emotional Healing Sanctuary
-          </motion.h2>
+          </h2>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
+          <p
             className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
           >
             Step into the world's first AI Emotional Healing Sanctuary where your AI therapist understands that money isn't just numbers - 
             it's <span className="text-blue-300 font-bold">emotions</span>, <span className="text-purple-300 font-bold">memories</span>, and <span className="text-green-300 font-bold">deep-seated beliefs</span>. 
             Heal your relationship with money through compassionate AI therapy that creates a safe space for your financial journey.
-          </motion.p>
+          </p>
 
           {/* CTA Buttons */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
+          <div
             className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
           >
             <button
@@ -268,13 +252,10 @@ const AITherapistFeaturePage = () => {
               <Users size={24} className="mr-2" />
               Meet the Full AI Team
             </Link>
-          </motion.div>
+          </div>
 
           {/* Wellness Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
+          <div
             className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
           >
             <div className="text-center">
@@ -293,16 +274,13 @@ const AITherapistFeaturePage = () => {
               <div className="text-3xl md:text-4xl font-bold text-cyan-400 mb-2">0%</div>
               <div className="text-white/70">Shame</div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
       {/* AI Therapist Personalities */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -311,15 +289,12 @@ const AITherapistFeaturePage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Each AI therapist brings unique expertise to your emotional wellness journey - from compassionate listening to pattern recognition
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
           {aiTherapists.map((therapist, index) => (
-            <motion.div
+            <div
               key={therapist.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.2 }}
               className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:border-white/40 transition-all duration-300 hover:scale-105"
             >
               <div className="text-center mb-6">
@@ -341,17 +316,14 @@ const AITherapistFeaturePage = () => {
                 </div>
                 <p className="text-white/80 text-sm leading-relaxed">{therapist.description}</p>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* Live Therapy Session Demo */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -360,7 +332,7 @@ const AITherapistFeaturePage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Experience real AI therapy in action - see how your AI therapists provide emotional support and practical guidance
           </p>
-        </motion.div>
+        </div>
 
         <div className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20">
           {/* Session Type Selector */}
@@ -447,10 +419,7 @@ const AITherapistFeaturePage = () => {
 
       {/* Emotional Wellness Journey */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -459,7 +428,7 @@ const AITherapistFeaturePage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Transform your relationship with money through a structured healing process designed for lasting change
           </p>
-        </motion.div>
+        </div>
 
         <div className="relative">
           {/* Connection Line */}
@@ -467,11 +436,8 @@ const AITherapistFeaturePage = () => {
           
           <div className="grid lg:grid-cols-5 gap-8">
             {wellnessStages.map((stage, index) => (
-              <motion.div
+              <div
                 key={stage.stage}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="relative text-center"
               >
                 <div className={`w-20 h-20 bg-gradient-to-r ${stage.color} rounded-full flex items-center justify-center mx-auto mb-4 shadow-2xl text-3xl`}>
@@ -479,7 +445,7 @@ const AITherapistFeaturePage = () => {
             </div>
                 <h3 className="text-xl font-bold text-white mb-2">{stage.stage}</h3>
                 <p className="text-white/70 text-sm">{stage.description}</p>
-              </motion.div>
+              </div>
             ))}
             </div>
           </div>
@@ -487,10 +453,7 @@ const AITherapistFeaturePage = () => {
 
       {/* Coping Strategies */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -499,15 +462,12 @@ const AITherapistFeaturePage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Practical techniques and daily practices to support your emotional healing journey
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid md:grid-cols-2 gap-8">
           {copingStrategies.map((strategy, index) => (
-            <motion.div
+            <div
               key={strategy.title}
-              initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:border-white/40 transition-all duration-300"
             >
               <div className="flex items-start space-x-4">
@@ -519,17 +479,14 @@ const AITherapistFeaturePage = () => {
                   <p className="text-white/70">{strategy.description}</p>
                 </div>
             </div>
-            </motion.div>
+            </div>
           ))}
             </div>
             </div>
 
       {/* Safe Space Features */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -538,61 +495,46 @@ const AITherapistFeaturePage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Complete privacy, judgment-free support, and professional AI therapy standards
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
+          <div
             className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-md rounded-2xl p-8 border border-blue-500/20 text-center"
           >
             <Lock size={48} className="text-blue-400 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-white mb-3">100% Confidential</h3>
             <p className="text-white/70">Your sessions are completely private and secure</p>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+          <div
             className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-md rounded-2xl p-8 border border-purple-500/20 text-center"
           >
             <Heart size={48} className="text-purple-400 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-white mb-3">Judgment-Free Zone</h3>
             <p className="text-white/70">Complete acceptance of your financial journey</p>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
+          <div
             className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-md rounded-2xl p-8 border border-green-500/20 text-center"
           >
             <Clock size={48} className="text-green-400 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-white mb-3">24/7 Support</h3>
             <p className="text-white/70">Never alone with your money worries</p>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
+          <div
             className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 backdrop-blur-md rounded-2xl p-8 border border-yellow-500/20 text-center"
           >
             <Award size={48} className="text-yellow-400 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-white mb-3">Professional Standards</h3>
             <p className="text-white/70">AI trained in therapeutic techniques</p>
-          </motion.div>
+          </div>
             </div>
           </div>
 
       {/* Call to Action */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-indigo-500/20 backdrop-blur-md rounded-3xl p-12 border border-white/20 text-center"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -618,7 +560,7 @@ const AITherapistFeaturePage = () => {
               Meet the Full AI Team
             </Link>
           </div>
-        </motion.div>
+        </div>
         </div>
     </>
   );

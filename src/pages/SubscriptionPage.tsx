@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Check, 
   X, 
@@ -222,11 +221,8 @@ const SubscriptionPage: React.FC = () => {
       {/* Plan Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
         {plans.map((plan, index) => (
-          <motion.div
+          <div
             key={plan.type}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
             className={`relative rounded-2xl overflow-hidden shadow-xl ${
               plan.popular ? 'ring-2 ring-orange-500 ring-offset-2' : ''
             }`}
@@ -309,15 +305,13 @@ const SubscriptionPage: React.FC = () => {
                 {plan.type === 'free' ? 'Current Plan' : 'Upgrade Now'}
               </button>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
       {/* Current Plan Summary */}
       {currentPlan && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="max-w-2xl mx-auto mt-8 p-6 bg-gray-50 rounded-xl"
         >
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Current Plan</h3>
@@ -338,7 +332,7 @@ const SubscriptionPage: React.FC = () => {
               <ArrowRight size={16} />
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* FAQ Section */}

@@ -2,8 +2,6 @@ import React from 'react';
 import { Heart, X } from 'lucide-react';
 import { useAtom } from 'jotai';
 import { therapistTriggerAtom, isTherapistModalOpenAtom } from '../../lib/uiStore';
-import { motion, AnimatePresence } from 'framer-motion';
-
 const TherapistNotification: React.FC = () => {
   const [therapistTrigger, setTherapistTrigger] = useAtom(therapistTriggerAtom);
   const [, setIsTherapistModalOpen] = useAtom(isTherapistModalOpenAtom);
@@ -20,12 +18,8 @@ const TherapistNotification: React.FC = () => {
   if (!therapistTrigger.active) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.8, y: 20 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
+    
+      <div
         className="fixed bottom-6 right-6 z-50"
       >
         <div className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-2xl shadow-2xl border border-pink-200/30 p-4 max-w-sm">
@@ -58,8 +52,8 @@ const TherapistNotification: React.FC = () => {
             </div>
           </div>
         </div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+    
   );
 };
 

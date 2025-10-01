@@ -43,7 +43,7 @@ export async function trainCategorizerFromUserChanges(userId?: string): Promise<
           // Insert new mapping
           const { error: insertError } = await supabase
             .from('memory')
-            .insert({ user_id: userId, keyword: vendor, category, subcategory: null });
+            .insert({ user_id: userId, keyword: vendor, category, subcategory: null});
           if (insertError) throw insertError;
           summary.added++;
         } else if (memory.category !== category) {

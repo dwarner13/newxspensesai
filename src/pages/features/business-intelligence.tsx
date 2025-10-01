@@ -8,9 +8,6 @@ import {
   Eye, Sparkles, Award, Building2, Car, Utensils, 
   Briefcase, ShoppingBag, Lightbulb, Rocket, Shield, Lock, Clock
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-
-
 interface AIEmployee {
   name: string;
   role: string;
@@ -240,33 +237,24 @@ const BusinessIntelligence = () => {
           <div className="text-center mb-16">
             {/* Prime Badge */}
             <div className="text-center mb-8">
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 backdrop-blur-md border border-white/20 rounded-full px-6 py-3 mb-8"
               >
                 <Crown size={20} className="text-yellow-400" />
                 <span className="text-white font-semibold">Prime's AI Business Division</span>
-              </motion.div>
+              </div>
             </div>
 
             {/* Urgency Banner */}
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/30 rounded-full px-6 py-2 mb-8 inline-block"
             >
               <span className="text-orange-300 text-sm font-medium">
                 🚀 Limited Time: Intelia's first month FREE for small businesses
               </span>
-            </motion.div>
+            </div>
 
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+            <h1
               className="text-4xl md:text-6xl font-bold text-white mb-6"
             >
               Meet{' '}
@@ -274,22 +262,16 @@ const BusinessIntelligence = () => {
                 Intelia
               </span>
               {' '}Your AI Business CFO
-            </motion.h1>
+            </h1>
             
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+            <p
               className="text-xl md:text-2xl text-white/90 mb-8 max-w-4xl mx-auto leading-relaxed font-medium"
             >
               Stop guessing about your business. Intelia is your AI CFO who gives you daily money snapshots, finds tax deductions automatically, predicts cash flow, and turns your business into a money-making machine. Perfect for freelancers, Uber drivers, and small business owners.
-            </motion.p>
+            </p>
 
             {/* Social Proof Bar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-8 mb-8 text-white/80"
             >
               <div className="flex items-center gap-2">
@@ -304,12 +286,9 @@ const BusinessIntelligence = () => {
                 <DollarSign className="w-5 h-5 text-green-400" />
                 <span className="font-semibold">$3,200 avg tax savings</span>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+            <div
               className="flex flex-col sm:flex-row gap-6 justify-center"
             >
               {!isConnected ? (
@@ -353,13 +332,10 @@ const BusinessIntelligence = () => {
                   </button>
                 </>
               )}
-            </motion.div>
+            </div>
 
             {/* Trust Indicators */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.7 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-6 mt-8 text-white/60 text-sm"
             >
               <div className="flex items-center gap-2">
@@ -374,14 +350,11 @@ const BusinessIntelligence = () => {
                 <Clock className="w-4 h-4" />
                 <span>Setup in 2 minutes</span>
               </div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Testimonials Section */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-white/5 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
           >
             <h3 className="text-2xl font-bold text-white text-center mb-8">
@@ -448,13 +421,10 @@ const BusinessIntelligence = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* AI Business Team Showcase */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="mb-16"
           >
             <h2 className="text-3xl font-bold text-white text-center mb-6">Meet Intelia's AI Business Team</h2>
@@ -463,11 +433,8 @@ const BusinessIntelligence = () => {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {aiBusinessTeam.map((member, index) => (
-                <motion.div 
+                <div 
                   key={member.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
                   className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
                 >
                   <div className="text-center">
@@ -478,19 +445,16 @@ const BusinessIntelligence = () => {
                     <div className={`w-full h-1 bg-gradient-to-r ${member.color} rounded-full`}></div>
                     <p className="text-white/60 text-xs mt-3">{member.businessStyle}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
       {/* Intelia's Key Features Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-orange-500/20 to-red-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -525,11 +489,8 @@ const BusinessIntelligence = () => {
                 features: ["7-day cash flow forecasts", "30-day predictions", "Early warning alerts", "Catch-up strategies"]
               }
             ].map((feature, index) => (
-              <motion.div 
+              <div 
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 rounded-xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className="text-4xl mb-4">{feature.icon}</div>
@@ -543,18 +504,15 @@ const BusinessIntelligence = () => {
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Additional Intelia Features */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -589,11 +547,8 @@ const BusinessIntelligence = () => {
                 features: ["Personalized podcasts", "Weekly recaps", "AI personality insights", "Motivational coaching"]
               }
             ].map((feature, index) => (
-              <motion.div 
+              <div 
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 rounded-xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className="text-4xl mb-4">{feature.icon}</div>
@@ -607,18 +562,15 @@ const BusinessIntelligence = () => {
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Business Types Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -628,11 +580,8 @@ const BusinessIntelligence = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {businessTypes.map((business, index) => (
-              <motion.div 
+              <div 
                 key={business.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 rounded-xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className="text-center mb-4">
@@ -660,18 +609,15 @@ const BusinessIntelligence = () => {
                     </ul>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Live AI Business Analysis Theater */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -705,10 +651,7 @@ const BusinessIntelligence = () => {
 
           {/* Business Strategies Display */}
           {currentStrategies.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
+            <div
               className="bg-white/10 rounded-xl p-6 mb-6"
             >
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -755,7 +698,7 @@ const BusinessIntelligence = () => {
                   Export Business Plan
                 </button>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Business Intelligence Features */}
@@ -780,11 +723,8 @@ const BusinessIntelligence = () => {
                 color: "from-purple-500 to-pink-500"
               }
             ].map((feature, index) => (
-              <motion.div 
+              <div 
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className={`w-16 h-16 bg-gradient-to-r ${feature.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
@@ -792,18 +732,15 @@ const BusinessIntelligence = () => {
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3 text-center">{feature.title}</h3>
                 <p className="text-white/80 text-sm leading-relaxed text-center">{feature.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Call to Action */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -832,23 +769,17 @@ const BusinessIntelligence = () => {
               <span>See Intelia In Action</span>
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* AI Business Studio Modal */}
-      <AnimatePresence>
+      
         {showBusinessStudio && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowBusinessStudio(false)}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
               onClick={(e) => e.stopPropagation()}
             >
@@ -896,10 +827,10 @@ const BusinessIntelligence = () => {
                   Start Analysis
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </>
   );
 };

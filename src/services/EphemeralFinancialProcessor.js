@@ -196,8 +196,7 @@ class EphemeralFinancialProcessor {
     
     const response = await fetch('/api/documents/upload', {
       method: 'POST',
-      body: formData
-    });
+      body: formData});
     
     if (!response.ok) throw new Error('Bank statement extraction failed');
     
@@ -217,8 +216,7 @@ class EphemeralFinancialProcessor {
     
     const response = await fetch('/api/receipts/process', {
       method: 'POST',
-      body: formData
-    });
+      body: formData});
     
     if (!response.ok) throw new Error('Receipt extraction failed');
     
@@ -238,8 +236,7 @@ class EphemeralFinancialProcessor {
     
     const response = await fetch('/api/documents/upload', {
       method: 'POST',
-      body: formData
-    });
+      body: formData});
     
     if (!response.ok) throw new Error('Credit card extraction failed');
     
@@ -259,8 +256,7 @@ class EphemeralFinancialProcessor {
     
     const response = await fetch('/api/documents/upload', {
       method: 'POST',
-      body: formData
-    });
+      body: formData});
     
     if (!response.ok) throw new Error('Invoice extraction failed');
     

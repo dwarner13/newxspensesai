@@ -237,8 +237,7 @@ export class EnhancedOCRSystem {
           resolve({
             original: file,
             optimized,
-            features
-          });
+            features});
         }, 'image/jpeg', 0.9);
       };
       

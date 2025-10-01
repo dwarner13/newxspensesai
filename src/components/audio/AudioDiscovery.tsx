@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useAudio, AudioTrack } from '../../contexts/AudioContext';
 import { 
   Play, 
@@ -230,10 +229,8 @@ export function AudioDiscovery({ className = '' }: AudioDiscoveryProps) {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {state.recommendations.map((track) => (
-                  <motion.div
+                  <div
                     key={track.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
                     className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                   >
                     <div className="flex items-start space-x-3">
@@ -278,7 +275,7 @@ export function AudioDiscovery({ className = '' }: AudioDiscoveryProps) {
                         <span>Queue</span>
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             )}
@@ -302,7 +299,7 @@ export function AudioDiscovery({ className = '' }: AudioDiscoveryProps) {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {playlists.map((playlist) => (
-                    <motion.div
+                    <div
                       key={playlist.id}
                       whileHover={{ scale: 1.02 }}
                       className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 rounded-lg p-4 cursor-pointer hover:shadow-md transition-all"
@@ -343,7 +340,7 @@ export function AudioDiscovery({ className = '' }: AudioDiscoveryProps) {
                           <span>Save</span>
                         </button>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -382,7 +379,7 @@ export function AudioDiscovery({ className = '' }: AudioDiscoveryProps) {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {spotifyPlaylists.map((playlist) => (
-                  <motion.div
+                  <div
                     key={playlist.id}
                     whileHover={{ scale: 1.02 }}
                     className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 rounded-lg p-4 cursor-pointer hover:shadow-md transition-all"
@@ -423,7 +420,7 @@ export function AudioDiscovery({ className = '' }: AudioDiscoveryProps) {
                         <span>Queue</span>
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             )}

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Shield, 
   Lock, 
@@ -761,9 +760,7 @@ What's really on your mind when it comes to security? Are we talking about fraud
   return (
     <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
         {/* Custodian Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="text-center mb-8"
         >
           <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
@@ -777,14 +774,12 @@ What's really on your mind when it comes to security? Are we talking about fraud
               <span className="text-green-400 text-sm">AI Active</span>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Chat Interface */}
           <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
             >
               {/* Chat Header */}
@@ -801,10 +796,8 @@ What's really on your mind when it comes to security? Are we talking about fraud
               {/* Messages */}
               <div className="h-96 overflow-y-auto p-4 space-y-4">
                 {messages.map((message, index) => (
-                  <motion.div
+                  <div
                     key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
@@ -817,13 +810,11 @@ What's really on your mind when it comes to security? Are we talking about fraud
                         {new Date(message.timestamp).toLocaleTimeString()}
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
 
                 {isLoading && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                  <div
                     className="flex justify-start"
                   >
                     <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
@@ -832,7 +823,7 @@ What's really on your mind when it comes to security? Are we talking about fraud
                         <span>Custodian is analyzing...</span>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
 
                 <div ref={messagesEndRef} />
@@ -859,15 +850,13 @@ What's really on your mind when it comes to security? Are we talking about fraud
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Quick Actions */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4">Security Actions</h3>
@@ -883,13 +872,10 @@ What's really on your mind when it comes to security? Are we talking about fraud
                   </button>
                 ))}
               </div>
-            </motion.div>
+            </div>
 
             {/* Security Status */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4">Security Status</h3>
@@ -920,13 +906,10 @@ What's really on your mind when it comes to security? Are we talking about fraud
                   </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
 
             {/* Custodian's Tips */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4">Custodian's Tips</h3>
@@ -941,13 +924,10 @@ What's really on your mind when it comes to security? Are we talking about fraud
                   </div>
                 ))}
               </div>
-            </motion.div>
+            </div>
 
             {/* Custodian's Stats */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 }}
+            <div
               className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
             >
               <h3 className="text-lg font-semibold text-white mb-4">Custodian's Stats</h3>
@@ -969,7 +949,7 @@ What's really on your mind when it comes to security? Are we talking about fraud
                   <span className="text-purple-400">92%</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </div>

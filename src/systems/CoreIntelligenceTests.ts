@@ -156,8 +156,7 @@ export class CoreIntelligenceTests {
         merchant: 'Test Store',
         category: 'Shopping',
         subcategory: 'Electronics',
-        priority: 100
-      });
+        priority: 100});
       
       const transaction: TagTransaction = {
         merchant: 'Test Store',
@@ -661,8 +660,7 @@ export class CoreIntelligenceTests {
         testName,
         passed: true,
         duration,
-        details: result
-      });
+        details: result});
       
       console.log(`✅ ${testName} - PASSED (${duration}ms)`);
     } catch (error) {

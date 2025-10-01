@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Heart, 
   Brain, 
@@ -36,8 +35,7 @@ export default function WellnessStudioPage() {
     habitsCompleted: 12,
     breathingSessions: 8,
     sleepQuality: 92,
-    moodRating: 8.5
-  });
+    moodRating: 8.5});
 
   const [habits] = useState([
     { id: 1, name: 'Morning Meditation', completed: true, streak: 7, icon: Sun, color: 'from-yellow-500 to-orange-500' },
@@ -71,22 +69,16 @@ export default function WellnessStudioPage() {
               {activeView === 'overview' ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center max-w-2xl">
-                    <motion.h2
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
+                    <h2
                       className="text-xl font-bold text-white mb-1"
                     >
                       Welcome to Your Wellness Studio
-                    </motion.h2>
-                    <motion.p
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
+                    </h2>
+                    <p
                       className="text-white/60 text-sm mb-3"
                     >
                       Mindful money management, stress reduction, and healthy financial habits
-                    </motion.p>
+                    </p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
                       {[
                         { icon: Heart, title: "Wellness Stories", desc: "Personal financial wellness journeys", color: "from-pink-500 to-rose-500", view: "stories" },
@@ -96,11 +88,8 @@ export default function WellnessStudioPage() {
                         { icon: Brain, title: "Mindfulness Tools", desc: "Meditation and reflection guides", color: "from-indigo-500 to-purple-500", view: "mindfulness" },
                         { icon: Activity, title: "Stress Relief", desc: "Manage financial stress effectively", color: "from-orange-500 to-red-500", view: "stress_relief" }
                       ].map((item, index) => (
-                        <motion.button
+                        <button
                           key={item.title}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.5 + index * 0.1 }}
                           onClick={() => setActiveView(item.view)}
                           className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-pink-500/10"
                         >
@@ -111,15 +100,13 @@ export default function WellnessStudioPage() {
                             <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
                             <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                           </div>
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                   </div>
                 </div>
               ) : activeView === 'stories' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -141,11 +128,8 @@ export default function WellnessStudioPage() {
 
                   <div className="space-y-4">
                     {stories.map((story, index) => (
-                      <motion.div
+                      <div
                         key={story.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 * index }}
                         className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all duration-300"
                       >
                         <div className="flex items-start gap-3">
@@ -167,14 +151,12 @@ export default function WellnessStudioPage() {
                             </div>
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'habits' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -196,11 +178,8 @@ export default function WellnessStudioPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {habits.map((habit, index) => (
-                      <motion.div
+                      <div
                         key={habit.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 * index }}
                         className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all duration-300"
                       >
                         <div className="flex items-center gap-3 mb-3">
@@ -234,14 +213,12 @@ export default function WellnessStudioPage() {
                             {habit.completed ? 'Completed' : 'Mark Complete'}
                           </button>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'breathing' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -263,11 +240,8 @@ export default function WellnessStudioPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {breathingExercises.map((exercise, index) => (
-                      <motion.div
+                      <div
                         key={exercise.name}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.1 * index }}
                         className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all duration-300"
                       >
                         <div className={`w-12 h-12 bg-gradient-to-br ${exercise.color} rounded-xl flex items-center justify-center mx-auto mb-3`}>
@@ -286,14 +260,12 @@ export default function WellnessStudioPage() {
                           {isBreathing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                           {isBreathing ? 'Pause' : 'Start'}
                         </button>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'analytics' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -386,11 +358,9 @@ export default function WellnessStudioPage() {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'mindfulness' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -428,11 +398,9 @@ export default function WellnessStudioPage() {
                       <span>Gratitude Practice</span>
                     </button>
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'stress_relief' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -470,7 +438,7 @@ export default function WellnessStudioPage() {
                       <span>Mindfulness Reset</span>
                     </button>
                   </div>
-                </motion.div>
+                </div>
               ) : (
                 <div className="text-center py-8">
                   <p className="text-white/60">Content coming soon! Use the feature boxes to explore.</p>
@@ -504,6 +472,7 @@ export default function WellnessStudioPage() {
     </>
   );
 }
+
 
 
 

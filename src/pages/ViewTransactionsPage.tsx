@@ -33,7 +33,6 @@ import {
   Star,
   MoreHorizontal
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAtom } from 'jotai';
 import { mockModeAtom } from '../utils/mockState';
 import { mockDashboardData } from '../utils/mockDashboardData';
@@ -381,12 +380,9 @@ const ViewTransactionsPage: React.FC = () => {
           </div>
 
           {/* Advanced Filters */}
-          <AnimatePresence>
+          
             {showFilters && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
+              <div
                 className="bg-slate-800 rounded-lg p-4 mb-6"
               >
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -429,9 +425,9 @@ const ViewTransactionsPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
-          </AnimatePresence>
+          
         </div>
 
         {/* Category Breakdown Chart */}
@@ -522,10 +518,8 @@ const ViewTransactionsPage: React.FC = () => {
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredTransactions.map((transaction) => (
-                  <motion.div
+                  <div
                     key={transaction.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
                     className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors cursor-pointer"
                     onClick={() => setSelectedTransaction(transaction)}
                   >
@@ -553,7 +547,7 @@ const ViewTransactionsPage: React.FC = () => {
                         source={transaction.categorization_source}
                       />
                     </div>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
             </div>

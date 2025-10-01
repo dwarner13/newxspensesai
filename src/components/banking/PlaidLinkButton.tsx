@@ -7,7 +7,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePlaidLink } from 'react-plaid-link';
-import { motion } from 'framer-motion';
 import { Building2, Shield, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { plaidService, PlaidLinkResult } from '../../services/plaidService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -117,8 +116,7 @@ const PlaidLinkButton: React.FC<PlaidLinkButtonProps> = ({
       accessToken,
       itemId,
       accounts,
-      userId: user?.id
-    });
+      userId: user?.id});
     
     // TODO: Implement Supabase save
     // await supabase.from('bank_connections').insert({
@@ -172,7 +170,7 @@ const PlaidLinkButton: React.FC<PlaidLinkButtonProps> = ({
 
   return (
     <div className="space-y-3">
-      <motion.button
+      <button
         onClick={handleClick}
         disabled={!ready || isLoading}
         className={getButtonClasses()}
@@ -187,20 +185,16 @@ const PlaidLinkButton: React.FC<PlaidLinkButtonProps> = ({
         ) : (
           <>
             <Building2 className="w-5 h-5 mr-2" />
-            Connect Bank Account
-          </>
-        )}
-      </motion.button>
+            Connect Bank Account)}
+      </button>
 
       {error && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="flex items-center gap-2 text-red-600 text-sm"
         >
           <AlertCircle className="w-4 h-4" />
           {error}
-        </motion.div>
+        </div>
       )}
 
       {/* Security notice */}

@@ -89,7 +89,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
         
         if (done) break;
         
-        buffer += decoder.decode(value, { stream: true });
+        buffer += decoder.decode(value, { stream: true});
         
         // Process complete SSE events
         const lines = buffer.split('\n');

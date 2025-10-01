@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, 
   Upload, 
@@ -64,7 +63,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [activeAI, setActiveAI] = useState<'prime' | 'byte' | 'crystal' | 'tag' | 'ledger' | 'blitz' | 'goalie'>('prime');
   const [hasShownCrystalSummary, setHasShownCrystalSummary] = useState(false);
   const [uploadedFileCount, setUploadedFileCount] = useState(0);
-  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const orchestrator = useRef(new AIEmployeeOrchestrator());
@@ -198,7 +197,7 @@ What financial insights would you like to explore today? I'm here to help you ma
 
     setIsUploading(true);
     setIsProcessing(true);
-    setUploadProgress({ current: 0, total: validFiles.length });
+    setUploadProgress({ current: 0, total: validFiles.length});
     const fileArray = validFiles;
 
     // Add user message showing uploaded files
@@ -221,7 +220,7 @@ What financial insights would you like to explore today? I'm here to help you ma
       const file = fileArray[i];
       try {
         setIsUploadProcessing(true);
-        setUploadProgress({ current: i + 1, total: fileArray.length });
+        setUploadProgress({ current: i + 1, total: fileArray.length});
         
         // Add processing message
         const processingMessage: ChatMessage = {
@@ -341,8 +340,7 @@ What financial insights would you like to explore today? I'm here to help you ma
           vendor: parsedData.vendor,
           total: parsedData.total,
           isCreditCardStatement: parsedData.isCreditCardStatement,
-          individualTransactions: parsedData.individualTransactions?.length || 0
-        });
+          individualTransactions: parsedData.individualTransactions?.length || 0});
         
         // Create result structure
         const data = {
@@ -425,8 +423,7 @@ What financial insights would you like to explore today? I'm here to help you ma
           isCreditCardStatement: analysis.isCreditCardStatement,
           category: analysis.category,
           total: analysis.total,
-          vendor: analysis.vendor
-        });
+          vendor: analysis.vendor});
         
         if (shouldHandoffToCrystal) {
           // Add Crystal's automatic entry message
@@ -755,8 +752,7 @@ Would you like me to categorize this transaction or extract any specific informa
             type: 'expense',
             category: analysis.category || 'Uncategorized',
             merchant: analysis.vendor || 'Unknown Vendor',
-            receipt_url: imageUrl
-          });
+            receipt_url: imageUrl});
 
         if (transactionError) {
           console.error('Error creating transaction:', transactionError);
@@ -772,8 +768,7 @@ Would you like me to categorize this transaction or extract any specific informa
         .insert({
           user_id: userId,
           source_url: imageUrl,
-          raw_text: smartResult.text
-        });
+          raw_text: smartResult.text});
 
       if (userDocError) {
         console.error('Error creating user_documents record:', userDocError);
@@ -791,8 +786,7 @@ Would you like me to categorize this transaction or extract any specific informa
         userId,
         hasUser: !!user,
         hasSupabase: !!supabase,
-        error: error instanceof Error ? error.message : error
-      });
+        error: error instanceof Error ? error.message : error});
     }
   };
 
@@ -821,7 +815,7 @@ Would you like me to categorize this transaction or extract any specific informa
       });
       
       // Route the message through the orchestrator
-      const response = await orchestrator.current.routeMessage(inputMessage, { messages, user });
+      const response = await orchestrator.current.routeMessage(inputMessage, { messages, user});
       
       if (response.shouldHandoff && response.handoff) {
         // Execute handoff to another employee
@@ -867,7 +861,7 @@ Would you like me to categorize this transaction or extract any specific informa
 
     // For now, use the personality-based response generation
     // This would integrate with the actual AI system
-    return generateEmployeeResponse(employeeId, userMessage, { messages, user });
+    return generateEmployeeResponse(employeeId, userMessage, { messages, user});
   };
 
   // Legacy code for document processing (simplified)
@@ -1562,7 +1556,7 @@ What would you like to explore? 🚀`;
         .from('transactions')
         .select('*')
         .limit(20)
-        .order('date', { ascending: false });
+        .order('date', { ascending: false});
 
       // Get document content from recent messages
       const recentDocuments = messages
@@ -1752,18 +1746,12 @@ Be conversational yet professional, insightful yet accessible. You're not just a
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
+    
+      <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
         onClick={onClose}
       >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
+        <div
           className="bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl max-w-4xl max-h-[95vh] w-full mx-2 sm:mx-4 overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
@@ -2126,9 +2114,9 @@ Be conversational yet professional, insightful yet accessible. You're not just a
               )}
             </div>
           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+        </div>
+      </div>
+    
   );
 };
 

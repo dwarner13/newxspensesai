@@ -45,8 +45,7 @@ export class CloudStorageService {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,
       },
-      ...(config.endpoint && { endpoint: config.endpoint }), // Cloudflare R2 endpoint
-    });
+      ...(config.endpoint && { endpoint: config.endpoint }), // Cloudflare R2 endpoint});
   }
 
   /**
@@ -191,7 +190,7 @@ export class CloudStorageService {
         ContentType: contentType,
       });
 
-      const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+      const url = await getSignedUrl(this.s3Client, command, { expiresIn});
       return url;
 
     } catch (error) {
@@ -213,7 +212,7 @@ export class CloudStorageService {
         Key: key,
       });
 
-      const url = await getSignedUrl(this.s3Client, command, { expiresIn });
+      const url = await getSignedUrl(this.s3Client, command, { expiresIn});
       return url;
 
     } catch (error) {

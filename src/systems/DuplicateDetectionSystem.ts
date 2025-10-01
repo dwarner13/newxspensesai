@@ -344,8 +344,7 @@ export class DuplicateDetectionSystem {
       contentSimilarity,
       merchantSimilarity,
       amountSimilarity,
-      dateSimilarity
-    });
+      dateSimilarity});
     
     return {
       imageSimilarity,

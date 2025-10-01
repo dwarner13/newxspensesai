@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { EMPLOYEES } from '../../data/aiEmployees';
 
 interface AIEmployeeHeaderProps {
@@ -31,10 +30,7 @@ export default function AIEmployeeHeader({
 
   return (
     <div className={`ai-employee-header mb-8 ${className}`}>
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+      <div
         className="flex items-center gap-4 mb-4"
       >
         <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg">
@@ -51,13 +47,10 @@ export default function AIEmployeeHeader({
           </div>
           <p className="text-white/60 text-sm mt-1">{pageDescription}</p>
         </div>
-      </motion.div>
+      </div>
       
       {/* AI Activity Feed */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+      <div
         className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4 mb-6"
       >
         <div className="flex items-center gap-2 mb-3">
@@ -66,11 +59,8 @@ export default function AIEmployeeHeader({
         </div>
         <div className="space-y-2">
           {displayActivities.map((activity, index) => (
-            <motion.div 
+            <div 
               key={index}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 + index * 0.1 }}
               className="flex items-center gap-2 text-sm text-white/70"
             >
               <div className={`w-2 h-2 rounded-full animate-pulse ${
@@ -79,13 +69,14 @@ export default function AIEmployeeHeader({
                 'bg-purple-400'
               }`}></div>
               <span>{activity}</span>
-            </motion.div>
+            </div>
           ))}
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
+
 
 
 

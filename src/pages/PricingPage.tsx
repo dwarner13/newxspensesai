@@ -3,8 +3,6 @@ import { Helmet } from 'react-helmet-async';
 import { 
   Crown, Play, CheckCircle, Sparkles, Calculator
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-
 interface AIEmployee {
   name: string;
   role: string;
@@ -232,40 +230,28 @@ const PricingPage = () => {
           <div className="text-center mb-16">
             {/* Prime Badge */}
             <div className="text-center mb-8">
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md border border-white/20 rounded-full px-6 py-3 mb-8"
               >
                 <Crown size={20} className="text-yellow-400" />
                 <span className="text-white font-semibold">Prime's AI Pricing Division</span>
-              </motion.div>
+              </div>
             </div>
 
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+            <h1
               className="text-4xl md:text-6xl font-bold text-white mb-6"
             >
               Revolutionary AI Pricing
-            </motion.h1>
+            </h1>
             
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+            <p
               className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
             >
               Get Prime, Byte, Tag, and Crystal AI team for as low as $0. Experience complete financial automation with up to 2,611% ROI. Choose your level of AI control and watch your savings multiply.
-            </motion.p>
+            </p>
 
             {/* Pricing Toggle */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+            <div
               className="flex items-center justify-center space-x-4 mb-12"
             >
               <span className={`text-sm font-medium ${!isAnnual ? 'text-purple-300' : 'text-white/60'}`}> 
@@ -289,12 +275,9 @@ const PricingPage = () => {
                 Save 20%
               </span>
             )}
-            </motion.div>
+            </div>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
+            <div
               className="flex flex-col sm:flex-row gap-6 justify-center"
             >
               <button 
@@ -311,24 +294,18 @@ const PricingPage = () => {
                 <Play size={24} />
                 Watch AI Calculate ROI
               </button>
-            </motion.div>
+            </div>
           </div>
 
           {/* AI Pricing Team Showcase */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="mb-16"
           >
             <h2 className="text-3xl font-bold text-white text-center mb-12">Meet Your AI Pricing Team</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {aiPricingTeam.map((member, index) => (
-                <motion.div 
+                <div 
                   key={member.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
                   className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
                 >
                   <div className="text-center">
@@ -339,20 +316,17 @@ const PricingPage = () => {
                     <div className={`w-full h-1 bg-gradient-to-r ${member.color} rounded-full`}></div>
                     <p className="text-white/60 text-xs mt-3">{member.pricingBenefit}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
       {/* Live AI Pricing Calculator */}
       {isCalculating && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
           >
             <div className="text-center mb-8">
@@ -382,10 +356,7 @@ const PricingPage = () => {
             </div>
 
             {currentSavings.length > 0 && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
+              <div
                 className="bg-white/10 rounded-xl p-6"
               >
                 <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -409,9 +380,9 @@ const PricingPage = () => {
         </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
             )}
-          </motion.div>
+          </div>
         </div>
       )}
 
@@ -419,11 +390,8 @@ const PricingPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid md:grid-cols-3 gap-8">
           {pricingPlans.map((plan, index) => (
-            <motion.div
+            <div
               key={plan.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className={`relative bg-white/10 backdrop-blur-md rounded-2xl border-2 ${
                 plan.popular ? 'border-purple-400 transform scale-105' : 'border-white/20'
               } transition-all duration-300 hover:shadow-2xl`}
@@ -491,17 +459,14 @@ const PricingPage = () => {
                   ))}
                 </ul>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* AI vs Manual Comparison */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -560,15 +525,12 @@ const PricingPage = () => {
             </div>
           </div>
         </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Call to Action */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -593,23 +555,17 @@ const PricingPage = () => {
               Try Free Forever
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* AI Pricing Calculator Modal */}
-      <AnimatePresence>
+      
         {showPricingCalculator && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowPricingCalculator(false)}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
               onClick={(e) => e.stopPropagation()}
             >
@@ -665,10 +621,10 @@ const PricingPage = () => {
                   Calculate My Savings
             </button>
           </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </>
   );
 };

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAudio, AudioTrack } from '../../contexts/AudioContext';
 import { 
   Music, 
@@ -181,12 +180,9 @@ export function AudioTriggerSystem({
   };
 
   return (
-    <AnimatePresence>
+    
       {showTrigger && (
-        <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20, scale: 0.95 }}
+        <div
           className={`fixed top-4 right-4 z-50 max-w-sm ${className}`}
         >
           <div className={`
@@ -257,9 +253,9 @@ export function AudioTriggerSystem({
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
-    </AnimatePresence>
+    
   );
 }
 

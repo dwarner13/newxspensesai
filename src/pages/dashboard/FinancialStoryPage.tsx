@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   BookOpen, 
   BarChart3, 
@@ -109,22 +108,16 @@ const FinancialStoryPage: React.FC = () => {
               {activeView === 'overview' ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center max-w-2xl">
-                    <motion.h2
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
+                    <h2
                       className="text-xl font-bold text-white mb-1"
                     >
                       Welcome to Your Financial Story Center
-                    </motion.h2>
-                    <motion.p
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
+                    </h2>
+                    <p
                       className="text-white/60 text-sm mb-3"
                     >
                       AI-powered financial narratives that turn your data into compelling stories
-                    </motion.p>
+                    </p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
                       {[
                         { icon: Zap, title: "Generate Story", desc: "Create personalized financial narratives", color: "from-purple-500 to-pink-500", view: "generate_story" },
@@ -134,11 +127,8 @@ const FinancialStoryPage: React.FC = () => {
                         { icon: Download, title: "Export Tools", desc: "Download and share stories", color: "from-red-500 to-pink-500", view: "export_tools" },
                         { icon: TrendingUp, title: "Story Insights", desc: "Discover trending story patterns", color: "from-indigo-500 to-purple-500", view: "insights" }
                       ].map((item, index) => (
-                        <motion.button
+                        <button
                           key={item.title}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.5 + index * 0.1 }}
                           onClick={() => {
                             if (item.view === 'ai_assistant') {
                               setShowStoryAI(true);
@@ -155,15 +145,13 @@ const FinancialStoryPage: React.FC = () => {
                             <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
                             <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                           </div>
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                   </div>
                 </div>
               ) : activeView === 'generate_story' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -217,11 +205,9 @@ const FinancialStoryPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'my_stories' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -258,11 +244,8 @@ const FinancialStoryPage: React.FC = () => {
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {stories.map((story, index) => (
-                        <motion.div
+                        <div
                           key={story.storyId}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.1 * index }}
                           className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all duration-300 cursor-pointer group"
                           onClick={() => setSelectedStory(story)}
                         >
@@ -335,15 +318,13 @@ const FinancialStoryPage: React.FC = () => {
                               {new Date(story.timestamp).toLocaleDateString()}
                             </div>
                           </div>
-                        </motion.div>
+                        </div>
                       ))}
                     </div>
                   )}
-                </motion.div>
+                </div>
               ) : activeView === 'analytics' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -416,11 +397,9 @@ const FinancialStoryPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'export_tools' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -461,11 +440,9 @@ const FinancialStoryPage: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ) : activeView === 'insights' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="space-y-6"
                 >
                   <div className="flex items-center gap-3 mb-6">
@@ -514,7 +491,7 @@ const FinancialStoryPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ) : (
                 <div className="text-center py-8">
                   <p className="text-white/60">Content coming soon! Use the feature boxes to explore.</p>
@@ -548,14 +525,10 @@ const FinancialStoryPage: React.FC = () => {
 
       {/* Selected Story Modal */}
       {selectedStory && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+        <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
         >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
+          <div
             className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-white/20"
           >
             {/* Modal Header */}
@@ -673,8 +646,8 @@ const FinancialStoryPage: React.FC = () => {
                 </button>
               </div>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
 
       {/* Financial Story AI Modal */}

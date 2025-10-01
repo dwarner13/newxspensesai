@@ -104,7 +104,7 @@ export default function MonthPage() {
     if (monthIdx === -1) {
       // If invalid month, redirect to current month
       const currentMonth = new Date().getMonth();
-      navigate(`/months/${monthNames[currentMonth].toLowerCase()}?tab=${tab}`, { replace: true });
+      navigate(`/months/${monthNames[currentMonth].toLowerCase()}?tab=${tab}`, { replace: true});
       return currentMonth;
     }
     return monthIdx;

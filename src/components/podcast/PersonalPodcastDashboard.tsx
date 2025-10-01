@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { usePersonalPodcast } from '../../contexts/PersonalPodcastContext';
 import { 
   Play, 
@@ -107,15 +106,13 @@ export function PersonalPodcastDashboard() {
     <div className="max-w-6xl mx-auto space-y-8">
       {/* Description */}
       <div className="text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="flex items-center justify-center space-x-3 mb-4"
         >
           <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
             <Mic size={24} className="text-white" />
           </div>
-        </motion.div>
+        </div>
         <p className="text-xl text-white/80 max-w-2xl mx-auto">
           AI-generated episodes about your personal financial journey. 
           Hear your AI roast come to life with brutal honesty, tough love, and motivation.
@@ -123,10 +120,7 @@ export function PersonalPodcastDashboard() {
       </div>
 
       {/* Stats Overview */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+      <div
         className="grid grid-cols-1 md:grid-cols-4 gap-6"
       >
         {[
@@ -147,14 +141,11 @@ export function PersonalPodcastDashboard() {
             </div>
           </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Latest Episode */}
       {state.episodes.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="bg-gradient-to-r from-purple-900/20 to-pink-900/20 rounded-2xl p-8 border border-purple-500/20"
         >
           <div className="flex items-start space-x-6">
@@ -199,14 +190,11 @@ export function PersonalPodcastDashboard() {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Generate New Episode */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+      <div
         className="bg-white/10 border border-white/20 rounded-xl p-6 shadow-lg"
       >
         <div className="flex items-center justify-between mb-6">
@@ -223,12 +211,9 @@ export function PersonalPodcastDashboard() {
         </div>
 
         {/* Settings Panel */}
-        <AnimatePresence>
+        
           {showSettings && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
+            <div
               className="mb-6 p-4 bg-white/5 border border-white/10 rounded-lg"
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -277,9 +262,9 @@ export function PersonalPodcastDashboard() {
                   </select>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
+        
 
         {/* Episode Types */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -319,13 +304,10 @@ export function PersonalPodcastDashboard() {
             </div>
           </div>
         )}
-      </motion.div>
+      </div>
 
       {/* Episode Library */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+      <div
         className="bg-white/10 border border-white/20 rounded-xl shadow-lg"
       >
         <div className="p-6 border-b border-white/20">
@@ -339,11 +321,8 @@ export function PersonalPodcastDashboard() {
 
         <div className="divide-y divide-white/20">
           {state.episodes.map((episode, index) => (
-            <motion.div
+            <div
               key={episode.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 * index }}
               className="p-6 hover:bg-white/5 transition-colors"
             >
               <div className="flex items-start space-x-4">
@@ -396,7 +375,7 @@ export function PersonalPodcastDashboard() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
@@ -419,7 +398,7 @@ export function PersonalPodcastDashboard() {
             </button>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 } 

@@ -158,8 +158,7 @@ export class EnhancedLearningSystem {
     ];
     
     features.forEach(feature => {
-      weights[feature] = Math.random() * 0.2 - 0.1; // Random between -0.1 and 0.1
-    });
+      weights[feature] = Math.random() * 0.2 - 0.1; // Random between -0.1 and 0.1});
     
     return weights;
   }
@@ -179,8 +178,7 @@ export class EnhancedLearningSystem {
     ];
     
     categories.forEach(category => {
-      biases[category] = Math.random() * 0.1 - 0.05; // Small random bias
-    });
+      biases[category] = Math.random() * 0.1 - 0.05; // Small random bias});
     
     return biases;
   }
@@ -201,8 +199,7 @@ export class EnhancedLearningSystem {
     model.trainingData.push({
       input,
       output,
-      confidence: 1.0
-    });
+      confidence: 1.0});
     
     // Update neural network weights using backpropagation
     this.updateWeights(model, input, output);

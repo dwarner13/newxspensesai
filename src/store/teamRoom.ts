@@ -203,8 +203,7 @@ export const useTeamRoomStore = create<TeamRoomState & TeamRoomActions>()(
           agents: seedAgents,
           messages: seedMessages,
           tasks: seedTasks,
-          memory: seedMemory
-        });
+          memory: seedMemory});
         console.log('Team room store initialized with', seedAgents.length, 'agents');
       },
 
@@ -467,7 +466,7 @@ export const useTeamRoomStore = create<TeamRoomState & TeamRoomActions>()(
       loadMemory: async () => {
         try {
           const memory = await fetchMemory();
-          set({ memory });
+          set({ memory});
         } catch (error) {
           console.error('Error loading memory:', error);
         }
@@ -485,7 +484,7 @@ export const useTeamRoomStore = create<TeamRoomState & TeamRoomActions>()(
       loadTasks: async () => {
         try {
           const tasks = await fetchTasks();
-          set({ tasks });
+          set({ tasks});
         } catch (error) {
           console.error('Error loading tasks:', error);
         }
@@ -503,11 +502,11 @@ export const useTeamRoomStore = create<TeamRoomState & TeamRoomActions>()(
       },
 
       setRouteMode: (mode: 'manager' | 'direct') => {
-        set({ routeMode: mode });
+        set({ routeMode: mode});
       },
 
       setDirectTarget: (target: string) => {
-        set({ directTarget: target });
+        set({ directTarget: target});
       }
     }),
     {

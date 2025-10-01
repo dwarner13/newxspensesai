@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { Transaction } from '../../types/database.types';
 import StatCard from '../dashboard/StatCard';
@@ -38,9 +37,7 @@ const MonthlySummary = ({ transactions, month, className = '' }: MonthlySummaryP
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className={`card ${className}`}
     >
       <h2 className="text-xl font-bold mb-6">{month} Summary</h2>
@@ -67,7 +64,7 @@ const MonthlySummary = ({ transactions, month, className = '' }: MonthlySummaryP
           className="bg-gradient-to-br from-primary-50 to-primary-100"
         />
       </div>
-    </motion.div>
+    </div>
   );
 };
 

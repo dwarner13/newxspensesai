@@ -206,7 +206,7 @@ const PodcastPreferencesPanel: React.FC<PodcastPreferencesPanelProps> = ({
                   const newFocus = e.target.checked
                     ? [...preferences.content_focus, focus.id]
                     : preferences.content_focus.filter(f => f !== focus.id);
-                  handleSave({ content_focus: newFocus });
+                  handleSave({ content_focus: newFocus});
                 }}
                 className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
               />
@@ -271,7 +271,7 @@ const PodcastPreferencesPanel: React.FC<PodcastPreferencesPanelProps> = ({
                   const newFavorites = e.target.checked
                     ? [...preferences.favorite_ai_employees, employee.id]
                     : preferences.favorite_ai_employees.filter(f => f !== employee.id);
-                  handleSave({ favorite_ai_employees: newFavorites });
+                  handleSave({ favorite_ai_employees: newFavorites});
                 }}
                 className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
               />

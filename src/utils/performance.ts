@@ -34,7 +34,7 @@ export const loadTrackingScript = (src: string, callback?: () => void) => {
   if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
     (window as any).requestIdleCallback(() => {
       loadScript(src, callback);
-    }, { timeout: 5000 });
+    }, { timeout: 5000});
   } else {
     setTimeout(() => {
       loadScript(src, callback);

@@ -28,8 +28,7 @@ const EphemeralDocumentProcessor = ({ onProcessingComplete, user }) => {
             // Process document ephemerally
             const result = await processor.processDocument(file, documentType, {
                 userId: user?.id,
-                sessionTimeout: 300000 // 5 minutes
-            });
+                sessionTimeout: 300000 // 5 minutes});
 
             setProcessingStep('✅ Processing completed');
             setPrivacyStatus('✅ All data permanently deleted');

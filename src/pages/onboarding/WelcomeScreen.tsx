@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -15,10 +14,7 @@ const WelcomeScreen = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-8 ">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-8">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -40,10 +36,7 @@ const WelcomeScreen = () => {
             </p>
           </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+          <div
             className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-8"
           >
             <div className="aspect-video bg-gray-700 rounded-lg mb-6 overflow-hidden">
@@ -85,12 +78,9 @@ const WelcomeScreen = () => {
                 Tax-ready summaries
               </li>
             </ul>
-          </motion.div>
+          </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+          <div
             className="flex justify-center"
           >
             <button
@@ -100,8 +90,8 @@ const WelcomeScreen = () => {
               Get Started
               <ArrowRight className="w-5 h-5 ml-2" />
             </button>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     </div>
   );

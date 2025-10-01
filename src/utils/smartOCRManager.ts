@@ -244,8 +244,7 @@ class SmartOCRManager {
       reason: engineSelection.reason,
       vendor: result.parsedData.vendor,
       total: result.parsedData.total,
-      itemsCount: result.parsedData.items.length
-    });
+      itemsCount: result.parsedData.items.length});
   }
 
   /**

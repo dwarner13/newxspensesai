@@ -411,8 +411,7 @@ export class FinancialStoryAPI {
         insight: `User processed ${storyData.employees.byte.totalTransactions} transactions with ${storyData.employees.byte.accuracy} accuracy`,
         data: storyData.employees.byte,
         recommendation: 'Continue using smart import for accurate categorization',
-        priority: 1
-      });
+        priority: 1});
     }
 
     // Analyze goal progress
@@ -422,8 +421,7 @@ export class FinancialStoryAPI {
         insight: `User has ${storyData.employees.goalie.activeGoals} active financial goals`,
         data: storyData.employees.goalie,
         recommendation: 'Monitor goal progress regularly',
-        priority: 2
-      });
+        priority: 2});
     }
 
     storyData.insights = insights;

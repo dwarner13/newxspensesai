@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { User, Users, Mail, Shield, CheckCircle, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -88,10 +87,7 @@ const UsersCard = ({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 }}
+    <div
       className={`rounded-lg shadow-sm ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}
     >
       <div className="p-6">
@@ -173,9 +169,7 @@ const UsersCard = ({
                   ) : (
                     <>
                       <Mail size={16} className="inline mr-2" />
-                      Send Invite
-                    </>
-                  )}
+                      Send Invite)}
                 </button>
               </div>
             </div>
@@ -229,7 +223,7 @@ const UsersCard = ({
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

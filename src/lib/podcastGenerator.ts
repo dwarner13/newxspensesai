@@ -108,8 +108,7 @@ export class PodcastGenerator {
       // Step 6: Update episode with script
       await updatePodcastEpisode(episode.id, {
         script_content: scriptResult.script,
-        duration_seconds: scriptResult.estimatedDuration
-      });
+        duration_seconds: scriptResult.estimatedDuration});
 
       // Step 7: Create AI insights
       for (const insight of scriptResult.insights) {
@@ -119,8 +118,7 @@ export class PodcastGenerator {
           insight_type: insight.insight_type,
           content: insight.content,
           data_source: insight.data_source,
-          confidence_score: insight.confidence_score
-        });
+          confidence_score: insight.confidence_score});
       }
 
       // Step 8: Generate audio (async - don't wait for completion)

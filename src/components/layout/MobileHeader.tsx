@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Menu, Search, Bell } from 'lucide-react';
 import { useAtom } from 'jotai';
 import { isMobileMenuOpenAtom } from '../../lib/uiStore';

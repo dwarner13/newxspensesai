@@ -75,8 +75,7 @@ export const generateMonthsList = (count: number = 12) => {
     months.push({
       value: monthValue,
       label: formatMonthLabel(monthValue),
-      isCurrent
-    });
+      isCurrent});
   }
   
   return months;

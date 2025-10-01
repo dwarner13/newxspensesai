@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Receipt, 
   Camera, 
@@ -59,7 +58,7 @@ const ReceiptsPage = () => {
         .from('receipts')
         .select('*')
         .eq('user_id', user?.id as any)
-        .order('upload_date', { ascending: false });
+        .order('upload_date', { ascending: false});
 
       if (filter !== 'all') {
         query = query.eq('processing_status', filter as any);
@@ -246,18 +245,14 @@ const ReceiptsPage = () => {
       <PageHeader />
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <h1
             className="text-2xl font-bold flex items-center"
           >
             <Receipt size={32} className="mr-3 text-primary-600" />
             Receipt History
-          </motion.h1>
+          </h1>
           
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+          <div
             className="flex flex-wrap gap-3"
           >
             <select
@@ -275,24 +270,18 @@ const ReceiptsPage = () => {
               <Camera size={16} className="mr-2" />
               Scan New Receipt
             </Link>
-          </motion.div>
+          </div>
         </div>
 
         {/* XP Display */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
+        <div
         >
           <XPDisplay showDetails={false} />
-        </motion.div>
+        </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+          <div
             className="card bg-gradient-to-br from-primary-50 to-primary-100"
           >
             <div className="flex items-center justify-between">
@@ -302,12 +291,9 @@ const ReceiptsPage = () => {
               </div>
               <Receipt size={24} className="text-primary-600" />
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
+          <div
             className="card bg-gradient-to-br from-success-50 to-success-100"
           >
             <div className="flex items-center justify-between">
@@ -317,12 +303,9 @@ const ReceiptsPage = () => {
               </div>
               <Zap size={24} className="text-success-600" />
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
+          <div
             className="card bg-gradient-to-br from-yellow-50 to-yellow-100"
           >
             <div className="flex items-center justify-between">
@@ -332,12 +315,9 @@ const ReceiptsPage = () => {
               </div>
               <Star size={24} className="text-yellow-600" />
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
+          <div
             className="card bg-gradient-to-br from-secondary-50 to-secondary-100"
           >
             <div className="flex items-center justify-between">
@@ -353,22 +333,17 @@ const ReceiptsPage = () => {
               </div>
               <DollarSign size={24} className="text-secondary-600" />
             </div>
-          </motion.div>
+          </div>
         </div>
 
         {/* Receipts Grid */}
         {receipts.length > 0 ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.7 }}
+          <div
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {receipts.map((receipt) => (
-              <motion.div
+              <div
                 key={receipt.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
                 whileHover={{ scale: 1.02 }}
                 className="card overflow-hidden"
               >
@@ -468,9 +443,9 @@ const ReceiptsPage = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </motion.div>
+          </div>
         ) : (
           <div className="text-center py-12">
             <div className="flex justify-center mb-4">
@@ -490,9 +465,7 @@ const ReceiptsPage = () => {
         {/* Receipt Detail Modal */}
         {selectedReceipt && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
+            <div
               className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="p-6">
@@ -574,7 +547,7 @@ const ReceiptsPage = () => {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
       </div>

@@ -488,8 +488,7 @@ Remember: You are ${this.personality.name} - stay in character while delivering 
         model: "gpt-4",
         messages: messages,
         temperature: 0.7, // Allow for personality variation
-        max_tokens: 500
-      });
+        max_tokens: 500});
 
       const aiResponse = response.choices[0]?.message?.content || "I'm here to help!";
       const enhancedResponse = this.addPersonalityFlair(aiResponse);
@@ -497,7 +496,7 @@ Remember: You are ${this.personality.name} - stay in character while delivering 
       // Store conversation for learning
       this.conversationHistory.push(
         { role: "user", content: message },
-        { role: "assistant", content: enhancedResponse }
+        { role: "assistant", content: enhancedResponse}
       );
 
       // Determine actions based on employee specialty

@@ -50,8 +50,7 @@ export async function generateCategorizationRulesFromTransactions(userId?: strin
               match_value: vendor,
               category,
               source: 'user',
-              confidence: 1.0
-            });
+              confidence: 1.0});
           if (insertError) throw insertError;
           summary.created++;
         } else {

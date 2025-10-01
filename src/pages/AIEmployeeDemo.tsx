@@ -5,7 +5,6 @@
  */
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import AIEmployeeChat from '../components/ai/AIEmployeeChat';
 import { useAIEmployees } from '../hooks/useAIEmployees';
 import { 
@@ -104,20 +103,16 @@ const AIEmployeeDemo: React.FC = () => {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
         {activeTab === 'chat' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/20 overflow-hidden"
             style={{ height: '600px' }}
           >
             <AIEmployeeChat userId="demo-user" />
-          </motion.div>
+          </div>
         )}
 
         {activeTab === 'system' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="space-y-6"
           >
             {/* System Architecture */}
@@ -244,13 +239,11 @@ const AIEmployeeDemo: React.FC = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
 
         {activeTab === 'employees' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="space-y-6"
           >
             <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/20 p-6">
@@ -335,7 +328,7 @@ const AIEmployeeDemo: React.FC = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
     </div>

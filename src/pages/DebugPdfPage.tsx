@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { 
   FileText, 
   Upload, 
@@ -159,9 +158,7 @@ const DebugPdfPage = () => {
 
   return (
     <div className="max-w-4xl ">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center space-x-3 mb-8"
       >
         <Code size={32} className="text-purple-600" />
@@ -169,7 +166,7 @@ const DebugPdfPage = () => {
           <h1 className="text-2xl font-bold">PDF Debug Tool</h1>
           <p className="text-gray-600">Test PDF extraction and AI categorization</p>
         </div>
-      </motion.div>
+      </div>
 
       <div className="card mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -214,18 +211,14 @@ const DebugPdfPage = () => {
               ) : (
                 <>
                   <FileText size={16} className="mr-2" />
-                  Extract Text
-                </>
-              )}
+                  Extract Text)}
             </button>
           </div>
         )}
       </div>
 
       {pdfText && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="card mb-6"
         >
           <div className="flex items-center justify-between mb-4">
@@ -282,19 +275,15 @@ const DebugPdfPage = () => {
                 ) : (
                   <>
                     <Brain size={16} className="mr-2" />
-                    Run AI Categorization
-                  </>
-                )}
+                    Run AI Categorization)}
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {processingStep === 'error' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="card bg-error-50 border border-error-200"
         >
           <div className="flex items-start space-x-3">
@@ -314,13 +303,11 @@ const DebugPdfPage = () => {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
       {categorizedResults.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="card"
         >
           <div className="flex items-center justify-between mb-4">
@@ -410,7 +397,7 @@ const DebugPdfPage = () => {
               <p>• Processing Time: {(Math.random() * 2 + 1).toFixed(2)}s</p>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );

@@ -8,8 +8,6 @@ import {
   Bot, Cpu, Database, Network, Lock, Key, Shield, 
   Clock, Calendar, Bell, AlertTriangle, Lightbulb, Rocket
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-
 interface AIEmployee {
   name: string;
   role: string;
@@ -167,33 +165,24 @@ const SmartAutomationFeaturePage = () => {
           <div className="text-center mb-16">
             {/* Prime Badge */}
             <div className="text-center mb-8">
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md border border-white/20 rounded-full px-6 py-3 mb-8"
               >
                 <Crown size={20} className="text-yellow-400" />
                 <span className="text-white font-semibold">Prime's AI Automation Division</span>
-              </motion.div>
+              </div>
             </div>
 
             {/* Urgency Banner */}
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="bg-gradient-to-r from-red-500/20 to-orange-500/20 border border-red-500/30 rounded-full px-6 py-2 mb-8 inline-block"
             >
               <span className="text-red-300 text-sm font-medium">
                 🤖 Limited Time: Automa's first month FREE for new users
               </span>
-            </motion.div>
+            </div>
 
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+            <h1
               className="text-4xl md:text-6xl font-bold text-white mb-6"
             >
               Meet{' '}
@@ -201,22 +190,16 @@ const SmartAutomationFeaturePage = () => {
                 Automa
               </span>
               {' '}Your AI Financial Employee
-            </motion.h1>
+            </h1>
             
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+            <p
               className="text-xl md:text-2xl text-white/90 mb-8 max-w-4xl mx-auto leading-relaxed font-medium"
             >
               Stop managing your finances manually. Automa is your AI employee who works 24/7, makes 200+ daily decisions, and saves you 15+ hours per week. Watch your money grow while you sleep - Automa never takes a break.
-            </motion.p>
+            </p>
 
             {/* Social Proof Bar */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-8 mb-8 text-white/80"
             >
               <div className="flex items-center gap-2">
@@ -231,12 +214,9 @@ const SmartAutomationFeaturePage = () => {
                 <DollarSign className="w-5 h-5 text-green-400" />
                 <span className="font-semibold">$3,200 avg monthly savings</span>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+            <div
               className="flex flex-col sm:flex-row gap-6 justify-center"
             >
               {!isConnected ? (
@@ -280,13 +260,10 @@ const SmartAutomationFeaturePage = () => {
                   </button>
                 </>
               )}
-            </motion.div>
+            </div>
 
             {/* Trust Indicators */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.7 }}
+            <div
               className="flex flex-wrap justify-center items-center gap-6 mt-8 text-white/60 text-sm"
             >
               <div className="flex items-center gap-2">
@@ -301,14 +278,11 @@ const SmartAutomationFeaturePage = () => {
                 <Clock className="w-4 h-4" />
                 <span>Setup in 2 minutes</span>
               </div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Testimonials Section */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="bg-white/5 backdrop-blur-md rounded-2xl p-8 border border-white/20 mb-16"
           >
             <h3 className="text-2xl font-bold text-white text-center mb-8">
@@ -375,13 +349,10 @@ const SmartAutomationFeaturePage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
           {/* AI Automation Team Showcase */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className="mb-16"
           >
             <h2 className="text-3xl font-bold text-white text-center mb-6">Meet Automa's AI Team</h2>
@@ -390,11 +361,8 @@ const SmartAutomationFeaturePage = () => {
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {aiAutomationTeam.map((member, index) => (
-                <motion.div 
+                <div 
                   key={member.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
                   className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
                 >
                   <div className="text-center">
@@ -405,19 +373,16 @@ const SmartAutomationFeaturePage = () => {
                     <div className={`w-full h-1 bg-gradient-to-r ${member.color} rounded-full`}></div>
                     <p className="text-white/60 text-xs mt-3">{member.automationStyle}</p>
                   </div>
-                </motion.div>
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
       {/* Live AI Automation Theater */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -451,10 +416,7 @@ const SmartAutomationFeaturePage = () => {
 
           {/* Automation Scenarios Display */}
           {currentScenarios.length > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
+            <div
               className="bg-white/10 rounded-xl p-6 mb-6"
             >
               <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
@@ -488,7 +450,7 @@ const SmartAutomationFeaturePage = () => {
                   Export Report
                 </button>
               </div>
-            </motion.div>
+            </div>
           )}
 
           {/* Automation Features */}
@@ -513,11 +475,8 @@ const SmartAutomationFeaturePage = () => {
                 color: "from-green-500 to-emerald-500"
               }
             ].map((feature, index) => (
-              <motion.div 
+              <div 
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className={`w-16 h-16 bg-gradient-to-r ${feature.color} rounded-full flex items-center justify-center mx-auto mb-4`}>
@@ -525,18 +484,15 @@ const SmartAutomationFeaturePage = () => {
                 </div>
                 <h3 className="text-xl font-bold text-white mb-3 text-center">{feature.title}</h3>
                 <p className="text-white/80 text-sm leading-relaxed text-center">{feature.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Automa's Capabilities Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -571,11 +527,8 @@ const SmartAutomationFeaturePage = () => {
                 features: ["Real-time monitoring", "Fraud prevention", "Instant alerts", "Account protection"]
               }
             ].map((capability, index) => (
-              <motion.div 
+              <div 
                 key={capability.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 rounded-xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
               >
                 <div className="text-4xl mb-4">{capability.icon}</div>
@@ -589,18 +542,15 @@ const SmartAutomationFeaturePage = () => {
                     </div>
                   ))}
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Automation Types Section */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -635,11 +585,8 @@ const SmartAutomationFeaturePage = () => {
                 color: 'from-purple-500 to-pink-500'
               }
             ].map((automation, index) => (
-              <motion.div 
+              <div 
                 key={automation.type}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className={`bg-white/10 rounded-xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 ${
                   selectedAutomationType === automation.type ? 'ring-2 ring-purple-400' : ''
                 }`}
@@ -661,18 +608,15 @@ const SmartAutomationFeaturePage = () => {
                 </div>
                 
                 <div className={`w-full h-1 bg-gradient-to-r ${automation.color} rounded-full mt-4`}></div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Call to Action */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -701,23 +645,17 @@ const SmartAutomationFeaturePage = () => {
               <span>See Automa In Action</span>
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* AI Automation Studio Modal */}
-      <AnimatePresence>
+      
         {showAutomationStudio && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setShowAutomationStudio(false)}
           >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
               onClick={(e) => e.stopPropagation()}
             >
@@ -765,10 +703,10 @@ const SmartAutomationFeaturePage = () => {
                   Start Automation
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </>
   );
 };

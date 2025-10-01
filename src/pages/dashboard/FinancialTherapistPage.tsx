@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Heart, 
   Brain, 
@@ -39,8 +38,7 @@ export default function FinancialTherapistPage() {
     stressReduction: 35,
     confidenceScore: 78,
     goalsAchieved: 8,
-    currentStreak: 5
-  });
+    currentStreak: 5});
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -78,22 +76,16 @@ export default function FinancialTherapistPage() {
               {activeView === 'overview' ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center max-w-2xl">
-                    <motion.h2
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
+                    <h2
                       className="text-xl font-bold text-white mb-1"
                     >
                       Welcome to Your Financial Therapist
-                    </motion.h2>
-                    <motion.p
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
+                    </h2>
+                    <p
                       className="text-white/60 text-sm mb-3"
                     >
                       Professional financial therapy and emotional support for your money journey
-                    </motion.p>
+                    </p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
                       {[
                         { icon: Heart, title: "Therapy Sessions", desc: "One-on-one financial therapy", color: "from-pink-500 to-rose-500", view: "sessions" },
@@ -103,11 +95,8 @@ export default function FinancialTherapistPage() {
                         { icon: BookOpen, title: "Resources", desc: "Educational therapy materials", color: "from-indigo-500 to-purple-500", view: "resources" },
                         { icon: Shield, title: "Crisis Support", desc: "Emergency financial therapy", color: "from-orange-500 to-red-500", view: "crisis" }
                       ].map((item, index) => (
-                        <motion.button
+                        <button
                           key={item.title}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.5 + index * 0.1 }}
                           onClick={() => setActiveView(item.view)}
                           className="group flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[80px] hover:shadow-lg hover:shadow-pink-500/10"
                         >
@@ -118,7 +107,7 @@ export default function FinancialTherapistPage() {
                             <h3 className="text-xs font-semibold text-white mb-0.5">{item.title}</h3>
                             <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                           </div>
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -132,11 +121,8 @@ export default function FinancialTherapistPage() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {therapists.map((therapist, index) => (
-                      <motion.div
+                      <div
                         key={therapist.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
                         className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:bg-white/10 transition-all duration-300"
                       >
                         <div className="flex items-center gap-4 mb-4">
@@ -159,7 +145,7 @@ export default function FinancialTherapistPage() {
                         <button className="w-full mt-4 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-medium py-2 px-4 rounded-lg transition-all duration-200">
                           Start Session
                         </button>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 </div>

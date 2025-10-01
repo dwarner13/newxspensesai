@@ -36,8 +36,7 @@ const TransactionCategorizer = ({
         vendor,
         amount,
         description,
-        notes
-      });
+        notes});
       
       setResult(response);
       onCategorized(response.category, response.flag_for_review);

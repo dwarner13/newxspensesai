@@ -7,7 +7,6 @@ import { formatDate } from '../utils/formatters';
 import DateRangePicker from '../components/filters/DateRangePicker';
 
 import toast from 'react-hot-toast';
-import { motion, AnimatePresence } from 'framer-motion';
 import MobileHeader from '../components/layout/MobileHeader';
 import { useAtom } from 'jotai';
 import { mockModeAtom } from '../utils/mockState';
@@ -249,8 +248,7 @@ const TransactionsPage = () => {
         } else {
           await updateTransaction(id, { 
             category: editedCategory,
-            subcategory: editedSubcategory || null
-          });
+            subcategory: editedSubcategory || null});
           
           setTransactions(transactions.map(t => 
             t.id === id ? { 
@@ -423,9 +421,7 @@ const TransactionsPage = () => {
       <div className="max-w-7xl mx-auto space-y-8">
         {!isMobile && (
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+          <div
             className="flex flex-wrap justify-center sm:justify-end gap-3"
           >
             <button 
@@ -464,16 +460,13 @@ const TransactionsPage = () => {
             </button>
             
 
-          </motion.div>
+          </div>
         </div>
       )}
       
-      <AnimatePresence>
+      
         {showFilters && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
+          <div
             className="card overflow-hidden"
           >
             <div className="p-6">
@@ -488,7 +481,7 @@ const TransactionsPage = () => {
                     startDate={filters.startDate}
                     endDate={filters.endDate}
                     onChange={(startDate, endDate) => {
-                      setFilters({ ...filters, startDate, endDate });
+                      setFilters({ ...filters, startDate, endDate});
                     }}
                   />
                 </div>
@@ -539,14 +532,12 @@ const TransactionsPage = () => {
                 </button>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
       
       {selectedTransactions.length > 0 && (
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="flex items-center justify-between bg-primary-50 p-3 rounded-lg"
         >
           <span className="text-primary-800 font-medium">
@@ -593,7 +584,7 @@ const TransactionsPage = () => {
               Clear Selection
             </button>
           </div>
-        </motion.div>
+        </div>
       )}
       
       <div className="card">
@@ -938,19 +929,13 @@ const TransactionsPage = () => {
       </div>
 
       {/* Receipt Viewer Modal */}
-      <AnimatePresence>
+      
         {viewingReceipt && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
             onClick={() => setViewingReceipt(null)}
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
+            <div
               className="bg-white rounded-lg max-w-4xl max-h-[90vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
@@ -992,10 +977,10 @@ const TransactionsPage = () => {
                   />
                 )}
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* Create Expense Modal */}
       <CreateExpenseModal

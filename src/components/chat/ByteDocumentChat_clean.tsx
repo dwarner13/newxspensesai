@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Send, 
   Upload, 
@@ -64,7 +63,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [activeAI, setActiveAI] = useState<'prime' | 'byte' | 'crystal' | 'tag' | 'ledger' | 'blitz' | 'goalie'>('prime');
   const [hasShownCrystalSummary, setHasShownCrystalSummary] = useState(false);
   const [uploadedFileCount, setUploadedFileCount] = useState(0);
-  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const orchestrator = useRef(new AIEmployeeOrchestrator());
@@ -112,7 +111,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       });
       
       // Route the message through the orchestrator
-      const response = await orchestrator.current.routeMessage(inputMessage, { messages, user });
+      const response = await orchestrator.current.routeMessage(inputMessage, { messages, user});
       
       if (response.shouldHandoff && response.handoff) {
         // Execute handoff to another employee
@@ -158,7 +157,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
 
     // For now, use the personality-based response generation
     // This would integrate with the actual AI system
-    return generateEmployeeResponse(employeeId, userMessage, { messages, user });
+    return generateEmployeeResponse(employeeId, userMessage, { messages, user});
   };
 
   // Typewriter effect for AI responses

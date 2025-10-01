@@ -136,8 +136,7 @@ export class AIService {
             
             const response = await fetch(`${API_BASE_URL}/receipts/process`, {
                 method: 'POST',
-                body: formData
-            });
+                body: formData});
             
             if (!response.ok) throw new Error('Receipt processing failed');
             return await response.json();

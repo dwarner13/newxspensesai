@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { 
   ArrowRight, 
@@ -90,10 +89,7 @@ const PersonalBusinessGoalsPage = () => {
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-primary-50 to-secondary-50 py-20 px-4">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+          <div
             className="text-center"
           >
             <h1 className="text-4xl md:text-5xl font-bold mb-6">Personal & Business Goals</h1>
@@ -107,18 +103,15 @@ const PersonalBusinessGoalsPage = () => {
               Start Setting Goals
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Personal Goals Section */}
       <section className="py-20 px-4 bg-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="flex flex-col md:flex-row items-center gap-12"
           >
             <div className="md:w-1/2">
@@ -206,18 +199,15 @@ const PersonalBusinessGoalsPage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Business Goals Section */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="flex flex-col md:flex-row-reverse items-center gap-12"
           >
             <div className="md:w-1/2">
@@ -315,25 +305,22 @@ const PersonalBusinessGoalsPage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* AI-Driven Budgeting Section */}
       <section className="py-20 px-4 bg-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">AI-Driven Budgeting</h2>
             <p className="text-xl text-gray-600 max-w-3xl ">
               XspensesAI analyzes your spending patterns to create personalized budgets that actually work for your lifestyle.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
@@ -368,12 +355,9 @@ const PersonalBusinessGoalsPage = () => {
                 icon: <DollarSign className="h-6 w-6 text-primary-600" />
               }
             ].map((feature, index) => (
-              <motion.div
+              <div
                 key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.1 * index }}
                 className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
               >
                 <div className="w-12 h-12 bg-primary-50 rounded-full flex items-center justify-center mb-4">
@@ -381,7 +365,7 @@ const PersonalBusinessGoalsPage = () => {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
                 <p className="text-gray-600">{feature.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -390,11 +374,8 @@ const PersonalBusinessGoalsPage = () => {
       {/* Visual Mockup Section */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="flex flex-col md:flex-row items-center gap-12"
           >
             <div className="md:w-1/2">
@@ -484,18 +465,15 @@ const PersonalBusinessGoalsPage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Final CTA Section */}
       <section className="py-20 px-4 bg-gradient-to-r from-primary-600 to-secondary-600 text-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Achieve Your Financial Goals?</h2>
@@ -509,7 +487,7 @@ const PersonalBusinessGoalsPage = () => {
               Start Free Trial
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
     </WebsiteLayout>

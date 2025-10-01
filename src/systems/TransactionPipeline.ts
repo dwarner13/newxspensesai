@@ -333,8 +333,7 @@ export class TransactionPipeline {
         } else {
           results.failed.push({
             error: result.error || 'Unknown error',
-            data: file
-          });
+            data: file});
         }
       });
     }
@@ -424,7 +423,7 @@ export class TransactionPipeline {
   // Queue management
   async queueTransaction(data: any, context: ProcessingContext): Promise<ProcessingResult> {
     return new Promise((resolve, reject) => {
-      this.processingQueue.push({ data, context, resolve, reject });
+      this.processingQueue.push({ data, context, resolve, reject});
       this.processQueue();
     });
   }
@@ -477,8 +476,7 @@ export class TransactionPipeline {
       const current = categoryTotals.get(t.category) || {amount: 0, count: 0};
       categoryTotals.set(t.category, {
         amount: current.amount + t.amount,
-        count: current.count + 1
-      });
+        count: current.count + 1});
     });
     
     const topCategories = Array.from(categoryTotals.entries())

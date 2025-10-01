@@ -1,6 +1,4 @@
 import { ReactNode } from 'react';
-import { motion } from 'framer-motion';
-
 interface StatCardProps {
   title: string;
   value: string;
@@ -14,9 +12,7 @@ interface StatCardProps {
 
 const StatCard = ({ title, value, icon, trend, className = '' }: StatCardProps) => {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className={`stat-card ${className}`}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -48,7 +44,7 @@ const StatCard = ({ title, value, icon, trend, className = '' }: StatCardProps) 
           <span style={{ marginLeft: '8px', fontSize: '0.875rem', color: '#718096' }}>{trend.label}</span>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

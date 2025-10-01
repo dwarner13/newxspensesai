@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Mail, Bell } from 'lucide-react';
 import ProgressBar from '../../components/onboarding/ProgressBar';
@@ -50,10 +49,7 @@ const MarketingConsentScreen = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-8 ">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-8">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -75,10 +71,7 @@ const MarketingConsentScreen = () => {
             </p>
           </div>
           
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
+          <div
             className="bg-gray-800 rounded-xl p-6 border border-gray-700 mb-8"
           >
             <div className="flex items-start mb-6">
@@ -138,7 +131,7 @@ const MarketingConsentScreen = () => {
             <p className="text-xs text-gray-500 mt-4">
               You can change your preferences anytime in settings. We respect your privacy and will never sell your data.
             </p>
-          </motion.div>
+          </div>
           
           <div className="flex justify-between">
             <button
@@ -174,7 +167,7 @@ const MarketingConsentScreen = () => {
               )}
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

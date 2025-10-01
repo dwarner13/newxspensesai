@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
   Edit2, 
@@ -148,12 +147,9 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
   };
 
   return (
-    <AnimatePresence>
+    
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
+        <div
           className="bg-slate-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
         >
           {/* Header */}
@@ -424,21 +420,15 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Delete Confirmation Modal */}
-        <AnimatePresence>
+        
           {showDeleteConfirm && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <div
               className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-60"
             >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
+              <div
                 className="bg-slate-800 rounded-lg p-6 max-w-md w-full"
               >
                 <div className="flex items-center gap-3 mb-4">
@@ -467,12 +457,12 @@ const TransactionDetailModal: React.FC<TransactionDetailModalProps> = ({
                     Cancel
                   </button>
                 </div>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
-        </AnimatePresence>
+        
       </div>
-    </AnimatePresence>
+    
   );
 };
 

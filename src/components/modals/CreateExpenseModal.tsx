@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, FileText, Camera, DollarSign } from 'lucide-react';
 
 interface CreateExpenseModalProps {
@@ -64,8 +63,7 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
       files,
       amount: amount ? parseFloat(amount) : undefined,
       description: description || undefined,
-      category: category || undefined
-    });
+      category: category || undefined});
     onClose();
   }, [files, amount, description, category, onSubmit, onClose]);
 
@@ -74,26 +72,18 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
       files: [],
       amount: amount ? parseFloat(amount) : undefined,
       description: description || undefined,
-      category: category || undefined
-    });
+      category: category || undefined});
     onClose();
   }, [amount, description, category, onSubmit, onClose]);
 
   return (
-    <AnimatePresence>
+    
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+        <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm"
           onClick={onClose}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          <div
             className="bg-white rounded-lg shadow-2xl w-full max-w-md mx-4 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
@@ -239,10 +229,10 @@ const CreateExpenseModal: React.FC<CreateExpenseModalProps> = ({
                 Confirm
               </button>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    
   );
 };
 

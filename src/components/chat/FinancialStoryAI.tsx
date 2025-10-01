@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, Send, FileText, Download, BookOpen, BarChart3, TrendingUp, Target, DollarSign } from 'lucide-react';
 import { financialStoryAPI, FinancialStoryData } from '../../lib/financial-story';
 
@@ -472,10 +471,7 @@ Try asking me to "analyze my financial story" or "generate a blog post" to get s
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.9 }}
+      <div
         className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col border border-white/20"
       >
         {/* Header */}
@@ -499,13 +495,10 @@ Try asking me to "analyze my financial story" or "generate a blog post" to get s
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <AnimatePresence>
+          
             {messages.map((message) => (
-              <motion.div
+              <div
                 key={message.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
                 className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
@@ -524,13 +517,11 @@ Try asking me to "analyze my financial story" or "generate a blog post" to get s
                     {message.timestamp.toLocaleTimeString()}
                   </div>
                 </div>
-              </motion.div>
+              </div>
             ))}
-          </AnimatePresence>
+          
           {isGenerating && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+            <div
               className="flex justify-start"
             >
               <div className="bg-white/10 text-white backdrop-blur-sm border border-white/20 rounded-2xl p-4">
@@ -541,7 +532,7 @@ Try asking me to "analyze my financial story" or "generate a blog post" to get s
                   <span className="text-white/70 text-sm ml-2">Analyzing financial data...</span>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
           <div ref={messagesEndRef} />
         </div>
@@ -567,7 +558,7 @@ Try asking me to "analyze my financial story" or "generate a blog post" to get s
             </button>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

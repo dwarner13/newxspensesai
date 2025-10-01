@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { 
   Crown, Bot, Calculator, BarChart3, Brain, Headphones, 
   Users, Zap, Target, TrendingUp, ArrowRight, Star,
@@ -264,39 +263,27 @@ const DebtPayoffPlannerFeaturePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
           {/* Prime's Crown Badge */}
           <div className="text-center mb-8">
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+            <div
               className="inline-flex items-center bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 text-white px-4 py-2 rounded-full shadow-2xl"
             >
               <Crown size={20} className="mr-2" />
               <span className="font-bold">Prime's AI Debt Liberation Division</span>
-            </motion.div>
+            </div>
           </div>
 
           {/* Hero Content */}
           <div className="text-center mb-16">
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
+            <h1
               className="text-5xl md:text-7xl font-extrabold text-white mb-6"
             >
               AI Debt Liberation Theater
-            </motion.h1>
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
+            </h1>
+            <p
               className="text-xl md:text-2xl text-white/80 max-w-4xl mx-auto mb-8"
             >
               Where Blitz and his AI team transform overwhelming debt into achievable freedom plans with 3x faster payoff strategies
-            </motion.p>
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
+            </p>
+            <div
               className="flex flex-col sm:flex-row gap-4 justify-center"
             >
               <Link
@@ -311,14 +298,11 @@ const DebtPayoffPlannerFeaturePage = () => {
               >
                 Watch Blitz in Action
               </button>
-            </motion.div>
+            </div>
           </div>
 
           {/* Performance Stats */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
+          <div
             className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16"
           >
             <div className="text-center">
@@ -337,17 +321,14 @@ const DebtPayoffPlannerFeaturePage = () => {
               <div className="text-3xl md:text-4xl font-bold text-yellow-400 mb-2">24/7</div>
               <div className="text-white/60">AI Motivation</div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
 
       {/* Interactive Debt Calculator */}
       <section className="py-20 bg-gradient-to-br from-slate-800 to-slate-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+          <div
             className="text-center mb-16"
           >
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
@@ -356,14 +337,11 @@ const DebtPayoffPlannerFeaturePage = () => {
             <p className="text-xl text-white/60 max-w-3xl mx-auto">
               Upload your debt details and watch Blitz create your personalized freedom strategy
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Input Interface */}
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
+            <div
               className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20"
             >
               <h3 className="text-2xl font-bold text-white mb-6">Upload Your Debt Details</h3>
@@ -416,13 +394,10 @@ const DebtPayoffPlannerFeaturePage = () => {
                   Calculate My Liberation Strategy
                 </button>
               </div>
-            </motion.div>
+            </div>
 
             {/* Results Display */}
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
+            <div
               className="space-y-6"
             >
               <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-2xl p-6 border border-yellow-400/30">
@@ -452,7 +427,7 @@ const DebtPayoffPlannerFeaturePage = () => {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
@@ -460,10 +435,7 @@ const DebtPayoffPlannerFeaturePage = () => {
       {/* Blitz's AI Team Showcase */}
       <section className="py-20 bg-gradient-to-br from-slate-900 to-yellow-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+          <div
             className="text-center mb-16"
           >
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
@@ -472,15 +444,12 @@ const DebtPayoffPlannerFeaturePage = () => {
             <p className="text-xl text-white/60 max-w-3xl mx-auto">
               Meet the AI specialists who make Blitz's debt liberation possible with their unique abilities and expertise
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {liberationTeam.map((member, index) => (
-              <motion.div
+              <div
                 key={member.name}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: index * 0.1 }}
                 className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:border-white/30 transition-all duration-300 hover:scale-105"
               >
                 <div className="text-center">
@@ -497,7 +466,7 @@ const DebtPayoffPlannerFeaturePage = () => {
                   </div>
                   <p className="text-white/70 text-sm leading-relaxed">{member.description}</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -506,10 +475,7 @@ const DebtPayoffPlannerFeaturePage = () => {
       {/* Live Liberation Demo */}
       <section className="py-20 bg-gradient-to-br from-slate-800 to-slate-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+          <div
             className="text-center mb-16"
           >
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
@@ -518,14 +484,11 @@ const DebtPayoffPlannerFeaturePage = () => {
             <p className="text-xl text-white/60 max-w-3xl mx-auto">
               Experience Blitz's magical liberation in real-time as he consults with his AI team to create your freedom strategy
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
             {/* Demo Interface */}
-            <motion.div 
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
+            <div
               className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-2xl p-8 border border-white/20"
             >
               <h3 className="text-2xl font-bold text-white mb-6">Try Blitz's Liberation</h3>
@@ -557,9 +520,7 @@ const DebtPayoffPlannerFeaturePage = () => {
 
               {/* AI Response Display */}
               {isLiberationActive && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 rounded-xl p-6 border border-yellow-400/30"
                 >
                   <div className="flex items-center space-x-3 mb-4">
@@ -578,15 +539,12 @@ const DebtPayoffPlannerFeaturePage = () => {
                       Continue Liberation
                     </button>
                   )}
-                </motion.div>
+                </div>
               )}
-            </motion.div>
+            </div>
 
             {/* Results Display */}
-            <motion.div 
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.8 }}
+            <div
               className="space-y-6"
             >
               {liberationScenarios.map((scenario) => (
@@ -626,7 +584,7 @@ const DebtPayoffPlannerFeaturePage = () => {
                   </div>
                 </div>
               ))}
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
@@ -634,10 +592,7 @@ const DebtPayoffPlannerFeaturePage = () => {
       {/* Blitz's Liberation Journey */}
       <section className="py-20 bg-gradient-to-br from-slate-900 to-yellow-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+          <div
             className="text-center mb-16"
           >
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
@@ -646,7 +601,7 @@ const DebtPayoffPlannerFeaturePage = () => {
             <p className="text-xl text-white/60 max-w-3xl mx-auto">
               Watch Blitz evolve from basic debt advice to intelligent liberation strategies through continuous AI learning
             </p>
-          </motion.div>
+          </div>
 
           <div className="relative">
             {/* Connection Line */}
@@ -654,11 +609,8 @@ const DebtPayoffPlannerFeaturePage = () => {
             
             <div className="space-y-12">
               {liberationStages.map((stage, index) => (
-                <motion.div
+                <div
                   key={stage.stage}
-                  initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.8, delay: index * 0.1 }}
                   className={`flex items-center ${index % 2 === 0 ? 'flex-row' : 'flex-row-reverse'}`}
                 >
                   {/* Stage Content */}
@@ -679,7 +631,7 @@ const DebtPayoffPlannerFeaturePage = () => {
                   
                   {/* Empty Space for Alignment */}
                   <div className="flex-1"></div>
-                </motion.div>
+                </div>
               ))}
             </div>
           </div>
@@ -689,10 +641,7 @@ const DebtPayoffPlannerFeaturePage = () => {
       {/* Call to Action */}
       <section className="py-20 bg-gradient-to-br from-yellow-900 to-orange-900">
         <div className="max-w-4xl mx-auto text-center px-4 sm:px-6 lg:px-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
+          <div
           >
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
               Ready to Experience Blitz's Liberation?
@@ -715,7 +664,7 @@ const DebtPayoffPlannerFeaturePage = () => {
                 Meet the Full AI Team
               </Link>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
     </>

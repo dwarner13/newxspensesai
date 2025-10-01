@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, Send, X, Loader2 } from 'lucide-react';
 import { useAIMemory } from '../../hooks/useAIMemory';
 import { EMPLOYEES } from '../../data/aiEmployees';
@@ -205,9 +204,7 @@ const AIEmployeeChatbot: React.FC<AIEmployeeChatbotProps> = ({
   return (
     <>
       {/* Floating Chat Button */}
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
+      <button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setShowChat(true)}
@@ -217,22 +214,16 @@ const AIEmployeeChatbot: React.FC<AIEmployeeChatbotProps> = ({
         {currentTask && currentTask.status === 'in_progress' && (
           <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full animate-pulse"></div>
         )}
-      </motion.button>
+      </button>
 
       {/* Chat Modal */}
-      <AnimatePresence>
+      
         {showChat && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setShowChat(false)}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-slate-900 rounded-2xl border border-white/10 w-full max-w-md h-[500px] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
@@ -292,12 +283,10 @@ const AIEmployeeChatbot: React.FC<AIEmployeeChatbotProps> = ({
                   </div>
                   
                   <div className="w-full bg-white/10 rounded-full h-2 mb-2">
-                    <motion.div
+                    <div
                       className={`bg-gradient-to-r ${getEmployeeColor(employeeKey)} h-2 rounded-full`}
                       style={{ width: `${currentTask.progress}%` }}
-                      initial={{ width: 0 }}
                       animate={{ width: `${currentTask.progress}%` }}
-                      transition={{ duration: 0.5 }}
                     />
                   </div>
                   
@@ -336,15 +325,16 @@ const AIEmployeeChatbot: React.FC<AIEmployeeChatbotProps> = ({
                   </button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </>
   );
 };
 
 export default AIEmployeeChatbot;
+
 
 
 

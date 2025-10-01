@@ -475,8 +475,7 @@ export class CostOptimizationSystem {
       cost: actualCost,
       accuracy,
       speed,
-      success
-    });
+      success});
     
     // Update efficiency metrics
     this.updateEfficiencyMetrics();

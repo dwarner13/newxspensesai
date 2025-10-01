@@ -4,7 +4,6 @@
  */
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Brain, 
   FileText, 
@@ -118,9 +117,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="text-center"
           >
             <div className="flex items-center justify-center space-x-3 mb-4">
@@ -143,7 +140,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
               with personality-driven insights and continuous learning.
             </p>
 
-            <motion.button
+            <button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowProcessor(true)}
@@ -152,16 +149,14 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
               <Zap className="w-6 h-6" />
               <span>Start Processing with Byte</span>
               <ArrowRight className="w-6 h-6" />
-            </motion.button>
-          </motion.div>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Features Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -171,15 +166,12 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
             Our AI Employee system combines cutting-edge technology with personality-driven interactions 
             to deliver the most advanced document processing experience.
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature, index) => (
-            <motion.div
+            <div
               key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
               className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow duration-300"
             >
               <div className={`w-16 h-16 bg-gradient-to-br ${feature.color} rounded-xl flex items-center justify-center text-white mb-4`}>
@@ -191,7 +183,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
               <p className="text-gray-600">
                 {feature.description}
               </p>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -199,9 +191,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
       {/* Processing Pipeline */}
       <div className="bg-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="text-center mb-16"
           >
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -211,15 +201,12 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
               Our system processes documents through multiple intelligent stages, 
               each optimized for maximum accuracy and user experience.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {processingStages.map((stage, index) => (
-              <motion.div
+              <div
                 key={index}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
                 className="flex items-start space-x-4 p-6 bg-gray-50 rounded-xl"
               >
                 <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 flex-shrink-0">
@@ -233,7 +220,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
                     {stage.description}
                   </p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -242,9 +229,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
       {/* Byte Personality Section */}
       <div className="bg-gradient-to-br from-blue-50 to-purple-50 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="text-center mb-12"
           >
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -254,7 +239,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
               Byte is your enthusiastic document processing wizard, combining technical expertise 
               with a friendly personality to make data organization fun and engaging.
             </p>
-          </motion.div>
+          </div>
 
           <div className="bg-white rounded-2xl p-8 shadow-lg max-w-4xl mx-auto">
             <div className="flex items-center space-x-4 mb-6">
@@ -320,9 +305,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
       {lastResult && (
         <div className="bg-white py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <div
               className="text-center mb-8"
             >
               <h2 className="text-3xl font-bold text-gray-900 mb-4">
@@ -331,7 +314,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
               <p className="text-lg text-gray-600">
                 Here's what Byte discovered in your last document
               </p>
-            </motion.div>
+            </div>
 
             <div className="bg-gray-50 rounded-2xl p-8 max-w-4xl mx-auto">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
@@ -371,9 +354,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
       {/* Footer CTA */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
           >
             <h2 className="text-3xl font-bold text-white mb-4">
               Ready to Experience the Future?
@@ -382,7 +363,7 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
               Join thousands of users who are already using Byte to organize their financial data 
               with AI-powered precision and personality.
             </p>
-            <motion.button
+            <button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowProcessor(true)}
@@ -390,8 +371,8 @@ const AIEmployeeDocumentProcessingDemo: React.FC = () => {
             >
               <Sparkles className="w-6 h-6" />
               <span>Start with Byte Now</span>
-            </motion.button>
-          </motion.div>
+            </button>
+          </div>
         </div>
       </div>
     </div>

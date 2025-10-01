@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { usePersonalPodcast } from '../../contexts/PersonalPodcastContext';
 import { PodcastEpisode } from '../../contexts/PersonalPodcastContext';
 import { 
@@ -115,10 +114,7 @@ export function EpisodePlayer({ episode, onClose, className = '' }: EpisodePlaye
   }, [episode.playProgress, episode.isPlaying]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
+    <div
       className={`bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden ${className}`}
     >
       {/* Header */}
@@ -175,16 +171,14 @@ export function EpisodePlayer({ episode, onClose, className = '' }: EpisodePlaye
             onClick={handleProgressClick}
             className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full cursor-pointer relative overflow-hidden"
           >
-            <motion.div
+            <div
               className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
               style={{
                 width: `${(currentTime / episode.duration) * 100}%`
               }}
-              initial={{ width: 0 }}
               animate={{
                 width: `${(currentTime / episode.duration) * 100}%`
               }}
-              transition={{ duration: 0.3 }}
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
@@ -229,12 +223,9 @@ export function EpisodePlayer({ episode, onClose, className = '' }: EpisodePlaye
                 {volume === 0 ? <VolumeX size={16} /> : <Volume2 size={16} />}
               </button>
               
-              <AnimatePresence>
+              
                 {showVolumeSlider && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
+                  <div
                     className="absolute bottom-full right-0 mb-2 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
                   >
                     <input
@@ -246,9 +237,9 @@ export function EpisodePlayer({ episode, onClose, className = '' }: EpisodePlaye
                       onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
                       className="w-20 h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
                     />
-                  </motion.div>
+                  </div>
                 )}
-              </AnimatePresence>
+              
             </div>
           </div>
         </div>
@@ -321,6 +312,6 @@ export function EpisodePlayer({ episode, onClose, className = '' }: EpisodePlaye
           </div>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 } 

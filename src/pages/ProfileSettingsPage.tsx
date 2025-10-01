@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { 
   User, 
   Save, 
@@ -86,8 +85,7 @@ const ProfileSettingsPage = () => {
         setProfile(mockProfile as Profile);
         setFormData({
           display_name: mockProfile.display_name,
-          avatar_url: mockProfile.avatar_url
-        });
+          avatar_url: mockProfile.avatar_url});
         
         setLoading(false);
         return;
@@ -133,8 +131,7 @@ const ProfileSettingsPage = () => {
           setProfile(newProfile);
           setFormData({
             display_name: newProfile.display_name,
-            avatar_url: newProfile.avatar_url
-          });
+            avatar_url: newProfile.avatar_url});
         }
       }
     } catch (error) {
@@ -189,8 +186,7 @@ const ProfileSettingsPage = () => {
         totalExpenses,
         categoriesUsed,
         filesUploaded: files?.length || 0,
-        lastTransaction
-      });
+        lastTransaction});
     } catch (error) {
       console.error('Error loading user stats:', error);
     }
@@ -452,22 +448,17 @@ const ProfileSettingsPage = () => {
     <div className="flex min-h-screen bg-gray-50">
       <AccountSettingsSidebar />
       <div className="flex-1 p-6 overflow-y-auto">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="flex items-center space-x-3 mb-8"
         >
           <User size={32} className="text-primary-600" />
           <h1 className="text-2xl font-bold">Profile Settings</h1>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Profile Section */}
           <div className="lg:col-span-2 space-y-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
+            <div
               className="card"
             >
               <div className="space-y-6">
@@ -605,28 +596,20 @@ const ProfileSettingsPage = () => {
                     ) : (
                       <>
                         <Save size={16} className="mr-2" />
-                        Save Changes
-                      </>
-                    )}
+                        Save Changes)}
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {/* Subscription Management */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3 }}
+            <div
             >
               <SubscriptionManager />
-            </motion.div>
+            </div>
 
             {/* Account Management */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.4 }}
+            <div
               className="card"
             >
               <h3 className="text-lg font-medium text-gray-900 mb-6">Account Management</h3>
@@ -680,17 +663,14 @@ const ProfileSettingsPage = () => {
                   </button>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
 
           {/* Sidebar - Stats and Details */}
           <div className="space-y-6">
             {/* User Statistics */}
             {stats && (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
+              <div
                 className="card"
               >
                 <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
@@ -733,15 +713,12 @@ const ProfileSettingsPage = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {/* Account Details */}
             {profile && (
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.4 }}
+              <div
                 className="card"
               >
                 <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center">
@@ -781,7 +758,7 @@ const ProfileSettingsPage = () => {
                     </p>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
           </div>
         </div>
@@ -789,9 +766,7 @@ const ProfileSettingsPage = () => {
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
+            <div
               className="bg-white rounded-lg p-6  mx-4"
             >
               <div className="flex items-center space-x-3 mb-4">
@@ -827,7 +802,7 @@ const ProfileSettingsPage = () => {
                   Delete Account
                 </button>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
       </div>

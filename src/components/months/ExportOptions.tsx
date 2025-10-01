@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Download, FileText, Mail, Printer } from 'lucide-react';
 import { Transaction } from '../../types/database.types';
 import { exportToPDF, exportToCSV } from '../../utils/exportUtils';
@@ -53,10 +52,7 @@ const ExportOptions = ({ transactions, month, stats, className = '' }: ExportOpt
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
+    <div
       className={`card ${className}`}
     >
       <h2 className="text-xl font-bold mb-6">Export Options</h2>
@@ -108,7 +104,7 @@ const ExportOptions = ({ transactions, month, stats, className = '' }: ExportOpt
           No data available for {month}. Upload transactions to enable export options.
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

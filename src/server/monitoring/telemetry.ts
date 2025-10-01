@@ -169,7 +169,7 @@ export class TelemetryService {
       .from('telemetry_metrics')
       .select('*')
       .gte('timestamp', this.getTimeRangeStart(timeRange))
-      .order('timestamp', { ascending: false });
+      .order('timestamp', { ascending: false});
     
     return this.aggregateMetrics(data || []);
   }

@@ -67,8 +67,7 @@ class OCRSpaceProvider implements OCRProvider {
         headers: {
           "apikey": this.apiKey,
         },
-        body: formData
-      });
+        body: formData});
 
       if (!response.ok) {
         throw new Error(`OCR.space API error: ${response.status}`);

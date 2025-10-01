@@ -65,7 +65,7 @@ export function redactText(input: string): Result<RedactionResult> {
     return token;
   });
   
-  return Ok({ redacted, tokens });
+  return Ok({ redacted, tokens});
 }
 
 function isValidLuhn(digits: string): boolean {

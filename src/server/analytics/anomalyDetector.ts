@@ -445,8 +445,7 @@ export class AnomalyDetector {
     // Detect transactions at unusual hours (assuming we have time data)
     const nightTransactions = transactions.filter(t => {
       // This would need actual time data
-      return false; // Placeholder
-    });
+      return false; // Placeholder});
     
     if (nightTransactions.length > transactions.length * 0.05) {
       anomalies.push({

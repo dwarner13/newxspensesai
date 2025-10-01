@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { 
   X, 
   Volume2, 
@@ -80,15 +79,13 @@ export function PersonalityHeader({
   const catchphrase = getRandomCatchphrase(employee.catchphrases);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className={`bg-gradient-to-r ${employee.color} px-6 py-4 flex items-center justify-between`}
     >
       {/* Employee Info */}
       <div className="flex items-center space-x-3 flex-1 min-w-0">
         {/* Avatar */}
-        <motion.div
+        <div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="relative"
@@ -101,7 +98,7 @@ export function PersonalityHeader({
           <div className={`absolute -bottom-1 -right-1 w-4 h-4 ${status.color} rounded-full border-2 border-white ${status.animation}`}>
             <div className="w-full h-full rounded-full bg-white/30"></div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Employee Details */}
         <div className="flex-1 min-w-0">
@@ -109,13 +106,11 @@ export function PersonalityHeader({
             <h3 className="text-white font-semibold text-lg truncate">
               {employee.name}
             </h3>
-            <motion.div
-              initial={{ opacity: 0, scale: 0 }}
-              animate={{ opacity: 1, scale: 1 }}
+            <div
               className="hidden sm:block"
             >
               <Sparkles className="w-4 h-4 text-white/80" />
-            </motion.div>
+            </div>
           </div>
           
           <div className="flex items-center space-x-2">
@@ -131,14 +126,11 @@ export function PersonalityHeader({
           </div>
 
           {/* Catchphrase */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
+          <p
             className="text-white/70 text-xs truncate mt-1"
           >
             "{catchphrase}"
-          </motion.p>
+          </p>
         </div>
       </div>
 
@@ -146,7 +138,7 @@ export function PersonalityHeader({
       <div className="flex items-center space-x-2">
         {/* Voice Toggle */}
         {onVoiceToggle && (
-          <motion.button
+          <button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onVoiceToggle}
@@ -161,41 +153,41 @@ export function PersonalityHeader({
             ) : (
               <VolumeX className="w-4 h-4" />
             )}
-          </motion.button>
+          </button>
         )}
 
         {/* Settings */}
         {onSettings && (
-          <motion.button
+          <button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onSettings}
             className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white/70 hover:bg-white/30 hover:text-white transition-colors"
           >
             <Settings className="w-4 h-4" />
-          </motion.button>
+          </button>
         )}
 
         {/* More Options */}
-        <motion.button
+        <button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white/70 hover:bg-white/30 hover:text-white transition-colors"
         >
           <MoreVertical className="w-4 h-4" />
-        </motion.button>
+        </button>
 
         {/* Close Button */}
-        <motion.button
+        <button
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClose}
           className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center text-white/70 hover:bg-white/30 hover:text-white transition-colors"
         >
           <X className="w-5 h-5" />
-        </motion.button>
+        </button>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { 
   ArrowRight, 
@@ -22,10 +21,7 @@ export default function AIInsightsPage() {
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-primary-50 to-secondary-50 py-20 px-4">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+          <div
             className="text-center"
           >
             <h1 className="text-4xl md:text-5xl font-bold mb-6">XspensesAI Brain</h1>
@@ -39,18 +35,15 @@ export default function AIInsightsPage() {
               Try It Free
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Connect Section */}
       <section className="py-20 px-4 bg-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="flex flex-col md:flex-row items-center gap-12"
           >
             <div className="md:w-1/2">
@@ -89,18 +82,15 @@ export default function AIInsightsPage() {
                 className="rounded-xl shadow-lg"
               />
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Ask Section */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="flex flex-col md:flex-row-reverse items-center gap-12"
           >
             <div className="md:w-1/2">
@@ -175,18 +165,15 @@ export default function AIInsightsPage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Build Section */}
       <section className="py-20 px-4 bg-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="flex flex-col md:flex-row items-center gap-12"
           >
             <div className="md:w-1/2">
@@ -236,18 +223,15 @@ export default function AIInsightsPage() {
                 className="rounded-xl shadow-lg"
               />
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Write Section */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="flex flex-col md:flex-row-reverse items-center gap-12"
           >
             <div className="md:w-1/2">
@@ -329,25 +313,22 @@ export default function AIInsightsPage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Features Grid */}
       <section className="py-20 px-4 bg-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">AI-Powered Features</h2>
             <p className="text-xl text-gray-600 max-w-3xl ">
               XspensesAI Brain brings intelligent financial management to your fingertips with these powerful features.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
@@ -382,12 +363,9 @@ export default function AIInsightsPage() {
                 icon: <DollarSign className="h-6 w-6 text-primary-600" />
               }
             ].map((feature, index) => (
-              <motion.div
+              <div
                 key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.1 * index }}
                 className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
               >
                 <div className="w-12 h-12 bg-primary-50 rounded-full flex items-center justify-center mb-4">
@@ -395,7 +373,7 @@ export default function AIInsightsPage() {
                 </div>
                 <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
                 <p className="text-gray-600">{feature.description}</p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -404,11 +382,8 @@ export default function AIInsightsPage() {
       {/* Final CTA Section */}
       <section className="py-20 px-4 bg-gradient-to-r from-primary-600 to-secondary-600 text-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Experience AI-Powered Financial Management?</h2>
@@ -430,7 +405,7 @@ export default function AIInsightsPage() {
                 Explore How It Works
               </Link>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
     </WebsiteLayout>

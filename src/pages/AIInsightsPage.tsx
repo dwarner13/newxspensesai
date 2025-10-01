@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -194,42 +193,30 @@ export default function AIInsightsPage() {
 
   if (loading) {
     return (
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+      <div
         className="flex items-center justify-center min-h-[50vh]"
       >
         <div className="text-center">
-          <motion.div 
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+          <div
             className="w-12 h-12 border-4 border-primary-200 border-t-primary-500 rounded-full mx-auto mb-4"
           />
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
+          <p
             className="text-gray-600"
           >
             AI is analyzing your financial data...
-          </motion.p>
+          </p>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
+    <div
     >
       <PageHeader />
       <div className="space-y-6">
         {/* Description */}
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         >
           <div>
@@ -244,13 +231,10 @@ export default function AIInsightsPage() {
               <span className="text-sm font-medium text-primary-700">AI Powered</span>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Category Filters */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="flex flex-wrap gap-2"
         >
           {categories.map((category) => (
@@ -267,16 +251,13 @@ export default function AIInsightsPage() {
               <span className="text-sm font-medium">{category.name}</span>
             </button>
           ))}
-        </motion.div>
+        </div>
 
         {/* Insights Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredInsights.map((insight, index) => (
-            <motion.div
+            <div
               key={insight.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
               className={`card border-l-4 ${getPriorityColor(insight.priority)} hover:shadow-lg transition-shadow`}
             >
               <div className="flex items-start justify-between mb-3">
@@ -333,15 +314,12 @@ export default function AIInsightsPage() {
                   <span>Ask AI about this insight</span>
                 </button>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
         {/* AI Assistant Section */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="card bg-gradient-to-r from-primary-50 to-secondary-50 border-primary-200"
         >
           <div className="flex items-start space-x-4">
@@ -404,26 +382,20 @@ export default function AIInsightsPage() {
               
               {/* AI Response Display */}
               {aiLoading && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="mt-4 p-4 bg-blue-50 rounded-lg"
                 >
                   <div className="flex items-center space-x-2">
-                    <motion.div 
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    <div
                       className="w-4 h-4 border-2 border-primary-200 border-t-primary-500 rounded-full"
                     />
                     <span className="text-sm text-blue-700">AI is analyzing your request...</span>
                   </div>
-                </motion.div>
+                </div>
               )}
               
               {aiResponse && !aiLoading && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="mt-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm"
                 >
                   <div className="flex items-start space-x-3">
@@ -437,17 +409,14 @@ export default function AIInsightsPage() {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               )}
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Summary Stats */}
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
+        <div
           className="grid grid-cols-1 md:grid-cols-4 gap-4"
         >
           <div className="card bg-gradient-to-r from-blue-500 to-blue-600 text-white">
@@ -489,8 +458,8 @@ export default function AIInsightsPage() {
               <Zap className="w-8 h-8 text-purple-200" />
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 } 

@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Shield, ArrowLeft, Lock, Eye, Database, Mail } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -7,9 +6,7 @@ export default function PrivacyPolicyPage() {
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-4xl  px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="mb-8"
         >
           <Link 
@@ -29,13 +26,10 @@ export default function PrivacyPolicyPage() {
             <span><strong>Effective Date:</strong> June 10, 2025</span>
             <span><strong>Last Updated:</strong> June 10, 2025</span>
           </div>
-        </motion.div>
+        </div>
 
         {/* Content */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="bg-white rounded-xl shadow-sm p-8 space-y-8"
         >
           <div className="prose prose-gray max-w-none">
@@ -153,13 +147,10 @@ export default function PrivacyPolicyPage() {
               </div>
             </section>
           </div>
-        </motion.div>
+        </div>
 
         {/* Footer */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
+        <div
           className="mt-8 text-center"
         >
           <div className="flex items-center justify-center space-x-6 text-sm text-gray-500">
@@ -175,7 +166,7 @@ export default function PrivacyPolicyPage() {
               Back to App
             </Link>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

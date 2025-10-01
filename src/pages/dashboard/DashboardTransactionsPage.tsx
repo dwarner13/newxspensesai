@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useAuth } from '../../contexts/AuthContext';
@@ -312,9 +311,7 @@ const DashboardTransactionsPage: React.FC = () => {
           />
           
           {/* Header Section */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="mb-8"
           >
             <div className="flex flex-col lg:flex-row gap-6">
@@ -329,7 +326,7 @@ const DashboardTransactionsPage: React.FC = () => {
                 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                  <motion.div
+                  <div
                     whileHover={{ scale: 1.02 }}
                     className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-sm border border-green-500/20 rounded-xl p-6"
                   >
@@ -343,9 +340,9 @@ const DashboardTransactionsPage: React.FC = () => {
                         <DollarSign className="w-6 h-6 text-white" />
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                   
-                  <motion.div
+                  <div
                     whileHover={{ scale: 1.02 }}
                     className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-sm border border-blue-500/20 rounded-xl p-6"
                   >
@@ -359,9 +356,9 @@ const DashboardTransactionsPage: React.FC = () => {
                         <FileText className="w-6 h-6 text-white" />
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                   
-                  <motion.div
+                  <div
                     whileHover={{ scale: 1.02 }}
                     className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-sm border border-purple-500/20 rounded-xl p-6"
                   >
@@ -375,7 +372,7 @@ const DashboardTransactionsPage: React.FC = () => {
                         <Brain className="w-6 h-6 text-white" />
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 </div>
               </div>
               
@@ -412,7 +409,7 @@ const DashboardTransactionsPage: React.FC = () => {
                     Ask me anything about your transactions, spending patterns, or get insights on your financial data.
                   </p>
                   
-          <motion.button
+          <button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
             onClick={() => setCrystalOpen(!crystalOpen)}
@@ -425,7 +422,7 @@ const DashboardTransactionsPage: React.FC = () => {
                 {crystalMessages.length}
               </div>
             )}
-          </motion.button>
+          </button>
                   
                   {/* Quick Questions */}
                   <div className="mt-4 space-y-2">
@@ -448,13 +445,10 @@ const DashboardTransactionsPage: React.FC = () => {
                 </div>
               </div>
             </div>
-        </motion.div>
+        </div>
 
         {/* Search and Actions Bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="mb-6"
         >
           <div className="flex flex-col sm:flex-row gap-4">
@@ -471,7 +465,7 @@ const DashboardTransactionsPage: React.FC = () => {
           </div>
             
             {/* Quick Upload Button */}
-            <motion.button
+            <button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => navigate('/dashboard/smart-import-ai')}
@@ -479,15 +473,12 @@ const DashboardTransactionsPage: React.FC = () => {
             >
               <Upload className="w-4 h-4" />
               Upload Document
-            </motion.button>
+            </button>
           </div>
-        </motion.div>
+        </div>
 
         {/* Transactions Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
+        <div
           className="mb-6"
         >
           <h2 className="text-xl font-semibold text-white mb-4">
@@ -504,7 +495,7 @@ const DashboardTransactionsPage: React.FC = () => {
               <p className="text-white/60 text-sm mb-6 max-w-md mx-auto">
                 Upload your first document to get started with AI-powered transaction analysis and insights
               </p>
-              <motion.button
+              <button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => navigate('/dashboard/smart-import-ai')}
@@ -512,17 +503,14 @@ const DashboardTransactionsPage: React.FC = () => {
               >
                 <Upload className="w-5 h-5" />
                 Upload Your First Document
-              </motion.button>
+              </button>
             </div>
           )}
-        </motion.div>
+        </div>
 
         {/* AI Insights Section */}
         {aiInsights.length > 0 && (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+        <div
             className="mb-6"
           >
             <h2 className="text-lg font-semibold text-white mb-3">AI Insights</h2>
@@ -555,23 +543,17 @@ const DashboardTransactionsPage: React.FC = () => {
           </div>
               ))}
           </div>
-        </motion.div>
+        </div>
         )}
 
         {/* Transactions List */}
         {filteredTransactions.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="space-y-4"
         >
           {filteredTransactions.map((transaction, index) => (
-            <motion.div
+            <div
               key={transaction.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 * index }}
                 className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl p-6 hover:bg-white/10 transition-all duration-200 cursor-pointer group"
               onClick={() => handleTransactionClick(transaction)}
             >
@@ -657,25 +639,19 @@ const DashboardTransactionsPage: React.FC = () => {
                           </span>
                 </div>
               )}
-                </motion.div>
+                </div>
               ))}
-            </motion.div>
+            </div>
           )}
 
         {/* Crystal AI Assistant Modal */}
-        <AnimatePresence>
+        
           {crystalOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <div
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
               onClick={() => setCrystalOpen(false)}
             >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
+              <div
                 className="bg-gradient-to-br from-purple-900 to-pink-900 rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -798,10 +774,10 @@ const DashboardTransactionsPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
-        </AnimatePresence>
+        
     </div>
     
     {/* Document Viewer Modal */}

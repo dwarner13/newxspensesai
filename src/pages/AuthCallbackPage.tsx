@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 
 // Flag to enable mock mode - set to true when testing without Supabase
@@ -26,7 +25,7 @@ export default function AuthCallbackPage() {
           
           // Short delay to show the message
           setTimeout(() => {
-            navigate('/dashboard', { replace: true });
+            navigate('/dashboard', { replace: true});
           }, 1000);
           
           return;
@@ -51,7 +50,7 @@ export default function AuthCallbackPage() {
           setError('Authentication failed. Please try again.');
           toast.error('Authentication failed. Please try again.');
           setTimeout(() => {
-            navigate('/login?error=auth_failed', { replace: true });
+            navigate('/login?error=auth_failed', { replace: true});
           }, 2000);
           return;
         }
@@ -82,21 +81,21 @@ export default function AuthCallbackPage() {
           // Small delay to show success message
           setTimeout(() => {
             // Navigate to the intended path or dashboard
-            navigate(intendedPath || '/dashboard', { replace: true });
+            navigate(intendedPath || '/dashboard', { replace: true});
           }, 1000);
         } else {
           console.log('⚠️ No session found');
           setError('No session found. Please try signing in again.');
           toast.error('No session found. Please try signing in again.');
           setTimeout(() => {
-            navigate('/login?error=no_session', { replace: true });
+            navigate('/login?error=no_session', { replace: true});
           }, 2000);
         }
 
         // Fallback timeout - redirect to dashboard after 5 seconds regardless
         const fallbackTimeoutId = setTimeout(() => {
           console.log('⚠️ Fallback timeout triggered, redirecting to dashboard');
-          navigate('/dashboard', { replace: true });
+          navigate('/dashboard', { replace: true});
         }, 5000);
 
         return () => {
@@ -107,7 +106,7 @@ export default function AuthCallbackPage() {
         setError('An unexpected error occurred. Please try again.');
         toast.error('An unexpected error occurred. Please try again.');
         setTimeout(() => {
-          navigate('/login?error=unexpected', { replace: true });
+          navigate('/login?error=unexpected', { replace: true});
         }, 2000);
       }
     };
@@ -117,9 +116,7 @@ export default function AuthCallbackPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
+      <div
         className="text-center p-8  w-full bg-white rounded-xl shadow-xl"
       >
         {error ? (
@@ -148,9 +145,7 @@ export default function AuthCallbackPage() {
             </p>
 
             {longWait && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+              <div
                 className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-700"
               >
                 <p className="font-medium mb-2">Taking longer than expected?</p>
@@ -161,11 +156,11 @@ export default function AuthCallbackPage() {
                 >
                   Go to Dashboard
                 </button>
-              </motion.div>
+              </div>
             )}
           </>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

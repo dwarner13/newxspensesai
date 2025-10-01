@@ -1,5 +1,4 @@
 import { ReactNode } from 'react';
-import { motion } from 'framer-motion';
 import { Award, Lock, Zap } from 'lucide-react';
 
 interface BadgeCardProps {
@@ -26,9 +25,7 @@ const BadgeCard = ({
   const progressPercent = Math.min((progress / total) * 100, 100);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
+    <div
       whileHover={{ scale: 1.02 }}
       className={`relative p-4 rounded-lg border-2 transition-all duration-300 ${
         earned
@@ -94,15 +91,13 @@ const BadgeCard = ({
 
       {/* Earned Badge Overlay */}
       {earned && (
-        <motion.div
-          initial={{ scale: 0, rotate: -180 }}
-          animate={{ scale: 1, rotate: 0 }}
+        <div
           className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center text-white shadow-lg"
         >
           <Award size={16} />
-        </motion.div>
+        </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

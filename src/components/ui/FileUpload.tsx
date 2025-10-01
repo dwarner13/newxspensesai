@@ -1,5 +1,4 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
   X, 
@@ -85,16 +84,14 @@ export default function FileUpload({
           file,
           status: 'error',
           progress: 0,
-          error
-        });
+          error});
       } else {
         validFiles.push(file);
         newUploadedFiles.push({
           id: `${Date.now()}-${index}`,
           file,
           status: 'uploading',
-          progress: 0
-        });
+          progress: 0});
       }
     });
 
@@ -186,9 +183,7 @@ export default function FileUpload({
   return (
     <div className={`space-y-4 ${className}`}>
       {/* Upload Area */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-all duration-200 ${
           isDragOver 
             ? 'border-blue-400 bg-blue-50/10' 
@@ -229,15 +224,12 @@ export default function FileUpload({
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Uploaded Files List */}
-      <AnimatePresence>
+      
         {uploadedFiles.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+          <div
             className="space-y-2"
           >
             <h4 className="text-sm font-medium text-gray-200">Uploaded Files</h4>
@@ -245,11 +237,8 @@ export default function FileUpload({
               const FileIcon = getFileIcon(uploadedFile.file);
               
               return (
-                <motion.div
+                <div
                   key={uploadedFile.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
                   className={`flex items-center gap-3 p-3 rounded-lg border ${
                     uploadedFile.status === 'error' 
                       ? 'border-red-500/30 bg-red-500/10' 
@@ -301,12 +290,12 @@ export default function FileUpload({
                       {uploadedFile.error}
                     </div>
                   )}
-                </motion.div>
+                </div>
               );
             })}
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </div>
   );
 }

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Play, Users, TrendingUp, Heart, Star, Clock, Zap, Crown, Target, MessageCircle, Bell, Share2, ArrowRight, CheckCircle, AlertTriangle, DollarSign, Video, Instagram, Youtube, Twitter } from 'lucide-react';
 
 export default function PersonalPodcastPage() {
@@ -24,39 +23,30 @@ export default function PersonalPodcastPage() {
           🔴 LIVE NOW: 5,742 People Getting Roasted by AI
         </div>
         
-        <motion.h1
+        <h1
           className="text-5xl md:text-7xl font-extrabold mb-6"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
         >
           Your Money Sucks.
           <br />
           <span className="bg-gradient-to-r from-orange-400 to-pink-400 bg-clip-text text-transparent">
             Let Our AI Roast It Better.
           </span>
-        </motion.h1>
+        </h1>
         
-        <motion.p
+        <p
           className="text-xl md:text-2xl text-blue-100 mb-10 max-w-3xl mx-auto"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
         >
           Watch your personalized avatar get financially destroyed (lovingly) by 6 brutal AI personalities who actually make saving money addictive.
-        </motion.p>
+        </p>
         
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
+        <div
           className="mb-8"
         >
           <button className="inline-block bg-gradient-to-r from-red-500 to-pink-500 text-white px-12 py-6 rounded-xl font-bold text-2xl shadow-2xl hover:from-pink-500 hover:to-red-500 transition-all duration-300 animate-pulse">
             CREATE MY AVATAR & GET ROASTED
           </button>
           <p className="text-sm text-blue-200 mt-2">Takes 30 seconds • No credit card • 1,247 created today</p>
-        </motion.div>
+        </div>
 
         {/* Scrolling Ticker */}
         <div className="bg-black/20 backdrop-blur-sm rounded-lg p-4 mb-8">
@@ -560,13 +550,11 @@ export default function PersonalPodcastPage() {
 
       {/* FINAL CTA SECTION - MAXIMUM URGENCY */}
       <section className="py-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl mt-16 text-white text-center max-w-4xl mx-auto shadow-xl">
-        <motion.h2
+        <h2
           className="text-4xl md:text-5xl font-bold text-white mb-4"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
         >
           Your Broke Era Ends in 3...2...1...
-        </motion.h2>
+        </h2>
         
         <button className="bg-white text-purple-600 px-12 py-6 rounded-xl text-2xl font-bold hover:shadow-xl transform hover:scale-105 transition-all duration-200 mb-6 animate-pulse">
           START GETTING ROASTED NOW

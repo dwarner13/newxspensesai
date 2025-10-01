@@ -53,8 +53,7 @@ const SmartReceiptCategorizer = ({
       const response = await categorizeReceipt({
         receipt_text: receiptText,
         user_memory: userMemory,
-        user_goals: userGoals
-      });
+        user_goals: userGoals});
       
       setResult(response);
       
@@ -63,8 +62,7 @@ const SmartReceiptCategorizer = ({
           vendor: response.vendor,
           amount: response.amount,
           category: response.category,
-          goal_alert: response.goal_alert
-        });
+          goal_alert: response.goal_alert});
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to categorize receipt');

@@ -23,7 +23,7 @@ export async function run(input: z.infer<typeof inputSchema>, ctx: { userId: str
     
     // Convert base64 to ArrayBuffer
     const arrayBuffer = Uint8Array.from(atob(input.base64), c => c.charCodeAt(0)).buffer;
-    const res = await extractPdfTextSafe(arrayBuffer, { maxPages: input.maxPages ?? 5 });
+    const res = await extractPdfTextSafe(arrayBuffer, { maxPages: input.maxPages ?? 5});
     
     // Log audit (simplified version for now)
     console.log(`PDF parsing completed for user ${ctx.userId} in ${Date.now() - started}ms`);

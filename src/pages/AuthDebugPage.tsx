@@ -1,5 +1,4 @@
 import { useAuth } from '../contexts/AuthContext';
-import { motion } from 'framer-motion';
 import { LogIn, LogOut, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -34,19 +33,14 @@ export default function AuthDebugPage() {
 
   return (
     <div className="max-w-2xl ">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center space-x-3 mb-8"
       >
         <Shield size={32} className="text-primary-600" />
         <h1 className="text-2xl font-bold">🔐 Auth Debug</h1>
-      </motion.div>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.2 }}
+      <div
         className="bg-white rounded-xl shadow-card p-6 mb-6"
       >
         <div className="space-y-4">
@@ -84,11 +78,11 @@ export default function AuthDebugPage() {
             </>
           )}
         </div>
-      </motion.div>
+      </div>
 
       <div className="flex justify-center space-x-4">
         {!user ? (
-          <motion.button
+          <button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleSignIn}
@@ -96,9 +90,9 @@ export default function AuthDebugPage() {
           >
             <LogIn className="w-5 h-5 mr-2" />
             Sign in with Google
-          </motion.button>
+          </button>
         ) : (
-          <motion.button
+          <button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleSignOut}
@@ -106,7 +100,7 @@ export default function AuthDebugPage() {
           >
             <LogOut className="w-5 h-5 mr-2" />
             Sign Out
-          </motion.button>
+          </button>
         )}
       </div>
     </div>

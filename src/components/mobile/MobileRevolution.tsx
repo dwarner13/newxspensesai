@@ -35,8 +35,7 @@ const MobileDetection = {
       isDashboardPage,
       windowWidth: window.innerWidth,
       pathname: window.location.pathname,
-      result: isDashboardPage && isSmallScreen
-    });
+      result: isDashboardPage && isSmallScreen});
     
     // Show mobile view on dashboard pages with small screens
     return isDashboardPage && isSmallScreen;
@@ -681,16 +680,14 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
     pathname: window.location.pathname,
     hasTouch: 'ontouchstart' in window,
     userAgent: navigator.userAgent,
-    currentView
-  });
+    currentView});
   
   // Additional debugging for dashboard rendering
   console.log('🎯 Dashboard rendering check:', {
     currentView,
     isMobile,
     shouldRenderDashboard: currentView === 'dashboard' && isMobile,
-    windowWidth: window.innerWidth
-  });
+    windowWidth: window.innerWidth});
   
   // Add visible debug indicator
   if (typeof window !== 'undefined') {

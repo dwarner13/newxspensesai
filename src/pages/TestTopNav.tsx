@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import TopNav from '../components/layout/TopNav';
 import { useAtom } from 'jotai';
 import { isDarkModeAtom } from '../lib/uiStore';
@@ -17,9 +16,7 @@ const TestTopNav = () => {
       <TopNav toggleDarkMode={toggleDarkMode} />
       
       <div className="container  px-4 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className={`p-6 rounded-lg shadow-lg ${darkMode ? 'bg-gray-800' : 'bg-white'}`}
         >
           <h1 className={`text-2xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>TopNav Component Test</h1>
@@ -55,7 +52,7 @@ const TestTopNav = () => {
               </Link>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

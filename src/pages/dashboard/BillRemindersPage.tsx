@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Send, 
   Loader2,
@@ -303,22 +302,16 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
               {messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center max-w-2xl">
-                    <motion.h2
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3 }}
+                    <h2
                       className="text-xl font-bold text-white mb-1"
                     >
                       Welcome to Chime's Bill Protection Command Center
-                    </motion.h2>
-                    <motion.p
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.4 }}
+                    </h2>
+                    <p
                       className="text-white/60 text-sm mb-3"
                     >
                       Your AI-powered financial protection system that never sleeps
-                    </motion.p>
+                    </p>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
                       {[
                         { icon: Upload, title: "Smart Upload AI", desc: "Upload and analyze bill statements", color: "from-green-500 to-emerald-500" },
@@ -328,11 +321,8 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
                         { icon: Users, title: "AI Team", desc: "Meet your protection specialists", color: "from-orange-500 to-yellow-500" },
                         { icon: Play, title: "Protection Theater", desc: "Live bill protection scenarios", color: "from-indigo-500 to-purple-500" }
                       ].map((item, index) => (
-                        <motion.button
+                        <button
                           key={item.title}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.5 + index * 0.1 }}
                           onClick={() => sendMessage(`Help me with ${item.title.toLowerCase()}`)}
                           className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
                         >
@@ -343,17 +333,15 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
                             <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
                             <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                           </div>
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                   </div>
                 </div>
               ) : (
                 messages.map((message, index) => (
-                  <motion.div
+                  <div
                     key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
                     className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
@@ -368,13 +356,11 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
                       </div>
                       <div className="text-sm">{message.content}</div>
                     </div>
-                  </motion.div>
+                  </div>
                 ))
               )}
               {isLoading && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="flex justify-start"
                 >
                   <div className="bg-white/10 text-white/90 max-w-md px-2 py-1.5 rounded text-left">
@@ -383,7 +369,7 @@ Hello! I'm Wisdom, your strategic planning specialist. I provide strategic insig
                       <span className="text-sm">Chime is thinking...</span>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               )}
             </div>
 

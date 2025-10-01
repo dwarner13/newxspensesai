@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
   FileText, 
@@ -326,16 +325,14 @@ const TransactionCategorizer = ({ onComplete }: TransactionCategorizerProps) => 
 
   return (
     <div className="  space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="text-center"
       >
         <h2 className="text-2xl font-bold text-gray-900 mb-2">AI Transaction Categorizer</h2>
         <p className="text-gray-600">
           Upload a CSV or text file with transaction data and let AI categorize them automatically
         </p>
-      </motion.div>
+      </div>
 
       {/* File Upload Section */}
       <div className="card">
@@ -395,21 +392,18 @@ const TransactionCategorizer = ({ onComplete }: TransactionCategorizerProps) => 
               </div>
             </div>
             
-            <AnimatePresence>
+            
               {showRawData && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
+                <div
                   className="mt-4 p-3 bg-white rounded border max-h-40 overflow-y-auto"
                 >
                   <pre className="text-xs text-gray-600 whitespace-pre-wrap">
                     {sampleRows.slice(0, 10).join('\n')}
                     {sampleRows.length > 10 && '\n... and more'}
                   </pre>
-                </motion.div>
+                </div>
               )}
-            </AnimatePresence>
+            
           </div>
         )}
       </div>
@@ -565,9 +559,6 @@ const TransactionCategorizer = ({ onComplete }: TransactionCategorizerProps) => 
                 {categorizedTransactions.map((transaction, index) => (
                   <motion.tr
                     key={index}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.05 }}
                     className="hover:bg-gray-50"
                   >
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">

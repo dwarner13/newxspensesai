@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useAIFinancialAssistant } from '../../contexts/AIFinancialAssistantContext';
 import { usePersonalPodcast } from '../../contexts/PersonalPodcastContext';
 import { useAudio } from '../../contexts/AudioContext';
@@ -54,7 +53,7 @@ export function AIAssistantDashboard() {
     if (file) {
       setSelectedFile(file);
       setIsProcessing(true);
-      await processStatement({ fileName: file.name });
+      await processStatement({ fileName: file.name});
       setIsProcessing(false);
     }
   };
@@ -96,9 +95,7 @@ export function AIAssistantDashboard() {
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="flex items-center justify-center space-x-3 mb-4"
         >
           <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
@@ -112,14 +109,11 @@ export function AIAssistantDashboard() {
               Your intelligent financial companion with conversational AI
             </p>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Daily Briefing */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+      <div
         className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl p-6 border border-blue-200 dark:border-blue-800"
       >
         <div className="flex items-center space-x-3 mb-4">
@@ -157,13 +151,10 @@ export function AIAssistantDashboard() {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* AI Capabilities */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+      <div
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
       >
         {[
@@ -207,13 +198,10 @@ export function AIAssistantDashboard() {
             </p>
           </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Upload Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+      <div
         className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
       >
         <div className="flex items-center space-x-3 mb-6">
@@ -275,11 +263,9 @@ export function AIAssistantDashboard() {
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <motion.div
+                  <div
                     className="bg-purple-500 h-2 rounded-full"
-                    initial={{ width: 0 }}
                     animate={{ width: `${state.processingProgress}%` }}
-                    transition={{ duration: 0.3 }}
                   />
                 </div>
               </div>
@@ -319,13 +305,10 @@ export function AIAssistantDashboard() {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* AI Insights */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+      <div
         className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
       >
         <div className="flex items-center justify-between mb-6">
@@ -380,13 +363,10 @@ export function AIAssistantDashboard() {
             <p>No insights yet. Upload a statement to get started!</p>
           </div>
         )}
-      </motion.div>
+      </div>
 
       {/* Recent Transactions */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
+      <div
         className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-6"
       >
         <div className="flex items-center justify-between mb-6">
@@ -446,7 +426,7 @@ export function AIAssistantDashboard() {
             <p>No transactions yet. Upload a statement to see your expenses!</p>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 } 

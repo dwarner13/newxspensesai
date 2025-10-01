@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bot, 
   MessageCircle, 
@@ -300,10 +299,8 @@ export default function AIFinancialAssistantPage() {
                 {/* Messages */}
                 <div className="flex-1 overflow-y-auto space-y-4 mb-4">
                   {messages.map((message) => (
-                    <motion.div
+                    <div
                       key={message.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
                       className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div className={`max-w-[80%] ${message.type === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white'} rounded-2xl px-4 py-3`}>
@@ -312,12 +309,10 @@ export default function AIFinancialAssistantPage() {
                           {message.timestamp.toLocaleTimeString()}
                         </p>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                   {isTyping && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
+                    <div
                       className="flex justify-start"
                     >
                       <div className="bg-gray-700 text-white rounded-2xl px-4 py-3">
@@ -327,7 +322,7 @@ export default function AIFinancialAssistantPage() {
                           <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                         </div>
                       </div>
-                    </motion.div>
+                    </div>
                   )}
                   <div ref={messagesEndRef} />
                 </div>

@@ -393,7 +393,7 @@ async function loadConversationHistory(
   conversationId: string,
   limit: number
 ): Promise<LLMMessage[]> {
-  const result = await getRecentMessages({ conversationId, limit });
+  const result = await getRecentMessages({ conversationId, limit});
   
   if (!result.ok) {
     console.error('Failed to load history:', result.error);

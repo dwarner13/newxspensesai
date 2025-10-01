@@ -27,8 +27,7 @@ export const UniversalAIEmployeeSystemDemo: React.FC = () => {
     if (employee) {
       employee.chat(`I just uploaded a file: ${result.filename}. Can you help me process it?`, {
         user_id: 'demo-user',
-        uploaded_file: result
-      });
+        uploaded_file: result});
     }
   };
 

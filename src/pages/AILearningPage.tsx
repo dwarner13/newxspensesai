@@ -1,4 +1,3 @@
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { 
   ArrowRight, 
@@ -22,10 +21,7 @@ const AILearningPage = () => {
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-primary-50 to-secondary-50 py-20 px-4">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+          <div
             className="text-center"
           >
             <h1 className="text-4xl md:text-5xl font-bold mb-6">Smarter Every Time You Use It</h1>
@@ -39,32 +35,26 @@ const AILearningPage = () => {
               Try It Free
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* How Our AI Learns Section */}
       <section className="py-20 px-4">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">How Our AI Learns</h2>
             <p className="text-xl text-gray-600 max-w-3xl ">
               XspensesAI gets smarter with every interaction, adapting to your unique financial patterns.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
+            <div
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.1 }}
               className="bg-white rounded-xl p-6 shadow-soft border border-gray-100"
             >
               <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mb-4">
@@ -74,13 +64,10 @@ const AILearningPage = () => {
               <p className="text-gray-600">
                 When you correct a categorization, XspensesAI remembers your preference and applies it to similar transactions in the future.
               </p>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
+            <div
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.2 }}
               className="bg-white rounded-xl p-6 shadow-soft border border-gray-100"
             >
               <div className="w-12 h-12 bg-secondary-100 rounded-full flex items-center justify-center mb-4">
@@ -90,13 +77,10 @@ const AILearningPage = () => {
               <p className="text-gray-600">
                 The AI identifies your regular spending habits and can flag unusual transactions or spending spikes that don't match your patterns.
               </p>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
+            <div
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.3 }}
               className="bg-white rounded-xl p-6 shadow-soft border border-gray-100"
             >
               <div className="w-12 h-12 bg-accent-100 rounded-full flex items-center justify-center mb-4">
@@ -106,7 +90,7 @@ const AILearningPage = () => {
               <p className="text-gray-600">
                 Set savings goals or budget limits, and XspensesAI will provide personalized insights and alerts to help you stay on track.
               </p>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
@@ -114,25 +98,19 @@ const AILearningPage = () => {
       {/* The Right Questions Section */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">The Right Questions at the Right Time</h2>
             <p className="text-xl text-gray-600 max-w-3xl ">
               XspensesAI doesn't just organize your expenses—it asks intelligent questions that help you make better financial decisions.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+            <div
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.1 }}
               className="bg-white p-6 rounded-xl shadow-soft border border-gray-100"
             >
               <div className="flex items-start space-x-4">
@@ -149,13 +127,10 @@ const AILearningPage = () => {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
+            <div
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.2 }}
               className="bg-white p-6 rounded-xl shadow-soft border border-gray-100"
             >
               <div className="flex items-start space-x-4">
@@ -172,7 +147,7 @@ const AILearningPage = () => {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
@@ -180,11 +155,8 @@ const AILearningPage = () => {
       {/* Private, Secure, Personalized Section */}
       <section className="py-20 px-4">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="flex flex-col md:flex-row items-center gap-12"
           >
             <div className="md:w-1/2">
@@ -232,32 +204,26 @@ const AILearningPage = () => {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
       {/* Personalized for Individuals and Businesses Section */}
       <section className="py-20 px-4 bg-gray-50">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Personalized for Individuals and Businesses</h2>
             <p className="text-xl text-gray-600 max-w-3xl ">
               Whether you're managing personal finances or running a business, XspensesAI adapts to your specific needs.
             </p>
-          </motion.div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
+            <div
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.1 }}
               className="bg-white p-8 rounded-xl shadow-soft border border-gray-100"
             >
               <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center mb-6">
@@ -282,13 +248,10 @@ const AILearningPage = () => {
                   <span className="text-gray-700">Recurring subscription tracking and optimization</span>
                 </li>
               </ul>
-            </motion.div>
+            </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
+            <div
               viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.2 }}
               className="bg-white p-8 rounded-xl shadow-soft border border-gray-100"
             >
               <div className="w-12 h-12 bg-secondary-100 rounded-full flex items-center justify-center mb-6">
@@ -313,7 +276,7 @@ const AILearningPage = () => {
                   <span className="text-gray-700">Project and client expense tracking with custom categories</span>
                 </li>
               </ul>
-            </motion.div>
+            </div>
           </div>
         </div>
       </section>
@@ -321,26 +284,20 @@ const AILearningPage = () => {
       {/* Always Evolving Section */}
       <section className="py-20 px-4">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center mb-16"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-6">Always Evolving</h2>
             <p className="text-xl text-gray-600 max-w-3xl ">
               The more you use XspensesAI, the smarter it gets. Our AI continuously learns from your interactions to provide increasingly personalized insights.
             </p>
-          </motion.div>
+          </div>
 
           <div className="bg-gradient-to-r from-primary-50 to-secondary-50 rounded-xl p-8 border border-primary-100">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
+              <div
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.1 }}
               >
                 <div className="text-center">
                   <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center  mb-4">
@@ -351,13 +308,10 @@ const AILearningPage = () => {
                     Basic categorization with standard financial categories
                   </p>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
+              <div
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.2 }}
               >
                 <div className="text-center">
                   <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center  mb-4">
@@ -368,13 +322,10 @@ const AILearningPage = () => {
                     Recognizes your vendors and remembers your preferred categories
                   </p>
                 </div>
-              </motion.div>
+              </div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
+              <div
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: 0.3 }}
               >
                 <div className="text-center">
                   <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center  mb-4">
@@ -385,7 +336,7 @@ const AILearningPage = () => {
                     Provides personalized insights and proactive financial suggestions
                   </p>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </div>
@@ -394,11 +345,8 @@ const AILearningPage = () => {
       {/* Final CTA Section */}
       <section className="py-20 px-4 bg-gradient-to-r from-primary-600 to-secondary-600 text-white">
         <div className="container  max-w-5xl">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
+          <div
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
             className="text-center"
           >
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Let AI Handle the Heavy Lifting?</h2>
@@ -412,7 +360,7 @@ const AILearningPage = () => {
               Try It Free
               <ArrowRight className="ml-2 h-5 w-5" />
             </Link>
-          </motion.div>
+          </div>
         </div>
       </section>
 

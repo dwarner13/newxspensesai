@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Flame, Calendar, Target } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -103,8 +102,7 @@ const StreakTracker = ({
           <div className="text-lg font-bold">{current}</div>
         </div>
         <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5">
-          <motion.div
-            initial={{ width: 0 }}
+          <div
             animate={{ width: `${getProgress()}%` }}
             className="bg-orange-500 h-1.5 rounded-full"
           />
@@ -172,8 +170,7 @@ const StreakTracker = ({
         </div>
         
         <div className="w-full bg-gray-200 rounded-full h-2">
-          <motion.div
-            initial={{ width: 0 }}
+          <div
             animate={{ width: `${getProgress()}%` }}
             className="bg-gradient-to-r from-orange-500 to-red-500 h-2 rounded-full"
           />

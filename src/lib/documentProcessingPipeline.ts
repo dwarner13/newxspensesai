@@ -78,7 +78,7 @@ export class DocumentProcessingPipeline {
 
     try {
       // Stage 1: Upload and Validation
-      await this.updateProgress('upload', 10, 'Uploading and validating file...', { fileName: file.name });
+      await this.updateProgress('upload', 10, 'Uploading and validating file...', { fileName: file.name});
       const validationResult = await this.validateFile(file);
       if (!validationResult.valid) {
         throw new Error(`File validation failed: ${validationResult.errors.join(', ')}`);
@@ -87,18 +87,17 @@ export class DocumentProcessingPipeline {
       // Stage 2: OCR Processing (if needed)
       let ocrResult: OCRResult | null = null;
       if (options.enableOCR && this.needsOCR(file)) {
-        await this.updateProgress('ocr', 25, 'Extracting text with OCR...', { fileType: file.type });
+        await this.updateProgress('ocr', 25, 'Extracting text with OCR...', { fileType: file.type});
         ocrResult = await this.processOCR(file, options);
       }
 
       // Stage 3: Document Parsing
-      await this.updateProgress('parsing', 50, 'Parsing document structure...', { fileType: file.type });
+      await this.updateProgress('parsing', 50, 'Parsing document structure...', { fileType: file.type});
       const parsingResult = await this.parseDocument(file, options, ocrResult);
 
       // Stage 4: Categorization
       await this.updateProgress('categorization', 75, 'Categorizing transactions...', { 
-        transactionCount: parsingResult.data.length 
-      });
+        transactionCount: parsingResult.data.length});
       const categorizationResult = await this.categorizeTransactions(parsingResult, options);
 
       // Stage 5: Learning System
@@ -115,8 +114,7 @@ export class DocumentProcessingPipeline {
       // Stage 7: Complete
       await this.updateProgress('complete', 100, 'Processing complete!', {
         totalTransactions: parsingResult.data.length,
-        categoriesFound: new Set(categorizationResult.map(r => r.category)).size
-      });
+        categoriesFound: new Set(categorizationResult.map(r => r.category)).size});
 
       const result: PipelineResult = {
         success: true,
@@ -140,7 +138,7 @@ export class DocumentProcessingPipeline {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      await this.updateProgress('error', 0, `Error: ${errorMessage}`, { error: errorMessage });
+      await this.updateProgress('error', 0, `Error: ${errorMessage}`, { error: errorMessage});
       
       if (options.onError) {
         options.onError(error instanceof Error ? error : new Error(errorMessage), 'pipeline');
@@ -295,8 +293,7 @@ export class DocumentProcessingPipeline {
           userId: options.userPreferences.userId,
           timestamp: new Date().toISOString(),
           confidence: result.confidence,
-          reasoning: result.reasoning
-        });
+          reasoning: result.reasoning});
       }
     }
   }

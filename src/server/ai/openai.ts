@@ -120,8 +120,7 @@ class OpenAIService {
         temperature: 0.3,
         max_tokens: maxOutputTokens,
         stream,
-        user: userId, // for OpenAI abuse monitoring
-      });
+        user: userId, // for OpenAI abuse monitoring});
       
       if (!stream) {
         const response = completion as OpenAI.Chat.Completions.ChatCompletion;

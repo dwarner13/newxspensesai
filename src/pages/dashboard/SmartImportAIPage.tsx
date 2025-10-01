@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2, X, Bot } from 'lucide-react';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useAIMemory } from '../../hooks/useAIMemory';
@@ -159,8 +158,7 @@ const SmartImportAIPage: React.FC = () => {
     isOpen: false,
     file: null,
     processingSteps: [],
-    currentStep: 0
-  });
+    currentStep: 0});
   const [bytePopupOpen, setBytePopupOpen] = useState(false);
   const [watchMeWorkOpen, setWatchMeWorkOpen] = useState(false);
   const [isByteChatOpen, setIsByteChatOpen] = useState(false);
@@ -448,8 +446,7 @@ const SmartImportAIPage: React.FC = () => {
         isOpen: true,
         file: firstFile,
         processingSteps,
-        currentStep: 0
-      });
+        currentStep: 0});
 
       // Simulate processing steps
       let currentStep = 0;
@@ -630,11 +627,8 @@ const SmartImportAIPage: React.FC = () => {
         
         {/* Welcome Banner */}
         <div className="max-w-6xl mx-auto">
-          <motion.div
+          <div
             className="text-center mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
           >
             <h2 className="text-xl font-bold text-white mb-1">
               Welcome to Byte's Document Lab
@@ -642,17 +636,14 @@ const SmartImportAIPage: React.FC = () => {
             <p className="text-white/60 text-sm mb-4">
               Your intelligent document processing wizard for financial data
             </p>
-          </motion.div>
+          </div>
           
 
           {/* Feature Modules Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
-            <motion.button
+            <button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               onClick={() => setIsByteChatOpen(true)}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <UploadCloud className="w-6 h-6 text-white" />
@@ -661,14 +652,11 @@ const SmartImportAIPage: React.FC = () => {
                 <h3 className="text-sm font-semibold text-white mb-1">Document Upload</h3>
                 <p className="text-white/60 text-xs leading-tight">Upload and process files</p>
               </div>
-            </motion.button>
+            </button>
 
-            <motion.button
+            <button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
               onClick={() => setIsByteChatOpen(true)}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <span className="text-white text-xl">📸</span>
@@ -677,14 +665,11 @@ const SmartImportAIPage: React.FC = () => {
                 <h3 className="text-sm font-semibold text-white mb-1">Scan Receipt</h3>
                 <p className="text-white/60 text-xs leading-tight">Camera-based scanning</p>
               </div>
-            </motion.button>
+            </button>
 
-            <motion.button
+            <button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               onClick={() => setIsByteChatOpen(true)}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3 }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <span className="text-white text-xl">🏦</span>
@@ -693,14 +678,11 @@ const SmartImportAIPage: React.FC = () => {
                 <h3 className="text-sm font-semibold text-white mb-1">Bank Statement</h3>
                 <p className="text-white/60 text-xs leading-tight">Import bank data</p>
               </div>
-            </motion.button>
+            </button>
 
-            <motion.button
+            <button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               onClick={() => setIsByteChatOpen(true)}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <span className="text-white text-xl">📊</span>
@@ -709,16 +691,13 @@ const SmartImportAIPage: React.FC = () => {
                 <h3 className="text-sm font-semibold text-white mb-1">CSV Import</h3>
                 <p className="text-white/60 text-xs leading-tight">Bulk data processing</p>
               </div>
-            </motion.button>
+            </button>
 
-            <motion.button
+            <button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               onClick={() => {
                 handleChatWithByte("Show me the processing speed and performance metrics");
               }}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <span className="text-white text-xl">⚡</span>
@@ -727,17 +706,14 @@ const SmartImportAIPage: React.FC = () => {
                 <h3 className="text-sm font-semibold text-white mb-1">Fast Processing</h3>
                 <p className="text-white/60 text-xs leading-tight">2.3s average speed</p>
               </div>
-            </motion.button>
+            </button>
 
-            <motion.button
+            <button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10 relative"
               onClick={() => {
                 setWatchMeWorkOpen(true);
                 simulateWorkflow();
               }}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.6 }}
             >
               {/* Live Activity Indicator */}
               {currentTask && currentTask.status === 'in_progress' && (
@@ -755,24 +731,18 @@ const SmartImportAIPage: React.FC = () => {
                   {currentTask ? `Processing ${Math.round(currentTask.progress)}%` : 'See AI team in action'}
                 </p>
               </div>
-            </motion.button>
+            </button>
           </div>
         </div>
         
         {/* Byte Popup Modal */}
-      <AnimatePresence>
+      
         {bytePopupOpen && (
-          <motion.div
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
           >
-            <motion.div
+            <div
               className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-3xl max-h-[85vh] overflow-hidden"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
             >
               {/* Byte Popup Header */}
               <div className="flex items-center justify-between p-4 border-b border-white/10">
@@ -823,7 +793,7 @@ const SmartImportAIPage: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      <motion.div
+                      <div
                         className={`relative border-2 border-dashed rounded-2xl p-6 text-center transition-all duration-300 bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-md ${
                           dragOver
                             ? 'border-blue-400 bg-gradient-to-br from-blue-500/20 to-purple-500/15 shadow-2xl shadow-blue-500/30 scale-105'
@@ -833,9 +803,6 @@ const SmartImportAIPage: React.FC = () => {
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onClick={() => fileInputRef.current?.click()}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5 }}
                       >
                         <input
                           ref={fileInputRef}
@@ -912,7 +879,7 @@ const SmartImportAIPage: React.FC = () => {
                             Or drag and drop files here
                           </div>
                         )}
-                      </motion.div>
+                      </div>
                     </div>
 
                     {/* File List */}
@@ -944,12 +911,9 @@ const SmartImportAIPage: React.FC = () => {
                         </div>
                         <div className="space-y-2">
                           {files.map((file) => (
-                            <motion.div
+                            <div
                               key={file.id}
                               className={`p-2 rounded-lg border ${getStatusColor(file.status)}`}
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.3 }}
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
@@ -991,16 +955,14 @@ const SmartImportAIPage: React.FC = () => {
                               {file.status === 'processing' && (
                                 <div className="mt-1">
                                   <div className="w-full bg-white/10 rounded-full h-1.5">
-                                    <motion.div
+                                    <div
                                       className="bg-blue-500 h-1.5 rounded-full"
-                                      initial={{ width: 0 }}
                                       animate={{ width: `${file.progress}%` }}
-                                      transition={{ duration: 0.5 }}
                                     />
                                   </div>
                                 </div>
                               )}
-                            </motion.div>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -1039,11 +1001,8 @@ const SmartImportAIPage: React.FC = () => {
 
                     {/* Results Summary */}
                     {files.some(file => file.status === 'completed') && (
-                      <motion.div
+                      <div
                         className="bg-gradient-to-br from-green-500/15 to-emerald-500/10 border border-green-400/30 rounded-xl p-4 backdrop-blur-sm shadow-lg shadow-green-500/10"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
                       >
                         <div className="flex items-center gap-3 mb-3">
                           <div className="w-8 h-8 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-lg flex items-center justify-center border border-green-400/30">
@@ -1095,16 +1054,13 @@ const SmartImportAIPage: React.FC = () => {
                             View Categories
                           </button>
                         </div>
-                      </motion.div>
+                      </div>
                     )}
 
                     {/* Error Summary */}
                     {files.some(file => file.status === 'error') && (
-                      <motion.div
+                      <div
                         className="bg-gradient-to-br from-red-500/15 to-orange-500/10 border border-red-400/30 rounded-xl p-4 backdrop-blur-sm shadow-lg shadow-red-500/10"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.3 }}
                       >
                         <div className="flex items-center gap-3 mb-3">
                           <div className="w-8 h-8 bg-gradient-to-br from-red-500/20 to-orange-500/20 rounded-lg flex items-center justify-center border border-red-400/30">
@@ -1144,41 +1100,33 @@ const SmartImportAIPage: React.FC = () => {
                             Clear All
                           </button>
                         </div>
-                      </motion.div>
+                      </div>
                     )}
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* Processing Modal */}
-      <AnimatePresence>
+      
         {processingModal.isOpen && (
-          <motion.div
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
           >
-            <motion.div
+            <div
               className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl border border-white/20 p-4 w-full max-w-sm"
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
             >
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  <div
                     className="w-6 h-6 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center"
                   >
                     <span className="text-white text-sm">📄</span>
-                  </motion.div>
+                  </div>
                   <div>
                     <h3 className="text-sm font-semibold text-white">Byte is Processing</h3>
                     <p className="text-white/60 text-xs truncate max-w-48">{processingModal.file?.name}</p>
@@ -1195,16 +1143,13 @@ const SmartImportAIPage: React.FC = () => {
               {/* Processing Steps */}
               <div className="space-y-2 mb-4">
                 {processingModal.processingSteps.map((step, index) => (
-                  <motion.div
+                  <div
                     key={index}
                     className={`flex items-center gap-2 p-2 rounded transition-all duration-300 ${
                       index <= processingModal.currentStep
                         ? 'bg-green-500/10 border border-green-500/30'
                         : 'bg-white/5 border border-white/10'
                     }`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.1 }}
                   >
                     <div className={`w-4 h-4 rounded-full flex items-center justify-center ${
                       index < processingModal.currentStep
@@ -1226,7 +1171,7 @@ const SmartImportAIPage: React.FC = () => {
                     }`}>
                       {step}
                     </span>
-                  </motion.div>
+                  </div>
                 ))}
               </div>
 
@@ -1239,13 +1184,11 @@ const SmartImportAIPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="w-full bg-white/10 rounded-full h-1.5">
-                  <motion.div
+                  <div
                     className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full"
-                    initial={{ width: 0 }}
                     animate={{ 
                       width: `${(processingModal.currentStep + 1) / processingModal.processingSteps.length * 100}%` 
                     }}
-                    transition={{ duration: 0.5 }}
                   />
                 </div>
               </div>
@@ -1263,25 +1206,19 @@ const SmartImportAIPage: React.FC = () => {
                   }
                 </p>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* Team Modal */}
-      <AnimatePresence>
+      
         {showTeamModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setShowTeamModal(false)}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-slate-900 rounded-2xl border border-white/10 w-full max-w-lg p-6"
               onClick={(e) => e.stopPropagation()}
             >
@@ -1372,25 +1309,19 @@ const SmartImportAIPage: React.FC = () => {
                   <span className="text-white/40 text-xs">→</span>
                 </button>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       {/* Watch Me Work Modal */}
-      <AnimatePresence>
+      
         {watchMeWorkOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setWatchMeWorkOpen(false)}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl border border-white/20 w-full max-w-6xl max-h-[90vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
@@ -1415,10 +1346,8 @@ const SmartImportAIPage: React.FC = () => {
                   <h3 className="text-lg font-semibold text-white mb-4">AI Workers</h3>
                   <div className="space-y-4">
                     {aiWorkers.map((worker) => (
-                      <motion.div
+                      <div
                         key={worker.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
                         className="bg-white/5 rounded-xl p-4 border border-white/10"
                       >
                         <div className="flex items-center gap-3 mb-3">
@@ -1445,15 +1374,13 @@ const SmartImportAIPage: React.FC = () => {
                             <span>{worker.progress}%</span>
                           </div>
                           <div className="w-full bg-white/10 rounded-full h-2">
-                            <motion.div
+                            <div
                               className={`h-2 rounded-full bg-gradient-to-r ${worker.color}`}
-                              initial={{ width: 0 }}
                               animate={{ width: `${worker.progress}%` }}
-                              transition={{ duration: 0.5 }}
                             />
                           </div>
                         </div>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -1463,10 +1390,8 @@ const SmartImportAIPage: React.FC = () => {
                   <h3 className="text-lg font-semibold text-white mb-4">Live Activity Feed</h3>
                   <div className="space-y-3 max-h-[calc(90vh-200px)] overflow-y-auto">
                     {workerMessages.map((message) => (
-                      <motion.div
+                      <div
                         key={message.id}
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
                         className={`p-3 rounded-lg ${
                           message.type === 'chat' ? 'bg-blue-500/10 border border-blue-500/20' :
                           message.type === 'status' ? 'bg-green-500/10 border border-green-500/20' :
@@ -1487,15 +1412,15 @@ const SmartImportAIPage: React.FC = () => {
                           </span>
                         </div>
                         <p className="text-white/80 text-sm">{message.content}</p>
-                      </motion.div>
+                      </div>
                     ))}
                   </div>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
 
       </div>
 
@@ -1506,9 +1431,7 @@ const SmartImportAIPage: React.FC = () => {
       />
 
       {/* Floating Byte Chat Button */}
-      <motion.button
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
+      <button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsByteChatOpen(true)}
@@ -1516,7 +1439,7 @@ const SmartImportAIPage: React.FC = () => {
         title="Chat with Byte AI"
       >
         <Bot className="w-6 h-6" />
-      </motion.button>
+      </button>
     </>
   );
 };

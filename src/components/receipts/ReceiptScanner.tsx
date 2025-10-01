@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X, Check, AlertTriangle, Brain, FileImage, Eye } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { extractTextFromImage, parseReceiptText, ParsedReceiptData } from '../../utils/ocrService';
@@ -130,16 +129,15 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
         .from('receipts')
         .upload(fileName, file, {
           cacheControl: '3600',
-          upsert: false
-        });
+          upsert: false});
 
       if (uploadError) {
         console.error('Upload error:', uploadError);
-        toast.error(`Upload failed: ${uploadError.message}`, { id: uploadToast });
+        toast.error(`Upload failed: ${uploadError.message}`, { id: uploadToast});
         throw uploadError;
       }
 
-      toast.success('Image uploaded successfully!', { id: uploadToast });
+      toast.success('Image uploaded successfully!', { id: uploadToast});
       
       // Get public URL
       const { data: urlData } = supabase.storage
@@ -156,10 +154,10 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
       // Otherwise, retry the upload
       retryCount.current++;
       if (retryCount.current <= MAX_RETRIES) {
-        toast.error(`Upload failed, retrying (${retryCount.current}/${MAX_RETRIES})...`, { id: uploadToast });
+        toast.error(`Upload failed, retrying (${retryCount.current}/${MAX_RETRIES})...`, { id: uploadToast});
         return uploadImage(file); // Recursive retry
       } else {
-        toast.error(`Upload failed after ${MAX_RETRIES} attempts`, { id: uploadToast });
+        toast.error(`Upload failed after ${MAX_RETRIES} attempts`, { id: uploadToast});
         throw error;
       }
     }
@@ -209,7 +207,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
           ? '🔍 OCR.space extracted text successfully!'
           : '🔍 Fallback OCR extracted text successfully!';
         
-        toast.success(engineMessage, { id: ocrToast });
+        toast.success(engineMessage, { id: ocrToast});
         
         // Log OCR engine selection for monitoring
         console.log('Smart OCR Result:', {
@@ -217,8 +215,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
           confidence: smartResult.confidence,
           processingTime: smartResult.processingTime,
           cost: smartResult.cost.estimatedCost,
-          reason: smartResult.cost.reason
-        });
+          reason: smartResult.cost.reason});
         
         // Stop OCR progress simulation and set to 50%
         stopProgressSimulation();
@@ -249,8 +246,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
           console.log('Redaction completed:', {
             itemsRedacted: redactionResult.redactedItems.length,
             confidence: redactionResult.confidence,
-            processingTime: redactionResult.processingTime
-          });
+            processingTime: redactionResult.processingTime});
           
         } catch (redactionError) {
           console.error('Redaction failed:', redactionError);
@@ -346,7 +342,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
 
         if (dbError) throw dbError;
 
-        toast.success('Receipt saved successfully!', { id: saveToast });
+        toast.success('Receipt saved successfully!', { id: saveToast});
         
         // Stop save progress simulation and set to 100%
         stopProgressSimulation();
@@ -359,8 +355,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
         if (onReceiptProcessed) {
           onReceiptProcessed({
             receipt: receiptRecord,
-            extractedData: parsedData
-          });
+            extractedData: parsedData});
         }
       } catch (ocrError) {
         console.error('OCR processing error:', ocrError);
@@ -488,9 +483,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
 
   return (
     <div className="max-w-2xl ">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="card"
       >
         <div className="flex items-center justify-between mb-6">
@@ -619,9 +612,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
 
             {/* OCR Error */}
             {processingStep === 'error' && ocrError && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+              <div
                 className="bg-error-50 border border-error-200 rounded-lg p-4"
               >
                 <div className="flex items-start space-x-3">
@@ -668,14 +659,12 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                     </div>
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
 
             {/* Extracted Data Preview */}
             {extractedData && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+              <div
                 className="bg-success-50 border border-success-200 rounded-lg p-4"
               >
                 <div className="flex items-center justify-between mb-3">
@@ -785,12 +774,9 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                 )}
 
                 {/* Raw OCR Text */}
-                <AnimatePresence>
+                
                   {showRawText && rawOcrText && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
+                    <div
                       className="mt-3 pt-3 border-t border-success-200"
                     >
                       <span className="text-xs text-success-700 font-medium">
@@ -804,17 +790,15 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                           🔒 Sensitive data has been redacted for your privacy
                         </p>
                       )}
-                    </motion.div>
+                    </div>
                   )}
-                </AnimatePresence>
-              </motion.div>
+                
+              </div>
             )}
 
             {/* AI Receipt Details */}
             {receiptInfo && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
+              <div
                 className="mt-6 bg-white text-black p-4 rounded-lg border border-gray-200 shadow-sm"
               >
                 <h2 className="text-xl font-bold mb-3 text-gray-800">🤖 AI Receipt Analysis</h2>
@@ -864,7 +848,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                     </div>
                   </div>
                 </details>
-              </motion.div>
+              </div>
             )}
 
             {/* Tips for Better Results */}
@@ -919,7 +903,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
             </div>
           </div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 };

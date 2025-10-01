@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, Send, Loader2, Mic, Upload, Camera, FileText, 
   Paperclip, Image, FileSpreadsheet, File, AlertCircle,
@@ -422,10 +421,7 @@ export function EnhancedChatInterface({ employeeId, aiController, userId, onClos
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
+    <div
       className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 ${isMobile ? 'p-0' : 'p-4'}`}
     >
       <div className={`bg-white rounded-2xl shadow-2xl w-full ${isMobile ? 'h-full rounded-none' : 'max-w-4xl h-[80vh]'} flex flex-col overflow-hidden`}>
@@ -456,9 +452,7 @@ export function EnhancedChatInterface({ employeeId, aiController, userId, onClos
 
         {/* Quick Actions */}
         {showQuickActions && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
+          <div
             className="bg-gray-50 border-b border-gray-200 p-4"
           >
             <div className="flex flex-wrap gap-2">
@@ -473,7 +467,7 @@ export function EnhancedChatInterface({ employeeId, aiController, userId, onClos
                 </button>
               ))}
             </div>
-          </motion.div>
+          </div>
         )}
 
         {/* Chat Messages */}
@@ -486,13 +480,10 @@ export function EnhancedChatInterface({ employeeId, aiController, userId, onClos
               </div>
             </div>
           ) : (
-            <AnimatePresence>
+            <>
               {messages.map((message) => (
-                <motion.div
+                <div
                   key={message.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
                   className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
@@ -536,15 +527,13 @@ export function EnhancedChatInterface({ employeeId, aiController, userId, onClos
                       <span>{message.timestamp.toLocaleTimeString()}</span>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               ))}
-            </AnimatePresence>
+            </>
           )}
           
           {isTyping && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+            <div
               className="flex justify-start"
             >
               <div className="bg-gray-100 text-gray-900 rounded-2xl px-4 py-3">
@@ -558,7 +547,7 @@ export function EnhancedChatInterface({ employeeId, aiController, userId, onClos
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
           
           <div ref={messagesEndRef} />
@@ -666,6 +655,6 @@ export function EnhancedChatInterface({ employeeId, aiController, userId, onClos
           className="hidden"
         />
       </div>
-    </motion.div>
+    </div>
   );
 }

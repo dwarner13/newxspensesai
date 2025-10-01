@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Target, BarChart3, Trophy, Send, Loader2, X, Brain } from 'lucide-react';
 
 interface GoalieMessage {
@@ -105,9 +104,7 @@ const GoalConciergePage: React.FC = () => {
       {/* Professional Dashboard Layout */}
       <div className="space-y-6">
         {/* Goalie AI Assistant */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
         >
           <div className="flex items-center justify-between mb-4">
@@ -143,12 +140,10 @@ const GoalConciergePage: React.FC = () => {
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Goal Management Dashboard */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
         >
           <div className="flex items-center justify-between mb-6">
@@ -380,23 +375,17 @@ const GoalConciergePage: React.FC = () => {
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Chat Modal */}
-      <AnimatePresence>
+      
         {isChatOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          <div
             className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setIsChatOpen(false)}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 w-full max-w-2xl h-[600px] flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
@@ -452,10 +441,8 @@ const GoalConciergePage: React.FC = () => {
                   </div>
                 ) : (
                   messages.map((message, index) => (
-                    <motion.div
+                    <div
                       key={index}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
                       className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
@@ -478,14 +465,12 @@ const GoalConciergePage: React.FC = () => {
                           {new Date(message.timestamp).toLocaleTimeString()}
                         </p>
                       </div>
-                    </motion.div>
+                    </div>
                   ))
                 )}
                 
                 {isLoading && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
+                  <div
                     className="flex justify-start"
                   >
                     <div className="bg-white/10 px-3 py-2 rounded-lg border border-white/20">
@@ -499,7 +484,7 @@ const GoalConciergePage: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>
@@ -527,10 +512,10 @@ const GoalConciergePage: React.FC = () => {
                   </button>
                 </div>
               </div>
-            </motion.div>
-          </motion.div>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      
     </div>
   );
 };

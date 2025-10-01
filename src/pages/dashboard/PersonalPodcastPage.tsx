@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { 
   Play, 
   Pause, 
@@ -149,23 +148,17 @@ export default function PersonalPodcastPage() {
             {activeView === 'overview' ? (
               <div className="h-full flex items-center justify-center">
                 <div className="text-center max-w-2xl">
-                  <motion.h2
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.3 }}
+                  <h2
                     className="text-xl font-bold text-white mb-1"
                     style={{ wordBreak: 'normal', overflowWrap: 'break-word', whiteSpace: 'normal' }}
                   >
                     Welcome to Your Personal Financial Podcast Studio
-                  </motion.h2>
-                  <motion.p
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.4 }}
+                  </h2>
+                  <p
                     className="text-white/60 text-sm mb-3"
                   >
                     Your AI-powered entertainment platform where financial advice meets personality
-                  </motion.p>
+                  </p>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
                     {[
                       { icon: Play, title: "Generate Episode", desc: "Create personalized podcast episodes", color: "from-green-500 to-emerald-500", view: "generate_episode" },
@@ -175,11 +168,8 @@ export default function PersonalPodcastPage() {
                       { icon: Users, title: "AI Podcasters", desc: "Meet your 12 AI hosts", color: "from-orange-500 to-yellow-500", view: "ai_podcasters" },
                       { icon: Mic, title: "Audio Studio", desc: "Listen to your episodes", color: "from-indigo-500 to-purple-500", view: "audio_studio" }
                     ].map((item, index) => (
-                      <motion.button
+                      <button
                         key={item.title}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5 + index * 0.1 }}
                         onClick={() => setActiveView(item.view)}
                         className="group flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[80px] hover:shadow-lg hover:shadow-green-500/10"
                       >
@@ -190,7 +180,7 @@ export default function PersonalPodcastPage() {
                           <h3 className="text-xs font-semibold text-white mb-0.5">{item.title}</h3>
                           <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                         </div>
-                      </motion.button>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -251,11 +241,8 @@ export default function PersonalPodcastPage() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {aiPodcasters.map((podcaster, index) => (
-                    <motion.div
+                    <div
                       key={podcaster.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
                       className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4 hover:bg-white/10 transition-all duration-300"
                     >
                       <div className="text-center">
@@ -266,7 +253,7 @@ export default function PersonalPodcastPage() {
                         <p className="text-white/60 text-sm mb-2">{podcaster.personality}</p>
                         <p className="text-white/40 text-xs">{podcaster.specialty}</p>
                       </div>
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </div>

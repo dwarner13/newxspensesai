@@ -573,8 +573,7 @@ export class MultiEmployeeCollaboration {
       requiredEmployees: ['Tag', 'Blitz', 'Crystal', 'Fortune', 'Goalie', 'Wisdom'],
       coordinator: 'Prime',
       priority: 'high',
-      estimatedDuration: 120
-    });
+      estimatedDuration: 120});
 
     this.collaborationTasks.set('debt_optimization', {
       id: 'debt_optimization',
@@ -583,8 +582,7 @@ export class MultiEmployeeCollaboration {
       requiredEmployees: ['Blitz', 'Fortune'],
       coordinator: 'Prime',
       priority: 'high',
-      estimatedDuration: 90
-    });
+      estimatedDuration: 90});
 
     this.collaborationTasks.set('spending_analysis', {
       id: 'spending_analysis',
@@ -593,8 +591,7 @@ export class MultiEmployeeCollaboration {
       requiredEmployees: ['Tag', 'Crystal', 'SavageSally'],
       coordinator: 'Prime',
       priority: 'medium',
-      estimatedDuration: 75
-    });
+      estimatedDuration: 75});
   }
 }
 

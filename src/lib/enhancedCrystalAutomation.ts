@@ -227,8 +227,7 @@ export class EnhancedCrystalAutomation {
       confidence: creditScorePrediction.confidence,
       impact: 'high',
       action: "Monitor credit utilization and payment history",
-      probability: creditScorePrediction.probability
-    });
+      probability: creditScorePrediction.probability});
 
     // Refinancing opportunity
     const refinancingPrediction = this.predictRefinancingOpportunity(data);
@@ -239,8 +238,7 @@ export class EnhancedCrystalAutomation {
         confidence: refinancingPrediction.confidence,
         impact: 'high',
         action: "Prepare for refinancing application",
-        probability: refinancingPrediction.probability
-      });
+        probability: refinancingPrediction.probability});
     }
 
     // Tax refund prediction
@@ -251,8 +249,7 @@ export class EnhancedCrystalAutomation {
       confidence: taxRefundPrediction.confidence,
       impact: 'medium',
       action: "Plan tax refund allocation for debt elimination",
-      probability: taxRefundPrediction.probability
-    });
+      probability: taxRefundPrediction.probability});
 
     // Income growth prediction
     const incomeGrowthPrediction = this.predictIncomeGrowth(data);
@@ -262,8 +259,7 @@ export class EnhancedCrystalAutomation {
       confidence: incomeGrowthPrediction.confidence,
       impact: 'medium',
       action: "Plan for increased debt payment capacity",
-      probability: incomeGrowthPrediction.probability
-    });
+      probability: incomeGrowthPrediction.probability});
 
     return predictions;
   }

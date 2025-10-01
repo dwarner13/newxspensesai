@@ -170,7 +170,7 @@ async function listPacks(userId: string): Promise<any> {
       .from('documents')
       .select('pack, title, created_at, updated_at')
       .eq('user_id', userId)
-      .order('pack', { ascending: true });
+      .order('pack', { ascending: true});
     
     // Group by pack
     const packMap = new Map<string, any>();

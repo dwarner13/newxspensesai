@@ -1,6 +1,4 @@
 import { Crown, Zap } from 'lucide-react';
-import { motion } from 'framer-motion';
-
 interface PremiumBadgeProps {
   size?: 'sm' | 'md' | 'lg';
   variant?: 'badge' | 'button' | 'banner';
@@ -28,9 +26,7 @@ const PremiumBadge = ({
 
   if (variant === 'banner') {
     return (
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className={`bg-gradient-to-r from-yellow-400 to-orange-500 text-white p-3 rounded-lg ${className}`}
       >
         <div className="flex items-center justify-between">
@@ -47,13 +43,13 @@ const PremiumBadge = ({
             </button>
           )}
         </div>
-      </motion.div>
+      </div>
     );
   }
 
   if (variant === 'button') {
     return (
-      <motion.button
+      <button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         onClick={onClick}
@@ -62,7 +58,7 @@ const PremiumBadge = ({
         <Crown size={iconSizes[size]} />
         <span>Premium</span>
         <Zap size={iconSizes[size]} />
-      </motion.button>
+      </button>
     );
   }
 

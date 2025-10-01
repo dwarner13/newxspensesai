@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -76,10 +75,7 @@ const OnboardingStepFour = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       <div className="container  px-4 py-12 max-w-4xl">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+        <div
         >
           <div className="flex items-center justify-center space-x-2 mb-12">
             <div className="w-12 h-12 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -101,11 +97,8 @@ const OnboardingStepFour = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
             {options.map((option) => (
-              <motion.div
+              <div
                 key={option.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: options.indexOf(option) * 0.1 }}
                 className={`bg-gray-800 rounded-xl p-6 border-2 cursor-pointer transition-all duration-300 ${
                   selectedOption === option.id 
                     ? 'border-primary-500 bg-gray-800/80 shadow-lg shadow-primary-500/20' 
@@ -128,18 +121,16 @@ const OnboardingStepFour = () => {
                 </div>
                 
                 {selectedOption === option.id && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                  <div
                     className="mt-4 text-primary-400 text-sm font-medium flex items-center"
                   >
                     Selected
                     <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                  </motion.div>
+                  </div>
                 )}
-              </motion.div>
+              </div>
             ))}
           </div>
           
@@ -165,7 +156,7 @@ const OnboardingStepFour = () => {
               <ArrowRight className="w-5 h-5 ml-2" />
             </button>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

@@ -238,7 +238,7 @@ export class APIKeyManager {
       .select('*')
       .eq('user_id', userId)
       .is('revoked_at', null)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false});
     
     return data || [];
   }
@@ -251,7 +251,7 @@ export class APIKeyManager {
       .select('*')
       .eq('org_id', orgId)
       .is('revoked_at', null)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false});
     
     return data || [];
   }

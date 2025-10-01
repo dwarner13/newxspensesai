@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Brain, FileText, DollarSign, MessageSquare, Tag } from 'lucide-react';
 import TransactionCategorizer from '../components/transactions/TransactionCategorizer';
 
@@ -41,9 +40,7 @@ const TransactionCategorizerDemo = () => {
 
   return (
     <div className="max-w-4xl  py-8 px-4">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="mb-8"
       >
         <div className="flex items-center space-x-3 mb-2">
@@ -53,13 +50,10 @@ const TransactionCategorizerDemo = () => {
         <p className="text-gray-600">
           Enter transaction details below to see how our AI categorizes financial transactions.
         </p>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="card"
         >
           <h2 className="text-xl font-semibold mb-6 flex items-center">
@@ -159,12 +153,9 @@ const TransactionCategorizerDemo = () => {
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
+        <div
         >
           {isFormValid ? (
             <TransactionCategorizer
@@ -188,14 +179,11 @@ const TransactionCategorizerDemo = () => {
               </div>
             </div>
           )}
-        </motion.div>
+        </div>
       </div>
 
       {category && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className={`mt-8 p-6 rounded-lg ${
             flaggedForReview ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'
           }`}
@@ -241,13 +229,10 @@ const TransactionCategorizerDemo = () => {
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       )}
 
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.4 }}
+      <div
         className="mt-8 bg-gray-50 rounded-lg p-6 border border-gray-200"
       >
         <h3 className="text-lg font-medium mb-4">How It Works</h3>
@@ -282,7 +267,7 @@ const TransactionCategorizerDemo = () => {
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

@@ -322,8 +322,7 @@ export class BatchProcessingOptimizer {
           error: result.reason?.message || 'Unknown error',
           processingTime: 0,
           cost: 0,
-          confidence: 0
-        });
+          confidence: 0});
       }
     });
     
@@ -364,8 +363,7 @@ export class BatchProcessingOptimizer {
           error: result.reason?.message || 'Unknown error',
           processingTime: 0,
           cost: 0,
-          confidence: 0
-        });
+          confidence: 0});
       }
     });
     
@@ -400,8 +398,7 @@ export class BatchProcessingOptimizer {
           error: error instanceof Error ? error.message : 'Unknown error',
           processingTime: 0,
           cost: 0,
-          confidence: 0
-        });
+          confidence: 0});
       }
     }
     

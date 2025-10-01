@@ -20,7 +20,7 @@ export class VoiceService {
   private connections: Map<string, any>;
   
   constructor() {
-    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY});
     this.connections = new Map();
   }
   

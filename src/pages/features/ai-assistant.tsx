@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { 
   MessageCircle, Bot, Sparkles, Zap, Brain, Users, Award, Clock, 
   Star, TrendingUp, Lock, Target, BarChart3, PieChart, 
@@ -142,38 +141,26 @@ const AIAssistantPage = () => {
 
          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
            {/* Prime's Crown Badge */}
-           <motion.div
-             initial={{ opacity: 0, y: -20 }}
-             animate={{ opacity: 1, y: 0 }}
-             transition={{ duration: 0.6 }}
+           <div
              className="inline-flex items-center bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 text-white px-4 py-2 rounded-full mb-8 shadow-2xl"
            >
              <Crown size={20} className="mr-2" />
              <span className="font-bold">Prime's AI Entertainment Division</span>
-           </motion.div>
+           </div>
 
-        <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+        <h1
               className="text-4xl md:text-7xl font-bold text-white mb-8"
         >
               Meet Your AI <span className="text-yellow-400 font-extrabold drop-shadow-lg">Financial Comedian</span>
-        </motion.h1>
+        </h1>
 
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
+          <h2
             className="text-2xl md:text-3xl font-bold text-white/90 mb-6"
           >
             Where Finance Meets Entertainment - Your AI Never Sleeps, Never Bores
-          </motion.h2>
+          </h2>
 
-        <motion.p
-             initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-             transition={{ duration: 0.6, delay: 0.4 }}
+        <p
              className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
            >
              Step into the AI Conversation Theater where your AI assistant transforms boring financial advice into 
@@ -181,13 +168,10 @@ const AIAssistantPage = () => {
              <span className="text-cyan-300 font-bold"> strategic insights</span>, and 
              <span className="text-pink-300 font-bold"> daily motivation</span>. 
                            But don't let the fun fool you - our AI delivers <span className="text-green-300 font-bold">professional-grade financial expertise</span> that actually improves your money situation. Because managing money should be as entertaining as it is profitable!
-        </motion.p>
+        </p>
 
           {/* CTA Buttons */}
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
+        <div
             className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
           >
             <button
@@ -204,13 +188,10 @@ const AIAssistantPage = () => {
               <Users size={24} className="mr-2" />
               Meet the Full AI Team
           </Link>
-        </motion.div>
+        </div>
 
           {/* Performance Stats */}
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
+        <div
             className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
         >
           <div className="text-center">
@@ -229,16 +210,13 @@ const AIAssistantPage = () => {
               <div className="text-3xl md:text-4xl font-bold text-orange-400 mb-2">0%</div>
               <div className="text-white/70">Boring Finance</div>
           </div>
-        </motion.div>
+        </div>
                 </div>
               </div>
 
       {/* AI Personalities Showcase */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -247,15 +225,12 @@ const AIAssistantPage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Each AI personality brings a unique flavor to your financial journey - from comedy to strategy to daily motivation
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid md:grid-cols-3 gap-8">
           {aiPersonalities.map((personality, index) => (
-            <motion.div
+            <div
               key={personality.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.2 }}
               className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20 hover:border-white/40 transition-all duration-300 hover:scale-105"
             >
               <div className="text-center mb-6">
@@ -277,17 +252,14 @@ const AIAssistantPage = () => {
                 </div>
                 <p className="text-white/80 text-sm leading-relaxed">{personality.description}</p>
               </div>
-            </motion.div>
+            </div>
           ))}
                 </div>
               </div>
 
       {/* Live AI Conversation Demo */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -296,7 +268,7 @@ const AIAssistantPage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Watch your AI personalities in action - see how they transform boring financial questions into entertaining conversations
           </p>
-        </motion.div>
+        </div>
 
         <div className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-3xl p-8 border border-white/20">
           {/* Conversation Display */}
@@ -366,10 +338,7 @@ const AIAssistantPage = () => {
 
       {/* AI Capabilities */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -378,15 +347,12 @@ const AIAssistantPage = () => {
           <p className="text-xl text-white/70 max-w-3xl mx-auto">
             Beyond just financial advice - your AI creates an experience that makes you actually want to talk about money
           </p>
-        </motion.div>
+        </div>
 
         <div className="grid md:grid-cols-2 gap-8">
           {aiCapabilities.map((capability, index) => (
-            <motion.div
+            <div
               key={capability.title}
-              initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:border-white/40 transition-all duration-300"
             >
               <div className="flex items-start space-x-4">
@@ -398,17 +364,14 @@ const AIAssistantPage = () => {
                   <p className="text-white/70">{capability.description}</p>
               </div>
             </div>
-            </motion.div>
+            </div>
           ))}
           </div>
         </div>
         
              {/* Financial Assistance Capabilities */}
        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-         <motion.div
-           initial={{ opacity: 0, y: 20 }}
-           whileInView={{ opacity: 1, y: 0 }}
-           transition={{ duration: 0.6 }}
+         <div
            className="text-center mb-16"
          >
            <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -417,13 +380,10 @@ const AIAssistantPage = () => {
            <p className="text-xl text-white/70 max-w-3xl mx-auto">
              While we make finance entertaining, our AI delivers professional-grade financial assistance that actually improves your money situation
            </p>
-         </motion.div>
+         </div>
 
                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-12">
-           <motion.div
-             initial={{ opacity: 0, y: 20 }}
-             whileInView={{ opacity: 1, y: 0 }}
-             transition={{ duration: 0.6, delay: 0.1 }}
+           <div
              className="bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-md rounded-2xl p-8 border border-blue-500/20 hover:border-blue-500/40 transition-all duration-300"
            >
              <div className="flex items-start space-x-6">
@@ -435,12 +395,9 @@ const AIAssistantPage = () => {
                  <p className="text-white/70 leading-relaxed">AI analyzes your spending patterns and creates personalized budgets that actually work for your lifestyle</p>
             </div>
           </div>
-           </motion.div>
+           </div>
 
-           <motion.div
-             initial={{ opacity: 0, y: 20 }}
-             whileInView={{ opacity: 1, y: 0 }}
-             transition={{ duration: 0.6, delay: 0.2 }}
+           <div
              className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-md rounded-2xl p-8 border border-green-500/20 hover:border-green-500/40 transition-all duration-300"
            >
              <div className="flex items-start space-x-6">
@@ -452,12 +409,9 @@ const AIAssistantPage = () => {
                  <p className="text-white/70 leading-relaxed">Get personalized investment advice based on your risk tolerance, goals, and current financial situation</p>
           </div>
         </div>
-           </motion.div>
+           </div>
 
-           <motion.div
-             initial={{ opacity: 0, y: 20 }}
-             whileInView={{ opacity: 1, y: 0 }}
-             transition={{ duration: 0.6, delay: 0.3 }}
+           <div
              className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-md rounded-2xl p-8 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300"
            >
              <div className="flex items-start space-x-6">
@@ -469,12 +423,9 @@ const AIAssistantPage = () => {
                  <p className="text-white/70 leading-relaxed">Set realistic financial goals and track your progress with AI-powered insights and motivation</p>
                 </div>
               </div>
-           </motion.div>
+           </div>
 
-           <motion.div
-             initial={{ opacity: 0, y: 20 }}
-             whileInView={{ opacity: 1, y: 0 }}
-             transition={{ duration: 0.6, delay: 0.4 }}
+           <div
              className="bg-gradient-to-br from-orange-500/10 to-red-500/10 backdrop-blur-md rounded-2xl p-8 border border-orange-500/20 hover:border-orange-500/40 transition-all duration-300"
            >
              <div className="flex items-start space-x-6">
@@ -486,12 +437,9 @@ const AIAssistantPage = () => {
                  <p className="text-white/70 leading-relaxed">AI helps you create effective debt payoff strategies and avoid common financial pitfalls</p>
                 </div>
               </div>
-           </motion.div>
+           </div>
 
-           <motion.div
-             initial={{ opacity: 0, y: 20 }}
-             whileInView={{ opacity: 1, y: 0 }}
-             transition={{ duration: 0.6, delay: 0.5 }}
+           <div
              className="bg-gradient-to-br from-yellow-500/10 to-orange-500/10 backdrop-blur-md rounded-2xl p-8 border border-yellow-500/20 hover:border-yellow-500/40 transition-all duration-300"
            >
              <div className="flex items-start space-x-6">
@@ -503,12 +451,9 @@ const AIAssistantPage = () => {
                  <p className="text-white/70 leading-relaxed">Get instant alerts and insights about your financial health, spending trends, and opportunities</p>
                 </div>
               </div>
-           </motion.div>
+           </div>
 
-           <motion.div
-             initial={{ opacity: 0, y: 20 }}
-             whileInView={{ opacity: 1, y: 0 }}
-             transition={{ duration: 0.6, delay: 0.6 }}
+           <div
              className="bg-gradient-to-br from-cyan-500/10 to-blue-500/10 backdrop-blur-md rounded-2xl p-8 border border-cyan-500/20 hover:border-cyan-500/40 transition-all duration-300"
            >
              <div className="flex items-start space-x-6">
@@ -520,16 +465,13 @@ const AIAssistantPage = () => {
                  <p className="text-white/70 leading-relaxed">AI identifies tax-saving opportunities and helps you maximize deductions and credits</p>
                 </div>
               </div>
-           </motion.div>
+           </div>
           </div>
         </div>
 
        {/* Call to Action */}
        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+        <div
           className="bg-gradient-to-r from-yellow-500/20 via-orange-500/20 to-red-500/20 backdrop-blur-md rounded-3xl p-12 border border-white/20 text-center"
         >
           <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
@@ -555,7 +497,7 @@ const AIAssistantPage = () => {
               Meet the Full AI Team
             </Link>
         </div>
-        </motion.div>
+        </div>
         </div>
     </>
   );

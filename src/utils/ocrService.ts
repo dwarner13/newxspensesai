@@ -79,8 +79,7 @@ export const extractTextFromImage = async (imageUrl: string): Promise<OCRResult>
       FirstResult: result.ParsedResults?.[0] ? {
         ParsedText: result.ParsedResults[0].ParsedText?.substring(0, 200) + '...',
         TextOverlay: result.ParsedResults[0].TextOverlay
-      } : null
-    });
+      } : null});
     
     if (result.IsErroredOnProcessing) {
       console.error('OCR processing error:', result.ErrorMessage);
@@ -329,8 +328,7 @@ export const parseReceiptText = (text: string): ParsedReceiptData => {
         
         items.push({
           description: description.replace(/[^a-zA-Z0-9\s&'-]/g, '').trim(),
-          amount
-        });
+          amount});
       }
     }
   }
@@ -539,10 +537,9 @@ const parseCreditCardStatement = (text: string, lines: string[]): ParsedReceiptD
               postingDate: 'Unknown',
               description,
               amount,
-              merchant
-            });
+              merchant});
             
-            console.log('💳 Found transaction (pattern 3):', { description, amount, merchant });
+            console.log('💳 Found transaction (pattern 3):', { description, amount, merchant});
           }
         }
       }
@@ -567,10 +564,9 @@ const parseCreditCardStatement = (text: string, lines: string[]): ParsedReceiptD
               postingDate: date,
               description,
               amount,
-              merchant
-            });
+              merchant});
             
-            console.log('💳 Found transaction (pattern 4):', { date, description, amount, merchant });
+            console.log('💳 Found transaction (pattern 4):', { date, description, amount, merchant});
           }
         }
       }
@@ -593,10 +589,9 @@ const parseCreditCardStatement = (text: string, lines: string[]): ParsedReceiptD
           postingDate,
           description,
           amount,
-          merchant
-        });
+          merchant});
         
-        console.log('💳 Found transaction:', { transactionDate, postingDate, merchant, amount });
+        console.log('💳 Found transaction:', { transactionDate, postingDate, merchant, amount});
       }
     }
   }
@@ -647,8 +642,7 @@ export const processImageWithOCR = async (imageFile: File): Promise<OCRResult> =
         headers: {
           "apikey": OCR_API_KEY,
         },
-        body: formData
-      });
+        body: formData});
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -665,8 +659,7 @@ export const processImageWithOCR = async (imageFile: File): Promise<OCRResult> =
         FirstResult: result.ParsedResults?.[0] ? {
           ParsedText: result.ParsedResults[0].ParsedText?.substring(0, 200) + '...',
           TextOverlay: result.ParsedResults[0].TextOverlay
-        } : null
-      });
+        } : null});
       
       if (result.IsErroredOnProcessing) {
         console.error('PDF OCR processing error:', result.ErrorMessage);
@@ -714,8 +707,7 @@ export const processImageWithOCR = async (imageFile: File): Promise<OCRResult> =
         headers: {
           "apikey": OCR_API_KEY,
         },
-        body: formData
-      });
+        body: formData});
 
       if (!response.ok) {
         const errorText = await response.text();

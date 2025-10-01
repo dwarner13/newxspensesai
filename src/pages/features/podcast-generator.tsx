@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import WebsiteLayout from '../../components/layout/WebsiteLayout';
-import { motion } from 'framer-motion';
 import { Play, Users, TrendingUp, Heart, Star, Clock, Zap, Crown, Target, MessageCircle, Bell, Share2, ArrowRight, CheckCircle, AlertTriangle, DollarSign, Video, Instagram, Youtube, Twitter } from 'lucide-react';
 
 const PodcastGeneratorPage = () => {
@@ -25,10 +24,7 @@ const PodcastGeneratorPage = () => {
         <section className="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white py-20">
           <div className="container mx-auto px-4">
             <div className="max-w-4xl mx-auto text-center">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
               >
                 <h1 className="text-4xl md:text-6xl font-bold mb-6">
                   AI Podcast Generator
@@ -72,7 +68,7 @@ const PodcastGeneratorPage = () => {
                     Watch Demo
                   </button>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>
@@ -81,10 +77,7 @@ const PodcastGeneratorPage = () => {
         <section className="py-20 bg-white">
           <div className="container mx-auto px-4">
             <div className="max-w-6xl mx-auto">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 viewport={{ once: true }}
                 className="text-center mb-16"
               >
@@ -94,13 +87,10 @@ const PodcastGeneratorPage = () => {
                 <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                   Transform your ideas into engaging podcast episodes with our advanced AI technology
                 </p>
-              </motion.div>
+              </div>
 
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.1 }}
+                <div
                   viewport={{ once: true }}
                   className="bg-gradient-to-br from-blue-50 to-purple-50 p-8 rounded-xl"
                 >
@@ -111,12 +101,9 @@ const PodcastGeneratorPage = () => {
                   <p className="text-gray-600">
                     Generate episode outlines, scripts, and talking points in seconds with our AI assistant
                   </p>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.2 }}
+                <div
                   viewport={{ once: true }}
                   className="bg-gradient-to-br from-purple-50 to-pink-50 p-8 rounded-xl"
                 >
@@ -127,12 +114,9 @@ const PodcastGeneratorPage = () => {
                   <p className="text-gray-600">
                     AI analyzes trending topics and suggests relevant content for your niche
                   </p>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.3 }}
+                <div
                   viewport={{ once: true }}
                   className="bg-gradient-to-br from-green-50 to-blue-50 p-8 rounded-xl"
                 >
@@ -143,12 +127,9 @@ const PodcastGeneratorPage = () => {
                   <p className="text-gray-600">
                     Engage with AI hosts that adapt to your style and provide dynamic conversations
                   </p>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.4 }}
+                <div
                   viewport={{ once: true }}
                   className="bg-gradient-to-br from-orange-50 to-red-50 p-8 rounded-xl"
                 >
@@ -159,12 +140,9 @@ const PodcastGeneratorPage = () => {
                   <p className="text-gray-600">
                     Automatically publish to Spotify, Apple Podcasts, YouTube, and social media
                   </p>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.5 }}
+                <div
                   viewport={{ once: true }}
                   className="bg-gradient-to-br from-indigo-50 to-purple-50 p-8 rounded-xl"
                 >
@@ -175,12 +153,9 @@ const PodcastGeneratorPage = () => {
                   <p className="text-gray-600">
                     Track performance, audience engagement, and growth with detailed analytics
                   </p>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.6 }}
+                <div
                   viewport={{ once: true }}
                   className="bg-gradient-to-br from-pink-50 to-rose-50 p-8 rounded-xl"
                 >
@@ -191,7 +166,7 @@ const PodcastGeneratorPage = () => {
                   <p className="text-gray-600">
                     Build a loyal audience with interactive features and community engagement tools
                   </p>
-                </motion.div>
+                </div>
               </div>
             </div>
           </div>
@@ -201,10 +176,7 @@ const PodcastGeneratorPage = () => {
         <section className="py-20 bg-gradient-to-br from-gray-50 to-blue-50">
           <div className="container mx-auto px-4">
             <div className="max-w-6xl mx-auto">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 viewport={{ once: true }}
                 className="text-center mb-16"
               >
@@ -214,13 +186,10 @@ const PodcastGeneratorPage = () => {
                 <p className="text-xl text-gray-600 max-w-3xl mx-auto">
                   Join thousands of creators who have transformed their content creation with AI
                 </p>
-              </motion.div>
+              </div>
 
               <div className="grid md:grid-cols-2 gap-12">
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.6 }}
+                <div
                   viewport={{ once: true }}
                 >
                   <h3 className="text-2xl font-bold text-gray-900 mb-6">Save Time & Effort</h3>
@@ -247,12 +216,9 @@ const PodcastGeneratorPage = () => {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
 
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.6 }}
+                <div
                   viewport={{ once: true }}
                 >
                   <h3 className="text-2xl font-bold text-gray-900 mb-6">Grow Your Audience</h3>
@@ -279,7 +245,7 @@ const PodcastGeneratorPage = () => {
                       </div>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               </div>
             </div>
           </div>
@@ -289,10 +255,7 @@ const PodcastGeneratorPage = () => {
         <section className="py-20 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
           <div className="container mx-auto px-4">
             <div className="max-w-4xl mx-auto text-center">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
+              <div
                 viewport={{ once: true }}
               >
                 <h2 className="text-3xl md:text-4xl font-bold mb-6">
@@ -314,7 +277,7 @@ const PodcastGeneratorPage = () => {
                     Schedule Demo
                   </button>
                 </div>
-              </motion.div>
+              </div>
             </div>
           </div>
         </section>

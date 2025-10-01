@@ -1,7 +1,5 @@
 import React, { useState, useCallback } from 'react';
 import { AIService } from '../services/AIService';
-import { motion } from 'framer-motion';
-
 const DocumentUpload = ({ onUploadComplete }) => {
     const [file, setFile] = useState(null);
     const [uploading, setUploading] = useState(false);
@@ -71,8 +69,7 @@ const DocumentUpload = ({ onUploadComplete }) => {
                     total_transactions: uploadResult.total_transactions,
                     extraction_confidence: uploadResult.extraction_confidence
                 },
-                transactions: transactionsList
-            });
+                transactions: transactionsList});
 
         } catch (err) {
             console.error('Upload failed:', err);
@@ -97,9 +94,7 @@ const DocumentUpload = ({ onUploadComplete }) => {
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+        <div
             className="max-w-4xl mx-auto"
         >
             <div className="bg-white rounded-lg shadow-lg p-8">
@@ -167,20 +162,16 @@ const DocumentUpload = ({ onUploadComplete }) => {
 
                 {/* Error Message */}
                 {error && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
+                    <div
                         className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg"
                     >
                         <p className="text-red-800">❌ {error}</p>
-                    </motion.div>
+                    </div>
                 )}
 
                 {/* Upload Button */}
                 {file && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
+                    <div
                         className="mt-6 text-center"
                     >
                         <button
@@ -197,7 +188,7 @@ const DocumentUpload = ({ onUploadComplete }) => {
                                 '🚀 Upload & Analyze with AI'
                             )}
                         </button>
-                    </motion.div>
+                    </div>
                 )}
 
                 {/* Features */}
@@ -219,7 +210,7 @@ const DocumentUpload = ({ onUploadComplete }) => {
                     </div>
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 };
 

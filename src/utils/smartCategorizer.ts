@@ -27,8 +27,7 @@ export class SmartCategorizer {
             vendor: rule.keyword,
             category: rule.category,
             subcategory: rule.subcategory,
-            confidence: Math.min(rule.match_count / 10, 1) // Normalize to 0-1
-          });
+            confidence: Math.min(rule.match_count / 10, 1) // Normalize to 0-1});
         });
       }
     } catch (error) {
@@ -114,8 +113,7 @@ export class SmartCategorizer {
       this.vendorMemory.set(keyword.toLowerCase(), {
         vendor: keyword,
         category,
-        confidence: 0.1
-      });
+        confidence: 0.1});
     } catch (error) {
       console.error('Error storing vendor memory:', error);
     }

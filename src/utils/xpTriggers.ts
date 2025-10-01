@@ -12,7 +12,7 @@ import { supabase } from '../lib/supabase';
  */
 export const awardFileUploadXP = async (userId: string, fileType: string) => {
   // Gamification disabled - not awarding XP
-  console.log('Gamification disabled - file upload XP not awarded:', { userId, fileType });
+  console.log('Gamification disabled - file upload XP not awarded:', { userId, fileType});
 };
 
 /**
@@ -22,7 +22,7 @@ export const awardFileUploadXP = async (userId: string, fileType: string) => {
  */
 export const awardReceiptScanXP = async (userId: string, success: boolean) => {
   // Gamification disabled - not awarding XP
-  console.log('Gamification disabled - receipt scan XP not awarded:', { userId, success });
+  console.log('Gamification disabled - receipt scan XP not awarded:', { userId, success});
 };
 
 /**
@@ -32,7 +32,7 @@ export const awardReceiptScanXP = async (userId: string, success: boolean) => {
  */
 export const awardAICategorizeXP = async (userId: string, transactionCount: number) => {
   // Gamification disabled - not awarding XP
-  console.log('Gamification disabled - AI categorization XP not awarded:', { userId, transactionCount });
+  console.log('Gamification disabled - AI categorization XP not awarded:', { userId, transactionCount});
 };
 
 /**
@@ -41,7 +41,7 @@ export const awardAICategorizeXP = async (userId: string, transactionCount: numb
  */
 export const awardDailyLoginXP = async (userId: string) => {
   // Gamification disabled - not awarding XP
-  console.log('Gamification disabled - daily login XP not awarded:', { userId });
+  console.log('Gamification disabled - daily login XP not awarded:', { userId});
 };
 
 /**
@@ -52,5 +52,5 @@ export const awardDailyLoginXP = async (userId: string) => {
  */
 export const awardMissionXP = async (userId: string, missionName: string, xpAmount: number) => {
   // Gamification disabled - not awarding XP
-  console.log('Gamification disabled - mission XP not awarded:', { userId, missionName, xpAmount });
+  console.log('Gamification disabled - mission XP not awarded:', { userId, missionName, xpAmount});
 };

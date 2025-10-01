@@ -113,7 +113,7 @@ export async function matchReceiptsToTransactions(userId?: string): Promise<{
             .update({ transaction_id: bestTx.id })
             .eq('id', receipt.id);
           report.matched++;
-          report.matches.push({ receiptId: receipt.id, transactionId: bestTx.id, score: bestScore });
+          report.matches.push({ receiptId: receipt.id, transactionId: bestTx.id, score: bestScore});
         } catch (err) {
           report.errors++;
         }

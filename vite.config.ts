@@ -54,7 +54,8 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src')
+      '@': path.resolve(__dirname, './src'),
+      'motion-utils': path.resolve(__dirname, './src/utils/empty-motion-utils.js')
     },
   },
   optimizeDeps: {
@@ -64,6 +65,8 @@ export default defineConfig({
       'react-dom', 
       'react-router-dom', 
       'framer-motion',
+      'motion-utils',
+      'motion-dom',
       'pdfjs-dist',
       'pdf-lib',
       'tesseract.js'

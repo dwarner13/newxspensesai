@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Check, X, Star, Users, Zap, Shield, Headphones, Brain, TrendingUp, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -7,40 +6,28 @@ import { Link } from 'react-router-dom';
 const PricingHero = () => (
   <section className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white flex items-center justify-center px-4">
     <div className="max-w-6xl mx-auto text-center">
-      <motion.div 
+      <div 
         className="inline-flex items-center px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm mb-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
       >
         <span className="mr-2">🚀</span>
         <span>World's First FinTech Entertainment Platform</span>
-      </motion.div>
+      </div>
       
-      <motion.h1 
+      <h1 
         className="text-5xl md:text-7xl font-bold mb-6"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.2 }}
       >
         Choose Your <span className="bg-gradient-to-r from-orange-400 to-pink-400 bg-clip-text text-transparent">Financial Freedom</span> Plan
-      </motion.h1>
+      </h1>
       
-      <motion.p 
+      <p 
         className="text-xl md:text-2xl text-gray-300 mb-12 max-w-3xl mx-auto"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.4 }}
       >
         Experience revolutionary expense management with AI-powered insights, 
         personalized podcasts, and curated music that makes financial planning enjoyable.
-      </motion.p>
+      </p>
       
-      <motion.div 
+      <div 
         className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.6 }}
       >
         <div className="text-center">
           <div className="text-3xl font-bold text-orange-400 mb-2">10,000+</div>
@@ -54,7 +41,7 @@ const PricingHero = () => (
           <div className="text-3xl font-bold text-blue-400 mb-2">98%</div>
           <div className="text-gray-300">User Satisfaction</div>
         </div>
-      </motion.div>
+      </div>
     </div>
   </section>
 );
@@ -100,12 +87,9 @@ const PricingCard = ({ plan, isAnnual, isPopular = false }: { plan: any; isAnnua
   };
 
   return (
-    <motion.div 
+    <div 
       className={`relative p-8 rounded-2xl ${isPopular ? 'bg-gradient-to-br from-purple-600 to-pink-600 text-white scale-105' : 'bg-white/10 backdrop-blur-sm text-white border border-white/20'} hover:scale-105 transition-transform duration-300`}
       whileHover={{ y: -10 }}
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.6 }}
     >
       {isPopular && (
         <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
@@ -148,7 +132,7 @@ const PricingCard = ({ plan, isAnnual, isPopular = false }: { plan: any; isAnnua
           </div>
         ))}
       </div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -221,11 +205,8 @@ const PricingPlans = ({ isAnnual }: { isAnnual: boolean }) => {
 const FeatureComparison = () => (
   <section className="py-20 bg-gray-900">
     <div className="max-w-6xl mx-auto px-4">
-      <motion.div 
+      <div 
         className="text-center mb-16"
-        initial={{ opacity: 0, y: 30 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
         viewport={{ once: true }}
       >
         <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
@@ -234,7 +215,7 @@ const FeatureComparison = () => (
         <p className="text-xl text-gray-300 max-w-3xl mx-auto">
           We combine cutting-edge AI technology with entertainment to make financial management enjoyable and effective.
         </p>
-      </motion.div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         {[
@@ -259,18 +240,15 @@ const FeatureComparison = () => (
             description: "Your financial data is protected with enterprise-grade security and encryption."
           }
         ].map((feature, index) => (
-          <motion.div 
+          <div 
             key={feature.title}
             className="text-center p-6 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: index * 0.1 }}
             viewport={{ once: true }}
           >
             <div className="text-orange-400 mb-4 flex justify-center">{feature.icon}</div>
             <h3 className="text-xl font-semibold text-white mb-3">{feature.title}</h3>
             <p className="text-gray-300">{feature.description}</p>
-          </motion.div>
+          </div>
         ))}
       </div>
     </div>
@@ -309,11 +287,8 @@ const PricingFAQ = () => {
   return (
     <section className="py-20 bg-gray-800">
       <div className="max-w-4xl mx-auto px-4">
-        <motion.div 
+        <div 
           className="text-center mb-16"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
           viewport={{ once: true }}
         >
           <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
@@ -322,21 +297,18 @@ const PricingFAQ = () => {
           <p className="text-xl text-gray-300">
             Everything you need to know about XspensesAI pricing and features.
           </p>
-        </motion.div>
+        </div>
 
         <div className="space-y-6">
           {faqs.map((faq, index) => (
-            <motion.div 
+            <div 
               key={index}
               className="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
               viewport={{ once: true }}
             >
               <h3 className="text-xl font-semibold text-white mb-3">{faq.question}</h3>
               <p className="text-gray-300">{faq.answer}</p>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
@@ -388,10 +360,7 @@ const StandalonePricingPage = () => {
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-r from-purple-600 to-pink-600">
         <div className="max-w-4xl mx-auto text-center px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             viewport={{ once: true }}
           >
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
@@ -414,7 +383,7 @@ const StandalonePricingPage = () => {
                 Contact Sales
               </Link>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 

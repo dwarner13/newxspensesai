@@ -64,7 +64,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       .eq('user_id', ctx.userId)
       .gte('date', `${month}-01`)
       .lte('date', `${month}-31`)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false});
     
     let reportUrl: string;
     
@@ -91,7 +91,7 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
         break;
         
       case 'json':
-        reportUrl = await saveJSON({ analysis, transactions });
+        reportUrl = await saveJSON({ analysis, transactions});
         break;
     }
     

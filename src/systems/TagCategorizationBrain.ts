@@ -475,8 +475,7 @@ export class TagCategorizationBrain {
         condition: `merchant == "${transaction.merchant}"`,
         category: newCategory,
         subcategory: 'General',
-        confidence: 1.0
-      });
+        confidence: 1.0});
     }
   }
 
@@ -528,7 +527,7 @@ export class TagCategorizationBrain {
       if (group.length === 1) {
         // Single transaction
         const result = await this.categorizeTransaction(group[0], userId);
-        categorized.push({ ...group[0], ...result });
+        categorized.push({ ...group[0], ...result});
       } else {
         // Multiple similar transactions - categorize once, apply to all
         const sample = group[0];
@@ -536,7 +535,7 @@ export class TagCategorizationBrain {
         
         // Apply to all in group
         for (const transaction of group) {
-          categorized.push({ ...transaction, ...result });
+          categorized.push({ ...transaction, ...result});
         }
       }
     }
@@ -613,8 +612,7 @@ export class TagCategorizationBrain {
       rule.conditions.push({
         field: 'merchant',
         operator: pattern.merchantExact ? 'equals' : 'contains',
-        value: pattern.merchant
-      });
+        value: pattern.merchant});
     }
     
     if (pattern.amountRange) {
@@ -622,16 +620,14 @@ export class TagCategorizationBrain {
         field: 'amount',
         operator: 'between',
         min: pattern.amountRange.min,
-        max: pattern.amountRange.max
-      });
+        max: pattern.amountRange.max});
     }
     
     if (pattern.keywords) {
       rule.conditions.push({
         field: 'description',
         operator: 'contains_any',
-        values: pattern.keywords
-      });
+        values: pattern.keywords});
     }
     
     const userRules = this.customRules.get(userId) || [];

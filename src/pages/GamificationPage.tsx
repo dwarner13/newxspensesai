@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Trophy, Star, Award, Zap, Target, Camera, Brain, FileText } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -14,8 +13,7 @@ const GamificationPage = () => {
   const [userProfile, setUserProfile] = useState({
     xp: 0,
     level: 1,
-    streak: 0
-  });
+    streak: 0});
   const [badges, setBadges] = useState<{
     badge: string;
     description: string;
@@ -106,8 +104,7 @@ const GamificationPage = () => {
       setUserProfile({
         xp: data.xp || 0,
         level: data.level || 1,
-        streak: data.streak || 0
-      });
+        streak: data.streak || 0});
       
       // In a real app, we would load badges and missions from the database
       // For now, we'll simulate some earned badges based on the user's XP
@@ -140,9 +137,7 @@ const GamificationPage = () => {
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="flex items-center space-x-3 mb-8"
       >
         <Trophy size={32} className="text-yellow-600" />
@@ -150,38 +145,30 @@ const GamificationPage = () => {
           <h1 className="text-2xl font-bold">XP & Gamification</h1>
           <p className="text-gray-600">Master your finances while earning XP and unlocking achievements</p>
         </div>
-      </motion.div>
+      </div>
 
       {/* XP Tracker */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
       >
         <XPTracker 
           userLevel={userProfile.level}
           xp={userProfile.xp}
           dailyStreak={userProfile.streak}
         />
-      </motion.div>
+      </div>
 
       {/* Streak Tracker */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
+      <div
       >
         <StreakTracker 
           current={userProfile.streak}
           goal={7}
           showCalendar={true}
         />
-      </motion.div>
+      </div>
 
       {/* Weekly Missions */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
+      <div
         className="card"
       >
         <div className="flex items-center space-x-2 mb-4">
@@ -216,13 +203,10 @@ const GamificationPage = () => {
             Reset happens every Sunday at midnight.
           </p>
         </div>
-      </motion.div>
+      </div>
 
       {/* Badges & Achievements */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+      <div
         className="card"
       >
         <div className="flex items-center justify-between mb-4">
@@ -248,13 +232,10 @@ const GamificationPage = () => {
             />
           ))}
         </div>
-      </motion.div>
+      </div>
 
       {/* How It Works */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
+      <div
         className="card"
       >
         <div className="flex items-center space-x-2 mb-6">
@@ -338,7 +319,7 @@ const GamificationPage = () => {
             </ul>
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

@@ -1,6 +1,5 @@
 // Enhanced Prime Chat Interface with Learning Integration
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Upload, Crown, Users, Zap, Brain, Target, DollarSign, Star, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { AI_EMPLOYEES, getActiveEmployees } from '../../config/ai-employees';
@@ -185,8 +184,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
         response: response.message,
         handoff_from: currentEmployee !== response.employee.id ? currentEmployee : undefined,
         handoff_to: response.suggestedHandoff,
-        handoff_reason: response.suggestedHandoff ? 'specialized analysis' : undefined
-      });
+        handoff_reason: response.suggestedHandoff ? 'specialized analysis' : undefined});
 
       // Add handoff message if needed
       if (response.suggestedHandoff && response.suggestedHandoff !== primaryEmployee) {
@@ -220,8 +218,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
           from_employee: 'prime',
           to_employee: response.suggestedHandoff,
           reason: 'specialized analysis',
-          success: true
-        });
+          success: true});
       } else {
         setMessages(prev => [...prev, aiMessage]);
       }
@@ -324,9 +321,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
     if (!employee) return null;
 
     return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="bg-gray-800 border border-gray-600 rounded-lg p-3 mb-2"
       >
         <div className="flex items-center gap-2">
@@ -342,7 +337,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
             Connect
           </button>
         </div>
-      </motion.div>
+      </div>
     );
   };
 
@@ -350,10 +345,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
+      <div
         className="bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col"
       >
         {/* Header */}
@@ -552,7 +544,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
             Prime coordinates your complete AI financial team • 7 active employees, 23+ coming soon
           </div>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

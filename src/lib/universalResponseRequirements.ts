@@ -403,8 +403,7 @@ export class UniversalResponseRequirements {
         actionabilityScore: validation.qualityScore,
         collaborationScore: validation.qualityScore,
         personalityConsistency: validation.qualityScore,
-        overallQuality: validation.qualityScore
-      });
+        overallQuality: validation.qualityScore});
       totalQuality += validation.qualityScore;
     }
 
