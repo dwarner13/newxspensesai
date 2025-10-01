@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+// import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, 
   Settings, 
@@ -119,26 +119,13 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
   ];
 
   return (
-    <AnimatePresence>
+    <>
       {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
+        <div
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
           onClick={onClose}
         >
-        <motion.div
-          initial={{ y: '-100%' }}
-          animate={{ y: 0 }}
-          exit={{ y: '-100%' }}
-          transition={{ 
-            type: 'spring', 
-            damping: 25, 
-            stiffness: 200,
-            mass: 0.8
-          }}
+        <div
           className="fixed inset-0 bg-[#0f172a] flex flex-col z-50"
           onClick={(e) => e.stopPropagation()}
         >
@@ -178,11 +165,8 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
                   <h4 className="text-sm font-semibold text-white/80 mb-2 uppercase tracking-wide">Account</h4>
                   <div className="space-y-1 mb-4">
                     {profileOptions.map((option, index) => (
-                      <motion.button
+                      <button
                         key={option.label}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
                         onClick={() => option.view !== 'main' ? setCurrentView(option.view as any) : null}
                         className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all duration-200 active:scale-95"
                       >
@@ -193,18 +177,15 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
                           <p className="text-white font-medium">{option.label}</p>
                           <p className="text-white/60 text-xs">{option.description}</p>
                         </div>
-                      </motion.button>
+                      </button>
                     ))}
                   </div>
 
                   <h4 className="text-sm font-semibold text-white/80 mb-3 uppercase tracking-wide">Additional Features</h4>
                   <div className="space-y-2 mb-6">
                     {additionalOptions.map((option, index) => (
-                      <motion.button
+                      <button
                         key={option.label}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: (index + profileOptions.length) * 0.05 }}
                         className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all duration-200 active:scale-95"
                       >
                         <div className="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
@@ -214,7 +195,7 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
                           <p className="text-white font-medium">{option.label}</p>
                           <p className="text-white/60 text-xs">{option.description}</p>
                         </div>
-                      </motion.button>
+                      </button>
                     ))}
                   </div>
                 </>
@@ -362,11 +343,8 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
               <h4 className="text-sm font-semibold text-white/80 mb-3 uppercase tracking-wide">Upgrade Plans</h4>
               <div className="space-y-2 mb-4">
                 {upgradeOptions.map((plan, index) => (
-                  <motion.button
+                  <button
                     key={plan.label}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: (index + profileOptions.length) * 0.05 }}
                     className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all duration-200 active:scale-95 border border-white/10"
                   >
                     <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-lg flex items-center justify-center">
@@ -379,15 +357,12 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
                     <div className="text-right">
                       <p className="text-yellow-400 font-semibold text-sm">{plan.price}</p>
                     </div>
-                  </motion.button>
+                  </button>
                 ))}
               </div>
 
               {/* Logout */}
-              <motion.button
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: (profileOptions.length + upgradeOptions.length) * 0.05 }}
+                <button
                 className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-red-500/10 transition-all duration-200 active:scale-95 border border-red-500/20"
               >
                 <div className="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center">
@@ -396,12 +371,12 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
                 <div className="flex-1 text-left">
                   <p className="text-red-400 font-medium">Sign Out</p>
                 </div>
-              </motion.button>
+              </button>
             </div>
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 };
 

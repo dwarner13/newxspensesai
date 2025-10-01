@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { 
   Crown, Zap, Brain, Play, RefreshCw, Calculator
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+// import { motion, AnimatePresence } from 'framer-motion';
 
 interface AIEmployee {
   name: string;
@@ -246,21 +246,15 @@ const HomePage = () => {
           <div className="text-center mb-16">
             {/* Prime Badge */}
                          <div className="text-center mb-12">
-               <motion.div 
-                 initial={{ opacity: 0, y: -20 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 transition={{ duration: 0.6 }}
+                <div
                  className="inline-flex items-center gap-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md border border-white/20 rounded-full px-6 py-3"
                >
                  <Crown size={20} className="text-yellow-400" />
                  <span className="text-white font-semibold">Smart-Categorizing AI</span>
-               </motion.div>
+               </div>
              </div>
                 
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+             <h1
               className="text-3xl md:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight"
             >
               XspensesAI: The World's First<br />
@@ -268,21 +262,15 @@ const HomePage = () => {
                 Fintech Entertainment Platform
               </span><br />
               That Works While You Play
-            </motion.h1>
+            </h1>
             
-            <motion.p 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
+             <p
               className="text-lg md:text-xl text-white/80 mb-12 max-w-4xl mx-auto leading-relaxed"
             >
               Meet <span className="text-purple-400 font-semibold">Prime</span> (AI Boss), <span className="text-blue-400 font-semibold">Byte</span> (Process Optimizer), <span className="text-green-400 font-semibold">Tag</span> (Smart Categorizer), and <span className="text-indigo-400 font-semibold">Crystal</span> (Prediction Engine) - your dedicated AI employees who work 24/7 to categorize expenses, predict spending, and entertain you while managing your finances with 99.7% accuracy.
-            </motion.p>
+            </p>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
+                <div
               className="flex flex-col sm:flex-row gap-6 justify-center mb-12"
             >
               <button 
@@ -299,13 +287,10 @@ const HomePage = () => {
                 <Zap size={24} />
                 Watch AI Demo
               </button>
-            </motion.div>
+            </div>
 
             {/* Live Stats */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
+                <div
               className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto"
             >
               {[
@@ -320,30 +305,24 @@ const HomePage = () => {
                   <div className="text-white/70 text-sm">{stat.label}</div>
           </div>
               ))}
-            </motion.div>
+            </div>
             </div>
           </div>
         </div>
         
       {/* AI Dream Team Showcase */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Meet Your AI Dream Team</h2>
           <p className="text-white/80 text-lg max-w-3xl mx-auto">Four revolutionary AI employees, each with unique superpowers, working together to transform your financial life</p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {aiDreamTeam.map((member, index) => (
-            <motion.div 
-              key={member.name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
+            <div 
+               key={member.name}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300 cursor-pointer"
 
             >
@@ -358,7 +337,7 @@ const HomePage = () => {
                   <p className="text-white/80 text-xs italic">"{member.demoQuote}"</p>
       </div>
               </div>
-            </motion.div>
+            </div>
           ))}
           </div>
         </div>
@@ -366,10 +345,7 @@ const HomePage = () => {
       {/* Live AI Demo */}
       {isAIDemoRunning && (
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+                <div
             className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
           >
             <div className="text-center mb-8">
@@ -398,29 +374,23 @@ const HomePage = () => {
                 </p>
             </div>
           </div>
-          </motion.div>
+          </div>
             </div>
       )}
 
       {/* Revolutionary Features */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Revolutionary AI Features</h2>
           <p className="text-white/80 text-lg max-w-3xl mx-auto">Experience the future of financial management with our revolutionary AI-powered features</p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {revolutionaryFeatures.map((feature, index) => (
-            <motion.div 
-              key={feature.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
+            <div 
+               key={feature.id}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 hover:scale-105 transition-all duration-300"
             >
               <div className="text-center">
@@ -436,17 +406,14 @@ const HomePage = () => {
                   Experience Now
                 </Link>
             </div>
-            </motion.div>
+            </div>
           ))}
           </div>
         </div>
 
       {/* Live User Testimonials */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -456,11 +423,8 @@ const HomePage = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {liveTestimonials.map((testimonial, index) => (
-              <motion.div 
+              <div 
                 key={testimonial.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
                 className="bg-white/10 rounded-xl p-6 border border-white/10"
               >
                 <div className="flex items-start gap-4 mb-4">
@@ -475,18 +439,15 @@ const HomePage = () => {
             </div>
                 <p className="text-white/80 text-sm mb-3">"{testimonial.testimonial}"</p>
                 <div className="text-cyan-400 text-xs">Powered by {testimonial.aiEmployee}</div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
         </div>
 
       {/* ROI Calculator */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-3xl font-bold text-white mb-4">Calculate Your AI Savings</h2>
@@ -511,26 +472,20 @@ const HomePage = () => {
           </button>
 
           {userSavings > 0 && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
+                <div
               className="mt-8 bg-white/10 rounded-xl p-6"
             >
               <h3 className="text-2xl font-bold text-white mb-2">Your AI Savings Potential</h3>
               <div className="text-4xl font-bold text-green-400 mb-2">${userSavings.toLocaleString()}</div>
               <p className="text-white/80">Annual savings with Prime's AI Empire</p>
-            </motion.div>
+            </div>
           )}
-        </motion.div>
+        </div>
               </div>
 
       {/* AI Capability Tester */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-indigo-500/20 to-purple-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -544,11 +499,8 @@ const HomePage = () => {
               { question: "What's the AI accuracy rate?", answer: "99.7%", difficulty: "Medium" },
               { question: "How many AI decisions per day?", answer: "200+", difficulty: "Hard" }
             ].map((quiz, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
+              <div 
+                key={index}}}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10"
               >
           <div className="text-center">
@@ -557,23 +509,20 @@ const HomePage = () => {
                   <p className="text-cyan-400 font-bold text-lg mb-2">{quiz.answer}</p>
                   <span className="text-white/60 text-sm">{quiz.difficulty}</span>
               </div>
-              </motion.div>
+              </div>
             ))}
               </div>
-        </motion.div>
+        </div>
             </div>
           
       {/* Live AI Performance Dashboard */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Live AI Performance Dashboard</h2>
           <p className="text-white/80 text-lg max-w-3xl mx-auto">Real-time metrics from Prime's AI Empire</p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
@@ -582,27 +531,21 @@ const HomePage = () => {
             { metric: 'Money Saved', value: '$2.3M', icon: '💰', color: 'text-green-400' },
             { metric: 'Users Served', value: '50,000+', icon: '👥', color: 'text-orange-400' }
           ].map((stat, index) => (
-            <motion.div 
-              key={stat.metric}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
+            <div 
+              key={stat.metric}}}}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center"
             >
               <div className="text-4xl mb-4">{stat.icon}</div>
               <div className={`text-3xl font-bold ${stat.color} mb-2`}>{stat.value}</div>
               <div className="text-white/70 text-sm">{stat.metric}</div>
-            </motion.div>
+            </div>
           ))}
           </div>
             </div>
           
       {/* AI Goal Tracker */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -616,11 +559,8 @@ const HomePage = () => {
               { goal: 'Pay off $5,000 debt', progress: 60, aiTip: 'Crystal predicts: Achievable in 8 months' },
               { goal: 'Invest $2,000', progress: 90, aiTip: 'Tag found: $500 in tax deductions' }
             ].map((goal, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
+              <div 
+                key={index}}}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10"
               >
                 <h3 className="font-semibold text-white mb-3">{goal.goal}</h3>
@@ -632,18 +572,15 @@ const HomePage = () => {
           </div>
                 <p className="text-white/70 text-sm">{goal.progress}% Complete</p>
                 <p className="text-cyan-400 text-xs mt-2 italic">"{goal.aiTip}"</p>
-              </motion.div>
+              </div>
             ))}
         </div>
-        </motion.div>
+        </div>
               </div>
           
       {/* Future Financial Predictor */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -665,20 +602,17 @@ const HomePage = () => {
               <p className="text-white/70">Projected savings in 5 years</p>
           </div>
               </div>
-        </motion.div>
+        </div>
             </div>
 
       {/* AI Achievement System */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">🏆 AI Achievement System</h2>
           <p className="text-white/80 text-lg max-w-3xl mx-auto">Unlock achievements as you master your finances with AI</p>
-        </motion.div>
+        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
@@ -687,11 +621,8 @@ const HomePage = () => {
             { achievement: 'Tax Optimizer', icon: '📊', unlocked: false },
             { achievement: 'AI Empire Ruler', icon: '👑', unlocked: false }
           ].map((achievement, index) => (
-            <motion.div 
-              key={achievement.achievement}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
+            <div 
+              key={achievement.achievement}}}}
               className={`bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center ${achievement.unlocked ? 'opacity-100' : 'opacity-50'}`}
             >
               <div className="text-4xl mb-4">{achievement.icon}</div>
@@ -699,17 +630,14 @@ const HomePage = () => {
               <div className={`text-sm ${achievement.unlocked ? 'text-green-400' : 'text-white/50'}`}>
                 {achievement.unlocked ? 'Unlocked' : 'Locked'}
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>
 
       {/* Call to Action */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20 text-center"
         >
           <h2 className="text-2xl md:text-3xl font-bold text-white mb-4">
@@ -734,15 +662,12 @@ const HomePage = () => {
               Find My AI Match
           </button>
           </div>
-        </motion.div>
+        </div>
         </div>
         
       {/* AI Voice Commands Demo */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -756,11 +681,8 @@ const HomePage = () => {
               { command: "Byte, categorize my receipts", response: "Processing 47 documents..." },
               { command: "Crystal, predict my budget", response: "Forecasting next month..." }
             ].map((voice, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
+              <div 
+                key={index}}}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10"
               >
                 <div className="text-center">
@@ -768,23 +690,20 @@ const HomePage = () => {
                   <h3 className="font-semibold text-white mb-2">"{voice.command}"</h3>
                   <p className="text-cyan-400 text-sm italic">"{voice.response}"</p>
             </div>
-              </motion.div>
+              </div>
             ))}
             </div>
-        </motion.div>
+        </div>
             </div>
 
       {/* Global AI Network */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="text-center mb-16"
         >
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">🌍 Global AI Network</h2>
           <p className="text-white/80 text-lg max-w-3xl mx-auto">Prime's AI Empire spans the globe</p>
-        </motion.div>
+        </div>
         
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           {[
@@ -793,11 +712,8 @@ const HomePage = () => {
             { country: 'United Kingdom', users: '12,300+', savings: '$680K', icon: '🇬🇧' },
             { country: 'Australia', users: '4,200+', savings: '$220K', icon: '🇦🇺' }
           ].map((region, index) => (
-            <motion.div 
-              key={region.country}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
+            <div 
+              key={region.country}}}}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center"
             >
               <div className="text-4xl mb-4">{region.icon}</div>
@@ -805,17 +721,14 @@ const HomePage = () => {
               <div className="text-cyan-400 font-bold text-lg mb-1">{region.users}</div>
               <div className="text-green-400 font-bold text-lg mb-2">{region.savings}</div>
               <div className="text-white/70 text-sm">Total Savings</div>
-            </motion.div>
+            </div>
           ))}
           </div>
         </div>
         
       {/* AI Entertainment Theater */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-pink-500/20 to-purple-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -880,11 +793,8 @@ const HomePage = () => {
                 aiHost: 'Prime'
               }
             ].map((game, index) => (
-            <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
+            <div
+                key={index}}}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10 text-center cursor-pointer hover:scale-105 transition-all duration-300"
               >
                 <div className="text-4xl mb-4">{game.icon}</div>
@@ -905,7 +815,7 @@ const HomePage = () => {
                   </span>
                   <span className="text-purple-300 text-xs">Host: {game.aiHost}</span>
                 </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
@@ -914,15 +824,12 @@ const HomePage = () => {
               Play AI Games Now
             </button>
               </div>
-        </motion.div>
+        </div>
         </div>
 
       {/* AI Market Predictor */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -946,15 +853,12 @@ const HomePage = () => {
               <p className="text-cyan-400 text-sm mt-2">AI recommendation</p>
         </div>
       </div>
-        </motion.div>
+        </div>
         </div>
 
       {/* AI Health Score */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-blue-500/20 to-indigo-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -969,11 +873,8 @@ const HomePage = () => {
               { metric: 'Investment', score: '78', color: 'text-purple-400', icon: '📈' },
               { metric: 'Emergency Fund', score: '92', color: 'text-emerald-400', icon: '🛡️' }
             ].map((health, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
+              <div 
+                key={index}}}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10 text-center"
               >
                 <div className="text-3xl mb-3">{health.icon}</div>
@@ -985,18 +886,15 @@ const HomePage = () => {
                     style={{ width: `${health.score}%` }}
                   ></div>
                 </div>
-              </motion.div>
+              </div>
             ))}
                 </div>
-        </motion.div>
+        </div>
               </div>
 
       {/* AI Speed Comparison */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-orange-500/20 to-red-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -1022,15 +920,12 @@ const HomePage = () => {
               <p className="text-white/70">8 hours/day</p>
                   </div>
                 </div>
-        </motion.div>
+        </div>
             </div>
 
       {/* AI Video Content Hub */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-red-500/20 to-orange-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -1095,11 +990,8 @@ const HomePage = () => {
                 category: 'Market'
               }
             ].map((video, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
+              <div 
+                key={index}}}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10 text-center cursor-pointer hover:scale-105 transition-all duration-300"
               >
                 <div className="text-4xl mb-4">{video.thumbnail}</div>
@@ -1117,7 +1009,7 @@ const HomePage = () => {
                     AI Generated
                   </span>
                 </div>
-              </motion.div>
+              </div>
             ))}
                 </div>
 
@@ -1126,15 +1018,12 @@ const HomePage = () => {
               Generate My AI Video
             </button>
                 </div>
-        </motion.div>
+        </div>
               </div>
 
       {/* AI Chat Integration */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -1164,15 +1053,12 @@ const HomePage = () => {
               </button>
                 </div>
                 </div>
-        </motion.div>
+        </div>
               </div>
 
       {/* AI Leaderboard & Rewards */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
+                <div
           className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20"
         >
           <div className="text-center mb-8">
@@ -1187,11 +1073,8 @@ const HomePage = () => {
               { rank: 3, name: 'Jennifer L.', points: '8,921', reward: '🥉 AI Optimizer', savings: '$3,200' },
               { rank: 4, name: 'David K.', points: '7,456', reward: '💎 AI Enthusiast', savings: '$1,800' }
             ].map((leader, index) => (
-              <motion.div 
-                key={index}
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
+              <div 
+                key={index}}}}
                 className="flex items-center justify-between bg-white/10 rounded-xl p-4 border border-white/10"
               >
                 <div className="flex items-center gap-4">
@@ -1211,7 +1094,7 @@ const HomePage = () => {
                   <div className="text-cyan-400 font-bold">{leader.points} pts</div>
                   <div className="text-green-400 text-sm">{leader.savings} saved</div>
                     </div>
-              </motion.div>
+              </div>
             ))}
         </div>
 
@@ -1220,118 +1103,14 @@ const HomePage = () => {
               Join the Competition
             </button>
                     </div>
-        </motion.div>
+        </div>
             </div>
 
       {/* AI Demo Modal */}
-      <AnimatePresence>
-        {showAIDemo && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowAIDemo(false)}
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-white mb-4">Welcome to Prime's AI Empire</h2>
-                <p className="text-white/80">Experience the future of financial management</p>
-              </div>
-              
-              <div className="space-y-4 mb-8">
-                {aiDreamTeam.map((member) => (
-                  <div key={member.name} className="flex items-center gap-4 p-4 bg-white/10 rounded-lg">
-                    <div className="text-3xl">{member.avatar}</div>
-                    <div>
-                      <h3 className="font-semibold text-white">{member.name}</h3>
-                      <p className="text-white/70 text-sm">{member.role}</p>
-                </div>
-                </div>
-                ))}
-              </div>
-
-              <div className="flex gap-4 justify-center">
-                <button 
-                  onClick={() => setShowAIDemo(false)}
-                  className="px-6 py-3 border border-white/30 text-white rounded-lg hover:bg-white/10 transition-colors"
-                >
-                  Close
-                </button>
-                <Link 
-                  to="/pricing"
-                  className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-pink-500 hover:to-purple-500 transition-all duration-300"
-                >
-                  Start My AI Empire
-                </Link>
-                  </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      
 
       {/* AI Personality Quiz Modal */}
-      <AnimatePresence>
-        {showPersonalityQuiz && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setShowPersonalityQuiz(false)}
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 rounded-2xl p-8 max-w-2xl w-full border border-white/20"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-white mb-4">Find Your Perfect AI Match</h2>
-                <p className="text-white/80">Discover which AI employee matches your financial style</p>
-      </div>
-
-              <div className="space-y-4 mb-8">
-                {aiDreamTeam.map((member) => (
-            <button
-                    key={member.name}
-                    onClick={() => setShowPersonalityQuiz(false)}
-                    className="w-full flex items-center gap-4 p-4 bg-white/10 rounded-lg hover:bg-white/20 transition-colors"
-                  >
-                    <div className="text-3xl">{member.avatar}</div>
-                    <div className="text-left">
-                      <h3 className="font-semibold text-white">{member.name}</h3>
-                      <p className="text-white/70 text-sm">{member.role}</p>
-                    </div>
-            </button>
-          ))}
-        </div>
-
-              <div className="flex gap-4 justify-center">
-              <button
-                  onClick={() => setShowPersonalityQuiz(false)}
-                  className="px-6 py-3 border border-white/30 text-white rounded-lg hover:bg-white/10 transition-colors"
-              >
-                  Close
-              </button>
-                <Link 
-                  to="/ai-employees"
-                  className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-semibold hover:from-pink-500 hover:to-purple-500 transition-all duration-300"
-                >
-                  Meet All AI Employees
-                </Link>
-              </div>
-            </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+      
     </>
   );
 };
