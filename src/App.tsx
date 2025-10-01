@@ -22,7 +22,7 @@ import DesktopDashboard from './components/DesktopDashboard';
 import RouteScrollReset from './components/util/RouteScrollReset';
 
 // Critical components - load immediately
-import HomePage from './pages/HomePage';
+import TestPage from './pages/TestPage';
 import XspensesProDashboard from './components/XspensesProDashboard';
 
 // Lazy load non-critical components
@@ -191,7 +191,7 @@ function App() {
                     <Routes>
                       {/* Marketing routes with BossBubble */}
                       <Route element={<MarketingLayout />}>
-                        <Route path="/" element={<HomePage />} />
+                        <Route path="/" element={<TestPage />} />
                         <Route path="/ai-assistant" element={<AIAssistantPage />} />
                         <Route path="/contact" element={<ContactPage />} />
                         <Route path="/reviews" element={<ReviewsPage />} />
