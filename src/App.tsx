@@ -50,7 +50,7 @@ const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/Dashboard
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 // const ThreeColumnDashboardDemo = lazy(() => import('./components/layout/ThreeColumnDashboardDemo'));
 // const SpendingPredictionsPage = lazy(() => import('./pages/dashboard/SpendingPredictionsPage'));
-// const AICategorizationPage = lazy(() => import('./pages/dashboard/AICategorizationPage'));
+const AICategorizationPage = lazy(() => import('./pages/dashboard/AICategorizationPage'));
 // const BillRemindersPage = lazy(() => import('./pages/dashboard/BillRemindersPage'));
 // const DebtPayoffPlannerPage = lazy(() => import('./pages/dashboard/DebtPayoffPlannerPage'));
 // const FinancialTherapistPage = lazy(() => import('./pages/dashboard/FinancialTherapistPage'));
@@ -301,6 +301,7 @@ function App() {
                       <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
                       <Route path="transactions" element={<DashboardTransactionsPage />} />
                       <Route path="goal-concierge" element={<GoalConciergePage />} />
+                      <Route path="smart-categories" element={<AICategorizationPage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
