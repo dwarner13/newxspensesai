@@ -43,7 +43,7 @@ import XspensesProDashboard from './components/XspensesProDashboard';
 // Lazy load non-critical components
 // const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
 // const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
-// const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
+const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
 // const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
 // const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
 // const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
@@ -297,6 +297,7 @@ function App() {
                       />
                     }>
                       <Route index element={<XspensesProDashboard />} />
+                      <Route path="smart-import-ai" element={<SmartImportAIPage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} /> */}
