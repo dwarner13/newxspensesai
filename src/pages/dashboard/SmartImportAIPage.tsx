@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2, X, Bot } from 'lucide-react';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useAIMemory } from '../../hooks/useAIMemory';
@@ -1431,7 +1432,7 @@ const SmartImportAIPage: React.FC = () => {
       />
 
       {/* Floating Byte Chat Button */}
-      <button
+      <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsByteChatOpen(true)}
@@ -1439,7 +1440,7 @@ const SmartImportAIPage: React.FC = () => {
         title="Chat with Byte AI"
       >
         <Bot className="w-6 h-6" />
-      </button>
+      </motion.button>
     </>
   );
 };
