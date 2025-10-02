@@ -7,6 +7,7 @@ import BossBubble from "../boss/BossBubble";
 import DashboardHeader from "../ui/DashboardHeader";
 import RightSidebar from "../ui/RightSidebar";
 import AIEmployeeRoom from "../ai/AIEmployeeRoom";
+import AITeamSlideOutPanel from "./AITeamSlideOutPanel";
 
 
 
@@ -86,8 +87,8 @@ export default function DashboardLayout() {
             </main>
           </div>
 
-          {/* Right sidebar */}
-          <RightSidebar />
+          {/* Right sidebar - Slide-out panel */}
+          <AITeamSlideOutPanel autoOpen={true} />
         </div>
 
         {/* Prime Chatbot - Using the main BossBubble */}
