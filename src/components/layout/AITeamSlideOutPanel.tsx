@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bot, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bot, X, ChevronRight } from 'lucide-react';
 import AITeamSidebar from './AITeamSidebar';
 
 interface AITeamSlideOutPanelProps {
@@ -29,7 +29,7 @@ const AITeamSlideOutPanel: React.FC<AITeamSlideOutPanelProps> = ({ autoOpen = fa
     <>
       {/* Slide-out panel */}
       <div 
-        className={`fixed right-0 top-0 h-screen z-40 transition-transform duration-300 ease-in-out ${
+        className={`fixed right-0 top-0 h-screen z-[50] transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ width: '360px' }}
@@ -60,7 +60,7 @@ const AITeamSlideOutPanel: React.FC<AITeamSlideOutPanelProps> = ({ autoOpen = fa
       {/* Trigger button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`fixed top-1/2 -translate-y-1/2 z-50 flex flex-col items-center gap-1 px-2 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 ${
+        className={`fixed top-1/2 -translate-y-1/2 z-[60] flex flex-col items-center gap-1 px-3 py-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 ${
           isOpen ? 'right-[360px] rounded-l-lg' : 'right-0 rounded-l-lg'
         } ${hasActiveTasks ? 'animate-pulse' : ''}`}
         style={{

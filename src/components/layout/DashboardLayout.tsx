@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Crown, Bot } from "lucide-react";
 import DesktopSidebar from "../navigation/DesktopSidebar";
 import MobileNavInline from "../navigation/MobileNavInline";
 import BossBubble from "../boss/BossBubble";
 import DashboardHeader from "../ui/DashboardHeader";
-import RightSidebar from "../ui/RightSidebar";
 import AIEmployeeRoom from "../ai/AIEmployeeRoom";
 import AITeamSlideOutPanel from "./AITeamSlideOutPanel";
 
