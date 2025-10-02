@@ -10,6 +10,7 @@ import MobileProfileModal from "../components/layout/MobileProfileModal";
 import BossBubble from "../components/boss/BossBubble";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
+import AITeamSlideOutPanel from "../components/layout/AITeamSlideOutPanel";
 
 export default function DashboardLayout() {
   const location = useLocation();
@@ -220,6 +221,9 @@ export default function DashboardLayout() {
       
       {/* Prime Chatbot - Desktop */}
       <BossBubble />
+      
+      {/* AI Team Slide-out Panel - Works on all screen sizes */}
+      <AITeamSlideOutPanel autoOpen={true} />
     </div>
   );
 }
