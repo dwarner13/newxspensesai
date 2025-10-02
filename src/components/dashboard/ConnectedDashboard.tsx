@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { 
   Upload, 
   MessageCircle, 
@@ -939,7 +940,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       />
 
       {/* Floating Byte Chat Button */}
-      <button
+      <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsByteChatOpen(true)}
@@ -947,7 +948,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         title="Chat with Byte AI"
       >
         <Bot className="w-6 h-6" />
-      </button>
+      </motion.button>
     </div>
   );
 }
