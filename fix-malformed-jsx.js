@@ -69,3 +69,4 @@ function processDirectory(dirPath) {
 processDirectory('./src');
 console.log('🎉 Finished fixing malformed JSX!');
 
+

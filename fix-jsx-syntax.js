@@ -55,3 +55,4 @@ function processDirectory(dirPath) {
 processDirectory('./src');
 console.log('🎉 Finished fixing JSX syntax!');
 
+
