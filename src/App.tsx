@@ -66,7 +66,7 @@ const NavCheck = lazy(() => import('./pages/debug/NavCheck'));
 // const AIFinancialFreedomPage = lazy(() => import('./pages/dashboard/AIFinancialFreedomPage'));
 // const AIFinancialFreedomFeaturePage = lazy(() => import('./pages/features/ai-financial-freedom'));
 // const AIEmployees = lazy(() => import('./pages/AIEmployees'));
-// const ContactPage = lazy(() => import('./pages/ContactPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
 // const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
 // const PricingPage = lazy(() => import('./pages/PricingPage'));
 
