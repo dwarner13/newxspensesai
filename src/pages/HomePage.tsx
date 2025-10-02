@@ -530,7 +530,7 @@ const HomePage = () => {
             { metric: 'Users Served', value: '50,000+', icon: '👥', color: 'text-orange-400' }
           ].map((stat, index) => (
             <div 
-              key={stat.metric}}
+              key={stat.metric}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center"
             >
               <div className="text-4xl mb-4">{stat.icon}</div>
@@ -620,7 +620,7 @@ const HomePage = () => {
             { achievement: 'AI Empire Ruler', icon: '👑', unlocked: false }
           ].map((achievement, index) => (
             <div 
-              key={achievement.achievement}}
+              key={achievement.achievement}
               className={`bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center ${achievement.unlocked ? 'opacity-100' : 'opacity-50'}`}
             >
               <div className="text-4xl mb-4">{achievement.icon}</div>
@@ -711,7 +711,7 @@ const HomePage = () => {
             { country: 'Australia', users: '4,200+', savings: '$220K', icon: '🇦🇺' }
           ].map((region, index) => (
             <div 
-              key={region.country}}
+              key={region.country}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center"
             >
               <div className="text-4xl mb-4">{region.icon}</div>
