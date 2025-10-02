@@ -5,14 +5,14 @@ import {
   Crown, Zap, Brain, Play, RefreshCw, Calculator
 } from 'lucide-react';
 // interface AIEmployee {
-  name: string;
-  role: string;
-  avatar: string;
-  specialty: string;
-  color: string;
-  superpower: string;
-  demoQuote: string;
-}
+//   name: string;
+//   role: string;
+//   avatar: string;
+//   specialty: string;
+//   color: string;
+//   superpower: string;
+//   demoQuote: string;
+// }
 
 interface FeaturePreview {
   id: string;
