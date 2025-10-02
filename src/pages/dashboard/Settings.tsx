@@ -494,7 +494,9 @@ function SettingsPage() {
                           ) : (
                             <>
                               <Music size={20} />
-                              Connect Your Spotify)}
+                              Connect Your Spotify
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
