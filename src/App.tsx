@@ -55,7 +55,7 @@ const BillRemindersPage = lazy(() => import('./pages/dashboard/BillRemindersPage
 const DebtPayoffPlannerPage = lazy(() => import('./pages/dashboard/DebtPayoffPlannerPage'));
 // const FinancialTherapistPage = lazy(() => import('./pages/dashboard/FinancialTherapistPage'));
 // const TherapistDemoPage = lazy(() => import('./pages/dashboard/TherapistDemoPage'));
-// const PersonalPodcastPage = lazy(() => import('./pages/dashboard/PersonalPodcastPage'));
+const PersonalPodcastPage = lazy(() => import('./pages/dashboard/PersonalPodcastPage'));
 const OCRTesterPage = lazy(() => import('./pages/OCRTesterPage'));
 const LocalOCRTester = lazy(() => import('./pages/LocalOCRTester'));
 
@@ -307,6 +307,7 @@ function App() {
                       <Route path="debt-payoff-planner" element={<DebtPayoffPlannerPage />} />
                       <Route path="ai-financial-freedom" element={<AIFinancialFreedomPage />} />
                       <Route path="bill-reminders" element={<BillRemindersPage />} />
+                      <Route path="personal-podcast" element={<PersonalPodcastPage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
