@@ -73,7 +73,7 @@ const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIn
 const PrimeLabPage = lazy(() => import('./ui/pages/PrimeLabPage'));
 // const TeamRoom = lazy(() => import('./pages/dashboard/TeamRoom'));
 const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
-// const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
+const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
 // const Settings = lazy(() => import('./pages/dashboard/Settings'));
 // const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 // const Reports = lazy(() => import('./pages/dashboard/Reports'));
@@ -314,6 +314,7 @@ function App() {
                       <Route path="spotify" element={<SpotifyIntegrationPage />} />
                       <Route path="tax-assistant" element={<TaxAssistantPage />} />
                       <Route path="business-intelligence" element={<BusinessIntelligencePage />} />
+                      <Route path="analytics" element={<Analytics />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
