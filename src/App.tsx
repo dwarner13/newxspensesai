@@ -21,6 +21,21 @@ import MobileRevolution from './components/mobile/MobileRevolution';
 import DesktopDashboard from './components/DesktopDashboard';
 import RouteScrollReset from './components/util/RouteScrollReset';
 
+// Scroll bar width calculation hook
+const useScrollbarWidth = () => {
+  useEffect(() => {
+    const calculateScrollbarWidth = () => {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.documentElement.style.setProperty('--scrollbar-width', `${scrollbarWidth}px`);
+    };
+
+    calculateScrollbarWidth();
+    window.addEventListener('resize', calculateScrollbarWidth);
+    
+    return () => window.removeEventListener('resize', calculateScrollbarWidth);
+  }, []);
+};
+
 // Critical components - load immediately
 import HomePage from './pages/HomePage';
 import XspensesProDashboard from './components/XspensesProDashboard';
@@ -176,6 +191,9 @@ function ScrollToTop() {
 function App() {
   const [therapistTrigger] = useAtom(therapistTriggerAtom);
   const [isTherapistModalOpen] = useAtom(isTherapistModalOpenAtom);
+  
+  // Calculate scrollbar width for fixed elements
+  useScrollbarWidth();
   
   return (
     <BossProvider>

@@ -10,6 +10,16 @@
   --scrollbar-width: calc(100vw - 100%);
 }
 
+/* Alternative approach: Use JavaScript to set scrollbar width */
+body {
+  --scrollbar-width: 0px;
+}
+
+/* Ensure fixed elements account for scrollbar */
+.fixed-header {
+  padding-right: var(--scrollbar-width);
+}
+
 /* Sidebar Scrollbar Styling */
 #sidebar-scroll { 
   scrollbar-gutter: stable; 
