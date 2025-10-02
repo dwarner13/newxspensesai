@@ -69,7 +69,7 @@ const NavCheck = lazy(() => import('./pages/debug/NavCheck'));
 // const PrimeAITestPage = lazy(() => import('./pages/test/PrimeAITestPage'));
 const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistant'));
 // const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
-// const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligence'));
+const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligence'));
 const PrimeLabPage = lazy(() => import('./ui/pages/PrimeLabPage'));
 // const TeamRoom = lazy(() => import('./pages/dashboard/TeamRoom'));
 const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
@@ -313,6 +313,7 @@ function App() {
                       <Route path="wellness-studio" element={<WellnessStudioPage />} />
                       <Route path="spotify" element={<SpotifyIntegrationPage />} />
                       <Route path="tax-assistant" element={<TaxAssistantPage />} />
+                      <Route path="business-intelligence" element={<BusinessIntelligencePage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
