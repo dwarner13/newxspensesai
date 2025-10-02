@@ -101,7 +101,7 @@ export default function DashboardLayout() {
           isPulling={pullToRefresh.isPulling}
         />
         {/* Mobile Header */}
-        <div className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-white/10">
+        <div className="fixed top-0 left-0 right-0 z-50 bg-[#0f172a] border-b border-white/10" style={{paddingRight: 'var(--scrollbar-width, 0px)'}}>
           {/* Top bar with menu, logo, and profile */}
           <div className="flex items-center justify-between px-3 py-2">
             <button
