@@ -25,7 +25,7 @@ import {
   Lock,
   Eye,
   EyeOff
-// } from 'lucide-react';
+} from 'lucide-react';
 
 interface MobileProfileModalProps {
   isOpen: boolean;
