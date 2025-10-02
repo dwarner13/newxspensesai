@@ -78,7 +78,7 @@ const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
 // const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 // const Reports = lazy(() => import('./pages/dashboard/Reports'));
 // const ViewTransactionsPage = lazy(() => import('./pages/ViewTransactionsPage'));
-// const AIFinancialFreedomPage = lazy(() => import('./pages/dashboard/AIFinancialFreedomPage'));
+const AIFinancialFreedomPage = lazy(() => import('./pages/dashboard/AIFinancialFreedomPage'));
 // const AIFinancialFreedomFeaturePage = lazy(() => import('./pages/features/ai-financial-freedom'));
 // const AIEmployees = lazy(() => import('./pages/AIEmployees'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
@@ -305,6 +305,7 @@ function App() {
                       <Route path="smart-automation" element={<SmartAutomation />} />
                       <Route path="spending-predictions" element={<SpendingPredictionsPage />} />
                       <Route path="debt-payoff-planner" element={<DebtPayoffPlannerPage />} />
+                      <Route path="ai-financial-freedom" element={<AIFinancialFreedomPage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
