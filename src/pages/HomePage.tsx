@@ -464,7 +464,9 @@ const HomePage = () => {
             ) : (
               <>
                 <Calculator size={24} />
-                Calculate My Savings)}
+                Calculate My Savings
+              </>
+            )}
           </button>
 
           {userSavings > 0 && (
@@ -496,7 +498,7 @@ const HomePage = () => {
               { question: "How many AI decisions per day?", answer: "200+", difficulty: "Hard" }
             ].map((quiz, index) => (
               <div 
-                key={index}}}}
+                key={index}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10"
               >
           <div className="text-center">
@@ -528,7 +530,7 @@ const HomePage = () => {
             { metric: 'Users Served', value: '50,000+', icon: '👥', color: 'text-orange-400' }
           ].map((stat, index) => (
             <div 
-              key={stat.metric}}}}
+              key={stat.metric}}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center"
             >
               <div className="text-4xl mb-4">{stat.icon}</div>
@@ -556,7 +558,7 @@ const HomePage = () => {
               { goal: 'Invest $2,000', progress: 90, aiTip: 'Tag found: $500 in tax deductions' }
             ].map((goal, index) => (
               <div 
-                key={index}}}}
+                key={index}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10"
               >
                 <h3 className="font-semibold text-white mb-3">{goal.goal}</h3>
@@ -618,7 +620,7 @@ const HomePage = () => {
             { achievement: 'AI Empire Ruler', icon: '👑', unlocked: false }
           ].map((achievement, index) => (
             <div 
-              key={achievement.achievement}}}}
+              key={achievement.achievement}}
               className={`bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center ${achievement.unlocked ? 'opacity-100' : 'opacity-50'}`}
             >
               <div className="text-4xl mb-4">{achievement.icon}</div>
@@ -678,7 +680,7 @@ const HomePage = () => {
               { command: "Crystal, predict my budget", response: "Forecasting next month..." }
             ].map((voice, index) => (
               <div 
-                key={index}}}}
+                key={index}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10"
               >
                 <div className="text-center">
@@ -709,7 +711,7 @@ const HomePage = () => {
             { country: 'Australia', users: '4,200+', savings: '$220K', icon: '🇦🇺' }
           ].map((region, index) => (
             <div 
-              key={region.country}}}}
+              key={region.country}}
               className="bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 text-center"
             >
               <div className="text-4xl mb-4">{region.icon}</div>
@@ -790,7 +792,7 @@ const HomePage = () => {
               }
             ].map((game, index) => (
             <div
-                key={index}}}}
+                key={index}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10 text-center cursor-pointer hover:scale-105 transition-all duration-300"
               >
                 <div className="text-4xl mb-4">{game.icon}</div>
@@ -870,7 +872,7 @@ const HomePage = () => {
               { metric: 'Emergency Fund', score: '92', color: 'text-emerald-400', icon: '🛡️' }
             ].map((health, index) => (
               <div 
-                key={index}}}}
+                key={index}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10 text-center"
               >
                 <div className="text-3xl mb-3">{health.icon}</div>
@@ -987,7 +989,7 @@ const HomePage = () => {
               }
             ].map((video, index) => (
               <div 
-                key={index}}}}
+                key={index}}
                 className="bg-white/10 rounded-xl p-6 border border-white/10 text-center cursor-pointer hover:scale-105 transition-all duration-300"
               >
                 <div className="text-4xl mb-4">{video.thumbnail}</div>
@@ -1070,7 +1072,7 @@ const HomePage = () => {
               { rank: 4, name: 'David K.', points: '7,456', reward: '💎 AI Enthusiast', savings: '$1,800' }
             ].map((leader, index) => (
               <div 
-                key={index}}}}
+                key={index}}
                 className="flex items-center justify-between bg-white/10 rounded-xl p-4 border border-white/10"
               >
                 <div className="flex items-center gap-4">

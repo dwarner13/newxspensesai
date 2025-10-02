@@ -447,7 +447,9 @@ const ContactPage = () => {
                   ) : (
                     <>
                       <Send size={24} />
-                      Send Message to AI Team)}
+                      Send Message to AI Team
+                    </>
+                  )}
                 </button>
                 
                 <p className="text-white/60 text-sm text-center">
