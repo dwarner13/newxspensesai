@@ -55,7 +55,7 @@ const NavCheck = lazy(() => import('./pages/debug/NavCheck'));
 // const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistant')); // 🚀🚀🚀 BRAND NEW VERSION
 // const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
 // const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligence'));
-// const PrimeLabPage = lazy(() => import('../prime-module/pages/PrimeLabPage'));
+const PrimeLabPage = lazy(() => import('./ui/pages/PrimeLabPage'));
 // const TeamRoom = lazy(() => import('./pages/dashboard/TeamRoom'));
 // const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
 // const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
