@@ -67,7 +67,8 @@ export default defineConfig({
       'motion-utils',
       'pdfjs-dist',
       'pdf-lib',
-      'tesseract.js'
+      'tesseract.js',
+      '@radix-ui/react-compose-refs'
     ],
     force: true,
     esbuildOptions: {
