@@ -44,7 +44,7 @@ import XspensesProDashboard from './components/XspensesProDashboard';
 // const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
 const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
 const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
-// const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
+const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
 const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
 // const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
@@ -308,6 +308,7 @@ function App() {
                       <Route path="ai-financial-freedom" element={<AIFinancialFreedomPage />} />
                       <Route path="bill-reminders" element={<BillRemindersPage />} />
                       <Route path="personal-podcast" element={<PersonalPodcastPage />} />
+                      <Route path="financial-story" element={<FinancialStoryPage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
