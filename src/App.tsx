@@ -42,12 +42,12 @@ import XspensesProDashboard from './components/XspensesProDashboard';
 
 // Lazy load non-critical components
 // const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
-// const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
+const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
 const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
 // const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
-// const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
+const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
 // const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
-// const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
+const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 // const ThreeColumnDashboardDemo = lazy(() => import('./components/layout/ThreeColumnDashboardDemo'));
 // const SpendingPredictionsPage = lazy(() => import('./pages/dashboard/SpendingPredictionsPage'));
 // const AICategorizationPage = lazy(() => import('./pages/dashboard/AICategorizationPage'));
@@ -298,11 +298,12 @@ function App() {
                     }>
                       <Route index element={<XspensesProDashboard />} />
                       <Route path="smart-import-ai" element={<SmartImportAIPage />} />
+                      <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
+                      <Route path="transactions" element={<DashboardTransactionsPage />} />
+                      <Route path="goal-concierge" element={<GoalConciergePage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
-                      {/* <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} /> */}
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
-                      {/* <Route path="transactions" element={<DashboardTransactionsPage />} /> */}
                       {/* <Route path="bank-accounts" element={<BankAccountsPage />} /> */}
                       {/* <Route path="goal-concierge" element={<GoalConciergePage />} /> */}
                       {/* <Route path="ai-categorization" element={<AICategorizationPage />} /> */}
