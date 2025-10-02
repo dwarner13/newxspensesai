@@ -65,7 +65,6 @@ export default defineConfig({
       'react-router-dom', 
       'framer-motion',
       'motion-utils',
-      'motion-dom',
       'pdfjs-dist',
       'pdf-lib',
       'tesseract.js'
