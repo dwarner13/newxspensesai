@@ -88,7 +88,7 @@ const ContactPage = lazy(() => import('./pages/ContactPage'));
 // Spotify integration components
 const SpotifyCallbackPage = lazy(() => import('./pages/SpotifyCallbackPage'));
 const SpotifyPlayerPage = lazy(() => import('./pages/SpotifyPlayerPage'));
-// const SpotifyIntegrationPage = lazy(() => import('./pages/dashboard/SpotifyIntegrationPage'));
+const SpotifyIntegrationPage = lazy(() => import('./pages/dashboard/SpotifyIntegrationPage'));
 
 // Feature pages - lazy load as they're less critical
 // const SmartImportAIFeaturePage = lazy(() => import('./pages/features/smart-import-ai'));
@@ -311,6 +311,7 @@ function App() {
                       <Route path="financial-story" element={<FinancialStoryPage />} />
                       <Route path="financial-therapist" element={<FinancialTherapistPage />} />
                       <Route path="wellness-studio" element={<WellnessStudioPage />} />
+                      <Route path="spotify" element={<SpotifyIntegrationPage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
