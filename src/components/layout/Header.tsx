@@ -180,7 +180,7 @@ const Header = ({
   }, [location, setIsNotificationsOpen, setIsUserMenuOpen]);
 
   return (
-    <header className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b sticky top-16 z-30`}>
+    <header className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b sticky top-16 z-30`} style={{paddingRight: 'var(--scrollbar-width, 0px)'}}>
       <div className={`flex items-center justify-between ${isMobile ? 'h-20 px-4 pt-4' : 'h-16 px-4 md:px-6'}`}>
         <div className="flex items-center">
           <h1 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{getPageTitle()}</h1>

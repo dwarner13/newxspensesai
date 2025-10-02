@@ -5,6 +5,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Calculate scrollbar width for fixed elements */
+:root {
+  --scrollbar-width: calc(100vw - 100%);
+}
+
 /* Sidebar Scrollbar Styling */
 #sidebar-scroll { 
   scrollbar-gutter: stable; 
