@@ -68,7 +68,18 @@ export default defineConfig({
       'pdfjs-dist',
       'pdf-lib',
       'tesseract.js',
-      '@radix-ui/react-compose-refs'
+      '@radix-ui/react-compose-refs',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-portal',
+      '@radix-ui/react-progress',
+      '@radix-ui/react-scroll-area',
+      '@radix-ui/react-select',
+      '@radix-ui/react-separator',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-switch',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-tooltip'
     ],
     force: true,
     esbuildOptions: {
@@ -112,9 +123,9 @@ export default defineConfig({
           return true;
         }
         
-        // Externalize any module that might import Node.js built-ins
-        if (id.includes('fs') || id.includes('path') || id.includes('os') || 
-            id.includes('crypto') || id.includes('buffer') || id.includes('util')) {
+        // Externalize any module that might import Node.js built-ins (but not @radix-ui packages)
+        if (!id.startsWith('@radix-ui/') && (id.includes('fs') || id.includes('path') || id.includes('os') || 
+            id.includes('crypto') || id.includes('buffer') || id.includes('util'))) {
           return true;
         }
         
