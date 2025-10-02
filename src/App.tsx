@@ -102,7 +102,7 @@ const SpotifyPlayerPage = lazy(() => import('./pages/SpotifyPlayerPage'));
 // const BusinessExpenseIntelligenceFeaturePage = lazy(() => import('./pages/features/BusinessExpenseIntelligencePage'));
 // const FreelancerTaxFeaturePage = lazy(() => import('./pages/features/freelancer-tax'));
 // const WellnessStudioFeaturePage = lazy(() => import('./pages/features/wellness-studio'));
-// const WellnessStudioPage = lazy(() => import('./pages/dashboard/WellnessStudioPage'));
+const WellnessStudioPage = lazy(() => import('./pages/dashboard/WellnessStudioPage'));
 // const GoalConciergeFeaturePage = lazy(() => import('./pages/features/goal-concierge'));
 // const PersonalPodcastFeaturePage = lazy(() => import('./pages/features/personal-podcast'));
 // const FinancialStoryFeaturePage = lazy(() => import('./pages/features/financial-story'));
@@ -310,6 +310,7 @@ function App() {
                       <Route path="personal-podcast" element={<PersonalPodcastPage />} />
                       <Route path="financial-story" element={<FinancialStoryPage />} />
                       <Route path="financial-therapist" element={<FinancialTherapistPage />} />
+                      <Route path="wellness-studio" element={<WellnessStudioPage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
