@@ -18,6 +18,7 @@ export default function DashboardLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSlideOutOpen, setIsSlideOutOpen] = useState(false);
 
   // Pull-to-refresh functionality for mobile
   const handleRefresh = async () => {
@@ -198,7 +199,7 @@ export default function DashboardLayout() {
       </div>
       
       {/* Main content area */}
-      <div className={`flex-1 min-w-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
+      <div className={`flex-1 min-w-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-56'} ${isSlideOutOpen ? 'mr-[360px]' : ''}`}>
         <div className="flex h-full">
           {/* Main content column */}
           <div className="flex-1 min-w-0 flex flex-col">
@@ -223,7 +224,10 @@ export default function DashboardLayout() {
       <BossBubble />
       
       {/* AI Team Slide-out Panel - Works on all screen sizes */}
-      <AITeamSlideOutPanel autoOpen={true} />
+      <AITeamSlideOutPanel 
+        autoOpen={true} 
+        onToggle={(open) => setIsSlideOutOpen(open)}
+      />
     </div>
   );
 }

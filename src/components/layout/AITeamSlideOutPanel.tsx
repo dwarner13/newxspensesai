@@ -4,9 +4,10 @@ import AITeamSidebar from './AITeamSidebar';
 
 interface AITeamSlideOutPanelProps {
   autoOpen?: boolean;
+  onToggle?: (isOpen: boolean) => void;
 }
 
-const AITeamSlideOutPanel: React.FC<AITeamSlideOutPanelProps> = ({ autoOpen = false }) => {
+const AITeamSlideOutPanel: React.FC<AITeamSlideOutPanelProps> = ({ autoOpen = false, onToggle }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [hasActiveTasks, setHasActiveTasks] = useState(false);
 
@@ -14,8 +15,9 @@ const AITeamSlideOutPanel: React.FC<AITeamSlideOutPanelProps> = ({ autoOpen = fa
   useEffect(() => {
     if (autoOpen && hasActiveTasks && !isOpen) {
       setIsOpen(true);
+      onToggle?.(true);
     }
-  }, [autoOpen, hasActiveTasks, isOpen]);
+  }, [autoOpen, hasActiveTasks, isOpen, onToggle]);
 
   // Simulate task activity (replace with real logic later)
   useEffect(() => {
@@ -29,7 +31,7 @@ const AITeamSlideOutPanel: React.FC<AITeamSlideOutPanelProps> = ({ autoOpen = fa
     <>
       {/* Slide-out panel */}
       <div 
-        className={`fixed right-0 top-0 h-screen z-[50] transition-transform duration-300 ease-in-out ${
+        className={`fixed right-0 top-0 h-screen z-[50] transition-all duration-300 ease-out ${
           isOpen ? 'translate-x-0' : 'translate-x-full'
         }`}
         style={{ width: '360px' }}
@@ -43,8 +45,11 @@ const AITeamSlideOutPanel: React.FC<AITeamSlideOutPanelProps> = ({ autoOpen = fa
               <h3 className="text-white font-semibold">AI Team</h3>
             </div>
             <button
-              onClick={() => setIsOpen(false)}
-              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
+              onClick={() => {
+                setIsOpen(false);
+                onToggle?.(false);
+              }}
+              className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors duration-200"
             >
               <X className="w-4 h-4" />
             </button>
@@ -59,7 +64,10 @@ const AITeamSlideOutPanel: React.FC<AITeamSlideOutPanelProps> = ({ autoOpen = fa
 
       {/* Trigger button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setIsOpen(!isOpen);
+          onToggle?.(!isOpen);
+        }}
         className={`fixed top-1/2 -translate-y-1/2 z-[60] flex flex-col items-center gap-1 px-3 py-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 ${
           isOpen ? 'right-[360px] rounded-l-lg' : 'right-0 rounded-l-lg'
         } ${hasActiveTasks ? 'animate-pulse' : ''}`}
