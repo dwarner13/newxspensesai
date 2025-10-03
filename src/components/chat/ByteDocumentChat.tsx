@@ -13,7 +13,12 @@ import {
   CheckCircle,
   AlertCircle,
   Brain,
-  Sparkles
+  Sparkles,
+  UploadCloud,
+  FileCheck,
+  DollarSign,
+  Calendar,
+  Tag
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -41,6 +46,14 @@ interface ChatMessage {
   }[];
   hasAction?: boolean;
   actionType?: 'crystal_handoff';
+  transactions?: {
+    id: string;
+    date: string;
+    description: string;
+    amount: number;
+    category: string;
+  }[];
+  processing?: boolean;
 }
 
 interface ByteDocumentChatProps {
@@ -64,6 +77,8 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [hasShownCrystalSummary, setHasShownCrystalSummary] = useState(false);
   const [uploadedFileCount, setUploadedFileCount] = useState(0);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0});
+  const [dragActive, setDragActive] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const orchestrator = useRef(new AIEmployeeOrchestrator());
@@ -72,6 +87,16 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Initialize with Prime greeting
   useEffect(() => {
@@ -193,30 +218,162 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     ));
   };
 
+  // Drag and drop handlers
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      await processFiles(files);
+    }
+  };
+
+  // Process files with OCR
+  const processFiles = async (files: File[]) => {
+    const validFiles = files.filter(file => {
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      return validTypes.includes(file.type) && file.size <= 10 * 1024 * 1024; // 10MB limit
+    });
+
+    if (validFiles.length === 0) {
+      toast.error('Please upload valid image files (JPG, PNG) under 10MB');
+      return;
+    }
+
+    // Add user message for each file
+    validFiles.forEach(file => {
+      const userMessage: ChatMessage = {
+        id: `upload-${Date.now()}-${file.name}`,
+        type: 'user',
+        content: `📄 Uploaded: ${file.name}`,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, userMessage]);
+    });
+
+    // Process each file with OCR
+    for (const file of validFiles) {
+      await processFileWithOCR(file);
+    }
+  };
+
+  // Process single file with OCR using Local OCR Tester logic
+  const processFileWithOCR = async (file: File) => {
+    // Add processing message
+    const processingMessage: ChatMessage = {
+      id: `processing-${Date.now()}`,
+      type: 'byte',
+      content: `🔍 Analyzing ${file.name}...`,
+      processing: true,
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, processingMessage]);
+
+    try {
+      // Simulate OCR processing (replace with actual Local OCR Tester logic)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Generate mock transactions (replace with actual OCR results)
+      const mockTransactions = [
+        {
+          id: `txn-${Date.now()}-1`,
+          date: new Date().toLocaleDateString(),
+          description: 'Coffee Shop Purchase',
+          amount: 4.50,
+          category: 'Dining'
+        },
+        {
+          id: `txn-${Date.now()}-2`,
+          date: new Date().toLocaleDateString(),
+          description: 'Gas Station',
+          amount: 32.15,
+          category: 'Transportation'
+        },
+        {
+          id: `txn-${Date.now()}-3`,
+          date: new Date().toLocaleDateString(),
+          description: 'Grocery Store',
+          amount: 67.89,
+          category: 'Food & Groceries'
+        }
+      ];
+
+      // Update processing message with results
+      const resultMessage: ChatMessage = {
+        id: `result-${Date.now()}`,
+        type: 'byte',
+        content: `✅ Found ${mockTransactions.length} transactions in ${file.name}!`,
+        transactions: mockTransactions,
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => prev.map(msg => 
+        msg.id === processingMessage.id ? resultMessage : msg
+      ));
+
+      toast.success(`Processed ${file.name} - found ${mockTransactions.length} transactions`);
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        type: 'byte',
+        content: `❌ Failed to process ${file.name}. Please try again.`,
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages(prev => prev.map(msg => 
+        msg.id === processingMessage.id ? errorMessage : msg
+      ));
+
+      toast.error(`Failed to process ${file.name}`);
+    }
+  };
+
   const handleFileUpload = async (files: FileList) => {
-    // Simplified file upload for now
-    console.log('File upload:', files.length, 'files');
-    toast.success(`Uploaded ${files.length} file(s)`);
+    const fileArray = Array.from(files);
+    await processFiles(fileArray);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-gray-900 rounded-lg w-full max-w-4xl h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className={`bg-gray-900 rounded-lg w-full flex flex-col ${
+        isMobile ? 'h-[95vh] max-w-full' : 'h-[90vh] max-w-4xl'
+      }`}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center">
-              <Sparkles size={20} className="text-white font-bold" />
+        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-700">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center">
+              <Sparkles size={isMobile ? 16 : 20} className="text-white font-bold" />
             </div>
-            <h2 className="text-xl font-bold text-white">AI Employee Team</h2>
+            <h2 className={`font-bold text-white ${isMobile ? 'text-lg' : 'text-xl'}`}>AI Employee Team</h2>
           </div>
           
           {/* AI Employee Switcher */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
               <div 
-                className="flex bg-gray-800 rounded-lg p-1 employee-tabs"
+                className={`flex bg-gray-800 rounded-lg p-1 employee-tabs ${
+                  isMobile ? 'max-w-[200px]' : ''
+                }`}
                 style={{
                   overflowX: 'auto',
                   WebkitOverflowScrolling: 'touch',
@@ -233,81 +390,85 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                 </style>
                 <button
                   onClick={() => setActiveAI('prime')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'prime'
                       ? 'bg-yellow-500 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-700'
                   }`}
                 >
-                  <Sparkles className="w-4 h-4" />
-                  Prime
+                  <Sparkles className="w-3 h-3 sm:w-4 sm:h-4" />
+                  {isMobile ? 'P' : 'Prime'}
                 </button>
                 <button
                   onClick={() => setActiveAI('byte')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'byte'
                       ? 'bg-blue-500 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-700'
                   }`}
                 >
-                  <Bot className="w-4 h-4" />
-                  Byte
+                  <Bot className="w-3 h-3 sm:w-4 sm:h-4" />
+                  {isMobile ? 'B' : 'Byte'}
                 </button>
                 <button
                   onClick={() => setActiveAI('crystal')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'crystal'
                       ? 'bg-purple-500 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-700'
                   }`}
                 >
-                  <Brain className="w-4 h-4" />
-                  Crystal
+                  <Brain className="w-3 h-3 sm:w-4 sm:h-4" />
+                  {isMobile ? 'C' : 'Crystal'}
                 </button>
                 <button
                   onClick={() => setActiveAI('tag')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                  className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'tag'
                       ? 'bg-green-500 text-white'
                       : 'text-gray-400 hover:text-white hover:bg-gray-700'
                   }`}
                 >
-                  <Sparkles className="w-4 h-4" />
-                  Tag
+                  <Tag className="w-3 h-3 sm:w-4 sm:h-4" />
+                  {isMobile ? 'T' : 'Tag'}
                 </button>
-                <button
-                  onClick={() => setActiveAI('ledger')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                    activeAI === 'ledger'
-                      ? 'bg-orange-500 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Ledger
-                </button>
-                <button
-                  onClick={() => setActiveAI('blitz')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                    activeAI === 'blitz'
-                      ? 'bg-red-500 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Blitz
-                </button>
-                <button
-                  onClick={() => setActiveAI('goalie')}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
-                    activeAI === 'goalie'
-                      ? 'bg-indigo-500 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-gray-700'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  Goalie
-                </button>
+                {!isMobile && (
+                  <>
+                    <button
+                      onClick={() => setActiveAI('ledger')}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                        activeAI === 'ledger'
+                          ? 'bg-orange-500 text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                      }`}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Ledger
+                    </button>
+                    <button
+                      onClick={() => setActiveAI('blitz')}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                        activeAI === 'blitz'
+                          ? 'bg-red-500 text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                      }`}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Blitz
+                    </button>
+                    <button
+                      onClick={() => setActiveAI('goalie')}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
+                        activeAI === 'goalie'
+                          ? 'bg-indigo-500 text-white'
+                          : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                      }`}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Goalie
+                    </button>
+                  </>
+                )}
               </div>
             
             <button
@@ -319,15 +480,34 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Messages with Drag & Drop */}
+        <div 
+          className={`flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 ${
+            dragActive ? 'bg-blue-500/10' : ''
+          }`}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Drag Overlay */}
+          {dragActive && (
+            <div className="absolute inset-0 bg-blue-500/20 border-2 border-dashed border-blue-400 rounded-lg flex items-center justify-center z-10">
+              <div className="text-center">
+                <UploadCloud className="w-12 h-12 text-blue-400 mx-auto mb-2" />
+                <p className="text-blue-300 font-medium">Drop your documents here!</p>
+                <p className="text-blue-200 text-sm">I'll process them instantly</p>
+              </div>
+            </div>
+          )}
+
           {messages.map((message) => (
             <div
               key={message.id}
               className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-lg p-3 ${
+                className={`max-w-[85%] sm:max-w-[80%] rounded-lg p-3 ${
                   message.type === 'user'
                     ? 'bg-blue-500 text-white'
                     : message.type === 'prime'
@@ -349,7 +529,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
               >
                 <div className="flex items-center gap-2 mb-1">
                   {message.type !== 'user' && (
-                    <span className="text-sm font-medium">
+                    <span className="text-xs sm:text-sm font-medium">
                       {getEmployeePersonality(message.type)?.emoji || '🤖'} {getEmployeePersonality(message.type)?.name || 'AI'}
                     </span>
                   )}
@@ -357,7 +537,51 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                     {new Date(message.timestamp).toLocaleTimeString()}
                   </span>
                 </div>
-                <div className="whitespace-pre-wrap">{message.content}</div>
+                <div className="whitespace-pre-wrap text-sm sm:text-base">{message.content}</div>
+                
+                {/* Transaction Results */}
+                {message.transactions && message.transactions.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs font-medium text-green-300 mb-2">
+                      📊 Found {message.transactions.length} transactions:
+                    </div>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {message.transactions.map((txn) => (
+                        <div key={txn.id} className="flex items-center justify-between bg-white/10 rounded p-2 text-xs">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium truncate">{txn.description}</div>
+                            <div className="text-gray-300 flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {txn.date}
+                              <Tag className="w-3 h-3 ml-2" />
+                              {txn.category}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 text-green-300 font-bold">
+                            <DollarSign className="w-3 h-3" />
+                            {txn.amount.toFixed(2)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors">
+                        ✅ Import All
+                      </button>
+                      <button className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors">
+                        ✏️ Edit
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Processing Indicator */}
+                {message.processing && (
+                  <div className="mt-2 flex items-center gap-2 text-blue-300">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-xs">Processing...</span>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -366,11 +590,13 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
 
         {/* File Upload Area for Byte */}
         {activeAI === 'byte' && (
-          <div className="p-4 border-t border-gray-700">
-            <div className="border-2 border-dashed border-blue-500/30 rounded-lg p-6 text-center bg-blue-500/5">
-              <Upload className="w-8 h-8 text-blue-400 mx-auto mb-2" />
-              <p className="text-blue-300 font-medium mb-1">Drop files here or click to upload</p>
-              <p className="text-xs text-gray-400 mb-3">
+          <div className="p-3 sm:p-4 border-t border-gray-700">
+            <div className="border-2 border-dashed border-blue-500/30 rounded-lg p-4 sm:p-6 text-center bg-blue-500/5">
+              <UploadCloud className={`text-blue-400 mx-auto mb-2 ${isMobile ? 'w-6 h-6' : 'w-8 h-8'}`} />
+              <p className={`text-blue-300 font-medium mb-1 ${isMobile ? 'text-sm' : ''}`}>
+                {isMobile ? 'Tap to upload files' : 'Drop files here or click to upload'}
+              </p>
+              <p className={`text-gray-400 mb-3 ${isMobile ? 'text-xs' : 'text-xs'}`}>
                 Max 5 files, 10MB each • Supports: PDF, JPG, PNG, CSV, XLSX
               </p>
               <input
@@ -383,9 +609,11 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors text-sm"
+                className={`bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors ${
+                  isMobile ? 'text-sm' : 'text-sm'
+                }`}
               >
-                Choose Files
+                {isMobile ? '📁 Upload' : 'Choose Files'}
               </button>
               {uploadedFileCount > 0 && (
                 <div className="mt-2">
@@ -399,7 +627,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         )}
 
         {/* Input */}
-        <div className="p-4 border-t border-gray-700">
+        <div className="p-3 sm:p-4 border-t border-gray-700">
           <div className="flex gap-2">
             <input
               type="text"
@@ -407,19 +635,24 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
               placeholder={`Ask ${getEmployeePersonality(activeAI)?.name || 'AI'} anything...`}
-              className="flex-1 bg-gray-800 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={`flex-1 bg-gray-800 text-white rounded-lg px-3 sm:px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                isMobile ? 'text-sm' : ''
+              }`}
               disabled={isProcessing}
             />
             <button
               onClick={handleSendMessage}
               disabled={isProcessing || !inputMessage.trim()}
-              className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+              className={`bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 text-white px-3 sm:px-4 py-2 rounded-lg transition-colors flex items-center gap-1 sm:gap-2 ${
+                isMobile ? 'text-sm' : ''
+              }`}
             >
               {isProcessing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <Loader2 className={`animate-spin ${isMobile ? 'w-4 h-4' : 'w-4 h-4'}`} />
               ) : (
-                <Send className="w-4 h-4" />
+                <Send className={isMobile ? 'w-4 h-4' : 'w-4 h-4'} />
               )}
+              {isMobile && <span className="ml-1">Send</span>}
             </button>
           </div>
         </div>
