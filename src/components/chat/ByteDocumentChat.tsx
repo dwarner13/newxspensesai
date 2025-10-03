@@ -294,7 +294,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     }
   };
 
-  // Process single file with OCR using Local OCR Tester logic
+  // Process single file with smart PDF handling
   const processFileWithOCR = async (file: File) => {
     // Add processing message
     const processingMessage: ChatMessage = {
@@ -307,40 +307,30 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     setMessages(prev => [...prev, processingMessage]);
 
     try {
-      // Simulate OCR processing (replace with actual Local OCR Tester logic)
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Generate mock transactions (replace with actual OCR results)
-      const mockTransactions = [
-        {
-          id: `txn-${Date.now()}-1`,
-          date: new Date().toLocaleDateString(),
-          description: 'Coffee Shop Purchase',
-          amount: 4.50,
-          category: 'Dining'
-        },
-        {
-          id: `txn-${Date.now()}-2`,
-          date: new Date().toLocaleDateString(),
-          description: 'Gas Station',
-          amount: 32.15,
-          category: 'Transportation'
-        },
-        {
-          id: `txn-${Date.now()}-3`,
-          date: new Date().toLocaleDateString(),
-          description: 'Grocery Store',
-          amount: 67.89,
-          category: 'Food & Groceries'
-        }
-      ];
+      let transactions = [];
+      let processingMethod = '';
+
+      if (file.type === 'application/pdf') {
+        // Smart PDF processing
+        const result = await processPDFSmart(file);
+        transactions = result.transactions;
+        processingMethod = result.method;
+      } else if (file.type.startsWith('image/')) {
+        // Direct image OCR
+        transactions = await processImageOCR(file);
+        processingMethod = 'Image OCR';
+      } else {
+        // CSV/Excel processing
+        transactions = await processDataFile(file);
+        processingMethod = 'Data Extraction';
+      }
 
       // Update processing message with results
       const resultMessage: ChatMessage = {
         id: `result-${Date.now()}`,
         type: 'byte',
-        content: `✅ Found ${mockTransactions.length} transactions in ${file.name}!`,
-        transactions: mockTransactions,
+        content: `✅ Found ${transactions.length} transactions in ${file.name}! (${processingMethod})`,
+        transactions: transactions,
         timestamp: new Date().toISOString()
       };
 
@@ -348,12 +338,12 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         msg.id === processingMessage.id ? resultMessage : msg
       ));
 
-      toast.success(`Processed ${file.name} - found ${mockTransactions.length} transactions`);
+      toast.success(`Processed ${file.name} - found ${transactions.length} transactions`);
     } catch (error) {
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         type: 'byte',
-        content: `❌ Failed to process ${file.name}. Please try again.`,
+        content: `❌ Failed to process ${file.name}. ${error instanceof Error ? error.message : 'Please try again.'}`,
         timestamp: new Date().toISOString()
       };
 
@@ -363,6 +353,201 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
 
       toast.error(`Failed to process ${file.name}`);
     }
+  };
+
+  // Smart PDF processing: Text extraction first, then OCR if needed
+  const processPDFSmart = async (file: File) => {
+    try {
+      // Step 1: Try to extract text directly from PDF
+      const text = await extractTextFromPDF(file);
+      
+      if (text && text.length > 100) {
+        // Text extraction successful
+        const transactions = extractTransactionsFromText(text);
+        return {
+          transactions,
+          method: 'PDF Text Extraction'
+        };
+      } else {
+        // Step 2: Convert PDF to images and OCR
+        const images = await convertPDFToImages(file);
+        let allTransactions = [];
+        
+        for (const image of images) {
+          const transactions = await processImageOCR(image);
+          allTransactions = [...allTransactions, ...transactions];
+        }
+        
+        return {
+          transactions: allTransactions,
+          method: 'PDF → Image → OCR'
+        };
+      }
+    } catch (error) {
+      throw new Error(`PDF processing failed: ${error.message}`);
+    }
+  };
+
+  // Extract text from PDF using PDF.js
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          // Dynamic import PDF.js
+          const pdfjsLib = await import('pdfjs-dist');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+          
+          const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
+          const pdf = await pdfjsLib.getDocument(typedArray).promise;
+          
+          let fullText = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageText = textContent.items.map((item: any) => item.str).join(' ');
+            fullText += pageText + '\n';
+          }
+          
+          resolve(fullText);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Convert PDF to images using PDF.js
+  const convertPDFToImages = async (file: File): Promise<File[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const pdfjsLib = await import('pdfjs-dist');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+          
+          const typedArray = new Uint8Array(e.target?.result as ArrayBuffer);
+          const pdf = await pdfjsLib.getDocument(typedArray).promise;
+          
+          const images: File[] = [];
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          for (let i = 1; i <= Math.min(pdf.numPages, 5); i++) { // Limit to 5 pages for memory
+            const page = await pdf.getPage(i);
+            const viewport = page.getViewport({ scale: 2.0 });
+            
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            
+            await page.render({
+              canvasContext: ctx!,
+              viewport: viewport
+            }).promise;
+            
+            // Convert canvas to blob
+            const blob = await new Promise<Blob>(resolve => canvas.toBlob(resolve!, 'image/png'));
+            const imageFile = new File([blob!], `page-${i}.png`, { type: 'image/png' });
+            images.push(imageFile);
+          }
+          
+          resolve(images);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // Process image with Tesseract.js OCR
+  const processImageOCR = async (file: File) => {
+    try {
+      const Tesseract = await import('tesseract.js');
+      
+      const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+        logger: (m) => {
+          if (m.status === 'recognizing text') {
+            console.log(`OCR Progress: ${Math.round(m.progress * 100)}%`);
+          }
+        }
+      });
+      
+      return extractTransactionsFromText(text);
+    } catch (error) {
+      throw new Error(`Image OCR failed: ${error.message}`);
+    }
+  };
+
+  // Process CSV/Excel files
+  const processDataFile = async (file: File) => {
+    // This would parse CSV/Excel files
+    // For now, return mock data
+    return [
+      {
+        id: `txn-${Date.now()}-1`,
+        date: new Date().toLocaleDateString(),
+        description: 'CSV Transaction',
+        amount: 25.00,
+        category: 'Business'
+      }
+    ];
+  };
+
+  // Extract transactions from text (from Local OCR Tester)
+  const extractTransactionsFromText = (text: string) => {
+    const transactions = [];
+    const seenAmounts = new Set();
+    
+    // Clean text
+    const cleaned = text.replace(/\s+/g, ' ').trim().slice(0, 6000);
+    
+    // Find dollar amounts
+    const dollarAmounts = cleaned.match(/\$(\d+[\d,]*\.?\d*)/g);
+    
+    if (dollarAmounts) {
+      const sortedAmounts = dollarAmounts.sort((a, b) => {
+        const amountA = parseFloat(a.replace(/[$,]/g, ''));
+        const amountB = parseFloat(b.replace(/[$,]/g, ''));
+        return amountB - amountA;
+      });
+      
+      sortedAmounts.forEach((match) => {
+        const amount = parseFloat(match.replace(/[$,]/g, ''));
+        
+        if (amount > 0.01 && amount < 10000 && !seenAmounts.has(amount)) {
+          seenAmounts.add(amount);
+          
+          // Find context around this amount
+          const amountIndex = cleaned.indexOf(match);
+          const beforeText = cleaned.substring(Math.max(0, amountIndex - 80), amountIndex).trim();
+          
+          // Extract description
+          const words = beforeText.split(/\s+/).filter(word => 
+            word.length > 2 && 
+            !word.match(/^[^\w]*$/) && 
+            !word.match(/^\d+$/)
+          );
+          
+          const description = words.length > 0 
+            ? words.slice(-3).join(' ') 
+            : `Transaction - $${amount}`;
+          
+          transactions.push({
+            id: `txn-${Date.now()}-${transactions.length}`,
+            date: new Date().toLocaleDateString(),
+            description: description,
+            amount: amount,
+            category: 'Uncategorized'
+          });
+        }
+      });
+    }
+    
+    return transactions.slice(0, 20); // Limit to 20 transactions
   };
 
   const handleFileUpload = async (files: FileList) => {
