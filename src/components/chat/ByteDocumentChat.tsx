@@ -18,7 +18,8 @@ import {
   FileCheck,
   DollarSign,
   Calendar,
-  Tag
+  Tag,
+  MessageCircle
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -352,6 +353,33 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     await processFiles(fileArray);
   };
 
+  // Handle quick action button clicks
+  const handleChatWithByte = async (message: string) => {
+    if (!message.trim()) return;
+
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      type: 'user',
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    
+    setIsProcessing(true);
+    
+    // Simulate Byte's response
+    setTimeout(() => {
+      const byteMessage: ChatMessage = {
+        id: `byte-${Date.now()}`,
+        type: 'byte',
+        content: `Got it! I'm ready to help with ${message.toLowerCase().includes('transaction') ? 'your transactions' : 'document processing'}. What would you like me to do?`,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, byteMessage]);
+      setIsProcessing(false);
+    }, 1500);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -482,7 +510,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
 
         {/* Messages with Drag & Drop */}
         <div 
-          className={`flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 ${
+          className={`flex-1 overflow-y-auto p-3 sm:p-4 space-y-4 relative ${
             dragActive ? 'bg-blue-500/10' : ''
           }`}
           onDragEnter={handleDragEnter}
@@ -490,6 +518,25 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
+          {/* Drag & Drop Hint */}
+          {messages.length <= 1 && !dragActive && (
+            <div className="text-center py-8">
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-6 max-w-md mx-auto">
+                <UploadCloud className="w-12 h-12 text-blue-400 mx-auto mb-3" />
+                <h3 className="text-blue-300 font-semibold mb-2">Drop Documents Here!</h3>
+                <p className="text-blue-200 text-sm mb-3">
+                  Drag & drop receipts, invoices, or bank statements directly into this chat
+                </p>
+                <div className="flex items-center justify-center gap-2 text-xs text-blue-300">
+                  <span>📄</span>
+                  <span>📊</span>
+                  <span>🏦</span>
+                  <span>Supports: PDF, JPG, PNG, CSV</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Drag Overlay */}
           {dragActive && (
             <div className="absolute inset-0 bg-blue-500/20 border-2 border-dashed border-blue-400 rounded-lg flex items-center justify-center z-10">
@@ -626,16 +673,26 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           </div>
         )}
 
-        {/* Input */}
-        <div className="p-3 sm:p-4 border-t border-gray-700">
+        {/* Input Area */}
+        <div className="p-3 sm:p-4 border-t border-gray-700 bg-gray-800/50">
+          {/* Chat Input Label */}
+          <div className="mb-2">
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <MessageCircle className="w-4 h-4" />
+              <span>Chat with {getEmployeePersonality(activeAI)?.name || 'AI'}</span>
+              <span className="text-gray-500">•</span>
+              <span className="text-gray-500">Or drag files above</span>
+            </div>
+          </div>
+          
           <div className="flex gap-2">
             <input
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-              placeholder={`Ask ${getEmployeePersonality(activeAI)?.name || 'AI'} anything...`}
-              className={`flex-1 bg-gray-800 text-white rounded-lg px-3 sm:px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              placeholder={`Type a message or ask ${getEmployeePersonality(activeAI)?.name || 'AI'} to process documents...`}
+              className={`flex-1 bg-gray-800 text-white rounded-lg px-3 sm:px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 ${
                 isMobile ? 'text-sm' : ''
               }`}
               disabled={isProcessing}
@@ -643,16 +700,38 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
             <button
               onClick={handleSendMessage}
               disabled={isProcessing || !inputMessage.trim()}
-              className={`bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 text-white px-3 sm:px-4 py-2 rounded-lg transition-colors flex items-center gap-1 sm:gap-2 ${
+              className={`bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 text-white px-4 py-3 rounded-lg transition-colors flex items-center gap-2 ${
                 isMobile ? 'text-sm' : ''
               }`}
             >
               {isProcessing ? (
-                <Loader2 className={`animate-spin ${isMobile ? 'w-4 h-4' : 'w-4 h-4'}`} />
+                <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Send className={isMobile ? 'w-4 h-4' : 'w-4 h-4'} />
+                <Send className="w-4 h-4" />
               )}
-              {isMobile && <span className="ml-1">Send</span>}
+              {isMobile && <span>Send</span>}
+            </button>
+          </div>
+          
+          {/* Quick Actions */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={() => setActiveAI('byte')}
+              className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-full text-xs border border-blue-500/30 transition-colors"
+            >
+              📄 Process Documents
+            </button>
+            <button
+              onClick={() => handleChatWithByte("Show me my recent transactions")}
+              className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-full text-xs border border-green-500/30 transition-colors"
+            >
+              📊 View Transactions
+            </button>
+            <button
+              onClick={() => setActiveAI('crystal')}
+              className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-full text-xs border border-purple-500/30 transition-colors"
+            >
+              🔮 Get Insights
             </button>
           </div>
         </div>
