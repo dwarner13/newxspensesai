@@ -19,7 +19,8 @@ import {
   DollarSign,
   Calendar,
   Tag,
-  MessageCircle
+  MessageCircle,
+  Plus
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -80,6 +81,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0});
   const [dragActive, setDragActive] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const orchestrator = useRef(new AIEmployeeOrchestrator());
@@ -98,6 +100,21 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Close plus menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showPlusMenu) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('.plus-menu-container')) {
+          setShowPlusMenu(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showPlusMenu]);
 
   // Initialize with Prime greeting
   useEffect(() => {
@@ -518,21 +535,12 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          {/* Drag & Drop Hint */}
+          {/* Subtle Drag & Drop Hint */}
           {messages.length <= 1 && !dragActive && (
-            <div className="text-center py-8">
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-6 max-w-md mx-auto">
-                <UploadCloud className="w-12 h-12 text-blue-400 mx-auto mb-3" />
-                <h3 className="text-blue-300 font-semibold mb-2">Drop Documents Here!</h3>
-                <p className="text-blue-200 text-sm mb-3">
-                  Drag & drop receipts, invoices, or bank statements directly into this chat
-                </p>
-                <div className="flex items-center justify-center gap-2 text-xs text-blue-300">
-                  <span>📄</span>
-                  <span>📊</span>
-                  <span>🏦</span>
-                  <span>Supports: PDF, JPG, PNG, CSV</span>
-                </div>
+            <div className="text-center py-12">
+              <div className="text-gray-500">
+                <UploadCloud className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Drop documents here or use the + button below</p>
               </div>
             </div>
           )}
@@ -635,104 +643,174 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           <div ref={messagesEndRef} />
         </div>
 
-        {/* File Upload Area for Byte */}
-        {activeAI === 'byte' && (
-          <div className="p-3 sm:p-4 border-t border-gray-700">
-            <div className="border-2 border-dashed border-blue-500/30 rounded-lg p-4 sm:p-6 text-center bg-blue-500/5">
-              <UploadCloud className={`text-blue-400 mx-auto mb-2 ${isMobile ? 'w-6 h-6' : 'w-8 h-8'}`} />
-              <p className={`text-blue-300 font-medium mb-1 ${isMobile ? 'text-sm' : ''}`}>
-                {isMobile ? 'Tap to upload files' : 'Drop files here or click to upload'}
-              </p>
-              <p className={`text-gray-400 mb-3 ${isMobile ? 'text-xs' : 'text-xs'}`}>
-                Max 5 files, 10MB each • Supports: PDF, JPG, PNG, CSV, XLSX
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.jpg,.jpeg,.png,.csv,.xlsx,.xls,.txt"
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className={`bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors ${
-                  isMobile ? 'text-sm' : 'text-sm'
-                }`}
-              >
-                {isMobile ? '📁 Upload' : 'Choose Files'}
-              </button>
-              {uploadedFileCount > 0 && (
-                <div className="mt-2">
-                  <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
-                    {uploadedFileCount} files uploaded
-                  </span>
+        {/* Hidden File Input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".pdf,.jpg,.jpeg,.png,.csv,.xlsx,.xls,.txt"
+          onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+          className="hidden"
+        />
+
+        {/* ChatGPT-Style Input Area */}
+        <div className="p-4 border-t border-gray-700 bg-gray-900">
+          <div className="max-w-4xl mx-auto">
+            <div className="relative plus-menu-container">
+              {/* Main Input Container */}
+              <div className="flex items-end gap-3 bg-gray-800 rounded-2xl border border-gray-600 hover:border-gray-500 transition-colors p-3">
+                {/* Plus Button */}
+                <button
+                  onClick={() => setShowPlusMenu(!showPlusMenu)}
+                  className="flex-shrink-0 w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center transition-colors"
+                >
+                  <Plus className="w-4 h-4 text-gray-300" />
+                </button>
+
+                {/* Text Input */}
+                <div className="flex-1 min-w-0">
+                  <textarea
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && !isProcessing) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    placeholder={`Message ${getEmployeePersonality(activeAI)?.name || 'AI'}...`}
+                    className="w-full bg-transparent text-white placeholder-gray-400 resize-none border-none outline-none text-sm leading-6 max-h-32"
+                    rows={1}
+                    disabled={isProcessing}
+                    style={{
+                      height: 'auto',
+                      minHeight: '24px'
+                    }}
+                    onInput={(e) => {
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = 'auto';
+                      target.style.height = target.scrollHeight + 'px';
+                    }}
+                  />
+                </div>
+
+                {/* Send Button */}
+                <button
+                  onClick={handleSendMessage}
+                  disabled={isProcessing || !inputMessage.trim()}
+                  className="flex-shrink-0 w-8 h-8 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 rounded-full flex items-center justify-center transition-colors"
+                >
+                  {isProcessing ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  ) : (
+                    <Send className="w-4 h-4 text-white" />
+                  )}
+                </button>
+              </div>
+
+              {/* Plus Menu Dropdown */}
+              {showPlusMenu && (
+                <div className="absolute bottom-full left-0 mb-2 bg-gray-800 border border-gray-600 rounded-xl shadow-xl z-10 min-w-64">
+                  <div className="p-2">
+                    <div className="text-xs text-gray-400 mb-2 px-2">Upload & Actions</div>
+                    
+                    {/* Upload Options */}
+                    <button
+                      onClick={() => {
+                        fileInputRef.current?.click();
+                        setShowPlusMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-700 rounded-lg transition-colors text-left"
+                    >
+                      <UploadCloud className="w-5 h-5 text-blue-400" />
+                      <div>
+                        <div className="text-white text-sm font-medium">Upload Documents</div>
+                        <div className="text-gray-400 text-xs">PDF, JPG, PNG, CSV files</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setActiveAI('byte');
+                        setShowPlusMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-700 rounded-lg transition-colors text-left"
+                    >
+                      <FileText className="w-5 h-5 text-green-400" />
+                      <div>
+                        <div className="text-white text-sm font-medium">Process Receipts</div>
+                        <div className="text-gray-400 text-xs">OCR & extract transactions</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setActiveAI('crystal');
+                        setShowPlusMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-700 rounded-lg transition-colors text-left"
+                    >
+                      <Brain className="w-5 h-5 text-purple-400" />
+                      <div>
+                        <div className="text-white text-sm font-medium">Get Insights</div>
+                        <div className="text-gray-400 text-xs">Analyze spending patterns</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setActiveAI('tag');
+                        setShowPlusMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-700 rounded-lg transition-colors text-left"
+                    >
+                      <Tag className="w-5 h-5 text-orange-400" />
+                      <div>
+                        <div className="text-white text-sm font-medium">Auto-Categorize</div>
+                        <div className="text-gray-400 text-xs">Smart transaction tagging</div>
+                      </div>
+                    </button>
+
+                    <div className="border-t border-gray-600 my-2"></div>
+
+                    <button
+                      onClick={() => {
+                        handleChatWithByte("Show me my recent transactions");
+                        setShowPlusMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-700 rounded-lg transition-colors text-left"
+                    >
+                      <DollarSign className="w-5 h-5 text-green-400" />
+                      <div>
+                        <div className="text-white text-sm font-medium">View Transactions</div>
+                        <div className="text-gray-400 text-xs">Browse your financial data</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setActiveAI('prime');
+                        setShowPlusMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-700 rounded-lg transition-colors text-left"
+                    >
+                      <Sparkles className="w-5 h-5 text-yellow-400" />
+                      <div>
+                        <div className="text-white text-sm font-medium">AI Team Overview</div>
+                        <div className="text-gray-400 text-xs">Meet all AI employees</div>
+                      </div>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
-        )}
 
-        {/* Input Area */}
-        <div className="p-3 sm:p-4 border-t border-gray-700 bg-gray-800/50">
-          {/* Chat Input Label */}
-          <div className="mb-2">
-            <div className="flex items-center gap-2 text-sm text-gray-300">
-              <MessageCircle className="w-4 h-4" />
-              <span>Chat with {getEmployeePersonality(activeAI)?.name || 'AI'}</span>
-              <span className="text-gray-500">•</span>
-              <span className="text-gray-500">Or drag files above</span>
+            {/* Subtle Hint */}
+            <div className="text-center mt-2">
+              <span className="text-xs text-gray-500">
+                Drag files anywhere in the chat or use the + button
+              </span>
             </div>
-          </div>
-          
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !isProcessing && handleSendMessage()}
-              placeholder={`Type a message or ask ${getEmployeePersonality(activeAI)?.name || 'AI'} to process documents...`}
-              className={`flex-1 bg-gray-800 text-white rounded-lg px-3 sm:px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 ${
-                isMobile ? 'text-sm' : ''
-              }`}
-              disabled={isProcessing}
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={isProcessing || !inputMessage.trim()}
-              className={`bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 text-white px-4 py-3 rounded-lg transition-colors flex items-center gap-2 ${
-                isMobile ? 'text-sm' : ''
-              }`}
-            >
-              {isProcessing ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-              {isMobile && <span>Send</span>}
-            </button>
-          </div>
-          
-          {/* Quick Actions */}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              onClick={() => setActiveAI('byte')}
-              className="px-3 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 rounded-full text-xs border border-blue-500/30 transition-colors"
-            >
-              📄 Process Documents
-            </button>
-            <button
-              onClick={() => handleChatWithByte("Show me my recent transactions")}
-              className="px-3 py-1 bg-green-500/20 hover:bg-green-500/30 text-green-300 rounded-full text-xs border border-green-500/30 transition-colors"
-            >
-              📊 View Transactions
-            </button>
-            <button
-              onClick={() => setActiveAI('crystal')}
-              className="px-3 py-1 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-full text-xs border border-purple-500/30 transition-colors"
-            >
-              🔮 Get Insights
-            </button>
           </div>
         </div>
       </div>
