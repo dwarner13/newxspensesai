@@ -20,7 +20,9 @@ import {
   Calendar,
   Tag,
   MessageCircle,
-  Plus
+  Plus,
+  History,
+  FolderOpen
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -32,6 +34,24 @@ import { processLargeFile, getFileRecommendations, ProcessingProgress } from '..
 import { BYTE_KNOWLEDGE_BASE, BYTE_RESPONSES } from '../../ai-knowledge/byte-knowledge-base';
 import { CRYSTAL_KNOWLEDGE_BASE, CRYSTAL_RESPONSES, CRYSTAL_PERSONALITY } from '../../ai-knowledge/crystal-knowledge-base';
 import toast from 'react-hot-toast';
+
+interface ProcessedDocument {
+  id: string;
+  filename: string;
+  type: 'image' | 'pdf' | 'csv';
+  uploadDate: string;
+  extractedText?: string;
+  transactions?: {
+    id: string;
+    date: string;
+    description: string;
+    amount: number;
+    category: string;
+  }[];
+  analysis?: any;
+  fileUrl?: string;
+  processingMethod?: string;
+}
 
 interface ChatMessage {
   id: string;
@@ -56,6 +76,7 @@ interface ChatMessage {
     category: string;
   }[];
   processing?: boolean;
+  documentId?: string; // Link to processed document
 }
 
 interface ByteDocumentChatProps {
@@ -82,6 +103,9 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [processedDocuments, setProcessedDocuments] = useState<ProcessedDocument[]>([]);
+  const [showDocumentHistory, setShowDocumentHistory] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<ProcessedDocument | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const orchestrator = useRef(new AIEmployeeOrchestrator());
@@ -294,6 +318,23 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     }
   };
 
+  // Save processed document to history
+  const saveProcessedDocument = (file: File, transactions: any[], extractedText?: string, processingMethod?: string) => {
+    const document: ProcessedDocument = {
+      id: `doc-${Date.now()}-${file.name}`,
+      filename: file.name,
+      type: file.type === 'application/pdf' ? 'pdf' : file.type.startsWith('image/') ? 'image' : 'csv',
+      uploadDate: new Date().toISOString(),
+      extractedText,
+      transactions,
+      processingMethod,
+      fileUrl: URL.createObjectURL(file) // Create local URL for viewing
+    };
+    
+    setProcessedDocuments(prev => [document, ...prev]);
+    return document.id;
+  };
+
   // Process single file with smart PDF handling
   const processFileWithOCR = async (file: File) => {
     // Add processing message
@@ -325,12 +366,16 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         processingMethod = 'Data Extraction';
       }
 
+      // Save document to history
+      const documentId = saveProcessedDocument(file, transactions, undefined, processingMethod);
+
       // Update processing message with results
       const resultMessage: ChatMessage = {
         id: `result-${Date.now()}`,
         type: 'byte',
         content: `✅ Found ${transactions.length} transactions in ${file.name}! (${processingMethod})`,
         transactions: transactions,
+        documentId: documentId,
         timestamp: new Date().toISOString()
       };
 
@@ -371,7 +416,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       } else {
         // Step 2: Convert PDF to images and OCR
         const images = await convertPDFToImages(file);
-        let allTransactions = [];
+        let allTransactions: any[] = [];
         
         for (const image of images) {
           const transactions = await processImageOCR(image);
@@ -384,7 +429,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         };
       }
     } catch (error) {
-      throw new Error(`PDF processing failed: ${error.message}`);
+      throw new Error(`PDF processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -448,9 +493,11 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
             }).promise;
             
             // Convert canvas to blob
-            const blob = await new Promise<Blob>(resolve => canvas.toBlob(resolve!, 'image/png'));
-            const imageFile = new File([blob!], `page-${i}.png`, { type: 'image/png' });
-            images.push(imageFile);
+            const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+            if (blob) {
+              const imageFile = new File([blob], `page-${i}.png`, { type: 'image/png' });
+              images.push(imageFile);
+            }
           }
           
           resolve(images);
@@ -478,7 +525,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       
       return extractTransactionsFromText(text);
     } catch (error) {
-      throw new Error(`Image OCR failed: ${error.message}`);
+      throw new Error(`Image OCR failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -498,8 +545,8 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   };
 
   // Extract transactions from text (from Local OCR Tester)
-  const extractTransactionsFromText = (text: string) => {
-    const transactions = [];
+  const extractTransactionsFromText = (text: string): any[] => {
+    const transactions: any[] = [];
     const seenAmounts = new Set();
     
     // Clean text
@@ -985,6 +1032,22 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                         <div className="text-gray-400 text-xs">Meet all AI employees</div>
                       </div>
                     </button>
+
+                    <div className="border-t border-gray-600 my-2"></div>
+
+                    <button
+                      onClick={() => {
+                        setShowDocumentHistory(true);
+                        setShowPlusMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-700 rounded-lg transition-colors text-left"
+                    >
+                      <History className="w-5 h-5 text-indigo-400" />
+                      <div>
+                        <div className="text-white text-sm font-medium">View Documents</div>
+                        <div className="text-gray-400 text-xs">Browse processed files ({processedDocuments.length})</div>
+                      </div>
+                    </button>
                   </div>
                 </div>
               )}
@@ -999,6 +1062,189 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Document History Modal */}
+      {showDocumentHistory && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl max-w-4xl max-h-[90vh] w-full mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div className="flex items-center gap-3">
+                <FolderOpen className="w-6 h-6 text-indigo-400" />
+                <h2 className="text-xl font-semibold text-white">Processed Documents</h2>
+                <span className="bg-indigo-500/20 text-indigo-400 px-2 py-1 rounded-full text-sm">
+                  {processedDocuments.length} files
+                </span>
+              </div>
+              <button
+                onClick={() => setShowDocumentHistory(false)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Document List */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {processedDocuments.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-400 mb-2">No documents processed yet</h3>
+                  <p className="text-gray-500">Upload some files to see them here</p>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {processedDocuments.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="bg-gray-800 rounded-lg border border-gray-700 p-4 hover:bg-gray-750 transition-colors cursor-pointer"
+                      onClick={() => setSelectedDocument(doc)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-indigo-500/20 rounded-lg flex items-center justify-center">
+                            {doc.type === 'pdf' ? (
+                              <FileText className="w-5 h-5 text-indigo-400" />
+                            ) : doc.type === 'image' ? (
+                              <ImageIcon className="w-5 h-5 text-indigo-400" />
+                            ) : (
+                              <FileCheck className="w-5 h-5 text-indigo-400" />
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-white font-medium">{doc.filename}</h3>
+                            <p className="text-gray-400 text-sm">
+                              {doc.transactions?.length || 0} transactions • {doc.processingMethod} • 
+                              {new Date(doc.uploadDate).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (doc.fileUrl) {
+                                window.open(doc.fileUrl, '_blank');
+                              }
+                            }}
+                            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                            title="View original file"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDocument(doc);
+                            }}
+                            className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+                            title="View details"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Detail Modal */}
+      {selectedDocument && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl max-w-6xl max-h-[90vh] w-full mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-700">
+              <div className="flex items-center gap-3">
+                <FileText className="w-6 h-6 text-indigo-400" />
+                <h2 className="text-xl font-semibold text-white">{selectedDocument.filename}</h2>
+                <span className="bg-green-500/20 text-green-400 px-2 py-1 rounded-full text-sm">
+                  {selectedDocument.transactions?.length || 0} transactions
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedDocument(null)}
+                className="p-2 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Document Info */}
+                <div className="space-y-4">
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-white mb-3">Document Information</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Type:</span>
+                        <span className="text-white">{selectedDocument.type.toUpperCase()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Processing Method:</span>
+                        <span className="text-white">{selectedDocument.processingMethod}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Upload Date:</span>
+                        <span className="text-white">{new Date(selectedDocument.uploadDate).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400">Transactions Found:</span>
+                        <span className="text-white">{selectedDocument.transactions?.length || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Original File */}
+                  {selectedDocument.fileUrl && (
+                    <div className="bg-gray-800 rounded-lg p-4">
+                      <h3 className="text-lg font-medium text-white mb-3">Original File</h3>
+                      <button
+                        onClick={() => window.open(selectedDocument.fileUrl, '_blank')}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Eye className="w-4 h-4" />
+                        View Original File
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Transactions */}
+                <div className="space-y-4">
+                  <div className="bg-gray-800 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-white mb-3">Extracted Transactions</h3>
+                    {selectedDocument.transactions && selectedDocument.transactions.length > 0 ? (
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {selectedDocument.transactions.map((transaction, index) => (
+                          <div key={index} className="bg-gray-700 rounded-lg p-3">
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="text-white font-medium">{transaction.description}</span>
+                              <span className="text-green-400 font-semibold">${transaction.amount.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-sm text-gray-400">
+                              <span>{transaction.date}</span>
+                              <span className="bg-gray-600 px-2 py-1 rounded text-xs">{transaction.category}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-center py-8">No transactions found in this document</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
