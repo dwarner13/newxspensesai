@@ -383,7 +383,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-2 sm:p-4">
       <div className={`bg-gray-900 rounded-lg w-full flex flex-col ${
         isMobile ? 'h-[95vh] max-w-full' : 'h-[90vh] max-w-4xl'
       }`}>
