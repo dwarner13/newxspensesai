@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Home, Upload, Mic, Bot, Settings, Bell, MessageCircle } from 'lucide-react';
 import { EMPLOYEES } from '../../data/aiEmployees';
 import MobileChatbotModal from './MobileChatbotModal';
@@ -125,7 +126,7 @@ export default function MobileBottomNav({
               </div>
               <span className="text-xs font-medium text-center truncate">{item.label}</span>
               {isActive && (
-                <div
+                <motion.div
                   layoutId="activeTab"
                   className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-purple-400 rounded-full"
                 />
