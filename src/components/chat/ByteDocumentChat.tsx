@@ -31,6 +31,7 @@ import { getEmployeePersonality, generateEmployeeResponse } from '../../systems/
 import { processImageWithSmartOCR, SmartOCRResult } from '../../utils/smartOCRManager';
 import { redactDocument, generateAIEmployeeNotification } from '../../utils/documentRedaction';
 import { processLargeFile, getFileRecommendations, ProcessingProgress } from '../../utils/largeFileProcessor';
+import { AIService } from '../../services/AIService';
 import { BYTE_KNOWLEDGE_BASE, BYTE_RESPONSES } from '../../ai-knowledge/byte-knowledge-base';
 import { CRYSTAL_KNOWLEDGE_BASE, CRYSTAL_RESPONSES, CRYSTAL_PERSONALITY } from '../../ai-knowledge/crystal-knowledge-base';
 import toast from 'react-hot-toast';
@@ -335,7 +336,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     return document.id;
   };
 
-  // Process single file with smart PDF handling
+  // Process single file with worker backend
   const processFileWithOCR = async (file: File) => {
     // Add processing message
     const processingMessage: ChatMessage = {
@@ -348,47 +349,83 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     setMessages(prev => [...prev, processingMessage]);
 
     try {
-      let transactions = [];
-      let processingMethod = '';
+      // Determine document type
+      const docType = file.type === 'application/pdf' ? 'bank_statement' : 'receipt';
+      const userId = user?.id || 'default-user';
 
-      if (file.type === 'application/pdf') {
-        // Smart PDF processing
-        const result = await processPDFSmart(file);
-        transactions = result.transactions;
-        processingMethod = result.method;
-      } else if (file.type.startsWith('image/')) {
-        // Direct image OCR
-        transactions = await processImageOCR(file);
-        processingMethod = 'Image OCR';
-      } else {
-        // CSV/Excel processing
-        transactions = await processDataFile(file);
-        processingMethod = 'Data Extraction';
-      }
+      // Upload to worker backend
+      const uploadResult = await AIService.uploadDocument(file, userId, docType, true);
+      
+      // Start polling for progress
+      let progressMessage = processingMessage;
+      
+      await AIService.pollJobProgress(
+        uploadResult.document_id,
+        // Progress callback
+        (progress) => {
+          const progressUpdate: ChatMessage = {
+            ...progressMessage,
+            content: `🔍 ${progress.message} (${progress.progress}%)`,
+            processing: progress.stage !== 'complete'
+          };
+          
+          setMessages(prev => prev.map(msg => 
+            msg.id === progressMessage.id ? progressUpdate : msg
+          ));
+          
+          progressMessage = progressUpdate;
+        },
+        // Complete callback
+        async (result) => {
+          try {
+            // Get transactions from database (or use result data)
+            const transactions = await AIService.getTransactions(result.documentId);
+            
+            // Save document to history
+            const documentId = saveProcessedDocument(file, transactions, undefined, 'Worker Backend Processing');
 
-      // Save document to history
-      const documentId = saveProcessedDocument(file, transactions, undefined, processingMethod);
+            // Update with final results
+            const resultMessage: ChatMessage = {
+              id: `result-${Date.now()}`,
+              type: 'byte',
+              content: `✅ Found ${result.transactionCount} transactions in ${file.name}! (Processing time: ${Math.round(result.processingTime / 1000)}s)`,
+              transactions: transactions,
+              documentId: documentId,
+              timestamp: new Date().toISOString()
+            };
 
-      // Update processing message with results
-      const resultMessage: ChatMessage = {
-        id: `result-${Date.now()}`,
-        type: 'byte',
-        content: `✅ Found ${transactions.length} transactions in ${file.name}! (${processingMethod})`,
-        transactions: transactions,
-        documentId: documentId,
-        timestamp: new Date().toISOString()
-      };
+            setMessages(prev => prev.map(msg => 
+              msg.id === progressMessage.id ? resultMessage : msg
+            ));
 
-      setMessages(prev => prev.map(msg => 
-        msg.id === processingMessage.id ? resultMessage : msg
-      ));
+            toast.success(`Processed ${file.name} - found ${result.transactionCount} transactions`);
+          } catch (error) {
+            console.error('Error getting transactions:', error);
+            throw error;
+          }
+        },
+        // Error callback
+        (error) => {
+          const errorMessage: ChatMessage = {
+            id: `error-${Date.now()}`,
+            type: 'byte',
+            content: `❌ Failed to process ${file.name}. ${error}`,
+            timestamp: new Date().toISOString()
+          };
 
-      toast.success(`Processed ${file.name} - found ${transactions.length} transactions`);
+          setMessages(prev => prev.map(msg => 
+            msg.id === progressMessage.id ? errorMessage : msg
+          ));
+
+          toast.error(`Failed to process ${file.name}`);
+        }
+      );
+
     } catch (error) {
       const errorMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         type: 'byte',
-        content: `❌ Failed to process ${file.name}. ${error instanceof Error ? error.message : 'Please try again.'}`,
+        content: `❌ Failed to upload ${file.name}. ${error instanceof Error ? error.message : 'Please try again.'}`,
         timestamp: new Date().toISOString()
       };
 
@@ -396,7 +433,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         msg.id === processingMessage.id ? errorMessage : msg
       ));
 
-      toast.error(`Failed to process ${file.name}`);
+      toast.error(`Failed to upload ${file.name}`);
     }
   };
 
