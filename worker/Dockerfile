@@ -12,14 +12,11 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy all files except those in .dockerignore
+COPY . ./
 
 # Install all dependencies (including dev dependencies for build)
 RUN npm ci
-
-# Copy all files except those in .dockerignore
-COPY . ./
 
 # Build TypeScript
 RUN npm run build
