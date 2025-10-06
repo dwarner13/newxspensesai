@@ -12,16 +12,20 @@ RUN apk add --no-cache \
 # Set working directory
 WORKDIR /app
 
-# Copy all files except those in .dockerignore
-COPY . ./
+# Copy package files first for better caching
+COPY package*.json ./
 
-# Install all dependencies (including dev dependencies for build)
+# Install dependencies
 RUN npm ci
+
+# Copy source code
+COPY src/ ./src/
+COPY tsconfig.json ./
 
 # Build TypeScript
 RUN npm run build
 
-# Remove dev dependencies to reduce image size
+# Remove dev dependencies
 RUN npm prune --production
 
 # Create non-root user
