@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc --noEmitOnError false --skipLibCheck",
-    "start": "node dist/index.js",
+    "build": "mkdir -p dist && cp -r src/* dist/",
+    "start": "tsx dist/index.ts",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
     "lint": "eslint src/**/*.ts",
