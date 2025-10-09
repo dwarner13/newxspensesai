@@ -16,7 +16,7 @@ const envSchema = z.object({
   SUPABASE_BUCKET_REDACTED: z.string().default('redacted_docs'),
   
   // Redis Configuration
-  REDIS_URL: z.string().url('Invalid Redis URL').default('redis://localhost:6379'),
+  REDIS_URL: z.string().url('Invalid Redis URL').default('redis://localhost:6379').optional(),
   
   // OCR Configuration
   OCR_ENGINE: z.enum(['ocrspace', 'tesseract', 'vision']).default('ocrspace'),

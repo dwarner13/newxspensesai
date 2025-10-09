@@ -4,8 +4,8 @@ import { config } from './config.js';
 import { logger, logUtils } from './logging.js';
 import { processDocument } from './workflow/processDocument.js';
 
-// Redis connection
-const redis = new Redis(config.redis.url);
+// Redis connection (optional)
+const redis = config.redis.url ? new Redis(config.redis.url) : null;
 
 // Job data interface
 export interface DocumentJobData {
@@ -26,7 +26,7 @@ export interface DocumentJobResult {
 }
 
 // Create document processing queue
-export const documentQueue = new Queue<DocumentJobData, DocumentJobResult>('document-processing', {
+export const documentQueue = redis ? new Queue<DocumentJobData, DocumentJobResult>('document-processing', {
   connection: redis,
   defaultJobOptions: {
     removeOnComplete: 100,
@@ -37,10 +37,10 @@ export const documentQueue = new Queue<DocumentJobData, DocumentJobResult>('docu
       delay: 2000,
     },
   },
-});
+}) : null;
 
 // Create worker
-export const documentWorker = new Worker<DocumentJobData, DocumentJobResult>(
+export const documentWorker = redis ? new Worker<DocumentJobData, DocumentJobResult>(
   'document-processing',
   async (job: Job<DocumentJobData, DocumentJobResult>) => {
     const { userId, documentId, fileUrl, docType, redact } = job.data;
@@ -83,10 +83,10 @@ export const documentWorker = new Worker<DocumentJobData, DocumentJobResult>(
     connection: redis,
     concurrency: config.worker.concurrency,
   }
-);
+) : null;
 
 // Worker event handlers
-documentWorker.on('completed', (job, result) => {
+documentWorker?.on('completed', (job, result) => {
   logger.info({
     jobId: job.id,
     event: 'worker_completed',
@@ -94,7 +94,7 @@ documentWorker.on('completed', (job, result) => {
   }, 'Worker completed job');
 });
 
-documentWorker.on('failed', (job, err) => {
+documentWorker?.on('failed', (job, err) => {
   logger.error({
     jobId: job.id,
     event: 'worker_failed',
@@ -106,7 +106,7 @@ documentWorker.on('failed', (job, err) => {
   }, 'Worker failed job');
 });
 
-documentWorker.on('stalled', (jobId) => {
+documentWorker?.on('stalled', (jobId) => {
   logger.warn({
     jobId,
     event: 'worker_stalled',
@@ -249,13 +249,19 @@ export async function shutdownQueue() {
     logger.info('Shutting down queue system...');
     
     // Close worker
-    await documentWorker.close();
+    if (documentWorker) {
+      await documentWorker.close();
+    }
     
     // Close queue
-    await documentQueue.close();
+    if (documentQueue) {
+      await documentQueue.close();
+    }
     
     // Close Redis connection
-    await redis.quit();
+    if (redis) {
+      await redis.quit();
+    }
     
     logger.info('Queue system shutdown complete');
   } catch (error) {
