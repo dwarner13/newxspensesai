@@ -1,7 +1,15 @@
-import pdfParse from 'pdf-parse';
 // @ts-ignore - pdf2pic doesn't have TypeScript declarations
 import { fromBuffer } from 'pdf2pic';
 import sharp from 'sharp';
+
+// Lazy load pdf-parse to avoid test file loading issues
+let pdfParse: any = null;
+async function getPdfParse() {
+  if (!pdfParse) {
+    pdfParse = (await import('pdf-parse')).default;
+  }
+  return pdfParse;
+}
 
 // PDF parsing result interface
 export interface PDFParseResult {
@@ -27,7 +35,8 @@ export interface PDFParseResult {
 export class PDFProcessor {
   async parsePDF(buffer: Buffer): Promise<PDFParseResult> {
     try {
-      const data = await pdfParse(buffer);
+      const parse = await getPdfParse();
+      const data = await parse(buffer);
       
       return {
         text: data.text,
