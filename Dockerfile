@@ -6,7 +6,8 @@ WORKDIR /app
 # Cache bust for Railway: Updated Oct 9 2025
 
 # Copy package files first for better caching
-COPY worker/package.json worker/package-lock.json ./
+COPY worker-package.json worker-package-lock.json ./
+RUN mv worker-package.json package.json && mv worker-package-lock.json package-lock.json
 
 # Install dependencies
 RUN npm ci
