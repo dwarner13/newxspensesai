@@ -317,4 +317,5 @@ site/
 # Lock files (keep package-lock.json but ignore others)
 *.lock
 !package-lock.json
+!worker/package-lock.json
 !yarn.lock
