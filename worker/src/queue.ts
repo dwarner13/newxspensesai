@@ -5,7 +5,52 @@ import { logger, logUtils } from './logging.js';
 import { processDocument } from './workflow/processDocument.js';
 
 // Redis connection (optional)
-const redis = config.redis.url ? new Redis(config.redis.url) : null;
+let redis: Redis | null = null;
+
+if (config.redis.url) {
+  try {
+    redis = new Redis(config.redis.url, {
+      maxRetriesPerRequest: 3,
+      retryStrategy(times) {
+        if (times > 3) {
+          logger.warn('Redis connection failed after 3 retries. Running without queue support.');
+          return null; // Stop retrying
+        }
+        return Math.min(times * 200, 2000);
+      },
+      lazyConnect: true, // Don't connect immediately
+    });
+    
+    // Handle connection errors
+    redis.on('error', (err: Error & { code?: string }) => {
+      logger.error({
+        error: err.message,
+        code: err.code,
+      }, 'Redis connection error. Queue features will be unavailable.');
+    });
+    
+    redis.on('connect', () => {
+      logger.info('Redis connected successfully');
+    });
+    
+    // Try to connect
+    redis.connect().catch((err: Error & { code?: string }) => {
+      logger.error({
+        error: err.message,
+        code: err.code,
+      }, 'Failed to connect to Redis. Queue features will be unavailable. For local development, run: docker run -d -p 6379:6379 redis:7-alpine');
+      redis = null;
+    });
+    
+  } catch (error) {
+    logger.error({
+      error: error instanceof Error ? error.message : String(error),
+    }, 'Failed to initialize Redis client');
+    redis = null;
+  }
+} else {
+  logger.warn('REDIS_URL not configured. Queue features will be unavailable. Set REDIS_URL=redis://localhost:6379 for local development.');
+}
 
 // Job data interface
 export interface DocumentJobData {
@@ -270,5 +315,7 @@ export async function shutdownQueue() {
     }, 'Error during queue shutdown');
   }
 }
+
+
 
 

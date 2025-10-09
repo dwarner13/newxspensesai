@@ -15,12 +15,22 @@ const envSchema = z.object({
   SUPABASE_BUCKET_ORIGINALS: z.string().default('original_docs'),
   SUPABASE_BUCKET_REDACTED: z.string().default('redacted_docs'),
   
-  // Redis Configuration
-  REDIS_URL: z.string().url('Invalid Redis URL').default('redis://localhost:6379').optional(),
+  // Redis Configuration (optional - leave empty to disable Redis queue)
+  REDIS_URL: z.string().optional().transform(val => {
+    if (!val || val === '') return undefined;
+    // Only validate as URL if a value is provided
+    try {
+      new URL(val);
+      return val;
+    } catch {
+      console.warn(`Invalid Redis URL: "${val}". Redis will be disabled. For local dev, use: redis://localhost:6379`);
+      return undefined;
+    }
+  }),
   
   // OCR Configuration
-  OCR_ENGINE: z.enum(['ocrspace', 'tesseract', 'vision']).default('ocrspace'),
-  OCRSPACE_API_KEY: z.string().min(1, 'OCR.space API key required'),
+  OCR_ENGINE: z.enum(['ocrspace', 'tesseract', 'vision']).default('tesseract'),
+  OCRSPACE_API_KEY: z.string().optional(),
   
   // Optional: Google Vision
   GOOGLE_PROJECT_ID: z.string().optional(),
@@ -101,5 +111,7 @@ export const config = {
 export type Config = typeof config;
 export type OCREngine = 'ocrspace' | 'tesseract' | 'vision';
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+
 
 
