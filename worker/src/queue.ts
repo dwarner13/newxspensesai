@@ -11,6 +11,7 @@ if (config.redis.url) {
   try {
     redis = new Redis(config.redis.url, {
       maxRetriesPerRequest: 3,
+      enableOfflineQueue: false, // Don't queue commands when offline
       retryStrategy(times) {
         if (times > 3) {
           logger.warn('Redis connection failed after 3 retries. Running without queue support.');
@@ -18,29 +19,26 @@ if (config.redis.url) {
         }
         return Math.min(times * 200, 2000);
       },
-      lazyConnect: true, // Don't connect immediately
+      lazyConnect: true, // Don't connect until first command
     });
     
-    // Handle connection errors
+    // Handle connection errors gracefully
     redis.on('error', (err: Error & { code?: string }) => {
-      logger.error({
+      logger.warn({
         error: err.message,
         code: err.code,
-      }, 'Redis connection error. Queue features will be unavailable.');
+      }, 'Redis connection error. Queue features disabled. Add Redis database in Railway to enable.');
     });
     
     redis.on('connect', () => {
-      logger.info('Redis connected successfully');
+      logger.info('Redis connected successfully. Queue features enabled.');
     });
     
-    // Try to connect
-    redis.connect().catch((err: Error & { code?: string }) => {
-      logger.error({
-        error: err.message,
-        code: err.code,
-      }, 'Failed to connect to Redis. Queue features will be unavailable. For local development, run: docker run -d -p 6379:6379 redis:7-alpine');
-      redis = null;
+    redis.on('ready', () => {
+      logger.info('Redis ready for commands.');
     });
+    
+    logger.info('Redis configured. Will connect on first use.');
     
   } catch (error) {
     logger.error({
@@ -49,7 +47,7 @@ if (config.redis.url) {
     redis = null;
   }
 } else {
-  logger.warn('REDIS_URL not configured. Queue features will be unavailable. Set REDIS_URL=redis://localhost:6379 for local development.');
+  logger.info('REDIS_URL not configured. Queue features disabled. This is normal for testing.');
 }
 
 // Job data interface
@@ -162,6 +160,10 @@ documentWorker?.on('stalled', (jobId) => {
 export class QueueManager {
   // Add job to queue
   static async addJob(jobData: DocumentJobData): Promise<string> {
+    if (!documentQueue) {
+      throw new Error('Queue not available. Redis connection required. Add Redis database in Railway dashboard.');
+    }
+    
     try {
       const job = await documentQueue.add('process-document', jobData, {
         priority: jobData.docType === 'bank_statement' ? 1 : 0, // Higher priority for bank statements
@@ -185,6 +187,10 @@ export class QueueManager {
   
   // Get job status
   static async getJobStatus(jobId: string) {
+    if (!documentQueue) {
+      throw new Error('Queue not available. Redis connection required.');
+    }
+    
     try {
       const job = await documentQueue.getJob(jobId);
       
@@ -218,6 +224,17 @@ export class QueueManager {
   
   // Get queue statistics
   static async getQueueStats() {
+    if (!documentQueue) {
+      return {
+        waiting: 0,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        total: 0,
+        available: false,
+      };
+    }
+    
     try {
       const waiting = await documentQueue.getWaiting();
       const active = await documentQueue.getActive();
@@ -230,18 +247,31 @@ export class QueueManager {
         completed: completed.length,
         failed: failed.length,
         total: waiting.length + active.length + completed.length + failed.length,
+        available: true,
       };
     } catch (error) {
       logger.error({
         event: 'queue_stats_failed',
         error: error instanceof Error ? error.message : String(error),
       }, 'Failed to get queue statistics');
-      throw error;
+      return {
+        waiting: 0,
+        active: 0,
+        completed: 0,
+        failed: 0,
+        total: 0,
+        available: false,
+      };
     }
   }
   
   // Clean old jobs
   static async cleanOldJobs() {
+    if (!documentQueue) {
+      logger.warn('Queue not available, skipping cleanup');
+      return;
+    }
+    
     try {
       await documentQueue.clean(24 * 60 * 60 * 1000, 100, 'completed'); // 24 hours
       await documentQueue.clean(7 * 24 * 60 * 60 * 1000, 50, 'failed'); // 7 days
@@ -259,6 +289,10 @@ export class QueueManager {
   
   // Pause queue
   static async pauseQueue() {
+    if (!documentQueue) {
+      throw new Error('Queue not available');
+    }
+    
     try {
       await documentQueue.pause();
       logger.info({
@@ -274,6 +308,10 @@ export class QueueManager {
   
   // Resume queue
   static async resumeQueue() {
+    if (!documentQueue) {
+      throw new Error('Queue not available');
+    }
+    
     try {
       await documentQueue.resume();
       logger.info({

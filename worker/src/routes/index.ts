@@ -29,9 +29,16 @@ export async function healthRoutes(fastify: FastifyInstance) {
       
       // Check Redis connection
       const queueStats = await QueueManager.getQueueStats();
+      const redisAvailable = queueStats.available !== false;
       
-      // Check Supabase connection
-      const testQuery = await SupabaseDatabase.getCategorizationRules('00000000-0000-0000-0000-000000000000');
+      // Check Supabase connection (optional test)
+      let supabaseHealthy = true;
+      try {
+        await SupabaseDatabase.getCategorizationRules('00000000-0000-0000-0000-000000000000');
+      } catch (err) {
+        supabaseHealthy = false;
+        logger.warn('Supabase health check failed', err);
+      }
       
       const responseTime = Date.now() - startTime;
       
@@ -42,11 +49,12 @@ export async function healthRoutes(fastify: FastifyInstance) {
         uptime: process.uptime(),
         responseTime,
         services: {
-          redis: 'healthy',
-          supabase: 'healthy',
-          queue: 'healthy',
+          redis: redisAvailable ? 'connected' : 'unavailable',
+          supabase: supabaseHealthy ? 'connected' : 'error',
+          queue: redisAvailable ? 'enabled' : 'disabled',
         },
         queue: queueStats,
+        note: !redisAvailable ? 'Queue disabled - Redis not connected. Add Redis database in Railway to enable.' : undefined,
       };
       
       logUtils.logHealthCheck('healthy', health);
