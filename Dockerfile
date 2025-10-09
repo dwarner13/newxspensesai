@@ -15,6 +15,9 @@ RUN npm ci
 # Copy source code
 COPY worker/ .
 
+# Copy and rename tsconfig.json
+COPY worker-tsconfig.json ./tsconfig.json
+
 # Build TypeScript
 RUN npm run build
 
