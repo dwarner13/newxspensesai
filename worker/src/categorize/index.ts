@@ -177,8 +177,8 @@ export class LLMCategorizer {
         throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
       }
       
-      const result = await response.json();
-      const content = result.choices[0]?.message?.content;
+      const result: any = await response.json();
+      const content = result.choices?.[0]?.message?.content;
       
       if (!content) {
         return null;
@@ -281,5 +281,7 @@ export class CategorizationProcessor {
     }
   }
 }
+
+
 
 

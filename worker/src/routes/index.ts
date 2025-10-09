@@ -31,7 +31,7 @@ export async function healthRoutes(fastify: FastifyInstance) {
       const queueStats = await QueueManager.getQueueStats();
       
       // Check Supabase connection
-      const { data: testQuery } = await SupabaseDatabase.getCategorizationRules('00000000-0000-0000-0000-000000000000');
+      const testQuery = await SupabaseDatabase.getCategorizationRules('00000000-0000-0000-0000-000000000000');
       
       const responseTime = Date.now() - startTime;
       
@@ -85,7 +85,7 @@ export async function healthRoutes(fastify: FastifyInstance) {
         },
       };
       
-      logUtils.logMetrics(metrics);
+      logUtils.logMetrics(metrics as any);
       
       reply.code(200).send(metrics);
     } catch (error) {
@@ -118,7 +118,7 @@ export async function jobRoutes(fastify: FastifyInstance) {
       }
       
       // Add job to queue
-      const jobId = await QueueManager.addJob(body);
+      const jobId = await QueueManager.addJob(body as any);
       
       logger.info({
         event: 'job_created',
@@ -271,5 +271,7 @@ export async function jobRoutes(fastify: FastifyInstance) {
     }
   });
 }
+
+
 
 

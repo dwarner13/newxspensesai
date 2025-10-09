@@ -259,10 +259,17 @@ export class SupabaseDatabase {
   // Update categorization rule match count
   static async updateRuleMatchCount(ruleId: string) {
     try {
+      // First get current count
+      const { data: currentRule } = await supabase
+        .from('categorization_rules')
+        .select('match_count')
+        .eq('id', ruleId)
+        .single();
+      
       const { error } = await supabase
         .from('categorization_rules')
         .update({
-          match_count: supabase.raw('match_count + 1'),
+          match_count: (currentRule?.match_count || 0) + 1,
           last_matched: new Date().toISOString(),
         })
         .eq('id', ruleId);
@@ -299,5 +306,7 @@ export class SupabaseDatabase {
     }
   }
 }
+
+
 
 

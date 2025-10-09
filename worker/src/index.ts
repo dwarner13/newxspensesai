@@ -32,7 +32,7 @@ async function registerPlugins() {
     timeWindow: '1 minute',
     errorResponseBuilder: (request, context) => ({
       error: 'Rate limit exceeded',
-      message: `Rate limit exceeded, retry in ${Math.round(context.after / 1000)} seconds`,
+      message: `Rate limit exceeded, retry in ${Math.round(Number(context.after) / 1000)} seconds`,
       statusCode: 429,
     }),
   });
@@ -183,5 +183,7 @@ async function startServer() {
 
 // Start the server
 startServer();
+
+
 
 
