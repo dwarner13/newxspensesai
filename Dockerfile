@@ -3,6 +3,8 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
+# Cache bust for Railway: Updated Oct 9 2025
+
 # Copy package files first for better caching
 COPY worker/package.json worker/package-lock.json ./
 
