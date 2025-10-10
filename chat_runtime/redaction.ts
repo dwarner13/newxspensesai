@@ -189,7 +189,7 @@ export function unmaskText(
 /**
  * Partially unmask (e.g., show last 4 of card)
  */
-export function partialUnmask(token: string): string {
+function partialUnmask(token: string): string {
   // {{CARD_1234}} -> "****1234"
   const cardMatch = token.match(/\{\{CARD_(\d{4})\}\}/);
   if (cardMatch) {
@@ -220,7 +220,7 @@ export function partialUnmask(token: string): string {
 /**
  * Check if text contains PII
  */
-export function containsPII(text: string): boolean {
+function containsPII(text: string): boolean {
   for (const config of Object.values(PII_PATTERNS)) {
     // Reset regex state
     config.pattern.lastIndex = 0;
@@ -248,7 +248,7 @@ export function containsPII(text: string): boolean {
 /**
  * Get PII types found in text
  */
-export function detectPIITypes(text: string): string[] {
+function detectPIITypes(text: string): string[] {
   const types: string[] = [];
   
   for (const [name, config] of Object.entries(PII_PATTERNS)) {
