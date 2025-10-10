@@ -188,16 +188,70 @@ async function detectPII(text: string, entities: string[]): Promise<{
   const detected: string[] = [];
   let sanitized = text;
 
-  // Custom PII patterns (financial-specific)
+  // Comprehensive PII patterns (enterprise-grade)
   const patterns: Record<string, RegExp> = {
-    credit_card: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
-    ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
+    // Common PII
+    person_name: /\b[A-Z][a-z]+ [A-Z][a-z]+(?:\s[A-Z][a-z]+)?\b/g,
     email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-    phone: /\b\d{3}[-.]?\d{3}[-.]?\d{4}\b/g,
-    bank_account: /\b\d{8,12}\b/g,
-    routing_number: /\b\d{9}\b/g,
-    sin: /\b\d{3}[-\s]?\d{3}[-\s]?\d{3}\b/g, // Canadian SIN
-    ein: /\b\d{2}-\d{7}\b/g, // Employer Identification Number
+    phone: /\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b/g,
+    location: /\b\d{1,5}\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr)\b/g,
+    date_time: /\b(?:0?[1-9]|1[0-2])[\/\-](?:0?[1-9]|[12][0-9]|3[01])[\/\-](?:19|20)\d{2}\b/g,
+    ip_address: /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g,
+    url: /\bhttps?:\/\/[^\s]+\b/g,
+    credit_card: /\b(?:\d{4}[-\s]?){3}\d{4}\b/g,
+    iban: /\b[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}\b/g,
+    crypto_wallet: /\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b|\b0x[a-fA-F0-9]{40}\b/g,
+    medical_license: /\b[A-Z]{2}\d{6,8}\b/g,
+
+    // USA PII
+    us_bank_account: /\b\d{8,17}\b/g,
+    us_driver_license: /\b[A-Z]{1,2}\d{6,8}\b/g,
+    us_itin: /\b9\d{2}[-\s]?\d{2}[-\s]?\d{4}\b/g,
+    us_passport: /\b\d{9}\b/g,
+    us_ssn: /\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/g,
+    us_routing_number: /\b\d{9}\b/g,
+    us_ein: /\b\d{2}[-\s]?\d{7}\b/g,
+
+    // UK PII
+    uk_ni_number: /\b[A-Z]{2}\d{6}[A-D]\b/g,
+    uk_nhs_number: /\b\d{3}[-\s]?\d{3}[-\s]?\d{4}\b/g,
+
+    // Spain PII
+    spanish_nif: /\b[0-9]{8}[TRWAGMYFPDXBNJZSQVHLCKE]\b/g,
+    spanish_nie: /\b[XYZ]\d{7}[TRWAGMYFPDXBNJZSQVHLCKE]\b/g,
+
+    // Italy PII
+    italian_fiscal_code: /\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b/g,
+    italian_vat: /\bIT\d{11}\b/g,
+    italian_passport: /\b[A-Z]{2}\d{7}\b/g,
+    italian_driver_license: /\b[A-Z]{2}\d{7}\b/g,
+    italian_id_card: /\b[A-Z]{2}\d{7}[A-Z]\b/g,
+
+    // Poland PII
+    polish_pesel: /\b\d{11}\b/g,
+
+    // Singapore PII
+    singapore_nric: /\b[A-Z]\d{7}[A-Z]\b/g,
+    singapore_uen: /\b\d{8}[A-Z]\b|\b\d{9}[A-Z]\b/g,
+
+    // Australia PII
+    australian_abn: /\b\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b/g,
+    australian_acn: /\b\d{9}\b/g,
+    australian_tfn: /\b\d{9}\b/g,
+    australian_medicare: /\b\d{10}[-\s]?\d{1}\b/g,
+
+    // India PII
+    indian_aadhaar: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g,
+    indian_pan: /\b[A-Z]{5}\d{4}[A-Z]\b/g,
+    indian_passport: /\b[A-Z]\d{7}\b/g,
+    indian_voter_id: /\b[A-Z]{3}\d{7}\b/g,
+    indian_vehicle_reg: /\b[A-Z]{2}[-\s]?\d{2}[-\s]?[A-Z]{1,2}[-\s]?\d{4}\b/g,
+
+    // Finland PII
+    finnish_personal_code: /\b\d{6}[+-A]\d{3}[0-9A-Y]\b/g,
+
+    // Canada PII (additional)
+    canadian_sin: /\b\d{3}[-\s]?\d{3}[-\s]?\d{3}\b/g,
   };
 
   for (const entity of entities) {

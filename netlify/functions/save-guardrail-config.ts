@@ -72,7 +72,7 @@ export const handler: Handler = async (
     }
 
     // Ensure required PII entities are always included
-    const requiredEntities = ['credit_card', 'ssn'];
+    const requiredEntities = ['credit_card', 'us_ssn'];
     const piiEntities = [...new Set([...requiredEntities, ...config.piiEntities])];
 
     // Prepare data for database

@@ -90,7 +90,7 @@ export const handler: Handler = async (
       moderation: false,
       jailbreakProtection: true,
       hallucinationCheck: false,
-      piiEntities: ['credit_card', 'ssn', 'email', 'phone', 'bank_account'],
+      piiEntities: ['credit_card', 'us_ssn', 'email', 'phone', 'us_bank_account'],
     };
 
     const config = guardrailConfig ? {

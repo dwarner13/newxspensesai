@@ -41,14 +41,68 @@ interface GuardrailsSettingsProps {
 }
 
 const PII_OPTIONS = [
-  { id: 'credit_card', label: 'Credit Card Numbers', description: 'Detect and mask credit card numbers' },
-  { id: 'ssn', label: 'Social Security Numbers', description: 'Detect and mask SSNs' },
-  { id: 'email', label: 'Email Addresses', description: 'Detect and mask email addresses' },
-  { id: 'phone', label: 'Phone Numbers', description: 'Detect and mask phone numbers' },
-  { id: 'bank_account', label: 'Bank Account Numbers', description: 'Detect and mask bank account numbers' },
-  { id: 'routing_number', label: 'Routing Numbers', description: 'Detect and mask routing numbers' },
-  { id: 'sin', label: 'SIN Numbers', description: 'Detect and mask Canadian SINs' },
-  { id: 'ein', label: 'EIN Numbers', description: 'Detect and mask Employer ID Numbers' },
+  // Common PII
+  { id: 'person_name', label: 'Person Names', description: 'Detect and mask full names', category: 'Common' },
+  { id: 'email', label: 'Email Addresses', description: 'Detect and mask email addresses', category: 'Common' },
+  { id: 'phone', label: 'Phone Numbers', description: 'Detect and mask phone numbers', category: 'Common' },
+  { id: 'location', label: 'Physical Addresses', description: 'Detect and mask street addresses', category: 'Common' },
+  { id: 'date_time', label: 'Dates & Times', description: 'Detect and mask dates and timestamps', category: 'Common' },
+  { id: 'ip_address', label: 'IP Addresses', description: 'Detect and mask IP addresses', category: 'Common' },
+  { id: 'url', label: 'URLs', description: 'Detect and mask web URLs', category: 'Common' },
+  { id: 'credit_card', label: 'Credit Card Numbers', description: 'Detect and mask credit card numbers', category: 'Common' },
+  { id: 'iban', label: 'IBAN Numbers', description: 'Detect and mask international bank account numbers', category: 'Common' },
+  { id: 'crypto_wallet', label: 'Crypto Wallet Addresses', description: 'Detect and mask cryptocurrency addresses', category: 'Common' },
+  { id: 'medical_license', label: 'Medical License Numbers', description: 'Detect and mask medical license numbers', category: 'Common' },
+
+  // USA PII
+  { id: 'us_bank_account', label: 'US Bank Account Numbers', description: 'Detect and mask US bank account numbers', category: 'USA' },
+  { id: 'us_driver_license', label: 'US Driver License Numbers', description: 'Detect and mask US driver license numbers', category: 'USA' },
+  { id: 'us_itin', label: 'US ITIN Numbers', description: 'Detect and mask US Individual Taxpayer ID numbers', category: 'USA' },
+  { id: 'us_passport', label: 'US Passport Numbers', description: 'Detect and mask US passport numbers', category: 'USA' },
+  { id: 'us_ssn', label: 'US Social Security Numbers', description: 'Detect and mask US Social Security numbers', category: 'USA' },
+  { id: 'us_routing_number', label: 'US Routing Numbers', description: 'Detect and mask US bank routing numbers', category: 'USA' },
+  { id: 'us_ein', label: 'US EIN Numbers', description: 'Detect and mask US Employer ID numbers', category: 'USA' },
+
+  // UK PII
+  { id: 'uk_ni_number', label: 'UK National Insurance Numbers', description: 'Detect and mask UK National Insurance numbers', category: 'UK' },
+  { id: 'uk_nhs_number', label: 'UK NHS Numbers', description: 'Detect and mask UK NHS numbers', category: 'UK' },
+
+  // Spain PII
+  { id: 'spanish_nif', label: 'Spanish NIF Numbers', description: 'Detect and mask Spanish NIF numbers', category: 'Spain' },
+  { id: 'spanish_nie', label: 'Spanish NIE Numbers', description: 'Detect and mask Spanish NIE numbers', category: 'Spain' },
+
+  // Italy PII
+  { id: 'italian_fiscal_code', label: 'Italian Fiscal Codes', description: 'Detect and mask Italian fiscal codes', category: 'Italy' },
+  { id: 'italian_vat', label: 'Italian VAT Codes', description: 'Detect and mask Italian VAT codes', category: 'Italy' },
+  { id: 'italian_passport', label: 'Italian Passport Numbers', description: 'Detect and mask Italian passport numbers', category: 'Italy' },
+  { id: 'italian_driver_license', label: 'Italian Driver License Numbers', description: 'Detect and mask Italian driver license numbers', category: 'Italy' },
+  { id: 'italian_id_card', label: 'Italian ID Card Numbers', description: 'Detect and mask Italian ID card numbers', category: 'Italy' },
+
+  // Poland PII
+  { id: 'polish_pesel', label: 'Polish PESEL Numbers', description: 'Detect and mask Polish PESEL numbers', category: 'Poland' },
+
+  // Singapore PII
+  { id: 'singapore_nric', label: 'Singapore NRIC/FIN Numbers', description: 'Detect and mask Singapore NRIC/FIN numbers', category: 'Singapore' },
+  { id: 'singapore_uen', label: 'Singapore UEN Numbers', description: 'Detect and mask Singapore UEN numbers', category: 'Singapore' },
+
+  // Australia PII
+  { id: 'australian_abn', label: 'Australian ABN Numbers', description: 'Detect and mask Australian Business Numbers', category: 'Australia' },
+  { id: 'australian_acn', label: 'Australian ACN Numbers', description: 'Detect and mask Australian Company Numbers', category: 'Australia' },
+  { id: 'australian_tfn', label: 'Australian TFN Numbers', description: 'Detect and mask Australian Tax File Numbers', category: 'Australia' },
+  { id: 'australian_medicare', label: 'Australian Medicare Numbers', description: 'Detect and mask Australian Medicare numbers', category: 'Australia' },
+
+  // India PII
+  { id: 'indian_aadhaar', label: 'Indian Aadhaar Numbers', description: 'Detect and mask Indian Aadhaar numbers', category: 'India' },
+  { id: 'indian_pan', label: 'Indian PAN Numbers', description: 'Detect and mask Indian PAN numbers', category: 'India' },
+  { id: 'indian_passport', label: 'Indian Passport Numbers', description: 'Detect and mask Indian passport numbers', category: 'India' },
+  { id: 'indian_voter_id', label: 'Indian Voter ID Numbers', description: 'Detect and mask Indian voter ID numbers', category: 'India' },
+  { id: 'indian_vehicle_reg', label: 'Indian Vehicle Registration Numbers', description: 'Detect and mask Indian vehicle registration numbers', category: 'India' },
+
+  // Finland PII
+  { id: 'finnish_personal_code', label: 'Finnish Personal Identity Codes', description: 'Detect and mask Finnish personal identity codes', category: 'Finland' },
+
+  // Canada PII
+  { id: 'canadian_sin', label: 'Canadian SIN Numbers', description: 'Detect and mask Canadian Social Insurance numbers', category: 'Canada' },
 ];
 
 export function GuardrailsSettings({ userId, onConfigChange }: GuardrailsSettingsProps) {
@@ -58,7 +112,7 @@ export function GuardrailsSettings({ userId, onConfigChange }: GuardrailsSetting
     moderation: false,
     jailbreakProtection: true, // Always on
     hallucinationCheck: false,
-    piiEntities: ['credit_card', 'ssn', 'email', 'phone'],
+    piiEntities: ['credit_card', 'us_ssn', 'email', 'phone', 'us_bank_account'],
   });
 
   const [loading, setLoading] = useState(true);
@@ -277,29 +331,43 @@ export function GuardrailsSettings({ userId, onConfigChange }: GuardrailsSetting
             </AlertDescription>
           </Alert>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {PII_OPTIONS.map((option) => (
-              <div key={option.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50">
-                <Checkbox
-                  id={option.id}
-                  checked={config.piiEntities.includes(option.id)}
-                  onCheckedChange={(checked) => handlePIIEntityChange(option.id, checked as boolean)}
-                  disabled={option.id === 'credit_card' || option.id === 'ssn'} // Always required
-                />
-                <div className="flex-1 min-w-0">
-                  <label htmlFor={option.id} className="text-sm font-medium cursor-pointer">
-                    {option.label}
-                    {(option.id === 'credit_card' || option.id === 'ssn') && (
-                      <Badge variant="secondary" className="ml-2 text-xs">
-                        Required
-                      </Badge>
-                    )}
-                  </label>
-                  <p className="text-xs text-gray-500 mt-1">{option.description}</p>
+          {/* Group PII options by category */}
+          {['Common', 'USA', 'UK', 'Spain', 'Italy', 'Poland', 'Singapore', 'Australia', 'India', 'Finland', 'Canada'].map(category => {
+            const categoryOptions = PII_OPTIONS.filter(option => option.category === category);
+            if (categoryOptions.length === 0) return null;
+
+            return (
+              <div key={category} className="mb-6">
+                <h5 className="font-medium text-gray-700 mb-3 flex items-center gap-2">
+                  <span className="text-sm bg-gray-100 px-2 py-1 rounded-full">{category}</span>
+                  {categoryOptions.length} options
+                </h5>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {categoryOptions.map((option) => (
+                    <div key={option.id} className="flex items-start space-x-3 p-3 border rounded-lg hover:bg-gray-50">
+                      <Checkbox
+                        id={option.id}
+                        checked={config.piiEntities.includes(option.id)}
+                        onCheckedChange={(checked) => handlePIIEntityChange(option.id, checked as boolean)}
+                        disabled={option.id === 'credit_card' || option.id === 'us_ssn'} // Always required
+                      />
+                      <div className="flex-1 min-w-0">
+                        <label htmlFor={option.id} className="text-sm font-medium cursor-pointer">
+                          {option.label}
+                          {(option.id === 'credit_card' || option.id === 'us_ssn') && (
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                              Required
+                            </Badge>
+                          )}
+                        </label>
+                        <p className="text-xs text-gray-500 mt-1">{option.description}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })}
 
           {config.piiEntities.length === 0 && (
             <Alert className="mt-4">

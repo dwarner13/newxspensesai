@@ -38,7 +38,7 @@ const testCases: TestCase[] = [
     expectedViolations: ['credit_card'],
   },
   {
-    name: 'SSN Detection',
+    name: 'US SSN Detection',
     input: 'My social security number is 123-45-6789',
     config: {
       userId: 'test-user',
@@ -46,10 +46,10 @@ const testCases: TestCase[] = [
       moderation: false,
       jailbreakProtection: true,
       hallucinationCheck: false,
-      piiEntities: ['ssn'],
+      piiEntities: ['us_ssn'],
     },
     expectedBlocked: false,
-    expectedViolations: ['ssn'],
+    expectedViolations: ['us_ssn'],
   },
   {
     name: 'Email Detection',
