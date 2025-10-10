@@ -225,7 +225,7 @@ export default function DashboardLayout() {
       
       {/* AI Team Slide-out Panel - Works on all screen sizes */}
       <AITeamSlideOutPanel 
-        autoOpen={true} 
+        autoOpen={false} 
         onToggle={(open) => setIsSlideOutOpen(open)}
       />
     </div>
