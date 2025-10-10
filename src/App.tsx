@@ -80,7 +80,7 @@ const Settings = lazy(() => import('./pages/dashboard/Settings'));
 // const ViewTransactionsPage = lazy(() => import('./pages/ViewTransactionsPage'));
 const AIFinancialFreedomPage = lazy(() => import('./pages/dashboard/AIFinancialFreedomPage'));
 // const AIFinancialFreedomFeaturePage = lazy(() => import('./pages/features/ai-financial-freedom'));
-// const AIEmployees = lazy(() => import('./pages/AIEmployees'));
+const AIEmployees = lazy(() => import('./pages/AIEmployees'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 // const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
 // const PricingPage = lazy(() => import('./pages/PricingPage'));
@@ -277,7 +277,7 @@ function App() {
                       {/* <Route path="/features/podcast-generator" element={<PodcastGeneratorFeaturePage />} /> */}
                       
                       {/* AI Employees page */}
-                      {/* <Route path="/ai-employees" element={<AIEmployees />} /> */}
+                      <Route path="/ai-employees" element={<AIEmployees />} />
                     </Route>
                     
                     {/* Dashboard routes with persistent layout - Each route shows its specific page */}
