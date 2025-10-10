@@ -58,15 +58,18 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       // Create abort controller for cancellation
       abortControllerRef.current = new AbortController();
       
-      const response = await fetch('/api/agent', {
+      const response = await fetch('/.netlify/functions/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`,
         },
         body: JSON.stringify({
+          userId: localStorage.getItem('anonymous_user_id') || `anon-${Date.now()}`,
+          employeeSlug: 'prime-boss',
           message: content,
-          conversationId: options.conversationId,
+          sessionId: options.conversationId,
+          stream: true,
         }),
         signal: abortControllerRef.current.signal,
       });

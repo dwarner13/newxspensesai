@@ -215,7 +215,7 @@ Just tell me what you need, and I'll connect you with the right expert.`,
         
         // Record handoff
         await learningService.current.recordHandoff({
-          from_employee: 'prime',
+          from_employee: 'prime-boss',
           to_employee: response.suggestedHandoff,
           reason: 'specialized analysis',
           success: true});

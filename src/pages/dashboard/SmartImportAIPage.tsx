@@ -328,7 +328,7 @@ const SmartImportAIPage: React.FC = () => {
     // Create Byte's contribution to the financial story
     const byteContribution = {
       timestamp: new Date().toISOString(),
-      employee: 'byte',
+      employee: 'byte-doc',
       totalTransactions: totalTransactions,
       processedFiles: processedFiles,
       accuracy: "99.7%",

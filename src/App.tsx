@@ -103,6 +103,8 @@ const SpotifyIntegrationPage = lazy(() => import('./pages/dashboard/SpotifyInteg
 // const FreelancerTaxFeaturePage = lazy(() => import('./pages/features/freelancer-tax'));
 // const WellnessStudioFeaturePage = lazy(() => import('./pages/features/wellness-studio'));
 const WellnessStudioPage = lazy(() => import('./pages/dashboard/WellnessStudioPage'));
+const ByteChatTest = lazy(() => import('./pages/ByteChatTest'));
+const PrimeChat = lazy(() => import('./pages/chat/PrimeChat'));
 // const GoalConciergeFeaturePage = lazy(() => import('./pages/features/goal-concierge'));
 // const PersonalPodcastFeaturePage = lazy(() => import('./pages/features/personal-podcast'));
 // const FinancialStoryFeaturePage = lazy(() => import('./pages/features/financial-story'));
@@ -226,7 +228,9 @@ function App() {
                         {/* OCR Tester routes */}
                         <Route path="/ocr-tester" element={<OCRTesterPage />} />
                         <Route path="/local-ocr-test" element={<LocalOCRTester />} />
-                        
+                        <Route path="/byte-test" element={<ByteChatTest />} />
+                        <Route path="/chat/prime" element={<PrimeChat />} />
+                      
             <Route path="/debug/mobile" element={<MobileCheck />} />
             <Route path="/debug/mobile-test" element={<MobileTest />} />
             <Route path="/debug/navcheck" element={<NavCheck />} />

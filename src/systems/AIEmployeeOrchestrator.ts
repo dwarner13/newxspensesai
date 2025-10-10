@@ -47,7 +47,7 @@ export class AIEmployeeOrchestrator {
     // Document upload questions
     if (this.shouldRouteToByte(message)) {
       return {
-        employee: 'prime',
+        employee: 'prime-boss',
         message: this.getPrimeHandoffMessage('byte', 'document processing'),
         handoff: {
           from: 'prime',
@@ -62,7 +62,7 @@ export class AIEmployeeOrchestrator {
     // Category questions
     if (this.shouldRouteToTag(message)) {
       return {
-        employee: 'prime',
+        employee: 'prime-boss',
         message: this.getPrimeHandoffMessage('tag', 'categorization'),
         handoff: {
           from: 'prime',
@@ -77,7 +77,7 @@ export class AIEmployeeOrchestrator {
     // Tax questions
     if (this.shouldRouteToLedger(message)) {
       return {
-        employee: 'prime',
+        employee: 'prime-boss',
         message: this.getPrimeHandoffMessage('ledger', 'tax expertise'),
         handoff: {
           from: 'prime',
@@ -92,7 +92,7 @@ export class AIEmployeeOrchestrator {
     // Debt questions
     if (this.shouldRouteToBlitz(message)) {
       return {
-        employee: 'prime',
+        employee: 'prime-boss',
         message: this.getPrimeHandoffMessage('blitz', 'debt management'),
         handoff: {
           from: 'prime',
@@ -107,7 +107,7 @@ export class AIEmployeeOrchestrator {
     // Financial analysis questions
     if (this.shouldRouteToCrystal(message)) {
       return {
-        employee: 'prime',
+        employee: 'prime-boss',
         message: this.getPrimeHandoffMessage('crystal', 'financial analysis'),
         handoff: {
           from: 'prime',
@@ -122,7 +122,7 @@ export class AIEmployeeOrchestrator {
     // Goal questions
     if (this.shouldRouteToGoalie(message)) {
       return {
-        employee: 'prime',
+        employee: 'prime-boss',
         message: this.getPrimeHandoffMessage('goalie', 'goal setting'),
         handoff: {
           from: 'prime',
@@ -136,7 +136,7 @@ export class AIEmployeeOrchestrator {
 
     // Default Prime response for general questions
     return {
-      employee: 'prime',
+      employee: 'prime-boss',
       message: this.getPrimeDefaultResponse(message),
       shouldHandoff: false
     };
@@ -148,7 +148,7 @@ export class AIEmployeeOrchestrator {
     const employeeConfig = AI_EMPLOYEES[employee];
     if (!employeeConfig) {
       return {
-        employee: 'prime',
+        employee: 'prime-boss',
         message: "👑 Let me connect you with the right specialist...",
         shouldHandoff: true
       };

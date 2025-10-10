@@ -11,10 +11,10 @@ const AITeamSidebar: React.FC = () => {
   );
 
   const activities = [
-    { id: '1', aiName: 'Byte', title: 'processing chase statement', timestamp: '2 min ago', employeeKey: 'byte' },
-    { id: '2', aiName: 'Crystal', title: 'analyzing trends', timestamp: '5 min ago', employeeKey: 'crystal' },
-    { id: '3', aiName: 'Tag', title: 'categorizing transactions', timestamp: '12 min ago', employeeKey: 'tag' },
-    { id: '4', aiName: 'Ledger', title: 'tax analysis', timestamp: '8 min ago', employeeKey: 'ledger' },
+    { id: '1', aiName: 'Byte', title: 'processing chase statement', timestamp: '2 min ago', employeeKey: 'byte-doc' },
+    { id: '2', aiName: 'Crystal', title: 'analyzing trends', timestamp: '5 min ago', employeeKey: 'crystal-analytics' },
+    { id: '3', aiName: 'Tag', title: 'categorizing transactions', timestamp: '12 min ago', employeeKey: 'tag-ai' },
+    { id: '4', aiName: 'Ledger', title: 'tax analysis', timestamp: '8 min ago', employeeKey: 'ledger-tax' },
     { id: '5', aiName: 'Chime', title: 'bill reminder', timestamp: '18 min ago', employeeKey: 'chime' }
   ];
 

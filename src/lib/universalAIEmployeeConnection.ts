@@ -397,7 +397,7 @@ export const employeeRouter = {
   
   // Team coordination
   "complex_task": ["prime", "coordinator"],
-  "multi_employee": ["prime", "connector"],
+  "multi_employee": ["prime-boss", "connector"],
   "project_management": ["prime", "planner"]
 };
 

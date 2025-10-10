@@ -3,8 +3,8 @@
 
 export const AI_EMPLOYEES = {
   // CORE TEAM - ACTIVE
-  prime: {
-    id: 'prime',
+  'prime-boss': {
+    id: 'prime-boss',
     name: 'Prime',
     emoji: '👑',
     active: true,
@@ -30,8 +30,8 @@ Always positions yourself as the leader who knows exactly which team member can 
     }
   },
 
-  byte: {
-    id: 'byte',
+  'byte-doc': {
+    id: 'byte-doc',
     name: 'Byte',
     emoji: '🤖',
     active: true,
@@ -57,8 +57,8 @@ Celebrates successful extractions`,
     }
   },
 
-  crystal: {
-    id: 'crystal',
+  'crystal-analytics': {
+    id: 'crystal-analytics',
     name: 'Crystal',
     emoji: '💎',
     active: true,
@@ -84,8 +84,8 @@ Always backs predictions with data`,
     }
   },
 
-  tag: {
-    id: 'tag',
+  'tag-ai': {
+    id: 'tag-ai',
     name: 'Tag',
     emoji: '🏷️',
     active: true,
@@ -111,8 +111,8 @@ Always confirms when uncertain`,
     }
   },
 
-  ledger: {
-    id: 'ledger',
+  'ledger-tax': {
+    id: 'ledger-tax',
     name: 'Ledger',
     emoji: '📊',
     active: true,
@@ -138,8 +138,8 @@ Always mentions potential savings or risks`,
     }
   },
 
-  goalie: {
-    id: 'goalie',
+  'goalie-coach': {
+    id: 'goalie-coach',
     name: 'Goalie',
     emoji: '🥅',
     active: true,
@@ -165,8 +165,8 @@ Celebrates progress enthusiastically`,
     }
   },
 
-  blitz: {
-    id: 'blitz',
+  'blitz-debt': {
+    id: 'blitz-debt',
     name: 'Blitz',
     emoji: '⚡',
     active: true,

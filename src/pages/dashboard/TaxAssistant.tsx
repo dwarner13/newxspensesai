@@ -48,7 +48,7 @@ export default function TaxAssistant() {
       if (!user?.id) return;
 
       try {
-        const config = await getEmployeeConfig('ledger');
+        const config = await getEmployeeConfig('ledger-tax');
         if (config) {
           console.log('Ledger config loaded:', config);
         }
@@ -58,7 +58,7 @@ export default function TaxAssistant() {
         setConversationId(newConversationId);
 
         // Load existing conversation if available
-        const existingConversation = await getConversation(user.id, 'ledger', newConversationId);
+        const existingConversation = await getConversation(user.id, 'ledger-tax', newConversationId);
         if (existingConversation && existingConversation.messages.length > 0) {
           const ledgerMessages = existingConversation.messages.map(msg => ({
             role: msg.role as 'user' | 'ledger' | 'system',
@@ -96,7 +96,7 @@ export default function TaxAssistant() {
 
     try {
       // Add user message to conversation
-      await addMessageToConversation(user?.id || 'anonymous', 'ledger', conversationId, {
+      await addMessageToConversation(user?.id || 'anonymous', 'ledger-tax', conversationId, {
         role: 'user',
         content: content.trim(),
         timestamp: new Date().toISOString()

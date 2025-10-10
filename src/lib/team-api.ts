@@ -15,9 +15,8 @@ export type Task = {
   due?: string;
 };
 
-// Check if we're in a production environment with Netlify functions
-const isProduction = import.meta.env.PROD;
-const API_BASE = isProduction ? '/api' : 'http://localhost:3001/api';
+// Use centralized chat endpoint
+const API_BASE = '/.netlify/functions';
 
 // Mock responses for development/testing
 const mockResponses = {
@@ -152,7 +151,7 @@ export async function postManagerRoute(input: string): Promise<{
   try {
     if (isProduction) {
       // In production, call the actual API
-      const response = await fetch(`${API_BASE}/ai-chat`, {
+      const response = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -189,7 +188,7 @@ export async function postAgentRun(agentId: string, input: string): Promise<{
   try {
     if (isProduction) {
       // In production, call the actual API
-      const response = await fetch(`${API_BASE}/ai-chat`, {
+      const response = await fetch(`${API_BASE}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
