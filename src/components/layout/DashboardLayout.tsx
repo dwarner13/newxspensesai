@@ -86,8 +86,8 @@ export default function DashboardLayout() {
             </main>
           </div>
 
-          {/* Right sidebar - Slide-out panel */}
-          <AITeamSlideOutPanel autoOpen={true} />
+          {/* Right sidebar - Slide-out panel (user controls via button) */}
+          <AITeamSlideOutPanel autoOpen={false} />
         </div>
 
         {/* Prime Chatbot - Using the main BossBubble */}
