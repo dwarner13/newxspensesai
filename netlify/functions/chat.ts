@@ -13,6 +13,7 @@ import { buildContext } from '../../chat_runtime/contextBuilder';
 import { MemoryManager } from '../../chat_runtime/memory';
 import { redact } from '../../chat_runtime/redaction';
 import { delegateTool, delegateToolDefinition } from '../../chat_runtime/tools/delegate';
+import { runGuardrails } from './guardrails';
 
 // Initialize clients
 const openai = new OpenAI({
@@ -76,7 +77,52 @@ export const handler: Handler = async (
       };
     }
 
-    if (!message || typeof message !== 'string') {
+    // Get user's guardrail configuration
+    const { data: guardrailConfig } = await supabase
+      .from('user_guardrail_config')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    const defaultGuardrailConfig = {
+      userId,
+      piiDetection: true,
+      moderation: false,
+      jailbreakProtection: true,
+      hallucinationCheck: false,
+      piiEntities: ['credit_card', 'ssn', 'email', 'phone', 'bank_account'],
+    };
+
+    const config = guardrailConfig ? {
+      userId,
+      piiDetection: guardrailConfig.pii_detection,
+      moderation: guardrailConfig.moderation,
+      jailbreakProtection: guardrailConfig.jailbreak_protection,
+      hallucinationCheck: guardrailConfig.hallucination_check,
+      piiEntities: guardrailConfig.pii_entities,
+    } : defaultGuardrailConfig;
+
+    // Run guardrails on user input
+    const guardrailResult = await runGuardrails(message, config);
+
+    if (guardrailResult.blocked) {
+      console.log(`[GUARDRAIL] Blocked request for user ${userId}:`, guardrailResult.reason);
+      
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({
+          error: 'Request blocked by security system',
+          reason: guardrailResult.reason,
+          violations: guardrailResult.violations,
+        }),
+      };
+    }
+
+    // Use sanitized input if PII was detected
+    const sanitizedMessage = guardrailResult.sanitizedInput || message;
+
+    if (!sanitizedMessage || typeof sanitizedMessage !== 'string') {
       return {
         statusCode: 400,
         headers,
@@ -102,7 +148,7 @@ export const handler: Handler = async (
       userId,
       employeeSlug,
       sessionId: session.id,
-      userInput: message,
+        userInput: sanitizedMessage,
       topK: 5,
       tokenBudget: 6000,
       includeRAG: true,
@@ -119,11 +165,16 @@ export const handler: Handler = async (
       session_id: session.id,
       user_id: userId,
       role: 'user',
-      content: message,
+      content: message, // Store original message
       redacted_content: redactedMessage,
       tokens: Math.ceil(message.length / 4), // Rough estimate
       metadata: {
         redaction_tokens: Array.from(redactionTokens.entries()),
+        guardrail_result: {
+          violations: guardrailResult.violations,
+          sanitized: sanitizedMessage !== message,
+          input_hash: guardrailResult.inputHash,
+        },
       },
     });
 
