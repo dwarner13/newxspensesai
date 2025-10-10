@@ -1,15 +1,6 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc';
+import react from '@vitejs/plugin-react';
 import path from 'path';
-
-// Optional visualizer import
-let visualizer: any = null;
-try {
-  const visualizerModule = await import('rollup-plugin-visualizer');
-  visualizer = visualizerModule.visualizer;
-} catch (error) {
-  console.warn('rollup-plugin-visualizer not available, skipping bundle analysis');
-}
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -19,7 +10,6 @@ export default defineConfig({
       jsxRuntime: 'automatic',
       jsxImportSource: 'react',
     }),
-    ...(visualizer ? [visualizer({ open: false })] : []), // view bundle size with `npm run build`
   ],
   resolve: {
     alias: {
