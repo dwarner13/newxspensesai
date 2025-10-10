@@ -13,20 +13,23 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src')
+      '@': path.resolve(__dirname, './src'),
+      // Mock OpenAI completely for frontend
+      'openai': path.resolve(__dirname, './src/mocks/openai-mock.js'),
+      'openai/_shims/auto/runtime': path.resolve(__dirname, './src/mocks/openai-mock.js'),
     },
   },
   optimizeDeps: {
-    exclude: ['lucide-react', 'pdfjs-dist/build/pdf.worker.entry'],
+    exclude: ['pdfjs-dist/build/pdf.worker.entry', 'openai', 'openai/_shims/auto/runtime'],
     include: [
-      'react', 
-      'react-dom', 
-      'react-router-dom', 
+      'react',
+      'react-dom',
+      'react-router-dom',
       'framer-motion',
       'motion-utils',
       'pdfjs-dist',
-      'pdf-lib',
       'tesseract.js',
+      'lucide-react',
       '@radix-ui/react-compose-refs',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
@@ -61,7 +64,7 @@ export default defineConfig({
     rollupOptions: {
       maxParallelFileOps: 2,
       treeshake: true,
-      external: ['pdfjs-dist/build/pdf.worker.entry'],
+      external: ['pdfjs-dist/build/pdf.worker.entry', 'openai', 'openai/_shims/auto/runtime', 'openai/_shims'],
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
@@ -80,8 +83,10 @@ export default defineConfig({
   server: {
     port: 5173,
     open: false, // Disable auto-open to prevent hanging
-    host: 'localhost',
-    hmr: true, // Enable HMR for better development experience
+    host: '0.0.0.0', // Listen on all interfaces
+    hmr: {
+      overlay: false, // Disable error overlay
+    },
     watch: {
       usePolling: false,
       interval: 1000,
