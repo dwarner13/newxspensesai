@@ -70,7 +70,7 @@ const NavCheck = lazy(() => import('./pages/debug/NavCheck'));
 const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistant'));
 // const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
 const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligence'));
-const PrimeLabPage = lazy(() => import('./ui/pages/PrimeLabPage'));
+// const PrimeLabPage = lazy(() => import('./ui/pages/PrimeLabPage')); // Hidden - using Centralized Chat Runtime instead
 // const TeamRoom = lazy(() => import('./pages/dashboard/TeamRoom'));
 const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
 const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
@@ -239,8 +239,8 @@ function App() {
                         {/* Prime AI Test Page */}
                         {/* <Route path="/test/prime-ai" element={<PrimeAITestPage />} /> */}
                         
-                        {/* Prime Lab Page */}
-                        <Route path="/prime-lab" element={<PrimeLabPage />} />
+                        {/* Prime Lab Page - Hidden (using Centralized Chat Runtime at /chat/prime) */}
+                        {/* <Route path="/prime-lab" element={<PrimeLabPage />} /> */}
                         
                                               {/* Feature pages */}
                       {/* <Route path="/features/smart-import" element={<SmartImportAIFeaturePage />} /> */}
