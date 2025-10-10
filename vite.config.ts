@@ -61,6 +61,7 @@ export default defineConfig({
     rollupOptions: {
       maxParallelFileOps: 2,
       treeshake: true,
+      external: ['pdfjs-dist/build/pdf.worker.entry'],
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
