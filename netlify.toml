@@ -5,7 +5,7 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["tesseract.js", "openai", "@supabase/supabase-js", "undici", "jsdom", "@mozilla/readability"]
+  external_node_modules = ["tesseract.js", "openai", "@supabase/supabase-js", "undici", "jsdom", "@mozilla/readability", "sharp", "pdfjs-dist"]
 
 [build.processing]
   skip_processing = true
