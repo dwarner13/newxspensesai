@@ -6,12 +6,7 @@
  * all employees through specialized routing and personality management.
  */
 
-import OpenAI from 'openai';
-
-// Initialize OpenAI connection (single instance for all employees)
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY || 'your-api-key-here',
-});
+// Note: OpenAI calls are now handled via Netlify functions
 
 /**
  * Complete personality context system for all 30 AI employees
@@ -484,13 +479,27 @@ Remember: You are ${this.personality.name} - stay in character while delivering 
         { role: "user", content: message }
       ];
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4",
-        messages: messages,
-        temperature: 0.7, // Allow for personality variation
-        max_tokens: 500});
+      // Use Netlify function for OpenAI calls
+      const response = await fetch('/.netlify/functions/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: context.userId || 'default-user',
+          employeeSlug: this.employeeId,
+          message: message,
+          stream: false
+        })
+      });
 
-      const aiResponse = response.choices[0]?.message?.content || "I'm here to help!";
+      if (!response.ok) {
+        throw new Error(`Chat function failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const aiResponse = data.content || "I'm here to help!";
       const enhancedResponse = this.addPersonalityFlair(aiResponse);
 
       // Store conversation for learning

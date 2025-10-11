@@ -1,5 +1,4 @@
 import { getSupabase } from '@/lib/supabase';
-import OpenAI from 'openai';
 
 interface AIEmployee {
   name: string;
@@ -40,21 +39,10 @@ interface ChatResponse {
 }
 
 export class UniversalAIController {
-  private openAI: OpenAI;
   private supabase: any;
   private employees: Record<string, AIEmployee>;
 
   constructor() {
-    // Handle missing environment variables gracefully
-    const openaiKey = import.meta.env.VITE_OPENAI_API_KEY;
-    if (openaiKey && openaiKey !== 'your-api-key-here') {
-      this.openAI = new OpenAI({
-        apiKey: openaiKey,
-        dangerouslyAllowBrowser: true});
-    } else {
-      console.warn('OpenAI API key not configured, AI features will be limited');
-      this.openAI = null as any;
-    }
     
     try {
       this.supabase = getSupabase();
@@ -463,39 +451,27 @@ export class UniversalAIController {
     const employee = this.employees[employeeId];
     if (!employee) throw new Error(`Employee ${employeeId} not found`);
 
-    // Handle case where OpenAI is not configured
-    if (!this.openAI) {
-      return {
-        response: "I'm sorry, but AI features are not currently available. Please check your configuration.",
-        employee: employee.name,
-        actions: [],
-        personality: employee.personality
-      };
-    }
-
     try {
-      // Get user context and financial data
-      const userContext = await this.getUserContext(userId);
-      const financialData = await this.getRecentFinancialData(userId);
-      
-      // Build conversation with personality
-      const messages = [
-        { 
-          role: "system", 
-          content: employee.systemPrompt + this.buildUserContextPrompt(userContext, financialData)
+      // Use the chat Netlify function instead of direct OpenAI
+      const response = await fetch('/.netlify/functions/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        ...conversationHistory,
-        { role: "user", content: message }
-      ];
+        body: JSON.stringify({
+          userId: userId,
+          employeeSlug: employeeId,
+          message: message,
+          stream: false
+        })
+      });
 
-      // Generate AI response
-      const response = await this.openAI.chat.completions.create({
-        model: "gpt-4-turbo",
-        messages: messages,
-        temperature: 0.8,
-        max_tokens: 1000});
+      if (!response.ok) {
+        throw new Error(`Chat function failed: ${response.status}`);
+      }
 
-      const aiMessage = response.choices[0].message.content;
+      const data = await response.json();
+      const aiMessage = data.content;
       
       // Store conversation
       await this.storeConversation(userId, employeeId, message, aiMessage);

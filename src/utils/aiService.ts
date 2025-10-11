@@ -1,12 +1,7 @@
-import OpenAI from "openai";
 import { generateContextualPrompt, getAIPersonality } from "./aiPersonalities";
 import { userMemory, rememberConversation, getPersonalizedContext } from "./userMemory";
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true,
-});
+// Note: OpenAI calls are now handled via Netlify functions
 
 export interface AIResponse {
   message: string;
@@ -48,14 +43,26 @@ export const getAIResponse = async (
       { role: 'user' as const, content: userMessage }
     ];
 
-    // Get AI response
-    const response = await openai.chat.completions.create({
-      messages,
-      model: "gpt-4o",
-      max_tokens: 500,
-      temperature: 0.7, // Slightly creative but focused});
+    // Get AI response via Netlify function
+    const response = await fetch('/.netlify/functions/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId: context.userId || 'default-user',
+        employeeSlug: 'general-assistant',
+        message: userMessage,
+        stream: false
+      })
+    });
 
-    const aiMessage = response.choices[0]?.message?.content || "I'm sorry, I couldn't process that request.";
+    if (!response.ok) {
+      throw new Error(`Chat function failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const aiMessage = data.content || "I'm sorry, I couldn't process that request.";
 
     // Generate follow-up questions based on the AI's response
     const followUpQuestions = generateFollowUpQuestions(context.section, userMessage, aiMessage);

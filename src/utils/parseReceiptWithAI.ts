@@ -1,9 +1,4 @@
-import OpenAI from "openai";
-
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true,
-});
+// Note: OpenAI calls are now handled via Netlify functions
 
 export async function parseReceiptWithAI(ocrText: string) {
   const prompt = `
@@ -31,18 +26,35 @@ Return a JSON object like this:
 Only return valid JSON. If you can't find clear information, use "Unknown" for missing fields.
   `;
 
-  const response = await openai.chat.completions.create({
-    messages: [{ role: "user", content: prompt }],
-    model: "gpt-4o",
-  });
-
-  const raw = response.choices[0]?.message?.content || "{}";
-
   try {
-    const parsed = JSON.parse(raw);
-    return parsed;
-  } catch (e) {
-    console.error("Failed to parse AI result:", raw);
-    return null;
+    // Use Netlify function for OpenAI calls
+    const response = await fetch('/.netlify/functions/ocr-ingest-simple', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ocrText: ocrText
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OCR function failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error parsing receipt with AI:", error);
+    
+    // Fallback: try to extract basic info manually
+    const lines = ocrText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    
+    return {
+      title: lines[0] || "Unknown Store",
+      amount: 0,
+      date: new Date().toISOString().split('T')[0],
+      category: "other"
+    };
   }
 }
