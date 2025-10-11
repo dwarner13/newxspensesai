@@ -26,28 +26,50 @@ export default function ChatTest() {
     setInputMessage('');
     setIsLoading(true);
 
-    // Simulate AI response for now
-    setTimeout(() => {
-      const responses = [
-        "Hello! I'm Prime, your AI assistant. How can I help you today?",
-        "I can coordinate with our team of AI specialists. What do you need assistance with?",
-        "Let me connect you with the right AI employee for your request.",
-        "I'm here to help manage your financial tasks and coordinate with our specialized AI team.",
-        "I can delegate tasks to Byte (document processing), Tag (categorization), Crystal (analytics), and Ledger (tax). What would you like me to help with?"
-      ];
-      
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    // Call the real chat endpoint
+    try {
+      const response = await fetch('/.netlify/functions/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: 'test-user',
+          employeeSlug: 'prime-boss',
+          message: inputMessage,
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Chat failed: ${response.status}`);
+      }
+
+      const data = await response.json();
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: randomResponse,
+        content: data.content || "I'm here to help!",
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      
+      // Fallback response
+      const fallbackMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: "Sorry, I'm having trouble connecting right now. Please try again!",
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, fallbackMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
