@@ -113,7 +113,7 @@ const AIFinancialFreedomPage = lazy(() => import('./pages/dashboard/AIFinancialF
 // const AIFinancialFreedomFeaturePage = lazy(() => import('./pages/features/ai-financial-freedom'));
 const AIEmployees = lazy(() => import('./pages/AIEmployees'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
-// const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
+const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
 const PricingPage = lazy(() => import('./pages/PricingPage'));
 
 // Spotify integration components
@@ -247,7 +247,7 @@ function App() {
                         <Route path="/" element={<HomePage />} />
                         {/* <Route path="/ai-assistant" element={<AIAssistantPage />} /> */}
                         <Route path="/contact" element={<ContactPage />} />
-                        {/* <Route path="/reviews" element={<ReviewsPage />} /> */}
+                        <Route path="/reviews" element={<ReviewsPage />} />
                         <Route path="/pricing" element={<PricingPage />} />
                         
                         {/* Spotify integration routes */}
