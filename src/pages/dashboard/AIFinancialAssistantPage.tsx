@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useLocation } from 'react-router-dom';
 import { 
@@ -12,7 +13,8 @@ import {
   BarChart3,
   FileText,
   Zap,
-  X
+  X,
+  Bot
 } from 'lucide-react';
 
 import { useAuth } from '../../contexts/AuthContext';
@@ -623,14 +625,112 @@ export default function AIFinancialAssistantPage() {
   };
 
   return (
-    <div className="w-full">
-      {/* Page Title */}
-      <MobilePageTitle 
-        title="AI Financial Assistant" 
-        subtitle="Get personalized financial advice from AI"
-      />
-      
-      
+    <>
+      <div className="w-full pt-4 px-4 sm:px-6 lg:px-8">
+        {/* Page Title */}
+        <MobilePageTitle 
+          title="AI Financial Assistant" 
+          subtitle="Get personalized financial advice from AI"
+        />
+        
+        {/* Desktop Title */}
+        <div className="hidden md:block text-center mb-8">
+          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
+            AI Financial Assistant
+          </h1>
+          <p className="text-white/60 text-lg">
+            Get personalized financial advice from AI
+          </p>
+        </div>
+        
+        {/* Welcome Banner */}
+        <div className="max-w-6xl mx-auto pr-4 lg:pr-20">
+          <div
+            className="text-center mb-6"
+          >
+            <h2 className="text-xl font-bold text-white mb-1">
+              Welcome to Finley's Financial Lab
+            </h2>
+            <p className="text-white/60 text-sm mb-4">
+              Your intelligent financial advisor and personal money management assistant
+            </p>
+          </div>
+          
+
+          {/* Feature Modules Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto pr-4 lg:pr-20">
+            {[
+              { icon: Upload, title: "Smart Import AI", desc: "Upload and categorize transactions", color: "from-blue-500 to-purple-600" },
+              { icon: Brain, title: "Smart Categories", desc: "AI-powered expense insights", color: "from-green-500 to-emerald-600" },
+              { icon: BarChart3, title: "Transaction Analysis", desc: "Deep spending analysis", color: "from-red-500 to-pink-600" },
+              { icon: Target, title: "AI Goal Concierge", desc: "Set and track financial goals", color: "from-purple-500 to-violet-600" },
+              { icon: FileText, title: "Receipt Processing", desc: "Scan and process receipts", color: "from-orange-500 to-red-600" },
+              { icon: Zap, title: "Smart Automation", desc: "Automate workflows", color: "from-cyan-500 to-blue-600" }
+            ].map((item, index) => (
+              <button
+                key={item.title}
+                onClick={() => {
+                  sendMessage(`Help me with ${item.title.toLowerCase()}`);
+                  setCurrentFeature(item.title);
+                  simulateFeatureWorkflow(item.title);
+                  setWatchMeWorkOpen(true);
+                  
+                  // Show real data based on feature
+                  if (item.title === 'Smart Categories') {
+                    // Simulate AI updating categories
+                    setTimeout(() => {
+                      setRealCategories(prev => prev.map(cat => ({
+                        ...cat,
+                        count: cat.count + Math.floor(Math.random() * 3),
+                        amount: cat.amount + (Math.random() * 50)
+                      })));
+                    }, 2000);
+                  } else if (item.title === 'Transaction Analysis') {
+                    // Simulate new transaction analysis
+                    setTimeout(() => {
+                      setRealTransactions(prev => [...prev, {
+                        id: Date.now(),
+                        description: 'AI Detected: Unusual spending pattern',
+                        amount: -25.00,
+                        category: 'Analysis Alert',
+                        date: new Date().toISOString().split('T')[0],
+                        type: 'analysis'
+                      }]);
+                    }, 3000);
+                  } else if (item.title === 'Smart Automation') {
+                    // Simulate automation running
+                    setTimeout(() => {
+                      setRealAutomations(prev => prev.map(auto => ({
+                        ...auto,
+                        lastRun: 'Just now'
+                      })));
+                    }, 1500);
+                  } else if (item.title === 'AI Goal Concierge') {
+                    // Simulate goal progress update
+                    setTimeout(() => {
+                      setRealGoals(prev => prev.map(goal => ({
+                        ...goal,
+                        current: goal.current + Math.floor(Math.random() * 100),
+                        progress: Math.min(100, Math.floor(((goal.current + Math.floor(Math.random() * 100)) / goal.target) * 100))
+                      })));
+                    }, 2500);
+                  }
+                }}
+                className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
+              >
+                <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                  <item.icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
+                  <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Main Chat Interface */}
       <div className="flex-1 flex flex-col">
         <div className="flex-1 flex flex-col">
@@ -642,83 +742,13 @@ export default function AIFinancialAssistantPage() {
                   <h2
                     className="text-xl font-bold text-white mb-1"
                   >
-                    Welcome to XspensesAI Assistant
+                    Start a conversation with Finley
                   </h2>
                   <p
                     className="text-white/60 text-sm mb-3"
                   >
-                    Your intelligent guide to mastering expense management and financial insights
+                    Click any feature above or type a message below to get started
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
-                    {[
-                      { icon: Upload, title: "Smart Import AI", desc: "Upload and categorize transactions", color: "from-blue-500 to-cyan-500" },
-                      { icon: Brain, title: "Smart Categories", desc: "AI-powered expense insights", color: "from-green-500 to-emerald-500" },
-                      { icon: BarChart3, title: "Transaction Analysis", desc: "Deep spending analysis", color: "from-red-500 to-pink-500" },
-                      { icon: Target, title: "AI Goal Concierge", desc: "Set and track financial goals", color: "from-purple-500 to-violet-500" },
-                      { icon: FileText, title: "Receipt Processing", desc: "Scan and process receipts", color: "from-orange-500 to-yellow-500" },
-                      { icon: Zap, title: "Smart Automation", desc: "Automate workflows", color: "from-indigo-500 to-purple-500" }
-                    ].map((item, index) => (
-                      <button
-                        key={item.title}
-                        onClick={() => {
-                          sendMessage(`Help me with ${item.title.toLowerCase()}`);
-                          setCurrentFeature(item.title);
-                          simulateFeatureWorkflow(item.title);
-                          setWatchMeWorkOpen(true);
-                          
-                          // Show real data based on feature
-                          if (item.title === 'Smart Categories') {
-                            // Simulate AI updating categories
-                            setTimeout(() => {
-                              setRealCategories(prev => prev.map(cat => ({
-                                ...cat,
-                                count: cat.count + Math.floor(Math.random() * 3),
-                                amount: cat.amount + (Math.random() * 50)
-                              })));
-                            }, 2000);
-                          } else if (item.title === 'Transaction Analysis') {
-                            // Simulate new transaction analysis
-                            setTimeout(() => {
-                              setRealTransactions(prev => [...prev, {
-                                id: Date.now(),
-                                description: 'AI Detected: Unusual spending pattern',
-                                amount: -25.00,
-                                category: 'Analysis Alert',
-                                date: new Date().toISOString().split('T')[0],
-                                type: 'analysis'
-                              }]);
-                            }, 3000);
-                          } else if (item.title === 'Smart Automation') {
-                            // Simulate automation running
-                            setTimeout(() => {
-                              setRealAutomations(prev => prev.map(auto => ({
-                                ...auto,
-                                lastRun: 'Just now'
-                              })));
-                            }, 1500);
-                          } else if (item.title === 'AI Goal Concierge') {
-                            // Simulate goal progress update
-                            setTimeout(() => {
-                              setRealGoals(prev => prev.map(goal => ({
-                                ...goal,
-                                current: goal.current + Math.floor(Math.random() * 100),
-                                progress: Math.min(100, Math.floor(((goal.current + Math.floor(Math.random() * 100)) / goal.target) * 100))
-                              })));
-                            }, 2500);
-                          }
-                        }}
-                        className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
-                      >
-                        <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                          <item.icon className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
-                          <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
                 </div>
               </div>
             ) : (
@@ -1119,6 +1149,22 @@ export default function AIFinancialAssistantPage() {
           </div>
         )}
       
-    </div>
+      {/* Floating Finley Chat Button */}
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => {
+          // Focus on chat input or open chat interface
+          const chatInput = document.querySelector('input[placeholder*="Ask about"]') as HTMLInputElement;
+          if (chatInput) {
+            chatInput.focus();
+          }
+        }}
+        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white z-40 transition-all duration-200"
+        title="Chat with Finley AI"
+      >
+        <Bot className="w-6 h-6" />
+      </motion.button>
+    </>
   );
 } 
