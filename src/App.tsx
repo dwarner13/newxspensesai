@@ -48,6 +48,37 @@ const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPa
 const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
 // const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
+
+// Feature pages
+const SmartImportAIFeaturePage = lazy(() => import('./pages/features/smart-import-ai'));
+const AIAssistantFeaturePage = lazy(() => import('./pages/features/ai-assistant'));
+const AITherapistFeaturePage = lazy(() => import('./pages/features/ai-therapist'));
+const GoalConciergeFeaturePage = lazy(() => import('./pages/features/goal-concierge'));
+const PredictionsFeaturePage = lazy(() => import('./pages/features/predictions'));
+const SpotifyIntegrationFeaturePage = lazy(() => import('./pages/features/spotify-integration'));
+const AIInsightsFeaturePage = lazy(() => import('./pages/features/AIInsightsPage'));
+const EmailReceiptsFeaturePage = lazy(() => import('./pages/features/EmailReceiptsPage'));
+const PersonalBusinessGoalsFeaturePage = lazy(() => import('./pages/features/PersonalBusinessGoalsPage'));
+const SmartAutomationFeaturePage = lazy(() => import('./pages/features/SmartAutomationPage'));
+const BusinessExpenseIntelligenceFeaturePage = lazy(() => import('./pages/features/BusinessExpenseIntelligencePage'));
+const FreelancerTaxFeaturePage = lazy(() => import('./pages/features/freelancer-tax'));
+const WellnessStudioFeaturePage = lazy(() => import('./pages/features/wellness-studio'));
+const PersonalPodcastFeaturePage = lazy(() => import('./pages/features/PersonalPodcastPage'));
+const FinancialStoryFeaturePage = lazy(() => import('./pages/features/financial-story'));
+const PodcastPage = lazy(() => import('./pages/features/podcast'));
+const GamificationFeaturePage = lazy(() => import('./pages/features/gamification'));
+const BusinessExpensesFeaturePage = lazy(() => import('./pages/features/business-expenses'));
+const AICoachFeaturePage = lazy(() => import('./pages/features/ai-coach'));
+const AIGoalsFeaturePage = lazy(() => import('./pages/features/ai-goals'));
+const AICategorizationFeaturePage = lazy(() => import('./pages/features/ai-categorization'));
+const TaxAssistantFeaturePage = lazy(() => import('./pages/features/tax-assistant'));
+const BusinessIntelligenceFeaturePage = lazy(() => import('./pages/features/business-intelligence'));
+const DebtPayoffPlannerFeaturePage = lazy(() => import('./pages/features/debt-payoff-planner'));
+const BillRemindersFeaturePage = lazy(() => import('./pages/features/bill-reminders'));
+const AIFinancialFreedomFeaturePage = lazy(() => import('./pages/features/ai-financial-freedom'));
+const VoiceControlFeaturePage = lazy(() => import('./pages/features/voice-control'));
+const SocialMoneyFeaturePage = lazy(() => import('./pages/features/social-money'));
+const AutomationFeaturePage = lazy(() => import('./pages/features/automation'));
 // const ThreeColumnDashboardDemo = lazy(() => import('./components/layout/ThreeColumnDashboardDemo'));
 const SpendingPredictionsPage = lazy(() => import('./pages/dashboard/SpendingPredictionsPage'));
 const AICategorizationPage = lazy(() => import('./pages/dashboard/AICategorizationPage'));
@@ -246,39 +277,37 @@ function App() {
                         {/* Prime Lab Page - Hidden (using Centralized Chat Runtime at /chat/prime) */}
                         {/* <Route path="/prime-lab" element={<PrimeLabPage />} /> */}
                         
-                                              {/* Feature pages */}
-                      {/* <Route path="/features/smart-import" element={<SmartImportAIFeaturePage />} /> */}
-                      {/* <Route path="/features/smart-import-ai" element={<SmartImportAIFeaturePage />} /> */}
-                      {/* <Route path="/features/spending-predictions" element={<PredictionsFeaturePage />} /> */}
-                      {/* <Route path="/features/spotify-integration" element={<SpotifyIntegrationFeaturePage />} /> */}
-                      {/* <Route path="/features/ai-insights" element={<AIInsightsFeaturePage />} /> */}
-                      {/* <Route path="/features/email-receipts" element={<EmailReceiptsFeaturePage />} /> */}
-                      {/* <Route path="/features/personal-business-goals" element={<PersonalBusinessGoalsFeaturePage />} /> */}
-                      {/* <Route path="/features/smart-automation" element={<SmartAutomationFeaturePage />} /> */}
-                      {/* <Route path="/features/business-expense-intelligence" element={<BusinessExpenseIntelligenceFeaturePage />} /> */}
-                      {/* <Route path="/features/freelancer-tax" element={<FreelancerTaxFeaturePage />} /> */}
-                      {/* <Route path="/features/wellness-studio" element={<WellnessStudioFeaturePage />} /> */}
-                      {/* <Route path="/features/goal-concierge" element={<GoalConciergeFeaturePage />} /> */}
-                      {/* <Route path="/features/personal-podcast" element={<PersonalPodcastFeaturePage />} /> */}
-                      {/* <Route path="/features/financial-story" element={<FinancialStoryFeaturePage />} /> */}
-                      {/* <Route path="/features/podcast" element={<PodcastPage />} /> */}
-                      {/* <Route path="/features/gamification" element={<GamificationFeaturePage />} /> */}
-                      {/* <Route path="/features/business-expenses" element={<BusinessExpensesFeaturePage />} /> */}
-                      {/* <Route path="/features/ai-therapist" element={<AITherapistFeaturePage />} /> */}
-                      {/* <Route path="/features/ai-coach" element={<AICoachFeaturePage />} /> */}
-                      {/* <Route path="/features/ai-goals" element={<AIGoalsFeaturePage />} /> */}
-                      {/* <Route path="/features/ai-assistant" element={<AIAssistantFeaturePage />} /> */}
-                      {/* <Route path="/features/ai-categorization" element={<AICategorizationFeaturePage />} /> */}
-                      {/* <Route path="/features/bill-reminders" element={<BillRemindersFeaturePage />} /> */}
-                      {/* <Route path="/features/debt-payoff-planner" element={<DebtPayoffPlannerFeaturePage />} /> */}
-                      {/* <Route path="/features/ai-financial-freedom" element={<AIFinancialFreedomFeaturePage />} /> */}
-                      {/* <Route path="/features/tax-assistant" element={<TaxAssistant />} /> */}
-                      {/* <Route path="/features/business-intelligence" element={<BusinessIntelligence />} /> */}
-                      {/* <Route path="/features/voice-control" element={<VoiceControlFeaturePage />} /> */}
-                      {/* <Route path="/features/social-money" element={<SocialMoneyFeaturePage />} /> */}
-                      {/* <Route path="/features/predictions" element={<PredictionsFeaturePage />} /> */}
-                      {/* <Route path="/features/automation" element={<AutomationFeaturePage />} /> */}
-                      {/* <Route path="/features/podcast-generator" element={<PodcastGeneratorFeaturePage />} /> */}
+                        {/* Feature pages */}
+                        <Route path="/features/smart-import-ai" element={<SmartImportAIFeaturePage />} />
+                        <Route path="/features/ai-assistant" element={<AIAssistantFeaturePage />} />
+                        <Route path="/features/ai-therapist" element={<AITherapistFeaturePage />} />
+                        <Route path="/features/goal-concierge" element={<GoalConciergeFeaturePage />} />
+                        <Route path="/features/spending-predictions" element={<PredictionsFeaturePage />} />
+                        <Route path="/features/spotify-integration" element={<SpotifyIntegrationFeaturePage />} />
+                        <Route path="/features/ai-insights" element={<AIInsightsFeaturePage />} />
+                        <Route path="/features/email-receipts" element={<EmailReceiptsFeaturePage />} />
+                        <Route path="/features/personal-business-goals" element={<PersonalBusinessGoalsFeaturePage />} />
+                        <Route path="/features/smart-automation" element={<SmartAutomationFeaturePage />} />
+                        <Route path="/features/business-expense-intelligence" element={<BusinessExpenseIntelligenceFeaturePage />} />
+                        <Route path="/features/freelancer-tax" element={<FreelancerTaxFeaturePage />} />
+                        <Route path="/features/wellness-studio" element={<WellnessStudioFeaturePage />} />
+                        <Route path="/features/personal-podcast" element={<PersonalPodcastFeaturePage />} />
+                        <Route path="/features/financial-story" element={<FinancialStoryFeaturePage />} />
+                        <Route path="/features/podcast" element={<PodcastPage />} />
+                        <Route path="/features/gamification" element={<GamificationFeaturePage />} />
+                        <Route path="/features/business-expenses" element={<BusinessExpensesFeaturePage />} />
+                        <Route path="/features/ai-coach" element={<AICoachFeaturePage />} />
+                        <Route path="/features/ai-goals" element={<AIGoalsFeaturePage />} />
+                        <Route path="/features/ai-categorization" element={<AICategorizationFeaturePage />} />
+                        <Route path="/features/tax-assistant" element={<TaxAssistantFeaturePage />} />
+                        <Route path="/features/business-intelligence" element={<BusinessIntelligenceFeaturePage />} />
+                        <Route path="/features/debt-payoff-planner" element={<DebtPayoffPlannerFeaturePage />} />
+                        <Route path="/features/bill-reminders" element={<BillRemindersFeaturePage />} />
+                        <Route path="/features/ai-financial-freedom" element={<AIFinancialFreedomFeaturePage />} />
+                        <Route path="/features/voice-control" element={<VoiceControlFeaturePage />} />
+                        <Route path="/features/social-money" element={<SocialMoneyFeaturePage />} />
+                        <Route path="/features/automation" element={<AutomationFeaturePage />} />
+                        <Route path="/features/podcast-generator" element={<PersonalPodcastFeaturePage />} />
                       
                       {/* AI Employees page */}
                       <Route path="/ai-employees" element={<AIEmployees />} />
