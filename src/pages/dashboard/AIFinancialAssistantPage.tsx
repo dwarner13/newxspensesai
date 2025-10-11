@@ -25,8 +25,8 @@ import {
   getRecentConversations
 } from '../../lib/ai-employees';
 
-interface FinleyMessage {
-  role: 'user' | 'finley' | 'system';
+interface PrimeMessage {
+  role: 'user' | 'prime' | 'system';
   content: string;
   timestamp: string;
   metadata?: {
@@ -58,12 +58,13 @@ interface WorkerMessage {
 export default function AIFinancialAssistantPage() {
   const { user } = useAuth();
   const location = useLocation();
-  const [messages, setMessages] = useState<FinleyMessage[]>([]);
+  const [messages, setMessages] = useState<PrimeMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [watchMeWorkOpen, setWatchMeWorkOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [currentFeature, setCurrentFeature] = useState('');
   const [workerChatInput, setWorkerChatInput] = useState('');
   const [workerChatMessages, setWorkerChatMessages] = useState([
@@ -430,7 +431,7 @@ export default function AIFinancialAssistantPage() {
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading || !user?.id) return;
 
-    const userMessage: FinleyMessage = {
+    const userMessage: PrimeMessage = {
       role: 'user',
       content: content.trim(),
       timestamp: new Date().toISOString()
@@ -441,11 +442,57 @@ export default function AIFinancialAssistantPage() {
     setIsLoading(true);
 
     try {
-      // Simulate AI response
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Call the real chat endpoint with Prime
+      const response = await fetch('/.netlify/functions/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user?.id || 'demo-user',
+          employeeSlug: 'prime-boss',
+          message: content.trim(),
+          stream: false
+        })
+      });
 
-      // Generate brilliant, context-aware responses based on XspensesAI features
-      let aiResponse: FinleyMessage;
+      if (!response.ok) {
+        throw new Error(`Chat failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      const aiResponse: PrimeMessage = {
+        role: 'prime',
+        content: data.content || "I'm here to help coordinate your AI team!",
+        timestamp: new Date().toISOString(),
+        metadata: {
+          processing_time_ms: Date.now(),
+          tokens_used: 0,
+          model_used: 'gpt-4'
+        }
+      };
+
+      setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      
+      // Fallback response from Prime
+      const fallbackResponse: PrimeMessage = {
+        role: 'prime',
+        content: "I'm Prime, your AI Team Coordinator! I'm having trouble connecting right now, but I'm here to help you coordinate with Byte, Crystal, Tag, and all our AI specialists. What would you like to accomplish?",
+        timestamp: new Date().toISOString(),
+        metadata: {
+          processing_time_ms: Date.now(),
+          tokens_used: 0,
+          model_used: 'fallback'
+        }
+      };
+
+      setMessages(prev => [...prev, fallbackResponse]);
+    } finally {
+      setIsLoading(false);
+    }
       
       const lowerContent = content.toLowerCase();
       
@@ -729,10 +776,6 @@ export default function AIFinancialAssistantPage() {
           </div>
         </div>
       </div>
-
-        {/* Integrated Chat Interface */}
-        <div className="max-w-6xl mx-auto pr-4 lg:pr-20 mt-8">
-          <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
                 <Bot className="w-5 h-5 text-white" />
@@ -1154,6 +1197,147 @@ export default function AIFinancialAssistantPage() {
             </div>
           </div>
         )}
+
+      {/* Finley Chat Slide-Out Panel */}
+      <div className={`fixed top-0 right-0 h-full w-96 bg-gradient-to-b from-slate-900 to-slate-800 border-l border-white/10 shadow-2xl transform transition-transform duration-300 z-50 ${
+        isChatOpen ? 'translate-x-0' : 'translate-x-full'
+      }`}>
+        {/* Chat Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-xl flex items-center justify-center">
+              <span className="text-white text-lg">👑</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">Prime</h3>
+              <p className="text-white/60 text-sm">AI Team Coordinator & Financial Boss</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsChatOpen(false)}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5 text-white/60" />
+          </button>
+        </div>
+
+        {/* Chat Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 h-[calc(100vh-140px)]">
+          {messages.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Bot className="w-8 h-8 text-purple-400" />
+                </div>
+                <h4 className="text-lg font-semibold text-white mb-2">Welcome! I'm Prime 👑</h4>
+                <p className="text-white/60 text-sm mb-4">
+                  I'm your AI Team Coordinator and Financial Boss. I have the most memory and can connect you with the right specialists. What would you like to accomplish today?
+                </p>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => sendMessage("I need help with document processing - connect me with Byte")}
+                    className="w-full text-left p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white text-sm transition-colors"
+                  >
+                    📄 Connect me with Byte (Document Processing)
+                  </button>
+                  <button
+                    onClick={() => sendMessage("I want financial analysis - bring in Crystal")}
+                    className="w-full text-left p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white text-sm transition-colors"
+                  >
+                    🔮 Connect me with Crystal (Financial Analysis)
+                  </button>
+                  <button
+                    onClick={() => sendMessage("I need help with categorization - get Tag involved")}
+                    className="w-full text-left p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white text-sm transition-colors"
+                  >
+                    🏷️ Connect me with Tag (Smart Categories)
+                  </button>
+                  <button
+                    onClick={() => sendMessage("Show me all available AI employees and their specialties")}
+                    className="w-full text-left p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white text-sm transition-colors"
+                  >
+                    👥 Show me the full AI team
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] px-3 py-2 rounded-lg ${
+                    message.role === 'user'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                      : 'bg-white/10 text-white border border-white/20'
+                  }`}
+                >
+                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  <p className="text-xs opacity-70 mt-1">
+                    {new Date(message.timestamp).toLocaleTimeString()}
+                  </p>
+                </div>
+              </div>
+            ))
+          )}
+          {isLoading && (
+            <div className="flex justify-start">
+              <div className="bg-white/10 px-3 py-2 rounded-lg border border-white/20">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                    <Brain className="w-3 h-3 text-white" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin text-green-400" />
+                    <span className="text-xs text-white/70">Prime is coordinating...</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Chat Input */}
+        <div className="p-4 border-t border-white/10">
+          <div className="flex gap-2">
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                placeholder="Ask Prime anything or request a specialist..."
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
+                disabled={isLoading}
+              />
+            </div>
+            <button
+              onClick={() => !isLoading && sendMessage(input)}
+              disabled={isLoading || !input.trim()}
+              className="px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 font-medium"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Prime Chat Toggle Button */}
+      <button
+        onClick={() => setIsChatOpen(!isChatOpen)}
+        className={`fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white z-40 transition-all duration-200 ${
+          isChatOpen ? 'opacity-50' : ''
+        }`}
+        title="Chat with Prime - AI Team Coordinator"
+      >
+        <span className="text-white text-lg">👑</span>
+      </button>
     </>
   );
 } 
