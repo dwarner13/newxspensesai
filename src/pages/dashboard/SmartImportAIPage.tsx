@@ -627,7 +627,7 @@ const SmartImportAIPage: React.FC = () => {
         </div>
         
         {/* Welcome Banner */}
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-6xl mx-auto pr-4 lg:pr-20">
           <div
             className="text-center mb-6"
           >
@@ -641,7 +641,7 @@ const SmartImportAIPage: React.FC = () => {
           
 
           {/* Feature Modules Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto pr-4 lg:pr-20">
             <button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-purple-500/10"
               onClick={() => setIsByteChatOpen(true)}
