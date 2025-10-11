@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useLocation } from 'react-router-dom';
 import { 
@@ -731,28 +730,34 @@ export default function AIFinancialAssistantPage() {
         </div>
       </div>
 
-      {/* Main Chat Interface */}
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 flex flex-col">
-          {/* Chat Messages Area */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]" ref={messagesEndRef}>
-            {messages.length === 0 ? (
-              <div className="h-full flex items-center justify-center">
-                <div className="text-center max-w-2xl">
-                  <h2
-                    className="text-xl font-bold text-white mb-1"
-                  >
-                    Start a conversation with Finley
-                  </h2>
-                  <p
-                    className="text-white/60 text-sm mb-3"
-                  >
-                    Click any feature above or type a message below to get started
-                  </p>
-                </div>
+        {/* Integrated Chat Interface */}
+        <div className="max-w-6xl mx-auto pr-4 lg:pr-20 mt-8">
+          <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
+                <Bot className="w-5 h-5 text-white" />
               </div>
-            ) : (
-              messages.map((message, index) => (
+              <div>
+                <h3 className="text-lg font-bold text-white">Chat with Finley</h3>
+                <p className="text-white/60 text-sm">Your AI Financial Assistant</p>
+              </div>
+            </div>
+            
+            {/* Chat Messages Area */}
+            <div className="h-64 overflow-y-auto space-y-3 mb-4" ref={messagesEndRef}>
+              {messages.length === 0 ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-white/60 text-sm mb-2">
+                      Start a conversation with Finley
+                    </p>
+                    <p className="text-white/40 text-xs">
+                      Click any feature above or type a message below to get started
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                messages.map((message, index) => (
                 <div
                   key={index}
                   className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -790,9 +795,9 @@ export default function AIFinancialAssistantPage() {
               </div>
             )}
               </div>
-
-          {/* High-Tech Input Area */}
-          <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-cyan-500/5">
+            
+            {/* Chat Input Area */}
+            <div className="border-t border-white/10 pt-4">
             {/* Attachments Display */}
             {attachments.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-1">
@@ -809,22 +814,22 @@ export default function AIFinancialAssistantPage() {
                 ))}
               </div>
             )}
-            <div className="flex gap-1">
+            <div className="flex gap-2">
               <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                    placeholder="Ask about Smart Import AI, Smart Categories..."
-                    className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1.5 pr-10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
-                    disabled={isLoading}
-                  />
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
+                  placeholder="Ask Finley about Smart Import AI, Smart Categories, or any financial question..."
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 pr-12 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all"
+                  disabled={isLoading}
+                />
                 <button 
                   onClick={() => fileInputRef.current?.click()}
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1 hover:bg-white/10 rounded transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 hover:bg-white/10 rounded-lg transition-colors"
                 >
-                  <Paperclip className="w-3.5 h-3.5 text-white/60" />
+                  <Paperclip className="w-4 h-4 text-white/60" />
                 </button>
                 <input
                   ref={fileInputRef}
@@ -835,14 +840,14 @@ export default function AIFinancialAssistantPage() {
                   className="hidden"
                 />
               </div>
-              <button className="p-1.5 hover:bg-white/10 rounded transition-colors">
-                <Mic className="w-3.5 h-3.5 text-white/60" />
+              <button className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+                <Mic className="w-4 h-4 text-white/60" />
               </button>
-                  <button
+              <button
                 onClick={() => !isLoading && sendMessage(input)}
-                    disabled={isLoading || !input.trim()}
-                className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-cyan-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
-                  >
+                disabled={isLoading || !input.trim()}
+                className="px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 font-medium"
+              >
                 {isLoading ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
@@ -851,8 +856,9 @@ export default function AIFinancialAssistantPage() {
                     <span>Send</span>
                   </>
                 )}
-                  </button>
-                </div>
+              </button>
+            </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1148,23 +1154,6 @@ export default function AIFinancialAssistantPage() {
             </div>
           </div>
         )}
-      
-      {/* Floating Finley Chat Button */}
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => {
-          // Focus on chat input or open chat interface
-          const chatInput = document.querySelector('input[placeholder*="Ask about"]') as HTMLInputElement;
-          if (chatInput) {
-            chatInput.focus();
-          }
-        }}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white z-40 transition-all duration-200"
-        title="Chat with Finley AI"
-      >
-        <Bot className="w-6 h-6" />
-      </motion.button>
     </>
   );
 } 
