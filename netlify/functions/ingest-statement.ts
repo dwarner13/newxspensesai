@@ -1,13 +1,14 @@
 import type { Handler } from '@netlify/functions';
-import { z } from 'zod';
+// import { z } from 'zod'; // Temporarily disabled
 
-const inputSchema = z.object({
-  type: z.enum(["csv", "pdf", "image"]).optional(),
-  text: z.string().optional(),
-  fileId: z.string().optional(),
-  confirm: z.boolean().optional(),
-  userId: z.string().optional(),
-});
+// Temporarily disabled zod schema
+// const inputSchema = z.object({
+//   type: z.enum(["csv", "pdf", "image"]).optional(),
+//   text: z.string().optional(),
+//   fileId: z.string().optional(),
+//   confirm: z.boolean().optional(),
+//   userId: z.string().optional(),
+// });
 
 export const handler: Handler = async (event) => {
   // Enable CORS
@@ -31,7 +32,8 @@ export const handler: Handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { type, text, fileId, confirm, userId } = inputSchema.parse(body);
+    // const { type, text, fileId, confirm, userId } = inputSchema.parse(body); // Temporarily disabled
+    const { type, text, fileId, confirm, userId } = body;
 
     if (!text && !fileId) {
       return {

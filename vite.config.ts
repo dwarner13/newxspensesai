@@ -66,6 +66,7 @@ export default defineConfig({
       treeshake: true,
       external: ['pdfjs-dist/build/pdf.worker.entry', 'openai', 'openai/_shims/auto/runtime', 'openai/_shims'],
       output: {
+        format: 'esm', // Ensure ESM output
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
           ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs'],

@@ -159,7 +159,7 @@ export default function PersonalPodcastPage() {
                   >
                     Your AI-powered entertainment platform where financial advice meets personality
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
                     {[
                       { icon: Play, title: "Generate Episode", desc: "Create personalized podcast episodes", color: "from-green-500 to-emerald-500", view: "generate_episode" },
                       { icon: Heart, title: "Meet Cheerleaders", desc: "Your financial motivation team", color: "from-blue-500 to-cyan-500", view: "cheerleaders" },
@@ -171,13 +171,13 @@ export default function PersonalPodcastPage() {
                       <button
                         key={item.title}
                         onClick={() => setActiveView(item.view)}
-                        className="group flex flex-col items-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[80px] hover:shadow-lg hover:shadow-green-500/10"
+                        className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
                       >
-                        <div className={`w-10 h-10 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
-                          <item.icon className="w-5 h-5 text-white" />
+                        <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                          <item.icon className="w-6 h-6 text-white" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-xs font-semibold text-white mb-0.5">{item.title}</h3>
+                          <h3 className="text-sm font-semibold text-white mb-1">{item.title}</h3>
                           <p className="text-white/60 text-xs leading-tight">{item.desc}</p>
                         </div>
                       </button>

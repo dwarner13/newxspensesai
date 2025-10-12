@@ -7,10 +7,8 @@ import AITeamSidebar from "../components/layout/AITeamSidebar";
 import MobileSidebar from "../components/layout/MobileSidebar";
 import MobileBottomNav from "../components/layout/MobileBottomNav";
 import MobileProfileModal from "../components/layout/MobileProfileModal";
-import BossBubble from "../components/boss/BossBubble";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
-import AITeamSlideOutPanel from "../components/layout/AITeamSlideOutPanel";
 
 export default function DashboardLayout() {
   const location = useLocation();
@@ -18,7 +16,6 @@ export default function DashboardLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isSlideOutOpen, setIsSlideOutOpen] = useState(false);
 
   // Pull-to-refresh functionality for mobile
   const handleRefresh = async () => {
@@ -181,8 +178,6 @@ export default function DashboardLayout() {
           onClose={() => setIsProfileModalOpen(false)} 
         />
         
-        {/* Prime Chatbot - Mobile */}
-        <BossBubble />
       </div>
     );
   }
@@ -199,7 +194,7 @@ export default function DashboardLayout() {
       </div>
       
       {/* Main content area */}
-      <div className={`flex-1 min-w-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-56'} ${isSlideOutOpen ? 'mr-[360px]' : ''}`}>
+      <div className={`flex-1 min-w-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
         <div className="flex h-full">
           {/* Main content column */}
           <div className="flex-1 min-w-0 flex flex-col">
@@ -220,14 +215,7 @@ export default function DashboardLayout() {
         </div>
       </div>
       
-      {/* Prime Chatbot - Desktop */}
-      <BossBubble />
       
-      {/* AI Team Slide-out Panel - Works on all screen sizes */}
-      <AITeamSlideOutPanel 
-        autoOpen={false} 
-        onToggle={(open) => setIsSlideOutOpen(open)}
-      />
     </div>
   );
 }

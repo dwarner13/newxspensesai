@@ -121,41 +121,13 @@ const SpotifyCallbackPage = lazy(() => import('./pages/SpotifyCallbackPage'));
 const SpotifyPlayerPage = lazy(() => import('./pages/SpotifyPlayerPage'));
 const SpotifyIntegrationPage = lazy(() => import('./pages/dashboard/SpotifyIntegrationPage'));
 
-// Feature pages - lazy load as they're less critical
-// const SmartImportAIFeaturePage = lazy(() => import('./pages/features/smart-import-ai'));
-// const SpendingPredictionsFeaturePage = lazy(() => import('./archived/SpendingPredictionsFeaturePage'));
-// const SpotifyIntegrationFeaturePage = lazy(() => import('./pages/features/spotify-integration'));
-// const SpotifyIntegrationDashboardPage = lazy(() => import('./pages/dashboard/SpotifyIntegrationDashboard'));
-// const AIInsightsFeaturePage = lazy(() => import('./pages/features/AIInsightsPage'));
-// const EmailReceiptsFeaturePage = lazy(() => import('./pages/features/EmailReceiptsPage'));
-// const PersonalBusinessGoalsFeaturePage = lazy(() => import('./pages/features/PersonalBusinessGoalsPage'));
-// const SmartAutomationFeaturePage = lazy(() => import('./pages/features/smart-automation'));
-// const BusinessExpenseIntelligenceFeaturePage = lazy(() => import('./pages/features/BusinessExpenseIntelligencePage'));
-// const FreelancerTaxFeaturePage = lazy(() => import('./pages/features/freelancer-tax'));
-// const WellnessStudioFeaturePage = lazy(() => import('./pages/features/wellness-studio'));
+// Additional components
 const WellnessStudioPage = lazy(() => import('./pages/dashboard/WellnessStudioPage'));
 const ByteChatTest = lazy(() => import('./pages/ByteChatTest'));
 const PrimeChat = lazy(() => import('./pages/chat/PrimeChat'));
 const ChatTest = lazy(() => import('./pages/ChatTest'));
 const SimpleTest = lazy(() => import('./pages/SimpleTest'));
-// const GoalConciergeFeaturePage = lazy(() => import('./pages/features/goal-concierge'));
-// const PersonalPodcastFeaturePage = lazy(() => import('./pages/features/personal-podcast'));
-// const FinancialStoryFeaturePage = lazy(() => import('./pages/features/financial-story'));
-// const PodcastPage = lazy(() => import('./pages/features/podcast'));
-// const GamificationFeaturePage = lazy(() => import('./pages/features/gamification'));
-// const BusinessExpensesFeaturePage = lazy(() => import('./pages/features/business-expenses'));
-// const AITherapistFeaturePage = lazy(() => import('./pages/features/ai-therapist'));
-// const AICoachFeaturePage = lazy(() => import('./pages/features/ai-coach'));
-// const AIGoalsFeaturePage = lazy(() => import('./pages/features/ai-goals'));
-// const AIAssistantFeaturePage = lazy(() => import('./pages/features/ai-assistant'));
-// const VoiceControlFeaturePage = lazy(() => import('./pages/features/voice-control'));
-// const SocialMoneyFeaturePage = lazy(() => import('./pages/features/social-money'));
-// const PredictionsFeaturePage = lazy(() => import('./pages/features/predictions'));
-// const AICategorizationFeaturePage = lazy(() => import('./pages/features/ai-categorization'));
-// const BillRemindersFeaturePage = lazy(() => import('./pages/features/bill-reminders'));
-// const DebtPayoffPlannerFeaturePage = lazy(() => import('./pages/features/debt-payoff-planner'));
-// const AutomationFeaturePage = lazy(() => import('./pages/features/automation'));
-// const PodcastGeneratorFeaturePage = lazy(() => import('./pages/features/podcast-generator'));
+const PodcastGeneratorFeaturePage = lazy(() => import('./pages/features/podcast-generator'));
 
 // Loading component for Suspense fallback
 const LoadingSpinner = () => (

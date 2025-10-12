@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
+import { sendChat } from '../services/chatApi';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  employee?: string;
 }
 
 export default function ChatTest() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [currentEmployee, setCurrentEmployee] = useState('prime');
+
+  // TODO: Replace with real auth
+  const userId = 'test-user-uuid-replace-with-auth';
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -23,35 +29,26 @@ export default function ChatTest() {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const messageText = inputMessage;
     setInputMessage('');
     setIsLoading(true);
 
-    // Call the real chat endpoint
     try {
-      const response = await fetch('/.netlify/functions/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: 'test-user',
-          employeeSlug: 'prime-boss',
-          message: inputMessage,
-          stream: false
-        })
+      // Use the new chat API with real AI
+      const { text: reply, employee } = await sendChat({
+        userId,
+        message: messageText,
+        mock: false  // Set to true to test without using AI credits
       });
 
-      if (!response.ok) {
-        throw new Error(`Chat failed: ${response.status}`);
-      }
-
-      const data = await response.json();
+      setCurrentEmployee(employee);
       
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: data.content || "I'm here to help!",
+        content: reply,
         timestamp: new Date(),
+        employee
       };
 
       setMessages(prev => [...prev, assistantMessage]);
@@ -84,15 +81,22 @@ export default function ChatTest() {
       <div className="w-full max-w-md">
         <div className="bg-gray-800 rounded-lg shadow-2xl overflow-hidden border border-gray-700">
           <div className="bg-gray-700 text-white p-3 border-b border-gray-600">
-            <h1 className="text-lg font-bold">Chat Test - Prime</h1>
-            <p className="text-gray-300 text-sm">Testing AI delegation</p>
+            <h1 className="text-lg font-bold">Chat Test - Real AI</h1>
+            <p className="text-gray-300 text-sm">
+              Current: <span className="font-semibold text-blue-300">{currentEmployee}</span>
+            </p>
           </div>
           
           <div className="h-64 overflow-y-auto p-3 space-y-3 bg-gray-800">
             {messages.length === 0 && (
               <div className="text-center text-gray-400 py-6">
-                <p className="text-sm">Start chatting with Prime!</p>
-                <p className="text-xs mt-1 text-gray-500">Try: "Hello Prime!" or "Help me with my finances"</p>
+                <p className="text-sm">Start chatting with Real AI!</p>
+                <p className="text-xs mt-1 text-gray-500">
+                  Try: "Help me categorize expenses" or "Show me my receipts"
+                </p>
+                <p className="text-xs mt-2 text-yellow-400">
+                  ⚡ Using real OpenAI GPT-4o-mini
+                </p>
               </div>
             )}
             
@@ -121,7 +125,9 @@ export default function ChatTest() {
             {isLoading && (
               <div className="flex justify-start">
                 <div className="bg-gray-700 text-gray-300 px-3 py-2 rounded-lg border border-gray-600">
-                  <p className="text-sm">Prime is thinking...</p>
+                  <p className="text-sm">
+                    <span className="inline-block animate-pulse">🤖</span> {currentEmployee} is thinking...
+                  </p>
                 </div>
               </div>
             )}

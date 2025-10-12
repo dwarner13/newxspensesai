@@ -15,11 +15,27 @@ export function isPrimeEnabled(): boolean {
 }
 
 export function getSupabaseUrl(): string {
-  return import.meta.env?.VITE_SUPABASE_URL || '';
+  // Client-side (browser)
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    return import.meta.env.VITE_SUPABASE_URL || '';
+  }
+  // Server-side (Node.js)
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  }
+  return '';
 }
 
 export function getSupabaseAnonKey(): string {
-  return import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+  // Client-side (browser)
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    return import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  }
+  // Server-side (Node.js)
+  if (typeof process !== 'undefined' && process.env) {
+    return process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+  }
+  return '';
 }
 
 // Browser-safe version - server-side functions removed

@@ -13,6 +13,7 @@ const GoalConciergePage: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isEmployeePanelOpen, setIsEmployeePanelOpen] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -74,7 +75,7 @@ const GoalConciergePage: React.FC = () => {
   };
 
   return (
-    <div className="w-full pt-4 px-4 sm:px-6 lg:px-8">
+    <div className="w-full pt-4 px-4 sm:px-6 lg:px-8 min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
       {/* Mobile Page Title */}
       <div className="md:hidden text-center mb-4 mt-1">
         <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-3" style={{ WebkitBackgroundClip: 'text' }}>
@@ -83,439 +84,150 @@ const GoalConciergePage: React.FC = () => {
         <p className="text-white/60 text-base">Set and track your financial goals</p>
       </div>
       
-      
-      {/* Welcome Section */}
-      <div className="text-center mb-8">
-        <h2 className="text-xl font-bold text-white mb-1">
-          Welcome to Goalie's Goals Setting Session
-        </h2>
-        <p className="text-white/60 text-sm mb-3">
-          Your intelligent guide to setting, tracking, and achieving your financial goals
+      {/* Desktop Title */}
+      <div className="hidden md:block text-center mb-8">
+        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
+          AI Goal Concierge
+        </h1>
+        <p className="text-white/60 text-lg">
+          Set and track your financial goals with AI assistance
         </p>
-        <div className="flex items-center justify-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span className="text-green-400 text-sm font-medium">AI Ready</span>
-          </div>
-          <div className="text-2xl">🎯</div>
-        </div>
       </div>
+      
+      {/* Welcome Banner */}
+      <div className="max-w-6xl mx-auto pr-4 lg:pr-20 mb-8">
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-bold text-white mb-1">
+            Welcome to Goalie's Goals Setting Session
+          </h2>
+          <p className="text-white/60 text-sm mb-4">
+            Your intelligent guide to setting, tracking, and achieving your financial goals
+          </p>
+        </div>
 
-      {/* Professional Dashboard Layout */}
-      <div className="space-y-6">
-        {/* Goalie AI Assistant */}
-        <div
-          className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-                <Target className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-white">Goalie AI</h3>
-                <p className="text-white/60 text-sm">Your personal goal-setting coach</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm">AI Active</span>
-            </div>
-          </div>
-          
-          <div className="bg-white/10 rounded-lg p-4 mb-4">
-            <p className="text-white/80 text-sm mb-3">
-              "Hi! I'm Goalie, your AI goal-setting assistant. I can help you create smart financial goals, 
-              track your progress, and provide personalized strategies to achieve them faster. What would you like to work on today?"
-            </p>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setIsChatOpen(true)}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg text-sm transition-colors"
+        {/* Feature Modules Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
+          {[
+            { icon: Target, title: "Emergency Fund", desc: "Build your financial safety net", color: "from-green-500 to-emerald-600" },
+            { icon: Trophy, title: "Vacation Goals", desc: "Plan and save for your dream trip", color: "from-blue-500 to-cyan-600" },
+            { icon: BarChart3, title: "Debt Payoff", desc: "Create a debt elimination strategy", color: "from-red-500 to-pink-600" },
+            { icon: Brain, title: "Smart Goals", desc: "AI-powered goal recommendations", color: "from-purple-500 to-violet-600" },
+            { icon: Target, title: "Progress Tracking", desc: "Monitor your goal achievements", color: "from-orange-500 to-yellow-600" },
+            { icon: Brain, title: "Goal Analytics", desc: "Get insights on your progress", color: "from-indigo-500 to-purple-600" }
+          ].map((feature, index) => {
+            const Icon = feature.icon;
+            return (
+              <button
+                key={index}
+                className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
               >
-                Chat with Goalie
+                <div className={`w-12 h-12 bg-gradient-to-br ${feature.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                  <Icon className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-white mb-1">{feature.title}</h3>
+                  <p className="text-white/60 text-xs leading-tight">{feature.desc}</p>
+                </div>
               </button>
-              <button className="bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-sm transition-colors">
-                Get Goal Suggestions
-              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* AI Employee Activity Panel */}
+      <div className={`fixed top-0 right-0 h-full w-80 bg-gradient-to-b from-slate-900 to-slate-800 border-l border-white/10 shadow-2xl transform transition-transform duration-300 z-40 ${
+        isEmployeePanelOpen ? 'translate-x-0' : 'translate-x-full'
+      }`}>
+        {/* Panel Header */}
+        <div className="flex items-center justify-between p-4 border-b border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
+              <span className="text-white text-sm">🤖</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">AI Team Activity</h3>
+              <p className="text-white/60 text-sm">Live employee status</p>
             </div>
           </div>
+          <button onClick={() => setIsEmployeePanelOpen(false)} className="p-2 hover:bg-white/10 rounded-lg transition-colors">
+            <X className="w-4 h-4 text-white/60" />
+          </button>
         </div>
 
-        {/* Goal Management Dashboard */}
-        <div
-          className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl font-bold text-white">AI-Powered Goal Management</h2>
-              <p className="text-white/60 text-sm">Let Goalie help you set and achieve your financial goals</p>
+        {/* Employee Status List */}
+        <div className="p-4 space-y-4">
+          {[
+            { name: 'Byte', role: 'Document Processor', status: 'working', task: 'Processing receipts', progress: 75, avatar: '📄', color: 'from-blue-500 to-cyan-500' },
+            { name: 'Tag', role: 'Categorization Expert', status: 'idle', task: 'Ready for new tasks', progress: 0, avatar: '🏷️', color: 'from-green-500 to-emerald-500' },
+            { name: 'Crystal', role: 'Financial Analyst', status: 'working', task: 'Analyzing spending patterns', progress: 45, avatar: '💎', color: 'from-purple-500 to-pink-500' },
+            { name: 'Finley', role: 'Financial Assistant', status: 'available', task: 'Ready to assist', progress: 0, avatar: '💰', color: 'from-yellow-500 to-orange-500' }
+          ].map((employee, index) => (
+            <div key={index} className="bg-white/5 border border-white/10 rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-10 h-10 bg-gradient-to-r ${employee.color} rounded-lg flex items-center justify-center`}>
+                  <span className="text-white text-lg">{employee.avatar}</span>
+                </div>
+                <div className="flex-1">
+                  <h4 className="text-white font-semibold">{employee.name}</h4>
+                  <p className="text-white/60 text-sm">{employee.role}</p>
+                </div>
+                <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  employee.status === 'working' ? 'bg-green-500/20 text-green-400' :
+                  employee.status === 'available' ? 'bg-blue-500/20 text-blue-400' :
+                  'bg-gray-500/20 text-gray-400'
+                }`}>
+                  {employee.status}
+                </div>
+              </div>
+              <p className="text-white/80 text-sm mb-2">{employee.task}</p>
+              {employee.progress > 0 && (
+                <div className="w-full bg-white/10 rounded-full h-2">
+                  <div 
+                    className={`bg-gradient-to-r ${employee.color} h-2 rounded-full transition-all duration-300`}
+                    style={{ width: `${employee.progress}%` }}
+                  ></div>
+                </div>
+              )}
             </div>
-            <div className="flex gap-2">
-              <button className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white px-4 py-2 rounded-lg transition-all flex items-center space-x-2">
-                <Target size={16} />
-                <span>Create Goal</span>
-              </button>
-              <button className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2">
-                <BarChart3 size={16} />
-                <span>Analytics</span>
-              </button>
-            </div>
-          </div>
+          ))}
+        </div>
 
-          {/* Goalie's Insights */}
-          <div className="bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-lg p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Target className="w-4 h-4 text-white" />
-              </div>
-              <div className="flex-1">
-                <div className="text-purple-400 font-semibold text-sm mb-1">🎯 Goalie's Analysis</div>
-                <p className="text-white/80 text-sm leading-relaxed mb-2">
-                  "Based on your financial profile, I recommend focusing on building an emergency fund first. 
-                  You're currently saving $500/month - increasing this to $750 would help you reach your 6-month goal 3 months earlier."
-                </p>
-                <div className="flex gap-2">
-                  <button className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded px-3 py-1 text-xs transition-colors">
-                    Get Strategy
-                  </button>
-                  <button className="bg-white/10 hover:bg-white/20 text-white rounded px-3 py-1 text-xs transition-colors">
-                    Adjust Goal
-                  </button>
+        {/* Activity Feed */}
+        <div className="p-4 border-t border-white/10">
+          <h4 className="text-white font-semibold mb-3">Recent Activity</h4>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {[
+              { action: 'Byte processed 5 receipts', time: '2 min ago', icon: '📄' },
+              { action: 'Tag categorized 12 transactions', time: '5 min ago', icon: '🏷️' },
+              { action: 'Crystal generated spending report', time: '8 min ago', icon: '💎' },
+              { action: 'Finley provided budget advice', time: '12 min ago', icon: '💰' }
+            ].map((activity, index) => (
+              <div key={index} className="flex items-center gap-3 text-sm">
+                <span className="text-lg">{activity.icon}</span>
+                <div className="flex-1">
+                  <p className="text-white/80">{activity.action}</p>
+                  <p className="text-white/50 text-xs">{activity.time}</p>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Active Goals Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-            {/* Emergency Fund Goal */}
-            <div className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all cursor-pointer group">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-white">Emergency Fund</h3>
-                <div className="text-xs px-2 py-1 rounded-full text-green-400 bg-white/10">
-                  Active
-                </div>
-              </div>
-              
-              <p className="text-white/70 text-sm mb-4">Build 6-month emergency fund</p>
-              
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-white/60">Progress</span>
-                    <span className="text-white">57%</span>
-                  </div>
-                  <div className="w-full bg-white/20 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-purple-500 to-pink-500 h-2 rounded-full transition-all" style={{ width: '57%' }} />
-                  </div>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Current</span>
-                  <span className="text-white">$8,500</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Target</span>
-                  <span className="text-white">$15,000</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Deadline</span>
-                  <span className="text-white">Dec 31, 2024</span>
-                </div>
-                
-                <div className="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded px-2 py-1 text-xs transition-colors">
-                    Ask Goalie
-                  </button>
-                  <button className="bg-white/10 hover:bg-white/20 text-white rounded px-2 py-1 text-xs transition-colors">
-                    Update
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Vacation Fund Goal */}
-            <div className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all cursor-pointer group">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-white">Vacation Fund</h3>
-                <div className="text-xs px-2 py-1 rounded-full text-blue-400 bg-white/10">
-                  Active
-                </div>
-              </div>
-              
-              <p className="text-white/70 text-sm mb-4">Save for dream vacation</p>
-              
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-white/60">Progress</span>
-                    <span className="text-white">64%</span>
-                  </div>
-                  <div className="w-full bg-white/20 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-blue-500 to-cyan-500 h-2 rounded-full transition-all" style={{ width: '64%' }} />
-                  </div>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Current</span>
-                  <span className="text-white">$3,200</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Target</span>
-                  <span className="text-white">$5,000</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Deadline</span>
-                  <span className="text-white">Aug 15, 2024</span>
-                </div>
-                
-                <div className="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded px-2 py-1 text-xs transition-colors">
-                    Ask Goalie
-                  </button>
-                  <button className="bg-white/10 hover:bg-white/20 text-white rounded px-2 py-1 text-xs transition-colors">
-                    Update
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Debt Payoff Goal */}
-            <div className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-white/20 transition-all cursor-pointer group">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-white">Debt Payoff</h3>
-                <div className="text-xs px-2 py-1 rounded-full text-red-400 bg-white/10">
-                  High Priority
-                </div>
-              </div>
-              
-              <p className="text-white/70 text-sm mb-4">Pay off credit card debt</p>
-              
-              <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-white/60">Progress</span>
-                    <span className="text-white">23%</span>
-                  </div>
-                  <div className="w-full bg-white/20 rounded-full h-2">
-                    <div className="bg-gradient-to-r from-red-500 to-orange-500 h-2 rounded-full transition-all" style={{ width: '23%' }} />
-                  </div>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Remaining</span>
-                  <span className="text-white">$7,700</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Target</span>
-                  <span className="text-white">$0</span>
-                </div>
-                
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/60">Deadline</span>
-                  <span className="text-white">Mar 31, 2025</span>
-                </div>
-                
-                <div className="flex gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 rounded px-2 py-1 text-xs transition-colors">
-                    Ask Goalie
-                  </button>
-                  <button className="bg-white/10 hover:bg-white/20 text-white rounded px-2 py-1 text-xs transition-colors">
-                    Update
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
-                  <Target className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-white font-semibold text-sm">Smart Goal Creation</h3>
-              </div>
-              <p className="text-white/60 text-xs mb-3">Let Goalie analyze your finances and suggest personalized goals</p>
-              <button className="w-full bg-green-500 hover:bg-green-600 text-white rounded px-3 py-2 text-xs transition-colors">
-                Create Smart Goal
-              </button>
-            </div>
-
-            <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
-                  <BarChart3 className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-white font-semibold text-sm">Progress Analytics</h3>
-              </div>
-              <p className="text-white/60 text-xs mb-3">Get AI-powered insights on your goal progress and recommendations</p>
-              <button className="w-full bg-blue-500 hover:bg-blue-600 text-white rounded px-3 py-2 text-xs transition-colors">
-                View Analytics
-              </button>
-            </div>
-
-            <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
-                  <Trophy className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-white font-semibold text-sm">Achievement Rewards</h3>
-              </div>
-              <p className="text-white/60 text-xs mb-3">Celebrate milestones and unlock achievements with Goalie</p>
-              <button className="w-full bg-purple-500 hover:bg-purple-600 text-white rounded px-3 py-2 text-xs transition-colors">
-                View Achievements
-              </button>
-            </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Chat Modal */}
-      
-        {isChatOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setIsChatOpen(false)}
-          >
-            <div
-              className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 w-full max-w-2xl h-[600px] flex flex-col"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Chat Header */}
-              <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-                    <Target className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">Goalie AI</h3>
-                    <p className="text-white/60 text-sm">Your goal-setting coach</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsChatOpen(false)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5 text-white/60" />
-                </button>
-              </div>
-
-              {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.length === 0 ? (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                        <Target className="w-8 h-8 text-white" />
-                      </div>
-                      <h4 className="text-lg font-semibold text-white mb-2">Hi! I'm Goalie 🎯</h4>
-                      <p className="text-white/60 text-sm mb-4">
-                        I'm here to help you achieve your financial goals. Ask me about:
-                      </p>
-                      <div className="grid grid-cols-1 gap-2 max-w-sm mx-auto">
-                        {[
-                          "How to build an emergency fund",
-                          "Strategies for debt payoff",
-                          "Vacation savings tips",
-                          "Budget optimization",
-                          "Goal setting techniques"
-                        ].map((suggestion, index) => (
-                          <button
-                            key={index}
-                            onClick={() => sendMessage(suggestion)}
-                            className="text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg text-white/80 hover:text-white text-sm transition-colors"
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  messages.map((message, index) => (
-                    <div
-                      key={index}
-                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-[80%] p-3 rounded-lg ${
-                          message.role === 'user'
-                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                            : 'bg-white/10 text-white border border-white/20'
-                        }`}
-                      >
-                        {message.role === 'goalie' && (
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
-                              <Target className="w-3 h-3 text-white" />
-                            </div>
-                            <span className="text-xs font-semibold text-purple-400">Goalie</span>
-                          </div>
-                        )}
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                        <p className="text-xs opacity-70 mt-1">
-                          {new Date(message.timestamp).toLocaleTimeString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))
-                )}
-                
-                {isLoading && (
-                  <div
-                    className="flex justify-start"
-                  >
-                    <div className="bg-white/10 px-3 py-2 rounded-lg border border-white/20">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
-                          <Target className="w-3 h-3 text-white" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Loader2 className="w-3 h-3 animate-spin text-purple-400" />
-                          <span className="text-xs text-white/70">Goalie is thinking...</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Chat Input */}
-              <div className="p-4 border-t border-white/10">
-                <div className="flex gap-2">
-                  <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                      placeholder="Ask Goalie about your financial goals..."
-                      className="w-full bg-white/5 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <button
-                    onClick={() => !isLoading && sendMessage(input)}
-                    disabled={isLoading || !input.trim()}
-                    className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-all"
-                  >
-                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      
+      {/* AI Team Toggle Button */}
+      <button
+        onClick={() => setIsEmployeePanelOpen(!isEmployeePanelOpen)}
+        className={`fixed top-1/2 -translate-y-1/2 z-30 flex flex-col items-center gap-1 px-3 py-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 ${
+          isEmployeePanelOpen ? 'right-[320px] rounded-l-lg' : 'right-0 rounded-l-lg'
+        }`}
+        style={{
+          writingMode: 'vertical-rl',
+          textOrientation: 'mixed'
+        }}
+        title="View AI Team Activity"
+      >
+        <span className="text-xs font-semibold">AI TEAM</span>
+      </button>
     </div>
   );
 };

@@ -79,7 +79,7 @@ export default function WellnessStudioPage() {
                     >
                       Mindful money management, stress reduction, and healthy financial habits
                     </p>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5 max-w-3xl mx-auto">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
                       {[
                         { icon: Heart, title: "Wellness Stories", desc: "Personal financial wellness journeys", color: "from-pink-500 to-rose-500", view: "stories" },
                         { icon: Target, title: "Healthy Habits", desc: "Track mindful financial habits", color: "from-green-500 to-emerald-500", view: "habits" },
@@ -91,7 +91,7 @@ export default function WellnessStudioPage() {
                         <button
                           key={item.title}
                           onClick={() => setActiveView(item.view)}
-                          className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-pink-500/10"
+                          className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
                         >
                           <div className={`w-12 h-12 bg-gradient-to-br ${item.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
                             <item.icon className="w-6 h-6 text-white" />
