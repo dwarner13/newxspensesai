@@ -33,40 +33,25 @@ export default function ChatTest() {
     setInputMessage('');
     setIsLoading(true);
 
-    try {
-      // Use the new chat API with real AI
-      const { text: reply, employee } = await sendChat({
-        userId,
-        message: messageText,
-        mock: false  // Set to true to test without using AI credits
-      });
+    // Use the new chat API with fallback system
+    const { text: reply, employee } = await sendChat({
+      userId,
+      message: messageText,
+      mock: false  // Set to true to test without using AI credits
+    });
 
-      setCurrentEmployee(employee);
-      
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: reply,
-        timestamp: new Date(),
-        employee
-      };
+    setCurrentEmployee(employee);
+    
+    const assistantMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: reply,
+      timestamp: new Date(),
+      employee
+    };
 
-      setMessages(prev => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error('Chat error:', error);
-      
-      // Fallback response
-      const fallbackMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: "Sorry, I'm having trouble connecting right now. Please try again!",
-        timestamp: new Date(),
-      };
-      
-      setMessages(prev => [...prev, fallbackMessage]);
-    } finally {
-      setIsLoading(false);
-    }
+    setMessages(prev => [...prev, assistantMessage]);
+    setIsLoading(false);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
