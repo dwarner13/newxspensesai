@@ -13,22 +13,20 @@ export const handler: Handler = async (event) => {
 
     let q = supabase
       .from("transactions")
-      .select("id, date, merchant, category, amount, review_status, description")
+      .select("id, tx_date, vendor, category, amount_cents, review_status")
       .eq("user_id", userId)
-      .order("date", { ascending: false })
+      .order("tx_date", { ascending: false })
       .limit(Math.min(200, Math.max(1, limit)));
 
-    if (from) q = q.gte("date", from);
-    if (to) q = q.lte("date", to);
-    if (vendor) q = q.ilike("merchant", `%${vendor}%`);
+    if (from) q = q.gte("tx_date", from);
+    if (to) q = q.lte("tx_date", to);
+    if (vendor) q = q.ilike("vendor", `%${vendor}%`);
     if (category) q = q.eq("category", category);
 
     const { data, error } = await q;
     if (error) return resp(500, { error: error.message });
 
-    const total = (data || []).reduce((sum, t) => sum + (t.amount || 0), 0);
-
-    return resp(200, { ok: true, count: data?.length || 0, items: data || [], total });
+    return resp(200, { ok: true, count: data?.length || 0, items: data || [] });
   } catch (e: any) {
     return resp(500, { error: e?.message || "unknown error" });
   }

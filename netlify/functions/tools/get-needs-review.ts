@@ -13,10 +13,10 @@ export const handler: Handler = async (event) => {
 
     const { data, error } = await supabase
       .from("transactions")
-      .select("id, date, merchant, amount, category, review_reason, description")
+      .select("id, tx_date, vendor, amount_cents, category, review_reason, description")
       .eq("user_id", userId)
       .eq("review_status", "needs_review")
-      .order("date", { ascending: false })
+      .order("tx_date", { ascending: false })
       .limit(Math.min(200, Math.max(1, limit)));
     
     if (error) return resp(500, { error: error.message });

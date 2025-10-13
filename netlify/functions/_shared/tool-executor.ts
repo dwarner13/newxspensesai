@@ -1,4 +1,6 @@
 // _shared/tool-executor.ts
+import { logToolEvent } from './tool-metrics';
+
 type Ctx = { userId: string; baseUrl?: string; authHeader?: string };
 
 async function postJSON<T>(url: string, body: unknown, headers?: Record<string,string>): Promise<T> {
@@ -53,18 +55,29 @@ export async function executeTool(name: ToolName, rawArgs: any, ctx: Ctx) {
   const started = Date.now();
   try {
     const result = await fn(safeArgs, ctx);
+    const elapsed_ms = Date.now() - started;
+    
+    // Log metrics
+    await logToolEvent({ userId: ctx.userId, tool: name, ok: true, elapsed_ms });
+    
     return {
       ok: true,
       tool: name,
-      elapsed_ms: Date.now() - started,
+      elapsed_ms,
       result,
     };
   } catch (err: any) {
+    const elapsed_ms = Date.now() - started;
+    const error = err?.message || String(err);
+    
+    // Log metrics
+    await logToolEvent({ userId: ctx.userId, tool: name, ok: false, elapsed_ms, error });
+    
     return {
       ok: false,
       tool: name,
-      elapsed_ms: Date.now() - started,
-      error: err?.message || String(err),
+      elapsed_ms,
+      error,
     };
   }
 }
