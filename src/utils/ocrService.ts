@@ -1,3 +1,5 @@
+// ⚠️ DEPRECATED: Use server-side pipeline instead (smart-import-* + normalize-transactions)
+// This exposes API key in browser and bypasses guardrails
 const OCR_API_KEY = "K82312040988957"; // Your new OCR.space API key
 
 // OpenAI Vision API fallback (like ChatGPT uses)

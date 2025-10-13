@@ -1,3 +1,4 @@
+// ⚠️ DEPRECATED: Worker OCR module - Use netlify/functions/smart-import-ocr.ts instead
 import { config } from '../config.js';
 import { logUtils } from '../logging.js';
 import { PDFProcessor } from '../pdf/index.js';
