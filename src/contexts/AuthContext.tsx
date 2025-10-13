@@ -5,134 +5,78 @@ import { getSupabase } from '../lib/supabase';
 
 interface AuthContextType {
   user: any;
+  userId: string | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
+  signInWithOtp: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   session: any;
   ready: boolean;
+  isDemoUser: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const DEMO_USER_ID = import.meta.env.VITE_DEMO_USER_ID || "00000000-0000-4000-8000-000000000001";
+  
   const [user, setUser] = useState<any>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
   const [session, setSession] = useState<any>(null);
   const [ready, setReady] = useState(false);
+  const [isDemoUser, setIsDemoUser] = useState(false);
   const navigate = useNavigate();
   
-  console.log('AuthProvider render:', { user: !!user, loading, initialLoad, ready});
-  
-  // Refs for cleanup (currently unused due to bypass)
-  // const authTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  // const authSubscriptionRef = useRef<any>(null);
+  console.log('AuthProvider render:', { user: !!user, userId, loading, initialLoad, ready, isDemoUser});
 
   useEffect(() => {
-    console.log('🔍 AuthContext: Starting authentication check...');
-
-    // Check if Supabase environment variables are configured
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.log('⚠️ Supabase auth skipped - not connected');
-      console.log('🔍 AuthContext: Supabase not configured, bypassing authentication');
-      
-      // Create bypass user for development
-      const bypassUser = {
-        id: '12345678-1234-1234-1234-123456789abc',
-        email: 'demo@xspensesai.com',
-        full_name: 'Demo User',
-        aud: 'authenticated',
-        role: 'authenticated',
-        exp: Date.now() + 86400000, // 24 hours from now
-      } as any;
-      
-      setUser(bypassUser);
-      setSession({ user: bypassUser, access_token: 'bypass-token' });
-      setLoading(false);
-      setInitialLoad(false);
-      setReady(true);
-      console.log('🔍 AuthContext: Using bypass user for development', bypassUser);
-      return;
-    }
-
-    // Supabase is configured, use normal authentication
-    console.log('🔍 AuthContext: Supabase configured, checking authentication...');
+    console.log('🔍 AuthContext: Checking Supabase session...');
     
     const checkSession = async () => {
       try {
-        console.log('🔍 AuthContext: Checking Supabase session...');
-        
-        // Get Supabase client
         const supabase = getSupabase();
         
         if (!supabase) {
-          console.log('🔍 AuthContext: Supabase not available, using bypass');
-          const bypassUser = {
-            id: 'bypass-user-123',
-            email: 'demo@example.com',
-            full_name: 'Demo User',
-            aud: 'authenticated',
-            role: 'authenticated',
-            exp: Date.now() + 86400000,
-          } as any;
-          setUser(bypassUser);
-          setSession({ user: bypassUser, access_token: 'bypass-token' });
+          // No Supabase - use demo user
+          console.log('🔍 AuthContext: No Supabase configured - using demo user', DEMO_USER_ID);
+          setUserId(DEMO_USER_ID);
+          setUser(null);
+          setSession(null);
+          setIsDemoUser(true);
           setLoading(false);
           setInitialLoad(false);
           setReady(true);
           return;
         }
         
-        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+        // Check for existing session
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
         
-        if (error) {
-          console.error('❌ AuthContext: Session check error:', error);
-          // Create a demo user even on error for development
-          const demoUser = {
-            id: 'demo-user-123',
-            email: 'demo@xspensesai.com',
-            full_name: 'Demo User',
-            aud: 'authenticated',
-            role: 'authenticated',
-            exp: Date.now() + 86400000,
-          } as any;
-          setUser(demoUser);
-          setSession({ user: demoUser, access_token: 'demo-token' });
-        } else if (currentSession?.user) {
-          console.log('🔍 AuthContext: User session found:', currentSession.user.email);
+        if (currentSession?.user?.id) {
+          // Real user logged in
+          console.log('🔍 AuthContext: Logged in as', currentSession.user.email);
+          setUserId(currentSession.user.id);
           setUser(currentSession.user);
           setSession(currentSession);
+          setIsDemoUser(false);
         } else {
-          console.log('🔍 AuthContext: No active session found - using demo user');
-          // Create a demo user for development when no session exists
-          const demoUser = {
-            id: 'demo-user-123',
-            email: 'demo@xspensesai.com',
-            full_name: 'Demo User',
-            aud: 'authenticated',
-            role: 'authenticated',
-            exp: Date.now() + 86400000, // 24 hours from now
-          } as any;
-          setUser(demoUser);
-          setSession({ user: demoUser, access_token: 'demo-token' });
+          // No session - use demo user
+          console.log('🔍 AuthContext: No session - using demo user', DEMO_USER_ID);
+          setUserId(DEMO_USER_ID);
+          setUser(null);
+          setSession(null);
+          setIsDemoUser(true);
         }
       } catch (error) {
-        console.error('❌ AuthContext: Unexpected error during session check:', error);
-        // Create a demo user even on unexpected error for development
-        const demoUser = {
-          id: 'demo-user-123',
-          email: 'demo@xspensesai.com',
-          full_name: 'Demo User',
-          aud: 'authenticated',
-          role: 'authenticated',
-          exp: Date.now() + 86400000,
-        } as any;
-        setUser(demoUser);
-        setSession({ user: demoUser, access_token: 'demo-token' });
+        console.error('❌ AuthContext: Error checking session:', error);
+        // On error, use demo user
+        setUserId(DEMO_USER_ID);
+        setUser(null);
+        setSession(null);
+        setIsDemoUser(true);
       } finally {
         setLoading(false);
         setInitialLoad(false);
@@ -158,33 +102,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           switch (event) {
             case 'SIGNED_IN':
               console.log('🔍 AuthContext: User signed in');
-              setUser(authSession?.user || null);
-              setSession(authSession);
+              if (authSession?.user?.id) {
+                setUserId(authSession.user.id);
+                setUser(authSession.user);
+                setSession(authSession);
+                setIsDemoUser(false);
+              }
               setLoading(false);
               setInitialLoad(false);
               setReady(true);
               break;
               
             case 'SIGNED_OUT':
-              console.log('🔍 AuthContext: User signed out');
+              console.log('🔍 AuthContext: User signed out - switching to demo user');
+              setUserId(DEMO_USER_ID);
               setUser(null);
               setSession(null);
+              setIsDemoUser(true);
               setLoading(false);
               setInitialLoad(false);
               setReady(true);
-              navigate('/login', { replace: true});
               break;
               
             case 'TOKEN_REFRESHED':
               console.log('🔍 AuthContext: Token refreshed');
-              setUser(authSession?.user || null);
-              setSession(authSession);
+              if (authSession?.user?.id) {
+                setUserId(authSession.user.id);
+                setUser(authSession.user);
+                setSession(authSession);
+              }
               break;
               
             case 'USER_UPDATED':
               console.log('🔍 AuthContext: User updated');
-              setUser(authSession?.user || null);
-              setSession(authSession);
+              if (authSession?.user?.id) {
+                setUserId(authSession.user.id);
+                setUser(authSession.user);
+                setSession(authSession);
+              }
               break;
               
             case 'INITIAL_SESSION':
@@ -271,33 +226,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signInWithOtp = async (email: string) => {
+    try {
+      console.log('🔍 AuthContext: Sending magic link to:', email);
+      
+      const supabase = getSupabase();
+      if (!supabase || !supabase.auth) {
+        console.log('⚡ Dev mode: Magic link skipped');
+        throw new Error('Supabase not configured');
+      }
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) {
+        console.error('❌ AuthContext: Magic link error:', error);
+        throw error;
+      }
+      
+      console.log('✅ AuthContext: Magic link sent successfully');
+    } catch (error) {
+      console.error('❌ AuthContext: Unexpected error sending magic link:', error);
+      throw error;
+    }
+  };
+
   const signOut = async () => {
     try {
       console.log('🔍 AuthContext: Signing out user...');
 
       const supabase = getSupabase();
-      if (!supabase || !supabase.auth) {
-        // Development mode - just clear the user state
-        console.log('⚡ Dev mode: sign-out simulated');
-        setUser(null);
-        sessionStorage.removeItem('xspensesai-intended-path');
-        console.log('Signed out successfully');
-        navigate('/login', { replace: true});
-        return;
+      if (supabase?.auth) {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
       }
 
-      // Production mode - use Supabase
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-
+      // Switch to demo user after sign out
+      setUserId(DEMO_USER_ID);
       setUser(null);
+      setSession(null);
+      setIsDemoUser(true);
       sessionStorage.removeItem('xspensesai-intended-path');
-      // toast.success('Signed out successfully'); // Temporarily disabled
-      console.log('Signed out successfully');
-      navigate('/login', { replace: true});
+      console.log('✅ Signed out successfully - switched to demo user');
+      
+      // Stay on current page (demo mode) instead of navigating to login
+      // If you want to force login page: navigate('/login', { replace: true });
     } catch (error) {
       console.error('❌ AuthContext: Logout error:', error);
-      console.error('Failed to sign out. Please try again.');
       throw error;
     }
   };
@@ -316,12 +295,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const contextValue = {
     user,
+    userId,
     loading,
     signInWithGoogle,
     signInWithApple,
+    signInWithOtp,
     signOut,
     session,
-    ready
+    ready,
+    isDemoUser
   };
 
   return (

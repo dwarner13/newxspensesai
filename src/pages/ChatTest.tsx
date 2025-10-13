@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { sendChat } from '../services/chatApi';
+import MetricsCard from '../components/Analytics/MetricsCard';
+import InsightsCard from '../components/Analytics/InsightsCard';
 
 interface Message {
   id: string;
@@ -13,10 +15,25 @@ export default function ChatTest() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [currentEmployee, setCurrentEmployee] = useState('prime');
+  const [convoId] = useState(() => {
+    // Get or create conversation ID
+    const stored = localStorage.getItem('convoId');
+    if (stored) return stored;
+    const newId = crypto.randomUUID();
+    localStorage.setItem('convoId', newId);
+    return newId;
+  });
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when messages change
+  React.useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   // TODO: Replace with real auth
-  const userId = 'test-user-uuid-replace-with-auth';
+  const userId = '550e8400-e29b-41d4-a716-446655440000';
 
   const sendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -29,29 +46,69 @@ export default function ChatTest() {
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const messageText = inputMessage;
     setInputMessage('');
     setIsLoading(true);
 
-    // Use the new chat API with fallback system
-    const { text: reply, employee } = await sendChat({
-      userId,
-      message: messageText,
-      mock: false  // Set to true to test without using AI credits
-    });
-
-    setCurrentEmployee(employee);
-    
+    // Create a placeholder assistant message for streaming
+    const assistantId = (Date.now() + 1).toString();
     const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
+      id: assistantId,
       role: 'assistant',
-      content: reply,
+      content: '',
       timestamp: new Date(),
-      employee
     };
-
     setMessages(prev => [...prev, assistantMessage]);
-    setIsLoading(false);
+    setIsStreaming(true);
+
+    try {
+      // Convert messages to API format
+      const apiMessages = [...messages, userMessage].map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content
+      }));
+
+      // Use streaming chat API with conversation ID
+      const { content: reply, employee } = await sendChat({
+        userId,
+        convoId,
+        messages: apiMessages,
+        onToken: (token) => {
+          // Update the assistant message with each token
+          setMessages(prev => 
+            prev.map(msg => 
+              msg.id === assistantId 
+                ? { ...msg, content: msg.content + token, employee }
+                : msg
+            )
+          );
+        }
+      });
+
+      setCurrentEmployee(employee);
+      setIsStreaming(false);
+      
+      // Final update with complete message
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === assistantId 
+            ? { ...msg, content: reply, employee }
+            : msg
+        )
+      );
+    } catch (error) {
+      console.error('Chat error:', error);
+      // Update the placeholder with error message
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === assistantId 
+            ? { ...msg, content: 'Sorry, there was an error. Please try again.' }
+            : msg
+        )
+      );
+    } finally {
+      setIsLoading(false);
+      setIsStreaming(false);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -62,8 +119,17 @@ export default function ChatTest() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gray-900 p-4">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* User Insights */}
+        <InsightsCard userId={userId} />
+        
+        {/* Metrics Dashboard */}
+        <MetricsCard />
+        
+        {/* Chat Interface */}
+        <div className="flex justify-center">
+          <div className="w-full max-w-md">
         <div className="bg-gray-800 rounded-lg shadow-2xl overflow-hidden border border-gray-700">
           <div className="bg-gray-700 text-white p-3 border-b border-gray-600">
             <h1 className="text-lg font-bold">Chat Test - Real AI</h1>
@@ -107,7 +173,7 @@ export default function ChatTest() {
               </div>
             ))}
             
-            {isLoading && (
+            {isLoading && !isStreaming && (
               <div className="flex justify-start">
                 <div className="bg-gray-700 text-gray-300 px-3 py-2 rounded-lg border border-gray-600">
                   <p className="text-sm">
@@ -116,6 +182,18 @@ export default function ChatTest() {
                 </div>
               </div>
             )}
+            
+            {isStreaming && (
+              <div className="flex justify-start">
+                <div className="bg-gray-700 text-gray-300 px-3 py-2 rounded-lg border border-gray-600">
+                  <p className="text-xs text-green-400">
+                    ⚡ Streaming response...
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} />
           </div>
           
           <div className="border-t border-gray-600 p-3 bg-gray-800">
@@ -137,6 +215,8 @@ export default function ChatTest() {
                 {isLoading ? 'Sending...' : 'Send'}
               </button>
             </div>
+          </div>
+        </div>
           </div>
         </div>
       </div>

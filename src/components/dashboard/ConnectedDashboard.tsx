@@ -23,6 +23,7 @@ import { UniversalChatInterface } from '../chat/UniversalChatInterface';
 import { MobileChatInterface } from '../chat/MobileChatInterface';
 import { MockProcessingModal } from '../upload/MockProcessingModal';
 import { useAuth } from '../../contexts/AuthContext';
+import SyncStatusPulse from './SyncStatusPulse';
 import { ProcessingResult } from '../../services/MockDocumentProcessor';
 import { useNavigate } from 'react-router-dom';
 import MobilePageTitle from '../ui/MobilePageTitle';
@@ -36,7 +37,7 @@ interface ConnectedDashboardProps {
 }
 
 export function ConnectedDashboard({ className = '', isSidebarCollapsed = false }: ConnectedDashboardProps) {
-  const { user, loading } = useAuth();
+  const { user, userId, isDemoUser, loading } = useAuth();
   const navigate = useNavigate();
   const [aiController] = useState(new UniversalAIController());
   const [activeChat, setActiveChat] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   const [isByteChatOpen, setIsByteChatOpen] = useState(false);
 
   // Debug logging
-  console.log('ConnectedDashboard render:', { user: !!user, loading, aiController: !!aiController});
+  console.log('ConnectedDashboard render:', { user: !!user, userId, isDemoUser, loading, aiController: !!aiController});
 
   // Show loading state while auth is initializing
   if (loading) {
@@ -67,11 +68,11 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     );
   }
 
-  // Safety check for user - but allow rendering with mock user for now
-  if (!user) {
-    console.log('No user found, using mock user');
-    // For now, let's render the dashboard even without a real user
-    // This will help us see if the issue is with user auth or something else
+  // Debug auth state
+  if (isDemoUser) {
+    console.log('Using demo user:', userId);
+  } else {
+    console.log('Using real user:', userId);
   }
 
   // Safety check for aiController - but allow rendering without it
@@ -101,7 +102,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   // Fetch dashboard stats
   useEffect(() => {
     const fetchDashboardStats = async () => {
-      if (!user) {
+      if (!userId) {
         setIsLoadingStats(false);
         return;
       }
@@ -110,10 +111,10 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         setIsLoadingStats(true);
 
         // Fetch receipts count and last upload
-        const { data: receiptsData, error: receiptsError } = await supabase
+        const { data: receiptsData, error: receiptsError } = await supabase!
           .from('receipts')
           .select('id, created_at')
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .order('created_at', { ascending: false});
 
         if (receiptsError) {
@@ -121,10 +122,10 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         }
 
         // Fetch transactions count
-        const { data: transactionsData, error: transactionsError } = await supabase
+        const { data: transactionsData, error: transactionsError } = await supabase!
           .from('transactions')
           .select('id, category')
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
 
         if (transactionsError) {
           console.error('Error fetching transactions:', transactionsError);
@@ -173,21 +174,21 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     };
 
     fetchDashboardStats();
-  }, [user]);
+  }, [userId]);
 
   // Listen for stats refresh events
   useEffect(() => {
     const handleRefreshStats = () => {
       // Re-fetch stats when documents are uploaded
       const fetchDashboardStats = async () => {
-        if (!user) return;
+        if (!userId) return;
 
         try {
           // Fetch receipts count and last upload
-          const { data: receiptsData, error: receiptsError } = await supabase
+          const { data: receiptsData, error: receiptsError } = await supabase!
             .from('receipts')
             .select('id, created_at')
-            .eq('user_id', user.id)
+            .eq('user_id', userId)
             .order('created_at', { ascending: false});
 
           if (receiptsError) {
@@ -196,10 +197,10 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           }
 
           // Fetch transactions count
-          const { data: transactionsData, error: transactionsError } = await supabase
+          const { data: transactionsData, error: transactionsError } = await supabase!
             .from('transactions')
             .select('id, category')
-            .eq('user_id', user.id);
+            .eq('user_id', userId);
 
           if (transactionsError) {
             console.error('Error fetching transactions:', transactionsError);
@@ -250,7 +251,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
 
     window.addEventListener('refreshDashboardStats', handleRefreshStats);
     return () => window.removeEventListener('refreshDashboardStats', handleRefreshStats);
-  }, [user]);
+  }, [userId]);
 
 
   // Handle processing completion
@@ -614,6 +615,22 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         subtitle="Welcome back, John! Here's your financial overview."
       />
 
+      {/* Gmail Sync Status */}
+      {!isDemoUser && userId && (
+        <div className="mb-6">
+          <SyncStatusPulse userId={userId} />
+        </div>
+      )}
+
+      {/* Demo User Message */}
+      {isDemoUser && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-yellow-800">
+            ⚠️ You're using a demo account. <a href="/login" className="underline">Sign in</a> to connect Gmail and sync your emails.
+          </p>
+        </div>
+      )}
+
 
       {/* CORE AI TOOLS Section */}
       <div className="space-y-3 mt-8 md:mt-12">
@@ -912,14 +929,14 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           <MobileChatInterface
             employeeId={activeChat}
             aiController={aiController}
-            userId={user?.id || ''}
+            userId={userId || ''}
             onClose={() => setActiveChat(null)}
           />
         ) : (
           <UniversalChatInterface
             employeeId={activeChat}
             aiController={aiController}
-            userId={user?.id || ''}
+            userId={userId || ''}
             onClose={() => setActiveChat(null)}
           />
         )

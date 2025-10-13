@@ -1,59 +1,120 @@
-export async function sendChat({
-  userId,
-  message,
+type Message = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+export async function sendChat({ 
+  userId, 
+  convoId,
+  messages, 
   employee,
-  mock = false
-}: {
+  onToken
+}: { 
   userId: string;
-  message: string;
+  convoId?: string;
+  messages: Message[];
   employee?: string;
-  mock?: boolean;
+  onToken?: (token: string) => void;
 }) {
-  // Try Netlify Functions first, fall back to mock if not available
+  // Try streaming endpoint first
   try {
     const res = await fetch("/.netlify/functions/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, message, employee, mock })
+      body: JSON.stringify({ userId, convoId, messages, employee })
     });
     
-    if (res.ok) {
-      return (await res.json()) as { text: string; employee: string };
+    if (!res.ok || !res.body) {
+      throw new Error('stream_failed');
     }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let assembled = '';
+    let detectedEmployee = employee || 'prime-boss';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      
+      buffer += decoder.decode(value, { stream: true });
+
+      // Parse SSE lines
+      let idx;
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const rawEvent = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 2);
+        
+        // Only handle "data:" lines
+        const dataLine = rawEvent.split('\n').find(l => l.startsWith('data:'));
+        if (!dataLine) continue;
+        
+        try {
+          const payload = JSON.parse(dataLine.replace(/^data:\s*/, ''));
+          
+          if (payload.type === 'employee') {
+            detectedEmployee = payload.employee;
+          } else if (payload.type === 'token') {
+            assembled += payload.token;
+            if (onToken) onToken(payload.token);
+          } else if (payload.type === 'note' && payload.note) {
+            // Log note for debugging (could show UI toast here)
+            console.log('📝 Note:', payload.note);
+          } else if (payload.type === 'done') {
+            // Stream complete
+          }
+        } catch (parseErr) {
+          console.log('SSE parse error:', parseErr);
+        }
+      }
+    }
+
+    return { content: assembled, employee: detectedEmployee };
+    
   } catch (error) {
-    console.log("Netlify Functions not available, using mock responses");
+    console.log("Streaming not available, using mock responses:", error);
   }
 
   // Fallback to mock responses
   const responses = {
-    prime: "👑 Prime here! I'm your AI financial boss. How can I help you organize your finances today?",
-    byte: "📄 Byte reporting for duty! I specialize in document processing and receipt scanning. What documents do you need help with?",
-    tag: "🏷️ Tag here! I'm your categorization expert. Let me help you organize your expenses into proper categories.",
-    crystal: "🔮 Crystal at your service! I analyze trends and make predictions. What insights do you need about your spending?",
-    ledger: "📊 Ledger here! I can help with tax-related questions and financial planning. What tax guidance do you need?"
+    'prime-boss': "👑 Prime here! How can I help with your finances?",
+    'byte-docs': "📄 Byte here! Need help with documents?",
+    'tag-categorize': "🏷️ Tag here! Let me categorize your expenses.",
+    'crystal-analytics': "🔮 Crystal here! I'll analyze your spending trends.",
+    'ledger-tax': "📊 Ledger here! I can help with tax questions.",
+    'goalie-goals': "🎯 Goalie here! Let's work on your financial goals."
   };
 
   // Simple keyword-based routing
-  const messageText = message.toLowerCase();
-  let selectedEmployee = employee || 'prime';
+  const lastMessage = messages[messages.length - 1]?.content.toLowerCase() || '';
+  let selectedEmployee = employee || 'prime-boss';
   
   if (!employee) {
-    if (messageText.includes('receipt') || messageText.includes('document') || messageText.includes('upload')) {
-      selectedEmployee = 'byte';
-    } else if (messageText.includes('categor') || messageText.includes('tag') || messageText.includes('expense')) {
-      selectedEmployee = 'tag';
-    } else if (messageText.includes('trend') || messageText.includes('predict') || messageText.includes('insight')) {
-      selectedEmployee = 'crystal';
-    } else if (messageText.includes('tax') || messageText.includes('deduction') || messageText.includes('planning')) {
-      selectedEmployee = 'ledger';
+    if (/(receipt|invoice|upload|document)/i.test(lastMessage)) {
+      selectedEmployee = 'byte-docs';
+    } else if (/(category|categorize|tag)/i.test(lastMessage)) {
+      selectedEmployee = 'tag-categorize';
+    } else if (/(trend|report|analytics)/i.test(lastMessage)) {
+      selectedEmployee = 'crystal-analytics';
+    } else if (/(tax|deduction)/i.test(lastMessage)) {
+      selectedEmployee = 'ledger-tax';
+    } else if (/(goal|save|budget)/i.test(lastMessage)) {
+      selectedEmployee = 'goalie-goals';
     }
   }
 
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Simulate streaming with onToken callback
+  const content = responses[selectedEmployee as keyof typeof responses] || responses['prime-boss'];
+  
+  if (onToken) {
+    const words = content.split(' ');
+    for (const word of words) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+      onToken(word + ' ');
+    }
+  }
 
-  const text = responses[selectedEmployee as keyof typeof responses];
-
-  return { text, employee: selectedEmployee };
+  return { content, employee: selectedEmployee };
 }
 
