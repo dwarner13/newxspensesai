@@ -77,7 +77,7 @@ export default function ChatTest() {
           setMessages(prev => 
             prev.map(msg => 
               msg.id === assistantId 
-                ? { ...msg, content: msg.content + token, employee }
+                ? { ...msg, content: msg.content + token }
                 : msg
             )
           );
@@ -87,7 +87,7 @@ export default function ChatTest() {
       setCurrentEmployee(employee);
       setIsStreaming(false);
       
-      // Final update with complete message
+      // Final update with complete message including employee
       setMessages(prev => 
         prev.map(msg => 
           msg.id === assistantId 
