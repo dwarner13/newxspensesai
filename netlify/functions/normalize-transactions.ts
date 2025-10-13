@@ -6,14 +6,15 @@
  * Flow:
  * 1. Load OCR/parsed data from storage
  * 2. Extract transactions
- * 3. Auto-categorize (optional)
- * 4. Insert into transactions table
+ * 3. Auto-categorize with Tag AI
+ * 4. Insert into transactions table with review status
  * 5. Send notifications
  */
 
 import { Handler } from '@netlify/functions';
 import { admin, markDocStatus } from './_shared/upload';
 import { notify } from './_shared/notify';
+import { categorizeTransaction } from './_shared/categorize';
 
 const BUCKET = 'docs';
 
@@ -106,17 +107,33 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    // Insert transactions
+    // Insert transactions with auto-categorization
     let createdCount = 0;
     let needsReview = 0;
 
     for (const tx of transactions) {
-      // Determine review status
-      const confidence = tx.confidence;
+      // ✅ AUTO-CATEGORIZE with Tag AI (if no category)
+      let category = tx.category;
+      let confidence = tx.confidence;
+      
+      if (!category && tx.description) {
+        const catResult = await categorizeTransaction(
+          tx.description,
+          tx.merchant,
+          tx.amount
+        );
+        
+        category = catResult.category;
+        confidence = catResult.confidence;
+      }
+      
+      // Determine review status based on confidence
       const reviewStatus = confidence == null ? 'needs_review'
                         : confidence >= 0.75 ? 'auto'
                         : 'needs_review';
-      const reviewReason = confidence == null ? 'no_category' : 'low_confidence';
+      const reviewReason = confidence == null ? 'no_category' 
+                        : confidence < 0.75 ? 'low_confidence'
+                        : null;
 
       const { error: txErr } = await sb.from('transactions').insert({
         user_id: userId,
@@ -125,11 +142,11 @@ export const handler: Handler = async (event) => {
         merchant: tx.merchant,
         amount: tx.amount,
         description: tx.description,
-        category: tx.category,
+        category: category,
         category_confidence: confidence,
         review_status: reviewStatus,
         review_reason: reviewReason,
-        source: doc.source_type || 'upload',
+        source_type: doc.source_type || 'upload',
         created_at: new Date().toISOString()
       });
 
