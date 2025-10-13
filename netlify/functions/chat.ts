@@ -224,7 +224,10 @@ export const handler: Handler = async (event) => {
           
           stream.write(`data: ${JSON.stringify({ type: 'tool_start', tool: toolName })}\n\n`)
           
-          const toolResult = await executeTool(toolName, toolArgs, { userId, convoId })
+          const toolResult = await executeTool(toolName as any, toolArgs, { 
+            userId, 
+            baseUrl: process.env.URL || 'http://localhost:8888' 
+          })
           
           if (toolResult.ok) {
             stream.write(`data: ${JSON.stringify({ type: 'tool_result', tool: toolName, summary: 'Success' })}\n\n`)
