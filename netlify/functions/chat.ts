@@ -12,6 +12,8 @@ import { sanitizeUserInput } from './_shared/guards'
 import { withBackoff, withTimeout } from './_shared/retry'
 import { getSummary, rollSummary, saveSummary } from './_shared/summary'
 import { applyGuardrails, GUARDRAIL_PRESETS, logGuardrailEvent } from './_shared/guardrails'
+import { OPENAI_TOOLS } from './_shared/tool-schemas'
+import { executeTool } from './_shared/tool-executor'
 
 export const handler: Handler = async (event) => {
   // Handle CORS preflight
@@ -171,6 +173,7 @@ export const handler: Handler = async (event) => {
       }
 
       let fullText = ''
+      let toolCalls: any[] = []
       
       // Use retry logic with timeout for reliability
       const completion = await withTimeout(
@@ -179,6 +182,8 @@ export const handler: Handler = async (event) => {
           temperature: 0.3,
           stream: true,
           messages: [...ctx.system, ...ctx.history],
+          tools: OPENAI_TOOLS,  // ✅ Enable tool calling
+          tool_choice: 'auto'
         })),
         25000 // 25s hard cap
       )
@@ -188,6 +193,76 @@ export const handler: Handler = async (event) => {
         if (token) {
           fullText += token
           stream.write(`data: ${JSON.stringify({ type: 'token', token })}\n\n`)
+        }
+        
+        // ✅ Detect tool calls
+        const toolCallDeltas = part.choices?.[0]?.delta?.tool_calls
+        if (toolCallDeltas) {
+          for (const tc of toolCallDeltas) {
+            if (!toolCalls[tc.index]) {
+              toolCalls[tc.index] = {
+                id: tc.id || `call_${Date.now()}`,
+                type: 'function',
+                function: { name: '', arguments: '' }
+              }
+            }
+            if (tc.function?.name) toolCalls[tc.index].function.name += tc.function.name
+            if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments
+          }
+        }
+      }
+
+      // ✅ Execute tool calls if any
+      if (toolCalls.length > 0) {
+        stream.write(`data: ${JSON.stringify({ type: 'note', note: 'Using tools...' })}\n\n`)
+        
+        const toolMessages: any[] = []
+        
+        for (const toolCall of toolCalls) {
+          const toolName = toolCall.function.name
+          const toolArgs = JSON.parse(toolCall.function.arguments || '{}')
+          
+          stream.write(`data: ${JSON.stringify({ type: 'tool_start', tool: toolName })}\n\n`)
+          
+          const toolResult = await executeTool(toolName, toolArgs, { userId, convoId })
+          
+          if (toolResult.ok) {
+            stream.write(`data: ${JSON.stringify({ type: 'tool_result', tool: toolName, summary: 'Success' })}\n\n`)
+            toolMessages.push({
+              role: 'tool',
+              content: JSON.stringify(toolResult.result),
+              tool_call_id: toolCall.id
+            })
+          } else {
+            stream.write(`data: ${JSON.stringify({ type: 'tool_error', tool: toolName, error: toolResult.error })}\n\n`)
+            toolMessages.push({
+              role: 'tool',
+              content: JSON.stringify({ error: toolResult.error }),
+              tool_call_id: toolCall.id
+            })
+          }
+        }
+        
+        // Resume model with tool results
+        const finalCompletion = await openai.chat.completions.create({
+          model: CHAT_MODEL,
+          temperature: 0.3,
+          stream: true,
+          messages: [
+            ...ctx.system,
+            ...ctx.history,
+            { role: 'assistant', content: fullText || null, tool_calls: toolCalls },
+            ...toolMessages
+          ]
+        })
+        
+        fullText = ''  // Reset for final answer
+        for await (const part of finalCompletion) {
+          const token = part.choices?.[0]?.delta?.content ?? ''
+          if (token) {
+            fullText += token
+            stream.write(`data: ${JSON.stringify({ type: 'token', token })}\n\n`)
+          }
         }
       }
 
