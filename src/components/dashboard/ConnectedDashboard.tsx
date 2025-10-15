@@ -30,6 +30,8 @@ import MobilePageTitle from '../ui/MobilePageTitle';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { ByteDocumentChat } from '../chat/ByteDocumentChat';
+import DashboardPrimeChat from './DashboardPrimeChat';
+import { Crown } from 'lucide-react';
 
 interface ConnectedDashboardProps {
   className?: string;
@@ -55,6 +57,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     aiAccuracy: 0});
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isByteChatOpen, setIsByteChatOpen] = useState(false);
+  const [isPrimeChatOpen, setIsPrimeChatOpen] = useState(false);
 
   // Debug logging
   console.log('ConnectedDashboard render:', { user: !!user, userId, isDemoUser, loading, aiController: !!aiController});
@@ -956,16 +959,36 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         onClose={() => setIsByteChatOpen(false)}
       />
 
-      {/* Floating Byte Chat Button */}
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setIsByteChatOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white z-40 transition-all duration-200"
-        title="Chat with Byte AI"
-      >
-        <Bot className="w-6 h-6" />
-      </motion.button>
+      {/* Prime Chat - Integrated with backend */}
+      <DashboardPrimeChat
+        isOpen={isPrimeChatOpen}
+        onClose={() => setIsPrimeChatOpen(false)}
+      />
+
+      {/* Floating Chat Buttons */}
+      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
+        {/* Prime Chat Button */}
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsPrimeChatOpen(true)}
+          className="w-14 h-14 bg-gradient-to-br from-purple-600 to-pink-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white transition-all duration-200"
+          title="Chat with Prime AI CEO"
+        >
+          <Crown className="w-6 h-6" />
+        </motion.button>
+
+        {/* Byte Chat Button */}
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsByteChatOpen(true)}
+          className="w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white transition-all duration-200"
+          title="Chat with Byte AI"
+        >
+          <Bot className="w-6 h-6" />
+        </motion.button>
+      </div>
     </div>
   );
 }
