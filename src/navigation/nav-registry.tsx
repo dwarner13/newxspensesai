@@ -2,12 +2,13 @@
 import { 
   Home, Upload, Bot, Tags, LineChart, Brain, Zap, TrendingUp, PiggyBank,
   Shield, Calendar, Mic, BookOpen, Heart, Music, Receipt, BarChart3,
-  Settings, FileText
+  Settings, FileText, Crown
 } from "lucide-react";
 
 const NAV_ITEMS = [
   // MAIN
   { label: "Main Dashboard", to: "/dashboard", icon: <Home className="w-5 h-5" />, group: "MAIN", description: "Overview of your financial dashboard" },
+  { label: "👑 Prime Chat", to: "/chat/prime", icon: <Crown className="w-5 h-5" />, group: "MAIN", description: "Chat directly with Prime, your AI CEO" },
 
   // AI WORKSPACE
   { label: "Smart Import AI", to: "/dashboard/smart-import-ai", icon: <Upload className="w-5 h-5" />, group: "AI WORKSPACE", description: "Upload and process receipts with AI" },
