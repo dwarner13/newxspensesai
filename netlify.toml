@@ -38,8 +38,7 @@
   skip_processing = true
 
 [build.environment]
-  NODE_VERSION = "20"
-  NPM_VERSION = "10"
+  NODE_VERSION = "20.18.0"
   NODE_ENV = "production"
   NODE_OPTIONS = "--max-old-space-size=4096"
 
