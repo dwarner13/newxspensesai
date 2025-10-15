@@ -1,6 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { supabaseAdmin } from "./supabase";
-import { applyGuardrails, GUARDRAIL_PRESETS, logGuardrailEvent } from "./_shared/guardrails";
+import { runGuardrails, getGuardrailConfig } from "./_shared/guardrails-production";
 import { createHash } from "crypto";
 
 const CLIENT_ID = process.env.GMAIL_CLIENT_ID!;
@@ -103,21 +103,13 @@ export const handler: Handler = async (event) => {
       const snippet = detail.snippet || "";
 
       // ✅ GUARDRAILS: Apply strict PII redaction BEFORE storage
-      const guardrailResult = await applyGuardrails(
+      const cfg = await getGuardrailConfig(userId);
+      const guardrailResult = await runGuardrails(
         `${subj}\n\n${snippet}`,
-        GUARDRAIL_PRESETS.strict,
-        userId
+        userId,
+        'ingestion_email',
+        cfg
       );
-
-      // Log guardrail event for audit
-      const inputHash = createHash('sha256').update(`${subj}${snippet}`).digest('hex');
-      await logGuardrailEvent({
-        user_id: userId,
-        stage: 'ingestion',
-        preset: 'strict',
-        outcome: guardrailResult,
-        input_hash: inputHash
-      });
 
       // If blocked by guardrails (e.g., inappropriate content), skip this message
       if (!guardrailResult.ok) {
@@ -126,7 +118,7 @@ export const handler: Handler = async (event) => {
       }
 
       // Store ONLY the redacted content (never store raw PII)
-      const safeSnippet = guardrailResult.redacted || snippet;
+      const safeSnippet = guardrailResult.text || snippet;
 
       inserts.push({
         user_id: userId,

@@ -1,6 +1,6 @@
 import { Handler } from '@netlify/functions';
 import { admin, markDocStatus } from './_shared/upload';
-import { runGuardrails, getGuardrailConfig } from './_shared/guardrails';
+import { runGuardrails, getGuardrailConfig } from './_shared/guardrails-production';
 
 const BUCKET = 'docs';
 

@@ -1,6 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { supabaseAdmin } from "./supabase";
-import { applyGuardrails, GUARDRAIL_PRESETS, logGuardrailEvent } from "./_shared/guardrails";
+import { runGuardrails, getGuardrailConfig } from "./_shared/guardrails-production";
 import { createHash } from "crypto";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -98,21 +98,13 @@ export const handler: Handler = async (event) => {
       const originalText = d.guardrails?.snippet || "";
       
       // ✅ APPLY COMPREHENSIVE GUARDRAILS (Strict Preset for Ingestion)
-      const guardrailResult = await applyGuardrails(
+      const cfg = await getGuardrailConfig(userId);
+      const guardrailResult = await runGuardrails(
         originalText,
-        GUARDRAIL_PRESETS.strict,
-        userId
+        userId,
+        'ingestion_ocr',
+        cfg
       );
-
-      // Log guardrail event
-      const inputHash = createHash('sha256').update(originalText).digest('hex');
-      await logGuardrailEvent({
-        user_id: userId,
-        stage: 'ocr',
-        preset: 'strict',
-        outcome: guardrailResult,
-        input_hash: inputHash
-      });
 
       // If blocked by guardrails → mark as rejected
       if (!guardrailResult.ok) {
@@ -134,7 +126,7 @@ export const handler: Handler = async (event) => {
       }
 
       // Get the redacted text (safe to process)
-      const safeText = guardrailResult.redacted || originalText;
+      const safeText = guardrailResult.text || originalText;
 
       // Optional: AI gate to check if it's finance-related
       const gate = await aiGate(safeText);

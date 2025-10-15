@@ -136,3 +136,4 @@ async function extractFacts(userId: string, text: string, messageId: string) {
 
 
 
+

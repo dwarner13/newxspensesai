@@ -95,6 +95,13 @@ export default defineConfig({
     headers: {
       'Cross-Origin-Embedder-Policy': 'credentialless',
       'Cross-Origin-Opener-Policy': 'same-origin'
+    },
+    proxy: {
+      '/.netlify/functions': {
+        target: 'http://localhost:8888',
+        changeOrigin: true,
+        secure: false
+      }
     }
   },
   preview: {

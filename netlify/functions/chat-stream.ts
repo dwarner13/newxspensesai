@@ -152,3 +152,5 @@ async function extractAndSaveFacts(userId: string, text: string, messageId: stri
 
 
 
+
+

@@ -11,7 +11,7 @@ import { buildContext } from './_shared/context'
 import { sanitizeUserInput } from './_shared/guards'
 import { withBackoff, withTimeout } from './_shared/retry'
 import { getSummary, rollSummary, saveSummary } from './_shared/summary'
-import { applyGuardrails, GUARDRAIL_PRESETS, logGuardrailEvent } from './_shared/guardrails'
+import { runGuardrails, getGuardrailConfig } from './_shared/guardrails-production'
 import { OPENAI_TOOLS } from './_shared/tool-schemas'
 import { executeTool } from './_shared/tool-executor'
 
@@ -86,21 +86,13 @@ export const handler: Handler = async (event) => {
       const last = messages[messages.length - 1]
       const originalContent = last.content || ''
       
-      const guardrailResult = await applyGuardrails(
+      const cfg = await getGuardrailConfig(userId)
+      const guardrailResult = await runGuardrails(
         originalContent,
-        GUARDRAIL_PRESETS.balanced,  // Balanced: PII + moderation + jailbreak, but don't block
-        userId
+        userId,
+        'chat',
+        cfg
       )
-
-      // Log guardrail event
-      const inputHash = createHash('sha256').update(originalContent).digest('hex')
-      await logGuardrailEvent({
-        user_id: userId,
-        stage: 'chat',
-        preset: 'balanced',
-        outcome: guardrailResult,
-        input_hash: inputHash
-      })
 
       // If blocked (e.g., severe moderation violation)
       if (!guardrailResult.ok) {
@@ -114,11 +106,11 @@ export const handler: Handler = async (event) => {
       }
 
       // Use redacted content (PII masked)
-      const safeContent = guardrailResult.redacted || originalContent
+      const safeContent = guardrailResult.text || originalContent
       last.content = sanitizeUserInput(safeContent, 8000)
       
       // Notify user if PII was found (optional, don't leak what was found)
-      if (guardrailResult.signals?.piiFound) {
+      if (guardrailResult.signals?.pii) {
         console.log('[Chat] PII detected and redacted:', guardrailResult.signals.piiTypes)
         stream.write(`data: ${JSON.stringify({ 
           type: 'note', 
