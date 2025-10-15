@@ -965,30 +965,16 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         onClose={() => setIsPrimeChatOpen(false)}
       />
 
-      {/* Floating Chat Buttons */}
-      <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-40">
-        {/* Prime Chat Button */}
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setIsPrimeChatOpen(true)}
-          className="w-14 h-14 bg-gradient-to-br from-purple-600 to-pink-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white transition-all duration-200"
-          title="Chat with Prime AI CEO"
-        >
-          <Crown className="w-6 h-6" />
-        </motion.button>
-
-        {/* Byte Chat Button */}
-        <motion.button
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setIsByteChatOpen(true)}
-          className="w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white transition-all duration-200"
-          title="Chat with Byte AI"
-        >
-          <Bot className="w-6 h-6" />
-        </motion.button>
-      </div>
+      {/* Byte Chat Button - Prime Chat handled by BossBubble */}
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setIsByteChatOpen(true)}
+        className="fixed bottom-6 right-20 w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white transition-all duration-200 z-50"
+        title="Chat with Byte AI"
+      >
+        <Bot className="w-6 h-6" />
+      </motion.button>
     </div>
   );
 }
