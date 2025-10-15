@@ -1,31 +1,64 @@
-# Ignore large dependencies that cause deployment issues
+# Netlify Ignore - Skip these during deploy
+# This speeds up deployment by not uploading unnecessary files
+
+# Development files
 node_modules/
-.netlify/
-dist/
-*.log
-*.zip
-
-# Ignore development files
-.env.local
-.env.development
+.git/
+.github/
 .vscode/
-.idea/
+.cursor/
 
-# Ignore test files
-**/*.test.ts
-**/*.test.js
-**/*.spec.ts
-**/*.spec.js
+# Documentation
+*.md
+docs/
+CHANGELOG*.md
+README*.md
+AI_*.md
+PRIME_*.md
+EMPLOYEE*.md
+*_GUIDE.md
+*_SUMMARY.md
+*_REPORT.md
+*_CHECKLIST.md
+*_STATUS.md
+*_AUDIT.md
+*_IMPLEMENTATION.md
 
-# Ignore build artifacts
-build/
-coverage/
-.nyc_output/
+# SQL files
+*.sql
 
-# Ignore OS files
-.DS_Store
-Thumbs.db
+# Test files
+test/
+tests/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
 
-# Ignore large function bundles (use optimized versions)
-netlify/functions/agent.ts
-netlify/functions/agent.zip
+# Scripts
+scripts/
+generate-tree.ps1
+make-tree.ps1
+fix-*.js
+deploy.bat
+deploy.sh
+
+# Temporary files
+temp_*.tsx
+backup-*/
+*.tmp
+*.log
+
+# Config files not needed in production
+.eslintrc*
+.prettierrc*
+tsconfig*.json
+vite.config.ts.timestamp*
+
+# Build artifacts from other projects
+ai-backend/
+ai-backend-flask/
+worker/
+api/
+chat_runtime/
+prime-module/
