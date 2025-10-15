@@ -473,10 +473,26 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
       <button
         onClick={() => setOpen(v => !v)}
         aria-label="Open Prime"
-        className="fixed z-[9999] bottom-6 right-6 rounded-full w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-500 shadow-2xl hover:shadow-purple-500/50 hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center ring-4 ring-purple-400/50 animate-pulse"
+        style={{ 
+          position: 'fixed', 
+          zIndex: 99999, 
+          bottom: '24px', 
+          right: '24px',
+          width: '64px',
+          height: '64px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #9333ea, #ec4899)',
+          border: 'none',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '24px',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
+        }}
         title="Chat with Prime AI CEO"
       >
-        <span className="text-3xl">👑</span>
+        👑
       </button>
 
       {/* Background blur overlay */}
