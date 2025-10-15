@@ -141,7 +141,7 @@ export const handler: Handler = async (event) => {
       const target = routeToEmployee(employee ?? null, messages, recalls)
 
       // Load conversation summary for additional context
-      const priorSummary = await getSummary(userId, conversationId)
+      const priorSummary = await getSummary(userId, convoId)
 
       // Build context with token budget management
       const ctx = buildContext({
@@ -294,11 +294,11 @@ export const handler: Handler = async (event) => {
       const tail = messages.slice(-3).concat([{ role: 'assistant' as const, content: fullText }])
       rollSummary({ 
         user_id: userId, 
-        convo_id: conversationId, 
+        convo_id: convoId, 
         prevSummary: priorSummary, 
         lastTurns: tail 
       })
-        .then(newSummary => saveSummary(userId, conversationId, newSummary))
+        .then(newSummary => saveSummary(userId, convoId, newSummary))
         .catch(err => console.log('Summary generation failed:', err))
 
       stream.write(`data: ${JSON.stringify({ type: 'done', employee: target.slug })}\n\n`)
