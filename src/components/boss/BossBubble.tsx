@@ -17,6 +17,7 @@ import { primeBossSystem } from '../../lib/primeBossSystem';
 import { useAllAIMemory } from '../../hooks/useAIMemory';
 
 export default function BossBubble() {
+  console.log('🔍 BossBubble component is rendering!');
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -471,7 +472,10 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
   return (
     <>
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => {
+          console.log('🔥 Prime Chat button clicked!');
+          setOpen(v => !v);
+        }}
         aria-label="Open Prime"
         style={{ 
           position: 'fixed', 
