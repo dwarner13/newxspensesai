@@ -46,6 +46,7 @@ deploy.sh
 # Temporary files
 temp_*.tsx
 backup-*/
+unused-assets/
 *.tmp
 *.log
 
