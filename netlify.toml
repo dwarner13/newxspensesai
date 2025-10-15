@@ -5,34 +5,6 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = [
-    "tesseract.js",
-    "openai", 
-    "@supabase/supabase-js",
-    "undici",
-    "jsdom",
-    "@mozilla/readability",
-    "sharp",
-    "pdfjs-dist",
-    "axios",
-    "jose",
-    "stripe",
-    "framer-motion",
-    "jotai",
-    "react-helmet-async",
-    "react-hot-toast",
-    "@tanstack/react-query",
-    "lucide-react",
-    "recharts",
-    "chart.js",
-    "react-chartjs-2",
-    "@anthropic-ai/sdk",
-    "google-auth-library",
-    "googleapis"
-  ]
-  
-[functions.build]
-  included_files = ["netlify/functions/**/*.ts"]
 
 [build.processing]
   skip_processing = true
