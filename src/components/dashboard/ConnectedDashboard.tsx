@@ -21,6 +21,7 @@ import {
 import { UniversalAIController } from '../../services/UniversalAIController';
 import { UniversalChatInterface } from '../chat/UniversalChatInterface';
 import { MobileChatInterface } from '../chat/MobileChatInterface';
+import BossBubble from '../boss/BossBubble';
 import { MockProcessingModal } from '../upload/MockProcessingModal';
 import { useAuth } from '../../contexts/AuthContext';
 import SyncStatusPulse from './SyncStatusPulse';
@@ -975,6 +976,9 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       >
         <Bot className="w-6 h-6" />
       </motion.button>
+
+      {/* Prime Chat Bubble */}
+      <BossBubble />
     </div>
   );
 }
