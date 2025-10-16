@@ -53,23 +53,60 @@ export default function PrimeChatSimple() {
   };
 
   const generateAIResponse = (userInput: string): string => {
-    const input = userInput.toLowerCase();
+    const input = userInput.toLowerCase().trim();
     
-    if (input.includes('hello') || input.includes('hi')) {
-      return "Hello! I'm Prime, your AI CEO. I can help you with financial analysis, document processing, transaction categorization, tax optimization, and much more. What would you like to accomplish today?";
-    } else if (input.includes('help')) {
-      return "I can help you with:\n\n• Financial analysis and insights\n• Transaction categorization\n• Document processing (receipts, statements)\n• Tax optimization\n• Business intelligence\n• Budget planning\n• Investment analysis\n• And much more!\n\nWhat specific task would you like me to handle?";
-    } else if (input.includes('categorize') || input.includes('category')) {
-      return "I can help you categorize transactions! I'll connect you with Tag, our AI specialist for transaction categorization. Tag can automatically sort your expenses, create custom rules, and learn from your patterns. Would you like me to set up a categorization session?";
-    } else if (input.includes('receipt') || input.includes('document')) {
-      return "Perfect! I'll connect you with Byte, our document processing specialist. Byte can extract data from receipts, bank statements, invoices, and more. Just upload your documents and Byte will process them instantly. Ready to get started?";
-    } else if (input.includes('tax') || input.includes('taxes')) {
-      return "I'll connect you with Ledger, our tax optimization specialist. Ledger can help with tax preparation, deductions, quarterly estimates, and year-end planning. Ledger stays up-to-date with the latest tax codes and can maximize your deductions. Shall we begin?";
-    } else if (input.includes('budget') || input.includes('spending')) {
-      return "I'll connect you with Crystal, our financial forecasting specialist. Crystal can analyze your spending patterns, predict future expenses, and help you create optimized budgets. Crystal uses advanced AI to identify trends and opportunities. Ready to analyze your finances?";
-    } else {
-      return `I understand you're asking about "${userInput}". As your AI CEO, I can help you with financial management, document processing, analysis, and more. I have 30 specialized AI employees ready to assist. What specific area would you like to explore?`;
+    // Greetings
+    if (input.includes('hello') || input.includes('hi') || input.includes('hey')) {
+      return "Hello! I'm 👑 Prime, your AI CEO. I orchestrate our entire 30-member AI enterprise to deliver elite-level financial intelligence.\n\nI can help you with:\n• Financial analysis & insights\n• Document processing (receipts, statements)\n• Transaction categorization\n• Tax optimization\n• Budget planning & forecasting\n• Business intelligence\n\nWhat can my team accomplish for you today?";
     }
+    
+    // Help requests
+    if (input.includes('help') || input.includes('what can you do')) {
+      return "As your AI CEO, I manage 30 specialized AI employees:\n\n📊 **Crystal** - Financial forecasting & spending analysis\n🏷️ **Tag** - Transaction categorization & rules\n📄 **Byte** - Document processing & OCR\n🧾 **Ledger** - Tax optimization & compliance\n📈 **Analytics** - Business intelligence & reporting\n🎯 **Goals** - Financial planning & targets\n\nEach specialist is ready to handle your specific needs. What would you like to work on?";
+    }
+    
+    // Financial analysis
+    if (input.includes('analyze') || input.includes('analysis') || input.includes('insights')) {
+      return "Excellent! I'll connect you with **Crystal**, our financial forecasting specialist. Crystal can:\n\n• Analyze your spending patterns\n• Identify trends and anomalies\n• Predict future expenses\n• Create detailed financial reports\n• Suggest optimization opportunities\n\nWould you like to start with a spending analysis or upload some financial data for Crystal to review?";
+    }
+    
+    // Categorization
+    if (input.includes('categorize') || input.includes('category') || input.includes('sort')) {
+      return "Perfect! **Tag** is our transaction categorization expert. Tag can:\n\n• Automatically sort your transactions\n• Learn from your patterns\n• Create custom categorization rules\n• Handle recurring expenses\n• Export categorized data\n\nDo you have transactions you'd like Tag to categorize, or would you like to set up automatic categorization rules?";
+    }
+    
+    // Documents
+    if (input.includes('receipt') || input.includes('document') || input.includes('upload') || input.includes('scan')) {
+      return "Great choice! **Byte** is our document processing wizard. Byte can:\n\n• Extract data from receipts\n• Process bank statements\n• Handle invoices & bills\n• OCR text recognition\n• Organize financial documents\n\nJust upload your documents and Byte will process them instantly. What type of documents do you need processed?";
+    }
+    
+    // Taxes
+    if (input.includes('tax') || input.includes('taxes') || input.includes('deduction')) {
+      return "Smart thinking! **Ledger** is our tax optimization specialist. Ledger can:\n\n• Maximize your deductions\n• Track business expenses\n• Prepare quarterly estimates\n• Stay current with tax codes\n• Generate tax reports\n\nAre you looking for year-end tax optimization or ongoing tax planning?";
+    }
+    
+    // Budgeting
+    if (input.includes('budget') || input.includes('spending') || input.includes('expenses')) {
+      return "**Crystal** is perfect for this! Crystal specializes in:\n\n• Spending pattern analysis\n• Budget creation & optimization\n• Expense forecasting\n• Cost reduction opportunities\n• Financial goal tracking\n\nWould you like Crystal to analyze your current spending or help create a new budget?";
+    }
+    
+    // Business
+    if (input.includes('business') || input.includes('company') || input.includes('corporate')) {
+      return "For business needs, I recommend:\n\n🏢 **Business Intelligence** - Analytics & reporting\n🧾 **Ledger** - Business tax optimization\n📊 **Crystal** - Cash flow forecasting\n📄 **Byte** - Invoice & receipt processing\n\nWhat aspect of your business finances would you like to focus on?";
+    }
+    
+    // Investment
+    if (input.includes('invest') || input.includes('portfolio') || input.includes('stocks')) {
+      return "For investment analysis, I can connect you with:\n\n📈 **Analytics** - Portfolio performance analysis\n🎯 **Goals** - Investment planning & targets\n📊 **Crystal** - Risk assessment & forecasting\n\nWhat type of investment analysis are you looking for?";
+    }
+    
+    // Goals
+    if (input.includes('goal') || input.includes('plan') || input.includes('target')) {
+      return "**Goals** is our financial planning specialist! Goals can help with:\n\n🎯 Setting SMART financial targets\n📅 Creating achievable timelines\n📊 Tracking progress & milestones\n💰 Optimizing savings strategies\n\nWhat financial goal would you like to work on?";
+    }
+    
+    // Default response with more personality
+    return `Interesting question about "${userInput}"! 👑\n\nAs your AI CEO, I have 30 specialized employees ready to help. Based on your question, I'd recommend:\n\n• **Crystal** for analysis & forecasting\n• **Tag** for categorization\n• **Byte** for document processing\n• **Ledger** for tax optimization\n• **Analytics** for business intelligence\n\nCould you tell me more about what you're trying to accomplish? I'll connect you with the perfect specialist!`;
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
