@@ -29,9 +29,8 @@ import { useNavigate } from 'react-router-dom';
 import MobilePageTitle from '../ui/MobilePageTitle';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
-import { ByteDocumentChat } from '../chat/ByteDocumentChat';
+import { ByteDocumentChat } from '../chat/_legacy/ByteDocumentChat';
 import DashboardPrimeChat from './DashboardPrimeChat';
-import { Crown } from 'lucide-react';
 
 interface ConnectedDashboardProps {
   className?: string;
@@ -41,6 +40,10 @@ interface ConnectedDashboardProps {
 export function ConnectedDashboard({ className = '', isSidebarCollapsed = false }: ConnectedDashboardProps) {
   const { user, userId, isDemoUser, loading } = useAuth();
   const navigate = useNavigate();
+  
+  // Feature flag for new Prime Chat bubble
+  const CHAT_BUBBLE_ENABLED = import.meta.env.VITE_CHAT_BUBBLE_ENABLED === 'true';
+  
   const [aiController] = useState(new UniversalAIController());
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -959,11 +962,13 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         onClose={() => setIsByteChatOpen(false)}
       />
 
-      {/* Prime Chat - Integrated with backend */}
-      <DashboardPrimeChat
-        isOpen={isPrimeChatOpen}
-        onClose={() => setIsPrimeChatOpen(false)}
-      />
+      {/* Prime Chat - Integrated with backend (feature flagged) */}
+      {CHAT_BUBBLE_ENABLED && (
+        <DashboardPrimeChat
+          isOpen={isPrimeChatOpen}
+          onClose={() => setIsPrimeChatOpen(false)}
+        />
+      )}
 
       {/* Byte Chat Button - Prime Chat handled by BossBubble */}
       <motion.button
@@ -976,8 +981,9 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         <Bot className="w-6 h-6" />
       </motion.button>
 
-      {/* Prime Chat Floating Button - Outside main container */}
-      <button
+      {/* Prime Chat Floating Button - Outside main container (feature flagged) */}
+      {CHAT_BUBBLE_ENABLED && (
+        <button
         style={{
           position: 'fixed !important',
           bottom: '24px !important',
@@ -1015,6 +1021,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
       >
         👑
       </button>
+      )}
     </div>
   );
 }

@@ -63,3 +63,9 @@ Update the summary under 150 words, focusing on stable facts, goals, preferences
   return resp.choices[0]?.message?.content?.trim() || prevSummary
 }
 
+export async function summarizeRolling(latest: string): Promise<string> {
+  // Minimal stub; you likely have a better version. Keep under 150 words.
+  if (!latest) return "";
+  return latest.length > 800 ? latest.slice(0, 800) + "..." : latest;
+}
+

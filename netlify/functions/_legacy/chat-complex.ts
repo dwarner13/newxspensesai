@@ -87,6 +87,8 @@ export const handler: Handler = async (event) => {
 
   // Process the chat request
   try {
+      console.log('Starting chat processing for user:', userId);
+      
       // ✅ APPLY GUARDRAILS (Balanced Preset for Chat)
       const last = messages[messages.length - 1]
       const originalContent = last.content || ''
