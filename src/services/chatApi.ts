@@ -1,3 +1,5 @@
+import { CHAT_ENDPOINT, verifyChatBackend } from '../lib/chatEndpoint';
+
 type Message = {
   role: 'system' | 'user' | 'assistant';
   content: string;
@@ -18,11 +20,15 @@ export async function sendChat({
 }) {
   // Try streaming endpoint first
   try {
-    const res = await fetch("/.netlify/functions/chat", {
+    console.log('[chatApi] using endpoint:', CHAT_ENDPOINT);
+    const res = await fetch(CHAT_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, convoId, messages, employee })
     });
+    
+    // Verify we're hitting the v2 backend
+    verifyChatBackend(res);
     
     if (!res.ok || !res.body) {
       throw new Error('stream_failed');

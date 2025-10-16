@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { StreamEvent } from '../../types/ai';
+import { CHAT_ENDPOINT, verifyChatBackend } from '../../lib/chatEndpoint';
 
 interface Message {
   id: string;
@@ -58,7 +59,8 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       // Create abort controller for cancellation
       abortControllerRef.current = new AbortController();
       
-      const response = await fetch('/.netlify/functions/chat', {
+      console.log('[useStreamChat] using endpoint:', CHAT_ENDPOINT);
+      const response = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,6 +75,9 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
         }),
         signal: abortControllerRef.current.signal,
       });
+      
+      // Verify we're hitting the v2 backend
+      verifyChatBackend(response);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
