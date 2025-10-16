@@ -1015,7 +1015,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         }}
         onClick={() => {
           console.log('🔥 Prime Chat button clicked!');
-          window.open('/chat/prime', '_blank');
+          setIsPrimeChatOpen(true);  // Open the dashboard panel (not legacy route)
         }}
         title="Chat with Prime AI CEO"
       >

@@ -124,9 +124,9 @@ const SpotifyIntegrationPage = lazy(() => import('./pages/dashboard/SpotifyInteg
 // Additional components
 const WellnessStudioPage = lazy(() => import('./pages/dashboard/WellnessStudioPage'));
 const ByteChatTest = lazy(() => import('./pages/ByteChatTest'));
-// Legacy PrimeChat removed - now using floating bubble panel in dashboard
+// Legacy PrimeChat routes removed - now using floating bubble panel in dashboard
 // const PrimeChat = lazy(() => import('./pages/chat/PrimeChat'));
-const PrimeChatSimple = lazy(() => import('./pages/chat/PrimeChatSimple'));
+// const PrimeChatSimple = lazy(() => import('./pages/chat/PrimeChatSimple'));
 const ChatTest = lazy(() => import('./pages/ChatTest'));
 const SimpleTest = lazy(() => import('./pages/SimpleTest'));
 const PodcastGeneratorFeaturePage = lazy(() => import('./pages/features/podcast-generator'));
@@ -236,7 +236,8 @@ function App() {
                         <Route path="/ocr-tester" element={<OCRTesterPage />} />
                         <Route path="/local-ocr-test" element={<LocalOCRTester />} />
                         <Route path="/byte-test" element={<ByteChatTest />} />
-                        <Route path="/chat/prime" element={<PrimeChatSimple />} />
+                        {/* Legacy Prime Chat route removed - use floating bubble on dashboard instead */}
+                        {/* <Route path="/chat/prime" element={<PrimeChatSimple />} /> */}
                         <Route path="/chat-test" element={<ChatTest />} />
                         <Route path="/simple-test" element={<SimpleTest />} />
                       
