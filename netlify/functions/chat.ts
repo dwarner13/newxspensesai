@@ -196,11 +196,13 @@ export const handler: Handler = async (event) => {
       { role: "user" as const, content: augmentedUserMsg }
     ];
 
-    // 9) STREAM response with security checks
-    // Netlify: return a streamed response using Response/ReadableStream (Node 18+ runtime)
+    // 9) STREAM response with ON-THE-FLY masking
+    // Security: Mask PII in real-time as tokens arrive (never show raw PII on screen)
     const stream = new ReadableStream({
       async start(controller) {
-        let assistantText = "";
+        let assistantRaw = "";      // Accumulate raw tokens
+        let lastSentLen = 0;         // Track how much masked content we've sent
+        
         try {
           const completion = await openai.chat.completions.create({
             model: MODEL,
@@ -209,18 +211,28 @@ export const handler: Handler = async (event) => {
             stream: true
           });
 
-          // Collect full response (don't stream yet - need to sanitize first)
+          // Stream with on-the-fly masking (no raw PII ever reaches client)
           for await (const chunk of completion) {
             const token = chunk.choices?.[0]?.delta?.content || "";
-            if (token) {
-              assistantText += token;
+            if (!token) continue;
+
+            // Accumulate raw token
+            assistantRaw += token;
+
+            // Mask everything so far, then send only the new delta
+            const { masked: maskedSoFar } = maskPII(assistantRaw, 'last4');
+            const delta = maskedSoFar.slice(lastSentLen);
+            
+            if (delta) {
+              controller.enqueue(new TextEncoder().encode(delta));
+              lastSentLen = maskedSoFar.length;
             }
           }
 
           // ====================================================================
-          // FINAL SANITATION: Redact any PII in assistant's response
+          // FINAL CHECK: Verify assistant output and log if PII found
           // ====================================================================
-          const { masked: assistantRedacted, found: assistantPII } = maskPII(assistantText, 'last4');
+          const { masked: assistantRedacted, found: assistantPII } = maskPII(assistantRaw, 'last4');
           
           // Log if assistant somehow leaked PII (should not happen with proper prompt)
           if (assistantPII.length > 0) {
@@ -235,7 +247,7 @@ export const handler: Handler = async (event) => {
                 action: "redacted",
                 severity: 3,
                 content_hash: crypto.createHash("sha256")
-                  .update(assistantText.slice(0, 256))
+                  .update(assistantRaw.slice(0, 256))
                   .digest("hex")
                   .slice(0, 24),
                 meta: { 
@@ -249,9 +261,6 @@ export const handler: Handler = async (event) => {
               console.warn("Assistant PII log failed:", e);
             }
           }
-          
-          // Stream the REDACTED response to client
-          controller.enqueue(new TextEncoder().encode(assistantRedacted));
 
           // Persist MASKED user input and REDACTED assistant output
           await saveChatMessage(sb, { 
