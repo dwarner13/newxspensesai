@@ -976,7 +976,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         <Bot className="w-6 h-6" />
       </motion.button>
 
-      {/* Prime Chat Button */}
+      {/* Prime Chat Floating Button */}
       <button
         style={{
           position: 'fixed',
@@ -994,7 +994,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
           fontSize: '24px',
           boxShadow: '0 10px 25px rgba(147, 51, 234, 0.3)',
           zIndex: 999999,
-          transition: 'all 0.3s ease'
+          transition: 'all 0.3s ease',
+          outline: 'none'
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.1)';
