@@ -21,7 +21,6 @@ import {
 import { UniversalAIController } from '../../services/UniversalAIController';
 import { UniversalChatInterface } from '../chat/UniversalChatInterface';
 import { MobileChatInterface } from '../chat/MobileChatInterface';
-import BossBubble from '../boss/BossBubble';
 import { MockProcessingModal } from '../upload/MockProcessingModal';
 import { useAuth } from '../../contexts/AuthContext';
 import SyncStatusPulse from './SyncStatusPulse';
@@ -977,37 +976,42 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         <Bot className="w-6 h-6" />
       </motion.button>
 
-      {/* Prime Chat Bubble */}
-      <BossBubble />
-
-      {/* Emergency Test Button */}
-      <div
+      {/* Prime Chat Button */}
+      <button
         style={{
           position: 'fixed',
-          top: '10px',
-          right: '10px',
-          width: '150px',
-          height: '60px',
-          background: 'linear-gradient(45deg, #ff0000, #ffff00)',
-          border: '3px solid #ffffff',
-          borderRadius: '10px',
+          bottom: '24px',
+          right: '24px',
+          width: '64px',
+          height: '64px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #9333ea, #ec4899)',
+          border: 'none',
+          cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '16px',
-          fontWeight: 'bold',
-          color: '#000000',
-          cursor: 'pointer',
+          fontSize: '24px',
+          boxShadow: '0 10px 25px rgba(147, 51, 234, 0.3)',
           zIndex: 999999,
-          boxShadow: '0 0 20px rgba(255,0,0,0.8)'
+          transition: 'all 0.3s ease'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.1)';
+          e.currentTarget.style.boxShadow = '0 15px 35px rgba(147, 51, 234, 0.5)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 10px 25px rgba(147, 51, 234, 0.3)';
         }}
         onClick={() => {
-          console.log('🔥 DIRECT TEST BUTTON CLICKED!');
-          alert('Direct Test Button Works!');
+          console.log('🔥 Prime Chat button clicked!');
+          setIsPrimeChatOpen(true);
         }}
+        title="Chat with Prime AI CEO"
       >
-        🚨 DIRECT TEST
-      </div>
+        👑
+      </button>
     </div>
   );
 }
