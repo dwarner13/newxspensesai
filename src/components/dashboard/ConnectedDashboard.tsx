@@ -1009,7 +1009,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         }}
         onClick={() => {
           console.log('🔥 Prime Chat button clicked!');
-          setIsPrimeChatOpen(true);
+          window.open('/chat/prime', '_blank');
         }}
         title="Chat with Prime AI CEO"
       >
