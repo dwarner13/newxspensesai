@@ -979,6 +979,35 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
 
       {/* Prime Chat Bubble */}
       <BossBubble />
+
+      {/* Emergency Test Button */}
+      <div
+        style={{
+          position: 'fixed',
+          top: '10px',
+          right: '10px',
+          width: '150px',
+          height: '60px',
+          background: 'linear-gradient(45deg, #ff0000, #ffff00)',
+          border: '3px solid #ffffff',
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          color: '#000000',
+          cursor: 'pointer',
+          zIndex: 999999,
+          boxShadow: '0 0 20px rgba(255,0,0,0.8)'
+        }}
+        onClick={() => {
+          console.log('🔥 DIRECT TEST BUTTON CLICKED!');
+          alert('Direct Test Button Works!');
+        }}
+      >
+        🚨 DIRECT TEST
+      </div>
     </div>
   );
 }
