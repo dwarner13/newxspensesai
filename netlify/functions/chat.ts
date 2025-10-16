@@ -60,6 +60,13 @@ export const handler: Handler = async (event) => {
     // 1) MASK PII - Sanitize input before any processing
     const { masked, found } = maskPII(originalUserText, 'last4');
     
+    // Debug log to prove masking is running
+    console.log("[chat v2] masked?", masked !== originalUserText, {
+      in: originalUserText.slice(0, 40),
+      out: masked.slice(0, 40),
+      piiCount: found.length
+    });
+    
     // Log PII detection event (async, don't block on failure)
     if (found.length > 0) {
       console.log(`🛡️  Masked ${found.length} PII instance(s):`, found.map(f => f.type).join(', '));
