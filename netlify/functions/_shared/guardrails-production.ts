@@ -50,6 +50,7 @@ export type Outcome = {
   ok: boolean;
   text: string;
   reasons: string[];
+  block_message?: string;  // User-facing refusal message
   signals: { 
     moderation?: any; 
     jailbreak?: { verdict: 'yes'|'no', score?: number }; 
@@ -324,10 +325,24 @@ export async function runGuardrails(
         
         // BLOCK on critical or if preset requires blocking
         if (shouldBlock) {
+          // Generate user-friendly block message based on categories
+          let blockMessage = "I'm sorry — I can't assist with that request.";
+          
+          if (categories['illicit-violent'] || categories['illicit']) {
+            blockMessage = "I can't help with hacking, illegal activities, or anything that could cause harm.";
+          } else if (categories['sexual'] || categories['sexual/minors']) {
+            blockMessage = "I can't assist with inappropriate or sexual content.";
+          } else if (categories['hate'] || categories['hate/threatening']) {
+            blockMessage = "I can't engage with hateful or threatening content.";
+          } else if (categories['violence'] || categories['harassment/threatening']) {
+            blockMessage = "I can't assist with violent or threatening content.";
+          }
+          
           return { 
             ok: false, 
             text: '', 
-            reasons: ['moderation_block', ...Object.keys(categories).filter(k => categories[k])], 
+            reasons: ['moderation_block', ...Object.keys(categories).filter(k => categories[k])],
+            block_message: blockMessage,
             signals: { moderation: moderationRes, pii, piiTypes: foundPiiTypes } 
           };
         }
@@ -383,7 +398,8 @@ export async function runGuardrails(
         return { 
           ok: false, 
           text: '', 
-          reasons, 
+          reasons,
+          block_message: "I can't process requests that attempt to bypass safety guidelines or manipulate my behavior.",
           signals: { moderation: moderationRes, jailbreak, pii, piiTypes: foundPiiTypes } 
         };
       }

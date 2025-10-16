@@ -62,6 +62,8 @@ export const handler: Handler = async (event) => {
     
     // Log PII detection event (async, don't block on failure)
     if (found.length > 0) {
+      console.log(`🛡️  Masked ${found.length} PII instance(s):`, found.map(f => f.type).join(', '));
+      
       try {
         await sb.from("guardrail_events").insert({
           user_id: userId,
@@ -159,10 +161,25 @@ export const handler: Handler = async (event) => {
     const employeeName = employeeSlug.split('-')[0].charAt(0).toUpperCase() + employeeSlug.split('-')[0].slice(1);
 
     // 7) Build system prompt with security instructions
-    const system = route.systemPrompt + 
+    let system = route.systemPrompt + 
       "\nIMPORTANT: Never reveal PII, credit cards, SSNs, or passwords. " +
       "Do not provide instructions for illegal activities. " +
       "Use context if helpful but prioritize user privacy and safety.";
+    
+    // Add friendly PII notice if detected
+    if (found.length > 0) {
+      const piiTypesList = found.map(f => {
+        if (f.type.includes('credit') || f.type.includes('card')) return 'payment card';
+        if (f.type.includes('ssn') || f.type.includes('sin')) return 'social security number';
+        if (f.type.includes('email')) return 'email address';
+        if (f.type.includes('phone')) return 'phone number';
+        return 'sensitive information';
+      }).join(', ');
+      
+      system += `\n\nNOTE: The user's message contained ${piiTypesList}. ` +
+        `I've redacted it for security. Gently acknowledge this if relevant to the conversation. ` +
+        `For example: "I've protected your ${piiTypesList} - I can't process or store raw payment/personal details."`;
+    }
 
     // 8) Compose context
     const contextBlocks: string[] = [];
