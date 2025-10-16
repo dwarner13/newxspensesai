@@ -976,43 +976,46 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         <Bot className="w-6 h-6" />
       </motion.button>
 
-      {/* Prime Chat Floating Button */}
-      <button
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          width: '64px',
-          height: '64px',
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #9333ea, #ec4899)',
-          border: 'none',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '24px',
-          boxShadow: '0 10px 25px rgba(147, 51, 234, 0.3)',
-          zIndex: 999999,
-          transition: 'all 0.3s ease',
-          outline: 'none'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.1)';
-          e.currentTarget.style.boxShadow = '0 15px 35px rgba(147, 51, 234, 0.5)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 10px 25px rgba(147, 51, 234, 0.3)';
-        }}
-        onClick={() => {
-          console.log('🔥 Prime Chat button clicked!');
-          setIsPrimeChatOpen(true);
-        }}
-        title="Chat with Prime AI CEO"
-      >
-        👑
-      </button>
     </div>
+
+    {/* Prime Chat Floating Button - Outside main container */}
+    <button
+      style={{
+        position: 'fixed !important',
+        bottom: '24px !important',
+        right: '24px !important',
+        width: '64px',
+        height: '64px',
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, #9333ea, #ec4899)',
+        border: 'none',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '24px',
+        boxShadow: '0 10px 25px rgba(147, 51, 234, 0.3)',
+        zIndex: '999999 !important',
+        transition: 'all 0.3s ease',
+        outline: 'none',
+        margin: '0 !important',
+        padding: '0 !important'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = 'scale(1.1)';
+        e.currentTarget.style.boxShadow = '0 15px 35px rgba(147, 51, 234, 0.5)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = 'scale(1)';
+        e.currentTarget.style.boxShadow = '0 10px 25px rgba(147, 51, 234, 0.3)';
+      }}
+      onClick={() => {
+        console.log('🔥 Prime Chat button clicked!');
+        setIsPrimeChatOpen(true);
+      }}
+      title="Chat with Prime AI CEO"
+    >
+      👑
+    </button>
   );
 }
