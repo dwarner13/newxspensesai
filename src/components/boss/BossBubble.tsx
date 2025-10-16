@@ -18,6 +18,52 @@ import { useAllAIMemory } from '../../hooks/useAIMemory';
 
 export default function BossBubble() {
   console.log('🔍 BossBubble component is rendering!');
+  
+  // Force button to appear with absolute DOM manipulation
+  useEffect(() => {
+    console.log('🔧 Creating emergency button...');
+    const existingButton = document.getElementById('emergency-prime-button');
+    if (existingButton) {
+      existingButton.remove();
+    }
+    
+    const button = document.createElement('button');
+    button.id = 'emergency-prime-button';
+    button.innerHTML = '🚨 PRIME';
+    button.style.cssText = `
+      position: fixed !important;
+      top: 20px !important;
+      right: 20px !important;
+      width: 120px !important;
+      height: 60px !important;
+      background: linear-gradient(45deg, #ff0000, #ffff00) !important;
+      border: 4px solid #ffffff !important;
+      border-radius: 10px !important;
+      font-size: 16px !important;
+      font-weight: bold !important;
+      color: #000000 !important;
+      cursor: pointer !important;
+      z-index: 999999 !important;
+      box-shadow: 0 0 20px rgba(255,0,0,0.8) !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    `;
+    
+    button.onclick = () => {
+      console.log('🔥 EMERGENCY PRIME BUTTON CLICKED!');
+      alert('Emergency Prime Button Works!');
+    };
+    
+    document.body.appendChild(button);
+    console.log('✅ Emergency button added to DOM');
+    
+    return () => {
+      const btn = document.getElementById('emergency-prime-button');
+      if (btn) btn.remove();
+    };
+  }, []);
+  
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
