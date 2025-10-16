@@ -1,6 +1,7 @@
 import type { Handler } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
+import crypto from "crypto";
 
 // ---- ENV
 const SUPABASE_URL = process.env.SUPABASE_URL!;
@@ -12,6 +13,9 @@ const MODEL = process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini";
 function admin() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 }
+
+// ---- PII Masking
+import { maskPII } from "./_shared/pii";
 
 // ---- Guardrails (use your production guardrails)
 import { runGuardrails } from "./_shared/guardrails-production";
@@ -46,8 +50,41 @@ export const handler: Handler = async (event) => {
     const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
     const log = makeGuardrailLogger();
 
-    // 1) Guardrails on latest user message
+    // ====================================================================
+    // SECURITY PIPELINE: PII Masking → Guardrails → Moderation
+    // ====================================================================
+    
     const latest = messages[messages.length - 1];
+    const originalUserText = String(latest.content || "");
+    
+    // 1) MASK PII - Sanitize input before any processing
+    const { masked, found } = maskPII(originalUserText, 'last4');
+    
+    // Log PII detection event (async, don't block on failure)
+    if (found.length > 0) {
+      try {
+        await sb.from("guardrail_events").insert({
+          user_id: userId,
+          stage: "chat_input",
+          rule_type: "pii_detected",
+          action: "masked",
+          severity: 2,
+          content_hash: crypto.createHash("sha256")
+            .update(originalUserText.slice(0, 256))
+            .digest("hex")
+            .slice(0, 24),
+          meta: { 
+            pii_types: found.map(f => f.type),
+            count: found.length 
+          },
+          created_at: new Date().toISOString()
+        });
+      } catch (e) {
+        console.warn("PII guardrail log failed:", e);
+      }
+    }
+    
+    // 2) GUARDRAILS - Apply comprehensive security checks on masked text
     const guardrailConfig = {
       preset: 'strict' as const,
       jailbreakThreshold: 70,
@@ -57,46 +94,92 @@ export const handler: Handler = async (event) => {
       chat: { pii: true, moderation: true, jailbreak: true }
     };
     
-    const gr = await runGuardrails(latest.content, userId, 'chat', guardrailConfig);
+    const gr = await runGuardrails(masked, userId, 'chat', guardrailConfig);
 
     if (!gr.ok) {
       // Blocked by guardrails
-      const blockedText = "I can't help with that request.";
-      await saveChatMessage(sb, { userId, role: "assistant", content: blockedText, employee: "Prime" });
-      return json(200, { text: blockedText, blocked: true });
+      const refusal = gr.block_message || "I'm sorry — I can't help with that request.";
+      await saveChatMessage(sb, { userId, role: "assistant", content: refusal, employee: "Prime" });
+      return json(200, { text: refusal, blocked: true });
     }
+    
+    // 3) MODERATION - Double-check with OpenAI moderation API
+    try {
+      const mod = await openai.moderations.create({ 
+        model: "omni-moderation-latest", 
+        input: masked 
+      });
+      
+      const result = mod?.results?.[0];
+      if (result?.flagged || result?.categories?.["illicit-violent"]) {
+        const refuse = "I'm sorry — I can't assist with that.";
+        
+        // Log moderation event
+        await sb.from("guardrail_events").insert({
+          user_id: userId,
+          stage: "chat_moderation",
+          rule_type: "openai_moderation",
+          action: "blocked",
+          severity: 3,
+          content_hash: crypto.createHash("sha256")
+            .update(masked.slice(0, 256))
+            .digest("hex")
+            .slice(0, 24),
+          meta: { 
+            categories: result.categories,
+            category_scores: result.category_scores
+          },
+          created_at: new Date().toISOString()
+        });
+        
+        await saveChatMessage(sb, { userId, role: "assistant", content: refuse, employee: "Prime" });
+        return json(200, { text: refuse, blocked: true });
+      }
+    } catch (modErr) {
+      console.warn("Moderation API error:", modErr);
+      // Continue if moderation fails - guardrails already passed
+    }
+    
+    // 4) SANITIZE MESSAGES - Use masked text for LLM and storage
+    const sanitizedMessages = [
+      ...messages.slice(0, -1),
+      { ...latest, content: masked }
+    ];
 
-    // 2) Memory: fetch facts + recall
-    const facts = await fetchUserFacts(sb, userId);          // your facts table
-    const recall = await recallSimilarMemory(sb, userId, latest.content); // embedding recall
+    // 5) Memory: fetch facts + recall (use masked content for memory queries)
+    const facts = await fetchUserFacts(sb, userId);
+    const recall = await recallSimilarMemory(sb, userId, masked);
     
     // Convert recall to format expected by router: { text: string }[]
     const memoryForRouter = recall.map(r => ({ text: r.fact }));
 
-    // 3) Employee routing (KEEP your routing)
-    const route = routeToEmployee(null, messages, memoryForRouter); // returns { slug, systemPrompt }
-    const employeeSlug = route.slug; // e.g., "prime-boss", "tag-categorize", "byte-docs"
-    const employeeName = employeeSlug.split('-')[0].charAt(0).toUpperCase() + employeeSlug.split('-')[0].slice(1); // "Prime", "Tag", "Byte"
+    // 6) Employee routing (use sanitized messages)
+    const route = routeToEmployee(null, sanitizedMessages, memoryForRouter);
+    const employeeSlug = route.slug;
+    const employeeName = employeeSlug.split('-')[0].charAt(0).toUpperCase() + employeeSlug.split('-')[0].slice(1);
 
-    // 4) Build system prompt using router's systemPrompt
-    const system = route.systemPrompt + "\nFollow guardrails. Never reveal PII. Use context if helpful.";
+    // 7) Build system prompt with security instructions
+    const system = route.systemPrompt + 
+      "\nIMPORTANT: Never reveal PII, credit cards, SSNs, or passwords. " +
+      "Do not provide instructions for illegal activities. " +
+      "Use context if helpful but prioritize user privacy and safety.";
 
-    // 5) Compose context
+    // 8) Compose context
     const contextBlocks: string[] = [];
     if (facts?.length) contextBlocks.push("USER FACTS:\n" + facts.map((f:any)=>`- ${f.fact}`).join("\n"));
     if (recall?.length) contextBlocks.push("RECENT MEMORY:\n" + recall.map((r:any)=>`- ${r.fact} (score ${r.score?.toFixed(2)})`).join("\n"));
 
     const augmentedUserMsg = contextBlocks.length
-      ? `${latest.content}\n\n---\n${contextBlocks.join("\n\n")}`
-      : latest.content;
+      ? `${masked}\n\n---\n${contextBlocks.join("\n\n")}`
+      : masked;
 
     const modelMessages = [
       { role: "system" as const, content: system },
-      ...messages.slice(0, -1), // prior thread as-is (your server also persists; this keeps routing coherent)
+      ...sanitizedMessages.slice(0, -1),
       { role: "user" as const, content: augmentedUserMsg }
     ];
 
-    // 6) STREAM response
+    // 9) STREAM response with security checks
     // Netlify: return a streamed response using Response/ReadableStream (Node 18+ runtime)
     const stream = new ReadableStream({
       async start(controller) {
@@ -105,24 +188,71 @@ export const handler: Handler = async (event) => {
           const completion = await openai.chat.completions.create({
             model: MODEL,
             messages: modelMessages,
-          temperature: 0.3,
+            temperature: 0.3,
             stream: true
           });
 
+          // Collect full response (don't stream yet - need to sanitize first)
           for await (const chunk of completion) {
             const token = chunk.choices?.[0]?.delta?.content || "";
-          if (token) {
+            if (token) {
               assistantText += token;
-              controller.enqueue(new TextEncoder().encode(token));
             }
           }
 
-          // Persist messages after full reply
-          await saveChatMessage(sb, { userId, role: "user", content: latest.content, employee: employeeSlug });
-          await saveChatMessage(sb, { userId, role: "assistant", content: assistantText, employee: employeeSlug });
+          // ====================================================================
+          // FINAL SANITATION: Redact any PII in assistant's response
+          // ====================================================================
+          const { masked: assistantRedacted, found: assistantPII } = maskPII(assistantText, 'last4');
+          
+          // Log if assistant somehow leaked PII (should not happen with proper prompt)
+          if (assistantPII.length > 0) {
+            console.warn(`⚠️  Assistant response contained PII (${assistantPII.length} instances):`, 
+              assistantPII.map(p => p.type));
+            
+            try {
+              await sb.from("guardrail_events").insert({
+                user_id: userId,
+                stage: "chat_output",
+                rule_type: "assistant_pii_detected",
+                action: "redacted",
+                severity: 3,
+                content_hash: crypto.createHash("sha256")
+                  .update(assistantText.slice(0, 256))
+                  .digest("hex")
+                  .slice(0, 24),
+                meta: { 
+                  pii_types: assistantPII.map(f => f.type),
+                  count: assistantPII.length,
+                  employee: employeeSlug
+                },
+                created_at: new Date().toISOString()
+              });
+            } catch (e) {
+              console.warn("Assistant PII log failed:", e);
+            }
+          }
+          
+          // Stream the REDACTED response to client
+          controller.enqueue(new TextEncoder().encode(assistantRedacted));
 
-          // Session summary (rolling)
-          await saveConvoSummary(sb, userId, await summarizeRolling(assistantText));
+          // Persist MASKED user input and REDACTED assistant output
+          await saveChatMessage(sb, { 
+            userId, 
+            role: "user", 
+            content: masked, // Store masked user input
+            employee: employeeSlug 
+          });
+          
+          await saveChatMessage(sb, { 
+            userId, 
+            role: "assistant", 
+            content: assistantRedacted, // Store redacted assistant output
+            employee: employeeSlug 
+          });
+
+          // Session summary (using redacted text)
+          await saveConvoSummary(sb, userId, await summarizeRolling(assistantRedacted));
 
           controller.close();
         } catch (err: any) {
