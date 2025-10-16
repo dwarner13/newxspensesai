@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Home, Upload, Mic, Bot, Settings, Bell, MessageCircle } from 'lucide-react';
 import { EMPLOYEES } from '../../data/aiEmployees';
 import MobileChatbotModal from './MobileChatbotModal';
-import { ByteDocumentChat } from '../chat/ByteDocumentChat';
+import { ByteDocumentChat } from '../chat/_legacy/ByteDocumentChat';
 
 interface MobileBottomNavProps {
   activeEmployee?: string;

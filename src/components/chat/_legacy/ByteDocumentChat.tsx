@@ -24,16 +24,16 @@ import {
   History,
   FolderOpen
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
-import { AIEmployeeOrchestrator } from '../../systems/AIEmployeeOrchestrator';
-import { getEmployeePersonality, generateEmployeeResponse } from '../../systems/EmployeePersonalities';
-import { processImageWithSmartOCR, SmartOCRResult } from '../../utils/smartOCRManager';
-import { redactDocument, generateAIEmployeeNotification } from '../../utils/documentRedaction';
-import { processLargeFile, getFileRecommendations, ProcessingProgress } from '../../utils/largeFileProcessor';
-import { AIService } from '../../services/AIService';
-import { BYTE_KNOWLEDGE_BASE, BYTE_RESPONSES } from '../../ai-knowledge/byte-knowledge-base';
-import { CRYSTAL_KNOWLEDGE_BASE, CRYSTAL_RESPONSES, CRYSTAL_PERSONALITY } from '../../ai-knowledge/crystal-knowledge-base';
+import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
+import { AIEmployeeOrchestrator } from '../../../systems/AIEmployeeOrchestrator';
+import { getEmployeePersonality, generateEmployeeResponse } from '../../../systems/EmployeePersonalities';
+import { processImageWithSmartOCR, SmartOCRResult } from '../../../utils/smartOCRManager';
+import { redactDocument, generateAIEmployeeNotification } from '../../../utils/documentRedaction';
+import { processLargeFile, getFileRecommendations, ProcessingProgress } from '../../../utils/largeFileProcessor';
+import { AIService } from '../../../services/AIService';
+import { BYTE_KNOWLEDGE_BASE, BYTE_RESPONSES } from '../../../ai-knowledge/byte-knowledge-base';
+import { CRYSTAL_KNOWLEDGE_BASE, CRYSTAL_RESPONSES, CRYSTAL_PERSONALITY } from '../../../ai-knowledge/crystal-knowledge-base';
 import toast from 'react-hot-toast';
 
 interface ProcessedDocument {

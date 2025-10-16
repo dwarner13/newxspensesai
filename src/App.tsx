@@ -124,7 +124,8 @@ const SpotifyIntegrationPage = lazy(() => import('./pages/dashboard/SpotifyInteg
 // Additional components
 const WellnessStudioPage = lazy(() => import('./pages/dashboard/WellnessStudioPage'));
 const ByteChatTest = lazy(() => import('./pages/ByteChatTest'));
-const PrimeChat = lazy(() => import('./pages/chat/PrimeChat'));
+// Legacy PrimeChat removed - now using floating bubble panel in dashboard
+// const PrimeChat = lazy(() => import('./pages/chat/PrimeChat'));
 const PrimeChatSimple = lazy(() => import('./pages/chat/PrimeChatSimple'));
 const ChatTest = lazy(() => import('./pages/ChatTest'));
 const SimpleTest = lazy(() => import('./pages/SimpleTest'));

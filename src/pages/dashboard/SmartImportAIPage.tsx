@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2, X, Bot } from 'lucide-react';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useAIMemory } from '../../hooks/useAIMemory';
-import { ByteDocumentChat } from '../../components/chat/ByteDocumentChat';
+import { ByteDocumentChat } from '../../components/chat/_legacy/ByteDocumentChat';
 
 interface ProcessingFile {
   id: string;

@@ -1,8 +1,8 @@
 // AI Employee Test Interface - For testing the new Prime system
 import React, { useState } from 'react';
 import { Crown, Bot, Sparkles } from 'lucide-react';
-import PrimeChatInterface from './PrimeChatInterface';
-import { ByteDocumentChat } from './ByteDocumentChat';
+import PrimeChatInterface from './_legacy/PrimeChatInterface';
+import { ByteDocumentChat } from './_legacy/ByteDocumentChat';
 
 interface AIEmployeeTestInterfaceProps {
   isOpen: boolean;

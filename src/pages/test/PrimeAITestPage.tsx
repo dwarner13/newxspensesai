@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Crown, Bot, Sparkles, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { ByteDocumentChat } from '../../components/chat/ByteDocumentChat';
+import { ByteDocumentChat } from '../../components/chat/_legacy/ByteDocumentChat';
 import AISystemToggle from '../../components/settings/AISystemToggle';
 
 const PrimeAITestPage: React.FC = () => {
