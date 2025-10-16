@@ -288,7 +288,8 @@ export const handler: Handler = async (event) => {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
-        "Transfer-Encoding": "chunked"
+        "Transfer-Encoding": "chunked",
+        "X-Chat-Backend": "v2"  // Sanity beacon - confirms new backend
       }
     }) as any;
   } catch (e: any) {
