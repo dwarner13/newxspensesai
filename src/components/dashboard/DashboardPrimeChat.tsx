@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { CHAT_ENDPOINT, verifyChatBackend } from '../../lib/chatEndpoint';
 import { Send, Crown, User, Loader2, X, Minimize2, Maximize2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -77,7 +78,8 @@ export default function DashboardPrimeChat({ isOpen, onClose }: DashboardPrimeCh
       }));
 
       // Call chat API with streaming
-      const response = await fetch('/.netlify/functions/chat', {
+      console.log('[DashboardPrimeChat] using endpoint:', CHAT_ENDPOINT);
+      const response = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -87,6 +89,9 @@ export default function DashboardPrimeChat({ isOpen, onClose }: DashboardPrimeCh
           employee: 'prime-boss'
         })
       });
+
+      // Verify we're hitting the v2 backend
+      verifyChatBackend(response);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
