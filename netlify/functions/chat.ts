@@ -16,18 +16,24 @@ import { OPENAI_TOOLS } from './_shared/tool-schemas'
 import { executeTool } from './_shared/tool-executor'
 
 export const handler: Handler = async (event) => {
-  // Handle CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: ''
+  // Set function timeout to prevent 502 errors
+  const timeoutId = setTimeout(() => {
+    console.error('Function timeout - returning 502');
+  }, 9000); // 9 seconds (Netlify limit is 10s)
+
+  try {
+    // Handle CORS preflight
+    if (event.httpMethod === 'OPTIONS') {
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'POST, OPTIONS'
+        },
+        body: ''
+      }
     }
-  }
 
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' }
@@ -79,9 +85,8 @@ export const handler: Handler = async (event) => {
     prompt_chars: promptChars,
   })
 
-  // Start async work without blocking return
-  ;(async () => {
-    try {
+  // Process the chat request
+  try {
       // ✅ APPLY GUARDRAILS (Balanced Preset for Chat)
       const last = messages[messages.length - 1]
       const originalContent = last.content || ''
@@ -302,18 +307,30 @@ export const handler: Handler = async (event) => {
         .catch(err => console.log('Summary generation failed:', err))
 
       stream.write(`data: ${JSON.stringify({ type: 'done', employee: target.slug })}\n\n`)
-    } catch (err: any) {
-      console.error('chat_stream_error', err)
-      
-      // Record error metric
-      await metric.end(false, { error_code: String(err?.message || err) })
-      
-      stream.write(`event: error\ndata: ${JSON.stringify({ message: String(err?.message || err) })}\n\n`)
-    } finally {
-      stream.end()
-    }
-  })()
+  } catch (err: any) {
+    console.error('chat_stream_error', err)
+    
+    // Record error metric
+    await metric.end(false, { error_code: String(err?.message || err) })
+    
+    stream.write(`event: error\ndata: ${JSON.stringify({ message: String(err?.message || err) })}\n\n`)
+    stream.end()
+  }
 
-  // @ts-ignore Netlify accepts stream body in v1 handlers
-  return { statusCode: 200, headers, body: stream }
+    // Clear timeout and return stream
+    clearTimeout(timeoutId);
+    // @ts-ignore Netlify accepts stream body in v1 handlers
+    return { statusCode: 200, headers, body: stream }
+  } catch (error) {
+    console.error('Chat function error:', error);
+    clearTimeout(timeoutId);
+    return {
+      statusCode: 500,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ error: 'Internal server error' })
+    };
+  }
 }
