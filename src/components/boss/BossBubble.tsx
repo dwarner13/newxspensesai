@@ -482,21 +482,22 @@ Always respond in a conversational tone as Prime, the helpful AI boss.`;
           zIndex: 99999, 
           bottom: '24px', 
           right: '24px',
-          width: '64px',
-          height: '64px',
+          width: '80px',
+          height: '80px',
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, #9333ea, #ec4899)',
-          border: 'none',
+          background: 'linear-gradient(135deg, #ff0000, #ffff00)',
+          border: '4px solid #ffffff',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: '24px',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.3)'
+          fontSize: '32px',
+          boxShadow: '0 10px 25px rgba(255,0,0,0.5)',
+          animation: 'pulse 1s infinite'
         }}
-        title="Chat with Prime AI CEO"
+        title="Chat with Prime AI CEO - TEST BUTTON"
       >
-        👑
+        🚨
       </button>
 
       {/* Background blur overlay */}
