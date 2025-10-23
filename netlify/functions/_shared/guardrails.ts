@@ -15,6 +15,25 @@
 
 import { OpenAI } from 'openai'
 import { supabaseAdmin } from '../supabase'
+import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
+import { safeLog } from "./safeLog";
+
+// Wrap a handler to add try/catch logging and a safe 500 response.
+export function withGuardrails(handler: Handler): Handler {
+  return async (event: HandlerEvent, context: HandlerContext) => {
+    try {
+      const res = await handler(event, context);
+      return res ?? { statusCode: 200, body: "" };
+    } catch (err: any) {
+      safeLog("Function error:", err?.stack ?? err);
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: "Internal server error" }),
+        headers: { "content-type": "application/json" }
+      };
+    }
+  };
+}
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 

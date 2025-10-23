@@ -66,7 +66,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
 
   return (
     <div
-      className="h-full w-full bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20 flex flex-col backdrop-blur-sm mobile-sidebar-optimized"
+      className="h-full w-full bg-[rgba(15,23,42,0.95)] border-r border-purple-500/20 flex flex-col backdrop-blur-sm"
       onClick={(e) => e.stopPropagation()}
       style={{
         transform: 'translateX(0)',

@@ -41,6 +41,94 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
   const profileRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
 
+  // Initialize Prime Boss button
+  useEffect(() => {
+    // SINGLETON GUARD: Prevent duplicate launchers across re-renders
+    if ((window as any).__PRIME_BOSS_MOUNTED) {
+      console.log('[Prime] Launcher already mounted, skipping...');
+      return;
+    }
+    
+    // Clean up legacy buttons from previous implementations
+    const legacySelectors = [
+      '#emergency-prime-button',    // BossBubble debug button
+      '.prime-fab',                 // Generic legacy FAB
+      '#dashboard-prime-bubble',    // Old DashboardPrimeBubble
+      '[data-prime-bubble]',        // Data-attribute based
+      '.dock-button-prime'          // Old PrimeDockButton
+    ];
+    
+    legacySelectors.forEach(selector => {
+      try {
+        const legacy = document.querySelector(selector);
+        if (legacy) {
+          console.log(`[Prime] Removing legacy launcher: ${selector}`);
+          legacy.remove();
+        }
+      } catch (e) {
+        console.warn(`[Prime] Failed to query selector ${selector}:`, e);
+      }
+    });
+    
+    const id = "prime-boss-button";
+    
+    // Remove existing button if any
+    document.getElementById(id)?.remove();
+
+    // Create button element
+    const btn = document.createElement("button");
+    btn.id = id;
+    btn.setAttribute("aria-label", "Open Prime");
+    btn.innerHTML = "👑";
+    btn.style.cssText = `
+      position: fixed; top: 20px; right: 20px;
+      width: 56px; height: 56px; border-radius: 9999px;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      border: none; cursor: pointer; z-index: 40;
+      font-size: 24px; line-height: 56px; text-align: center;
+      box-shadow: 0 4px 12px rgba(59,130,246,.4);
+      transition: transform .2s ease;
+      animation: prime-pulse 2s infinite;
+    `;
+
+    // Create and inject animation styles
+    const style = document.createElement("style");
+    style.innerHTML = `
+      @keyframes prime-pulse {
+        0%,100% { box-shadow: 0 4px 12px rgba(59,130,246,.4); }
+        50% { box-shadow: 0 4px 20px rgba(59,130,246,.8); }
+      }
+      #prime-boss-button:hover {
+        transform: scale(1.06);
+      }
+      #prime-boss-button:active {
+        transform: scale(0.98);
+      }
+    `;
+    document.head.appendChild(style);
+    
+    // SET SINGLETON GUARD
+    (window as any).__PRIME_BOSS_MOUNTED = true;
+
+    // Attach click handler to open Prime chat
+    btn.onclick = (e: Event) => {
+      e.preventDefault();
+      console.log("[Prime] Button clicked - opening chat");
+      window.dispatchEvent(new CustomEvent('openPrimeChat', {
+        detail: { source: 'dashboard-header' }
+      }));
+    };
+
+    // Add button to DOM
+    document.body.appendChild(btn);
+
+    // Cleanup: Remove guard on unmount
+    return () => {
+      btn.remove();
+      delete (window as any).__PRIME_BOSS_MOUNTED;
+    };
+  }, []);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

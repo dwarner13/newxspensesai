@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import ReactDOM from 'react-dom';
 import { Outlet, useLocation } from "react-router-dom";
 import { Crown } from "lucide-react";
 import DesktopSidebar from "../components/navigation/DesktopSidebar";
@@ -7,6 +8,9 @@ import AITeamSidebar from "../components/layout/AITeamSidebar";
 import MobileSidebar from "../components/layout/MobileSidebar";
 import MobileBottomNav from "../components/layout/MobileBottomNav";
 import MobileProfileModal from "../components/layout/MobileProfileModal";
+import MobileMenuDrawer from "../components/ui/MobileMenuDrawer";
+import { PrimeIntroModal } from "../components/prime/PrimeIntroModal";
+import { usePrimeIntro } from "../hooks/usePrimeIntro";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
 
@@ -16,6 +20,9 @@ export default function DashboardLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Prime intro hook
+  const { showIntro, complete } = usePrimeIntro();
 
   // Pull-to-refresh functionality for mobile
   const handleRefresh = async () => {
@@ -84,10 +91,20 @@ export default function DashboardLayout() {
     }
   }, [isMobile, pullToRefresh.handlers]);
 
-  // Close mobile menu when route changes
+  // Auto-close drawer when route changes
   useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, []);
+    if (isMobileMenuOpen) setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  // Lock body scroll when menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = 'auto';
+      };
+    }
+  }, [isMobileMenuOpen]);
 
   if (isMobile) {
     return (
@@ -109,6 +126,7 @@ export default function DashboardLayout() {
                 setIsMobileMenuOpen(true);
               }}
               className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
+              aria-label="Open menu"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -126,6 +144,7 @@ export default function DashboardLayout() {
             <button 
               onClick={() => setIsProfileModalOpen(true)}
               className="flex items-center gap-2 hover:bg-white/10 rounded-lg p-1 transition-all duration-200"
+              aria-label="Profile menu"
             >
               <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-teal-500 rounded-full flex items-center justify-center">
                 <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -137,25 +156,13 @@ export default function DashboardLayout() {
           </div>
         </div>
 
-        {/* Mobile Sidebar Overlay */}
-        
-          {isMobileMenuOpen && (
-            <>
-              {console.log('Rendering mobile sidebar overlay, isMobileMenuOpen:', isMobileMenuOpen)}
-              <div
-              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" 
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <div 
-                className="fixed left-0 top-0 h-full w-80 z-50"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
-              </div>
-            </div>
-            </>
-          )}
-        
+        {/* Mobile Menu Drawer – Now using reusable component */}
+        <MobileMenuDrawer
+          open={isMobileMenuOpen}
+          onClose={() => setIsMobileMenuOpen(false)}
+        >
+          <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
+        </MobileMenuDrawer>
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto pt-16 pb-16">
@@ -177,6 +184,9 @@ export default function DashboardLayout() {
           isOpen={isProfileModalOpen} 
           onClose={() => setIsProfileModalOpen(false)} 
         />
+        
+        {/* Prime Intro Modal */}
+        <PrimeIntroModal open={showIntro} onComplete={complete} />
         
       </div>
     );
@@ -215,6 +225,8 @@ export default function DashboardLayout() {
         </div>
       </div>
       
+      {/* Prime Intro Modal */}
+      <PrimeIntroModal open={showIntro} onComplete={complete} />
       
     </div>
   );

@@ -10,6 +10,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { CHAT_ENDPOINT, verifyChatBackend } from '../../lib/chatEndpoint';
 import { Send, Crown, User, Loader2, X, Minimize2, Maximize2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { onBus } from '../../lib/bus';
+import PrimeGreeting from './PrimeGreeting';
 
 interface Message {
   id: string;
@@ -17,19 +19,92 @@ interface Message {
   content: string;
   timestamp: Date;
   employee?: string;
+  isGreeting?: boolean;
 }
 
 interface DashboardPrimeChatProps {
   isOpen: boolean;
   onClose: () => void;
+  initialGreeting?: string;
+  initialSuggestions?: Array<{ label: string; action?: string; route?: string; event?: { type: string; payload: any } }>;
 }
 
-export default function DashboardPrimeChat({ isOpen, onClose }: DashboardPrimeChatProps) {
+// SSE Stream Reader Helper
+async function readSSEStream(
+  res: Response,
+  {
+    onDelta,
+    onDone,
+  }: {
+    onDelta: (chunk: string) => void;
+    onDone: (fullText: string) => void;
+  }
+) {
+  const reader = res.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let full = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // Split by SSE event delimiter
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop()!;
+
+    for (const part of parts) {
+      // Lines look like:
+      // data: {...}
+      // OR
+      // data: [DONE]
+      const lines = part.split('\n');
+      const dataLine = lines.find(l => l.startsWith('data: '));
+      if (!dataLine) continue;
+      const payload = dataLine.slice(6).trim();
+
+      if (payload === '[DONE]') {
+        // upstream complete
+        continue;
+      }
+
+      try {
+        const json = JSON.parse(payload);
+        const frag = json?.choices?.[0]?.delta?.content ?? '';
+        if (frag) {
+          full += frag;
+          onDelta(frag);
+        }
+      } catch {
+        // Non-JSON payloads are ignored
+      }
+    }
+  }
+
+  // Flush any trailing buffer (usually empty for SSE)
+  if (buffer.startsWith('data: ')) {
+    try {
+      const json = JSON.parse(buffer.slice(6).trim());
+      const frag = json?.choices?.[0]?.delta?.content ?? '';
+      if (frag) {
+        full += frag;
+        onDelta(frag);
+      }
+    } catch {}
+  }
+
+  onDone(full);
+}
+
+export default function DashboardPrimeChat({ isOpen, onClose, initialGreeting, initialSuggestions }: DashboardPrimeChatProps) {
   const { userId } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [greetingData, setGreetingData] = useState<{ greeting: string; suggestions: any[] } | null>(null);
+  const [showGreeting, setShowGreeting] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [convoId] = useState(() => {
     const stored = localStorage.getItem('prime_convo_id');
@@ -38,6 +113,31 @@ export default function DashboardPrimeChat({ isOpen, onClose }: DashboardPrimeCh
     localStorage.setItem('prime_convo_id', newId);
     return newId;
   });
+
+  // Listen for CHAT_OPEN bus events to update greeting
+  useEffect(() => {
+    const off = onBus('CHAT_OPEN', (payload) => {
+      if (payload.greeting) {
+        setGreetingData({
+          greeting: payload.greeting,
+          suggestions: payload.suggestions || [],
+        });
+        setShowGreeting(true);
+        setMessages([]); // Clear messages for new greeting
+      }
+    });
+    return () => off();
+  }, []);
+
+  // Set initial greeting if provided
+  useEffect(() => {
+    if (initialGreeting && isOpen && showGreeting && messages.length === 0) {
+      setGreetingData({
+        greeting: initialGreeting,
+        suggestions: initialSuggestions || [],
+      });
+    }
+  }, [isOpen, initialGreeting, initialSuggestions]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -79,29 +179,84 @@ export default function DashboardPrimeChat({ isOpen, onClose }: DashboardPrimeCh
 
       // Call chat API with streaming
       console.log('[DashboardPrimeChat] using endpoint:', CHAT_ENDPOINT);
+      
+      const payload = {
+        userId,
+        message: String(inputMessage ?? '').trim(), // avoid empty/undefined
+        sessionId: convoId ?? undefined,
+        mode: 'balanced' as const,
+      };
+      
+      console.log('[PrimeChat] sending', payload);
+      
       const response = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          convoId,
-          messages: apiMessages,
-          employee: 'prime-boss'
-        })
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
       });
-
-      // Verify we're hitting the v2 backend
+      
+      console.log('[PrimeChat] resp', response.status, response.headers.get('X-Chat-Backend'));
+      
       verifyChatBackend(response);
-
+      
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const text = await response.text().catch(() => '');
+        try {
+          const j = JSON.parse(text);
+          throw new Error(`HTTP ${response.status}: ${j.error || text || 'Unknown error'}`);
+        } catch {
+          throw new Error(`HTTP ${response.status}: ${text || 'Unknown error'}`);
+        }
       }
-
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
+      
+      const ct = response.headers.get('content-type') || '';
+      
+      if (ct.includes('text/event-stream')) {
+        // --- STREAMING PATH ---
+        console.log('[PrimeChat] Streaming response detected');
+        
+        await readSSEStream(response, {
+          onDelta: (chunk) => {
+            // Update the assistant bubble with more text
+            setMessages(prev => prev.map(m => 
+              m.id === assistantId 
+                ? { ...m, content: m.content + chunk }
+                : m
+            ));
+          },
+          onDone: (fullText) => {
+            console.log('[PrimeChat] Stream complete, length:', fullText.length);
+            setIsLoading(false);
+          },
+        });
+        
+        setInputMessage('');
+        return;
       }
+      
+      // --- JSON FALLBACK PATH ---
+      const data = await response.json();
+      console.log('[PrimeChat] JSON data', data);
+      
+      const assistantText =
+        (typeof data.reply === 'string' && data.reply) ||
+        (typeof data.assistant === 'string' && data.assistant) ||
+        (typeof data.echo === 'string' && data.echo) ||
+        (typeof data.message === 'string' && data.message) ||
+        '';
+      
+      if (assistantText) {
+        setMessages(prev => prev.map(m => 
+          m.id === assistantId 
+            ? { ...m, content: assistantText, employee: data.employee || 'prime-boss' }
+            : m
+        ));
+      } else {
+        console.warn('[PrimeChat] JSON response without reply/assistant/echo keys:', data);
+      }
+      
+      setInputMessage('');
+      setIsLoading(false);
 
       const decoder = new TextDecoder();
       let buffer = '';
@@ -222,7 +377,20 @@ export default function DashboardPrimeChat({ isOpen, onClose }: DashboardPrimeCh
       {!isMinimized && (
         <>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.length === 0 && (
+            {messages.length === 0 && showGreeting && greetingData ? (
+              <div className="bg-purple-900/30 border border-purple-500/20 rounded-lg p-4 space-y-4">
+                <PrimeGreeting 
+                  greeting={greetingData.greeting} 
+                  suggestions={greetingData.suggestions}
+                />
+                <button
+                  onClick={() => setShowGreeting(false)}
+                  className="w-full text-xs text-gray-400 hover:text-gray-300 py-2 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            ) : messages.length === 0 ? (
               <div className="text-center text-gray-400 py-6">
                 <Crown className="w-12 h-12 mx-auto mb-3 text-purple-400" />
                 <p className="text-sm font-medium">Welcome to Prime Chat!</p>
@@ -230,7 +398,7 @@ export default function DashboardPrimeChat({ isOpen, onClose }: DashboardPrimeCh
                   I'm your strategic AI CEO. Ask me anything about your finances.
                 </p>
               </div>
-            )}
+            ) : null}
 
             {messages.map((message) => (
               <div

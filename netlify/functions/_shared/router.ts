@@ -1,12 +1,13 @@
 type Msg = { role: 'system'|'user'|'assistant'; content: string }
 
-const PROMPTS: Record<string, string> = {
-  'prime-boss': 'You are Prime, the boss. Decide if you can answer or delegate. Be concise and give next steps. Max 2-3 sentences.',
-  'crystal-analytics': 'You analyze spending patterns, produce simple charts (describe them), trends, and clear actions. 2-3 sentences.',
-  'ledger-tax': 'You focus on Canadian taxes/deductions/CRA compliance. Explain simply and give safe guidance. 2-3 sentences.',
-  'byte-docs': 'You process documents and receipts. Help with uploads and OCR. 1-2 sentences.',
-  'tag-categorize': 'You categorize expenses. Help organize transactions. 1-2 sentences.',
-  'goalie-goals': 'You help with financial goals. Be encouraging and practical. 2-3 sentences.'
+// Employee personas (optional flavor, added AFTER shared system)
+const PERSONAS: Record<string, string> = {
+  'prime-boss': 'You are Prime, the CEO. Strategic, decisive, delegates to specialists. Be concise and action-oriented. Max 2-3 sentences.',
+  'crystal-analytics': 'You are Crystal, the analytics expert. You analyze spending patterns and trends. Provide clear insights and actionable recommendations. 2-3 sentences.',
+  'ledger-tax': 'You are Ledger, the tax specialist. You focus on Canadian taxes, deductions, and CRA compliance. Explain simply and give safe guidance. 2-3 sentences.',
+  'byte-docs': 'You are Byte, the document processor. You help with uploads, OCR, and data extraction. Efficient and precise. 1-2 sentences.',
+  'tag-categorize': 'You are Tag, the categorization expert. You help organize and categorize transactions. Detail-oriented and systematic. 1-2 sentences.',
+  'goalie-goals': 'You are Goalie, the goal-setting coach. You help with financial goals and motivation. Be encouraging and practical. 2-3 sentences.'
 }
 
 const FEWSHOTS = [
@@ -18,41 +19,54 @@ const FEWSHOTS = [
   { q: 'I want to save $10k this year for a vacation', route: 'goalie-goals' }
 ]
 
-export function routeToEmployee(
-  requested: string | null,
-  messages: Msg[],
-  mem: { text: string }[]
-) {
-  if (requested && PROMPTS[requested]) return { slug: requested, systemPrompt: PROMPTS[requested] }
+export function routeToEmployee(params: {
+  userText: string;
+  sharedSystem?: string;  // Optional: shared system with memory context
+  requestedEmployee?: string | null;
+  conversationHistory?: Msg[];
+  mode?: 'strict' | 'balanced' | 'creative';
+}) {
+  const { userText, sharedSystem, requestedEmployee, conversationHistory = [], mode = 'balanced' } = params;
 
-  const last = (messages.at(-1)?.content || '').toLowerCase()
+  // If specific employee requested and valid, use it
+  if (requestedEmployee && PERSONAS[requestedEmployee]) {
+    return {
+      employee: requestedEmployee,
+      systemPreamble: sharedSystem || '',
+      employeePersona: PERSONAS[requestedEmployee]
+    };
+  }
+
+  const last = userText.toLowerCase();
+
+  let selectedEmployee = 'prime-boss'; // Default
 
   // Keyword quick wins (most specific first)
-  // ✅ NEW: Gmail search queries (statements, invoices, receipts)
   if (/(pull|get|find|fetch|show|retrieve).*(statement|invoice|receipt|email)|(statement|invoice|receipt).*(visa|stripe|bank|gmail)/i.test(last)) {
-    return { slug:'byte-docs', systemPrompt: PROMPTS['byte-docs'] + ' You can search Gmail for statements/invoices using the email_search tool.' }
-  }
-  if (/(tax|deduction|cra|gst|hst|pst|t4|t5|1099|write[- ]?off|tax return)/i.test(last)) {
-    return { slug:'ledger-tax', systemPrompt: PROMPTS['ledger-tax'] }
-  }
-  if (/(trend|report|analytics|chart|graph|insight|spending|pattern|forecast)/i.test(last)) {
-    return { slug:'crystal-analytics', systemPrompt: PROMPTS['crystal-analytics'] }
-  }
-  if (/(receipt|invoice|upload|scan|document|ocr|pdf|extract)/i.test(last)) {
-    return { slug:'byte-docs', systemPrompt: PROMPTS['byte-docs'] }
-  }
-  if (/(categor|tag|classify|organize expense|sort expense)/i.test(last)) {
-    return { slug:'tag-categorize', systemPrompt: PROMPTS['tag-categorize'] }
-  }
-  if (/(goal|save|saving|budget|target|financial plan|retirement)/i.test(last)) {
-    return { slug:'goalie-goals', systemPrompt: PROMPTS['goalie-goals'] }
+    selectedEmployee = 'byte-docs';
+  } else if (/(tax|deduction|cra|gst|hst|pst|t4|t5|1099|write[- ]?off|tax return)/i.test(last)) {
+    selectedEmployee = 'ledger-tax';
+  } else if (/(trend|report|analytics|chart|graph|insight|spending|pattern|forecast)/i.test(last)) {
+    selectedEmployee = 'crystal-analytics';
+  } else if (/(receipt|invoice|upload|scan|document|ocr|pdf|extract)/i.test(last)) {
+    selectedEmployee = 'byte-docs';
+  } else if (/(categor|tag|classify|organize expense|sort expense)/i.test(last)) {
+    selectedEmployee = 'tag-categorize';
+  } else if (/(goal|save|saving|budget|target|financial plan|retirement)/i.test(last)) {
+    selectedEmployee = 'goalie-goals';
+  } else {
+    // Soft match against few-shots
+    const hit = FEWSHOTS.find(f => similarityScore(last, f.q) > 0.55);
+    if (hit) {
+      selectedEmployee = hit.route;
+    }
   }
 
-  // Soft match against few-shots
-  const hit = FEWSHOTS.find(f => similarityScore(last, f.q) > 0.55)
-  if (hit) return { slug: hit.route, systemPrompt: PROMPTS[hit.route] }
-
-  return { slug:'prime-boss', systemPrompt: PROMPTS['prime-boss'] }
+  return {
+    employee: selectedEmployee,
+    systemPreamble: sharedSystem || '',
+    employeePersona: PERSONAS[selectedEmployee]
+  };
 }
 
 // Naive similarity: Jaccard over words (fast and dependency-free)

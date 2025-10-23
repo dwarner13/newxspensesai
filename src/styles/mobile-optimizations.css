@@ -128,15 +128,7 @@ body {
   }
   
   /* Optimize mobile sidebar animations */
-  .mobile-sidebar-optimized {
-    transition: transform 0.2s ease-out, opacity 0.2s ease-out !important;
-    -webkit-transition: transform 0.2s ease-out, opacity 0.2s ease-out !important;
-    position: relative !important;
-    z-index: 51 !important;
-    background: rgba(15, 23, 42, 0.98) !important;
-    backdrop-filter: blur(8px) !important;
-    -webkit-backdrop-filter: blur(8px) !important;
-  }
+  /* removed: .mobile-sidebar-optimized class no longer used (replaced by MobileMenuDrawer) */
   
   /* Reduce backdrop blur on mobile for better performance */
   .mobile-sidebar-optimized .backdrop-blur-md {

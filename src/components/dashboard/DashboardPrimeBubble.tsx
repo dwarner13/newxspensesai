@@ -17,6 +17,14 @@ import { Crown, X, Send, Bot } from 'lucide-react';
 
 export default function DashboardPrimeBubble() {
   const { user } = useAuth();
+  
+  // LEGACY: Consolidated into canonical header launcher (#prime-boss-button)
+  // See: src/components/ui/DashboardHeader.tsx for single source of truth
+  const isDashboardPrimeBubbleDisabled = true;
+  if (isDashboardPrimeBubbleDisabled) {
+    return null;
+  }
+  
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);

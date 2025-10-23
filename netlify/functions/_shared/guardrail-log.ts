@@ -6,3 +6,5 @@ export function makeGuardrailLogger() {
     debug: (msg: string, data?: any) => console.debug(`[Guardrails] ${msg}`, data)
   };
 }
+
+export { safeLog } from "./safeLog";

@@ -19,6 +19,13 @@ import { useAllAIMemory } from '../../hooks/useAIMemory';
 export default function BossBubble() {
   console.log('🔍 BossBubble component is rendering!');
   
+  // LEGACY: Consolidated into canonical header launcher (#prime-boss-button)
+  // See: src/components/ui/DashboardHeader.tsx for single source of truth
+  const isBossBubbleDisabled = true;
+  if (isBossBubbleDisabled) {
+    return null;
+  }
+  
   // Force button to appear with absolute DOM manipulation
   useEffect(() => {
     console.log('🔧 Creating emergency button...');

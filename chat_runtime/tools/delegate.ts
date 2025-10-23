@@ -44,12 +44,11 @@ export async function delegateTool(
 
   // Validate target employee
   const validEmployees = [
-    'byte-doc',
-    'tag-ai',
+    'byte-docs',
+    'tag-categorizer',
     'crystal-analytics',
     'ledger-tax',
-    'goalie-coach',
-    'blitz-debt',
+    'goalie-agent',
   ];
 
   if (!validEmployees.includes(targetEmployee)) {
@@ -114,12 +113,11 @@ export const delegateToolDefinition = {
         targetEmployee: {
           type: 'string',
           enum: [
-            'byte-doc',
-            'tag-ai',
+            'byte-docs',
+            'tag-categorizer',
             'crystal-analytics',
             'ledger-tax',
-            'goalie-coach',
-            'blitz-debt',
+            'goalie-agent',
           ],
           description: 'The specialist employee to delegate to',
         },

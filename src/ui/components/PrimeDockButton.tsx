@@ -9,6 +9,13 @@ interface PrimeDockButtonProps {
 export function PrimeDockButton({ conversationId }: PrimeDockButtonProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   
+  // LEGACY: Consolidated into canonical header launcher (#prime-boss-button)
+  // See: src/components/ui/DashboardHeader.tsx for single source of truth
+  const isDockButtonDisabled = true;
+  if (isDockButtonDisabled) {
+    return null;
+  }
+  
   if (!isPrimeEnabled()) {
     return null;
   }

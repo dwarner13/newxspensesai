@@ -1,407 +1,315 @@
-import React, { useState, useEffect, useRef } from 'react';
-import MobilePageTitle from '../../components/ui/MobilePageTitle';
-import { UploadCloud, FileText, Image, FileSpreadsheet, Bot, Send, Loader2 } from 'lucide-react';
-import DashboardHeader from '../../components/ui/DashboardHeader';
-import { useAuth } from '../../contexts/AuthContext';
-import { 
-  getEmployeeConfig, 
-  getConversation, 
-  saveConversation, 
-  addMessageToConversation,
-  incrementConversationCount,
-  logAIInteraction,
-  generateConversationId,
-  createSystemMessage,
-  createUserMessage,
-  createAssistantMessage
-} from '../../lib/ai-employees';
-import { AIConversationMessage } from '../../types/ai-employees.types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { emitBus, onBus } from '@/lib/bus';
+import { toast } from '@/lib/toast';
 
-interface ByteMessage {
-  role: 'user' | 'byte' | 'system';
-  content: string;
-  timestamp: string;
-  metadata?: {
-    processing_time_ms?: number;
-    tokens_used?: number;
-    model_used?: string;
-  };
-}
+type PreviewRow = {
+  posted_at: string;
+  merchant: string;
+  category?: string | null;
+  category_confidence?: number | null;
+  amount: number;
+};
+
+const ACCEPT = {
+  ANY: '.pdf,.csv,image/*',
+  PDF: '.pdf',
+  CSV: '.csv',
+  IMG: 'image/*',
+};
 
 export default function SmartImportAI() {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<ByteMessage[]>([
-    {
-      role: 'byte',
-      content: "Hi! I'm 📄 Byte, your Smart Import AI. I can help you upload and process receipts, bank statements, and financial documents. I'll guide you through the import process and explain how AI categorization works. What would you like to import today?",
-      timestamp: new Date().toISOString()
-    }
-  ]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [conversationId, setConversationId] = useState('');
-  const [byteConfig, setByteConfig] = useState<any>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { userId } = useAuthContext();
+  const [searchParams] = useSearchParams();
 
-  // Initialize conversation and load Byte's config
+  const [activeImportId, setActiveImportId] = useState<string | null>(null);
+  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [advisory, setAdvisory] = useState<any | null>(null);
+  const [fastMode, setFastMode] = useState(false);
+  const isMobile = useMemo(() => /iPhone|Android|iPad/i.test(navigator.userAgent), []);
+
+  // --- Tile handlers --------------------------------------------------------
+
+  const openAny = () => emitBus("UPLOAD_REQUESTED", { source: "tile", accept: [ACCEPT.ANY] });
+  const openScan = () => emitBus("UPLOAD_REQUESTED", { source: "tile", accept: [ACCEPT.IMG] });
+  const openPdf = () => emitBus("UPLOAD_REQUESTED", { source: "tile", accept: [ACCEPT.PDF] });
+  const openCsv = () => emitBus("UPLOAD_REQUESTED", { source: "tile", accept: [ACCEPT.CSV] });
+  const enableFast = () => {
+    setFastMode(true);
+    emitBus("FAST_MODE_TOGGLED", { enabled: true });
+    toast.success('Fast Processing enabled for this session');
+  };
+  const openAiTeam = () => emitBus("WATCH_ME_WORK", { enabled: true });
+
+  // Auto-open upload when navigated from "Import & Chat" (desktop only)
   useEffect(() => {
-    const initializeByte = async () => {
-      if (!user?.id) return;
+    if (searchParams.get('auto') === 'upload' && !isMobile) {
+      emitBus("UPLOAD_REQUESTED", { source: "prime", accept: [ACCEPT.ANY] });
+    }
+  }, [searchParams, isMobile]);
+
+  // When a new import is created by the hidden global uploader:
+  useEffect(() => {
+    const off = onBus('PARSE_COMPLETED', async ({ importId, previewCount }) => {
+      setActiveImportId(importId);
+      setAdvisory(null);
+      toast.success(`Preview ready — ${previewCount} rows`);
       
-      const newConversationId = generateConversationId();
-      setConversationId(newConversationId);
-      
-      // Load Byte's configuration
-      const config = await getEmployeeConfig('byte');
-      setByteConfig(config);
-      
-      // Load existing conversation if any
-      const existingConversation = await getConversation(user.id, 'byte', newConversationId);
-      if (existingConversation && existingConversation.messages.length > 0) {
-        setMessages(existingConversation.messages as ByteMessage[]);
+      // Fetch actual preview rows for table display
+      try {
+        const res = await fetch('/.netlify/functions/byte-ocr-parse', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(fastMode ? { 'x-fast-mode': '1' } : {}),
+          },
+          body: JSON.stringify({ userId, importId, preview: true }),
+        }).then(r => r.json()).catch(() => ({} as any));
+        setPreviewRows(res?.preview || []);
+      } catch (e: any) {
+        emitBus("ERROR", { where: "PREVIEW_FETCH", message: "Failed to fetch preview", detail: e });
       }
-    };
+    });
+    return () => off();
+  }, [userId, fastMode]);
 
-    initializeByte();
-  }, [user?.id]);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const sendMessage = async (content: string) => {
-    if (!content.trim() || !user?.id || isLoading) return;
-
-    const userMessage: ByteMessage = {
-      role: 'user',
-      content: content.trim(),
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
-
+  // Approve → Commit → Prime → Crystal
+  const approveAndAnalyze = async () => {
+    if (!activeImportId) return;
+    if (!previewRows?.length) {
+      toast.error('Preview is empty — cannot approve.');
+      return;
+    }
+    setIsProcessing(true);
     try {
-      // Save user message to conversation
-      await addMessageToConversation(user.id, 'byte', conversationId, userMessage as AIConversationMessage);
+      emitBus("IMPORT_COMMIT_REQUESTED", { importId: activeImportId });
 
-      // Log the interaction
-      await logAIInteraction(user.id, 'byte', 'chat', content);
-
-      // Simulate AI response (in real implementation, this would call OpenAI)
-      const startTime = Date.now();
+      // 1) Commit staging -> final
+      const commit = await fetch('/.netlify/functions/commit-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, importId: activeImportId }),
+      }).then(r => r.json());
+      if (!commit?.ok && !commit?.committed) throw new Error(commit?.error || 'Commit failed');
       
-      // Create Byte's response based on the user's query
-      const byteResponse = await generateByteResponse(content);
-      
-      const processingTime = Date.now() - startTime;
+      emitBus("IMPORT_COMMITTED", { importId: activeImportId, transactionCount: commit.committed || 0 });
+      toast.success(`Committed ${commit.committed} rows`);
 
-      const byteMessage: ByteMessage = {
-        role: 'byte',
-        content: byteResponse,
-        timestamp: new Date().toISOString(),
-        metadata: {
-          processing_time_ms: processingTime,
-          model_used: 'gpt-3.5-turbo'
-        }
-      };
-
-      setMessages(prev => [...prev, byteMessage]);
+      // 1.5) Categorize via Tag (rule-based + normalization)
+      emitBus("CATEGORIZATION_REQUESTED", { importId: activeImportId });
+      const catResult = await fetch('/.netlify/functions/categorize-transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ importId: activeImportId }),
+      }).then(r => r.json()).catch(() => ({ updated: 0 }));
+      emitBus("CATEGORIZATION_COMPLETE", { importId: activeImportId, categorized: catResult.updated || 0 });
       
-      // Save Byte's response to conversation
-      await addMessageToConversation(user.id, 'byte', conversationId, byteMessage as AIConversationMessage);
-      
-      // Increment conversation count
-      await incrementConversationCount(user.id, 'byte');
+      emitBus("PRIME_HANDOFF_REQUESTED", { importId: activeImportId });
 
-    } catch (error) {
-      console.error('Error sending message:', error);
-      const errorMessage: ByteMessage = {
-        role: 'byte',
-        content: "I'm having trouble processing your request right now. Please try again in a moment.",
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      // 2) Prime handoff
+      const hand = await fetch('/.netlify/functions/prime-handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, importId: activeImportId }),
+      }).then(r => r.json());
+      if (!hand?.handoffId) throw new Error(hand?.error || 'Prime handoff failed');
+
+      emitBus("PRIME_HANDOFF_SENT", { handoffId: hand.handoffId, importId: activeImportId });
+
+      emitBus("CRYSTAL_ANALYZE_REQUESTED", { importId: activeImportId });
+
+      // 3) Crystal analysis
+      const c = await fetch('/.netlify/functions/crystal-analyze-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, handoffId: hand.handoffId }),
+      }).then(r => r.json());
+      if (!c?.summary) throw new Error(c?.error || 'Crystal analysis failed');
+
+      emitBus("CRYSTAL_ADVICE_READY", { importId: activeImportId, adviceId: c.id || hand.handoffId });
+      setAdvisory(c);
+      toast.success('Crystal's advisory is ready');
+    } catch (e: any) {
+      emitBus("ERROR", { where: "ORCHESTRATION", message: e?.message || 'Failed to process import', detail: e });
+      toast.error(e?.message || 'Failed to process import');
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
-
-  const generateByteResponse = async (userQuery: string): Promise<string> => {
-    // Simulate AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-
-    const query = userQuery.toLowerCase();
-    const userName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'there';
-    
-    // Byte's specialized responses for import-related queries
-    if (query.includes('hello') || query.includes('hi') || query.includes('hey') || query.includes('hi there')) {
-      return `Hi ${userName}! 📄 I'm Byte, your Smart Import AI. Great to see you! I'm here to help you upload and process your financial documents, extract data from receipts and statements, and organize your financial information automatically. What would you like to import today?`;
-    }
-    
-    if (query.includes('receipt') || query.includes('upload') || query.includes('scan')) {
-      return `📄 Great! I can help you upload receipts. Here's how it works:
-
-1. **Supported formats:** JPG, PNG, PDF
-2. **AI processing:** I'll automatically extract merchant, amount, date, and category
-3. **Accuracy:** 95%+ accuracy with human review option
-
-Would you like to upload a receipt now? I can guide you through the process step by step!`;
-    }
-    
-    if (query.includes('bank statement') || query.includes('csv') || query.includes('statement')) {
-      return `🏦 Perfect! Bank statement imports are my specialty. Here's what I can do:
-
-1. **CSV/PDF support:** Most major banks supported
-2. **Auto-categorization:** I'll categorize transactions based on your patterns
-3. **Duplicate detection:** I'll identify and handle duplicates automatically
-4. **Reconciliation:** I'll help you match transactions with your records
-
-What bank do you use? I can provide specific instructions for your bank's format.`;
-    }
-    
-    if (query.includes('categorize') || query.includes('category') || query.includes('organize')) {
-      return `🏷️ I love helping with categorization! Here's how my AI works:
-
-1. **Smart learning:** I learn from your previous categorizations
-2. **Merchant matching:** I recognize merchants and apply consistent categories
-3. **Pattern recognition:** I identify spending patterns and suggest categories
-4. **Custom rules:** You can set up rules for specific merchants or amounts
-
-Would you like me to show you your current categories or help set up custom rules?`;
-    }
-    
-    if (query.includes('help') || query.includes('how') || query.includes('what')) {
-      return `🤖 I'm Byte, your Smart Import AI! Here's what I can help you with:
-
-📄 **Receipt Uploads:** Scan and process receipts automatically
-🏦 **Bank Statements:** Import and categorize transactions
-🏷️ **Smart Categorization:** Learn your patterns and organize spending
-📊 **Data Processing:** Extract key information from documents
-🔄 **Duplicate Detection:** Find and handle duplicate transactions
-
-What would you like to work on today? I'm here to make your financial data import process smooth and efficient!`;
-    }
-    
-    if (query.includes('format') || query.includes('supported') || query.includes('file type')) {
-      return `📋 Here are the file formats I support:
-
-**Images:** JPG, PNG, HEIC
-**Documents:** PDF, CSV, XLSX
-**Bank Files:** QFX, OFX, CSV (most banks)
-
-**File size limits:**
-- Images: Up to 10MB
-- Documents: Up to 25MB
-- Multiple files: Up to 50 files at once
-
-I'll automatically detect the format and process accordingly. What type of file are you looking to upload?`;
-    }
-
-    // Default response for other queries
-    return `📄 I understand you're asking about "${userQuery}". As your Smart Import AI, I'm here to help with:
-
-• Uploading and processing financial documents
-• Extracting data from receipts and statements  
-• Organizing and categorizing transactions
-• Setting up import workflows
-
-Could you tell me more specifically what you'd like to import or process? I'm ready to guide you through the entire process!`;
-  };
-
-  const handleFileUpload = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      const fileNames = Array.from(files).map(f => f.name).join(', ');
-      sendMessage(`I want to upload these files: ${fileNames}`);
-    }
-  };
-
-  const quickActions = [
-    { icon: UploadCloud, text: "Upload Receipt", action: () => sendMessage("I want to upload a receipt") },
-    { icon: FileSpreadsheet, text: "Import Bank Statement", action: () => sendMessage("I want to import a bank statement") },
-    { icon: FileText, text: "Batch Upload", action: () => sendMessage("I want to upload multiple files at once") },
-    { icon: Image, text: "Scan Receipt", action: () => sendMessage("I want to scan a receipt with my camera") }
-  ];
 
   return (
-    <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
-        {/* Page Title */}
-        <MobilePageTitle 
-          title="Smart Import AI" 
-          subtitle="Automatically import and categorize your financial data"
-        />
-        
-        {/* Byte Header */}
-        <div
-          className="text-center mb-8"
-        >
-          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
-            <div className="text-3xl">📄</div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Byte</h1>
-              <p className="text-white/70 text-sm">Smart Import AI</p>
-            </div>
-            <div className="flex items-center gap-2 ml-4">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm">AI Active</span>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 p-4 sm:p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-5 sm:mb-7">
+          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
+            Smart Import AI
+          </h1>
+          <p className="text-slate-600 mt-1">
+            Automatically import and categorize your financial data.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Chat Interface */}
-          <div className="lg:col-span-2">
-            <div
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
-            >
-              {/* Chat Header */}
-              <div className="bg-white/10 px-6 py-4 border-b border-white/10">
-                <div className="flex items-center gap-3">
-                  <div className="text-xl">📄</div>
-                  <div>
-                    <h2 className="font-semibold text-white">Chat with Byte</h2>
-                    <p className="text-white/60 text-sm">Smart Import AI Assistant</p>
+        {/* Tiles Grid (mobile first) */}
+        <section className="mb-6">
+          <h2 className="text-lg font-semibold text-slate-800 mb-3">
+            Welcome to Byte's Document Lab
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+            <Tile label="Document Upload" caption="Upload and process files" onClick={openAny} icon="⬆️" />
+            <Tile label="Scan Receipt" caption="Camera-based scanning" onClick={openScan} icon="📷" />
+            <Tile label="Bank Statement" caption="Import bank data" onClick={openPdf} icon="🏦" />
+            <Tile label="CSV Import" caption="Bulk data processing" onClick={openCsv} icon="📊" />
+            <Tile
+              label="Fast Processing"
+              caption={fastMode ? 'Fast mode ON' : 'Avg 2–3s preview'}
+              onClick={enableFast}
+              icon="⚡"
+              active={fastMode}
+            />
+            <Tile label="Watch Me Work" caption="See AI team in action" onClick={openAiTeam} icon="🎯" />
                   </div>
-                </div>
-              </div>
+        </section>
 
-              {/* Messages */}
-              <div className="h-96 overflow-y-auto p-4 space-y-4">
-                {messages.map((message, index) => (
-                  <div
-                    key={index}
-                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                      message.role === 'user' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-white/10 text-white border border-white/20'
-                    }`}>
-                      <div className="whitespace-pre-wrap">{message.content}</div>
-                      <div className="text-xs opacity-60 mt-2">
-                        {new Date(message.timestamp).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                
-                {isLoading && (
-                  <div
-                    className="flex justify-start"
-                  >
-                    <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        <span>Byte is thinking...</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Input Area */}
-              <div className="p-4 border-t border-white/10">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && !isLoading && sendMessage(input)}
-                    placeholder="Ask Byte about importing documents..."
-                    className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:border-blue-500"
-                    disabled={isLoading}
-                  />
-                  <button
-                    onClick={() => sendMessage(input)}
-                    disabled={isLoading || !input.trim()}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl px-4 py-3 transition-colors"
-                  >
-                    <Send className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
+        {/* Preview Card */}
+        {previewRows?.length > 0 && (
+          <section className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-800">
+                Preview ({previewRows.length} rows)
+              </h3>
+              {activeImportId && (
+                <span className="text-xs text-slate-500">Import ID: {activeImportId.slice(0, 8)}…</span>
+              )}
             </div>
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <table className="w-full text-sm text-slate-700">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <Th>Date</Th>
+                    <Th>Merchant</Th>
+                    <Th>Category</Th>
+                    <Th className="text-right">Amount</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.slice(0, 20).map((r, i) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-slate-50">
+                      <Td>{r.posted_at}</Td>
+                      <Td>{r.merchant}</Td>
+                      <Td>
+                        {r.category ? (
+                          <div className="inline-flex items-center gap-1 text-sm">
+                            <span>{r.category}</span>
+                            {r.category_confidence !== undefined && r.category_confidence !== null && (
+                              <span className="text-xs opacity-60">
+                                ({Math.round(r.category_confidence)}%)
+                              </span>
+                            )}
           </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <div
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Actions</h3>
-              <div className="space-y-3">
-                {quickActions.map((action, index) => (
-                  <button
-                    key={index}
-                    onClick={action.action}
-                    className="w-full flex items-center gap-3 p-3 bg-white/10 hover:bg-white/15 border border-white/20 rounded-xl text-white transition-colors"
-                  >
-                    <action.icon className="w-5 h-5" />
-                    <span className="text-sm">{action.text}</span>
-                  </button>
-                ))}
-              </div>
+                        ) : (
+                          '—'
+                        )}
+                      </Td>
+                      <Td className="text-right font-medium">
+                        ${Math.abs(Number(r.amount || 0)).toFixed(2)}
+                      </Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            {/* File Upload */}
-            <div
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Upload Files</h3>
+            <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:gap-3">
               <button
-                onClick={handleFileUpload}
-                className="w-full flex items-center justify-center gap-2 p-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors"
+                onClick={approveAndAnalyze}
+                disabled={isProcessing || previewRows.length === 0}
+                className="inline-flex justify-center items-center px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                <UploadCloud className="w-5 h-5" />
-                <span>Choose Files</span>
+                {isProcessing ? 'Processing…' : 'Approve & Send to Prime & Crystal'}
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".jpg,.jpeg,.png,.pdf,.csv,.xlsx,.heic"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              <p className="text-white/60 text-sm mt-3">
-                Supported: JPG, PNG, PDF, CSV, XLSX
-              </p>
+              <button
+                onClick={() => setPreviewRows([])}
+                disabled={isProcessing}
+                className="inline-flex justify-center items-center px-4 py-2 rounded-lg bg-slate-100 text-slate-800 hover:bg-slate-200 disabled:opacity-50"
+              >
+                Clear Preview
+              </button>
             </div>
+          </section>
+        )}
 
-            {/* Byte's Stats */}
-            <div
-              className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 p-6"
-            >
-              <h3 className="text-lg font-semibold text-white mb-4">Byte's Stats</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Processing Accuracy</span>
-                  <span className="text-green-400">95.2%</span>
+        {/* Advisory Result */}
+        {advisory && (
+          <section className="mb-10 bg-white rounded-xl shadow-sm border-l-4 border-green-500 p-4 sm:p-6">
+            <h3 className="text-base sm:text-lg font-semibold text-slate-800 mb-2">
+              Crystal's Advisory
+            </h3>
+            <p className="text-slate-700">{advisory.summary}</p>
+
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {advisory.budgetImpact && (
+                <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-slate-800">
+                  <strong>Budget Impact:</strong> {advisory.budgetImpact}
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Avg. Response Time</span>
-                  <span className="text-blue-400">1.2s</span>
+              )}
+              {advisory.forecastDelta && (
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-slate-800">
+                  <strong>Forecast Delta:</strong> {advisory.forecastDelta}
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Files Processed</span>
-                  <span className="text-purple-400">1,247</span>
+              )}
                 </div>
-              </div>
+
+            <div className="mt-4 flex gap-4">
+              <a href="/transactions" className="text-blue-600 hover:underline">→ View Transactions</a>
+              <a href="/insights" className="text-blue-600 hover:underline">→ View Insights</a>
             </div>
-          </div>
-        </div>
+          </section>
+        )}
       </div>
     </div>
   );
+}
+
+/* ---------- Small presentational helpers ---------- */
+
+function Tile({
+  label,
+  caption,
+  onClick,
+  icon,
+  active,
+}: {
+  label: string;
+  caption: string;
+  icon?: string;
+  active?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        'rounded-2xl p-4 text-left shadow-sm border transition',
+        active
+          ? 'bg-blue-600 text-white border-blue-600'
+          : 'bg-white border-slate-200 hover:border-slate-300',
+      ].join(' ')}
+    >
+      <div className="text-2xl mb-2">{icon || '📄'}</div>
+      <div className="font-semibold">{label}</div>
+      <div className={active ? 'text-blue-100 text-sm' : 'text-slate-500 text-sm'}>
+        {caption}
+      </div>
+    </button>
+  );
+}
+
+function Th({ children, className = '' }: any) {
+  return <th className={`px-3 sm:px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 ${className}`}>{children}</th>;
+}
+function Td({ children, className = '' }: any) {
+  return <td className={`px-3 sm:px-4 py-2 align-middle ${className}`}>{children}</td>;
 }

@@ -31,6 +31,7 @@ import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import { ByteDocumentChat } from '../chat/_legacy/ByteDocumentChat';
 import DashboardPrimeChat from './DashboardPrimeChat';
+import { usePrimeAutoGreet } from '../../hooks/usePrimeAutoGreet';
 
 interface ConnectedDashboardProps {
   className?: string;
@@ -41,8 +42,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   const { user, userId, isDemoUser, loading } = useAuth();
   const navigate = useNavigate();
   
-  // Feature flag for new Prime Chat bubble
-  const CHAT_BUBBLE_ENABLED = import.meta.env.VITE_CHAT_BUBBLE_ENABLED === 'true';
+  // Feature flag for new Prime Chat bubble (ENABLED by default now)
+  const CHAT_BUBBLE_ENABLED = import.meta.env.VITE_CHAT_BUBBLE_ENABLED !== 'false';
   
   const [aiController] = useState(new UniversalAIController());
   const [activeChat, setActiveChat] = useState<string | null>(null);
@@ -61,6 +62,12 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [isByteChatOpen, setIsByteChatOpen] = useState(false);
   const [isPrimeChatOpen, setIsPrimeChatOpen] = useState(false);
+
+  // Auto-greet on dashboard load (once per session, only for logged-in/demo users)
+  usePrimeAutoGreet(
+    CHAT_BUBBLE_ENABLED && !loading && (!!user || isDemoUser),
+    () => setIsPrimeChatOpen(true) // Open Prime Chat when greeting triggers
+  );
 
   // Debug logging
   console.log('ConnectedDashboard render:', { user: !!user, userId, isDemoUser, loading, aiController: !!aiController});

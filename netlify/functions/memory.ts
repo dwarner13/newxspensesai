@@ -13,7 +13,8 @@ export async function saveMessage(user_id: string, role: 'user'|'assistant', con
 }
 
 export async function embedText(text: string): Promise<number[]> {
-  const emb = await openai.embeddings.create({ model: EMBED_MODEL, input: text })
+  const truncated = text.length > 2000 ? text.slice(0, 2000) : text
+  const emb = await openai.embeddings.create({ model: EMBED_MODEL, input: truncated })
   return emb.data[0].embedding as unknown as number[]
 }
 
@@ -31,8 +32,12 @@ export async function saveFact(user_id: string, fact: string, source_message_id:
     .select('id')
     .maybeSingle()
   
-  // If duplicate key error, that's fine - we already have this fact
-  if (factErr && !String(factErr.message).includes('duplicate key value')) throw factErr
+  // If duplicate key error, skip embedding to avoid extra cost; otherwise throw
+  if (factErr) {
+    const isDuplicate = String(factErr.message).includes('duplicate key value')
+    if (isDuplicate) return
+    throw factErr
+  }
 
   // Embed and upsert (by message_id to avoid duplicate embeddings for same message)
   const vector = await embedText(fact)
