@@ -22,6 +22,10 @@ import type { Handler } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import crypto from "crypto";
+import { assertWithinRateLimit } from "./_shared/rate-limit";
+import { maskPII } from "./_shared/pii";
+import { runGuardrailsCompat } from "./_shared/guardrails_adapter";
+import { createSSEMaskTransform } from "./_shared/sse_mask_transform";
 
 // ============================================================================
 // IMPORTS
@@ -47,6 +51,54 @@ async function safeJson(req: Request) {
     return null; 
   }
 }
+
+// ----------------------------------------------------------------------------
+// Security helpers: size limits, attachment validation, PII redaction
+// ----------------------------------------------------------------------------
+
+const MAX_REQUEST_BYTES = 15 * 1024 * 1024; // 15MB
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8MB per file
+const MAX_ATTACH_TOTAL_BYTES = 12 * 1024 * 1024; // 12MB total
+
+const ALLOWED_MIME = new Set([
+  'application/pdf',
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/jpeg',
+  'image/png',
+  'image/jpg'
+]);
+
+function isDangerousName(name: string) {
+  return /\.(exe|js|mjs|cjs|sh|bat|cmd|ps1|html|htm|svg|php|jar|dll|scr|com|msi)$/i.test(name || '');
+}
+
+function estimateBase64Bytes(b64: string) {
+  // Base64 inflates by ~4/3; size in bytes is roughly 3/4 of length
+  return Math.floor((b64 || '').length * 0.75);
+}
+
+function validateAttachments(attachments: any[]): { ok: boolean; error?: string } {
+  if (!Array.isArray(attachments)) return { ok: true };
+  if (attachments.length > MAX_ATTACHMENTS) return { ok: false, error: `Too many attachments (max ${MAX_ATTACHMENTS})` };
+  let total = 0;
+  for (const a of attachments) {
+    const name = String(a?.name || '');
+    const type = String(a?.type || '');
+    const data = String(a?.data || '');
+    if (!name || !type || !data) return { ok: false, error: 'Invalid attachment payload' };
+    if (isDangerousName(name)) return { ok: false, error: `File type not allowed: ${name}` };
+    if (!ALLOWED_MIME.has(type)) return { ok: false, error: `MIME type not allowed: ${type}` };
+    const bytes = estimateBase64Bytes(data);
+    if (bytes > MAX_ATTACHMENT_BYTES) return { ok: false, error: `${name} exceeds per-file limit (${Math.round(MAX_ATTACHMENT_BYTES/1024/1024)}MB)` };
+    total += bytes;
+    if (total > MAX_ATTACH_TOTAL_BYTES) return { ok: false, error: `Attachments exceed total size limit (${Math.round(MAX_ATTACH_TOTAL_BYTES/1024/1024)}MB)` };
+  }
+  return { ok: true };
+}
+
+// PII masking now uses shared module (maskPII from _shared/pii)
 
 // ============================================================================
 // PRIME PERSONA (New)
@@ -835,7 +887,7 @@ async function dbSaveChatMessage(params: {
         user_id: params.userId,
         session_id: params.sessionId,
         role: params.role,
-        content: params.content_redacted,  // Use 'content' instead of 'content_redacted'
+        content: params.content_redacted,
         employee_key: params.employeeKey ?? (params.role === 'user' ? 'user' : 'prime')
       })
       .select('id')
@@ -1242,7 +1294,7 @@ async function dbFetchContext(params: {
   try {
     const { data: msgs, error: msgErr } = await supabaseSrv
       .from('chat_messages')
-      .select('role, content_redacted, created_at, employee_key')
+      .select('role, content, created_at, employee_key')
       .eq('user_id', params.userId)
       .eq('session_id', params.sessionId)
       .order('created_at', { ascending: false })
@@ -1256,7 +1308,7 @@ async function dbFetchContext(params: {
               ? 'User'
               : (m.employee_key || 'Assistant');
           // keep it short
-          const text = String(m.content_redacted || '').slice(0, 240);
+          const text = String(m.content || '').slice(0, 240);
           return `- ${who}: ${text}`;
         })
         .join('\n');
@@ -1432,16 +1484,31 @@ export default async (req: Request) => {
       return json(400, { ok: false, error: 'Invalid JSON body' });
     }
 
-    const { userId, message, sessionId: requestedSessionId, mode, employeeSlug } = body;
+    const { userId, message, sessionId: requestedSessionId, mode, employeeSlug, toolCallId, toolResult, attachments } = body;
     if (!userId || String(message ?? '').trim() === '') {
       return json(400, { ok: false, error: 'Missing required fields: userId, message' });
+    }
+
+    // Request size check (best-effort; not authoritative for chunked)
+    try {
+      const bodyText = JSON.stringify(body);
+      if (new TextEncoder().encode(bodyText).byteLength > MAX_REQUEST_BYTES) {
+        return json(413, { ok: false, error: 'Request too large' });
+      }
+    } catch {}
+
+    // Attachment validation (types and sizes)
+    if (attachments) {
+      const v = validateAttachments(attachments);
+      if (!v.ok) return json(400, { ok: false, error: v.error || 'Invalid attachments' });
     }
 
     // ========================================================================
     // 2. RATE LIMITING
     // ========================================================================
     try {
-      await dbAssertWithinRateLimit(userId, RATE_LIMIT_PER_MINUTE);
+      // Use shared rate-limit helper (may throw with statusCode 429)
+      await assertWithinRateLimit(`chat:${userId}`, RATE_LIMIT_PER_MINUTE);
     } catch (e: any) {
       console.warn('[rate-limit] degraded', e?.code || e?.message);
       // continue without failing the whole request
@@ -1485,12 +1552,15 @@ export default async (req: Request) => {
     // 5. SECURITY PIPELINE: PII Masking → Guardrails → Moderation
     // ========================================================================
     
-    // 5.1) PII Masking (simple fallback)
-    const masked = message; // For now, no PII masking
-    const found: any[] = [];
+    // 5.1) PII Masking (using shared module)
+    const originalUserText = String(message || '');
+    const { masked, found } = maskPII(originalUserText, 'last4');
+    
+    // Normalize found array format for logging
+    const foundNormalized = found.map(f => ({ type: f.type, value: f.match }));
     
     console.log(`[Chat] PII masked: ${found.length > 0}`, {
-      original: message.slice(0, 40),
+      original: originalUserText.slice(0, 40),
       masked: masked.slice(0, 40),
       piiCount: found.length
     });
@@ -1505,7 +1575,7 @@ export default async (req: Request) => {
           action: "masked",
           severity: 2,
           content_hash: crypto.createHash("sha256")
-            .update(message.slice(0, 256))
+            .update(originalUserText.slice(0, 256))
             .digest("hex")
             .slice(0, 24),
           meta: { 
@@ -1519,8 +1589,31 @@ export default async (req: Request) => {
       }
     }
 
-    // 5.2) Guardrails (simple fallback - always pass)
-    const gr = { ok: true };
+    // 5.2) Guardrails (using compatibility adapter)
+    const gr = await runGuardrailsCompat({
+      text: masked,
+      userId,
+      stage: 'chat'
+    });
+
+    if (!gr.allowed) {
+      const refusal = gr.reason || "I'm sorry — I can't help with that request.";
+      const { message_uid: messageUid } = await dbSaveChatMessage({
+        userId,
+        sessionId,
+        role: "assistant",
+        content_redacted: refusal,
+        employeeKey: 'prime-boss'
+      });
+      return json(200, {
+        ok: true,
+        sessionId,
+        messageUid,
+        employee: 'prime-boss',
+        blocked: true,
+        text: refusal
+      });
+    }
 
     // 5.3) OpenAI Moderation (double-check)
     try {
@@ -1572,6 +1665,17 @@ export default async (req: Request) => {
       // Continue if moderation fails - guardrails already passed
     }
 
+    // 2) resume a pending tool call if present
+    if (toolCallId) {
+      console.log('[chat-v3] Resume requested for toolCallId:', toolCallId);
+      // Placeholder resume behavior: the chat runtime should implement a proper resume
+      // flow. For now, return any resumed messages if available (empty array fallback).
+      return json(200, {
+        ok: true,
+        messages: []
+      });
+    }
+
     // ========================================================================
     // 6. SAVE USER MESSAGE
     // ========================================================================
@@ -1593,9 +1697,19 @@ export default async (req: Request) => {
     // 7.2) Employee routing (simplified) + allow client to pin employee
     let route = {
       slug: employeeSlug && typeof employeeSlug === 'string' ? employeeSlug : 'prime-boss',
-      systemPrompt: `You are Prime, the user's AI financial cofounder.
-Use memory context if present. Follow guardrails. Be concise and correct.
-${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
+      systemPrompt: `You are Prime — the AI Team Coordinator and Financial Boss for XspensesAI.
+
+You oversee all AI employees (Byte, Tag, Goalie, Crystal, etc.).
+
+Responsibilities:
+• Route tasks to the right AI employee
+• Manage financial analysis, planning, and user chat
+• Summarize results and present polished replies
+• Guardrail: moderate, redact PII, and call safe endpoints only
+
+Reply concisely with structured results.
+
+${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
     };
 
     // 7.3) Auto-handoff: If currently Prime but the request is finance-focused → Crystal
@@ -1630,16 +1744,28 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
 
     console.log(`[Chat] Routed to: ${employeeKey}`);
 
-    // 8.1) Employee-specific persona override from DB (Crystal uses DB prompt)
-    if (employeeKey === 'crystal-analytics') {
+    // 8.1) Employee-specific persona override from DB (Prime, Crystal)
+    if (employeeKey === 'prime-boss') {
+      const persona = await getEmployeePersonaFromDB('prime-boss');
+      if (persona.system_prompt && persona.system_prompt.length > 40) {
+        route.systemPrompt = `${persona.system_prompt}${
+          contextBlock?.trim() ? `\n\n### CONTEXT\n${contextBlock}\n` : ''
+        }`;
+        console.log('[Chat] Using DB persona for prime-boss');
+      }
+    } else if (employeeKey === 'crystal-analytics') {
       const persona = await getEmployeePersonaFromDB('crystal-analytics');
       if (persona.system_prompt && persona.system_prompt.length > 200) {
         route.systemPrompt = `${persona.system_prompt}${
-          contextBlock?.trim() ? `\n\n### MEMORY CONTEXT\n${contextBlock}\n` : ''
+          contextBlock?.trim() ? `\n\n### CONTEXT\n${contextBlock}\n` : ''
         }`;
         console.log('[Chat] Using DB persona for crystal-analytics');
       } else {
-        console.warn('[Chat] DB persona missing/short for crystal-analytics — using fallback route.systemPrompt');
+        // Fallback to bundled Crystal persona
+        route.systemPrompt = `${CRYSTAL_PERSONA_V2}${
+          contextBlock?.trim() ? `\n\n### CONTEXT\n${contextBlock}\n` : ''
+        }`;
+        console.warn('[Chat] DB persona missing/short for crystal-analytics — using bundled CRYSTAL_PERSONA_V2');
       }
     }
 
@@ -1648,6 +1774,12 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
        "\n\nIMPORTANT: Never reveal PII, credit cards, SSNs, or passwords. " +
        "Do not provide instructions for illegal activities. " +
        "Use context if helpful but prioritize user privacy and safety.";
+
+    // Crystal runtime addendum
+    if (employeeKey === 'crystal-analytics') {
+      systemPrompt += "\n\nINITIALIZATION: Start your first reply with '💎 Crystal ready'." +
+        "\nBEHAVIOR: You handle monthly reports, goals, summaries, data visualization, trends, and insights. Provide personalized advice for business or personal use. Use a conversational tone and include simple charts/ASCII visuals when helpful.";
+    }
 
     // Add guardrail notice if PII detected
     if (found.length > 0) {
@@ -1684,6 +1816,9 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
       console.log(`[Chat] Prime context: ${conversationHistory.length} history messages`);
     }
     
+    // One-time init banner for new Prime sessions
+    const isNewPrimeSession = employeeKey === 'prime-boss' && (conversationHistory.length === 0);
+
     const modelMessages = [
       { role: "system" as const, content: systemPrompt },
       ...conversationHistory,  // Prime gets history, specialists don't
@@ -1814,7 +1949,11 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
         });
 
         const synthesisData = await synthesisResponse.json();
-        const synthesisText = synthesisData?.choices?.[0]?.message?.content ?? '';
+        let synthesisText = synthesisData?.choices?.[0]?.message?.content ?? '';
+        if (isNewPrimeSession) {
+          const intro = '👑 Prime ready';
+          synthesisText = `${intro}\n\n${synthesisText}`;
+        }
 
         // Save assistant message with Prime's synthesis
         try {
@@ -1835,11 +1974,16 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
           messageUid: userMessageUid,
           reply: synthesisText,
           employee: employeeKey,
-          hadToolCalls: true
+          hadToolCalls: true,
+          pendingTool: null
         });
       } else {
         // No tool calls - proceed with normal response
-        const textContent = probeChoice?.message?.content ?? '';
+        let textContent = probeChoice?.message?.content ?? '';
+        if (isNewPrimeSession) {
+          const intro = '👑 Prime ready';
+          textContent = `${intro}\n\n${textContent}`;
+        }
         
         try {
           await dbSaveChatMessage({
@@ -1859,6 +2003,7 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
           messageUid: userMessageUid,
           reply: textContent,
           employee: employeeKey
+          ,pendingTool: null
         });
       }
     } else if (noStream && employeeKey !== 'prime-boss') {
@@ -1896,7 +2041,8 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
         sessionId, 
         messageUid: userMessageUid,
         reply: text, 
-        employee: employeeKey 
+        employee: employeeKey,
+        pendingTool: null
       });
     }
     
@@ -1905,36 +2051,85 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
     // ============================================================================
     const upstream = await openAIStreamRequest(modelMessages, MODEL);
     
+    // Create PII masker function for SSE transform
+    const sseMasker = (text: string) => maskPII(text, 'last4').masked;
+    
     // Forward SSE to client while accumulating final text to persist
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
     let buffer = '';
     let finalText = '';
     
+    // Create combined transform: mask PII in SSE payloads + accumulate for persistence
     const transform = new TransformStream({
       transform(chunk, controller) {
         const str = typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
         buffer += str;
+        
         // Split by SSE event boundaries
         const parts = buffer.split('\n\n');
         buffer = parts.pop()!; // last partial stays in buffer
+        
         for (const part of parts) {
-          // Forward upstream SSE to client as-is
-          controller.enqueue(encoder.encode(part + '\n\n'));
-          // Parse to accumulate content
-          const line = part.split('\n').find(l => l.startsWith('data: '));
-          if (!line) continue;
-          const payload = line.slice(6).trim();
-          if (payload === '[DONE]') continue;
-          try {
-            const delta = JSON.parse(payload);
-            const frag = delta?.choices?.[0]?.delta?.content ?? '';
-            if (frag) finalText += frag;
-          } catch { /* ignore parse errors; still streaming */ }
+          // Check if this is a "data:" event
+          if (part.startsWith('data: ')) {
+            const payload = part.slice(6).trim();
+            if (payload === '[DONE]') {
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+              continue;
+            }
+            
+            try {
+              const delta = JSON.parse(payload);
+              const frag = delta?.choices?.[0]?.delta?.content ?? '';
+              
+              // Accumulate for persistence
+              if (frag) finalText += frag;
+              
+              // Mask PII in content before sending to client
+              if (frag) {
+                delta.choices[0].delta.content = sseMasker(frag);
+              }
+              
+              // Reconstruct SSE event with masked payload
+              const maskedPayload = JSON.stringify(delta);
+              controller.enqueue(encoder.encode(`data: ${maskedPayload}\n\n`));
+            } catch (parseErr) {
+              // If JSON parse fails, pass through original (safer)
+              controller.enqueue(encoder.encode(part + '\n\n'));
+            }
+          } else {
+            // Not a data event, pass through as-is (preserves comments, event types, etc.)
+            controller.enqueue(encoder.encode(part + '\n\n'));
+          }
         }
       },
       async flush(controller) {
-        if (buffer) controller.enqueue(encoder.encode(buffer));
+        // Process any remaining buffer
+        if (buffer) {
+          if (buffer.startsWith('data: ')) {
+            const payload = buffer.slice(6).trim();
+            if (payload !== '[DONE]') {
+              try {
+                const delta = JSON.parse(payload);
+                const frag = delta?.choices?.[0]?.delta?.content ?? '';
+                if (frag) {
+                  finalText += frag;
+                  delta.choices[0].delta.content = sseMasker(frag);
+                }
+                const maskedPayload = JSON.stringify(delta);
+                controller.enqueue(encoder.encode(`data: ${maskedPayload}\n\n`));
+              } catch {
+                controller.enqueue(encoder.encode(buffer));
+              }
+            } else {
+              controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            }
+          } else {
+            controller.enqueue(encoder.encode(buffer));
+          }
+        }
+        
         // Persist assistant message at end
         if (finalText.trim()) {
           try {
@@ -1951,7 +2146,47 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
         }
       }
     });
-    
+
+    // Optionally prepend a Prime init chunk for new Prime sessions
+    let sourceStream: ReadableStream<any> = upstream;
+    if (isNewPrimeSession) {
+      const introChunk = {
+        id: 'intro',
+        object: 'chat.completion.chunk',
+        created: Math.floor(Date.now() / 1000),
+        model: MODEL,
+        choices: [{ index: 0, delta: { content: '👑 Prime ready\n\n' }, finish_reason: null }]
+      };
+
+      const prefaceStream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(introChunk)}\n\n`));
+          controller.enqueue(encoder.encode('event: keep-alive\n\n'));
+          controller.close();
+        }
+      });
+
+      sourceStream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          const pump = async (rs: ReadableStream) => {
+            const reader = rs.getReader();
+            try {
+              while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                controller.enqueue(value);
+              }
+            } finally {
+              reader.releaseLock();
+            }
+          };
+          await pump(prefaceStream);
+          await pump(upstream);
+          controller.close();
+        }
+      });
+    }
+
     const sseHeaders = {
       ...BASE_HEADERS,
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -1959,8 +2194,8 @@ ${contextBlock?.trim() ? `\n### MEMORY CONTEXT\n${contextBlock}\n` : ''}`
       Connection: 'keep-alive',
     };
     
-    // Pipe upstream -> transform -> client
-    const out = upstream.pipeThrough(transform);
+    // Pipe (preface + upstream) -> transform -> client
+    const out = sourceStream.pipeThrough(transform);
     return new Response(out, { status: 200, headers: sseHeaders });
 
   } catch (err: any) {

@@ -360,7 +360,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         documentsProcessed: isLoadingStats ? "..." : dashboardStats.documentsProcessed 
       },
       buttonText: 'Import & Chat',
-      onClick: () => setIsByteChatOpen(true),
+      onClick: () => window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' }})),
       color: 'from-blue-500 to-blue-600',
       isLoading: isProcessing && processingStatus.includes('Byte')
     },
@@ -374,7 +374,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
         accuracy: `${dashboardStats.aiAccuracy.toFixed(1)}%` 
       },
       buttonText: 'Chat Now',
-      onClick: () => handleChatNow(),
+      onClick: () => window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' }})),
       color: 'from-green-500 to-green-600'
     },
     {

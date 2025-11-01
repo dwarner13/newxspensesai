@@ -1,20 +1,5 @@
-/**
- * 🛡️ Comprehensive Guardrails System for XspensesAI
- * 
- * Provides:
- * - PII Detection & Redaction (40+ types, global compliance)
- * - Moderation (OpenAI omni-moderation-latest)
- * - Jailbreak Detection (prompt injection prevention)
- * - Hallucination Prevention (for financial claims)
- * 
- * Usage:
- * - Ingestion (strict): PII + moderation, block on fail
- * - Chat (balanced): PII + moderation + jailbreak, sanitize
- * - Admin presets: Strict, Balanced, Creative
- */
-
-import { OpenAI } from 'openai'
-import { supabaseAdmin } from '../supabase'
+import OpenAI from 'openai';
+import { supabaseAdmin as supabaseAdmin } from './supabase'
 import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { safeLog } from "./safeLog";
 

@@ -625,3 +625,4 @@ WHERE c.name ILIKE 'AMAZON%';  -- % is wildcard for ILIKE
 
 
 
+

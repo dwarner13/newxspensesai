@@ -13,6 +13,9 @@ import { PrimeIntroModal } from "../components/prime/PrimeIntroModal";
 import { usePrimeIntro } from "../hooks/usePrimeIntro";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
+import FloatingPrimeButton from "../components/prime/FloatingPrimeButton";
+import PrimeChatSlideout from "../components/prime/PrimeChatSlideout";
+import PrimeChatCentralized from "../components/prime/PrimeChatCentralized";
 
 export default function DashboardLayout() {
   const location = useLocation();
@@ -20,6 +23,7 @@ export default function DashboardLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isPrimeOpen, setIsPrimeOpen] = useState(false);
 
   // Prime intro hook
   const { showIntro, complete } = usePrimeIntro();
@@ -105,6 +109,13 @@ export default function DashboardLayout() {
       };
     }
   }, [isMobileMenuOpen]);
+
+  // Listen for global Prime open event
+  useEffect(() => {
+    const open = () => setIsPrimeOpen(true);
+    window.addEventListener('prime:open', open as EventListener);
+    return () => window.removeEventListener('prime:open', open as EventListener);
+  }, []);
 
   if (isMobile) {
     return (
@@ -227,6 +238,16 @@ export default function DashboardLayout() {
       
       {/* Prime Intro Modal */}
       <PrimeIntroModal open={showIntro} onComplete={complete} />
+
+      {/* Prime chat mount (dashboard-only) */}
+      <FloatingPrimeButton onClick={() => setIsPrimeOpen(true)} />
+      <PrimeChatSlideout
+        isOpen={isPrimeOpen}
+        onClose={() => setIsPrimeOpen(false)}
+        header="Prime Assistant"
+      >
+        <PrimeChatCentralized isOpen={isPrimeOpen} onClose={() => setIsPrimeOpen(false)} />
+      </PrimeChatSlideout>
       
     </div>
   );

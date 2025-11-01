@@ -158,10 +158,22 @@ export default function SmartImportAI() {
             Welcome to Byte's Document Lab
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-            <Tile label="Document Upload" caption="Upload and process files" onClick={openAny} icon="⬆️" />
-            <Tile label="Scan Receipt" caption="Camera-based scanning" onClick={openScan} icon="📷" />
-            <Tile label="Bank Statement" caption="Import bank data" onClick={openPdf} icon="🏦" />
-            <Tile label="CSV Import" caption="Bulk data processing" onClick={openCsv} icon="📊" />
+            <Tile label="Document Upload" caption="Upload and process files" onClick={() => {
+              window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
+              openAny();
+            }} icon="⬆️" />
+            <Tile label="Scan Receipt" caption="Camera-based scanning" onClick={() => {
+              window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
+              openScan();
+            }} icon="📷" />
+            <Tile label="Bank Statement" caption="Import bank data" onClick={() => {
+              window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
+              openPdf();
+            }} icon="🏦" />
+            <Tile label="CSV Import" caption="Bulk data processing" onClick={() => {
+              window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
+              openCsv();
+            }} icon="📊" />
             <Tile
               label="Fast Processing"
               caption={fastMode ? 'Fast mode ON' : 'Avg 2–3s preview'}

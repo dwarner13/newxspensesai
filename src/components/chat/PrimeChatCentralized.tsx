@@ -5,9 +5,9 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, X, Crown, User, Loader2, Sparkles } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
-import { useChat } from '../../hooks/useChat';
+import React from "react";
+import { X } from "lucide-react";
+import { useChat } from "@/hooks/useChat";
 
 interface PrimeChatCentralizedProps {
   isOpen: boolean;
@@ -18,29 +18,18 @@ export const PrimeChatCentralized: React.FC<PrimeChatCentralizedProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { user } = useAuth();
-  const [inputMessage, setInputMessage] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { messages, send, pendingTool, handleToolResponse } = useChat("prime");
 
   // Use centralized chat hook
-  const {
-    messages,
-    sessionId,
-    isLoading,
-    error,
-    sendMessage,
-    createOrUseSession,
-  } = useChat({
-    employeeSlug: 'prime-boss',
-    apiEndpoint: '/.netlify/functions/chat',
-  });
+  if (!isOpen) return null;
 
   // Initialize session on open
-  useEffect(() => {
-    if (isOpen) {
-      createOrUseSession('prime-boss');
-    }
-  }, [isOpen, createOrUseSession]);
+  // Handle send
+  const handleSend = async () => {
+    if (!inputMessage.trim() || isLoading) return;
+    await send(inputMessage);
+    setInputMessage('');
+  };
 
   // Auto-scroll to bottom
   useEffect(() => {

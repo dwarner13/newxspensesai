@@ -12,6 +12,7 @@ import {
   BarChart3,
   Zap
 } from 'lucide-react';
+import { PRIME_CHAT_V2 } from '../../lib/flags';
 
 interface PrimeMessage {
   role: 'user' | 'prime';
@@ -126,6 +127,13 @@ export default function AIFinancialAssistantPage() {
                 <button
                   key={index}
                   className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
+                  onClick={() => {
+                    if (PRIME_CHAT_V2) {
+                      window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
+                    } else {
+                      setIsChatOpen(true);
+                    }
+                  }}
                 >
                   <div className={`w-12 h-12 bg-gradient-to-br ${feature.color} rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
                     <Icon className="w-6 h-6 text-white" />
@@ -142,7 +150,8 @@ export default function AIFinancialAssistantPage() {
 
       </div>
 
-      {/* Prime Chat Slide-Out Panel */}
+      {/* Prime Chat Slide-Out Panel (legacy) */}
+      {!PRIME_CHAT_V2 && (
       <div className={`fixed top-0 right-0 h-full w-96 bg-gradient-to-b from-slate-900 to-slate-800 border-l border-white/10 shadow-2xl transform transition-transform duration-300 z-50 ${
         isChatOpen ? 'translate-x-0' : 'translate-x-full'
       }`}>
@@ -258,6 +267,7 @@ export default function AIFinancialAssistantPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* AI Employee Activity Panel */}
       <div className={`fixed top-0 right-0 h-full w-80 bg-gradient-to-b from-slate-900 to-slate-800 border-l border-white/10 shadow-2xl transform transition-transform duration-300 z-40 ${
@@ -354,16 +364,18 @@ export default function AIFinancialAssistantPage() {
         <span className="text-xs font-semibold">AI TEAM</span>
                         </button>
 
-      {/* Prime Chat Toggle Button */}
-                          <button
-        onClick={() => setIsChatOpen(!isChatOpen)}
-        className={`fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white z-40 transition-all duration-200 ${
-          isChatOpen ? 'opacity-50' : ''
-        }`}
-        title="Chat with Prime - AI Team Coordinator"
-      >
-        <span className="text-white text-lg">👑</span>
-                          </button>
+      {/* Prime Chat Toggle Button (legacy) */}
+      {!PRIME_CHAT_V2 && (
+        <button
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          className={`fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white z-40 transition-all duration-200 ${
+            isChatOpen ? 'opacity-50' : ''
+          }`}
+          title="Chat with Prime - AI Team Coordinator"
+        >
+          <span className="text-white text-lg">👑</span>
+        </button>
+      )}
     </>
   );
 }

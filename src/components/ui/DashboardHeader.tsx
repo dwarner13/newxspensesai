@@ -114,8 +114,8 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
     btn.onclick = (e: Event) => {
       e.preventDefault();
       console.log("[Prime] Button clicked - opening chat");
-      window.dispatchEvent(new CustomEvent('openPrimeChat', {
-        detail: { source: 'dashboard-header' }
+      window.dispatchEvent(new CustomEvent('prime:open', {
+        detail: { intent: 'insights', source: 'dashboard-header' }
       }));
     };
 

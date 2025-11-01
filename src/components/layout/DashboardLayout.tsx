@@ -3,7 +3,6 @@ import { Outlet } from "react-router-dom";
 import { Crown, Bot } from "lucide-react";
 import DesktopSidebar from "../navigation/DesktopSidebar";
 import MobileNavInline from "../navigation/MobileNavInline";
-import BossBubble from "../boss/BossBubble";
 import DashboardHeader from "../ui/DashboardHeader";
 import AIEmployeeRoom from "../ai/AIEmployeeRoom";
 import AITeamSlideOutPanel from "./AITeamSlideOutPanel";
@@ -90,8 +89,7 @@ export default function DashboardLayout() {
           <AITeamSlideOutPanel autoOpen={false} />
         </div>
 
-        {/* Prime Chatbot - Using the main BossBubble */}
-        <BossBubble />
+  {/* Prime Chatbot - BossBubble removed (consolidated into header launcher) */}
 
         {/* AI Employee Room */}
         <AIEmployeeRoom 
