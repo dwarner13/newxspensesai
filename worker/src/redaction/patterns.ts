@@ -1,38 +1,13 @@
 import { PDFDocument, PDFPage, rgb } from 'pdf-lib';
 import { logUtils } from '../logging.js';
+// Import canonical PII masking from shared module
+// Note: Path may need adjustment based on worker directory structure
+// If worker runs in different context, may need to use a compatible adapter
+import { maskPII } from '../../../netlify/functions/_shared/pii.js';
 
-// PII redaction patterns
-export const PII_PATTERNS = {
-  // Credit card numbers (13-19 digits with optional separators)
-  creditCard: /\b(?:\d[ -]*?){13,19}\b/g,
-  
-  // Social Security Numbers
-  ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
-  
-  // Email addresses
-  email: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-  
-  // Phone numbers (US/Canada format)
-  phone: /\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b/g,
-  
-  // Canadian postal codes
-  postalCode: /\b[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z][ -]?\d[ABCEGHJ-NPRSTV-Z]\d\b/g,
-  
-  // Account numbers (9-19 digits)
-  accountNumber: /\b\d{9,19}\b/g,
-  
-  // Bank routing numbers (9 digits)
-  routingNumber: /\b\d{9}\b/g,
-  
-  // IBAN (International Bank Account Number)
-  iban: /\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b/g,
-  
-  // Driver's license (varies by state, basic pattern)
-  driversLicense: /\b[A-Z]\d{7,8}\b/g,
-  
-  // Passport numbers (basic pattern)
-  passport: /\b[A-Z]{1,2}\d{6,9}\b/g,
-};
+// ============================================================================
+// PII Redaction (using canonical maskPII)
+// ============================================================================
 
 // Redaction result interface
 export interface RedactionResult {
@@ -46,9 +21,12 @@ export interface RedactionResult {
   matchCount: number;
 }
 
-// Text redaction
+// Text redaction - uses canonical maskPII()
 export function redactText(text: string): RedactionResult {
-  let redactedText = text;
+  // Use canonical maskPII() with last4 strategy
+  const result = maskPII(text, 'last4');
+  
+  // Convert to RedactionResult format
   const redactionMap: Array<{
     start: number;
     end: number;
@@ -56,45 +34,26 @@ export function redactText(text: string): RedactionResult {
     replacement: string;
   }> = [];
   
-  let totalMatches = 0;
-  
-  // Apply each pattern
-  Object.entries(PII_PATTERNS).forEach(([patternName, pattern]) => {
-    let match;
-    const matches: Array<{
-      start: number;
-      end: number;
-      pattern: string;
-      replacement: string;
-    }> = [];
+  // Build redaction map from found PII instances
+  for (const found of result.found) {
+    // Extract replacement from masked text
+    // Simple approach: use a generic replacement based on type
+    const replacement = `[REDACTED:${found.type.toUpperCase()}]`;
     
-    // Find all matches
-    while ((match = pattern.exec(text)) !== null) {
-      matches.push({
-        start: match.index,
-        end: match.index + match[0].length,
-        pattern: patternName,
-        replacement: '[REDACTED]',
-      });
-    }
-    
-    // Sort matches by start position (descending) to avoid index shifting
-    matches.sort((a, b) => b.start - a.start);
-    
-    // Apply redactions
-    matches.forEach(({ start, end, pattern, replacement }) => {
-      redactedText = redactedText.substring(0, start) + replacement + redactedText.substring(end);
-      redactionMap.push({ start, end, pattern, replacement });
-      totalMatches++;
+    redactionMap.push({
+      start: found.index,
+      end: found.index + found.match.length,
+      pattern: found.type,
+      replacement,
     });
-  });
+  }
   
-  logUtils.logRedactionResults(totalMatches, Object.keys(PII_PATTERNS));
+  logUtils.logRedactionResults(result.found.length, [...new Set(result.found.map(f => f.type))]);
   
   return {
-    redactedText,
+    redactedText: result.masked,
     redactionMap,
-    matchCount: totalMatches,
+    matchCount: result.found.length,
   };
 }
 

@@ -1,12 +1,12 @@
 /**
  * Prime Chat Wrapper (SSE)
  * - Enforces employeeSlug = 'prime-boss'
- * - Proxies to chat-v3-production handler to leverage DB history + guardrails
+ * - Proxies to chat handler to leverage DB history + guardrails
  * - Supports attachments pass-through
  */
 
 import type { Handler } from "@netlify/functions";
-import chatV3 from "./chat-v3-production";
+import chat from "./chat";
 
 const BASE_HEADERS: Record<string,string> = {
   "Access-Control-Allow-Origin": "*",
@@ -53,8 +53,8 @@ export default async (req: Request) => {
       body: JSON.stringify(forwardBody),
     });
 
-    // Delegate to chat-v3-production which streams SSE and persists to Supabase
-    const response = await chatV3(forwardReq as any);
+    // Delegate to chat which streams SSE and persists to Supabase
+    const response = await chat(forwardReq as any);
     // Propagate CORS headers for client consumption
     const headers = new Headers(response.headers);
     headers.set("Access-Control-Allow-Origin", "*");
@@ -72,6 +72,7 @@ export default async (req: Request) => {
     });
   }
 };
+
 
 
 

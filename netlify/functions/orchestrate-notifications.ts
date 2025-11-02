@@ -120,7 +120,7 @@ export const handler: Handler = async (event) => {
     });
 
     // 2) Send to Prime via chat endpoint
-    const chatUrl = `${NETLIFY_URL}/.netlify/functions/chat-v3-production`;
+    const chatUrl = `${NETLIFY_URL}/.netlify/functions/chat`;
     const chatRes = await fetch(chatUrl, {
       method: "POST",
       headers: {

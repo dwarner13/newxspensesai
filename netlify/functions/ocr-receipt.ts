@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { validateUpload } from './_shared/guardrails';
+import { validateUpload } from './_shared/upload';
 
 type OcrRequest = {
   name: string;
@@ -12,16 +12,32 @@ export default async (req: Request) => {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204 });
     if (req.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
 
+    // Validate upload early based on request headers
+    const uploadCheck = await validateUpload(req, {
+      maxBytes: 10 * 1024 * 1024, // 10MB
+      allowedMime: ['application/json'] // Accept JSON body with base64 data
+    });
+
+    if (!uploadCheck.allowed) {
+      return new Response(JSON.stringify({ 
+        ok: false, 
+        error: uploadCheck.reason || 'upload_validation_failed' 
+      }), {
+        status: uploadCheck.status || 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const body = (await req.json()) as OcrRequest;
     const name = String(body?.name || 'upload');
     const type = String(body?.type || '');
     const b64 = String(body?.data || '');
     const sizeBytes = Math.floor(b64.length * 0.75);
 
-    const v = validateUpload(name, sizeBytes);
-    if (!v.ok) {
-      return new Response(JSON.stringify({ ok: false, error: v.error }), {
-        status: 400,
+    // Additional validation on parsed data (size check on actual base64)
+    if (sizeBytes > 10 * 1024 * 1024) {
+      return new Response(JSON.stringify({ ok: false, error: 'file_too_large' }), {
+        status: 413,
         headers: { 'Content-Type': 'application/json' },
       });
     }
@@ -73,6 +89,7 @@ export default async (req: Request) => {
     });
   }
 };
+
 
 
 

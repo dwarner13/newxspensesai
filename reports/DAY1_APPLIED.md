@@ -219,3 +219,4 @@ All frontend call sites now use unified /.netlify/functions/chat endpoint.
 **Status**: Ready for review and testing  
 **Next Step**: Run `pnpm build`, `pnpm lint`, and integration tests before merging
 
+

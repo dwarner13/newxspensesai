@@ -49,3 +49,26 @@ export async function markDocStatus(docId: string, status: 'ready'|'rejected'|'p
   }).eq('id', docId);
 }
 
+// --- Upload guard shim (used by ocr-receipt.ts) ---
+
+export type UploadCheckResult = { allowed: boolean; reason?: string; status?: number };
+
+export async function validateUpload(
+  req: Request,
+  cfg: { maxBytes?: number; allowedMime?: string[] } = {}
+): Promise<UploadCheckResult> {
+  const max = cfg.maxBytes ?? 10 * 1024 * 1024; // 10MB default
+  const ct = req.headers.get('content-type') ?? '';
+  const len = Number(req.headers.get('content-length') ?? '0');
+
+  if (len && len > max) return { allowed: false, reason: 'file_too_large', status: 413 };
+  if (cfg.allowedMime?.length && !cfg.allowedMime.some(m => ct.includes(m))) {
+    return { allowed: false, reason: 'mime_not_allowed', status: 415 };
+  }
+
+  // hook to your existing guardrails if you want:
+  // const res = await runGuardrails(...); if (!res.allowed) return { allowed:false, reason:res.reason, status:403 };
+
+  return { allowed: true };
+}
+

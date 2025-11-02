@@ -193,7 +193,7 @@ async function handleHavePrimeHandle(
 
     // 3) Send to Prime via chat endpoint
     const chatRes = await fetch(
-      `${process.env.VITE_CHAT_FUNCTION_PATH || "/.netlify/functions/chat-v3-production"}`,
+      `${process.env.VITE_CHAT_FUNCTION_PATH || "/.netlify/functions/chat"}`,
       {
         method: "POST",
         headers: {

@@ -464,3 +464,72 @@ export function getDetectorSummary(): { category: string; count: number; detecto
   }));
 }
 
+// ============================================================================
+// PRIMARY API: maskPII and detectPII
+// ============================================================================
+
+/**
+ * Mask PII in text using all configured detectors
+ * @param text - Input text that may contain PII
+ * @param strategy - Masking strategy: 'last4', 'full', or 'domain' (default: 'last4')
+ * @returns Masked text string
+ */
+export function maskPII(text: string, strategy: MaskStrategy = 'last4'): string {
+  let masked = text;
+  
+  // Apply each detector in priority order
+  const detectors = [
+    // Financial (highest priority)
+    'pan_generic', 'bank_account_us', 'routing_us', 'iban', 'swift_bic',
+    // Government IDs
+    'ssn_us', 'ssn_us_no_dash', 'sin_ca', 'itin_us', 'ein_us', 'uk_nino', 'uk_nhs',
+    // Contact
+    'email', 'phone_intl',
+    // Other
+    'ca_health_card', 'us_passport', 'uk_nhs', 'ca_drivers_license',
+  ];
+  
+  for (const detectorName of detectors) {
+    const detector = getDetector(detectorName);
+    if (!detector) continue;
+    
+    const rx = detector.rx;
+    const matches = [...masked.matchAll(rx)];
+    
+    for (const match of matches) {
+      if (!match[0]) continue;
+      const originalText = match[0];
+      const maskedValue = detector.mask(originalText, strategy);
+      masked = masked.replace(originalText, maskedValue);
+    }
+  }
+  
+  return masked;
+}
+
+/**
+ * Detect PII in text without masking
+ * @param text - Input text that may contain PII
+ * @returns Object with detected PII types and matches
+ */
+export function detectPII(text: string): { types: string[]; matches: Record<string, string[]> } {
+  const types: string[] = [];
+  const matches: Record<string, string[]> = {};
+  
+  // Check all detectors
+  for (const detector of PII_DETECTORS) {
+    const rx = detector.rx;
+    const foundMatches = [...text.matchAll(rx)].map(m => m[0]).filter(Boolean);
+    
+    if (foundMatches.length > 0) {
+      types.push(detector.name);
+      matches[detector.name] = foundMatches;
+    }
+  }
+  
+  return {
+    types: [...new Set(types)],
+    matches
+  };
+}
+
