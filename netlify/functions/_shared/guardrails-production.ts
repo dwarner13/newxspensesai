@@ -17,7 +17,7 @@
 import crypto from 'crypto';
 import { OpenAI } from 'openai';
 import { createClient } from '@supabase/supabase-js';
-import { PII_DETECTORS, getDetector, getCriticalDetectors, type MaskStrategy } from './pii-patterns';
+import { PII_DETECTORS, getDetector, getCriticalDetectors, type MaskStrategy } from './pii';
 
 // ============================================================================
 // CONSTANTS

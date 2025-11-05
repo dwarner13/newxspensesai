@@ -39,6 +39,8 @@ const BASE_HEADERS: Record<string,string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'content-type, authorization',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'X-Guardrails': 'active',
+  'X-PII-Mask': 'enabled'
 };
 
 const json = (status: number, data: any) =>

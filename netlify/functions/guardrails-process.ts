@@ -1,6 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { supabaseAdmin } from "./supabase";
-import { runGuardrails, getGuardrailConfig } from "./_shared/guardrails-production";
+import { runGuardrails, getGuardrailConfig } from "./_shared/guardrails_adapter";
 import { createHash } from "crypto";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;

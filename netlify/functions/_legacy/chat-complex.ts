@@ -11,7 +11,7 @@ import { buildContext } from './_shared/context'
 import { sanitizeUserInput } from './_shared/guards'
 import { withBackoff, withTimeout } from './_shared/retry'
 import { getSummary, rollSummary, saveSummary } from './_shared/summary'
-import { runGuardrails, getGuardrailConfig } from './_shared/guardrails-production'
+import { runGuardrails, getGuardrailConfig } from './_shared/guardrails_adapter'
 import { OPENAI_TOOLS } from './_shared/tool-schemas'
 import { executeTool } from './_shared/tool-executor'
 

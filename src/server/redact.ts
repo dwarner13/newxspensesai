@@ -1,92 +1,135 @@
 import { Result, Ok } from '../types/result';
+import { maskPII } from '../../netlify/functions/_shared/pii';
 
 export interface RedactionResult {
   redacted: string;
   tokens: Map<string, string>;
 }
 
-export function redactText(input: string): Result<RedactionResult> {
-  let redacted = input;
-  const tokens = new Map<string, string>();
+/**
+ * Normalize detector type names to expected token format
+ * Maps detector names like "pan_generic", "bank_account_us" to "CARD", "BANK", etc.
+ */
+function normalizeType(detectorType: string): string {
+  const typeMap: Record<string, string> = {
+    'PAN_GENERIC': 'CARD',
+    'BANK_ACCOUNT_US': 'BANK',
+    'PHONE_INTL': 'PHONE',
+    'EMAIL': 'EMAIL',
+    'SSN_US': 'SSN',
+    'SSN_US_NO_DASH': 'SSN',
+    'IP_V4': 'IP',
+    'IP_V6': 'IP',
+    'ZIP_US': 'POSTAL',
+    'POSTAL_CA': 'POSTAL',
+  };
   
-  // Credit card numbers (13-19 digits with Luhn validation)
-  const cardRegex = /\b(?:\d{4}[\s-]?){3}\d{1,7}\b/g;
-  redacted = redacted.replace(cardRegex, (match) => {
-    const digits = match.replace(/[\s-]/g, '');
-    if (isValidLuhn(digits) && digits.length >= 13 && digits.length <= 19) {
-      const last4 = digits.slice(-4);
-      const token = `{{CARD_${last4}}}`;
-      tokens.set(token, match);
-      return token;
-    }
-    return match;
-  });
+  // Check exact match first
+  if (typeMap[detectorType]) {
+    return typeMap[detectorType];
+  }
   
-  // Email addresses
-  const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
-  redacted = redacted.replace(emailRegex, (match) => {
-    const token = `{{EMAIL_${Math.random().toString(36).substr(2, 4)}}}`;
-    tokens.set(token, match);
-    return token;
-  });
+  // Check partial matches
+  if (detectorType.includes('CARD') || detectorType.includes('PAN')) return 'CARD';
+  if (detectorType.includes('BANK')) return 'BANK';
+  if (detectorType.includes('PHONE')) return 'PHONE';
+  if (detectorType.includes('EMAIL')) return 'EMAIL';
+  if (detectorType.includes('SSN')) return 'SSN';
+  if (detectorType.includes('IP')) return 'IP';
+  if (detectorType.includes('ZIP') || detectorType.includes('POSTAL')) return 'POSTAL';
   
-  // Phone numbers (various formats)
-  const phoneRegex = /\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b/g;
-  redacted = redacted.replace(phoneRegex, (match) => {
-    const token = `{{PHONE}}`;
-    tokens.set(token, match);
-    return token;
-  });
-  
-  // US ZIP codes
-  const zipRegex = /\b\d{5}(?:-\d{4})?\b/g;
-  redacted = redacted.replace(zipRegex, (match) => {
-    const token = `{{POSTAL}}`;
-    tokens.set(token, match);
-    return token;
-  });
-  
-  // SSN/SIN patterns
-  const ssnRegex = /\b\d{3}-\d{2}-\d{4}\b|\b\d{9}\b/g;
-  redacted = redacted.replace(ssnRegex, (match) => {
-    if (match.length === 9 || match.includes('-')) {
-      const token = `{{SSN}}`;
-      tokens.set(token, match);
-      return token;
-    }
-    return match;
-  });
-  
-  // IP addresses
-  const ipRegex = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
-  redacted = redacted.replace(ipRegex, (match) => {
-    const token = `{{IP}}`;
-    tokens.set(token, match);
-    return token;
-  });
-  
-  return Ok({ redacted, tokens});
+  // Default: use first part before underscore or full name
+  return detectorType.split('_')[0] || detectorType;
 }
 
-function isValidLuhn(digits: string): boolean {
-  let sum = 0;
-  let isEven = false;
+/**
+ * Redact PII from text using canonical maskPII() from pii.ts
+ * Returns redacted text and tokens map for unmasking
+ * 
+ * Uses canonical PII masking from netlify/functions/_shared/pii.ts (30+ detector types)
+ * Maintains backward compatibility with Result<RedactionResult> return type
+ * Converts maskPII format ([REDACTED:X], ****1111) to token format ({{X}}, {{CARD_1111}})
+ */
+export function redactText(input: string): Result<RedactionResult> {
+  // Use canonical maskPII() with last4 strategy (preserves last 4 digits for UX)
+  const result = maskPII(input, 'last4');
   
-  for (let i = digits.length - 1; i >= 0; i--) {
-    let digit = parseInt(digits[i], 10);
+  const tokens = new Map<string, string>();
+  let redacted = result.masked;
+  
+  // Find all replacements in the masked text and map them to found items
+  // Process found items and create replacement map
+  const replacements: Array<{ pattern: RegExp; token: string; original: string }> = [];
+  
+  for (const found of result.found) {
+    const originalText = found.match;
+    const type = normalizeType(found.type.toUpperCase());
+    const index = found.index;
     
-    if (isEven) {
-      digit *= 2;
-      if (digit > 9) {
-        digit -= 9;
+    // Find what replaced this in the masked text by looking near the index
+    const searchStart = Math.max(0, index - 5);
+    const searchEnd = Math.min(result.masked.length, index + originalText.length + 20);
+    const segment = result.masked.substring(searchStart, searchEnd);
+    
+    let replacement = '';
+    let token = '';
+    
+    // Check for [REDACTED:XXX] format
+    const redactedMatch = segment.match(/\[REDACTED:([^\]]+)\]/);
+    if (redactedMatch) {
+      replacement = redactedMatch[0];
+      // For emails, always generate unique token even if fully redacted
+      if (type === 'EMAIL') {
+        const hash = originalText.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0).toString(36).substring(0, 6);
+        token = `{{${type}_${hash}}}`;
+      } else {
+        token = `{{${type}}}`;
+      }
+    } else {
+      // Check for last4 pattern (****...####)
+      const last4Match = segment.match(/(\*{3,}\d{4})/);
+      if (last4Match) {
+        const last4 = last4Match[0].match(/\d{4}/)?.[0] || '';
+        replacement = last4Match[0];
+        token = `{{${type}_${last4}}}`;
+      } else {
+      // Check for email pattern (j***@domain.com)
+      const emailMatch = segment.match(/([a-zA-Z0-9]\*{3}@[^\s]+)/);
+      if (emailMatch) {
+        replacement = emailMatch[0];
+        // Generate unique token for email (use hash of original)
+        const hash = originalText.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0).toString(36).substring(0, 6);
+        token = `{{${type}_${hash}}}`;
+      } else {
+          // Fallback
+          replacement = `[REDACTED:${type}]`;
+          token = `{{${type}}}`;
+        }
       }
     }
     
-    sum += digit;
-    isEven = !isEven;
+    // Escape replacement for regex
+    const escapedReplacement = replacement.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    replacements.push({
+      pattern: new RegExp(escapedReplacement, 'g'),
+      token,
+      original: originalText
+    });
+    
+    tokens.set(token, originalText);
   }
   
-  return sum % 10 === 0;
+  // Replace all occurrences (only first match per pattern to avoid duplicates)
+  for (const rep of replacements) {
+    // Use non-global regex to replace only first occurrence
+    const nonGlobalPattern = new RegExp(rep.pattern.source.replace(/g$/, ''));
+    redacted = redacted.replace(nonGlobalPattern, rep.token);
+  }
+  
+  return Ok({ 
+    redacted, 
+    tokens 
+  });
 }
 
 // Inline tests

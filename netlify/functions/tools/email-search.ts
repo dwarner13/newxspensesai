@@ -10,7 +10,7 @@
 
 import { Handler } from '@netlify/functions';
 import { admin } from '../_shared/upload';
-import { runGuardrails, getGuardrailConfig } from '../_shared/guardrails-production';
+import { runGuardrails, getGuardrailConfig } from '../_shared/guardrails_adapter';
 import { scoreFinanceEmail, rankEmails, type FinanceEmail } from './_shared/email-scoring';
 
 const GMAIL_CLIENT_ID = process.env.GMAIL_CLIENT_ID!;

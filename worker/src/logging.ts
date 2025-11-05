@@ -1,5 +1,6 @@
 import pino from 'pino';
 import { config } from './config.js';
+import { maskPII } from '../../../netlify/functions/_shared/pii.js';
 
 // Create logger instance
 export const logger = pino({
@@ -14,24 +15,15 @@ export const logger = pino({
   },
 });
 
-// PII redaction patterns
-const PII_PATTERNS = [
-  /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, // Credit card numbers
-  /\b\d{3}-\d{2}-\d{4}\b/g, // SSN
-  /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, // Email
-  /\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b/g, // Phone
-  /\b\d{9,19}\b/g, // Account numbers
-];
-
-// Redact PII from strings
+/**
+ * Redact PII from strings using canonical maskPII() from pii.ts
+ * Uses canonical PII masking from netlify/functions/_shared/pii.ts (30+ detector types)
+ * For logging, we use full masking for security
+ */
 export function redactPII(text: string): string {
-  let redacted = text;
-  
-  PII_PATTERNS.forEach(pattern => {
-    redacted = redacted.replace(pattern, '[REDACTED]');
-  });
-  
-  return redacted;
+  // Use canonical maskPII() with full strategy (no sensitive data in logs)
+  const result = maskPII(text, 'full');
+  return result.masked;
 }
 
 // Redact PII from objects recursively

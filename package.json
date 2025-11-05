@@ -8,6 +8,8 @@
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
+    "test:unit": "vitest run",
+    "test:ui": "vitest --ui",
     "parity": "tsx scripts/parityTest.ts --old=http://localhost:3000/old-chat --new=http://localhost:8888/.netlify/functions/chat",
     "parity:custom": "tsx scripts/parityTest.ts",
     "test:delegate": "tsx scripts/localDelegateCheck.ts",
@@ -90,6 +92,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/ui": "^4.0.6",
     "autoprefixer": "^10.4.17",
     "eslint": "^8.55.0",
     "eslint-plugin-react-hooks": "^4.6.0",
@@ -99,7 +102,8 @@
     "tailwindcss": "^3.4.1",
     "tsx": "^4.7.0",
     "typescript": "^5.2.2",
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vitest": "^4.0.6"
   },
   "overrides": {
     "@typescript-eslint/eslint-plugin": "^7.0.0",

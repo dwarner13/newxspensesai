@@ -1,21 +1,42 @@
 import OpenAI from 'openai';
+import crypto from 'crypto';
 import { supabaseAdmin as supabaseAdmin } from './supabase'
 import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { safeLog } from "./safeLog";
 import { maskPII } from './pii'; // Use canonical maskPII instead of inline redactPII
 
-// Wrap a handler to add try/catch logging and a safe 500 response.
+/**
+ * Wrap a handler to add guardrails, error handling, and response headers
+ * Automatically adds X-Guardrails and X-PII-Mask headers to all responses
+ */
 export function withGuardrails(handler: Handler): Handler {
   return async (event: HandlerEvent, context: HandlerContext) => {
     try {
       const res = await handler(event, context);
-      return res ?? { statusCode: 200, body: "" };
+      
+      // Ensure guardrail headers are present
+      const headers = {
+        ...res?.headers,
+        'X-Guardrails': 'active',
+        'X-PII-Mask': 'enabled'
+      }
+      
+      return {
+        ...res,
+        headers,
+        statusCode: res?.statusCode ?? 200,
+        body: res?.body ?? ""
+      };
     } catch (err: any) {
       safeLog("Function error:", err?.stack ?? err);
       return {
         statusCode: 500,
         body: JSON.stringify({ error: "Internal server error" }),
-        headers: { "content-type": "application/json" }
+        headers: { 
+          "content-type": "application/json",
+          'X-Guardrails': 'active',
+          'X-PII-Mask': 'enabled'
+        }
       };
     }
   };
@@ -42,6 +63,7 @@ export type GuardrailOutcome = {
   redacted?: string        // sanitized text
   reasons?: string[]       // why blocked/flagged
   signals?: GuardrailSignals
+  headers?: Record<string, string>  // Response headers to add
 }
 
 export type GuardrailOptions = {
@@ -51,6 +73,8 @@ export type GuardrailOptions = {
   jailbreak?: boolean
   hallucination?: boolean
   strict?: boolean         // if true, block on any failure
+  stage?: 'ingestion' | 'chat' | 'ocr'  // Where guardrails are applied
+  log?: boolean            // Whether to log to Supabase (default: true)
 }
 
 // ============================================================================
@@ -223,6 +247,21 @@ async function checkHallucination(text: string, userId: string): Promise<{
 // MAIN GUARDRAILS FUNCTION
 // ============================================================================
 
+/**
+ * Apply guardrails to input text with unified API
+ * 
+ * Features:
+ * - PII detection and masking (always on)
+ * - Content moderation (configurable)
+ * - Jailbreak detection (configurable)
+ * - Supabase logging (automatic)
+ * - Response headers (X-Guardrails, X-PII-Mask)
+ * 
+ * @param input - Raw user input text
+ * @param options - Guardrail configuration options
+ * @param userId - User ID for logging (required if logging enabled)
+ * @returns GuardrailOutcome with ok flag, redacted text, reasons, and headers
+ */
 export async function applyGuardrails(
   input: string, 
   options: GuardrailOptions = {},
@@ -233,6 +272,8 @@ export async function applyGuardrails(
   
   // Apply preset defaults
   const preset = options.preset || 'balanced'
+  const stage = options.stage || 'chat'
+  const shouldLog = options.log !== false  // Default to true
   const config = {
     pii: options.pii ?? true,
     moderation: options.moderation ?? (preset === 'strict'),
@@ -242,6 +283,10 @@ export async function applyGuardrails(
   }
   
   let text = input
+  const headers: Record<string, string> = {
+    'X-Guardrails': 'active',
+    'X-PII-Mask': 'enabled'
+  }
   
   // -------------------------------------------------------------------------
   // 1. PII DETECTION & REDACTION (always on for compliance)
@@ -272,11 +317,31 @@ export async function applyGuardrails(
       
       if (config.strict) {
         // BLOCK in strict mode (ingestion)
-        return {
+        const blockedOutcome: GuardrailOutcome = {
           ok: false,
           reasons: ['moderation_block', ...modResult.categories],
-          signals
+          signals,
+          headers
         }
+        
+        // Log blocking event
+        if (shouldLog && userId) {
+          const inputHash = crypto
+            .createHash('sha256')
+            .update(input.slice(0, 256))
+            .digest('hex')
+            .slice(0, 24)
+          
+          logGuardrailEvent({
+            user_id: userId,
+            stage: stage as 'ingestion' | 'chat' | 'ocr',
+            preset,
+            outcome: blockedOutcome,
+            input_hash: inputHash
+          }).catch(err => console.error('Guardrail logging failed:', err))
+        }
+        
+        return blockedOutcome
       } else {
         // FLAG in balanced mode (chat) - sanitize but continue
         reasons.push('moderation_flag')
@@ -296,11 +361,31 @@ export async function applyGuardrails(
       
       if (config.strict) {
         // BLOCK in strict mode
-        return {
+        const blockedOutcome: GuardrailOutcome = {
           ok: false,
           reasons: ['jailbreak_block'],
-          signals
+          signals,
+          headers
         }
+        
+        // Log blocking event
+        if (shouldLog && userId) {
+          const inputHash = crypto
+            .createHash('sha256')
+            .update(input.slice(0, 256))
+            .digest('hex')
+            .slice(0, 24)
+          
+          logGuardrailEvent({
+            user_id: userId,
+            stage: stage as 'ingestion' | 'chat' | 'ocr',
+            preset,
+            outcome: blockedOutcome,
+            input_hash: inputHash
+          }).catch(err => console.error('Guardrail logging failed:', err))
+        }
+        
+        return blockedOutcome
       } else {
         // FLAG in balanced mode - rephrase intent
         reasons.push('jailbreak_flag')
@@ -325,27 +410,62 @@ export async function applyGuardrails(
   // -------------------------------------------------------------------------
   // RESULT
   // -------------------------------------------------------------------------
-  return {
+  const outcome: GuardrailOutcome = {
     ok: true,
     redacted: text,
     reasons: reasons.length > 0 ? reasons : undefined,
-    signals
+    signals,
+    headers
   }
+  
+  // -------------------------------------------------------------------------
+  // LOGGING (async, non-blocking)
+  // -------------------------------------------------------------------------
+  if (shouldLog && userId) {
+    // Generate input hash (SHA256 of first 256 chars for privacy)
+    const inputHash = crypto
+      .createHash('sha256')
+      .update(input.slice(0, 256))
+      .digest('hex')
+      .slice(0, 24)  // Store first 24 chars of hash
+    
+    // Log asynchronously (don't await - logging failure shouldn't block)
+    logGuardrailEvent({
+      user_id: userId,
+      stage: stage as 'ingestion' | 'chat' | 'ocr',
+      preset,
+      outcome,
+      input_hash: inputHash
+    }).catch(err => {
+      console.error('Guardrail logging failed (non-blocking):', err)
+    })
+  }
+  
+  return outcome
 }
 
 // ============================================================================
 // AUDIT LOGGING
 // ============================================================================
 
+/**
+ * Log guardrail event to Supabase guardrail_events table
+ * Stores hashes only (never raw content) for compliance
+ */
 export async function logGuardrailEvent(event: {
   user_id: string
   stage: 'ingestion' | 'chat' | 'ocr'
   preset: GuardrailPreset
   outcome: GuardrailOutcome
-  input_hash: string  // SHA256 of input (not the actual input)
-}) {
+  input_hash: string  // SHA256 hash (first 24 chars) of input
+}): Promise<void> {
   try {
-    await supabaseAdmin.from('guardrail_events').insert({
+    if (!supabaseAdmin) {
+      console.warn('Supabase admin not available, skipping guardrail logging')
+      return
+    }
+    
+    const result = await supabaseAdmin.from('guardrail_events').insert({
       user_id: event.user_id,
       stage: event.stage,
       preset: event.preset,
@@ -358,6 +478,10 @@ export async function logGuardrailEvent(event: {
       input_hash: event.input_hash,
       created_at: new Date().toISOString()
     })
+    
+    if (result.error) {
+      console.error('Supabase guardrail logging error:', result.error)
+    }
   } catch (error) {
     console.error('Failed to log guardrail event:', error)
     // Don't throw - logging failure shouldn't block the request

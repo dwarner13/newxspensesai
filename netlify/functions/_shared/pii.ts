@@ -3,9 +3,19 @@
  * 
  * Simple wrapper around pii-patterns.ts for easy masking with detection metadata.
  * Returns both the masked text and information about what was found.
+ * 
+ * All PII detection should import from this file, not pii-patterns.ts directly.
  */
 
-import { PII_DETECTORS, getDetector, type MaskStrategy } from './pii-patterns';
+import { 
+  PII_DETECTORS, 
+  getDetector, 
+  getCriticalDetectors,
+  type MaskStrategy,
+  type PiiDetector,
+  maskPII as maskPIIDirect,
+  detectPII as detectPIIDirect
+} from './pii-patterns';
 
 export type MaskResult = {
   masked: string;
@@ -22,39 +32,53 @@ export function maskPII(text: string, strategy: MaskStrategy = 'last4'): MaskRes
   const found: MaskResult['found'] = [];
   let masked = text;
 
-  // Apply each PII detector in order
-  // Priority: Financial → Government → Contact → Address → Network
-  const detectors = [
-    // Financial (highest priority - credit cards, bank accounts)
-    'ca_credit_card',
-    'us_credit_card', 
-    'uk_credit_card',
-    'ca_bank_account',
-    'us_bank_account',
-    'uk_bank_account',
-    
-    // Government IDs (high priority)
-    'ca_sin',
-    'us_ssn',
-    'uk_nino',
-    
-    // Contact (medium priority)
-    'email',
-    'phone_na',
-    'phone_uk',
-    
-    // Other identifiers
-    'ca_health_card',
-    'us_passport',
-    'uk_nhs',
-    'ca_drivers_license',
+  // Use all detectors from PII_DETECTORS (priority order by category)
+  // CRITICAL: Run routing numbers FIRST (before SSN) to avoid false positives
+  // Then run specific government IDs before generic patterns
+  
+  // Financial: routing must run before SSN (routing numbers can look like SSNs)
+  const financialDetectors = PII_DETECTORS.filter(d => d.category === 'financial');
+  const routingDetector = financialDetectors.find(d => d.name === 'routing_us');
+  const bankDetectors = financialDetectors.filter(d => d.name.includes('bank'));
+  const otherFinancial = financialDetectors.filter(d => d.name !== 'routing_us' && !d.name.includes('bank'));
+  
+  // Within government category, prioritize specific IDs over generic patterns
+  const governmentDetectors = PII_DETECTORS.filter(d => d.category === 'government');
+  const specificGovt = governmentDetectors.filter(d => 
+    d.name.includes('ssn') || d.name.includes('passport') || d.name.includes('sin') || d.name.includes('nino')
+  );
+  const genericGovt = governmentDetectors.filter(d => 
+    !d.name.includes('ssn') && !d.name.includes('passport') && !d.name.includes('sin') && !d.name.includes('nino')
+  );
+  
+  // Within network category, prioritize IP addresses
+  const networkDetectors = PII_DETECTORS.filter(d => d.category === 'network');
+  const ipDetectors = networkDetectors.filter(d => d.name.includes('ip'));
+  const otherNetwork = networkDetectors.filter(d => !d.name.includes('ip'));
+  
+  const detectorsByPriority: PiiDetector[] = [
+    // Routing numbers FIRST (before SSN) - they can look like SSNs but are more specific
+    ...(routingDetector ? [routingDetector] : []),
+    // Government IDs: specific IDs (SSN, passport, SIN, NINO) before generic patterns
+    // This prevents false positives (e.g., SSNs matching bank account patterns)
+    ...specificGovt,
+    // Financial: credit cards BEFORE bank accounts (16-digit numbers are credit cards)
+    ...otherFinancial.filter(d => d.name.includes('pan') || d.name.includes('card')),
+    ...bankDetectors,
+    ...otherFinancial.filter(d => !d.name.includes('pan') && !d.name.includes('card')),
+    // Government IDs: generic patterns
+    ...genericGovt,
+    // Contact
+    ...PII_DETECTORS.filter(d => d.category === 'contact'),
+    // Address
+    ...PII_DETECTORS.filter(d => d.category === 'address'),
+    // Network: IP addresses first, then other
+    ...ipDetectors,
+    ...otherNetwork,
   ];
 
-  // Process each detector
-  for (const detectorName of detectors) {
-    const detector = getDetector(detectorName);
-    if (!detector) continue;
-
+  // Process each detector in priority order
+  for (const detector of detectorsByPriority) {
     const rx = detector.rx;
     const matches = [...masked.matchAll(rx)];
 
@@ -64,18 +88,30 @@ export function maskPII(text: string, strategy: MaskStrategy = 'last4'): MaskRes
       const originalText = match[0];
       const index = match.index || 0;
 
-      // Store what we found (before masking)
-      found.push({
-        type: detector.name,
-        match: originalText,
-        index
-      });
+      // Skip if already masked - check both the match and surrounding context
+      // This prevents double-masking and ensures idempotency
+      if (originalText.includes('[REDACTED:') || 
+          originalText.startsWith('***') ||
+          originalText.match(/^\*{4,}/) || // Starts with 4+ asterisks
+          masked.substring(Math.max(0, index - 5), Math.min(masked.length, index + originalText.length + 10)).includes('[REDACTED:')) {
+        continue;
+      }
 
-      // Apply masking using detector's mask function
+      // Apply masking using detector's mask function first to check if it's valid
       const maskedValue = detector.mask(originalText, strategy);
       
-      // Replace in text
-      masked = masked.replace(originalText, maskedValue);
+      // Only record and replace if mask function actually changed the text
+      // This ensures we don't record false positives that the mask function rejects
+      if (maskedValue !== originalText) {
+        // Store what we found (before masking)
+        found.push({
+          type: detector.name,
+          match: originalText,
+          index
+        });
+        
+        masked = masked.replace(originalText, maskedValue);
+      }
     }
   }
 
@@ -83,15 +119,23 @@ export function maskPII(text: string, strategy: MaskStrategy = 'last4'): MaskRes
 }
 
 /**
+ * Detect PII in text without masking
+ * Re-export from pii-patterns.ts
+ */
+export function detectPII(text: string): { types: string[]; matches: Record<string, string[]> } {
+  return detectPIIDirect(text);
+}
+
+/**
  * Quick check if text contains any PII (without masking)
  * Useful for fast pre-checks before expensive operations
  */
 export function containsPII(text: string): boolean {
-  const detectors = ['ca_credit_card', 'us_credit_card', 'ca_sin', 'us_ssn', 'email', 'phone_na'];
+  // Use critical detectors for fast check
+  const critical = getCriticalDetectors();
   
-  for (const detectorName of detectors) {
-    const detector = getDetector(detectorName);
-    if (detector && detector.rx.test(text)) {
+  for (const detector of critical) {
+    if (detector.rx.test(text)) {
       return true;
     }
   }
@@ -106,12 +150,7 @@ export function containsPII(text: string): boolean {
 export function countPII(text: string): Record<string, number> {
   const counts: Record<string, number> = {};
   
-  const detectors = Object.keys(PII_DETECTORS);
-  
-  for (const detectorName of detectors) {
-    const detector = getDetector(detectorName);
-    if (!detector) continue;
-    
+  for (const detector of PII_DETECTORS) {
     const matches = text.match(detector.rx);
     if (matches && matches.length > 0) {
       counts[detector.name] = matches.length;
@@ -161,24 +200,14 @@ export function maskSpecificPII(
 }
 
 /**
- * Legacy regex patterns for backward compatibility
- * Use PII_DETECTORS from pii-patterns.ts for new code
+ * Re-export types and utilities from pii-patterns.ts
  */
-export const LEGACY_PATTERNS = {
-  CC_RE: /\b(?:\d[ -]*?){13,19}\b/g,
-  EMAIL_RE: /([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
-  PHONE_RE: /(?:\+?\d{1,3}[ -]?)?(?:\(?\d{3}\)?[ -]?)?\d{3}[ -]?\d{4}/g,
-  SSN_RE: /\b\d{3}-\d{2}-\d{4}\b/g,
-};
-
-/**
- * Simple group masking helper (legacy)
- * Keeps last N characters, masks the rest
- */
-export function maskGroup(s: string, keepLast = 4): string {
-  const onlyDigits = s.replace(/\D/g, '');
-  const last = onlyDigits.slice(-keepLast);
-  const masked = '█'.repeat(Math.max(0, onlyDigits.length - keepLast)) + last;
-  return masked;
-}
+export type { MaskStrategy, PiiDetector } from './pii-patterns';
+export { 
+  PII_DETECTORS,
+  getDetector,
+  getDetectorsByCategory,
+  getCriticalDetectors,
+  getDetectorSummary
+} from './pii-patterns';
 

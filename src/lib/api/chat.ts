@@ -111,4 +111,42 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
   return btoa(binary);
 }
 
+/**
+ * Send chat message to chat-v2 endpoint
+ */
+export interface ChatV2Request {
+  message: string;
+  convoId: string;
+  preferredAgent?: string | null;
+}
+
+export interface ChatV2Response {
+  agent: string;
+  reply: string;
+  meta?: {
+    piiMasked?: boolean;
+    moderationFlagged?: boolean;
+    summaryUpdated?: boolean;
+  };
+}
+
+export async function sendChatV2(params: ChatV2Request): Promise<ChatV2Response> {
+  const res = await fetch('/.netlify/functions/chat-v2', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: params.message,
+      convoId: params.convoId,
+      preferredAgent: params.preferredAgent || null
+    })
+  });
+  
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => 'Unknown error');
+    throw new Error(`Chat v2 failed: ${res.status} - ${errorText}`);
+  }
+  
+  return await res.json();
+}
+
 
