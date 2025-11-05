@@ -566,7 +566,7 @@ export const handler: Handler = async (event, context) => {
         statusCode: 200,
         headers: {
           ...buildResponseHeaders({
-            guardrailsActive: true,
+            guardrailsActive: guardrailOutcome.ok,
             piiMaskEnabled: true,
             memoryHitTopScore: null,
             memoryHitCount: 0,
@@ -591,7 +591,7 @@ export const handler: Handler = async (event, context) => {
     return {
       statusCode: 200,
       headers: buildResponseHeaders({
-        guardrailsActive: true,
+        guardrailsActive: guardrailOutcome.ok,
         piiMaskEnabled: true,
         memoryHitTopScore: null,
         memoryHitCount: 0,
@@ -600,7 +600,9 @@ export const handler: Handler = async (event, context) => {
         employee: 'byte',
         routeConfidence: 1.0,
         ocrProvider: ocrResult.provider,
-        ocrParse: parseKind
+        ocrParse: parseKind,
+        transactionsSaved: transactionsSaved,
+        categorizer: categorizerMethod !== 'none' ? categorizerMethod : undefined
       }),
       body: JSON.stringify({ ok: true, ...result })
     };
