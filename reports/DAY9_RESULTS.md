@@ -252,3 +252,42 @@ created_at: '2024-01-15T12:00:00Z'
 
 **Ready to commit**: `Day 9: OCR normalize → categorize → store (transactions + items, headers, tests, reports)`
 
+---
+
+## VALIDATION NOTES (PR Prep)
+
+### Test Results
+- ✅ `pnpm test` - Run locally to verify
+
+### Smoke Test Headers (Expected)
+**Chat Response (Byte OCR):**
+```
+X-Guardrails: active
+X-PII-Mask: enabled
+X-Memory-Hit: 0
+X-Memory-Count: 0
+X-Session-Summary: absent/present
+X-Session-Summarized: no/yes
+X-Employee: byte
+X-Route-Confidence: 1.00
+```
+
+**OCR Response:**
+```
+X-Guardrails: active
+X-PII-Mask: enabled
+X-Memory-Hit: 0
+X-Memory-Count: 0
+X-Session-Summary: absent
+X-Session-Summarized: no
+X-Employee: byte
+X-Route-Confidence: 1.00
+X-OCR-Provider: local|ocrspace|vision|none
+X-OCR-Parse: invoice|receipt|bank|none
+X-Transactions-Saved: 0|1|2...
+X-Categorizer: rules|tag|none
+```
+
+### PR Link
+https://github.com/dwarner13/newxspensesai/compare/main...feature/day9-ocr-normalize-categorize
+
