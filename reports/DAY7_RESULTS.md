@@ -211,3 +211,26 @@ Content-Type: application/json
 
 **Ready to commit**: `Day 7: streaming polish + header unification + resilient frontend stream handlers (tests, reports)`
 
+---
+
+## VALIDATION NOTES (PR Prep)
+
+### Test Results
+- ✅ `pnpm test` - Run locally to verify
+
+### Smoke Test Headers (Expected)
+```
+X-Guardrails: active
+X-PII-Mask: enabled
+X-Memory-Hit: 0
+X-Memory-Count: 0
+X-Session-Summary: absent/present
+X-Session-Summarized: no/yes
+X-Employee: prime|crystal|tag|byte
+X-Route-Confidence: 0.00-1.00
+X-Stream-Chunk-Count: >0 (for SSE responses)
+```
+
+### PR Link
+https://github.com/dwarner13/newxspensesai/compare/main...feature/day7-streaming-polish
+
