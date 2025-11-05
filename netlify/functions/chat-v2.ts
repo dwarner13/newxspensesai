@@ -17,12 +17,12 @@
 
 import type { Handler } from "@netlify/functions";
 import { supabaseAdmin } from "./supabase";
-import { maskPII } from "./_shared/pii";
+import { moderate, maskPII } from "./shared/guardrails";
 import { pickAgent } from "./_shared/agent-router";
-import { saveSummary, getSummary, rollSummary } from "./_shared/summary";
-import OpenAI from "openai";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+import { saveMsg, saveSummary } from "./shared/memory";
+import { summarizeConvo } from "./shared/summarizer";
+import { runAgent } from "./shared/llm";
+import { urlFetchTool } from "./tools/url-fetch";
 
 // ============================================================================
 // TYPES
@@ -41,6 +41,9 @@ interface ChatV2Response {
     piiMasked?: boolean;
     moderationFlagged?: boolean;
     summaryUpdated?: boolean;
+    usedTools?: string[];
+    model?: string;
+    error?: boolean;
   };
 }
 
@@ -48,119 +51,7 @@ interface ChatV2Response {
 // HELPER FUNCTIONS
 // ============================================================================
 
-/**
- * Moderate content using OpenAI moderation API
- */
-async function moderate(text: string): Promise<{ flagged: boolean; categories: string[] }> {
-  try {
-    const response = await openai.moderations.create({
-      model: 'omni-moderation-latest',
-      input: text.slice(0, 10_000)  // API limit
-    });
-    
-    const result = response.results?.[0];
-    if (!result) return { flagged: false, categories: [] };
-    
-    const flaggedCategories: string[] = [];
-    if (result.category_scores) {
-      // Check critical categories with thresholds
-      if ((result.category_scores as any)['sexual/minors'] > 0.5) flaggedCategories.push('sexual/minors');
-      if ((result.category_scores as any)['hate/threatening'] > 0.7) flaggedCategories.push('hate/threatening');
-      if ((result.category_scores as any)['harassment/threatening'] > 0.7) flaggedCategories.push('harassment/threatening');
-      if ((result.category_scores as any)['violence'] > 0.8) flaggedCategories.push('violence');
-      if ((result.category_scores as any)['self-harm'] > 0.8) flaggedCategories.push('self-harm');
-    }
-    
-    return {
-      flagged: result.flagged || flaggedCategories.length > 0,
-      categories: flaggedCategories
-    };
-  } catch (error) {
-    console.error('Moderation check failed:', error);
-    return { flagged: false, categories: [] };
-  }
-}
 
-/**
- * Save message to Supabase
- */
-async function saveMsg(params: {
-  userId: string;
-  convoId: string;
-  role: 'user' | 'assistant';
-  content: string;
-  agent?: string;
-}): Promise<string> {
-  try {
-    const { data, error } = await supabaseAdmin
-      .from('chat_messages')
-      .insert({
-        user_id: params.userId,
-        session_id: params.convoId, // Treat convoId as session_id
-        role: params.role,
-        content: params.content,
-        employee_key: params.agent || (params.role === 'user' ? 'user' : 'prime-boss')
-      })
-      .select('id')
-      .single();
-    
-    if (error) throw error;
-    return data?.id || '';
-  } catch (err: any) {
-    console.error('[chat-v2] Failed to save message:', err);
-    // Return fallback ID instead of throwing
-    return `msg-${Date.now()}`;
-  }
-}
-
-/**
- * Run agent with tools (stubbed for now)
- */
-async function runAgent(params: {
-  agent: string;
-  message: string;
-  userId: string;
-  convoId: string;
-  tools: Record<string, any>;
-}): Promise<string> {
-  // Stub: Return placeholder text for now
-  // TODO: Implement actual agent execution with OpenAI
-  return `[Agent ${params.agent} response placeholder] Processing: "${params.message.substring(0, 50)}..."`;
-}
-
-/**
- * Summarize conversation
- */
-async function summarizeConvo(params: {
-  userId: string;
-  convoId: string;
-  userMessage: string;
-  assistantReply: string;
-}): Promise<string> {
-  try {
-    // Get previous summary
-    const prevSummary = await getSummary(params.userId, params.convoId);
-    
-    // Get last few messages (we'll use current turn + previous summary)
-    const lastTurns = [
-      { role: 'user' as const, content: params.userMessage },
-      { role: 'assistant' as const, content: params.assistantReply }
-    ];
-    
-    // Roll summary with new turns
-    const newSummary = await rollSummary({
-      user_id: params.userId,
-      convo_id: params.convoId,
-      prevSummary: prevSummary || '',
-      lastTurns
-    });
-    
-    return newSummary;
-  } catch (err: any) {
-    console.error('[chat-v2] Failed to summarize conversation:', err);
-    return '';
-  }
-}
 
 // ============================================================================
 // MAIN HANDLER
@@ -217,20 +108,19 @@ export const handler: Handler = async (event, context) => {
     // 1. Run guardrails: moderate() then maskPII()
     // ========================================================================
     const moderationResult = await moderate(message);
-    if (moderationResult.flagged) {
+    if (!moderationResult.ok) {
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ 
-          error: 'Content flagged by moderation',
-          categories: moderationResult.categories
+          error: 'Content not allowed.'
         })
       };
     }
 
-    const piiResult = maskPII(message, 'last4');
-    const maskedMessage = piiResult.masked;
-    const piiMasked = piiResult.found.length > 0;
+    // Mask PII on user input before processing
+    const maskedMessage = maskPII(message);
+    const piiMasked = maskedMessage !== message;
 
     // ========================================================================
     // 2. Pick agent using pickAgent()
@@ -241,40 +131,42 @@ export const handler: Handler = async (event, context) => {
     // 3. Save user message to Supabase via saveMsg()
     // ========================================================================
     await saveMsg({
-      userId,
-      convoId,
       role: 'user',
+      agent,
+      convoId,
       content: maskedMessage,
-      agent
+      userId
     });
 
     // ========================================================================
     // 4. Run agent with tools (only 'url.fetch' for now)
     // ========================================================================
     const tools = {
-      'url.fetch': async (url: string) => {
-        // Stub implementation
-        return { status: 200, content: `[Stub] Fetched: ${url}` };
-      }
+      'url.fetch': urlFetchTool
     };
 
-    const assistantReply = await runAgent({
+    const agentResult = await runAgent({
       agent,
       message: maskedMessage,
-      userId,
       convoId,
-      tools
+      tools,
+      userId
     });
 
+    const assistantReplyRaw = agentResult.text;
+
+    // Mask PII on assistant reply before saving and returning
+    const assistantReply = maskPII(assistantReplyRaw);
+
     // ========================================================================
-    // 5. Save assistant reply
+    // 5. Save assistant reply (with masked PII)
     // ========================================================================
     await saveMsg({
-      userId,
-      convoId,
       role: 'assistant',
+      agent,
+      convoId,
       content: assistantReply,
-      agent
+      userId
     });
 
     // ========================================================================
@@ -283,14 +175,16 @@ export const handler: Handler = async (event, context) => {
     let summaryUpdated = false;
     try {
       const newSummary = await summarizeConvo({
-        userId,
-        convoId,
-        userMessage: maskedMessage,
-        assistantReply
+        convoId
       });
       
-      if (newSummary) {
-        await saveSummary(userId, convoId, newSummary);
+      if (newSummary && newSummary !== 'Conversation just started.' && !newSummary.includes('unavailable')) {
+        await saveSummary({
+          convoId,
+          agent,
+          summary: newSummary,
+          userId
+        });
         summaryUpdated = true;
       }
     } catch (summaryErr) {
@@ -302,11 +196,14 @@ export const handler: Handler = async (event, context) => {
     // ========================================================================
     const response: ChatV2Response = {
       agent,
-      reply: assistantReply,
+      reply: assistantReply, // Already masked
       meta: {
-        piiMasked,
-        moderationFlagged: moderationResult.flagged,
-        summaryUpdated
+        piiMasked: piiMasked || (assistantReply !== assistantReplyRaw),
+        moderationFlagged: !moderationResult.ok,
+        summaryUpdated,
+        usedTools: agentResult.meta.usedTools,
+        model: agentResult.meta.model,
+        error: agentResult.meta.error
       }
     };
 
