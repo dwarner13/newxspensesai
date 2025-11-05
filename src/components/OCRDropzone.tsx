@@ -14,6 +14,8 @@ type OCRHeaders = {
   streamChunkCount?: string; // SSE only
   transactionsSaved?: string;
   categorizer?: string;
+  vendorMatched?: string;
+  xpAwarded?: string;
 };
 
 export default function OCRDropzone() {
@@ -72,6 +74,8 @@ export default function OCRDropzone() {
         streamChunkCount: res.headers.get("X-Stream-Chunk-Count") || undefined,
         transactionsSaved: res.headers.get("X-Transactions-Saved") || undefined,
         categorizer: res.headers.get("X-Categorizer") || undefined,
+        vendorMatched: res.headers.get("X-Vendor-Matched") || undefined,
+        xpAwarded: res.headers.get("X-XP-Awarded") || undefined,
       };
       setHeaders(h);
 
