@@ -2228,16 +2228,17 @@ ${baseContext}`;
           console.warn('[Chat] Summary generation failed (non-blocking):', e);
         }
         
-        // Day 4: Add memory headers + Day 5: Add summary headers + Day 6: Add routing headers
-        const synthesisHeaders = {
-          ...BASE_HEADERS,
-          'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
-          'X-Memory-Count': String(memoryHitCount),
-          'X-Session-Summary': summaryPresent ? 'present' : 'absent',
-          'X-Session-Summarized': summaryWrittenSynthesis ? 'yes' : 'no',
-          'X-Employee': routingResult.employee,
-          'X-Route-Confidence': routingResult.confidence.toFixed(2)
-        };
+        // Day 7: Use centralized header builder
+        const synthesisHeaders = buildResponseHeaders({
+          guardrailsActive: true,
+          piiMaskEnabled: true,
+          memoryHitTopScore,
+          memoryHitCount,
+          summaryPresent,
+          summaryWritten: summaryWrittenSynthesis,
+          employee: routingResult.employee,
+          routeConfidence: routingResult.confidence
+        });
         
         return {
           statusCode: 200,
@@ -2318,16 +2319,17 @@ ${baseContext}`;
           console.warn('[Chat] Summary generation failed (non-blocking):', e);
         }
         
-        // Day 4: Add memory headers + Day 5: Add summary headers + Day 6: Add routing headers
-        const noToolHeaders = {
-          ...BASE_HEADERS,
-          'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
-          'X-Memory-Count': String(memoryHitCount),
-          'X-Session-Summary': summaryPresent ? 'present' : 'absent',
-          'X-Session-Summarized': summaryWrittenNoTool ? 'yes' : 'no',
-          'X-Employee': routingResult.employee,
-          'X-Route-Confidence': routingResult.confidence.toFixed(2)
-        };
+        // Day 7: Use centralized header builder
+        const noToolHeaders = buildResponseHeaders({
+          guardrailsActive: true,
+          piiMaskEnabled: true,
+          memoryHitTopScore,
+          memoryHitCount,
+          summaryPresent,
+          summaryWritten: summaryWrittenNoTool,
+          employee: routingResult.employee,
+          routeConfidence: routingResult.confidence
+        });
         
         return {
           statusCode: 200,
@@ -2419,16 +2421,17 @@ ${baseContext}`;
         summaryWritten = false;
       }
       
-      // Day 4: Add memory headers + Day 5: Add summary headers + Day 6: Add routing headers
-      const responseHeaders = {
-        ...BASE_HEADERS,
-        'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
-        'X-Memory-Count': String(memoryHitCount),
-        'X-Session-Summary': summaryPresent ? 'present' : 'absent',
-        'X-Session-Summarized': summaryWritten ? 'yes' : 'no',
-        'X-Employee': routingResult.employee,
-        'X-Route-Confidence': routingResult.confidence.toFixed(2)
-      };
+      // Day 7: Use centralized header builder
+      const responseHeaders = buildResponseHeaders({
+        guardrailsActive: true,
+        piiMaskEnabled: true,
+        memoryHitTopScore,
+        memoryHitCount,
+        summaryPresent,
+        summaryWritten,
+        employee: routingResult.employee,
+        routeConfidence: routingResult.confidence
+      });
       
       return {
         statusCode: 200,
@@ -2452,59 +2455,69 @@ ${baseContext}`;
     // Create PII masker function for SSE transform
     const sseMasker = (text: string) => maskPII(text, 'last4').masked;
     
-    // Forward SSE to client while accumulating final text to persist
+    // Day 7: Enhanced SSE transform with chunk counting and PII masking
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
-    let buffer = '';
     let finalText = '';
+    let streamChunkCount = 0;
+    let buffer = '';
     
-    // Create combined transform: mask PII in SSE payloads + accumulate for persistence
+    // Create transform with buffering and PII masking (Day 7)
     const transform = new TransformStream({
       transform(chunk, controller) {
+        streamChunkCount++;
         const str = typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
         buffer += str;
         
-        // Split by SSE event boundaries
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop()!; // last partial stays in buffer
+        // Process complete SSE events (ending with \n\n)
+        let lastIndex = 0;
+        let eventEnd = buffer.indexOf('\n\n', lastIndex);
         
-        for (const part of parts) {
+        while (eventEnd !== -1) {
+          const event = buffer.slice(lastIndex, eventEnd + 2); // Include \n\n
+          
           // Check if this is a "data:" event
-          if (part.startsWith('data: ')) {
-            const payload = part.slice(6).trim();
+          if (event.startsWith('data: ')) {
+            const payload = event.slice(6, event.indexOf('\n')).trim();
+            
             if (payload === '[DONE]') {
               controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-              continue;
-            }
-            
-            try {
-              const delta = JSON.parse(payload);
-              const frag = delta?.choices?.[0]?.delta?.content ?? '';
-              
-              // Accumulate for persistence
-              if (frag) finalText += frag;
-              
-              // Mask PII in content before sending to client
-              if (frag) {
-                delta.choices[0].delta.content = sseMasker(frag);
+            } else if (payload) {
+              try {
+                const delta = JSON.parse(payload);
+                const frag = delta?.choices?.[0]?.delta?.content ?? '';
+                
+                // Accumulate for persistence (before masking)
+                if (frag) finalText += frag;
+                
+                // Mask PII in content before sending to client
+                if (frag) {
+                  delta.choices[0].delta.content = sseMasker(frag);
+                }
+                
+                // Reconstruct SSE event with masked payload
+                const maskedPayload = JSON.stringify(delta);
+                controller.enqueue(encoder.encode(`data: ${maskedPayload}\n\n`));
+              } catch (parseErr) {
+                // If JSON parse fails, pass through original (safer)
+                controller.enqueue(encoder.encode(event));
               }
-              
-              // Reconstruct SSE event with masked payload
-              const maskedPayload = JSON.stringify(delta);
-              controller.enqueue(encoder.encode(`data: ${maskedPayload}\n\n`));
-            } catch (parseErr) {
-              // If JSON parse fails, pass through original (safer)
-              controller.enqueue(encoder.encode(part + '\n\n'));
             }
           } else {
-            // Not a data event, pass through as-is (preserves comments, event types, etc.)
-            controller.enqueue(encoder.encode(part + '\n\n'));
+            // Not a data event, pass through as-is
+            controller.enqueue(encoder.encode(event));
           }
+          
+          lastIndex = eventEnd + 2;
+          eventEnd = buffer.indexOf('\n\n', lastIndex);
         }
+        
+        // Keep remaining incomplete event in buffer
+        buffer = buffer.slice(lastIndex);
       },
       async flush(controller) {
         // Process any remaining buffer
-        if (buffer) {
+        if (buffer.trim()) {
           if (buffer.startsWith('data: ')) {
             const payload = buffer.slice(6).trim();
             if (payload !== '[DONE]') {
@@ -2518,13 +2531,13 @@ ${baseContext}`;
                 const maskedPayload = JSON.stringify(delta);
                 controller.enqueue(encoder.encode(`data: ${maskedPayload}\n\n`));
               } catch {
-                controller.enqueue(encoder.encode(buffer));
+                controller.enqueue(encoder.encode(buffer + '\n\n'));
               }
             } else {
               controller.enqueue(encoder.encode('data: [DONE]\n\n'));
             }
           } else {
-            controller.enqueue(encoder.encode(buffer));
+            controller.enqueue(encoder.encode(buffer + '\n\n'));
           }
         }
         
@@ -2549,7 +2562,7 @@ ${baseContext}`;
               
               for (const fact of facts) {
                 const factText = `${fact.key}:${fact.value}`;
-                const safe = maskPII(factText, 'full').masked; // Mask PII before storing
+                const safe = maskPII(factText, 'full').masked;
                 const factId = await memory.upsertFact({
                   userId,
                   convoId: userMessageUid,
@@ -2620,19 +2633,22 @@ ${baseContext}`;
       });
     }
 
-    // Day 5: SSE headers (summary written happens async in flush, so we can't track it synchronously)
-    // Day 6: Add routing headers
+    // Day 7: Use centralized header builder with stream chunk count
     const sseHeaders = {
-      ...BASE_HEADERS,
+      ...buildResponseHeaders({
+        guardrailsActive: true,
+        piiMaskEnabled: true,
+        memoryHitTopScore,
+        memoryHitCount,
+        summaryPresent,
+        summaryWritten: 'async', // Summary generation happens in flush callback after headers sent
+        employee: routingResult.employee,
+        routeConfidence: routingResult.confidence,
+        streamChunkCount: streamChunkCount // Day 7: Add chunk count for debugging
+      }),
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-      'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
-      'X-Memory-Count': String(memoryHitCount),
-      'X-Session-Summary': summaryPresent ? 'present' : 'absent',
-      'X-Session-Summarized': 'async', // Summary generation happens in flush callback after headers sent
-      'X-Employee': routingResult.employee,
-      'X-Route-Confidence': routingResult.confidence.toFixed(2)
+      Connection: 'keep-alive'
     };
     
     // Pipe (preface + upstream) -> transform -> client
