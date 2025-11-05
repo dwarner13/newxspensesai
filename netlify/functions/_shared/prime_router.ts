@@ -79,7 +79,7 @@ export function detectIntent(text: string): IntentLabel {
   }
   
   // Finance (general)
-  if (/\b(finance|financial|money|payment|payments|invoice|invoices)\b/.test(lower)) {
+  if (/\b(finance|finances|financial|money|payment|payments|invoice|invoices)\b/.test(lower)) {
     return 'finance';
   }
   
