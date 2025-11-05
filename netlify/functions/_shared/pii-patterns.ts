@@ -653,3 +653,34 @@ export function detectPII(text: string): { types: string[]; matches: Record<stri
   };
 }
 
+/**
+ * Mask PII in URL query parameters
+ * @param url - URL string that may contain PII in query params
+ * @param strategy - Masking strategy: 'last4', 'full', or 'domain' (default: 'full')
+ * @returns URL with masked query parameters
+ */
+export function maskPIIInURL(url: string, strategy: MaskStrategy = 'full'): string {
+  try {
+    const u = new URL(url);
+    const params = new URLSearchParams(u.search);
+    let changed = false;
+    
+    for (const [k, v] of params.entries()) {
+      const mv = maskPII(v, strategy);
+      if (mv !== v) {
+        params.set(k, mv);
+        changed = true;
+      }
+    }
+    
+    if (changed) {
+      u.search = params.toString();
+      return u.toString();
+    }
+    
+    return url;
+  } catch {
+    return url; // Invalid URL, return as-is
+  }
+}
+

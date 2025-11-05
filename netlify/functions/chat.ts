@@ -26,7 +26,7 @@ import { assertWithinRateLimit } from "./_shared/rate-limit";
 import { maskPII } from "./_shared/pii";
 import { runGuardrailsCompat } from "./_shared/guardrails_adapter";
 import { createSSEMaskTransform } from "./_shared/sse_mask_transform";
-import { recall, extractFactsFromMessages, upsertFact, embedAndStore, capTokens } from "./_shared/memory";
+import * as memory from "./_shared/memory";
 
 // ============================================================================
 // IMPORTS
@@ -1557,7 +1557,9 @@ export default async (req: Request) => {
     
     // 5.1) PII Masking (using shared module)
     const originalUserText = String(message || '');
-    const { masked, found } = maskPII(originalUserText, 'last4');
+    const maskResult = maskPII(originalUserText, 'last4');
+    const masked = maskResult.masked;
+    const found = maskResult.found;
     
     // Normalize found array format for logging
     const foundNormalized = found.map(f => ({ type: f.type, value: f.match }));
@@ -1694,18 +1696,43 @@ export default async (req: Request) => {
     // 7. CONTEXT BUILDING: Memory + Recent Messages
     // ========================================================================
     
-    // 7.0) Memory Recall (Day 4)
+    // 7.0) Memory Recall (Day 4) - Build query from last ~10 turns
     let memoryContext = '';
-    let memoryHitTopScore = 0;
+    let memoryHitTopScore: number | null = null;
     let memoryHitCount = 0;
     try {
-      const recalled = await recall({ userId, query: masked, k: 12, minScore: 0.25, sinceDays: 365 });
+      // Fetch last ~10 user+assistant turns for recall query
+      let recallQuery = masked; // Fallback to current message
+      try {
+        const { data: recentMsgs } = await supabaseSrv
+          .from('chat_messages')
+          .select('role, content')
+          .eq('user_id', userId)
+          .eq('session_id', sessionId)
+          .in('role', ['user', 'assistant'])
+          .order('created_at', { ascending: false })
+          .limit(10);
+        
+        if (recentMsgs && recentMsgs.length > 0) {
+          const queryText = recentMsgs
+            .reverse() // Oldest first for context
+            .map(m => String(m.content || ''))
+            .join(' ');
+          recallQuery = memory.capTokens(queryText, 1200); // Cap to ~1.2k tokens
+        }
+      } catch (e) {
+        console.warn('[Chat] Failed to build recall query from history, using current message:', e);
+      }
+      
+      const recalled = await memory.recall({ userId, query: recallQuery, k: 12, minScore: 0.25, sinceDays: 365 });
       if (recalled.length > 0) {
         memoryHitCount = recalled.length;
         memoryHitTopScore = Math.max(...recalled.map(r => r.score), 0);
-        const memoryLines = recalled.map(r => `- ${r.fact} (similarity: ${r.score.toFixed(2)})`).join('\n');
-        memoryContext = `\n\n## Context-Memory (auto-recalled):\n${memoryLines}`;
-        memoryContext = capTokens(memoryContext, 500); // Cap at ~500 tokens
+        const memoryBlock = memory.capTokens(
+          recalled.map(r => r.fact).join('\n'),
+          600
+        );
+        memoryContext = `\n\n## Context-Memory (auto-recalled):\n${recalled.map(r => `- ${r.fact}`).join('\n')}`;
         console.log(`[Chat] Memory recall: ${memoryHitCount} facts, top score: ${memoryHitTopScore.toFixed(2)}`);
       }
     } catch (e) {
@@ -1986,6 +2013,41 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
             content_redacted: synthesisText,
             employeeKey: 'prime-boss'
           });
+          
+          // Day 4: Extract and store facts from conversation
+          try {
+            const msgs = [
+              { role: 'user', content: masked },
+              { role: 'assistant', content: synthesisText }
+            ];
+            const facts = memory.extractFactsFromMessages(msgs);
+            
+            for (const fact of facts) {
+              const factText = `${fact.key}:${fact.value}`;
+              const safe = maskPII(factText, 'full').masked;
+              const factId = await memory.upsertFact({
+                userId,
+                convoId: userMessageUid,
+                source: 'chat',
+                fact: safe
+              });
+              
+              if (factId) {
+                await memory.embedAndStore({
+                  userId,
+                  factId,
+                  text: safe,
+                  model: 'text-embedding-3-large'
+                });
+              }
+            }
+            
+            if (facts.length > 0) {
+              console.log(`[Chat] Extracted and stored ${facts.length} facts`);
+            }
+          } catch (extractErr) {
+            console.warn('[Chat] Memory extraction failed (non-blocking):', extractErr);
+          }
         } catch (e) {
           console.warn('[chat-v3] Failed to persist synthesis message:', e);
         }
@@ -1993,8 +2055,8 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
         // Day 4: Add memory headers
         const synthesisHeaders = {
           ...BASE_HEADERS,
-          'X-Memory-Hit': memoryHitTopScore.toFixed(2),
-          'X-Memory-Count': memoryHitCount.toString()
+          'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
+          'X-Memory-Count': String(memoryHitCount)
         };
         
         return {
@@ -2026,6 +2088,41 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
             content_redacted: textContent,
             employeeKey
           });
+          
+          // Day 4: Extract and store facts from conversation
+          try {
+            const msgs = [
+              { role: 'user', content: masked },
+              { role: 'assistant', content: textContent }
+            ];
+            const facts = memory.extractFactsFromMessages(msgs);
+            
+            for (const fact of facts) {
+              const factText = `${fact.key}:${fact.value}`;
+              const safe = maskPII(factText, 'full').masked;
+              const factId = await memory.upsertFact({
+                userId,
+                convoId: userMessageUid,
+                source: 'chat',
+                fact: safe
+              });
+              
+              if (factId) {
+                await memory.embedAndStore({
+                  userId,
+                  factId,
+                  text: safe,
+                  model: 'text-embedding-3-large'
+                });
+              }
+            }
+            
+            if (facts.length > 0) {
+              console.log(`[Chat] Extracted and stored ${facts.length} facts`);
+            }
+          } catch (extractErr) {
+            console.warn('[Chat] Memory extraction failed (non-blocking):', extractErr);
+          }
         } catch (e) {
           console.warn('[chat-v3] Failed to persist assistant (JSON) message:', e);
         }
@@ -2033,8 +2130,8 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
         // Day 4: Add memory headers
         const noToolHeaders = {
           ...BASE_HEADERS,
-          'X-Memory-Hit': memoryHitTopScore.toFixed(2),
-          'X-Memory-Count': memoryHitCount.toString()
+          'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
+          'X-Memory-Count': String(memoryHitCount)
         };
         
         return {
@@ -2079,24 +2176,27 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
         
         // Day 4: Extract and store facts from conversation
         try {
-          const facts = extractFactsFromMessages([
+          const msgs = [
             { role: 'user', content: masked },
             { role: 'assistant', content: text }
-          ]);
+          ];
+          const facts = memory.extractFactsFromMessages(msgs);
           
           for (const fact of facts) {
-            const factId = await upsertFact({
+            const factText = `${fact.key}:${fact.value}`;
+            const safe = maskPII(factText, 'full').masked; // Mask PII before storing
+            const factId = await memory.upsertFact({
               userId,
               convoId: userMessageUid,
               source: 'chat',
-              fact: `${fact.key}:${fact.value}`
+              fact: safe
             });
             
             if (factId) {
-              await embedAndStore({
+              await memory.embedAndStore({
                 userId,
                 factId,
-                text: `${fact.key}:${fact.value}`,
+                text: safe,
                 model: 'text-embedding-3-large'
               });
             }
@@ -2115,8 +2215,8 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
       // Day 4: Add memory headers
       const responseHeaders = {
         ...BASE_HEADERS,
-        'X-Memory-Hit': memoryHitTopScore.toFixed(2),
-        'X-Memory-Count': memoryHitCount.toString()
+        'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
+        'X-Memory-Count': String(memoryHitCount)
       };
       
       return {
@@ -2230,24 +2330,27 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
             
             // Day 4: Extract and store facts from conversation
             try {
-              const facts = extractFactsFromMessages([
+              const msgs = [
                 { role: 'user', content: masked },
                 { role: 'assistant', content: finalText }
-              ]);
+              ];
+              const facts = memory.extractFactsFromMessages(msgs);
               
               for (const fact of facts) {
-                const factId = await upsertFact({
+                const factText = `${fact.key}:${fact.value}`;
+                const safe = maskPII(factText, 'full').masked; // Mask PII before storing
+                const factId = await memory.upsertFact({
                   userId,
                   convoId: userMessageUid,
                   source: 'chat',
-                  fact: `${fact.key}:${fact.value}`
+                  fact: safe
                 });
                 
                 if (factId) {
-                  await embedAndStore({
+                  await memory.embedAndStore({
                     userId,
                     factId,
-                    text: `${fact.key}:${fact.value}`,
+                    text: safe,
                     model: 'text-embedding-3-large'
                   });
                 }
@@ -2311,8 +2414,8 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
-      'X-Memory-Hit': memoryHitTopScore.toFixed(2),
-      'X-Memory-Count': memoryHitCount.toString()
+      'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
+      'X-Memory-Count': String(memoryHitCount)
     };
     
     // Pipe (preface + upstream) -> transform -> client

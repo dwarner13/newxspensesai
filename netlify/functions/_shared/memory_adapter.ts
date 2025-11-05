@@ -1,6 +1,8 @@
 /**
  * 🔄 Memory Compatibility Adapter
  * 
+ * @deprecated Use ./memory instead. This adapter is kept for backward compatibility only.
+ * 
  * Bridges v2's memory API (fetchUserFacts, recallSimilarMemory) to v3's expected format.
  * 
  * MAPPING:

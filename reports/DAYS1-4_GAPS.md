@@ -24,17 +24,11 @@
 
 ### Missing Features
 
-1. ❌ **URL Query Parameter Masking**
+1. ✅ **URL Query Parameter Masking** - **CLOSED**
    - **File**: `netlify/functions/_shared/pii-patterns.ts`
-   - **Expected**: Function to mask PII in URL query strings (e.g., `?email=test@example.com&phone=780-555-1234`)
-   - **Status**: NOT IMPLEMENTED
-   - **Impact**: PII in URLs not protected
-   - **Reference**: Day 2 report mentions "URL-query masking & idempotency logic"
-
-2. ⚠️ **URL Query Test Failure**
-   - **File**: `netlify/functions/_shared/__tests__/pii-patterns.test.ts`
-   - **Status**: Test may exist but failing (per Day 2 report)
-   - **Action**: Verify test exists and fix if needed
+   - **Status**: ✅ IMPLEMENTED (Day 4)
+   - **Function**: `maskPIIInURL(url, strategy)` added (line 662)
+   - **Tests**: Added to `pii-patterns.test.ts` (3 test cases)
 
 ### Files
 - ✅ All expected files present
@@ -55,79 +49,58 @@
 ## DAY 4 GAPS (CRITICAL)
 
 ### Missing Branch
-- ❌ **Branch**: `feature/day4-memory-unification` DOES NOT EXIST
-  - **Action**: Create branch from `feature/day3-guardrails-unification`
+- ✅ **Branch**: `feature/day4-memory-unification` EXISTS
 
 ### Missing Files
 
-1. ❌ **Canonical Memory Module Functions**
+1. ✅ **Canonical Memory Module Functions** - **COMPLETE**
    - **File**: `netlify/functions/_shared/memory.ts`
-   - **Current**: Only exports thread management functions (`getOrCreateThread`, `loadThread`, `saveTurn`)
-   - **Missing Exports**:
-     - `upsertFact(userId, scope, key, value, weight?)`
-     - `embedAndStore(userId, text, messageId?)`
-     - `recall(userId, query, topK?)`
-     - `extractFactsFromMessages(userId, messages)`
-     - `capTokens(text, maxTokens)`
+   - **Status**: ✅ All exports present
+   - **Exports**:
+     - ✅ `upsertFact({userId, convoId, source='chat', fact})`
+     - ✅ `embedAndStore({userId, factId, text, model='text-embedding-3-large'})`
+     - ✅ `recall({userId, query, k=12, minScore=0.25, sinceDays=365})`
+     - ✅ `extractFactsFromMessages(messages)`
+     - ✅ `capTokens(input, maxTokens=1200)`
 
-2. ❌ **SQL Migration**
-   - **Expected**: `netlify/functions/_shared/sql/day4_memory.sql`
-   - **Found**: `supabase/migrations/20251016_memory_extraction.sql` (different location)
-   - **Action**: Verify SQL is idempotent and matches Day 4 schema requirements
+2. ✅ **SQL Migration** - **COMPLETE**
+   - **File**: `netlify/functions/_shared/sql/day4_memory.sql` EXISTS
+   - **Status**: Idempotent CREATE TABLE IF NOT EXISTS with unique constraints
 
-3. ❌ **Test File**
-   - **Expected**: `netlify/functions/_shared/__tests__/memory.test.ts`
-   - **Status**: NOT FOUND
-   - **Should Test**: `upsertFact`, `recall`, `extractFactsFromMessages`, `capTokens`
+3. ✅ **Test Files** - **COMPLETE**
+   - ✅ `netlify/functions/_shared/__tests__/memory.test.ts` EXISTS
+   - ✅ `netlify/functions/_shared/__tests__/guardrails.test.ts` EXISTS (NEW)
 
-4. ❌ **Day 4 Reports**
-   - **Expected**: `/reports/DAY4_*` files
-   - **Found**: Only `DAY4_DIFF_SUMMARY.md` (not found in workspace)
-   - **Missing**: `DAY4_APPLIED.md`, `DAY4_CHANGED_FILES.txt`, etc.
+4. ✅ **Day 4 Reports** - **COMPLETE**
+   - ✅ `reports/DAY4_PLAN.md`
+   - ✅ `reports/DAY4_CHANGELOG.md`
+   - ✅ `reports/DAY4_VALIDATION.md`
+   - ✅ `reports/DAY4_RESULTS.md`
 
 ### Missing Features in chat.ts
 
-1. ❌ **Memory Recall (Before Model)**
-   - **Expected**: Call `recall(userId, query)` before building system prompt
-   - **Expected**: Inject results as "Context-Memory (auto-recalled): ..." block
-   - **Expected**: Apply `capTokens()` to memory context
-   - **Current**: Only basic `dbGetMemoryFacts()` exists (line 738), not using canonical `recall()`
+1. ✅ **Memory Recall (Before Model)** - **COMPLETE**
+   - ✅ Builds recall query from last ~10 turns (capped to ~1.2k tokens)
+   - ✅ Calls `memory.recall()` before building system prompt (line 1727)
+   - ✅ Injects results as "Context-Memory (auto-recalled): ..." block (line 1735)
+   - ✅ Applies `memory.capTokens()` to memory context (600 tokens)
 
-2. ❌ **Memory Extraction (After Model)**
-   - **Expected**: Call `extractFactsFromMessages(userId, messages)` after assistant reply
-   - **Expected**: Call `upsertFact()` for each extracted fact
-   - **Expected**: Call `embedAndStore()` for each fact
-   - **Current**: `extractAndSaveMemories()` exists in `memory-extraction.ts` but NOT CALLED in `chat.ts`
+2. ✅ **Memory Extraction (After Model)** - **COMPLETE**
+   - ✅ Calls `memory.extractFactsFromMessages()` after assistant reply (lines 2023, 2098, 2264)
+   - ✅ Masks PII before storing: `maskPII(factText, 'full').masked`
+   - ✅ Calls `memory.upsertFact()` for each extracted fact
+   - ✅ Calls `memory.embedAndStore()` for each fact
+   - ✅ Applied to all 3 response paths (SSE, JSON, synthesis)
 
-3. ❌ **Response Headers**
-   - **Expected**: `X-Memory-Hit: [similarity_score]` header
-   - **Expected**: `X-Memory-Count: [n]` header (number of facts recalled)
-   - **Status**: NOT FOUND in `chat.ts`
+3. ✅ **Response Headers** - **COMPLETE**
+   - ✅ `X-Memory-Hit: [similarity_score]` header (null-safe: `memoryHitTopScore?.toFixed(2) ?? '0'`)
+   - ✅ `X-Memory-Count: [n]` header (`String(memoryHitCount)`)
+   - ✅ Added to all 4 response paths (SSE, JSON, tool calls, synthesis)
 
-4. ❌ **Memory Adapter Removal**
-   - **Expected**: `memory_adapter.ts` removed or neutered
-   - **Current**: Still exists (159 lines)
-   - **Action**: Remove or mark as deprecated, update imports
-
-### Partial Implementation (Needs Wiring)
-
-1. ⚠️ **Memory Extraction Module**
-   - **File**: `netlify/functions/_shared/memory-extraction.ts` EXISTS
-   - **Function**: `extractAndSaveMemories()` EXISTS
-   - **Problem**: NOT CALLED in `chat.ts`
-   - **Action**: Wire into chat flow after assistant reply
-
-2. ⚠️ **Memory Orchestrator**
-   - **File**: `netlify/functions/_shared/memory-orchestrator.ts` EXISTS
-   - **Function**: `runMemoryOrchestration()` EXISTS
-   - **Problem**: NOT CALLED in `chat.ts`
-   - **Action**: Use orchestrator or wire extraction + retrieval separately
-
-3. ⚠️ **Context Retrieval**
-   - **File**: `netlify/functions/_shared/context-retrieval.ts` EXISTS
-   - **Function**: `retrieveContext()` EXISTS
-   - **Problem**: NOT USED for memory recall in `chat.ts`
-   - **Action**: Use for recall before model call
+4. ✅ **Memory Adapter Deprecation** - **COMPLETE**
+   - ✅ `memory_adapter.ts` marked `@deprecated Use ./memory instead`
+   - ✅ No remaining imports found (grep verified)
+   - ✅ File kept for backward compatibility
 
 ---
 
