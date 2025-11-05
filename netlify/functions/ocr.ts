@@ -15,6 +15,8 @@ import { admin } from './_shared/supabase';
 import { toTransactions, categorize, NormalizedTransaction } from './_shared/ocr_normalize';
 import { insertTransaction, insertItems, linkToDocument } from './_shared/transactions_store';
 import { applyGuardrails } from './_shared/guardrails';
+import { matchVendor, reinforceVendor, rememberCategory } from './_shared/ocr_memory';
+import { awardXP, XP_AWARDS } from './_shared/xp';
 import crypto from 'crypto';
 
 // Reuse buildResponseHeaders from chat.ts
@@ -31,6 +33,8 @@ function buildResponseHeaders(params: {
   ocrParse?: string;
   transactionsSaved?: number;
   categorizer?: string;
+  vendorMatched?: boolean;
+  xpAwarded?: number;
 }): Record<string, string> {
   const {
     guardrailsActive,
@@ -44,7 +48,9 @@ function buildResponseHeaders(params: {
     ocrProvider,
     ocrParse,
     transactionsSaved,
-    categorizer
+    categorizer,
+    vendorMatched,
+    xpAwarded
   } = params;
   
   return {
@@ -65,7 +71,9 @@ function buildResponseHeaders(params: {
     ...(ocrProvider && { 'X-OCR-Provider': ocrProvider }),
     ...(ocrParse && { 'X-OCR-Parse': ocrParse }),
     ...(transactionsSaved !== undefined && { 'X-Transactions-Saved': String(transactionsSaved) }),
-    ...(categorizer && { 'X-Categorizer': categorizer })
+    ...(categorizer && { 'X-Categorizer': categorizer }),
+    ...(vendorMatched !== undefined && { 'X-Vendor-Matched': vendorMatched ? 'yes' : 'no' }),
+    ...(xpAwarded !== undefined && { 'X-XP-Awarded': String(xpAwarded) })
   };
 }
 
@@ -435,8 +443,11 @@ export const handler: Handler = async (event, context) => {
     }
     
     // Day 9: Normalize and store transactions
+    // Day 10: Add vendor matching, memory reinforcement, and XP
     let transactionsSaved = 0;
     let categorizerMethod = 'none';
+    let vendorMatched = false;
+    let totalXPAwarded = 0;
     const savedTransactions: Array<{ id: number; category: string; subcategory?: string; confidence: number }> = [];
     
     if (parsed) {
@@ -447,13 +458,38 @@ export const handler: Handler = async (event, context) => {
         // Categorize and store each transaction
         for (const normTx of normalized) {
           try {
-            // Categorize transaction
-            const catResult = await categorize(normTx);
+            // Day 10: Match vendor to canonical name
+            let matchedMerchant = normTx.merchant || '';
+            if (matchedMerchant) {
+              const vendorMatch = await matchVendor({
+                userId,
+                merchant: matchedMerchant
+              });
+              
+              if (vendorMatch.source !== 'none' && vendorMatch.canonical !== matchedMerchant) {
+                matchedMerchant = vendorMatch.canonical;
+                vendorMatched = true;
+                
+                // Reinforce vendor alias
+                await reinforceVendor({
+                  userId,
+                  merchant: normTx.merchant || '',
+                  canonical: vendorMatch.canonical
+                });
+              }
+            }
+            
+            // Categorize transaction (use matched merchant)
+            const catResult = await categorize({
+              ...normTx,
+              merchant: matchedMerchant
+            });
             categorizerMethod = catResult.method; // Track method used
             
-            // Insert transaction
+            // Insert transaction (with matched merchant)
             const txId = await insertTransaction({
               ...normTx,
+              merchant: matchedMerchant,
               category: catResult.category,
               subcategory: catResult.subcategory,
               docId: undefined // Will be set after document is stored
@@ -463,6 +499,46 @@ export const handler: Handler = async (event, context) => {
               // Insert items if present
               if (normTx.items && normTx.items.length > 0) {
                 await insertItems(txId, normTx.items);
+              }
+              
+              // Day 10: Remember vendor→category fact
+              if (catResult.category) {
+                await rememberCategory({
+                  userId,
+                  merchant: matchedMerchant,
+                  category: catResult.category,
+                  subcategory: catResult.subcategory,
+                  convoId
+                });
+              }
+              
+              // Day 10: Award XP
+              // ocr.scan.success (+5)
+              const scanXP = await awardXP({
+                userId,
+                action: 'ocr.scan.success',
+                points: XP_AWARDS['ocr.scan.success'],
+                meta: {
+                  transaction_id: txId,
+                  merchant: matchedMerchant
+                }
+              });
+              if (scanXP) totalXPAwarded += XP_AWARDS['ocr.scan.success'];
+              
+              // ocr.categorize.auto (+2) if auto-categorized
+              if (catResult.method === 'rules' || catResult.method === 'tag') {
+                const catXP = await awardXP({
+                  userId,
+                  action: 'ocr.categorize.auto',
+                  points: XP_AWARDS['ocr.categorize.auto'],
+                  meta: {
+                    transaction_id: txId,
+                    merchant: matchedMerchant,
+                    category: catResult.category,
+                    method: catResult.method
+                  }
+                });
+                if (catXP) totalXPAwarded += XP_AWARDS['ocr.categorize.auto'];
               }
               
               savedTransactions.push({
@@ -577,7 +653,9 @@ export const handler: Handler = async (event, context) => {
             ocrProvider: ocrResult.provider,
             ocrParse: parseKind,
             transactionsSaved: transactionsSaved,
-            categorizer: categorizerMethod !== 'none' ? categorizerMethod : undefined
+            categorizer: categorizerMethod !== 'none' ? categorizerMethod : undefined,
+            vendorMatched: vendorMatched,
+            xpAwarded: totalXPAwarded
           }),
           'Content-Type': 'text/event-stream; charset=utf-8',
           'Cache-Control': 'no-cache, no-transform',
