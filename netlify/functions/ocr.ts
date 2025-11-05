@@ -609,7 +609,7 @@ export const handler: Handler = async (event, context) => {
     return {
       statusCode: 500,
       headers: buildResponseHeaders({
-        guardrailsActive: true,
+        guardrailsActive: false, // Error state
         piiMaskEnabled: true,
         memoryHitTopScore: null,
         memoryHitCount: 0,
