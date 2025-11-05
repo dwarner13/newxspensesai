@@ -29,6 +29,8 @@ import { createSSEMaskTransform } from "./_shared/sse_mask_transform";
 import * as memory from "./_shared/memory";
 import * as sums from "./_shared/session_summaries";
 import { routeTurn } from "./_shared/prime_router";
+import { rememberCategory } from "./_shared/ocr_memory";
+import { awardXP, XP_AWARDS } from "./_shared/xp";
 
 // ============================================================================
 // IMPORTS
