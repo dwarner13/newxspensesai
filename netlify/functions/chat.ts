@@ -26,6 +26,7 @@ import { assertWithinRateLimit } from "./_shared/rate-limit";
 import { maskPII } from "./_shared/pii";
 import { runGuardrailsCompat } from "./_shared/guardrails_adapter";
 import { createSSEMaskTransform } from "./_shared/sse_mask_transform";
+import { recall, extractFactsFromMessages, upsertFact, embedAndStore, capTokens } from "./_shared/memory";
 
 // ============================================================================
 // IMPORTS
@@ -1693,6 +1694,24 @@ export default async (req: Request) => {
     // 7. CONTEXT BUILDING: Memory + Recent Messages
     // ========================================================================
     
+    // 7.0) Memory Recall (Day 4)
+    let memoryContext = '';
+    let memoryHitTopScore = 0;
+    let memoryHitCount = 0;
+    try {
+      const recalled = await recall({ userId, query: masked, k: 12, minScore: 0.25, sinceDays: 365 });
+      if (recalled.length > 0) {
+        memoryHitCount = recalled.length;
+        memoryHitTopScore = Math.max(...recalled.map(r => r.score), 0);
+        const memoryLines = recalled.map(r => `- ${r.fact} (similarity: ${r.score.toFixed(2)})`).join('\n');
+        memoryContext = `\n\n## Context-Memory (auto-recalled):\n${memoryLines}`;
+        memoryContext = capTokens(memoryContext, 500); // Cap at ~500 tokens
+        console.log(`[Chat] Memory recall: ${memoryHitCount} facts, top score: ${memoryHitTopScore.toFixed(2)}`);
+      }
+    } catch (e) {
+      console.warn('[Chat] Memory recall failed (non-blocking):', e);
+    }
+    
     // 7.1) Fetch comprehensive context (Prime gets more than specialists)
     const { contextBlock } = await dbFetchContext({ userId, sessionId, redactedUserText: masked, employeeSlug: employeeSlug });
     
@@ -1773,6 +1792,7 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
 
     // 8. BUILD SYSTEM PROMPT
     let systemPrompt = route.systemPrompt +
+       (memoryContext ? memoryContext : '') +
        "\n\nIMPORTANT: Never reveal PII, credit cards, SSNs, or passwords. " +
        "Do not provide instructions for illegal activities. " +
        "Use context if helpful but prioritize user privacy and safety.";
@@ -1970,15 +1990,26 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
           console.warn('[chat-v3] Failed to persist synthesis message:', e);
         }
 
-        return json(200, {
-          ok: true,
-          sessionId,
-          messageUid: userMessageUid,
-          reply: synthesisText,
-          employee: employeeKey,
-          hadToolCalls: true,
-          pendingTool: null
-        });
+        // Day 4: Add memory headers
+        const synthesisHeaders = {
+          ...BASE_HEADERS,
+          'X-Memory-Hit': memoryHitTopScore.toFixed(2),
+          'X-Memory-Count': memoryHitCount.toString()
+        };
+        
+        return {
+          statusCode: 200,
+          headers: synthesisHeaders,
+          body: JSON.stringify({
+            ok: true,
+            sessionId,
+            messageUid: userMessageUid,
+            reply: synthesisText,
+            employee: employeeKey,
+            hadToolCalls: true,
+            pendingTool: null
+          })
+        };
       } else {
         // No tool calls - proceed with normal response
         let textContent = probeChoice?.message?.content ?? '';
@@ -1999,14 +2030,25 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
           console.warn('[chat-v3] Failed to persist assistant (JSON) message:', e);
         }
 
-        return json(200, {
-          ok: true,
-          sessionId,
-          messageUid: userMessageUid,
-          reply: textContent,
-          employee: employeeKey
-          ,pendingTool: null
-        });
+        // Day 4: Add memory headers
+        const noToolHeaders = {
+          ...BASE_HEADERS,
+          'X-Memory-Hit': memoryHitTopScore.toFixed(2),
+          'X-Memory-Count': memoryHitCount.toString()
+        };
+        
+        return {
+          statusCode: 200,
+          headers: noToolHeaders,
+          body: JSON.stringify({
+            ok: true,
+            sessionId,
+            messageUid: userMessageUid,
+            reply: textContent,
+            employee: employeeKey,
+            pendingTool: null
+          })
+        };
       }
     } else if (noStream && employeeKey !== 'prime-boss') {
       // ---- Non-stream JSON fallback (no tools) ----
@@ -2034,18 +2076,61 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
           content_redacted: text,
           employeeKey
         });
+        
+        // Day 4: Extract and store facts from conversation
+        try {
+          const facts = extractFactsFromMessages([
+            { role: 'user', content: masked },
+            { role: 'assistant', content: text }
+          ]);
+          
+          for (const fact of facts) {
+            const factId = await upsertFact({
+              userId,
+              convoId: userMessageUid,
+              source: 'chat',
+              fact: `${fact.key}:${fact.value}`
+            });
+            
+            if (factId) {
+              await embedAndStore({
+                userId,
+                factId,
+                text: `${fact.key}:${fact.value}`,
+                model: 'text-embedding-3-large'
+              });
+            }
+          }
+          
+          if (facts.length > 0) {
+            console.log(`[Chat] Extracted and stored ${facts.length} facts`);
+          }
+        } catch (extractErr) {
+          console.warn('[Chat] Memory extraction failed (non-blocking):', extractErr);
+        }
       } catch (e) {
         console.warn('[chat-v3] Failed to persist assistant (JSON) message:', e);
       }
       
-      return json(200, { 
-        ok: true, 
-        sessionId, 
-        messageUid: userMessageUid,
-        reply: text, 
-        employee: employeeKey,
-        pendingTool: null
-      });
+      // Day 4: Add memory headers
+      const responseHeaders = {
+        ...BASE_HEADERS,
+        'X-Memory-Hit': memoryHitTopScore.toFixed(2),
+        'X-Memory-Count': memoryHitCount.toString()
+      };
+      
+      return {
+        statusCode: 200,
+        headers: responseHeaders,
+        body: JSON.stringify({ 
+          ok: true, 
+          sessionId, 
+          messageUid: userMessageUid,
+          reply: text, 
+          employee: employeeKey,
+          pendingTool: null
+        })
+      };
     }
     
     // ============================================================================
@@ -2142,6 +2227,38 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
               content_redacted: finalText,
               employeeKey
             });
+            
+            // Day 4: Extract and store facts from conversation
+            try {
+              const facts = extractFactsFromMessages([
+                { role: 'user', content: masked },
+                { role: 'assistant', content: finalText }
+              ]);
+              
+              for (const fact of facts) {
+                const factId = await upsertFact({
+                  userId,
+                  convoId: userMessageUid,
+                  source: 'chat',
+                  fact: `${fact.key}:${fact.value}`
+                });
+                
+                if (factId) {
+                  await embedAndStore({
+                    userId,
+                    factId,
+                    text: `${fact.key}:${fact.value}`,
+                    model: 'text-embedding-3-large'
+                  });
+                }
+              }
+              
+              if (facts.length > 0) {
+                console.log(`[Chat] Extracted and stored ${facts.length} facts`);
+              }
+            } catch (extractErr) {
+              console.warn('[Chat] Memory extraction failed (non-blocking):', extractErr);
+            }
           } catch (e) {
             console.warn('[chat-v3] Failed to persist assistant (stream) message:', e);
           }
@@ -2194,6 +2311,8 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
+      'X-Memory-Hit': memoryHitTopScore.toFixed(2),
+      'X-Memory-Count': memoryHitCount.toString()
     };
     
     // Pipe (preface + upstream) -> transform -> client
