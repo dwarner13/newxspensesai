@@ -28,6 +28,9 @@ import { summarizeRolling } from "./_shared/summary";
 // ---- Routing (KEEP your logic; here's a light wrapper that defers to existing)
 import { routeToEmployee } from "./_shared/router"; // uses your Jaccard/regex thresholds
 
+// ---- Rate Limiting
+import { rateLimit, getRateLimitKey } from "./_shared/rate_limit";
+
 // ---- Utilities
 function json(status: number, body: any) { return { statusCode: status, body: JSON.stringify(body) }; }
 function bad(status: number, msg: string) { return { statusCode: status, body: msg }; }
@@ -41,9 +44,28 @@ export const handler: Handler = async (event) => {
     
     if (event.httpMethod !== "POST") return bad(405, "Method Not Allowed");
 
+    // ========================================================================
+    // RATE LIMITING (apply at top)
+    // ========================================================================
     const { userId, messages } = JSON.parse(event.body || "{}");
     if (!userId || !Array.isArray(messages) || messages.length === 0) {
       return bad(400, "Missing userId or messages");
+    }
+
+    const rateLimitKey = getRateLimitKey(event, userId);
+    const rateLimitResult = await rateLimit({ key: rateLimitKey, limit: 30, windowMs: 60000 });
+    
+    if (!rateLimitResult.ok) {
+      return {
+        statusCode: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'X-RateLimit-Limit': '30',
+          'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+          'X-RateLimit-Reset': new Date(rateLimitResult.resetAt).toISOString(),
+        },
+        body: JSON.stringify({ error: 'rate_limited' }),
+      };
     }
 
     const sb = admin();

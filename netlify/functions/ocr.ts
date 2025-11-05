@@ -12,6 +12,7 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase';
 import { maskPII } from './_shared/pii';
 import { applyGuardrails } from './_shared/guardrails';
+import { rateLimit, getRateLimitKey } from './_shared/rate_limit';
 import crypto from 'crypto';
 
 // Reuse buildResponseHeaders from chat.ts
@@ -229,7 +230,25 @@ export const handler: Handler = async (event) => {
     };
   }
 
+  // ========================================================================
+  // RATE LIMITING (apply at top)
+  // ========================================================================
   const userId = extractUserId(event);
+  const rateLimitKey = getRateLimitKey(event, userId);
+  const rateLimitResult = await rateLimit({ key: rateLimitKey, limit: 30, windowMs: 60000 });
+  
+  if (!rateLimitResult.ok) {
+    return {
+      statusCode: 429,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-RateLimit-Limit': '30',
+        'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+        'X-RateLimit-Reset': new Date(rateLimitResult.resetAt).toISOString(),
+      },
+      body: JSON.stringify({ ok: false, error: 'rate_limited' }),
+    };
+  }
   let fileBytes: Buffer | null = null;
   let detectedMime: string | null = null;
   let provider = 'none';
