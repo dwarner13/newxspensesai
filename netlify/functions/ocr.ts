@@ -12,6 +12,8 @@ import { maskPII } from './_shared/pii';
 import { bestEffortOCR } from './_shared/ocr_providers';
 import { parseInvoiceLike, parseReceiptLike, parseBankStatementLike, normalizeParsed, ParsedDoc } from './_shared/ocr_parsers';
 import { admin } from './_shared/supabase';
+import { toTransactions, categorize, NormalizedTransaction } from './_shared/ocr_normalize';
+import { insertTransaction, insertItems, linkToDocument } from './_shared/transactions_store';
 
 // Reuse buildResponseHeaders from chat.ts
 function buildResponseHeaders(params: {
@@ -25,6 +27,8 @@ function buildResponseHeaders(params: {
   routeConfidence: number;
   ocrProvider?: string;
   ocrParse?: string;
+  transactionsSaved?: number;
+  categorizer?: string;
 }): Record<string, string> {
   const {
     guardrailsActive,
@@ -36,7 +40,9 @@ function buildResponseHeaders(params: {
     employee,
     routeConfidence,
     ocrProvider,
-    ocrParse
+    ocrParse,
+    transactionsSaved,
+    categorizer
   } = params;
   
   return {
@@ -55,7 +61,9 @@ function buildResponseHeaders(params: {
     'X-Employee': employee,
     'X-Route-Confidence': routeConfidence.toFixed(2),
     ...(ocrProvider && { 'X-OCR-Provider': ocrProvider }),
-    ...(ocrParse && { 'X-OCR-Parse': ocrParse })
+    ...(ocrParse && { 'X-OCR-Parse': ocrParse }),
+    ...(transactionsSaved !== undefined && { 'X-Transactions-Saved': String(transactionsSaved) }),
+    ...(categorizer && { 'X-Categorizer': categorizer })
   };
 }
 
@@ -219,6 +227,83 @@ export const handler: Handler = async (event, context) => {
       parseKind = 'none';
     }
     
+    // Day 9: Normalize and store transactions
+    let transactionsSaved = 0;
+    let categorizerMethod = 'none';
+    const savedTransactions: Array<{ id: number; category: string; subcategory?: string; confidence: number }> = [];
+    
+    if (parsed) {
+      try {
+        // Normalize parsed document to transactions
+        const normalized = toTransactions(userId, parsed);
+        
+        // Categorize and store each transaction
+        for (const normTx of normalized) {
+          try {
+            // Categorize transaction
+            const catResult = await categorize(normTx);
+            categorizerMethod = catResult.method; // Track method used
+            
+            // Insert transaction
+            const txId = await insertTransaction({
+              ...normTx,
+              category: catResult.category,
+              subcategory: catResult.subcategory,
+              docId: undefined // Will be set after document is stored
+            });
+            
+            if (txId) {
+              // Insert items if present
+              if (normTx.items && normTx.items.length > 0) {
+                await insertItems(txId, normTx.items);
+              }
+              
+              savedTransactions.push({
+                id: txId,
+                category: catResult.category,
+                subcategory: catResult.subcategory,
+                confidence: catResult.confidence
+              });
+              transactionsSaved++;
+            }
+          } catch (txErr) {
+            console.warn('[OCR] Transaction save failed (non-blocking):', txErr);
+            // Continue with next transaction
+          }
+        }
+      } catch (normalizeErr) {
+        console.warn('[OCR] Normalization failed (non-blocking):', normalizeErr);
+        // Continue without blocking response
+      }
+    }
+    
+    // Get document ID if stored (for linking transactions)
+    let docId: string | undefined;
+    if (fileBytes && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const sb = admin();
+        const { data: docRow } = await sb
+          .from('documents')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('convo_id', convoId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (docRow) {
+          docId = docRow.id;
+          
+          // Link saved transactions to document
+          for (const savedTx of savedTransactions) {
+            await linkToDocument(savedTx.id, docId);
+          }
+        }
+      } catch (linkErr) {
+        console.warn('[OCR] Document linking failed (non-blocking):', linkErr);
+      }
+    }
+    
     // Build result
     const result: OCRResult = {
       source: fileBytes ? 'upload' : 'url',
@@ -228,7 +313,9 @@ export const handler: Handler = async (event, context) => {
       pages: ocrResult.result.pages,
       meta: {
         ...ocrResult.result.meta,
-        duration_ms: Date.now() - ocrStartTime
+        duration_ms: Date.now() - ocrStartTime,
+        saved_count: transactionsSaved,
+        doc_id: docId
       },
       parsed,
       warnings: ocrResult.warnings.length > 0 ? ocrResult.warnings : undefined
@@ -281,7 +368,9 @@ export const handler: Handler = async (event, context) => {
             employee: 'byte',
             routeConfidence: 1.0,
             ocrProvider: ocrResult.provider,
-            ocrParse: parseKind
+            ocrParse: parseKind,
+            transactionsSaved: transactionsSaved,
+            categorizer: categorizerMethod !== 'none' ? categorizerMethod : undefined
           }),
           'Content-Type': 'text/event-stream; charset=utf-8',
           'Cache-Control': 'no-cache, no-transform',

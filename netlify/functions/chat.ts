@@ -2191,25 +2191,42 @@ ${baseContext}`;
               
               const ocrData = await ocrResponse.json();
               
-              // Format OCR result for assistant
+              // Day 9: Format OCR result with transaction summary
               let ocrMessage = `OCR completed for ${ocrUrl}.\n\n`;
-              ocrMessage += `Extracted text (${ocrData.text?.length || 0} chars):\n${ocrData.text?.substring(0, 500) || 'No text extracted'}...\n\n`;
               
+              // Extract transaction summary from parsed data
               if (ocrData.parsed) {
-                ocrMessage += `Parsed as: ${ocrData.parsed.kind}\n`;
-                if (ocrData.parsed.kind === 'receipt' && ocrData.parsed.data) {
-                  ocrMessage += `Merchant: ${ocrData.parsed.data.merchant || 'N/A'}\n`;
-                  ocrMessage += `Total: ${ocrData.parsed.data.total ? '$' + ocrData.parsed.data.total : 'N/A'}\n`;
-                  ocrMessage += `Items: ${ocrData.parsed.data.items?.length || 0}\n`;
-                } else if (ocrData.parsed.kind === 'invoice' && ocrData.parsed.data) {
-                  ocrMessage += `Vendor: ${ocrData.parsed.data.vendor || 'N/A'}\n`;
-                  ocrMessage += `Invoice #: ${ocrData.parsed.data.invoice_no || 'N/A'}\n`;
-                  ocrMessage += `Total: ${ocrData.parsed.data.total ? '$' + ocrData.parsed.data.total : 'N/A'}\n`;
+                const parsed = ocrData.parsed;
+                ocrMessage += `Parsed as: ${parsed.kind}\n`;
+                
+                if (parsed.kind === 'receipt' && parsed.data) {
+                  const receipt = parsed.data;
+                  ocrMessage += `Merchant: ${receipt.merchant || 'N/A'}\n`;
+                  ocrMessage += `Date: ${receipt.date || 'N/A'}\n`;
+                  ocrMessage += `Total: ${receipt.total ? '$' + receipt.total : 'N/A'}\n`;
+                  ocrMessage += `Items: ${receipt.items?.length || 0}\n`;
+                } else if (parsed.kind === 'invoice' && parsed.data) {
+                  const invoice = parsed.data;
+                  ocrMessage += `Vendor: ${invoice.vendor || 'N/A'}\n`;
+                  ocrMessage += `Invoice #: ${invoice.invoice_no || 'N/A'}\n`;
+                  ocrMessage += `Date: ${invoice.date || 'N/A'}\n`;
+                  ocrMessage += `Total: ${invoice.total ? '$' + invoice.total : 'N/A'}\n`;
+                  ocrMessage += `Line Items: ${invoice.line_items?.length || 0}\n`;
+                }
+              }
+              
+              // Day 9: Show transaction save summary
+              const savedCount = ocrData.meta?.saved_count || 0;
+              if (savedCount > 0) {
+                ocrMessage += `\n✅ Saved ${savedCount} transaction(s) to your account.`;
+                const categorizer = ocrResponse.headers.get('X-Categorizer');
+                if (categorizer) {
+                  ocrMessage += ` Categorized using ${categorizer === 'rules' ? 'rules' : 'AI'}.`;
                 }
               }
               
               if (ocrData.warnings && ocrData.warnings.length > 0) {
-                ocrMessage += `\nWarnings: ${ocrData.warnings.join(', ')}`;
+                ocrMessage += `\n\nWarnings: ${ocrData.warnings.join(', ')}`;
               }
               
               toolResults.push({
