@@ -2107,8 +2107,8 @@ ${baseContext}`;
          (employeeKey === 'byte-docs' && byteTools ? byteTools : []));
 
     if (noStream && toolsForThisEmployee.length > 0 && (employeeKey === 'prime-boss' || employeeKey === 'byte-docs')) {
-      // ---- Non-stream tool-call path for Prime ----
-      console.log('[Chat] Prime tool-call probe starting');
+      // ---- Non-stream tool-call path for Prime and Byte ----
+      console.log(`[Chat] ${employeeKey} tool-call probe starting`);
       
       // Step 1: Probe with tools enabled
       const probeResponse = await fetch(OPENAI_URL, {
@@ -2238,7 +2238,7 @@ ${baseContext}`;
           }))
         ];
 
-        // Step 4: Synthesis - Prime synthesizes results
+        // Step 4: Synthesis - Employee synthesizes results
         const synthesisResponse = await fetch(OPENAI_URL, {
           method: 'POST',
           headers: {
@@ -2254,19 +2254,19 @@ ${baseContext}`;
 
         const synthesisData = await synthesisResponse.json();
         let synthesisText = synthesisData?.choices?.[0]?.message?.content ?? '';
-        if (isNewPrimeSession) {
+        if (isNewPrimeSession && employeeKey === 'prime-boss') {
           const intro = '👑 Prime ready';
           synthesisText = `${intro}\n\n${synthesisText}`;
         }
 
-        // Save assistant message with Prime's synthesis
+        // Save assistant message with employee's synthesis
         try {
           await dbSaveChatMessage({
             userId,
             sessionId,
             role: 'assistant',
             content_redacted: synthesisText,
-            employeeKey: 'prime-boss'
+            employeeKey: employeeKey
           });
           
           // Day 4: Extract and store facts from conversation
