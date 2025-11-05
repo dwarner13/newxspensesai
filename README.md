@@ -184,17 +184,38 @@ XspensesAI is the world's first **FinTech Entertainment Platform** that transfor
 5. Deploy!
 
 ### **Environment Variables**
-```env
-# OpenAI API (optional)
-OPENAI_API_KEY=your_openai_api_key
 
-# Backend URL
-VITE_API_URL=http://localhost:5000
+**Quick Setup**:
+```bash
+# Copy sample file (if .env.sample exists)
+cp .env.sample .env
 
-# Supabase (for production)
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_key
+# Edit .env with your actual values
+# SUPABASE_URL=https://your-project.supabase.co
+# SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+# OPENAI_API_KEY=sk-...
 ```
+
+**Note**: Netlify Dev automatically loads `.env` from the project root. Ensure `.env` is in `.gitignore` (never commit secrets).
+
+**Required Variables**:
+```env
+# Supabase (required for persistence)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# OpenAI (required for chat/embeddings)
+OPENAI_API_KEY=sk-...
+```
+
+**Optional Variables**:
+```env
+# OCR Providers (optional - OCR works without these)
+OCRSPACE_API_KEY=your-ocrspace-key
+GOOGLE_APPLICATION_CREDENTIALS=path/to/google-credentials.json
+```
+
+**Without Supabase**: OCR will work but transactions won't be saved (`X-Transactions-Saved: 0`). See [`docs/ENV.md`](docs/ENV.md) for details.
 
 ## 📱 **Mobile Experience**
 
@@ -251,6 +272,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by the XspensesAI Team**
 
-*Transforming finance through entertainment, one transaction at a time.*#   T e s t   d e p l o y m e n t  
- #   B u i l d   t r i g g e r  
+*Transforming finance through entertainment, one transaction at a time.*#   T e s t   d e p l o y m e n t 
+ 
+ #   B u i l d   t r i g g e r 
+ 
  
