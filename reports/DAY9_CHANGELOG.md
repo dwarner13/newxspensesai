@@ -37,6 +37,18 @@
 6. **`netlify/functions/_shared/__tests__/ocr_integration_tx.test.ts`** (Integration tests)
    - End-to-end: OCR → parse → normalize → store → headers
 
+7. **`netlify/functions/_shared/__tests__/ocr_guardrails.test.ts`** (Guardrails tests)
+   - Oversized file → 413
+   - Bad MIME → 400
+   - Toxic text → 422 with X-Guardrails: blocked
+   - Safe text → 200 with X-Guardrails: active
+
+8. **`src/components/OCRDropzone.tsx`** (React component)
+   - Drag-and-drop file upload
+   - Progress indicator
+   - Response headers display
+   - OCR result JSON display
+
 7. **`reports/DAY9_PLAN.md`** (implementation plan)
 8. **`reports/DAY9_CHANGELOG.md`** (this file)
 9. **`reports/DAY9_VALIDATION.md`** (testing guide)
@@ -66,6 +78,14 @@
 ---
 
 ## FUNCTIONAL CHANGES
+
+### Guardrails (Day 9 Addition)
+- **Input Validation**: Max file size 15 MB, MIME type validation (PDF, PNG, JPEG, WebP, TIFF)
+- **Magic Bytes Validation**: Validates file signatures (PDF: %PDF, PNG: \x89PNG, JPEG: FF D8 FF)
+- **Content Moderation**: Applies `applyGuardrails()` to extracted text with strict preset
+- **Blocking**: Returns 422 if moderation flags toxic content
+- **Logging**: Logs to `guardrail_events` with stage 'ocr', SHA256 hash, provider, blocked flag
+- **Headers**: `X-Guardrails` reflects 'active' or 'blocked' status
 
 ### Normalization
 - Converts ParsedDoc (invoice/receipt/bank) to NormalizedTransaction[]

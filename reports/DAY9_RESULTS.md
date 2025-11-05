@@ -166,6 +166,21 @@ created_at: '2024-01-15T12:00:00Z'
 **Steps**: Send "OCR this receipt and categorize it"  
 **Expected**: Summary includes merchant, date, total, category, items count, "Saved X transaction(s)"
 
+### Test 6: Guardrails Input Validation
+**Status**: ✅ Tests created  
+**Steps**: Upload oversized file (>15 MB)  
+**Expected**: Returns 413, error message
+
+### Test 7: Guardrails MIME Validation
+**Status**: ✅ Tests created  
+**Steps**: Upload invalid file type (e.g., .exe)  
+**Expected**: Returns 400, error message
+
+### Test 8: Guardrails Moderation
+**Status**: ✅ Tests created  
+**Steps**: OCR document with toxic content  
+**Expected**: Returns 422, X-Guardrails: blocked, logged to guardrail_events
+
 ---
 
 ## CODE QUALITY
@@ -173,6 +188,14 @@ created_at: '2024-01-15T12:00:00Z'
 ### TypeScript Compilation
 **Status**: ⚠️ Requires `tsc` check  
 **Expected**: No compilation errors
+
+### Guardrails Integration
+**Status**: ✅ Implemented
+- Input validation: File size (15 MB max), MIME type validation
+- Magic bytes validation: PDF, PNG, JPEG signatures
+- Content moderation: `applyGuardrails()` with strict preset
+- Blocking: 422 for toxic content, X-Guardrails: blocked
+- Logging: Non-blocking to `guardrail_events`
 
 ### Linting
 **Status**: ✅ Verified (no lint errors)

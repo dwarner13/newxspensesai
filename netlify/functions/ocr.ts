@@ -14,6 +14,8 @@ import { parseInvoiceLike, parseReceiptLike, parseBankStatementLike, normalizePa
 import { admin } from './_shared/supabase';
 import { toTransactions, categorize, NormalizedTransaction } from './_shared/ocr_normalize';
 import { insertTransaction, insertItems, linkToDocument } from './_shared/transactions_store';
+import { applyGuardrails } from './_shared/guardrails';
+import crypto from 'crypto';
 
 // Reuse buildResponseHeaders from chat.ts
 function buildResponseHeaders(params: {
@@ -122,6 +124,10 @@ export const handler: Handler = async (event, context) => {
     let userId = event.headers['x-user-id'] || 'anonymous';
     let convoId = event.headers['x-convo-id'] || `ocr-${Date.now()}`;
     
+    // ========================================================================
+    // INPUT VALIDATION (Guardrails - Pre-OCR)
+    // ========================================================================
+    
     // Parse input
     if (contentType.includes('multipart/form-data')) {
       // Parse multipart form data
@@ -148,6 +154,99 @@ export const handler: Handler = async (event, context) => {
       
       if (!fileBytes) {
         throw new Error('No file provided in multipart form data');
+      }
+      
+      // Validate file size (max 15 MB)
+      const MAX_SIZE = 15 * 1024 * 1024; // 15 MB
+      if (fileBytes.length > MAX_SIZE) {
+        return {
+          statusCode: 413,
+          headers: buildResponseHeaders({
+            guardrailsActive: true,
+            piiMaskEnabled: true,
+            memoryHitTopScore: null,
+            memoryHitCount: 0,
+            summaryPresent: false,
+            summaryWritten: false,
+            employee: 'byte',
+            routeConfidence: 1.0,
+            ocrProvider: 'none',
+            ocrParse: 'none'
+          }),
+          body: JSON.stringify({
+            ok: false,
+            error: 'File too large. Maximum size is 15 MB.'
+          })
+        };
+      }
+      
+      // Validate MIME type
+      const ALLOWED_MIMES = [
+        'application/pdf',
+        'image/png',
+        'image/jpeg',
+        'image/jpg',
+        'image/webp',
+        'image/tiff'
+      ];
+      
+      // MIME validation: check declared type and magic bytes
+      let isValidMime = false;
+      
+      // Check declared MIME
+      if (ALLOWED_MIMES.includes(mime.toLowerCase())) {
+        isValidMime = true;
+      }
+      
+      // Validate magic bytes
+      if (fileBytes.length >= 4) {
+        const header = fileBytes.slice(0, 4);
+        
+        // PDF: %PDF
+        if (header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46) {
+          if (mime.toLowerCase() === 'application/pdf') {
+            isValidMime = true;
+          } else {
+            mime = 'application/pdf'; // Correct MIME
+            isValidMime = true;
+          }
+        }
+        // PNG: \x89PNG
+        else if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4E && header[3] === 0x47) {
+          if (mime.toLowerCase().startsWith('image/')) {
+            isValidMime = true;
+            mime = 'image/png';
+          }
+        }
+        // JPEG: FF D8 FF
+        else if (header[0] === 0xFF && header[1] === 0xD8 && header[2] === 0xFF) {
+          if (mime.toLowerCase().startsWith('image/')) {
+            isValidMime = true;
+            mime = 'image/jpeg';
+          }
+        }
+      }
+      
+      if (!isValidMime) {
+        return {
+          statusCode: 400,
+          headers: buildResponseHeaders({
+            guardrailsActive: true,
+            piiMaskEnabled: true,
+            memoryHitTopScore: null,
+            memoryHitCount: 0,
+            summaryPresent: false,
+            summaryWritten: false,
+            employee: 'byte',
+            routeConfidence: 1.0,
+            ocrProvider: 'none',
+            ocrParse: 'none'
+          }),
+          body: JSON.stringify({
+            ok: false,
+            error: 'Invalid file type. Allowed: PDF, PNG, JPEG, WebP, TIFF.'
+          })
+        };
       }
     } else if (contentType.includes('application/json')) {
       // Parse JSON body
@@ -195,9 +294,117 @@ export const handler: Handler = async (event, context) => {
       };
     }
     
-    // Mask PII in extracted text
+    // ========================================================================
+    // GUARDRAILS ON EXTRACTED TEXT (Post-OCR)
+    // ========================================================================
+    
     const rawText = ocrResult.result.text;
-    const maskedText = maskPII(rawText, 'full').masked;
+    
+    // Apply guardrails (moderation + PII masking)
+    const guardrailOutcome = await applyGuardrails(
+      rawText,
+      {
+        preset: 'strict', // OCR uses strict preset
+        moderation: true,
+        pii: true,
+        stage: 'ocr',
+        log: true
+      },
+      userId
+    );
+    
+    // Check if blocked
+    if (!guardrailOutcome.ok) {
+      // Log blocking event (non-blocking)
+      try {
+        const inputHash = crypto
+          .createHash('sha256')
+          .update(rawText.slice(0, 256))
+          .digest('hex')
+          .slice(0, 24);
+        
+        const sb = admin();
+        await sb.from('guardrail_events').insert({
+          user_id: userId,
+          convo_id: convoId,
+          stage: 'ocr',
+          rule_type: 'moderation_block',
+          action: 'blocked',
+          severity: 3,
+          content_hash: inputHash,
+          provider: ocrResult.provider,
+          blocked: true,
+          meta: {
+            reasons: guardrailOutcome.reasons || [],
+            signals: guardrailOutcome.signals || {}
+          },
+          created_at: new Date().toISOString()
+        }).catch(() => {
+          // Non-blocking: ignore logging errors
+        });
+      } catch (logErr) {
+        console.warn('[OCR] Guardrail logging failed (non-blocking):', logErr);
+      }
+      
+      return {
+        statusCode: 422,
+        headers: {
+          ...buildResponseHeaders({
+            guardrailsActive: true,
+            piiMaskEnabled: true,
+            memoryHitTopScore: null,
+            memoryHitCount: 0,
+            summaryPresent: false,
+            summaryWritten: false,
+            employee: 'byte',
+            routeConfidence: 1.0,
+            ocrProvider: ocrResult.provider,
+            ocrParse: 'none'
+          }),
+          'X-Guardrails': 'blocked'
+        },
+        body: JSON.stringify({
+          ok: false,
+          error: 'Guardrails: blocked',
+          reasons: guardrailOutcome.reasons || []
+        })
+      };
+    }
+    
+    // Use redacted text (already PII-masked by guardrails)
+    const maskedText = guardrailOutcome.redacted || rawText;
+    
+    // Log guardrail event (non-blocking)
+    try {
+      const inputHash = crypto
+        .createHash('sha256')
+        .update(rawText.slice(0, 256))
+        .digest('hex')
+        .slice(0, 24);
+      
+      const sb = admin();
+      await sb.from('guardrail_events').insert({
+        user_id: userId,
+        convo_id: convoId,
+        stage: 'ocr',
+        rule_type: 'guardrails_check',
+        action: 'allowed',
+        severity: 1,
+        content_hash: inputHash,
+        provider: ocrResult.provider,
+        blocked: false,
+        meta: {
+          reasons: guardrailOutcome.reasons || [],
+          signals: guardrailOutcome.signals || {},
+          pii_found: guardrailOutcome.signals?.piiFound || false
+        },
+        created_at: new Date().toISOString()
+      }).catch(() => {
+        // Non-blocking: ignore logging errors
+      });
+    } catch (logErr) {
+      console.warn('[OCR] Guardrail logging failed (non-blocking):', logErr);
+    }
     
     // Parse text into structured JSON
     let parsed: ParsedDoc | null = null;
