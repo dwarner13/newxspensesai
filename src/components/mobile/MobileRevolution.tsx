@@ -9,10 +9,9 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
+import {
   Crown, Home, Upload, Bot, Bell, Mic
 } from 'lucide-react';
-import BossBubble from '../boss/BossBubble';
 import { useAuth } from '../../contexts/AuthContext';
 import MobileDebugPanel from '../dev/MobileDebugPanel';
 import MobileNavInline from '../navigation/MobileNavInline';
@@ -760,7 +759,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>Smart Import AI</h3>
                     <p>Upload receipts and bank statements. Byte processes them instantly and you can chat about your data in real-time.</p>
-                    <button className="mobile-card-button" onClick={handleImportNow}>Import & Chat</button>
+                    <button className="mobile-card-button" onClick={() => window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' }}))}>Import & Chat</button>
                   </div>
                 </div>
                 <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
@@ -768,7 +767,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
                   <div className="mobile-card-content">
                     <h3>AI Chat Assistant</h3>
                     <p>Chat with our AI assistant for personalized financial advice, insights, and real-time analysis of your data.</p>
-                    <button className="mobile-card-button" onClick={() => handleChatNow('financial-assistant')}>Chat Now</button>
+                    <button className="mobile-card-button" onClick={() => window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' }}))}>Chat Now</button>
                   </div>
                 </div>
                 <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
@@ -928,8 +927,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
         onViewChange={onViewChange}
       />
       
-      {/* Prime Chatbot - Using the main BossBubble component */}
-      <BossBubble />
+  {/* Prime Chatbot handled via header launcher (BossBubble removed) */}
 
       {/* Mobile Modal for Card Content */}
       {modalOpen && modalContent && (

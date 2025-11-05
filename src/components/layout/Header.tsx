@@ -39,6 +39,7 @@ const Header = ({
   const bellRef = useRef<HTMLButtonElement>(null);
   const userButtonRef = useRef<HTMLButtonElement>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  // Use global Prime chat mount via window event
   const [notifications, setNotifications] = useState([
     {
       id: 1,
@@ -179,6 +180,8 @@ const Header = ({
     setIsUserMenuOpen(false);
   }, [location, setIsNotificationsOpen, setIsUserMenuOpen]);
 
+  // No local chat state; use global window events handled by PrimeChatMount
+
   return (
     <header className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-b sticky top-16 z-30`} style={{right: 'var(--scrollbar-width, 0px)'}}>
       <div className={`flex items-center justify-between ${isMobile ? 'h-20 px-4 pt-4' : 'h-16 px-4 md:px-6'}`}>
@@ -284,6 +287,15 @@ const Header = ({
           >
             <Music size={20} className="text-white/80" />
           </button>
+
+          {/* Prime Chat Launcher (opens global chat) */}
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }))}
+            className="w-10 h-10 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-500 hover:to-teal-600 flex items-center justify-center transition-all duration-200"
+            aria-label="Open Prime Chat"
+          >
+            <HelpCircle size={18} className="text-white" />
+          </button>
           
           {/* Profile Icon */}
           <div className="relative">
@@ -371,6 +383,7 @@ const Header = ({
           </div>
         </div>
       </div>
+      {/* Prime chat handled globally by PrimeChatMount */}
     </header>
   );
 };

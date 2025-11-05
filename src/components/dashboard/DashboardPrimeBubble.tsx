@@ -16,25 +16,8 @@ import {
 import { Crown, X, Send, Bot } from 'lucide-react';
 
 export default function DashboardPrimeBubble() {
-  const { user } = useAuth();
-  
-  // LEGACY: Consolidated into canonical header launcher (#prime-boss-button)
-  // See: src/components/ui/DashboardHeader.tsx for single source of truth
-  const isDashboardPrimeBubbleDisabled = true;
-  if (isDashboardPrimeBubbleDisabled) {
-    return null;
-  }
-  
-  const [open, setOpen] = useState(false);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<{ role: 'user'|'prime'|'note'; text: string }[]>([
-    { role: 'prime', text: 'I\'m 👑 Prime — your strategic AI CEO. I orchestrate our entire 30-member AI enterprise to deliver elite-level financial intelligence. What can my team accomplish for you today?' }
-  ]);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
-  const location = useLocation();
+  return null; // Replaced by Prime v2
+}
 
   // Dashboard-specific system prompt
   const createDashboardSystemPrompt = () => {

@@ -4,7 +4,7 @@ import {
   Paperclip, Image, FileSpreadsheet, File, AlertCircle,
   CheckCircle, Sparkles, Heart, Target, TrendingUp, 
   Banknote, Zap, Brain, Award, Calculator, Building2,
-  Music, Headphones, Eye, EyeOff, Volume2, VolumeX,
+  Music, Headphones, Eye, EyeOff, Volume2, VolumeX, Shield,
   ChevronLeft, MoreVertical, Settings
 } from 'lucide-react';
 import { UniversalAIController } from '../../services/UniversalAIController';
@@ -42,6 +42,18 @@ interface MobileChatInterfaceProps {
 
 // Employee personality configurations for mobile
 const employeePersonalities: Record<string, any> = {
+  'security-compliance': {
+    id: 'security-compliance',
+    name: 'Goalie',
+    specialty: 'Security & Compliance AI',
+    icon: <Shield className="w-5 h-5" />,
+    color: 'from-slate-600 to-slate-800',
+    greeting: '🛡️ Goalie ready',
+    uploadMessage: 'Input received. Redaction and validation applied.',
+    placeholder: 'Ask Goalie to audit, enforce, or explain security/compliance posture...',
+    catchphrases: ['Risk identified; mitigation proposed', 'Compliance posture updated', 'Enforcing least privilege and redaction'],
+    status: 'online'
+  },
   'smart-import': {
     id: 'smart-import',
     name: 'Byte',

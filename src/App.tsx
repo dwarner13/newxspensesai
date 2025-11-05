@@ -20,6 +20,7 @@ import MobileLayoutGate from './components/layout/MobileLayoutGate';
 import MobileRevolution from './components/mobile/MobileRevolution';
 import DesktopDashboard from './components/DesktopDashboard';
 import RouteScrollReset from './components/util/RouteScrollReset';
+import { isPrimeV2Enabled } from './env';
 
 // Scroll bar width calculation hook
 const useScrollbarWidth = () => {
@@ -200,6 +201,7 @@ function ScrollToTop() {
 function App() {
   const [therapistTrigger] = useAtom(therapistTriggerAtom);
   const [isTherapistModalOpen] = useAtom(isTherapistModalOpenAtom);
+  const [isPrimeOpen, setIsPrimeOpen] = useState(false);
   
   // Calculate scrollbar width for fixed elements
   useScrollbarWidth();
@@ -359,6 +361,8 @@ function App() {
                 {/* Global Therapist Components */}
                 {therapistTrigger && <TherapistNotification />}
                 <TherapistModal />
+
+                {/* Prime chat mount moved into DashboardLayout */}
                 </WorkspaceProvider>
               </UserProvider>
           </AIFinancialAssistantProvider>

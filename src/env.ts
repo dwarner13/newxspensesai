@@ -14,6 +14,19 @@ export function isPrimeEnabled(): boolean {
   // return false;
 }
 
+export function isPrimeV2Enabled(): boolean {
+  // Prefer explicit env flags; default to false if unset
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+    const v = (import.meta as any).env.VITE_PRIME_CHAT_V2;
+    if (typeof v === 'string') return v === 'true';
+  }
+  if (typeof process !== 'undefined' && process.env) {
+    const v = process.env.PRIME_CHAT_V2 || process.env.VITE_PRIME_CHAT_V2;
+    if (typeof v === 'string') return v === 'true';
+  }
+  return false;
+}
+
 export function getSupabaseUrl(): string {
   // Client-side (browser)
   if (typeof import.meta !== 'undefined' && import.meta.env) {

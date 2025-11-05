@@ -5,12 +5,14 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { PRIME_CHAT_V2 } from '@/lib/flags';
 import { Send, X, Crown, User, Loader2, Sparkles, ChevronDown, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useChat } from '../../hooks/useChat';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function PrimeChat() {
+  if (PRIME_CHAT_V2) return null;
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

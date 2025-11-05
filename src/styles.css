@@ -6515,6 +6515,15 @@ input:focus, textarea:focus {
   -webkit-backdrop-filter: blur(40px);
 }
 
+/* Prime mobile slide-out */
+@media (max-width: 768px) {
+  .prime-chat-panel {
+    width: 100vw;
+    height: 100dvh;
+    border-radius: 0;
+  }
+}
+
 /* Smooth transitions for all interactive elements */
 * {
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;

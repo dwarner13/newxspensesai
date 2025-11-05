@@ -4,6 +4,7 @@ import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2, X, Bot } fr
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useAIMemory } from '../../hooks/useAIMemory';
 import { ByteDocumentChat } from '../../components/chat/_legacy/ByteDocumentChat';
+import { PRIME_CHAT_V2 } from '../../lib/flags';
 
 interface ProcessingFile {
   id: string;
@@ -645,7 +646,13 @@ const SmartImportAIPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto pr-4 lg:pr-20">
             <button
               className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
-              onClick={() => setIsByteChatOpen(true)}
+              onClick={() => {
+                if (PRIME_CHAT_V2) {
+                  window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
+                } else {
+                  setIsByteChatOpen(true);
+                }
+              }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <UploadCloud className="w-6 h-6 text-white" />
@@ -658,7 +665,13 @@ const SmartImportAIPage: React.FC = () => {
 
             <button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
-              onClick={() => setIsByteChatOpen(true)}
+              onClick={() => {
+                if (PRIME_CHAT_V2) {
+                  window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
+                } else {
+                  setIsByteChatOpen(true);
+                }
+              }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <span className="text-white text-xl">📸</span>
@@ -671,7 +684,13 @@ const SmartImportAIPage: React.FC = () => {
 
             <button
               className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
-              onClick={() => setIsByteChatOpen(true)}
+              onClick={() => {
+                if (PRIME_CHAT_V2) {
+                  window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
+                } else {
+                  setIsByteChatOpen(true);
+                }
+              }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <span className="text-white text-xl">🏦</span>
@@ -1426,11 +1445,13 @@ const SmartImportAIPage: React.FC = () => {
 
       </div>
 
-      {/* Byte Document Chat */}
-      <ByteDocumentChat
-        isOpen={isByteChatOpen}
-        onClose={() => setIsByteChatOpen(false)}
-      />
+      {/* Byte Document Chat (hidden when Prime v2 is enabled) */}
+      {!PRIME_CHAT_V2 && (
+        <ByteDocumentChat
+          isOpen={isByteChatOpen}
+          onClose={() => setIsByteChatOpen(false)}
+        />
+      )}
 
       {/* AI Employee Activity Panel */}
       <div className={`fixed top-0 right-0 h-full w-80 bg-gradient-to-b from-slate-900 to-slate-800 border-l border-white/10 shadow-2xl transform transition-transform duration-300 z-40 ${
@@ -1528,6 +1549,7 @@ const SmartImportAIPage: React.FC = () => {
       </button>
 
       {/* Floating Byte Chat Button */}
+      {!PRIME_CHAT_V2 && (
       <motion.button
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
@@ -1537,6 +1559,7 @@ const SmartImportAIPage: React.FC = () => {
       >
         <Bot className="w-6 h-6" />
       </motion.button>
+      )}
     </>
   );
 };

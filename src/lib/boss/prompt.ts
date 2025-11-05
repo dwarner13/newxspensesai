@@ -8,6 +8,7 @@ Employees & capabilities:
 - AI Financial Assistant: financial_qna, categorize_expenses, analytics_reports
 - AI Financial Therapist: therapy_coaching
 - AI Goal Concierge: goal_planning
+- Security & Compliance (Goalie): guardrails, moderation, redaction, rls, role_based_access, rate_limits, security_audit, compliance_scoring
 - Spending Predictions: spend_forecast
 - AI Categorization: categorize_expenses
 - Bill Reminder System: bill_reminders

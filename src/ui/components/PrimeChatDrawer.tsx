@@ -132,13 +132,18 @@ export function PrimeChatDrawer({ isOpen, onClose, conversationId }: PrimeChatDr
         </div>
 
         {/* Input */}
-        <div className="p-4 border-t">
+        <div
+          className="p-4 border-t"
+          style={{
+            paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+          }}
+        >
           <div className="flex space-x-2">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
+              onKeyDown={handleKeyPress}
               placeholder="Type your message..."
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isLoading}

@@ -4,7 +4,7 @@ import {
   Paperclip, Image, FileSpreadsheet, File, AlertCircle,
   CheckCircle, Sparkles, Heart, Target, TrendingUp, 
   Banknote, Zap, Brain, Award, Calculator, Building2,
-  Music, Headphones, Eye, EyeOff, Volume2, VolumeX
+  Music, Headphones, Eye, EyeOff, Volume2, VolumeX, Shield
 } from 'lucide-react';
 import { UniversalAIController } from '../../services/UniversalAIController';
 
@@ -61,6 +61,24 @@ interface EnhancedChatInterfaceProps {
 
 // Employee personality configurations
 const employeePersonalities: Record<string, EmployeePersonality> = {
+  'security-compliance': {
+    id: 'security-compliance',
+    name: 'Goalie',
+    specialty: 'Security & Compliance AI',
+    icon: <Shield className="w-5 h-5" />,
+    color: 'from-slate-600 to-slate-800',
+    greeting: '🛡️ Goalie ready',
+    quickActions: [
+      { id: 'run-audit', label: 'Run security audit', prompt: 'Run a security audit. Return risks with severity and mitigations.', icon: <AlertCircle className="w-4 h-4" />, category: 'audit' },
+      { id: 'check-rls', label: 'Check RLS & roles', prompt: 'Verify row-level security and role-based access configuration.', icon: <Eye className="w-4 h-4" />, category: 'access' },
+      { id: 'review-guardrails', label: 'Review guardrails', prompt: 'Review guardrails, moderation, and redaction policies for gaps.', icon: <Shield className="w-4 h-4" />, category: 'policies' },
+      { id: 'rate-limits', label: 'Inspect rate limits', prompt: 'Inspect API rate limits and report potential abuse vectors.', icon: <TrendingUp className="w-4 h-4" />, category: 'limits' }
+    ],
+    uploadMessage: 'Input received. Redaction and validation applied.',
+    placeholder: 'Ask Goalie to audit, enforce, or explain security/compliance posture...',
+    catchphrases: ['Risk identified; mitigation proposed', 'Compliance posture updated', 'Enforcing least privilege and redaction'],
+    status: 'online'
+  },
   'smart-import': {
     id: 'smart-import',
     name: 'Byte',
