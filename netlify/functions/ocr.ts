@@ -206,9 +206,10 @@ export const handler: Handler = async (event, context) => {
         isValidMime = true;
       }
       
-      // Validate magic bytes
+      // Validate magic bytes (sniff actual file type)
       if (fileBytes.length >= 4) {
         const header = fileBytes.slice(0, 4);
+        const header12 = fileBytes.length >= 12 ? fileBytes.slice(0, 12) : null;
         
         // PDF: %PDF
         if (header[0] === 0x25 && header[1] === 0x50 && header[2] === 0x44 && header[3] === 0x46) {
@@ -231,6 +232,29 @@ export const handler: Handler = async (event, context) => {
           if (mime.toLowerCase().startsWith('image/')) {
             isValidMime = true;
             mime = 'image/jpeg';
+          }
+        }
+        // WebP: RIFF...WEBP (requires 12 bytes)
+        else if (header12 && 
+                 header12[0] === 0x52 && header12[1] === 0x49 && header12[2] === 0x46 && header12[3] === 0x46 &&
+                 header12[8] === 0x57 && header12[9] === 0x45 && header12[10] === 0x42 && header12[11] === 0x50) {
+          if (mime.toLowerCase() === 'image/webp') {
+            isValidMime = true;
+            mime = 'image/webp';
+          } else if (mime.toLowerCase().startsWith('image/')) {
+            mime = 'image/webp'; // Correct MIME
+            isValidMime = true;
+          }
+        }
+        // TIFF: II* or MM* (little-endian or big-endian)
+        else if ((header[0] === 0x49 && header[1] === 0x49 && header[2] === 0x2A && header[3] === 0x00) ||
+                 (header[0] === 0x4D && header[1] === 0x4D && header[2] === 0x00 && header[3] === 0x2A)) {
+          if (mime.toLowerCase() === 'image/tiff') {
+            isValidMime = true;
+            mime = 'image/tiff';
+          } else if (mime.toLowerCase().startsWith('image/')) {
+            mime = 'image/tiff'; // Correct MIME
+            isValidMime = true;
           }
         }
       }
