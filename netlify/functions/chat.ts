@@ -28,6 +28,7 @@ import { runGuardrailsCompat } from "./_shared/guardrails_adapter";
 import { createSSEMaskTransform } from "./_shared/sse_mask_transform";
 import * as memory from "./_shared/memory";
 import * as sums from "./_shared/session_summaries";
+import { routeTurn } from "./_shared/prime_router";
 
 // ============================================================================
 // IMPORTS
@@ -1552,6 +1553,73 @@ export default async (req: Request) => {
 
     console.log(`[Chat] Session: ${sessionId}, User: ${userId}`);
 
+    // Helper: Build employee-specific system prompt (Day 6)
+    const buildEmployeeSystemPrompt = (employee: 'prime' | 'crystal' | 'tag' | 'byte', contextBlock: string, summaryContext: string, memoryContext: string): string => {
+      const baseContext = (summaryContext || '') + (memoryContext || '') + (contextBlock?.trim() ? `\n\n### CONTEXT\n${contextBlock}\n` : '');
+      
+      switch (employee) {
+        case 'crystal':
+          return `You are Crystal — the AI Financial Analyst and CFO-level Intelligence.
+
+You handle analytics, insights, metrics, trends, financial analysis, SEO, and data visualization.
+
+Responsibilities:
+• Explain and quantify financial trends
+• Cite internal metrics and data
+• Provide actionable insights
+• Create summaries and forecasts
+• SEO and ranking analysis
+
+${baseContext}`;
+          
+        case 'tag':
+          return `You are Tag — the Transaction Categorizer and PII Specialist.
+
+You handle categorization, transactions, receipts, PII masking, and tax classification.
+
+Responsibilities:
+• Categorize transactions and receipts
+• Classify vendors and merchants
+• Ensure PII is properly masked
+• Handle tax-related categorization
+• Maintain canonical category mappings
+
+IMPORTANT: Always mask PII before displaying or storing. Use placeholders for sensitive data.
+
+${baseContext}`;
+          
+        case 'byte':
+          return `You are Byte — the Code and Tools Specialist.
+
+You handle code, tools, ingestion, OCR, parsing, debugging, and technical implementation.
+
+Responsibilities:
+• Write and debug code
+• Parse documents and files
+• Handle OCR and PDF processing
+• Implement tools and integrations
+• Fix errors and stack traces
+
+${baseContext}`;
+          
+        case 'prime':
+        default:
+          return `You are Prime — the AI Team Coordinator and Financial Boss for XspensesAI.
+
+You oversee all AI employees (Byte, Tag, Goalie, Crystal, etc.).
+
+Responsibilities:
+• Route tasks to the right AI employee
+• Manage financial analysis, planning, and user chat
+• Summarize results and present polished replies
+• Guardrail: moderate, redact PII, and call safe endpoints only
+
+Reply concisely with structured results.
+
+${baseContext}`;
+      }
+    };
+
     // Helper: Generate summary if thresholds met (Day 5)
     const generateSummaryIfNeeded = async (assistantText: string) => {
       let summaryWritten = false;
@@ -1836,49 +1904,53 @@ export default async (req: Request) => {
     // 7.1) Fetch comprehensive context (Prime gets more than specialists)
     const { contextBlock } = await dbFetchContext({ userId, sessionId, redactedUserText: masked, employeeSlug: employeeSlug });
     
-    // 7.2) Employee routing (simplified) + allow client to pin employee
-    let route = {
-      slug: employeeSlug && typeof employeeSlug === 'string' ? employeeSlug : 'prime-boss',
-      systemPrompt: `You are Prime — the AI Team Coordinator and Financial Boss for XspensesAI.
-
-You oversee all AI employees (Byte, Tag, Goalie, Crystal, etc.).
-
-Responsibilities:
-• Route tasks to the right AI employee
-• Manage financial analysis, planning, and user chat
-• Summarize results and present polished replies
-• Guardrail: moderate, redact PII, and call safe endpoints only
-
-Reply concisely with structured results.
-
-${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
-    };
-
-    // 7.3) Auto-handoff: If currently Prime but the request is finance-focused → Crystal
-    try {
-      const text = String(message || '').toLowerCase();
-      const financeHit =
-        /\b(spend|spending|expense|expenses|trend|trends|analysis|analyze|budget|budgeting|forecast|projection|cash\s*flow|cashflow|roi|profit|profitability|category|categories|deduction|tax|gst|sales\s*tax|transactions?)\b/.test(text);
-      if (!employeeSlug && route.slug === 'prime-boss' && financeHit) {
-        // Save a handoff note (optional, for audit trail)
-        try {
-          await supabaseSrv.from('chat_messages').insert({
-            user_id: userId,
-            session_id: sessionId,
-            role: 'system',
-            content_redacted: 'handoff: prime-boss → crystal-analytics (auto-detected finance intent)',
-            employee_key: 'system',
-            created_at: new Date().toISOString()
-          });
-        } catch (e) {
-          console.warn('[handoff] save note failed', (e as any)?.message);
-        }
-        route.slug = 'crystal-analytics';
-        console.log('[Chat] Auto-handoff Prime → Crystal (finance intent detected)');
+    // 7.2) Employee Routing (Day 6) - Route turn to appropriate employee
+    let routingResult = { employee: 'prime' as const, reason: 'Default', confidence: 0.5 };
+    let routeConfidence = 0.5;
+    
+    // Allow client to override via employeeSlug, otherwise use router
+    if (employeeSlug && typeof employeeSlug === 'string') {
+      // Map client-provided slug to employee
+      if (employeeSlug.includes('crystal')) {
+        routingResult = { employee: 'crystal', reason: 'Client-specified Crystal', confidence: 1.0 };
+      } else if (employeeSlug.includes('tag')) {
+        routingResult = { employee: 'tag', reason: 'Client-specified Tag', confidence: 1.0 };
+      } else if (employeeSlug.includes('byte')) {
+        routingResult = { employee: 'byte', reason: 'Client-specified Byte', confidence: 1.0 };
+      } else {
+        routingResult = { employee: 'prime', reason: 'Client-specified Prime', confidence: 1.0 };
       }
-    } catch (e) {
-      console.warn('[handoff] detection failed', (e as any)?.message);
+    } else {
+      // Use router to determine employee
+      try {
+        routingResult = await routeTurn({
+          text: masked,
+          convoMeta: { sessionId },
+          userId
+        });
+        routeConfidence = routingResult.confidence;
+        console.log(`[Chat] Routed to ${routingResult.employee} (confidence: ${routingResult.confidence.toFixed(2)}, reason: ${routingResult.reason})`);
+      } catch (e) {
+        console.warn('[Chat] Routing failed, defaulting to Prime:', e);
+        routingResult = { employee: 'prime', reason: 'Routing failed, defaulting to Prime', confidence: 0.5 };
+      }
     }
+    
+    // Map employee to slug format
+    const employeeSlugMap: Record<string, string> = {
+      'prime': 'prime-boss',
+      'crystal': 'crystal-analytics',
+      'tag': 'tag-categorizer',
+      'byte': 'byte-docs'
+    };
+    
+    const routeSlug = employeeSlugMap[routingResult.employee] || 'prime-boss';
+    
+    // 7.3) Build employee-specific system prompt
+    let route = {
+      slug: routeSlug,
+      systemPrompt: buildEmployeeSystemPrompt(routingResult.employee, contextBlock, summaryContext, memoryContext)
+    };
 
     const employeeKey = route.slug;
     const employeeName = employeeKey.split('-')[0].charAt(0).toUpperCase() + 
@@ -1911,10 +1983,8 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
       }
     }
 
-    // 8. BUILD SYSTEM PROMPT
+    // 8. BUILD SYSTEM PROMPT (already includes context from buildEmployeeSystemPrompt)
     let systemPrompt = route.systemPrompt +
-       (summaryContext ? summaryContext : '') +
-       (memoryContext ? memoryContext : '') +
        "\n\nIMPORTANT: Never reveal PII, credit cards, SSNs, or passwords. " +
        "Do not provide instructions for illegal activities. " +
        "Use context if helpful but prioritize user privacy and safety.";
@@ -2158,13 +2228,15 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
           console.warn('[Chat] Summary generation failed (non-blocking):', e);
         }
         
-        // Day 4: Add memory headers + Day 5: Add summary headers
+        // Day 4: Add memory headers + Day 5: Add summary headers + Day 6: Add routing headers
         const synthesisHeaders = {
           ...BASE_HEADERS,
           'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
           'X-Memory-Count': String(memoryHitCount),
           'X-Session-Summary': summaryPresent ? 'present' : 'absent',
-          'X-Session-Summarized': summaryWrittenSynthesis ? 'yes' : 'no'
+          'X-Session-Summarized': summaryWrittenSynthesis ? 'yes' : 'no',
+          'X-Employee': routingResult.employee,
+          'X-Route-Confidence': routingResult.confidence.toFixed(2)
         };
         
         return {
@@ -2246,13 +2318,15 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
           console.warn('[Chat] Summary generation failed (non-blocking):', e);
         }
         
-        // Day 4: Add memory headers + Day 5: Add summary headers
+        // Day 4: Add memory headers + Day 5: Add summary headers + Day 6: Add routing headers
         const noToolHeaders = {
           ...BASE_HEADERS,
           'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
           'X-Memory-Count': String(memoryHitCount),
           'X-Session-Summary': summaryPresent ? 'present' : 'absent',
-          'X-Session-Summarized': summaryWrittenNoTool ? 'yes' : 'no'
+          'X-Session-Summarized': summaryWrittenNoTool ? 'yes' : 'no',
+          'X-Employee': routingResult.employee,
+          'X-Route-Confidence': routingResult.confidence.toFixed(2)
         };
         
         return {
@@ -2345,13 +2419,15 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
         summaryWritten = false;
       }
       
-      // Day 4: Add memory headers + Day 5: Add summary headers
+      // Day 4: Add memory headers + Day 5: Add summary headers + Day 6: Add routing headers
       const responseHeaders = {
         ...BASE_HEADERS,
         'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
         'X-Memory-Count': String(memoryHitCount),
         'X-Session-Summary': summaryPresent ? 'present' : 'absent',
-        'X-Session-Summarized': summaryWritten ? 'yes' : 'no'
+        'X-Session-Summarized': summaryWritten ? 'yes' : 'no',
+        'X-Employee': routingResult.employee,
+        'X-Route-Confidence': routingResult.confidence.toFixed(2)
       };
       
       return {
@@ -2545,6 +2621,7 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
     }
 
     // Day 5: SSE headers (summary written happens async in flush, so we can't track it synchronously)
+    // Day 6: Add routing headers
     const sseHeaders = {
       ...BASE_HEADERS,
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -2553,7 +2630,9 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
       'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
       'X-Memory-Count': String(memoryHitCount),
       'X-Session-Summary': summaryPresent ? 'present' : 'absent',
-      'X-Session-Summarized': 'async' // Summary generation happens in flush callback after headers sent
+      'X-Session-Summarized': 'async', // Summary generation happens in flush callback after headers sent
+      'X-Employee': routingResult.employee,
+      'X-Route-Confidence': routingResult.confidence.toFixed(2)
     };
     
     // Pipe (preface + upstream) -> transform -> client
