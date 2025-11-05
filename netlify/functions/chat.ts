@@ -2106,7 +2106,7 @@ ${baseContext}`;
       : (employeeKey === 'crystal-analytics' && crystalTools ? crystalTools : 
          (employeeKey === 'byte-docs' && byteTools ? byteTools : []));
 
-    if (noStream && employeeKey === 'prime-boss' && toolsForThisEmployee.length > 0) {
+    if (noStream && toolsForThisEmployee.length > 0 && (employeeKey === 'prime-boss' || employeeKey === 'byte-docs')) {
       // ---- Non-stream tool-call path for Prime ----
       console.log('[Chat] Prime tool-call probe starting');
       
@@ -2134,7 +2134,7 @@ ${baseContext}`;
       console.log(`[Chat] Prime probe result: finish_reason=${finishReason}, tools=${toolCalls.length}`);
 
       if (toolCalls.length > 0 && finishReason === 'tool_calls') {
-        // Step 2: Execute tool calls (delegate)
+        // Step 2: Execute tool calls (delegate for Prime, ocr_file for Byte)
         const toolResults: Array<{id: string, result: string}> = [];
 
         for (const call of toolCalls) {
@@ -2164,6 +2164,65 @@ ${baseContext}`;
                 result: JSON.stringify({ success: false, error: delegateErr.message })
               });
             }
+          } else if (call.function?.name === 'ocr_file') {
+            // Day 8: Handle OCR tool call for Byte
+            try {
+              const args = JSON.parse(call.function.arguments || '{}');
+              const ocrUrl = args.url;
+              const mime = args.mime || 'application/pdf';
+              
+              console.log(`[Chat] Executing OCR tool: ${ocrUrl}`);
+              
+              // Call OCR endpoint internally
+              const baseUrl = process.env.URL || process.env.NETLIFY_DEV ? 'http://localhost:8888' : '';
+              const ocrResponse = await fetch(`${baseUrl}/.netlify/functions/ocr`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-User-Id': userId,
+                  'X-Convo-Id': sessionId
+                },
+                body: JSON.stringify({ url: ocrUrl, mime, userId, convoId: sessionId })
+              });
+              
+              if (!ocrResponse.ok) {
+                throw new Error(`OCR failed: ${ocrResponse.status}`);
+              }
+              
+              const ocrData = await ocrResponse.json();
+              
+              // Format OCR result for assistant
+              let ocrMessage = `OCR completed for ${ocrUrl}.\n\n`;
+              ocrMessage += `Extracted text (${ocrData.text?.length || 0} chars):\n${ocrData.text?.substring(0, 500) || 'No text extracted'}...\n\n`;
+              
+              if (ocrData.parsed) {
+                ocrMessage += `Parsed as: ${ocrData.parsed.kind}\n`;
+                if (ocrData.parsed.kind === 'receipt' && ocrData.parsed.data) {
+                  ocrMessage += `Merchant: ${ocrData.parsed.data.merchant || 'N/A'}\n`;
+                  ocrMessage += `Total: ${ocrData.parsed.data.total ? '$' + ocrData.parsed.data.total : 'N/A'}\n`;
+                  ocrMessage += `Items: ${ocrData.parsed.data.items?.length || 0}\n`;
+                } else if (ocrData.parsed.kind === 'invoice' && ocrData.parsed.data) {
+                  ocrMessage += `Vendor: ${ocrData.parsed.data.vendor || 'N/A'}\n`;
+                  ocrMessage += `Invoice #: ${ocrData.parsed.data.invoice_no || 'N/A'}\n`;
+                  ocrMessage += `Total: ${ocrData.parsed.data.total ? '$' + ocrData.parsed.data.total : 'N/A'}\n`;
+                }
+              }
+              
+              if (ocrData.warnings && ocrData.warnings.length > 0) {
+                ocrMessage += `\nWarnings: ${ocrData.warnings.join(', ')}`;
+              }
+              
+              toolResults.push({
+                id: call.id,
+                result: JSON.stringify({ success: true, message: ocrMessage, ocrData })
+              });
+            } catch (ocrErr: any) {
+              console.error('[Chat] OCR tool error:', ocrErr);
+              toolResults.push({
+                id: call.id,
+                result: JSON.stringify({ success: false, error: ocrErr.message })
+              });
+            }
           }
         }
 
@@ -2174,7 +2233,7 @@ ${baseContext}`;
           ...toolResults.map(tr => ({
             role: 'tool' as const,
             tool_call_id: tr.id,
-            name: 'delegate',
+            name: toolCalls.find(tc => tc.id === tr.id)?.function?.name || 'unknown',
             content: tr.result
           }))
         ];
