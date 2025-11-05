@@ -2414,6 +2414,52 @@ ${baseContext}`;
           
           // Day 5: Generate summary if thresholds met
           await generateSummaryIfNeeded(textContent);
+          
+          // Day 10: Check for category corrections (Byte/Tag employees)
+          if ((employeeKey === 'byte-docs' || employeeKey === 'tag-categorizer') && masked) {
+            try {
+              // Pattern: "No, vendor X should be Category → Subcategory" or "Change X to Category"
+              const correctionPattern = /(?:no|wrong|incorrect|change|update|correct).*?(?:vendor|merchant|store)\s+([^,]+?)(?:\s+should\s+be|\s+to)\s+([^→]+?)(?:\s*→\s*([^,]+?))?/i;
+              const match = masked.match(correctionPattern);
+              
+              if (match) {
+                const [, merchant, category, subcategory] = match;
+                const cleanMerchant = merchant.trim();
+                const cleanCategory = category.trim();
+                const cleanSubcategory = subcategory?.trim();
+                
+                console.log(`[Chat] Category correction detected: ${cleanMerchant} → ${cleanCategory}${cleanSubcategory ? ` (${cleanSubcategory})` : ''}`);
+                
+                // Remember corrected category
+                await rememberCategory({
+                  userId,
+                  merchant: cleanMerchant,
+                  category: cleanCategory,
+                  subcategory: cleanSubcategory,
+                  convoId: sessionId
+                });
+                
+                // Award correction XP
+                const correctionXP = await awardXP({
+                  userId,
+                  action: 'ocr.categorize.corrected',
+                  points: XP_AWARDS['ocr.categorize.corrected'],
+                  meta: {
+                    merchant: cleanMerchant,
+                    category: cleanCategory,
+                    subcategory: cleanSubcategory,
+                    session_id: sessionId
+                  }
+                });
+                
+                if (correctionXP) {
+                  console.log(`[Chat] Awarded ${XP_AWARDS['ocr.categorize.corrected']} XP for category correction`);
+                }
+              }
+            } catch (correctionErr) {
+              console.warn('[Chat] Category correction handling failed (non-blocking):', correctionErr);
+            }
+          }
         } catch (e) {
           console.warn('[chat-v3] Failed to persist assistant (JSON) message:', e);
         }
