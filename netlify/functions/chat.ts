@@ -1489,7 +1489,7 @@ export default async (req: Request) => {
       return json(400, { ok: false, error: 'Invalid JSON body' });
     }
 
-    const { userId, message, sessionId: requestedSessionId, mode, employeeSlug, toolCallId, toolResult, attachments } = body;
+    const { userId, message, sessionId: requestedSessionId, mode, employeeSlug, toolCallId, toolResult, attachments, ocrUrl } = body;
     if (!userId || String(message ?? '').trim() === '') {
       return json(400, { ok: false, error: 'Missing required fields: userId, message' });
     }
@@ -2017,7 +2017,8 @@ ${baseContext}`;
 - Offer Smart Import options: (1) Upload PDF/Images, (2) Email to inbox, (3) Gmail sync.
 - Confirm we will run: Guardrails → OCR → Normalize → Categorize → Save transactions.
 - If a document is provided, acknowledge ingestion and report status.
-- If none is provided, ask for one of the three options and offer to start Gmail sync.`;
+- If none is provided, ask for one of the three options and offer to start Gmail sync.
+- When user says "OCR this PDF/image" or similar, use the ocr_file tool to process it.`;
     }
 
     // ========================================================================
@@ -2064,6 +2065,35 @@ ${baseContext}`;
         }
       ];
     }
+    
+    // 9.2 Tools for Byte (OCR & Ingestion) - Day 8
+    let byteTools: any[] | undefined = undefined;
+    if (employeeKey === 'byte-docs') {
+      byteTools = [
+        {
+          type: 'function' as const,
+          function: {
+            name: 'ocr_file',
+            description: 'Process a PDF or image file with OCR to extract text and parse it into structured JSON (invoice/receipt/bank statement)',
+            parameters: {
+              type: 'object' as const,
+              properties: {
+                url: { 
+                  type: 'string' as const, 
+                  description: 'URL of the PDF or image file to process' 
+                },
+                mime: {
+                  type: 'string' as const,
+                  description: 'MIME type of the file (e.g., application/pdf, image/png)',
+                  enum: ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
+                }
+              },
+              required: ['url']
+            }
+          }
+        }
+      ];
+    }
 
     // ========================================================================
     // 9. CHECK FOR TOOL CALLING (Prime only)
@@ -2073,7 +2103,8 @@ ${baseContext}`;
     const noStream = url.includes('nostream=1');
     const toolsForThisEmployee = employeeKey === 'prime-boss' 
       ? [DELEGATE_TOOL] 
-      : (employeeKey === 'crystal-analytics' && crystalTools ? crystalTools : []);
+      : (employeeKey === 'crystal-analytics' && crystalTools ? crystalTools : 
+         (employeeKey === 'byte-docs' && byteTools ? byteTools : []));
 
     if (noStream && employeeKey === 'prime-boss' && toolsForThisEmployee.length > 0) {
       // ---- Non-stream tool-call path for Prime ----
