@@ -27,6 +27,7 @@ import { maskPII } from "./_shared/pii";
 import { runGuardrailsCompat } from "./_shared/guardrails_adapter";
 import { createSSEMaskTransform } from "./_shared/sse_mask_transform";
 import * as memory from "./_shared/memory";
+import * as sums from "./_shared/session_summaries";
 
 // ============================================================================
 // IMPORTS
@@ -1551,6 +1552,85 @@ export default async (req: Request) => {
 
     console.log(`[Chat] Session: ${sessionId}, User: ${userId}`);
 
+    // Helper: Generate summary if thresholds met (Day 5)
+    const generateSummaryIfNeeded = async (assistantText: string) => {
+      let summaryWritten = false;
+      try {
+        // Build rolling transcript (last ~20 turns)
+        const { data: recentTurns } = await supabaseSrv
+          .from('chat_messages')
+          .select('role, content, created_at')
+          .eq('user_id', userId)
+          .eq('session_id', sessionId)
+          .in('role', ['user', 'assistant'])
+          .order('created_at', { ascending: false })
+          .limit(20);
+        
+        if (!recentTurns || recentTurns.length === 0) return false;
+        
+        const turnCount = recentTurns.length;
+        const transcriptChunk = recentTurns
+          .reverse() // Oldest first
+          .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${String(m.content || '')}`)
+          .join('\n');
+        
+        const tokenEst = sums.estimateTokens(transcriptChunk);
+        
+        // Get time since last summary
+        const latestSummary = await sums.getLatestSummary({ userId, convoId: sessionId });
+        const sinceLastSummaryMins = latestSummary
+          ? Math.floor((Date.now() - new Date(latestSummary.created_at).getTime()) / 60000)
+          : 999; // Large number if no summary exists
+        
+        // Check if should summarize
+        if (sums.shouldSummarize({ turnCount, tokenEstimate: tokenEst, sinceLastSummaryMins })) {
+          // Get recent facts for context
+          const { data: recentFacts } = await supabaseSrv
+            .from('user_memory_facts')
+            .select('fact')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(5);
+          
+          const factStrings = (recentFacts || []).map(f => String(f.fact || ''));
+          
+          // Build prompt and call LLM
+          const prompt = sums.buildSummaryPrompt(transcriptChunk, factStrings);
+          
+          const summaryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
+            },
+            body: JSON.stringify({
+              model: 'gpt-4o-mini',
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.3,
+              max_tokens: 500
+            }),
+          });
+          
+          const summaryData = await summaryResponse.json();
+          const summaryText = summaryData?.choices?.[0]?.message?.content ?? '';
+          
+          if (summaryText.trim()) {
+            await sums.writeSummary({
+              userId,
+              convoId: sessionId,
+              text: summaryText,
+              model: 'gpt-4o-mini'
+            });
+            summaryWritten = true;
+            console.log(`[Chat] Summary generated for session ${sessionId}`);
+          }
+        }
+      } catch (e) {
+        console.warn('[Chat] Summary generation failed (non-blocking):', e);
+      }
+      return summaryWritten;
+    };
+
     // ========================================================================
     // 5. SECURITY PIPELINE: PII Masking → Guardrails → Moderation
     // ========================================================================
@@ -1696,7 +1776,21 @@ export default async (req: Request) => {
     // 7. CONTEXT BUILDING: Memory + Recent Messages
     // ========================================================================
     
-    // 7.0) Memory Recall (Day 4) - Build query from last ~10 turns
+    // 7.0) Session Summary Recall (Day 5) - Get latest summary before model
+    let summaryContext = '';
+    let summaryPresent = false;
+    try {
+      const latest = await sums.getLatestSummary({ userId, convoId: sessionId });
+      if (latest && latest.text) {
+        summaryPresent = true;
+        summaryContext = `\n\n## Context-Summary (recent):\n${latest.text}`;
+        console.log(`[Chat] Summary recalled for session ${sessionId}`);
+      }
+    } catch (e) {
+      console.warn('[Chat] Summary recall failed (non-blocking):', e);
+    }
+    
+    // 7.0.1) Memory Recall (Day 4) - Build query from last ~10 turns
     let memoryContext = '';
     let memoryHitTopScore: number | null = null;
     let memoryHitCount = 0;
@@ -1819,6 +1913,7 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
 
     // 8. BUILD SYSTEM PROMPT
     let systemPrompt = route.systemPrompt +
+       (summaryContext ? summaryContext : '') +
        (memoryContext ? memoryContext : '') +
        "\n\nIMPORTANT: Never reveal PII, credit cards, SSNs, or passwords. " +
        "Do not provide instructions for illegal activities. " +
@@ -2048,15 +2143,28 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
           } catch (extractErr) {
             console.warn('[Chat] Memory extraction failed (non-blocking):', extractErr);
           }
+          
+          // Day 5: Generate summary if thresholds met
+          await generateSummaryIfNeeded(synthesisText);
         } catch (e) {
           console.warn('[chat-v3] Failed to persist synthesis message:', e);
         }
 
-        // Day 4: Add memory headers
+        // Day 5: Generate summary if thresholds met (async, non-blocking)
+        let summaryWrittenSynthesis = false;
+        try {
+          summaryWrittenSynthesis = await generateSummaryIfNeeded(synthesisText);
+        } catch (e) {
+          console.warn('[Chat] Summary generation failed (non-blocking):', e);
+        }
+        
+        // Day 4: Add memory headers + Day 5: Add summary headers
         const synthesisHeaders = {
           ...BASE_HEADERS,
           'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
-          'X-Memory-Count': String(memoryHitCount)
+          'X-Memory-Count': String(memoryHitCount),
+          'X-Session-Summary': summaryPresent ? 'present' : 'absent',
+          'X-Session-Summarized': summaryWrittenSynthesis ? 'yes' : 'no'
         };
         
         return {
@@ -2123,15 +2231,28 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
           } catch (extractErr) {
             console.warn('[Chat] Memory extraction failed (non-blocking):', extractErr);
           }
+          
+          // Day 5: Generate summary if thresholds met
+          await generateSummaryIfNeeded(textContent);
         } catch (e) {
           console.warn('[chat-v3] Failed to persist assistant (JSON) message:', e);
         }
 
-        // Day 4: Add memory headers
+        // Day 5: Generate summary if thresholds met (async, non-blocking)
+        let summaryWrittenNoTool = false;
+        try {
+          summaryWrittenNoTool = await generateSummaryIfNeeded(textContent);
+        } catch (e) {
+          console.warn('[Chat] Summary generation failed (non-blocking):', e);
+        }
+        
+        // Day 4: Add memory headers + Day 5: Add summary headers
         const noToolHeaders = {
           ...BASE_HEADERS,
           'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
-          'X-Memory-Count': String(memoryHitCount)
+          'X-Memory-Count': String(memoryHitCount),
+          'X-Session-Summary': summaryPresent ? 'present' : 'absent',
+          'X-Session-Summarized': summaryWrittenNoTool ? 'yes' : 'no'
         };
         
         return {
@@ -2202,21 +2323,35 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
             }
           }
           
-          if (facts.length > 0) {
-            console.log(`[Chat] Extracted and stored ${facts.length} facts`);
+            if (facts.length > 0) {
+              console.log(`[Chat] Extracted and stored ${facts.length} facts`);
+            }
+          } catch (extractErr) {
+            console.warn('[Chat] Memory extraction failed (non-blocking):', extractErr);
           }
-        } catch (extractErr) {
-          console.warn('[Chat] Memory extraction failed (non-blocking):', extractErr);
+          
+          // Day 5: Generate summary if thresholds met
+          await generateSummaryIfNeeded(text);
+        } catch (e) {
+          console.warn('[chat-v3] Failed to persist assistant (JSON) message:', e);
         }
+      
+      // Day 5: Track summary written (already called above, but track flag for headers)
+      let summaryWritten = false;
+      try {
+        summaryWritten = await generateSummaryIfNeeded(text);
       } catch (e) {
-        console.warn('[chat-v3] Failed to persist assistant (JSON) message:', e);
+        // Already logged above, just track false
+        summaryWritten = false;
       }
       
-      // Day 4: Add memory headers
+      // Day 4: Add memory headers + Day 5: Add summary headers
       const responseHeaders = {
         ...BASE_HEADERS,
         'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
-        'X-Memory-Count': String(memoryHitCount)
+        'X-Memory-Count': String(memoryHitCount),
+        'X-Session-Summary': summaryPresent ? 'present' : 'absent',
+        'X-Session-Summarized': summaryWritten ? 'yes' : 'no'
       };
       
       return {
@@ -2409,13 +2544,16 @@ ${contextBlock?.trim() ? `### CONTEXT\n${contextBlock}\n` : ''}`
       });
     }
 
+    // Day 5: SSE headers (summary written happens async in flush, so we can't track it synchronously)
     const sseHeaders = {
       ...BASE_HEADERS,
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
       'X-Memory-Hit': memoryHitTopScore?.toFixed(2) ?? '0',
-      'X-Memory-Count': String(memoryHitCount)
+      'X-Memory-Count': String(memoryHitCount),
+      'X-Session-Summary': summaryPresent ? 'present' : 'absent',
+      'X-Session-Summarized': 'async' // Summary generation happens in flush callback after headers sent
     };
     
     // Pipe (preface + upstream) -> transform -> client
