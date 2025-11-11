@@ -124,3 +124,11 @@ Run SQL migration in Supabase SQL editor:
 - Transcript limited to last 20 turns (caps input size)
 - Summary prompt limited to 500 tokens (caps output size)
 
+
+
+
+
+
+
+
+

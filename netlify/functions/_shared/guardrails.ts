@@ -48,6 +48,12 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 // TYPES
 // ============================================================================
 
+/**
+ * Guardrail Presets:
+ * - balanced: Default moderation (warn + redact PII)
+ * - strict: Block immediately on violation (high security)
+ * - creative: Lighter filtering for ideation flows (allow more creative content)
+ */
 export type GuardrailPreset = 'strict' | 'balanced' | 'creative'
 
 export type GuardrailSignals = {

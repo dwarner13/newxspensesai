@@ -238,3 +238,11 @@ export function normalizeParsed(parsed: InvoiceData | ReceiptData | any): Parsed
   return { kind: 'invoice', data: parsed as InvoiceData };
 }
 
+
+
+
+
+
+
+
+

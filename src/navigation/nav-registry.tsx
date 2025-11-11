@@ -8,7 +8,7 @@ import {
 const NAV_ITEMS = [
   // MAIN
   { label: "Main Dashboard", to: "/dashboard", icon: <Home className="w-5 h-5" />, group: "MAIN", description: "Overview of your financial dashboard" },
-  { label: "👑 Prime Chat", to: "/chat/prime", icon: <Crown className="w-5 h-5" />, group: "MAIN", description: "Chat directly with Prime, your AI CEO" },
+  { label: "👑 Prime Chat", to: "/prime", icon: <Crown className="w-5 h-5" />, group: "MAIN", description: "Chat directly with Prime, your AI CEO" },
 
   // AI WORKSPACE
   { label: "Smart Import AI", to: "/dashboard/smart-import-ai", icon: <Upload className="w-5 h-5" />, group: "AI WORKSPACE", description: "Upload and process receipts with AI" },

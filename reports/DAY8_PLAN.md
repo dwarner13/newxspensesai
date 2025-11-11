@@ -162,3 +162,11 @@ Add an OCR pipeline (bytes → text → structured JSON), wire it to Byte routin
 7. ⚠️ Test locally
 8. ⚠️ Commit and push
 
+
+
+
+
+
+
+
+

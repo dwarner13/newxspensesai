@@ -91,8 +91,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       const supabase = getSupabase();
+      // In mock mode, supabase is null – short-circuit to demo user.
       if (!supabase) {
-        console.log('🔍 AuthContext: Supabase not available for auth listener');
+        setUser({ id: DEMO_USER_ID, email: "demo@xspensesai.local" });
+        setUserId(DEMO_USER_ID);
+        setIsDemoUser(true);
+        setLoading(false);
+        setInitialLoad(false);
+        setReady(true);
         return;
       }
       const { data } = supabase.auth.onAuthStateChange(
@@ -161,7 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       console.log('🔍 AuthContext: Cleaning up auth context...');
       if (subscription) {
-        subscription.unsubscribe();
+        subscription?.unsubscribe?.();
       }
     };
   }, [navigate]);

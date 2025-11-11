@@ -185,3 +185,11 @@ npm run test:unit netlify/functions/_shared/__tests__/prime_router.test.ts
 - [ ] Manual test: Prime fallback works (requires dev server)
 - [x] No crash; memory, summaries, and guardrails unaffected (verified by code review)
 
+
+
+
+
+
+
+
+

@@ -206,3 +206,11 @@ pnpm test netlify/functions/_shared/__tests__/session_summaries.test.ts
 - [ ] Manual test: thresholds trigger correctly (requires dev server)
 - [x] No crash; memory and guardrails unaffected (verified by code review)
 
+
+
+
+
+
+
+
+

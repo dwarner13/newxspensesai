@@ -148,3 +148,11 @@ Turn OCR ParsedDoc → normalized Transaction(s) rows with auto-categorization (
 8. ⚠️ Test locally
 9. ⚠️ Commit and push
 
+
+
+
+
+
+
+
+

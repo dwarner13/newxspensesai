@@ -133,6 +133,35 @@ XspensesAI is the world's first **FinTech Entertainment Platform** that transfor
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:5000
 
+## 🔑 **Local OpenAI Setup**
+
+1. **Create `.env` in repo root:**
+   ```bash
+   OPENAI_API_KEY=sk-...your-key...
+   OPENAI_CHAT_MODEL=gpt-4o-mini
+   ```
+
+2. **Run:**
+   ```bash
+   # Terminal A (backend)
+   pnpm --package=netlify-cli dlx netlify dev --port 8888
+   
+   # Terminal B (frontend)
+   pnpm vite --force --port 5173
+   ```
+
+3. **Health check:**
+   ```
+   http://localhost:8888/.netlify/functions/diag  → { ok: true, openai: "configured" }
+   ```
+
+4. **Prime test:**
+   - Open http://localhost:5173/prime
+   - Say: "My weekly GFS is $1600. Remember."
+   - Then: "What's my weekly GFS?"
+
+**Security**: Never use `VITE_OPENAI_API_KEY`; key must stay server-side.
+
 ## 🎮 **Demo Features**
 
 ### **Smart Import AI**

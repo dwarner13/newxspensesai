@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useHeadersDebug } from './useHeadersDebug';
+import { useEventTap } from './useEventTap';
 
 type ChatRole = 'user' | 'assistant' | 'system';
 
@@ -34,7 +36,14 @@ export interface ChatHeaders {
   streamChunkCount?: string;
 }
 
-export function usePrimeChat(userId: string, sessionId?: string) {
+// Grade 4 explanation: This type lists all the employees you can chat with
+type EmployeeOverride = 'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian';
+
+export function usePrimeChat(
+  userId: string, 
+  sessionId?: string,
+  employeeOverride?: EmployeeOverride
+) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -45,6 +54,10 @@ export function usePrimeChat(userId: string, sessionId?: string) {
   const bufferRef = useRef<string>('');
 
   const endpoint = useMemo(() => '/.netlify/functions/chat', []);
+
+  // Dev tools hooks (optional - will be no-ops if DevToolsProvider not mounted)
+  const headersDebug = useHeadersDebug();
+  const eventTap = useEventTap();
 
   const resetStream = useCallback(() => {
     abortRef.current?.abort();
@@ -109,14 +122,42 @@ export function usePrimeChat(userId: string, sessionId?: string) {
 
     const attemptStream = async (isRetry = false): Promise<void> => {
       try {
+        // Grade 4 explanation: We map the employee name (like "prime") to the slug format the server needs (like "prime-boss")
+        const employeeSlugMap: Record<EmployeeOverride, string> = {
+          prime: 'prime-boss',
+          tag: 'tag-categorizer',
+          byte: 'byte-docs',
+          crystal: 'crystal-analytics',
+          goalie: 'goalie-agent',
+          automa: 'automa-automation',
+          blitz: 'blitz-debt',
+          liberty: 'liberty-freedom',
+          chime: 'chime-bills',
+          roundtable: 'roundtable-podcast',
+          serenity: 'serenity-therapist',
+          harmony: 'harmony-wellness',
+          wave: 'wave-spotify',
+          ledger: 'ledger-tax',
+          intelia: 'intelia-bi',
+          dash: 'dash-analytics',
+          custodian: 'custodian-settings'
+        };
+        
+        const employeeSlug = employeeOverride 
+          ? employeeSlugMap[employeeOverride] || 'prime-boss'
+          : 'prime-boss';
+
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(employeeOverride ? { 'X-Employee-Override': employeeOverride } : {})
+          },
           body: JSON.stringify({
             userId,
             sessionId,
             message: content,
-            employeeSlug: 'prime-boss',
+            employeeSlug,
             attachments: filesToSend.length ? filesToSend : undefined,
           }),
           signal: controller.signal,
@@ -146,6 +187,11 @@ export function usePrimeChat(userId: string, sessionId?: string) {
           streamChunkCount: res.headers.get('X-Stream-Chunk-Count') || undefined,
         };
         setHeaders(extractedHeaders);
+
+        // Report headers to dev tools
+        if (headersDebug) {
+          headersDebug(res.headers);
+        }
 
         if (!res.body) {
           setIsStreaming(false);
@@ -188,9 +234,20 @@ export function usePrimeChat(userId: string, sessionId?: string) {
                   if (frag) {
                     aiText += frag;
                     setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: aiText } : m));
+                    
+                    // Report chunk to dev tools
+                    if (eventTap) {
+                      eventTap({ textChunk: frag });
+                    }
                   }
                 } catch {
                   // Non-OpenAI format: skip (don't accumulate raw)
+                }
+              } else if (line.startsWith(': chunk-count: ')) {
+                // Handle chunk count comment
+                const countText = line.slice(15).trim();
+                if (eventTap) {
+                  eventTap({ event: 'chunk-count', data: countText });
                 }
               }
             }
@@ -216,10 +273,21 @@ export function usePrimeChat(userId: string, sessionId?: string) {
                   if (frag) {
                     aiText += frag;
                     setMessages(prev => prev.map(m => m.id === aiId ? { ...m, content: aiText } : m));
+                    
+                    // Report chunk to dev tools
+                    if (eventTap) {
+                      eventTap({ textChunk: frag });
+                    }
                   }
                 } catch {
                   // Ignore parse errors
                 }
+              }
+            } else if (line.startsWith(': chunk-count: ')) {
+              // Handle chunk count comment
+              const countText = line.slice(15).trim();
+              if (eventTap) {
+                eventTap({ event: 'chunk-count', data: countText });
               }
             }
           }
@@ -257,7 +325,7 @@ export function usePrimeChat(userId: string, sessionId?: string) {
     setInput,
     isStreaming,
     uploads,
-    headers, // Day 7: Expose headers in hook state
+    headers, // Grade 4: Expose headers so components can show them (like X-Employee, X-Memory-Hit)
     addUploadFiles,
     removeUpload,
     send,

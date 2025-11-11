@@ -124,3 +124,11 @@ Run SQL migration in Supabase SQL editor:
 - Logging is non-blocking (doesn't affect response time)
 - PII masking happens before any LLM calls
 
+
+
+
+
+
+
+
+

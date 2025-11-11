@@ -354,3 +354,238 @@ export async function linkToDocument(txId: number, docId: string): Promise<void>
   // For now, it's a no-op (link is stored in transaction.doc_id)
 }
 
+/**
+ * Normalize bank statement text into transaction array
+ * 
+ * Parses raw OCR text from bank statements and extracts transactions.
+ * Returns array of transactions with: date, merchant, description, amount, category, raw_line_text
+ */
+export function normalizeBankStatement(rawText: string): Array<{
+  date?: string;
+  merchant?: string;
+  description?: string;
+  amount: number;
+  category?: string;
+  raw_line_text?: string;
+}> {
+  const transactions: Array<{
+    date?: string;
+    merchant?: string;
+    description?: string;
+    amount: number;
+    category?: string;
+    raw_line_text?: string;
+  }> = [];
+  
+  const lines = rawText.split('\n').map(line => line.trim()).filter(line => line.length > 5);
+  
+  // Common bank statement patterns
+  const patterns = [
+    // Pattern 1: Date Description Amount (most common)
+    // e.g., "01/15/2024 WALMART #1234 $45.67"
+    {
+      regex: /^(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})\s+(.+?)\s+([\$\+\-]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)$/,
+      groups: { date: 1, description: 2, amount: 3 }
+    },
+    // Pattern 2: Date Amount Description
+    // e.g., "01/15/2024 $45.67 WALMART #1234"
+    {
+      regex: /^(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})\s+([\$\+\-]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s+(.+)$/,
+      groups: { date: 1, amount: 2, description: 3 }
+    },
+    // Pattern 3: Description Date Amount
+    {
+      regex: /^(.+?)\s+(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})\s+([\$\+\-]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)$/,
+      groups: { description: 1, date: 2, amount: 3 }
+    },
+    // Pattern 4: Credit card format: Date Description Amount
+    // e.g., "01/15 WALMART #1234 $45.67"
+    {
+      regex: /^(\d{2}[\/\-\.]\d{2})\s+(.+?)\s+([\$\+\-]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)$/,
+      groups: { date: 1, description: 2, amount: 3 }
+    },
+    // Pattern 5: Bank statement format with posting date
+    // e.g., "01/15/24 01/16/24 WALMART #1234 $45.67"
+    {
+      regex: /^(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2})\s+\d{2}[\/\-\.]\d{2}[\/\-\.]\d{2}\s+(.+?)\s+([\$\+\-]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)$/,
+      groups: { date: 1, description: 2, amount: 3 }
+    }
+  ];
+  
+  for (const line of lines) {
+    // Skip summary lines
+    if (isSummaryLine(line)) continue;
+    
+    let match: RegExpMatchArray | null = null;
+    let patternUsed: typeof patterns[0] | null = null;
+    
+    // Try each pattern
+    for (const pattern of patterns) {
+      match = line.match(pattern.regex);
+      if (match) {
+        patternUsed = pattern;
+        break;
+      }
+    }
+    
+    if (match && patternUsed) {
+      const date = match[patternUsed.groups.date];
+      const description = match[patternUsed.groups.description];
+      const amountStr = match[patternUsed.groups.amount];
+      
+      // Parse amount
+      const amount = parseAmount(amountStr);
+      
+      if (amount !== null && amount !== 0) {
+        const cleanDescription = cleanDescription(description);
+        const merchant = extractMerchant(cleanDescription);
+        
+        if (cleanDescription.length > 0) {
+          transactions.push({
+            date: normalizeDate(date),
+            merchant,
+            description: cleanDescription,
+            amount: Math.abs(amount), // Always positive for expenses
+            category: categorizeTransaction(cleanDescription),
+            raw_line_text: line
+          });
+        }
+      }
+    }
+  }
+  
+  // Remove duplicates and sort by date
+  const uniqueTransactions = removeDuplicates(transactions);
+  return uniqueTransactions.sort((a, b) => {
+    const dateA = a.date ? new Date(a.date).getTime() : 0;
+    const dateB = b.date ? new Date(b.date).getTime() : 0;
+    return dateA - dateB;
+  });
+}
+
+/**
+ * Check if line is a summary line (should be skipped)
+ */
+function isSummaryLine(line: string): boolean {
+  const summaryKeywords = [
+    'total', 'balance', 'summary', 'statement', 'account',
+    'previous', 'new balance', 'available credit', 'minimum payment',
+    'interest', 'fees', 'credits', 'debits'
+  ];
+  
+  const lower = line.toLowerCase();
+  return summaryKeywords.some(keyword => lower.includes(keyword));
+}
+
+/**
+ * Parse amount string to number
+ */
+function parseAmount(amountStr: string): number | null {
+  try {
+    // Remove currency symbols and commas
+    const cleaned = amountStr.replace(/[\$,\s]/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? null : parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Clean description text
+ */
+function cleanDescription(description: string): string {
+  return description
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 200); // Limit length
+}
+
+/**
+ * Extract merchant name from description
+ */
+function extractMerchant(description: string): string {
+  // Remove common suffixes
+  const cleaned = description
+    .replace(/\s+(INC|LLC|CORP|LTD|CO)\.?$/i, '')
+    .replace(/\s+#\d+.*$/, '') // Remove transaction IDs
+    .trim();
+  
+  // Take first part (usually merchant name)
+  const parts = cleaned.split(/\s+/);
+  if (parts.length > 0) {
+    return parts[0].substring(0, 100);
+  }
+  
+  return cleaned.substring(0, 100);
+}
+
+/**
+ * Simple categorization based on description keywords
+ */
+function categorizeTransaction(description: string): string {
+  const lower = description.toLowerCase();
+  
+  // Groceries
+  const groceryKeywords = ['walmart', 'target', 'safeway', 'kroger', 'whole foods', 'costco', 'superstore', 'grocery'];
+  if (groceryKeywords.some(kw => lower.includes(kw))) {
+    return 'Groceries';
+  }
+  
+  // Fuel/Gas
+  const fuelKeywords = ['shell', 'esso', 'chevron', 'bp', 'exxon', 'petro', 'gas station', 'petrol'];
+  if (fuelKeywords.some(kw => lower.includes(kw))) {
+    return 'Transportation';
+  }
+  
+  // Restaurants
+  const restaurantKeywords = ['restaurant', 'cafe', 'pizza', 'diner', 'bistro', 'starbucks', 'mcdonalds', 'subway'];
+  if (restaurantKeywords.some(kw => lower.includes(kw))) {
+    return 'Dining';
+  }
+  
+  // Utilities
+  const utilityKeywords = ['hydro', 'electric', 'gas company', 'water', 'internet', 'phone', 'cable', 'utility'];
+  if (utilityKeywords.some(kw => lower.includes(kw))) {
+    return 'Utilities';
+  }
+  
+  return 'Uncategorized';
+}
+
+/**
+ * Remove duplicate transactions
+ */
+function removeDuplicates(
+  transactions: Array<{
+    date?: string;
+    merchant?: string;
+    description?: string;
+    amount: number;
+    category?: string;
+    raw_line_text?: string;
+  }>
+): typeof transactions {
+  const seen = new Set<string>();
+  const unique: typeof transactions = [];
+  
+  for (const tx of transactions) {
+    // Create a key from date, merchant, and amount
+    const key = `${tx.date || ''}|${tx.merchant || ''}|${tx.amount}`;
+    
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(tx);
+    }
+  }
+  
+  return unique;
+}
+
+
+
+
+
+
+
+

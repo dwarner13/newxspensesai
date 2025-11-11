@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "netlify dev --port 8888",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
@@ -19,7 +19,9 @@
     "sync:tag": "ts-node scripts/sync-employee-prompt.ts tag-categorizer ./docs/TAG_PERSONA.md",
     "sync:ledger": "ts-node scripts/sync-employee-prompt.ts ledger-tax ./docs/LEDGER_PERSONA.md",
     "sync:goalie": "ts-node scripts/sync-employee-prompt.ts goalie-agent ./docs/GOALIE_PERSONA.md",
-    "sync:all": "npm run sync:crystal && npm run sync:prime && npm run sync:byte && npm run sync:tag && npm run sync:ledger && npm run sync:goalie && echo '✅ All employees synced!'"
+    "sync:all": "npm run sync:crystal && npm run sync:prime && npm run sync:byte && npm run sync:tag && npm run sync:ledger && npm run sync:goalie && echo '✅ All employees synced!'",
+    "memcap": "tsx scripts/memory_cap_scan.ts",
+    "memcap:live": "tsx scripts/memory_cap_scan.ts --live"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.2",
@@ -98,6 +100,7 @@
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
     "jsdom": "^24.0.0",
+    "netlify-cli": "^23.10.0",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.7.0",

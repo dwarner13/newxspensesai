@@ -31,6 +31,9 @@ import * as sums from "./_shared/session_summaries";
 import { routeTurn } from "./_shared/prime_router";
 import { rememberCategory } from "./_shared/ocr_memory";
 import { awardXP, XP_AWARDS } from "./_shared/xp";
+import { buildResponseHeaders } from "./_shared/headers";
+import { runTool } from "./_shared/tool_router";
+import { getOpenAIClient, getChatModel } from "./_shared/openai_client";
 
 // ============================================================================
 // IMPORTS
@@ -776,12 +779,17 @@ function buildOpenAIMessages(systemPreamble: string, userText: string) {
   ];
 }
 
-async function openAIStreamRequest(messages: any[], model = (process.env.OPENAI_MODEL ?? 'gpt-4o-mini')) {
+async function openAIStreamRequest(messages: any[], modelOverride?: string) {
+  const model = modelOverride || getChatModel();
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY missing (server env).");
+  }
   const res = await fetch(OPENAI_URL, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
+      authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
@@ -1413,8 +1421,7 @@ async function dbFetchContext(params: {
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY!;
-const MODEL = process.env.OPENAI_CHAT_MODEL || "gpt-4o-mini";
+// OpenAI client and model now use centralized factory (see _shared/openai_client.ts)
 const CHAT_BACKEND_VERSION = process.env.CHAT_BACKEND_VERSION || "v2";
 
 // Rate limit: 20 requests per minute per user
@@ -1525,7 +1532,31 @@ export default async (req: Request) => {
     // 3. INITIALIZE CLIENTS
     // ========================================================================
     const sb = createSupabaseClient();
-    const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+    let openai: OpenAI;
+    let model: string;
+    try {
+      openai = getOpenAIClient();
+      model = getChatModel();
+    } catch (err: any) {
+      const message = (err?.message || "").toLowerCase();
+      const missingKey = message.includes("openai_api_key missing");
+      const body = { ok: false, error: missingKey ? "Server misconfigured: OPENAI_API_KEY not set." : "Internal error." };
+      const headers = buildResponseHeaders({
+        guardrailsActive: true,
+        piiMaskEnabled: true,
+        memoryHitTopScore: 0,
+        memoryHitCount: 0,
+        summaryPresent: false,
+        summaryWritten: false,
+        employee: employeeSlug?.split('-')[0] || "prime",
+        routeConfidence: 0,
+        streamChunkCount: 0,
+      });
+      return new Response(JSON.stringify(body), { 
+        status: 500, 
+        headers: { "Content-Type": "application/json", ...headers }
+      });
+    }
     
     // Helper: Fetch employee persona from database
     async function getEmployeePersonaFromDB(slug: string): Promise<{system_prompt: string | null, tools_allowed: string[] | null}> {
@@ -1667,11 +1698,15 @@ ${baseContext}`;
           // Build prompt and call LLM
           const prompt = sums.buildSummaryPrompt(transcriptChunk, factStrings);
           
+          const summaryApiKey = process.env.OPENAI_API_KEY;
+          if (!summaryApiKey) {
+            throw new Error("OPENAI_API_KEY missing (server env).");
+          }
           const summaryResponse = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
               'content-type': 'application/json',
-              authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
+              authorization: `Bearer ${summaryApiKey}`,
             },
             body: JSON.stringify({
               model: 'gpt-4o-mini',
@@ -1708,7 +1743,8 @@ ${baseContext}`;
     // 5.1) PII Masking (using shared module)
     const originalUserText = String(message || '');
     const maskResult = maskPII(originalUserText, 'last4');
-    const masked = maskResult.masked;
+    // Using mutable object wrapper to avoid esbuild const inference issues
+    const maskedState = { value: maskResult.masked };
     const found = maskResult.found;
     
     // Normalize found array format for logging
@@ -1716,7 +1752,7 @@ ${baseContext}`;
     
     console.log(`[Chat] PII masked: ${found.length > 0}`, {
       original: originalUserText.slice(0, 40),
-      masked: masked.slice(0, 40),
+      masked: maskedState.value.slice(0, 40),
       piiCount: found.length
     });
 
@@ -1746,7 +1782,7 @@ ${baseContext}`;
 
     // 5.2) Guardrails (using compatibility adapter)
     const gr = await runGuardrailsCompat({
-      text: masked,
+      text: maskedState.value,
       userId,
       stage: 'chat'
     });
@@ -1774,7 +1810,7 @@ ${baseContext}`;
     try {
       const mod = await openai.moderations.create({
         model: "omni-moderation-latest",
-        input: masked
+        input: maskedState.value
       });
 
       const result = mod?.results?.[0];
@@ -1788,7 +1824,7 @@ ${baseContext}`;
           action: "blocked",
           severity: 3,
           content_hash: crypto.createHash("sha256")
-            .update(masked.slice(0, 256))
+            .update(maskedState.value.slice(0, 256))
             .digest("hex")
             .slice(0, 24),
           meta: { 
@@ -1838,7 +1874,7 @@ ${baseContext}`;
       userId,
       sessionId,
       role: "user",
-      content_redacted: masked,
+      content_redacted: maskedState.value,
       employeeKey: 'user'
     });
 
@@ -1866,7 +1902,7 @@ ${baseContext}`;
     let memoryHitCount = 0;
     try {
       // Fetch last ~10 user+assistant turns for recall query
-      let recallQuery = masked; // Fallback to current message
+      let recallQuery = maskedState.value; // Fallback to current message
       try {
         const { data: recentMsgs } = await supabaseSrv
           .from('chat_messages')
@@ -1904,7 +1940,7 @@ ${baseContext}`;
     }
     
     // 7.1) Fetch comprehensive context (Prime gets more than specialists)
-    const { contextBlock } = await dbFetchContext({ userId, sessionId, redactedUserText: masked, employeeSlug: employeeSlug });
+    const { contextBlock } = await dbFetchContext({ userId, sessionId, redactedUserText: maskedState.value, employeeSlug: employeeSlug });
     
     // 7.2) Employee Routing (Day 6) - Route turn to appropriate employee
     let routingResult = { employee: 'prime' as const, reason: 'Default', confidence: 0.5 };
@@ -1926,7 +1962,7 @@ ${baseContext}`;
       // Use router to determine employee
       try {
         routingResult = await routeTurn({
-          text: masked,
+          text: maskedState.value,
           convoMeta: { sessionId },
           userId
         });
@@ -2039,10 +2075,189 @@ ${baseContext}`;
     const modelMessages = [
       { role: "system" as const, content: systemPrompt },
       ...conversationHistory,  // Prime gets history, specialists don't
-      { role: "user" as const, content: masked }
+      { role: "user" as const, content: maskedState.value }
     ];
 
     console.log(`[Chat] Total messages: ${modelMessages.length}`);
+
+    // Day 16: Prime CSV Orchestration - Detect CSV text and run superbrain pipeline
+    let csvOrchestrationHeaders: Record<string, string> = {};
+    let csvOrchestrationResult: any = null;
+    
+    if (employeeKey === 'prime-boss' && maskedState.value) {
+      // Detect CSV-like content (looks like bank statement: Date,Description,Amount header + data rows)
+      // Also detect if user explicitly asks to analyze transactions
+      const csvPattern = /Date,Description,Amount/i;
+      const analyzePattern = /(analyze|process|parse)(\s+these|\s+my|\s+the)?\s+(transactions|rows|data|csv)/i;
+      const looksLikeCSV = csvPattern.test(maskedState.value) && maskedState.value.split('\n').length > 2;
+      const asksToAnalyze = analyzePattern.test(maskedState.value) && (csvPattern.test(maskedState.value) || maskedState.value.includes(',') || maskedState.value.includes('amount'));
+      
+      if (looksLikeCSV || asksToAnalyze) {
+        console.log('[Chat] Prime detected CSV-like content or analyze request, running orchestration...');
+        try {
+          // Step 1: Parse bank statement
+          const parseResult = await runTool('prime', 'bank_parse', maskedState.value);
+          
+          if (parseResult.rows && parseResult.rows.length > 0) {
+            csvOrchestrationHeaders['X-Row-Count'] = String(parseResult.rows.length);
+            csvOrchestrationHeaders['X-Unique-Rows'] = String(parseResult.uniqueCount || parseResult.rows.length);
+            
+            // Step 2: Categorize transactions
+            const categorizeResult = await runTool('prime', 'categorize', { rows: parseResult.rows });
+            
+            // Step 3: Find anomalies
+            const anomalyResult = await runTool('prime', 'anomaly_detect', { rows: categorizeResult.rows });
+            
+            // Step 4: Generate story + therapist tips
+            const storyResult = await runTool('prime', 'story', {
+              totalsByCategory: anomalyResult.totalsByCategory,
+              topVendors: anomalyResult.topVendors
+            });
+            
+            const therapistResult = await runTool('prime', 'therapist', {});
+            
+            // Combine results for response (structured format)
+            csvOrchestrationResult = {
+              parsed: {
+                rows: parseResult.rows,
+                uniqueCount: parseResult.uniqueCount || parseResult.rows.length
+              },
+              categorized: {
+                rows: categorizeResult.rows.map((r: any, idx: number) => ({
+                  id: idx + 1,
+                  date: r.date,
+                  vendor: r.vendor || r.description,
+                  amount: r.amount,
+                  category: r.category,
+                  confidence: r.confidence
+                })),
+                needsReview: categorizeResult.needsReview || false
+              },
+              analysis: {
+                spikes: anomalyResult.spikes,
+                topVendors: anomalyResult.topVendors,
+                totalsByCategory: anomalyResult.totalsByCategory
+              },
+              story: storyResult,
+              therapist: therapistResult
+            };
+            
+            csvOrchestrationHeaders['X-Analysis'] = 'present';
+            csvOrchestrationHeaders['X-Categorizer'] = 'tag';
+            
+            // Enhance masked text with results for LLM context
+            const analysisSummary = `\n\n[Analysis Complete]\nRows: ${parseResult.rows.length} | Unique: ${parseResult.uniqueCount}\nStory: ${storyResult}\nTips: ${therapistResult.substring(0, 100)}...`;
+            maskedState.value += analysisSummary;
+            
+            console.log(`[Chat] Prime orchestration complete: ${parseResult.rows.length} rows processed`);
+          }
+        } catch (orchestrationErr: any) {
+          console.warn('[Chat] Prime CSV orchestration failed (non-blocking):', orchestrationErr);
+        }
+      }
+    }
+    
+    // Day 16: Tag JSON Pathway - If user sends JSON rows, categorize directly
+    let tagCategorizationHeaders: Record<string, string> = {};
+    let tagCategorizationResult: any = null;
+    
+    if (employeeKey === 'tag-categorizer' && maskedState.value) {
+      // Detect JSON array of transaction rows
+      try {
+        const jsonMatch = maskedState.value.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const parsedJson = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsedJson) && parsedJson.length > 0 && typeof parsedJson[0] === 'object') {
+            // Looks like transaction rows
+            const hasTransactionFields = parsedJson[0].hasOwnProperty('date') || 
+                                       parsedJson[0].hasOwnProperty('description') || 
+                                       parsedJson[0].hasOwnProperty('amount');
+            
+            if (hasTransactionFields) {
+              console.log('[Chat] Tag detected JSON transaction rows, running categorization...');
+              try {
+                const categorizeResult = await runTool('tag', 'categorize', { rows: parsedJson });
+                
+                tagCategorizationResult = {
+                  rows: categorizeResult.rows.map((r: any, idx: number) => ({
+                    id: idx + 1,
+                    date: r.date,
+                    vendor: r.vendor || r.description,
+                    amount: r.amount,
+                    category: r.category,
+                    subcategory: r.subcategory,
+                    confidence: r.confidence
+                  })),
+                  needsReview: categorizeResult.needsReview || false
+                };
+                
+                tagCategorizationHeaders['X-Categorizer'] = 'tag';
+                tagCategorizationHeaders['X-Row-Count'] = String(categorizeResult.rows.length);
+                
+                // Format strict JSON response for Tag
+                const jsonResponse = JSON.stringify(tagCategorizationResult.rows, null, 2);
+                
+                // Override masked to include categorized JSON (for LLM context if needed)
+                maskedState.value += `\n\n[Categorized JSON]\n${jsonResponse}`;
+                
+                console.log(`[Chat] Tag categorization complete: ${categorizeResult.rows.length} rows`);
+              } catch (tagErr: any) {
+                console.warn('[Chat] Tag categorization failed (non-blocking):', tagErr);
+              }
+            }
+          }
+        }
+      } catch (jsonErr) {
+        // Not JSON or invalid - ignore
+      }
+    }
+    
+    // Day 16: Crystal Anomaly Pathway - If user asks for spikes/top vendors/seasonality
+    let crystalAnomalyHeaders: Record<string, string> = {};
+    let crystalAnomalyResult: any = null;
+    
+    if (employeeKey === 'crystal-analytics' && maskedState.value) {
+      const anomalyKeywords = /(spike|anomaly|top vendor|seasonal|trend|outlier)/i;
+      const asksForAnomalies = anomalyKeywords.test(maskedState.value);
+      
+      if (asksForAnomalies) {
+        console.log('[Chat] Crystal detected anomaly analysis request...');
+        // Try to extract rows from message or use memory
+        // For now, if user provides rows, use them; otherwise Crystal can ask for data
+        try {
+          // Check if message contains transaction rows (JSON or CSV-like)
+          const jsonMatch = maskedState.value.match(/\[[\s\S]*\]/);
+          const csvPattern = /Date,Description,Amount/i;
+          
+          if (jsonMatch) {
+            const parsedJson = JSON.parse(jsonMatch[0]);
+            if (Array.isArray(parsedJson) && parsedJson.length > 0) {
+              const anomalyResult = await runTool('crystal', 'anomaly_detect', { rows: parsedJson });
+              crystalAnomalyResult = anomalyResult;
+              crystalAnomalyHeaders['X-Analysis'] = 'present';
+            }
+          } else if (csvPattern.test(maskedState.value)) {
+            // Parse CSV first, then detect anomalies
+            const parseResult = await runTool('crystal', 'bank_parse', maskedState.value);
+            if (parseResult.rows && parseResult.rows.length > 0) {
+              const categorizeResult = await runTool('crystal', 'categorize', { rows: parseResult.rows }).catch(() => ({ rows: parseResult.rows }));
+              const anomalyResult = await runTool('crystal', 'anomaly_detect', { rows: categorizeResult.rows });
+              crystalAnomalyResult = anomalyResult;
+              crystalAnomalyHeaders['X-Analysis'] = 'present';
+              crystalAnomalyHeaders['X-Row-Count'] = String(parseResult.rows.length);
+            }
+          }
+          
+          if (crystalAnomalyResult) {
+            const anomalySummary = `\n\n[Anomaly Analysis]\nSpikes: ${crystalAnomalyResult.spikes?.length || 0}\nTop Vendors: ${crystalAnomalyResult.topVendors?.length || 0}\nCategories: ${Object.keys(crystalAnomalyResult.totalsByCategory || {}).length}`;
+            maskedState.value += anomalySummary;
+            console.log('[Chat] Crystal anomaly analysis complete');
+          }
+        } catch (crystalErr: any) {
+          console.warn('[Chat] Crystal anomaly detection failed (non-blocking):', crystalErr);
+        }
+      }
+    }
 
     // 9.1 Tools for Crystal (optional enablement)
     let crystalTools: any[] | undefined = undefined;
@@ -2117,10 +2332,10 @@ ${baseContext}`;
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
+          authorization: `Bearer ${process.env.OPENAI_API_KEY || ''}`,
         },
         body: JSON.stringify({
-          model: MODEL,
+          model: model,
           messages: modelMessages,
           temperature: 0.3,
           tools: toolsForThisEmployee,
@@ -2137,7 +2352,8 @@ ${baseContext}`;
 
       if (toolCalls.length > 0 && finishReason === 'tool_calls') {
         // Step 2: Execute tool calls (delegate for Prime, ocr_file for Byte)
-        const toolResults: Array<{id: string, result: string}> = [];
+        const toolResults: Array<{id: string, result: string, ocrHeaders?: Record<string, string>}> = [];
+        let mergedOcrHeaders: Record<string, string> = {}; // Day 15½: Collect OCR headers
 
         for (const call of toolCalls) {
           if (call.function?.name === 'delegate') {
@@ -2193,6 +2409,14 @@ ${baseContext}`;
               
               const ocrData = await ocrResponse.json();
               
+              // Day 15½: Capture OCR response headers
+              const ocrHeaders: Record<string, string> = {};
+              ocrResponse.headers.forEach((value, key) => {
+                if (key.startsWith('X-')) {
+                  ocrHeaders[key] = value;
+                }
+              });
+              
               // Day 9: Format OCR result with transaction summary
               let ocrMessage = `OCR completed for ${ocrUrl}.\n\n`;
               
@@ -2221,7 +2445,7 @@ ${baseContext}`;
               const savedCount = ocrData.meta?.saved_count || 0;
               if (savedCount > 0) {
                 ocrMessage += `\n✅ Saved ${savedCount} transaction(s) to your account.`;
-                const categorizer = ocrResponse.headers.get('X-Categorizer');
+                const categorizer = ocrHeaders['X-Categorizer'] || ocrResponse.headers.get('X-Categorizer');
                 if (categorizer) {
                   ocrMessage += ` Categorized using ${categorizer === 'rules' ? 'rules' : 'AI'}.`;
                 }
@@ -2231,9 +2455,13 @@ ${baseContext}`;
                 ocrMessage += `\n\nWarnings: ${ocrData.warnings.join(', ')}`;
               }
               
+              // Day 15½: Store OCR headers for merging
+              mergedOcrHeaders = { ...mergedOcrHeaders, ...ocrHeaders };
+              
               toolResults.push({
                 id: call.id,
-                result: JSON.stringify({ success: true, message: ocrMessage, ocrData })
+                result: JSON.stringify({ success: true, message: ocrMessage, ocrData }),
+                ocrHeaders
               });
             } catch (ocrErr: any) {
               console.error('[Chat] OCR tool error:', ocrErr);
@@ -2265,7 +2493,7 @@ ${baseContext}`;
             authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
           },
           body: JSON.stringify({
-            model: MODEL,
+            model: model,
             messages: followUpMessages,
             temperature: 0.3
           }),
@@ -2291,7 +2519,7 @@ ${baseContext}`;
           // Day 4: Extract and store facts from conversation
           try {
             const msgs = [
-              { role: 'user', content: masked },
+              { role: 'user', content: maskedState.value },
               { role: 'assistant', content: synthesisText }
             ];
             const facts = memory.extractFactsFromMessages(msgs);
@@ -2338,7 +2566,8 @@ ${baseContext}`;
         }
         
         // Day 7: Use centralized header builder
-        const synthesisHeaders = buildResponseHeaders({
+        // Day 15½: Merge OCR headers if present
+        const baseHeaders = buildResponseHeaders({
           guardrailsActive: true,
           piiMaskEnabled: true,
           memoryHitTopScore,
@@ -2346,21 +2575,56 @@ ${baseContext}`;
           summaryPresent,
           summaryWritten: summaryWrittenSynthesis,
           employee: routingResult.employee,
-          routeConfidence: routingResult.confidence
+          routeConfidence: routingResult.confidence,
+          // Merge OCR-specific headers
+          ocrProvider: mergedOcrHeaders['X-OCR-Provider'],
+          ocrParse: mergedOcrHeaders['X-OCR-Parse'],
+          transactionsSaved: mergedOcrHeaders['X-Transactions-Saved'] ? parseInt(mergedOcrHeaders['X-Transactions-Saved']) : undefined,
+          categorizer: mergedOcrHeaders['X-Categorizer'] || csvOrchestrationHeaders['X-Categorizer'] || tagCategorizationHeaders['X-Categorizer'],
+          vendorMatched: mergedOcrHeaders['X-Vendor-Matched'] === 'yes',
+          xpAwarded: mergedOcrHeaders['X-XP-Awarded'] ? parseInt(mergedOcrHeaders['X-XP-Awarded']) : undefined,
+          // Day 16: Merge CSV orchestration headers + Tag/Crystal headers
+          rowCount: csvOrchestrationHeaders['X-Row-Count'] || tagCategorizationHeaders['X-Row-Count'] || crystalAnomalyHeaders['X-Row-Count']
+            ? parseInt(csvOrchestrationHeaders['X-Row-Count'] || tagCategorizationHeaders['X-Row-Count'] || crystalAnomalyHeaders['X-Row-Count']) : undefined,
+          uniqueRows: csvOrchestrationHeaders['X-Unique-Rows'] ? parseInt(csvOrchestrationHeaders['X-Unique-Rows']) : undefined,
+          analysis: csvOrchestrationHeaders['X-Analysis'] || crystalAnomalyHeaders['X-Analysis']
         });
+        // Day 15½: Add memory verification header
+        // Day 16: Merge CSV orchestration headers + Tag/Crystal headers
+        const synthesisHeaders = { 
+          ...baseHeaders, 
+          ...mergedOcrHeaders,
+          ...csvOrchestrationHeaders,
+          ...tagCategorizationHeaders,
+          ...crystalAnomalyHeaders,
+          'X-Memory-Verified': memoryHitCount > 0 ? 'true' : 'false'
+        };
+        
+        // Include orchestration results in response body if present
+        const responseBody: any = {
+          ok: true,
+          sessionId,
+          messageUid: userMessageUid,
+          reply: synthesisText,
+          employee: employeeKey,
+          hadToolCalls: true,
+          pendingTool: null
+        };
+        
+        if (csvOrchestrationResult) {
+          responseBody.orchestration = csvOrchestrationResult;
+        }
+        if (tagCategorizationResult) {
+          responseBody.categorized = tagCategorizationResult;
+        }
+        if (crystalAnomalyResult) {
+          responseBody.anomalies = crystalAnomalyResult;
+        }
         
         return {
           statusCode: 200,
           headers: synthesisHeaders,
-          body: JSON.stringify({
-            ok: true,
-            sessionId,
-            messageUid: userMessageUid,
-            reply: synthesisText,
-            employee: employeeKey,
-            hadToolCalls: true,
-            pendingTool: null
-          })
+          body: JSON.stringify(responseBody)
         };
       } else {
         // No tool calls - proceed with normal response
@@ -2382,7 +2646,7 @@ ${baseContext}`;
           // Day 4: Extract and store facts from conversation
           try {
             const msgs = [
-              { role: 'user', content: masked },
+              { role: 'user', content: maskedState.value },
               { role: 'assistant', content: textContent }
             ];
             const facts = memory.extractFactsFromMessages(msgs);
@@ -2418,11 +2682,11 @@ ${baseContext}`;
           await generateSummaryIfNeeded(textContent);
           
           // Day 10: Check for category corrections (Byte/Tag employees)
-          if ((employeeKey === 'byte-docs' || employeeKey === 'tag-categorizer') && masked) {
+          if ((employeeKey === 'byte-docs' || employeeKey === 'tag-categorizer') && maskedState.value) {
             try {
               // Pattern: "No, vendor X should be Category → Subcategory" or "Change X to Category"
               const correctionPattern = /(?:no|wrong|incorrect|change|update|correct).*?(?:vendor|merchant|store)\s+([^,]+?)(?:\s+should\s+be|\s+to)\s+([^→]+?)(?:\s*→\s*([^,]+?))?/i;
-              const match = masked.match(correctionPattern);
+              const match = maskedState.value.match(correctionPattern);
               
               if (match) {
                 const [, merchant, category, subcategory] = match;
@@ -2475,7 +2739,8 @@ ${baseContext}`;
         }
         
         // Day 7: Use centralized header builder
-        const noToolHeaders = buildResponseHeaders({
+        // Day 15½: Add memory verification header
+        const baseNoToolHeaders = buildResponseHeaders({
           guardrailsActive: true,
           piiMaskEnabled: true,
           memoryHitTopScore,
@@ -2485,18 +2750,38 @@ ${baseContext}`;
           employee: routingResult.employee,
           routeConfidence: routingResult.confidence
         });
+        // Day 16: Merge CSV orchestration headers + Tag/Crystal headers if present
+        const noToolHeaders = {
+          ...baseNoToolHeaders,
+          ...csvOrchestrationHeaders,
+          ...tagCategorizationHeaders,
+          ...crystalAnomalyHeaders,
+          'X-Memory-Verified': memoryHitCount > 0 ? 'true' : 'false'
+        };
+        
+        const noToolBody: any = {
+          ok: true,
+          sessionId,
+          messageUid: userMessageUid,
+          reply: textContent,
+          employee: employeeKey,
+          pendingTool: null
+        };
+        
+        if (csvOrchestrationResult) {
+          noToolBody.orchestration = csvOrchestrationResult;
+        }
+        if (tagCategorizationResult) {
+          noToolBody.categorized = tagCategorizationResult;
+        }
+        if (crystalAnomalyResult) {
+          noToolBody.anomalies = crystalAnomalyResult;
+        }
         
         return {
           statusCode: 200,
           headers: noToolHeaders,
-          body: JSON.stringify({
-            ok: true,
-            sessionId,
-            messageUid: userMessageUid,
-            reply: textContent,
-            employee: employeeKey,
-            pendingTool: null
-          })
+          body: JSON.stringify(noToolBody)
         };
       }
     } else if (noStream && employeeKey !== 'prime-boss') {
@@ -2508,7 +2793,7 @@ ${baseContext}`;
           authorization: `Bearer ${process.env.OPENAI_API_KEY!}`,
         },
         body: JSON.stringify({ 
-          model: MODEL, 
+          model: model, 
           messages: modelMessages, 
           temperature: 0.3 
         }),
@@ -2529,7 +2814,7 @@ ${baseContext}`;
         // Day 4: Extract and store facts from conversation
         try {
           const msgs = [
-            { role: 'user', content: masked },
+            { role: 'user', content: maskedState.value },
             { role: 'assistant', content: text }
           ];
           const facts = memory.extractFactsFromMessages(msgs);
@@ -2577,7 +2862,9 @@ ${baseContext}`;
       }
       
       // Day 7: Use centralized header builder
-      const responseHeaders = buildResponseHeaders({
+      // Day 15½: Add memory verification header
+      // Day 16: Merge CSV orchestration headers
+      const baseResponseHeaders = buildResponseHeaders({
         guardrailsActive: true,
         piiMaskEnabled: true,
         memoryHitTopScore,
@@ -2585,27 +2872,53 @@ ${baseContext}`;
         summaryPresent,
         summaryWritten,
         employee: routingResult.employee,
-        routeConfidence: routingResult.confidence
+        routeConfidence: routingResult.confidence,
+        // Day 16: Merge CSV orchestration headers + Tag/Crystal headers
+        rowCount: csvOrchestrationHeaders['X-Row-Count'] || tagCategorizationHeaders['X-Row-Count'] || crystalAnomalyHeaders['X-Row-Count'] 
+          ? parseInt(csvOrchestrationHeaders['X-Row-Count'] || tagCategorizationHeaders['X-Row-Count'] || crystalAnomalyHeaders['X-Row-Count']) : undefined,
+        uniqueRows: csvOrchestrationHeaders['X-Unique-Rows'] ? parseInt(csvOrchestrationHeaders['X-Unique-Rows']) : undefined,
+        analysis: csvOrchestrationHeaders['X-Analysis'] || crystalAnomalyHeaders['X-Analysis'],
+        categorizer: csvOrchestrationHeaders['X-Categorizer'] || tagCategorizationHeaders['X-Categorizer']
       });
+      const responseHeaders = {
+        ...baseResponseHeaders,
+        ...csvOrchestrationHeaders,
+        ...tagCategorizationHeaders,
+        ...crystalAnomalyHeaders,
+        'X-Memory-Verified': memoryHitCount > 0 ? 'true' : 'false'
+      };
+      
+      // Day 16: Include orchestration results if present
+      const fallbackBody: any = {
+        ok: true,
+        sessionId,
+        messageUid: userMessageUid,
+        reply: text,
+        employee: employeeKey,
+        pendingTool: null
+      };
+      
+      if (csvOrchestrationResult) {
+        fallbackBody.orchestration = csvOrchestrationResult;
+      }
+      if (tagCategorizationResult) {
+        fallbackBody.categorized = tagCategorizationResult;
+      }
+      if (crystalAnomalyResult) {
+        fallbackBody.anomalies = crystalAnomalyResult;
+      }
       
       return {
         statusCode: 200,
         headers: responseHeaders,
-        body: JSON.stringify({ 
-          ok: true, 
-          sessionId, 
-          messageUid: userMessageUid,
-          reply: text, 
-          employee: employeeKey,
-          pendingTool: null
-        })
+        body: JSON.stringify(fallbackBody)
       };
     }
     
     // ============================================================================
     // 10. STREAMING SSE PATH (default for both Prime and specialists)
     // ============================================================================
-    const upstream = await openAIStreamRequest(modelMessages, MODEL);
+    const upstream = await openAIStreamRequest(modelMessages, model);
     
     // Create PII masker function for SSE transform
     const sseMasker = (text: string) => maskPII(text, 'last4').masked;
@@ -2696,6 +3009,10 @@ ${baseContext}`;
           }
         }
         
+        // Day 16: Send chunk count as SSE comment event (standard SSE practice)
+        // This allows clients to see final chunk count even though HTTP headers were sent first
+        controller.enqueue(encoder.encode(`: chunk-count: ${streamChunkCount}\n\n`));
+        
         // Persist assistant message at end
         if (finalText.trim()) {
           try {
@@ -2710,7 +3027,7 @@ ${baseContext}`;
             // Day 4: Extract and store facts from conversation
             try {
               const msgs = [
-                { role: 'user', content: masked },
+                { role: 'user', content: maskedState.value },
                 { role: 'assistant', content: finalText }
               ];
               const facts = memory.extractFactsFromMessages(msgs);
@@ -2789,18 +3106,33 @@ ${baseContext}`;
     }
 
     // Day 7: Use centralized header builder with stream chunk count
+    // Day 15½: Add memory verification header
+    // Day 16: Merge CSV orchestration headers
+    // Note: For SSE, streamChunkCount in headers will be 0 initially (headers sent before streaming).
+    // Actual chunk count is sent as SSE comment event `: chunk-count: N` before [DONE].
+    const baseSseHeaders = buildResponseHeaders({
+      guardrailsActive: true,
+      piiMaskEnabled: true,
+      memoryHitTopScore,
+      memoryHitCount,
+      summaryPresent,
+      summaryWritten: 'async', // Summary generation happens in flush callback after headers sent
+      employee: routingResult.employee,
+      routeConfidence: routingResult.confidence,
+      streamChunkCount: streamChunkCount, // Day 7: Initial count (0), final count sent as SSE comment
+      // Day 16: Merge CSV orchestration headers + Tag/Crystal headers
+      rowCount: csvOrchestrationHeaders['X-Row-Count'] || tagCategorizationHeaders['X-Row-Count'] || crystalAnomalyHeaders['X-Row-Count']
+        ? parseInt(csvOrchestrationHeaders['X-Row-Count'] || tagCategorizationHeaders['X-Row-Count'] || crystalAnomalyHeaders['X-Row-Count']) : undefined,
+      uniqueRows: csvOrchestrationHeaders['X-Unique-Rows'] ? parseInt(csvOrchestrationHeaders['X-Unique-Rows']) : undefined,
+      analysis: csvOrchestrationHeaders['X-Analysis'] || crystalAnomalyHeaders['X-Analysis'],
+      categorizer: csvOrchestrationHeaders['X-Categorizer'] || tagCategorizationHeaders['X-Categorizer']
+    });
     const sseHeaders = {
-      ...buildResponseHeaders({
-        guardrailsActive: true,
-        piiMaskEnabled: true,
-        memoryHitTopScore,
-        memoryHitCount,
-        summaryPresent,
-        summaryWritten: 'async', // Summary generation happens in flush callback after headers sent
-        employee: routingResult.employee,
-        routeConfidence: routingResult.confidence,
-        streamChunkCount: streamChunkCount // Day 7: Add chunk count for debugging
-      }),
+      ...baseSseHeaders,
+      ...csvOrchestrationHeaders,
+      ...tagCategorizationHeaders,
+      ...crystalAnomalyHeaders,
+      'X-Memory-Verified': memoryHitCount > 0 ? 'true' : 'false',
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive'

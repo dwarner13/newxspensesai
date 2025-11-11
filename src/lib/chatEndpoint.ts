@@ -1,11 +1,13 @@
 // Chat endpoint configuration and utilities
 
-export const CHAT_ENDPOINT =
-  import.meta.env.VITE_CHAT_ENDPOINT || "/.netlify/functions/chat";
+const devDefault = '/.netlify/functions/chat';
 
-if (typeof window !== 'undefined') {
-  console.log('🔗 Chat Endpoint:', CHAT_ENDPOINT);
-}
+const prodDefault = '/.netlify/functions/chat-v3-production';
+
+export const CHAT_ENDPOINT =
+  import.meta.env.VITE_CHAT_ENDPOINT ?? (import.meta.env.PROD ? prodDefault : devDefault);
+
+console.info(`🔗 Chat Endpoint: ${CHAT_ENDPOINT}`);
 
 // Verify chat backend version from response headers
 export function verifyChatBackend(resp: Response) {

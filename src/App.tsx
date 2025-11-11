@@ -21,6 +21,8 @@ import MobileRevolution from './components/mobile/MobileRevolution';
 import DesktopDashboard from './components/DesktopDashboard';
 import RouteScrollReset from './components/util/RouteScrollReset';
 import { isPrimeV2Enabled } from './env';
+import { DevToolsProvider } from './contexts/DevToolsContext';
+import DevPanel from './components/dev/DevPanel';
 
 // Scroll bar width calculation hook
 const useScrollbarWidth = () => {
@@ -127,10 +129,28 @@ const WellnessStudioPage = lazy(() => import('./pages/dashboard/WellnessStudioPa
 const ByteChatTest = lazy(() => import('./pages/ByteChatTest'));
 // Legacy PrimeChat routes removed - now using floating bubble panel in dashboard
 // const PrimeChat = lazy(() => import('./pages/chat/PrimeChat'));
-// const PrimeChatSimple = lazy(() => import('./pages/chat/PrimeChatSimple'));
 const ChatTest = lazy(() => import('./pages/ChatTest'));
 const SimpleTest = lazy(() => import('./pages/SimpleTest'));
 const PodcastGeneratorFeaturePage = lazy(() => import('./pages/features/podcast-generator'));
+
+// Employee Chat Pages (Grade 4: These are chat pages for different AI employees)
+const PrimeChatSimple = lazy(() => import('./pages/chat/PrimeChatSimple'));
+const TagChat = lazy(() => import('./pages/chat/TagChat')); // Day 16: Tag chat page
+const ByteChat = lazy(() => import('./pages/ByteChatTest')); // Uses existing page
+const CrystalChat = lazy(() => import('./pages/dashboard/SpendingPredictionsPage')); // Uses existing
+const GoalieChat = lazy(() => import('./pages/chat/GoalieChat'));
+const AutomationChat = lazy(() => import('./pages/chat/AutomationChat'));
+const DebtChat = lazy(() => import('./pages/chat/DebtChat'));
+const LibertyChat = lazy(() => import('./pages/chat/LibertyChat'));
+const ChimeChat = lazy(() => import('./pages/chat/ChimeChat'));
+const PodcastChat = lazy(() => import('./pages/chat/PodcastChat'));
+const TherapistChat = lazy(() => import('./pages/chat/TherapistChat'));
+const WellnessChat = lazy(() => import('./pages/chat/WellnessChat'));
+const SpotifyChat = lazy(() => import('./pages/chat/SpotifyChat'));
+const TaxChat = lazy(() => import('./pages/chat/TaxChat'));
+const BIChat = lazy(() => import('./pages/chat/BIChat'));
+const AnalyticsChat = lazy(() => import('./pages/chat/AnalyticsChat'));
+const SettingsChat = lazy(() => import('./pages/chat/SettingsChat'));
 
 // Loading component for Suspense fallback
 const LoadingSpinner = () => (
@@ -214,10 +234,11 @@ function App() {
             <AIFinancialAssistantProvider>
               <UserProvider>
                 <WorkspaceProvider>
-                <ScrollToTop />
-                <ErrorBoundary>
-                  <Suspense fallback={<LoadingSpinner />}>
-                    <Routes>
+                  <DevToolsProvider>
+                    <ScrollToTop />
+                    <ErrorBoundary>
+                      <Suspense fallback={<LoadingSpinner />}>
+                        <Routes>
                       {/* Marketing routes with BossBubble */}
                       <Route element={<MarketingLayout />}>
                         <Route path="/" element={<HomePage />} />
@@ -242,6 +263,26 @@ function App() {
                         {/* <Route path="/chat/prime" element={<PrimeChatSimple />} /> */}
                         <Route path="/chat-test" element={<ChatTest />} />
                         <Route path="/simple-test" element={<SimpleTest />} />
+                        
+                        {/* Employee Chat Routes (Grade 4: Each route shows a chat page for that AI employee) */}
+                        <Route path="/prime" element={<PrimeChatSimple />} />
+                        <Route path="/chat/prime" element={<Navigate to="/prime" replace />} />
+                        <Route path="/smart-categories" element={<TagChat />} />
+                        <Route path="/smart-import" element={<ByteChat />} />
+                        <Route path="/predict" element={<CrystalChat />} />
+                        <Route path="/goals" element={<GoalieChat />} />
+                        <Route path="/automation" element={<AutomationChat />} />
+                        <Route path="/debt" element={<DebtChat />} />
+                        <Route path="/freedom" element={<LibertyChat />} />
+                        <Route path="/bills" element={<ChimeChat />} />
+                        <Route path="/podcast" element={<PodcastChat />} />
+                        <Route path="/therapist" element={<TherapistChat />} />
+                        <Route path="/wellness" element={<WellnessChat />} />
+                        <Route path="/spotify" element={<SpotifyChat />} />
+                        <Route path="/tax" element={<TaxChat />} />
+                        <Route path="/bi" element={<BIChat />} />
+                        <Route path="/analytics" element={<AnalyticsChat />} />
+                        <Route path="/settings" element={<SettingsChat />} />
                       
             <Route path="/debug/mobile" element={<MobileCheck />} />
             <Route path="/debug/mobile-test" element={<MobileTest />} />
@@ -362,7 +403,11 @@ function App() {
                 {therapistTrigger && <TherapistNotification />}
                 <TherapistModal />
 
+                {/* Dev Tools Panel (dev mode only) */}
+                <DevPanel />
+
                 {/* Prime chat mount moved into DashboardLayout */}
+                  </DevToolsProvider>
                 </WorkspaceProvider>
               </UserProvider>
           </AIFinancialAssistantProvider>

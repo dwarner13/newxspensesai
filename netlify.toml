@@ -1,29 +1,28 @@
 [build]
-  command   = "pnpm build"
-  publish   = "dist"
+  command = "pnpm build"
+  publish = "dist"
   functions = "netlify/functions"
-
-[dev]
-  port = 8888
-  functions = "netlify/functions"
-  publish = "dist" # or "build" or "public" (whatever your app builds to)
 
 [functions]
   node_bundler = "esbuild"
-  directory = "netlify/functions"
+  # Mark dependencies as external to avoid CommonJS bundling issues
+  external_node_modules = ["@supabase/supabase-js", "openai", "undici"]
 
-  # ✅ This old syntax is required in CLI < 18
-  # Forces npm instead of pnpm (prevents EPERM symlink errors)
-  [functions.packageManager]
-    npm = true
-
-[[redirects]]
-  from = "/api/*"
-  to   = "/.netlify/functions/:splat"
-  status = 200
+[dev]
+  # Netlify Dev will start on port 8888
+  port = 8888
+  # Serve built files from dist (for production-like testing)
+  publish = "dist"
+  # Start Vite dev server automatically when running 'netlify dev'
+  command = "npm run vite -- --port 5173"
+  # Vite runs on port 5173, Netlify Dev proxies to it
+  targetPort = 5173
+  # Use custom framework detection (Vite + React)
+  framework = "#custom"
+  # Skip function building during dev for faster startup
+  # functions = []
 
 [[redirects]]
   from = "/*"
-  to   = "/index.html"
+  to = "/index.html"
   status = 200
-  force = true

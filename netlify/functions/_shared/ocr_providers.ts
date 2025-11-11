@@ -10,6 +10,9 @@
  * - bestEffortOCR: Try all providers, return first good result
  */
 
+// FormData is available as a global in Node.js 18+ (Netlify Functions runtime)
+// No import needed - using global FormData
+
 export interface OCRProviderResult {
   text: string;
   pages?: Array<{ index: number; text: string }>;
@@ -47,11 +50,12 @@ export async function ocrLocal(imageOrPdfBytes: Buffer): Promise<OCRProviderResu
 /**
  * OCR.Space API provider
  * 
- * Requires: OCRSPACE_API_KEY environment variable
+ * Requires: OCR_SPACE_API_KEY environment variable
  */
 export async function ocrOCRSpace(params: { bytes?: Buffer; url?: string }): Promise<OCRProviderResult | null> {
-  const apiKey = process.env.OCRSPACE_API_KEY;
+  const apiKey = process.env.OCR_SPACE_API_KEY;
   if (!apiKey) {
+    console.warn('[OCR] OCR_SPACE_API_KEY not configured');
     return null; // Not configured
   }
   
@@ -61,9 +65,9 @@ export async function ocrOCRSpace(params: { bytes?: Buffer; url?: string }): Pro
     const formData = new FormData();
     
     if (params.bytes) {
-      // Upload file
-      const blob = new Blob([params.bytes], { type: 'application/octet-stream' });
-      formData.append('file', blob);
+      // Create Blob from Buffer - FormData.append requires Blob in Node.js
+      const blob = new Blob([params.bytes], { type: 'application/pdf' });
+      formData.append('file', blob, 'document.pdf');
     } else if (params.url) {
       formData.append('url', params.url);
     } else {
@@ -80,10 +84,34 @@ export async function ocrOCRSpace(params: { bytes?: Buffer; url?: string }): Pro
     });
     
     if (!response.ok) {
-      return null;
+      const errorText = await response.text();
+      console.error('[OCR] OCR.Space API error:', response.status, errorText);
+      throw new Error(`OCR.Space API returned ${response.status}: ${errorText.substring(0, 200)}`);
     }
     
     const data = await response.json();
+    
+    // Log full response for debugging
+    console.log('[OCR] OCR.Space response:', JSON.stringify({
+      OCRExitCode: data.OCRExitCode,
+      IsErroredOnProcessing: data.IsErroredOnProcessing,
+      ErrorMessage: data.ErrorMessage,
+      ParsedResultsCount: data.ParsedResults?.length || 0,
+      HasText: data.ParsedResults?.[0]?.ParsedText ? data.ParsedResults[0].ParsedText.length > 0 : false
+    }));
+    
+    // Check for API errors in response
+    if (data.IsErroredOnProcessing) {
+      const errorMessage = data.ErrorMessage?.[0] || data.ErrorMessage || `OCR processing error (exit code: ${data.OCRExitCode})`;
+      console.error('[OCR] OCR.Space processing error:', errorMessage);
+      throw new Error(`OCR.Space processing failed: ${errorMessage}`);
+    }
+    
+    if (data.OCRExitCode && data.OCRExitCode !== 1) {
+      const errorMessage = data.ErrorMessage?.[0] || `OCR exit code: ${data.OCRExitCode}`;
+      console.error('[OCR] OCR.Space processing error:', errorMessage);
+      throw new Error(`OCR.Space processing failed: ${errorMessage}`);
+    }
     
     // Extract text from OCR.Space response
     let text = '';
@@ -97,6 +125,11 @@ export async function ocrOCRSpace(params: { bytes?: Buffer; url?: string }): Pro
       }
     }
     
+    if (!text || text.trim().length === 0) {
+      console.warn('[OCR] OCR.Space returned no text');
+      throw new Error('OCR.Space returned empty result - no text extracted from document');
+    }
+    
     return {
       text: text.trim(),
       pages,
@@ -105,9 +138,9 @@ export async function ocrOCRSpace(params: { bytes?: Buffer; url?: string }): Pro
         duration_ms: Date.now() - startTime
       }
     };
-  } catch (error) {
-    console.warn('[OCR] OCR.Space API error:', error);
-    return null;
+  } catch (error: any) {
+    console.error('[OCR] OCR.Space API error:', error);
+    throw error; // Re-throw to get better error messages
   }
 }
 
@@ -172,7 +205,7 @@ export async function bestEffortOCR(input: { bytes?: Buffer; url?: string; gcsUr
     if (ocrSpaceResult && ocrSpaceResult.text.trim().length > 0) {
       return { result: ocrSpaceResult, provider: 'ocrspace', warnings };
     }
-    if (!process.env.OCRSPACE_API_KEY) {
+    if (!process.env.OCR_SPACE_API_KEY) {
       warnings.push('OCR.Space API key not configured');
     }
   } catch (e) {
@@ -196,4 +229,64 @@ export async function bestEffortOCR(input: { bytes?: Buffer; url?: string; gcsUr
   warnings.push('No OCR providers available or all failed');
   return { result: null, provider: 'none', warnings };
 }
+
+/**
+ * Run OCR with a specific provider
+ * 
+ * @param provider - Provider name: 'ocr_space', 'ocrspace', 'vision', 'local'
+ * @param fileBuffer - File buffer to process
+ * @returns OCR result with rawText, pages_total, pages_succeeded, and meta
+ */
+export async function runOcrWithProvider(
+  provider: string,
+  fileBuffer: Buffer
+): Promise<{
+  rawText: string;
+  pages_total?: number;
+  pages_succeeded?: number;
+  meta?: any;
+}> {
+  // Normalize provider name
+  const normalizedProvider = provider.toLowerCase().replace(/[_-]/g, '');
+  
+  let result: OCRProviderResult | null = null;
+  let lastError: Error | null = null;
+  
+  try {
+    if (normalizedProvider === 'ocrspace') {
+      result = await ocrOCRSpace({ bytes: fileBuffer });
+    } else if (normalizedProvider === 'vision' || normalizedProvider === 'googlevision') {
+      result = await ocrVision({ bytes: fileBuffer });
+    } else if (normalizedProvider === 'local') {
+      result = await ocrLocal(fileBuffer);
+    } else {
+      // Default: try OCR.Space
+      result = await ocrOCRSpace({ bytes: fileBuffer });
+    }
+  } catch (err: any) {
+    lastError = err;
+    console.error(`[OCR] Provider ${provider} error:`, err);
+  }
+  
+  if (!result || !result.text || result.text.trim().length === 0) {
+    const errorMsg = lastError 
+      ? `OCR provider ${provider} failed: ${lastError.message}`
+      : `OCR provider ${provider} failed to extract text (returned empty result)`;
+    throw new Error(errorMsg);
+  }
+  
+  return {
+    rawText: result.text,
+    pages_total: result.pages?.length ?? 1,
+    pages_succeeded: result.pages?.filter(p => p.text.trim().length > 0).length ?? 1,
+    meta: result.meta,
+  };
+}
+
+
+
+
+
+
+
 

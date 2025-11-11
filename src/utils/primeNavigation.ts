@@ -11,7 +11,7 @@
  */
 export function askPrime(message: string, navigate: (path: string) => void) {
   const encodedMessage = encodeURIComponent(message);
-  navigate(`/chat/prime?m=${encodedMessage}`);
+  navigate(`/prime?m=${encodedMessage}`);
 }
 
 /**

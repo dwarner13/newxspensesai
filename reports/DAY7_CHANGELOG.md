@@ -148,3 +148,11 @@
 - Chunk counting tracks raw chunks, not processed events
 - Retry logic limited to one retry (configurable if needed)
 
+
+
+
+
+
+
+
+
