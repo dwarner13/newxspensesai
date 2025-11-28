@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { 
   Send, 
   Upload, 
@@ -32,9 +33,143 @@ import { processImageWithSmartOCR, SmartOCRResult } from '../../../utils/smartOC
 import { redactDocument, generateAIEmployeeNotification } from '../../../utils/documentRedaction';
 import { processLargeFile, getFileRecommendations, ProcessingProgress } from '../../../utils/largeFileProcessor';
 import { AIService } from '../../../services/AIService';
+import { WorkerJobResult } from '../../../services/WorkerService';
 import { BYTE_KNOWLEDGE_BASE, BYTE_RESPONSES } from '../../../ai-knowledge/byte-knowledge-base';
 import { CRYSTAL_KNOWLEDGE_BASE, CRYSTAL_RESPONSES, CRYSTAL_PERSONALITY } from '../../../ai-knowledge/crystal-knowledge-base';
+import { CHAT_ENDPOINT, verifyChatBackend } from '../../../lib/chatEndpoint';
 import toast from 'react-hot-toast';
+import type { SmartDocType, NormalizedTransaction, ProcessedDocument as SmartProcessedDocument } from '../../../types/smartImport';
+import { buildDocumentSummary, buildCompletionMessage } from '../../../types/smartImport';
+import { buildByteReviewMessage, getUncategorizedTransactions, buildCategorizationHelpMessage } from '../../../utils/byteReview';
+import type { ProcessedDocumentContext, PrimeAction } from '../../../types/processedDocument';
+import { getDocTypeLabel, formatCurrency } from '../../../types/processedDocument';
+import { buildPrimeFollowUpMessage, handleAddToTransactions, handleAnalyzePeriod, handleImproveRules, handleAskQuestion, saveCategorizationRules } from '../../../utils/primeFlows';
+import { 
+  buildVendorCategorizationState, 
+  updateVendorCategory, 
+  buildVendorCategorizationPrompt,
+  buildCategorizationCompleteMessage,
+  STANDARD_CATEGORIES,
+  type VendorCategorizationState 
+} from '../../../utils/categorizationFlow';
+import {
+  getOrCreateSmartImportConversation,
+  getRecentSmartImportDocuments,
+  buildDocumentContextMessage,
+  buildWelcomeMessage,
+  saveDocumentMemory,
+  updateConversationTimestamp,
+  loadSessionMessages,
+  type SmartImportDocument,
+} from '../../../services/smartImportConversation';
+import { DEMO_USER_ID, getUserId } from '../../../constants/demoUser';
+
+// Smart Import Phase 2: Import All Button Component
+interface ImportAllButtonProps {
+  importId?: string;
+  transactionCount: number;
+  userId: string;
+}
+
+const ImportAllButton: React.FC<ImportAllButtonProps> = ({ importId, transactionCount, userId }) => {
+  const [isImporting, setIsImporting] = useState(false);
+  const navigate = useNavigate();
+
+  const handleImportAll = async () => {
+    if (!importId) {
+      toast.error('Import ID not available. Please try uploading the document again.');
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      // SECURITY: Send userId in header, not in body
+      // Backend will validate this matches the authenticated user
+      const response = await fetch('/.netlify/functions/commit-import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': userId, // Send userId in header for secure auth
+        },
+        body: JSON.stringify({
+          importId, // Only send importId in body
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        // Handle specific error codes
+        const errorMessage = data.error === 'already_committed'
+          ? 'These transactions have already been imported.'
+          : data.error === 'no_transactions_in_staging'
+          ? 'No transactions found to import.'
+          : data.error === 'no_import_found'
+          ? 'Import not found. Please try uploading again.'
+          : data.message || 'Failed to import transactions. Please try again.';
+        
+        toast.error(errorMessage);
+        console.error('[ImportAllButton] Commit import failed:', data);
+        return;
+      }
+
+      // Success
+      const committedCount = data.insertedCount || data.committed || transactionCount;
+      toast.success(`Imported ${committedCount} transaction${committedCount !== 1 ? 's' : ''} into your XspensesAI Transactions.`);
+      
+      // Dispatch event to refresh Transactions page
+      // DashboardTransactionsPage listens for this event and will refresh automatically
+      window.dispatchEvent(new CustomEvent('transactionsImported', {
+        detail: { 
+          count: committedCount, 
+          importId: data.importId,
+          documentId: data.documentId 
+        }
+      }));
+      
+      // Optionally navigate to transactions page after a short delay
+      setTimeout(() => {
+        navigate('/dashboard/transactions');
+      }, 1500);
+
+    } catch (error) {
+      console.error('[ImportAllButton] Error calling commit-import:', error);
+      toast.error('Failed to import transactions. Please try again.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  if (!importId) {
+    return (
+      <button 
+        disabled
+        className="px-3 py-1 bg-gray-500 text-white rounded text-xs font-medium opacity-50 cursor-not-allowed"
+        title="Import ID not available"
+      >
+        ✅ Import All
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleImportAll}
+      disabled={isImporting}
+      className="px-3 py-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-600 text-white rounded text-xs font-medium transition-colors flex items-center gap-1"
+    >
+      {isImporting ? (
+        <>
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Importing...
+        </>
+      ) : (
+        '✅ Import All'
+      )}
+    </button>
+  );
+};
 
 interface ProcessedDocument {
   id: string;
@@ -69,6 +204,7 @@ interface ChatMessage {
   }[];
   hasAction?: boolean;
   actionType?: 'crystal_handoff';
+  actions?: PrimeAction[]; // Prime action buttons
   transactions?: {
     id: string;
     date: string;
@@ -78,16 +214,22 @@ interface ChatMessage {
   }[];
   processing?: boolean;
   documentId?: string; // Link to processed document
+  importId?: string; // Smart Import Phase 2: importId for commit-import
+  documentContext?: ProcessedDocumentContext; // Store document context for Prime actions
 }
 
 interface ByteDocumentChatProps {
   isOpen: boolean;
   onClose: () => void;
+  onDocumentProcessed?: (doc: SmartProcessedDocument) => void; // Callback to notify parent
+  defaultDocType?: SmartDocType; // Default docType for uploads from this chat
 }
 
 export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   isOpen,
-  onClose
+  onClose,
+  onDocumentProcessed,
+  defaultDocType = 'generic_document'
 }) => {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -95,9 +237,23 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploadProcessing, setIsUploadProcessing] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  
+  // Upload state machine: "idle" | "uploading" | "processing" | "error"
+  type UploadState = "idle" | "uploading" | "processing" | "error";
+  // Upload queue: track multiple files being processed concurrently
+  interface UploadJob {
+    id: string;
+    fileName: string;
+    state: 'uploading' | 'processing' | 'completed' | 'error';
+    progress?: number;
+    messageId?: string; // ID of the chat message showing this upload
+    error?: string;
+  }
+  const [uploadState, setUploadState] = useState<UploadState>("idle");
+  const [currentProcessingFileName, setCurrentProcessingFileName] = useState<string | null>(null);
+  const [uploadQueue, setUploadQueue] = useState<UploadJob[]>([]);
   const [processingProgress, setProcessingProgress] = useState<ProcessingProgress | null>(null);
-  const [activeAI, setActiveAI] = useState<'prime' | 'byte' | 'crystal' | 'tag' | 'ledger' | 'blitz' | 'goalie'>('prime');
+  // activeAI is now defined above with URL integration
   const [hasShownCrystalSummary, setHasShownCrystalSummary] = useState(false);
   const [uploadedFileCount, setUploadedFileCount] = useState(0);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0});
@@ -107,9 +263,68 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [processedDocuments, setProcessedDocuments] = useState<ProcessedDocument[]>([]);
   const [showDocumentHistory, setShowDocumentHistory] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<ProcessedDocument | null>(null);
+  const [activeDocumentContext, setActiveDocumentContext] = useState<ProcessedDocumentContext | null>(null); // Current document context for Prime actions
+  const [categorizationState, setCategorizationState] = useState<VendorCategorizationState[] | null>(null); // Vendor categorization flow state
+  const [currentVendorIndex, setCurrentVendorIndex] = useState<number>(0); // Current vendor being categorized
+  const [categorizedVendorsMap, setCategorizedVendorsMap] = useState<Map<string, { category: string; count: number }>>(new Map()); // Track categorized vendors
+  // ============================================================================
+  // SHARED SESSION MANAGEMENT (Phase 1 - All Employees Share Same Session)
+  // ============================================================================
+  // All employees (Prime, Byte, Crystal, Tag) share the same chat session and history.
+  // Only the speaker (employeeSlug) changes when switching tabs.
+  // Session is persisted in localStorage and URL query param.
+  // URL integration: /dashboard/smart-import-ai?employee=prime&chatSession=<sessionId>
+  // ============================================================================
+  
+  type EmployeeId = 'prime' | 'byte' | 'crystal' | 'tag' | 'ledger' | 'blitz' | 'goalie';
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  
+  // Initialize activeAI from URL or default to 'prime'
+  const urlEmployee = searchParams.get('employee') as EmployeeId | null;
+  const initialEmployee = (urlEmployee && ['prime', 'byte', 'crystal', 'tag', 'ledger', 'blitz', 'goalie'].includes(urlEmployee)) 
+    ? urlEmployee 
+    : 'prime';
+  
+  const [activeAI, setActiveAI] = useState<EmployeeId>(initialEmployee);
+  
+  // SHARED SESSION: Single sessionId for all employees
+  const [sharedSessionId, setSharedSessionId] = useState<string | null>(null);
+  const [hasShownWelcome, setHasShownWelcome] = useState(false); // Track if welcome message was shown
+  const [recentDocuments, setRecentDocuments] = useState<SmartImportDocument[]>([]); // Recent documents for context
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const orchestrator = useRef(new AIEmployeeOrchestrator());
+
+  // Privacy notice session tracking
+  const SESSION_KEY = 'smartImport.redactionNoticeShown';
+  const [hasShownRedactionNotice, setHasShownRedactionNotice] = useState(
+    typeof window !== 'undefined' && sessionStorage.getItem(SESSION_KEY) === '1'
+  );
+
+  const markRedactionNoticeShown = () => {
+    setHasShownRedactionNotice(true);
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(SESSION_KEY, '1');
+    }
+  };
+
+  const showPrivacyNotice = () => {
+    if (hasShownRedactionNotice) {
+      return; // Already shown in this session
+    }
+
+    const privacyNotice: ChatMessage = {
+      id: `privacy-notice-${Date.now()}`,
+      type: 'prime',
+      content: "🔒 **Privacy notice**\n\nOur AI employee team has automatically redacted personal information (such as account numbers, addresses, and phone numbers) from your document.\n\nOnly normalized transaction data and non-identifying details are stored and used going forward in this session.",
+      timestamp: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, privacyNotice]);
+    markRedactionNoticeShown();
+  };
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -141,22 +356,154 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showPlusMenu]);
 
-  // Initialize with Prime greeting
+  // Load shared sessionId from localStorage or URL on mount
+  const hasLoadedSessionRef = useRef(false);
+  
   useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      const welcomeMessage: ChatMessage = {
-        id: '1',
-        type: 'prime',
-        content: "👑 Hello! I'm Prime, your AI CEO here at XSpensesAI. I coordinate our entire team of 30 financial experts to help you succeed. What can my team help you with today?",
-        timestamp: new Date().toISOString()
-      };
-      setMessages([welcomeMessage]);
+    if (typeof window !== 'undefined' && !hasLoadedSessionRef.current) {
+      // Check URL first (for deep linking)
+      const urlSessionId = searchParams.get('chatSession');
+      if (urlSessionId) {
+        setSharedSessionId(urlSessionId);
+        hasLoadedSessionRef.current = true;
+        return;
+      }
+      
+      // Fall back to localStorage
+      const stored = localStorage.getItem('smartImport_sharedSessionId');
+      if (stored) {
+        setSharedSessionId(stored);
+        hasLoadedSessionRef.current = true;
+      } else {
+        hasLoadedSessionRef.current = true;
+      }
     }
-  }, [isOpen, messages.length]);
+  }, [searchParams]);
+
+  // Save shared sessionId to localStorage and URL whenever it changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && sharedSessionId) {
+      localStorage.setItem('smartImport_sharedSessionId', sharedSessionId);
+      
+      // Update URL without page reload
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set('chatSession', sharedSessionId);
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [sharedSessionId, searchParams, setSearchParams]);
+
+  // Sync activeAI with URL changes (e.g., browser back/forward)
+  // Note: This effect only responds to external URL changes, not our own updates
+  useEffect(() => {
+    const urlEmployee = searchParams.get('employee') as EmployeeId | null;
+    if (urlEmployee && ['prime', 'byte', 'crystal', 'tag', 'ledger', 'blitz', 'goalie'].includes(urlEmployee) && urlEmployee !== activeAI) {
+      // Only switch if URL changed externally (not by our own handleEmployeeSwitch)
+      handleEmployeeSwitch(urlEmployee);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  // Handle employee tab click - switch active employee WITHOUT resetting messages
+  const handleEmployeeSwitch = async (employeeId: EmployeeId) => {
+    // Don't switch if already on this employee
+    if (employeeId === activeAI) return;
+    
+    // Simply change the active employee - messages stay the same
+    setActiveAI(employeeId);
+    
+    // Update URL without page reload
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('employee', employeeId);
+    // Keep chatSession in URL if it exists
+    if (sharedSessionId) {
+      newParams.set('chatSession', sharedSessionId);
+    }
+    setSearchParams(newParams, { replace: true });
+    
+    // No need to load different messages - we're sharing the same session!
+    // The backend will use the same sessionId but route to the new employeeSlug
+  };
+
+  // Initialize shared conversation when component opens
+  // NOTE: This only runs when isOpen changes or on initial mount, NOT when activeAI changes
+  // (activeAI changes are handled by handleEmployeeSwitch and don't reset messages)
+  const hasInitializedRef = useRef(false);
+  useEffect(() => {
+    if (isOpen && !hasInitializedRef.current && user && hasLoadedSessionRef.current) {
+      hasInitializedRef.current = true;
+      const initializeConversation = async () => {
+        try {
+          const userId = getUserId(user?.id);
+          
+          // Use existing shared sessionId if available, otherwise create new one
+          let sessionId = sharedSessionId;
+          
+          if (!sessionId) {
+            // Create new shared session (use 'prime' as default employee for session creation)
+            sessionId = await getOrCreateSmartImportConversation(userId, 'prime');
+            setSharedSessionId(sessionId);
+          }
+          
+          // Load messages for this shared session
+          const loadedMessages = await loadSessionMessages(sessionId);
+          
+          if (loadedMessages.length > 0) {
+            // Convert loaded messages to ChatMessage format
+            const chatMessages: ChatMessage[] = loadedMessages.map(msg => ({
+              id: msg.id,
+              type: msg.type as ChatMessage['type'],
+              content: msg.content,
+              timestamp: msg.timestamp,
+            }));
+            setMessages(chatMessages);
+            setHasShownWelcome(true);
+          } else {
+            // No history - only show welcome if we don't have any messages
+            if (messages.length === 0) {
+              const recentDocs = await getRecentSmartImportDocuments(userId, 3);
+              setRecentDocuments(recentDocs);
+              
+              const welcomeText = buildWelcomeMessage(recentDocs);
+              const welcomeMessage: ChatMessage = {
+                id: `welcome-${activeAI}-${Date.now()}`,
+                type: activeAI,
+                content: welcomeText,
+                timestamp: new Date().toISOString()
+              };
+              setMessages([welcomeMessage]);
+              setHasShownWelcome(true);
+            }
+          }
+        } catch (error) {
+          console.error('[ByteDocumentChat] Failed to initialize conversation:', error);
+          // Fallback: show default welcome only if no messages
+          if (messages.length === 0) {
+            const welcomeMessage: ChatMessage = {
+              id: `fallback-${activeAI}-${Date.now()}`,
+              type: activeAI,
+              content: `👑 Hello! I'm ${activeAI === 'prime' ? 'Prime' : activeAI}, your AI assistant. How can I help you today?`,
+              timestamp: new Date().toISOString()
+            };
+            setMessages([welcomeMessage]);
+          }
+        }
+      };
+      
+      initializeConversation();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, user, sharedSessionId]); // Only run when isOpen changes, NOT when activeAI changes
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) {
       console.log('Message blocked: No message content');
+      return;
+    }
+
+    // Check if we're in question mode (activeDocumentContext is set)
+    if (activeDocumentContext) {
+      await handleUserQuestion(inputMessage.trim());
+      setInputMessage('');
       return;
     }
 
@@ -195,15 +542,15 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         };
         setMessages(prev => [...prev, handoffMessage]);
         
-        // Get the new employee's response
+        // Get the new employee's response (uses shared sessionId)
         const newEmployeeResponse = await getEmployeeResponse(response.handoff.to, inputMessage);
         const messageId = (Date.now() + 1).toString();
-        await typewriterResponse(newEmployeeResponse, messageId);
+        await typewriterResponse(newEmployeeResponse.content, messageId, newEmployeeResponse.employeeSlug);
       } else {
-        // Handle response from current employee
+        // Handle response from current employee (uses shared sessionId)
         const employeeResponse = await getEmployeeResponse(activeAI, inputMessage);
         const messageId = (Date.now() + 1).toString();
-        await typewriterResponse(employeeResponse, messageId);
+        await typewriterResponse(employeeResponse.content, messageId, employeeResponse.employeeSlug);
       }
       
       setIsProcessing(false);
@@ -213,30 +560,205 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       // Fallback to current employee
       const fallbackResponse = await getEmployeeResponse(activeAI, inputMessage);
       const messageId = (Date.now() + 1).toString();
-      await typewriterResponse(fallbackResponse, messageId);
+      await typewriterResponse(fallbackResponse.content, messageId, fallbackResponse.employeeSlug);
       setIsProcessing(false);
     }
   };
 
-  // Get employee-specific response
-  const getEmployeeResponse = async (employeeId: string, userMessage: string): Promise<string> => {
-    const personality = getEmployeePersonality(employeeId);
-    if (!personality) return "I'm here to help!";
+  // Map employee IDs to canonical employee slugs
+  const mapEmployeeIdToSlug = (employeeId: string): string => {
+    const mapping: Record<string, string> = {
+      'prime': 'prime-boss',
+      'byte': 'byte-doc',
+      'crystal': 'crystal-ai',
+      'tag': 'tag-ai',
+      'ledger': 'ledger-tax',
+      'goalie': 'goalie-coach',
+      'blitz': 'blitz-debt',
+    };
+    return mapping[employeeId.toLowerCase()] || 'prime-boss';
+  };
 
-    // For now, use the personality-based response generation
-    // This would integrate with the actual AI system
-    return generateEmployeeResponse(employeeId, userMessage, { messages, user});
+  // Get employee-specific response by calling the guarded chat endpoint
+  // POST /.netlify/functions/chat with employeeSlug, message, userId, sessionId
+  // Uses SHARED sessionId for all employees - only employeeSlug changes
+  const getEmployeeResponse = async (employeeId: string, userMessage: string): Promise<{ content: string; employeeSlug: string }> => {
+    const personality = getEmployeePersonality(employeeId);
+    if (!personality) return { content: "I'm here to help!", employeeSlug: 'prime-boss' };
+
+    // Map employee ID to canonical slug (e.g., 'prime' -> 'prime-boss')
+    const employeeSlug = mapEmployeeIdToSlug(employeeId);
+    
+    // Get userId from auth context or use default
+    const userId = getUserId(user?.id);
+    
+    // Use SHARED sessionId for all employees (create if needed)
+    let sessionId = sharedSessionId;
+    
+    if (!sessionId) {
+      // Create new shared session (use 'prime' as default)
+      sessionId = await getOrCreateSmartImportConversation(userId, 'prime');
+      setSharedSessionId(sessionId);
+    }
+    
+    // Build context from recent documents for Prime
+    let contextMessage = '';
+    if (employeeSlug === 'prime-boss' && recentDocuments.length > 0) {
+      contextMessage = buildDocumentContextMessage(recentDocuments);
+    }
+    
+    // Update conversation timestamp
+    if (sessionId) {
+      await updateConversationTimestamp(sessionId);
+    }
+    
+    try {
+      console.log('[ByteDocumentChat] Calling chat endpoint:', CHAT_ENDPOINT, {
+        employeeSlug,
+        userId,
+        sessionId,
+        messageLength: userMessage.length,
+        hasContext: contextMessage.length > 0
+      });
+      
+      // Call the guarded chat endpoint
+      // Request: POST /.netlify/functions/chat
+      // Body: { userId, employeeSlug, message, sessionId, stream: true }
+      const response = await fetch(CHAT_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          employeeSlug,
+          message: contextMessage ? `${contextMessage}\n\n${userMessage}` : userMessage,
+          sessionId,
+          stream: true, // Enable streaming for real-time responses
+        }),
+      });
+      
+      // Verify we're hitting the correct backend
+      verifyChatBackend(response);
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('[ByteDocumentChat] Chat endpoint error:', response.status, errorText);
+        throw new Error(`Chat failed: ${response.status} ${errorText}`);
+      }
+      
+      // Extract employee from response header (X-Employee)
+      const responseEmployeeHeader = response.headers.get('X-Employee') || employeeSlug;
+      // Map header back to employeeId if needed
+      const responseEmployeeId = responseEmployeeHeader.includes('prime') ? 'prime' :
+                                  responseEmployeeHeader.includes('byte') ? 'byte' :
+                                  responseEmployeeHeader.includes('crystal') ? 'crystal' :
+                                  responseEmployeeHeader.includes('tag') ? 'tag' :
+                                  responseEmployeeHeader.includes('ledger') ? 'ledger' :
+                                  responseEmployeeHeader.includes('goalie') ? 'goalie' :
+                                  responseEmployeeHeader.includes('blitz') ? 'blitz' :
+                                  employeeId;
+      
+      // Handle streaming response (SSE format)
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('text/event-stream') || contentType.includes('application/x-ndjson')) {
+        // Stream the response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        
+        if (!reader) {
+          throw new Error('No response body');
+        }
+        
+        let buffer = '';
+        let assembledContent = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          
+          // Parse SSE lines
+          let idx;
+          while ((idx = buffer.indexOf('\n\n')) !== -1) {
+            const rawEvent = buffer.slice(0, idx).trim();
+            buffer = buffer.slice(idx + 2);
+            
+            // Only handle "data:" lines
+            const dataLine = rawEvent.split('\n').find(l => l.startsWith('data:'));
+            if (!dataLine) continue;
+            
+            try {
+              const payload = JSON.parse(dataLine.replace(/^data:\s*/, ''));
+              
+              // Save sessionId if returned from backend (shared for all employees)
+              if (payload.sessionId && !sharedSessionId) {
+                setSharedSessionId(payload.sessionId);
+              }
+              
+              if (payload.type === 'token' && payload.token) {
+                assembledContent += payload.token;
+              } else if (payload.type === 'done') {
+                // Stream complete
+                break;
+              }
+            } catch (parseErr) {
+              console.warn('[ByteDocumentChat] SSE parse error:', parseErr);
+            }
+          }
+        }
+        
+        return { 
+          content: assembledContent || "I'm here to help!", 
+          employeeSlug: responseEmployeeHeader 
+        };
+      } else {
+        // Non-streaming response (shouldn't happen, but handle it)
+        const data = await response.json().catch(() => ({}));
+        
+        // Save sessionId if returned from backend (shared for all employees)
+        if (data.sessionId && !sharedSessionId) {
+          setSharedSessionId(data.sessionId);
+        }
+        
+        return { 
+          content: data.content || data.message || "I'm here to help!", 
+          employeeSlug: responseEmployeeHeader 
+        };
+      }
+    } catch (error) {
+      console.error('[ByteDocumentChat] Error calling chat endpoint:', error);
+      
+      // Fallback to local response generation if API fails
+      const fallbackContent = generateEmployeeResponse(employeeId, userMessage, { messages, user});
+      return { content: fallbackContent, employeeSlug };
+    }
   };
 
   // Typewriter effect for AI responses
-  const typewriterResponse = async (text: string, messageId: string) => {
+  // employeeSlugFromResponse: The actual employee that responded (from X-Employee header)
+  const typewriterResponse = async (text: string, messageId: string, employeeSlugFromResponse?: string) => {
     const words = text.split(' ');
     let currentText = '';
     
+    // Determine which employee actually responded (from header or fallback to activeAI)
+    let respondingEmployeeId: EmployeeId = activeAI;
+    if (employeeSlugFromResponse) {
+      // Map employee slug back to employeeId
+      if (employeeSlugFromResponse.includes('prime')) respondingEmployeeId = 'prime';
+      else if (employeeSlugFromResponse.includes('byte')) respondingEmployeeId = 'byte';
+      else if (employeeSlugFromResponse.includes('crystal')) respondingEmployeeId = 'crystal';
+      else if (employeeSlugFromResponse.includes('tag')) respondingEmployeeId = 'tag';
+      else if (employeeSlugFromResponse.includes('ledger')) respondingEmployeeId = 'ledger';
+      else if (employeeSlugFromResponse.includes('goalie')) respondingEmployeeId = 'goalie';
+      else if (employeeSlugFromResponse.includes('blitz')) respondingEmployeeId = 'blitz';
+    }
+    
     const typingMessage: ChatMessage = {
       id: messageId,
-      type: activeAI,
-      content: `${getEmployeePersonality(activeAI)?.emoji || '🤖'} ${getEmployeePersonality(activeAI)?.name || 'AI'} is thinking...`,
+      type: respondingEmployeeId, // Tag message with actual responding employee
+      content: `${getEmployeePersonality(respondingEmployeeId)?.emoji || '🤖'} ${getEmployeePersonality(respondingEmployeeId)?.name || 'AI'} is thinking...`,
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, typingMessage]);
@@ -254,9 +776,10 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       await new Promise(resolve => setTimeout(resolve, delay));
     }
     
+    // Final update - ensure message is tagged with correct employee
     setMessages(prev => prev.map(msg => 
       msg.id === messageId 
-        ? { ...msg, content: currentText }
+        ? { ...msg, content: currentText, type: respondingEmployeeId }
         : msg
     ));
   };
@@ -291,14 +814,14 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   };
 
   // Process files with OCR
-  const processFiles = async (files: File[]) => {
+  const processFiles = async (files: File[], docType?: SmartDocType) => {
     const validFiles = files.filter(file => {
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-      return validTypes.includes(file.type) && file.size <= 10 * 1024 * 1024; // 10MB limit
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf', 'text/csv'];
+      return validTypes.includes(file.type) || file.name.toLowerCase().endsWith('.csv') && file.size <= 10 * 1024 * 1024; // 10MB limit
     });
 
     if (validFiles.length === 0) {
-      toast.error('Please upload valid image files (JPG, PNG) under 10MB');
+      toast.error('Please upload valid files (JPG, PNG, PDF, CSV) under 10MB');
       return;
     }
 
@@ -313,9 +836,18 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       setMessages(prev => [...prev, userMessage]);
     });
 
-    // Process each file with OCR
+    // Process each file with OCR, using the provided docType or defaultDocType
     for (const file of validFiles) {
-      await processFileWithOCR(file);
+      try {
+        await processFileWithOCR(file, docType);
+      } catch (error) {
+        // Error handling is done inside processFileWithOCR, but ensure state resets
+        console.error('Error processing file:', error);
+      } finally {
+        // Always reset to idle after each file completes (success or failure)
+        setUploadState("idle");
+        setCurrentProcessingFileName(null);
+      }
     }
   };
 
@@ -336,11 +868,35 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     return document.id;
   };
 
-  // Process single file with worker backend
-  const processFileWithOCR = async (file: File) => {
+  // Process single file with worker backend (now supports concurrent processing)
+  const processFileWithOCR = async (file: File, docType?: SmartDocType, jobId?: string) => {
+    // Use provided docType, or defaultDocType, or infer from file
+    const finalDocType: SmartDocType = docType || defaultDocType || 
+      (file.type === 'application/pdf' ? 'bank_statement' : 
+       file.name.toLowerCase().endsWith('.csv') ? 'csv' : 
+       file.type.startsWith('image/') ? 'receipt' : // Images default to receipt
+       'receipt');
+    
+    // Map SmartDocType to worker docType (worker only supports 'receipt' | 'bank_statement')
+    const workerDocType: 'receipt' | 'bank_statement' = 
+      finalDocType === 'receipt' ? 'receipt' : 'bank_statement';
+    
+    // Find or create upload job
+    const job = jobId ? uploadQueue.find(j => j.id === jobId) : null;
+    const messageId = `processing-${Date.now()}-${Math.random()}`;
+    
+    // Update job state to uploading
+    if (job) {
+      setUploadQueue(prev => prev.map(j => 
+        j.id === jobId 
+          ? { ...j, state: 'uploading', messageId }
+          : j
+      ));
+    }
+    
     // Add processing message
     const processingMessage: ChatMessage = {
-      id: `processing-${Date.now()}`,
+      id: messageId,
       type: 'byte',
       content: `🔍 Analyzing ${file.name}...`,
       processing: true,
@@ -349,12 +905,19 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     setMessages(prev => [...prev, processingMessage]);
 
     try {
-      // Determine document type
-      const docType = file.type === 'application/pdf' ? 'bank_statement' : 'receipt';
-      const userId = user?.id || 'default-user';
+      const userId = getUserId(user?.id);
 
       // Upload to worker backend
-      const uploadResult = await AIService.uploadDocument(file, userId, docType, true);
+      const uploadResult = await AIService.uploadDocument(file, userId, workerDocType, true);
+      
+      // Transition to "processing" state once file is uploaded and job is created
+      if (jobId) {
+        setUploadQueue(prev => prev.map(j => 
+          j.id === jobId 
+            ? { ...j, state: 'processing', progress: 10 }
+            : j
+        ));
+      }
       
       // Start polling for progress
       let progressMessage = processingMessage;
@@ -362,7 +925,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       await AIService.pollJobProgress(
         uploadResult.document_id,
         // Progress callback
-        (progress) => {
+        (progress: ProcessingProgress) => {
           const progressUpdate: ChatMessage = {
             ...progressMessage,
             content: `🔍 ${progress.message} (${progress.progress}%)`,
@@ -373,39 +936,214 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
             msg.id === progressMessage.id ? progressUpdate : msg
           ));
           
+          // Update job progress
+          if (jobId) {
+            setUploadQueue(prev => prev.map(j => 
+              j.id === jobId 
+                ? { ...j, progress: progress.progress, state: 'processing' }
+                : j
+            ));
+          }
+          
           progressMessage = progressUpdate;
         },
         // Complete callback
-        async (result) => {
+        async (result: WorkerJobResult) => {
           try {
-            // Get transactions from database (or use result data)
-            const transactions = await AIService.getTransactions(result.documentId);
+            const DEMO_MODE = import.meta.env.VITE_SMART_IMPORT_DEMO === 'true';
             
-            // Save document to history
-            const documentId = saveProcessedDocument(file, transactions, undefined, 'Worker Backend Processing');
+            // Get transactions from result (worker now includes transactions array)
+            const parsedTransactions: NormalizedTransaction[] = result.transactions || [];
+            const mockTransactions = DEMO_MODE ? await AIService.getTransactions(result.documentId) : [];
+            
+            // Determine which transactions to show
+            const transactionsToShow = DEMO_MODE
+              ? (parsedTransactions.length > 0 ? parsedTransactions : mockTransactions)
+              : parsedTransactions;
+            
+            // Use parsed transaction count, not mock count
+            const transactionCount = parsedTransactions.length || result.transactionCount || 0;
+            
+            // Save document to history (legacy format for chat component)
+            const documentId = saveProcessedDocument(file, transactionsToShow, undefined, 'Worker Backend Processing');
 
-            // Update with final results
+            // Show privacy notice FIRST (only once per session) before transaction results
+            showPrivacyNotice();
+
+            // Build Byte's review message with analysis and summary (if available)
+            let reviewMessage: string;
+            if (result.analysis && result.transactionCount > 0) {
+              // Use the comprehensive review message with analysis
+              reviewMessage = buildByteReviewMessage(finalDocType, file.name, result);
+            } else if (result.transactionCount === 0) {
+              // Zero transactions - use the zero-transaction message
+              reviewMessage = buildByteReviewMessage(finalDocType, file.name, result);
+            } else {
+              // Fallback to simple completion message if analysis not available
+              reviewMessage = buildCompletionMessage(finalDocType, file.name, transactionCount);
+            }
+
+            // Update with final results - use review message instead of simple completion
+            // Include importId from worker result for Smart Import Phase 2 commit-import
             const resultMessage: ChatMessage = {
               id: `result-${Date.now()}`,
               type: 'byte',
-              content: `✅ Found ${result.transactionCount} transactions in ${file.name}! (Processing time: ${Math.round(result.processingTime / 1000)}s)`,
-              transactions: transactions,
+              content: reviewMessage,
+              transactions: transactionsToShow,
               documentId: documentId,
+              importId: (result as any).importId, // Smart Import Phase 2: importId from worker
               timestamp: new Date().toISOString()
             };
 
             setMessages(prev => prev.map(msg => 
               msg.id === progressMessage.id ? resultMessage : msg
             ));
+            
+            // Mark job as completed
+            if (jobId) {
+              setUploadQueue(prev => prev.map(j => 
+                j.id === jobId 
+                  ? { ...j, state: 'completed', progress: 100 }
+                  : j
+              ));
+              
+              // Remove completed job from queue after 3 seconds
+              setTimeout(() => {
+                setUploadQueue(prev => prev.filter(j => j.id !== jobId));
+              }, 3000);
+            }
 
-            toast.success(`Processed ${file.name} - found ${result.transactionCount} transactions`);
+            // Check for uncategorized transactions and add help message
+            const uncategorized = getUncategorizedTransactions(result);
+            
+            // Create ProcessedDocumentContext for Prime actions
+            let documentContext: ProcessedDocumentContext | null = null;
+            if (result.analysis && transactionCount > 0) {
+              documentContext = {
+                docId: uploadResult.document_id || `job-${Date.now()}`,
+                fileName: file.name,
+                docType: finalDocType,
+                uploadedAt: new Date().toISOString(),
+                transactions: transactionsToShow,
+                analysis: result.analysis,
+              };
+              
+              // Store as active context for Prime actions
+              setActiveDocumentContext(documentContext);
+              
+              // Trigger Prime's follow-up message with action buttons
+              setTimeout(() => {
+                const primeFollowUp = buildPrimeFollowUpMessage(documentContext!);
+                const primeMessage: ChatMessage = {
+                  id: `prime-followup-${Date.now()}`,
+                  type: 'prime',
+                  content: primeFollowUp.content,
+                  actions: primeFollowUp.actions,
+                  documentContext: documentContext!,
+                  timestamp: new Date().toISOString(),
+                };
+                setMessages(prev => [...prev, primeMessage]);
+              }, 1000); // Small delay after Byte's message
+            }
+            
+            // Show categorization help message if needed
+            if (uncategorized && uncategorized.count > 0 && documentContext) {
+              setTimeout(() => {
+                const helpMessage: ChatMessage = {
+                  id: `categorization-help-${Date.now()}`,
+                  type: 'byte',
+                  content: buildCategorizationHelpMessage(uncategorized),
+                  actions: [
+                    { type: 'prime_ask_question', label: 'Yes, let\'s categorize now', docId: documentId },
+                    { type: 'prime_skip_rules', label: 'Skip for now', docId: documentId },
+                  ],
+                  documentContext: documentContext,
+                  timestamp: new Date().toISOString(),
+                };
+                setMessages(prev => [...prev, helpMessage]);
+              }, 2000); // Show after Prime's message
+            }
+
+            // Create ProcessedDocument for Smart Import AI page
+            const processedDoc: SmartProcessedDocument = {
+              id: uploadResult.document_id || `job-${Date.now()}`,
+              fileName: file.name,
+              docType: finalDocType,
+              uploadedAt: new Date().toISOString(),
+              transactionCount,
+              transactions: transactionsToShow,
+              summary: buildDocumentSummary(finalDocType, transactionCount, file.name),
+              jobId: uploadResult.document_id,
+              documentId: result.documentId,
+              // Duplicate detection info
+              isDuplicate: result.isDuplicate || false,
+              existingDocumentId: result.existingDocumentId,
+              // Debug data
+              redactedText: result.redactedText,
+            };
+
+            // Notify parent component about processed document
+            if (onDocumentProcessed) {
+              onDocumentProcessed(processedDoc);
+            }
+            
+            // Show duplicate warning if detected
+            if (result.isDuplicate && result.existingDocumentId) {
+              toast(`This document appears to be a duplicate of one you already uploaded.`, { 
+                icon: '⚠️',
+                duration: 5000,
+              });
+            }
+
+            // Save document memory for future recall
+            if (conversationId && result.analysis) {
+              const topCategories = result.analysis.byCategory
+                ?.slice(0, 5)
+                .map((cat: any) => cat.category)
+                .filter((cat: string) => cat && cat !== 'Uncategorized') || [];
+              
+              await saveDocumentMemory({
+                userId,
+                conversationId,
+                documentId: uploadResult.document_id || processedDoc.id,
+                fileName: file.name,
+                docType: finalDocType,
+                transactionCount,
+                totalDebits: result.analysis.totalDebits || 0,
+                totalCredits: result.analysis.totalCredits || 0,
+                periodStart: result.analysis.period?.startDate || null,
+                periodEnd: result.analysis.period?.endDate || null,
+                summary: result.summary || null,
+                topCategories,
+              });
+              
+              // Refresh recent documents list
+              const updatedDocs = await getRecentSmartImportDocuments(userId, 3);
+              setRecentDocuments(updatedDocs);
+            }
+
+            if (transactionCount > 0) {
+              toast.success(`Processed ${file.name} - found ${transactionCount} transactions`);
+            } else {
+              toast(`Processed ${file.name} - no transactions found`, { icon: 'ℹ️' });
+            }
+            
+            // Success: Reset upload state to idle
+            setUploadState("idle");
+            setCurrentProcessingFileName(null);
           } catch (error) {
             console.error('Error getting transactions:', error);
+            // Reset state even on error
+            setUploadState("error");
+            setTimeout(() => {
+              setUploadState("idle");
+              setCurrentProcessingFileName(null);
+            }, 2000); // Brief error state, then back to idle
             throw error;
           }
         },
         // Error callback
-        (error) => {
+        (error: string) => {
           const errorMessage: ChatMessage = {
             id: `error-${Date.now()}`,
             type: 'byte',
@@ -418,6 +1156,13 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           ));
 
           toast.error(`Failed to process ${file.name}`);
+          
+          // Error: Set to error state, then reset to idle after brief delay
+          setUploadState("error");
+          setTimeout(() => {
+            setUploadState("idle");
+            setCurrentProcessingFileName(null);
+          }, 2000);
         }
       );
 
@@ -432,8 +1177,13 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       setMessages(prev => prev.map(msg => 
         msg.id === processingMessage.id ? errorMessage : msg
       ));
-
-      toast.error(`Failed to upload ${file.name}`);
+      
+      // Upload error: Set to error state, then reset to idle
+      setUploadState("error");
+      setTimeout(() => {
+        setUploadState("idle");
+        setCurrentProcessingFileName(null);
+      }, 2000);
     }
   };
 
@@ -634,9 +1384,308 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     return transactions.slice(0, 20); // Limit to 20 transactions
   };
 
-  const handleFileUpload = async (files: FileList) => {
+  const handleFileUpload = async (files: FileList, docType?: SmartDocType) => {
     const fileArray = Array.from(files);
-    await processFiles(fileArray);
+    
+    // Create upload jobs for each file
+    const newJobs: UploadJob[] = fileArray.map(file => ({
+      id: `upload-${Date.now()}-${Math.random()}`,
+      fileName: file.name,
+      state: 'uploading',
+      progress: 0,
+    }));
+    
+    // Add jobs to queue
+    setUploadQueue(prev => [...prev, ...newJobs]);
+    
+    // Process all files concurrently (don't await - let them run in parallel)
+    fileArray.forEach((file, index) => {
+      processFileWithOCR(file, docType, newJobs[index].id).catch(error => {
+        console.error(`[ByteDocumentChat] Failed to process ${file.name}:`, error);
+        setUploadQueue(prev => prev.map(job => 
+          job.id === newJobs[index].id 
+            ? { ...job, state: 'error', error: error.message || 'Processing failed' }
+            : job
+        ));
+      });
+    });
+  };
+
+  // Helper to update category breakdown after categorization
+  const updateCategoryBreakdown = (
+    currentBreakdown: Array<{ category: string; count: number; totalAmount: number }>,
+    newCategory: string,
+    transactionCount: number
+  ): Array<{ category: string; count: number; totalAmount: number }> => {
+    const breakdown = [...currentBreakdown];
+    const existingIndex = breakdown.findIndex(c => c.category === newCategory);
+    
+    if (existingIndex >= 0) {
+      breakdown[existingIndex] = {
+        ...breakdown[existingIndex],
+        count: breakdown[existingIndex].count + transactionCount,
+      };
+    } else {
+      breakdown.push({
+        category: newCategory,
+        count: transactionCount,
+        totalAmount: 0, // Would need to calculate from transactions
+      });
+    }
+    
+    return breakdown.sort((a, b) => b.count - a.count);
+  };
+
+  // Handle Prime action button clicks
+  const handlePrimeAction = async (action: PrimeAction, message: ChatMessage) => {
+    const context = message.documentContext || activeDocumentContext;
+    if (!context) {
+      console.error('[PrimeAction] No document context available');
+      return;
+    }
+
+    const userId = getUserId(user?.id);
+    let responseMessage: string = '';
+    let followUpActions: PrimeAction[] | undefined;
+
+    try {
+      switch (action.type) {
+        case 'prime_add_to_transactions':
+          responseMessage = await handleAddToTransactions(context, userId);
+          break;
+
+        case 'prime_analyze_period':
+          responseMessage = await handleAnalyzePeriod(context, userId);
+          break;
+
+        case 'prime_improve_rules':
+          const rulesResult = handleImproveRules(context);
+          responseMessage = rulesResult.message;
+          if (rulesResult.candidateRules.length > 0) {
+            followUpActions = [
+              {
+                type: 'prime_save_rules',
+                label: 'Yes, save these rules',
+                docId: context.docId,
+                payload: rulesResult.candidateRules,
+              },
+              {
+                type: 'prime_skip_rules',
+                label: 'No, skip',
+                docId: context.docId,
+              },
+            ];
+          }
+          break;
+
+        case 'prime_save_rules':
+          if (action.payload) {
+            const success = await saveCategorizationRules(action.payload, userId);
+            responseMessage = success
+              ? `Great. I've saved these rules and will apply them automatically on your future imports.`
+              : `I encountered an issue saving the rules. Please try again.`;
+          }
+          break;
+
+        case 'prime_skip_rules':
+          responseMessage = `No problem. I'll keep using your existing categories without adding new rules.`;
+          break;
+
+        case 'prime_ask_question':
+          // Check if this is actually a categorization request
+          if (action.label?.includes('categorize now')) {
+            // Start interactive categorization flow
+            const uncategorized = getUncategorizedTransactions({
+              transactionCount: context.transactions.length,
+              transactions: context.transactions,
+            } as any);
+            
+            if (uncategorized && uncategorized.count > 0) {
+              const vendorStates = buildVendorCategorizationState(context.transactions);
+              if (vendorStates.length > 0) {
+                setCategorizationState(vendorStates);
+                setCurrentVendorIndex(0);
+                setCategorizedVendorsMap(new Map()); // Reset tracking
+                
+                const firstVendor = vendorStates[0];
+                responseMessage = buildVendorCategorizationPrompt(firstVendor);
+                followUpActions = [
+                  ...STANDARD_CATEGORIES.slice(0, 6).map(cat => ({
+                    type: 'prime_categorize_vendor' as const,
+                    label: cat,
+                    docId: context.docId,
+                    payload: { vendor: firstVendor.vendor, category: cat, transactionIds: firstVendor.transactionIds },
+                  })),
+                  {
+                    type: 'prime_categorize_vendor' as const,
+                    label: 'Other / Custom',
+                    docId: context.docId,
+                    payload: { vendor: firstVendor.vendor, category: 'CUSTOM', transactionIds: firstVendor.transactionIds },
+                  },
+                ];
+              } else {
+                responseMessage = `All transactions are already categorized!`;
+              }
+            } else {
+              responseMessage = `All transactions are already categorized!`;
+            }
+          } else {
+            // Set active context for questions
+            setActiveDocumentContext(context);
+            responseMessage = `Sure. Ask me anything about this document — for example:
+- "Why was this month more expensive than usual?"
+- "How much did I spend on Restaurants?"
+- "Show me all transactions over $200."`;
+          }
+          break;
+
+        case 'prime_categorize_vendor':
+          if (action.payload && categorizationState) {
+            const { vendor, category, transactionIds } = action.payload;
+            const userId = getUserId(user?.id);
+            
+            // Handle custom category input
+            let finalCategory = category;
+            if (category === 'CUSTOM') {
+              // For now, use "Other" - in future could prompt for custom input
+              finalCategory = 'Other';
+            }
+            
+            // Update vendor category
+            const updateResult = await updateVendorCategory(
+              userId,
+              context.docId,
+              vendor,
+              finalCategory,
+              transactionIds
+            );
+            
+            if (updateResult.success) {
+              // Track this vendor's categorization
+              setCategorizedVendorsMap(prev => {
+                const newMap = new Map(prev);
+                newMap.set(vendor, { category: finalCategory, count: updateResult.updatedCount });
+                return newMap;
+              });
+              
+              // Update local transactions
+              const updatedTransactions = context.transactions.map(txn => {
+                if (transactionIds.includes(txn.id || '')) {
+                  return { ...txn, category: finalCategory };
+                }
+                return txn;
+              });
+              
+              // Update context
+              const updatedContext = {
+                ...context,
+                transactions: updatedTransactions,
+                analysis: {
+                  ...context.analysis,
+                  byCategory: updateCategoryBreakdown(context.analysis.byCategory, finalCategory, transactionIds.length),
+                },
+              };
+              setActiveDocumentContext(updatedContext);
+              
+              // Move to next vendor or complete
+              const nextIndex = currentVendorIndex + 1;
+              if (nextIndex < categorizationState.length) {
+                setCurrentVendorIndex(nextIndex);
+                const nextVendor = categorizationState[nextIndex];
+                responseMessage = `Got it — I'll categorize **${vendor}** as **${finalCategory}** from now on.\n\nI've updated ${updateResult.updatedCount} transaction${updateResult.updatedCount !== 1 ? 's' : ''} in this document.\n\n${buildVendorCategorizationPrompt(nextVendor)}`;
+                followUpActions = [
+                  ...STANDARD_CATEGORIES.slice(0, 6).map(cat => ({
+                    type: 'prime_categorize_vendor' as const,
+                    label: cat,
+                    docId: context.docId,
+                    payload: { vendor: nextVendor.vendor, category: cat, transactionIds: nextVendor.transactionIds },
+                  })),
+                  {
+                    type: 'prime_categorize_vendor' as const,
+                    label: 'Other / Custom',
+                    docId: context.docId,
+                    payload: { vendor: nextVendor.vendor, category: 'CUSTOM', transactionIds: nextVendor.transactionIds },
+                  },
+                ];
+              } else {
+                // All vendors categorized - build summary with tracked categories
+                const categorizedVendors: Array<{ vendor: string; category: string; count: number }> = [];
+                
+                // Use tracked categories
+                categorizationState.forEach(vs => {
+                  const tracked = categorizedVendorsMap.get(vs.vendor);
+                  if (tracked) {
+                    categorizedVendors.push({
+                      vendor: vs.vendor,
+                      category: tracked.category,
+                      count: tracked.count,
+                    });
+                  } else if (vs.vendor === vendor) {
+                    // Fallback for current vendor
+                    categorizedVendors.push({
+                      vendor: vs.vendor,
+                      category: finalCategory,
+                      count: updateResult.updatedCount,
+                    });
+                  }
+                });
+                
+                setCategorizationState(null);
+                setCurrentVendorIndex(0);
+                setCategorizedVendorsMap(new Map());
+                responseMessage = buildCategorizationCompleteMessage(categorizedVendors);
+              }
+            } else {
+              responseMessage = `I encountered an issue updating the category. Please try again.`;
+            }
+          }
+          break;
+
+        default:
+          responseMessage = `I'm not sure how to handle that action. Please try again.`;
+      }
+
+      // Add Prime's response message
+      const primeResponse: ChatMessage = {
+        id: `prime-response-${Date.now()}`,
+        type: 'prime',
+        content: responseMessage,
+        actions: followUpActions,
+        documentContext: context,
+        timestamp: new Date().toISOString(),
+      };
+
+      setMessages(prev => [...prev, primeResponse]);
+    } catch (error) {
+      console.error('[PrimeAction] Error handling action:', error);
+      const errorMessage: ChatMessage = {
+        id: `prime-error-${Date.now()}`,
+        type: 'prime',
+        content: `I encountered an issue processing that request. Please try again.`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
+  };
+
+  // Handle user questions when activeDocumentContext is set
+  const handleUserQuestion = async (question: string) => {
+    if (!activeDocumentContext) {
+      return; // Not in question mode
+    }
+
+    const userId = getUserId(user?.id);
+    const answer = await handleAskQuestion(question, activeDocumentContext, userId);
+
+    const primeAnswer: ChatMessage = {
+      id: `prime-answer-${Date.now()}`,
+      type: 'prime',
+      content: answer,
+      documentContext: activeDocumentContext,
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages(prev => [...prev, primeAnswer]);
   };
 
   // Handle quick action button clicks
@@ -703,7 +1752,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                   `}
                 </style>
                 <button
-                  onClick={() => setActiveAI('prime')}
+                  onClick={() => handleEmployeeSwitch('prime')}
                   className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'prime'
                       ? 'bg-yellow-500 text-white'
@@ -714,7 +1763,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                   {isMobile ? 'P' : 'Prime'}
                 </button>
                 <button
-                  onClick={() => setActiveAI('byte')}
+                  onClick={() => handleEmployeeSwitch('byte')}
                   className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'byte'
                       ? 'bg-blue-500 text-white'
@@ -725,7 +1774,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                   {isMobile ? 'B' : 'Byte'}
                 </button>
                 <button
-                  onClick={() => setActiveAI('crystal')}
+                  onClick={() => handleEmployeeSwitch('crystal')}
                   className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'crystal'
                       ? 'bg-purple-500 text-white'
@@ -736,7 +1785,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                   {isMobile ? 'C' : 'Crystal'}
                 </button>
                 <button
-                  onClick={() => setActiveAI('tag')}
+                  onClick={() => handleEmployeeSwitch('tag')}
                   className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
                     activeAI === 'tag'
                       ? 'bg-green-500 text-white'
@@ -749,7 +1798,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                 {!isMobile && (
                   <>
                     <button
-                      onClick={() => setActiveAI('ledger')}
+                      onClick={() => handleEmployeeSwitch('ledger')}
                       className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
                         activeAI === 'ledger'
                           ? 'bg-orange-500 text-white'
@@ -760,7 +1809,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                       Ledger
                     </button>
                     <button
-                      onClick={() => setActiveAI('blitz')}
+                      onClick={() => handleEmployeeSwitch('blitz')}
                       className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
                         activeAI === 'blitz'
                           ? 'bg-red-500 text-white'
@@ -771,7 +1820,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                       Blitz
                     </button>
                     <button
-                      onClick={() => setActiveAI('goalie')}
+                      onClick={() => handleEmployeeSwitch('goalie')}
                       className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all whitespace-nowrap ${
                         activeAI === 'goalie'
                           ? 'bg-indigo-500 text-white'
@@ -863,6 +1912,21 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                 </div>
                 <div className="whitespace-pre-wrap text-sm sm:text-base">{message.content}</div>
                 
+                {/* Prime Action Buttons */}
+                {message.actions && message.actions.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {message.actions.map((action, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handlePrimeAction(action, message)}
+                        className="w-full px-4 py-2 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 rounded-lg text-left text-sm text-yellow-100 transition-colors"
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                
                 {/* Transaction Results */}
                 {message.transactions && message.transactions.length > 0 && (
                   <div className="mt-3 space-y-2">
@@ -889,9 +1953,11 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                       ))}
                     </div>
                     <div className="flex gap-2 mt-2">
-                      <button className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded text-xs font-medium transition-colors">
-                        ✅ Import All
-                      </button>
+                      <ImportAllButton 
+                        importId={message.importId}
+                        transactionCount={message.transactions?.length || 0}
+                        userId={getUserId(user?.id)}
+                      />
                       <button className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded text-xs font-medium transition-colors">
                         ✏️ Edit
                       </button>
@@ -922,6 +1988,28 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
           className="hidden"
         />
 
+        {/* Multiple Upload Status Indicators */}
+        {uploadQueue.length > 0 && (
+          <div className="px-4 py-2 border-t border-gray-700 bg-gray-800/50">
+            <div className="max-w-4xl mx-auto space-y-2">
+              {uploadQueue.map((job) => (
+                <div key={job.id} className="flex items-center gap-2 text-sm text-gray-300">
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                  <span className="flex-1">
+                    {job.state === "uploading" 
+                      ? `Uploading ${job.fileName}...`
+                      : job.state === "processing"
+                      ? `Processing ${job.fileName}... ${job.progress ? `(${job.progress}%)` : ''}`
+                      : job.state === "error"
+                      ? `❌ ${job.fileName}: ${job.error || 'Failed'}`
+                      : `✅ ${job.fileName} completed`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ChatGPT-Style Input Area */}
         <div className="p-4 border-t border-gray-700 bg-gray-900">
           <div className="max-w-4xl mx-auto">
@@ -932,6 +2020,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
                 <button
                   onClick={() => setShowPlusMenu(!showPlusMenu)}
                   className="flex-shrink-0 w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded-full flex items-center justify-center transition-colors"
+                  title="Attach file (you can upload multiple files and chat while they process)"
                 >
                   <Plus className="w-4 h-4 text-gray-300" />
                 </button>
@@ -1285,3 +2374,30 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     </div>
   );
 };
+
+/*
+ * ============================================================================
+ * STEP 1 IMPLEMENTATION SUMMARY - Per-Employee Chat Sessions
+ * ============================================================================
+ * 
+ * Changes Made:
+ * 1. Added per-employee session management with EmployeeSessionMap state
+ * 2. Updated getOrCreateSmartImportConversation to accept employeeId parameter
+ * 3. Added loadSessionMessages function to load chat history from Supabase
+ * 4. Implemented handleEmployeeSwitch to switch between employees and load their sessions
+ * 5. Added URL integration (?employee=prime) for deep linking
+ * 6. Added localStorage persistence for employee sessions
+ * 7. Updated all employee tab buttons to call handleEmployeeSwitch
+ * 8. Updated initialization logic to load messages when switching employees
+ * 
+ * Testing Checklist:
+ * [ ] Open /dashboard/smart-import-ai
+ * [ ] Talk to Prime (send a couple of messages)
+ * [ ] Click Byte tab - verify Byte's responses and Prime's messages are preserved
+ * [ ] Switch back to Prime - verify previous Prime conversation is restored
+ * [ ] Navigate to Transactions page and back - verify last active employee is restored
+ * [ ] Reload page - verify sessions persist via localStorage
+ * [ ] Test URL deep linking: /dashboard/smart-import-ai?employee=byte
+ * 
+ * ============================================================================
+ */

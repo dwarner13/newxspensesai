@@ -18,7 +18,6 @@ import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import { BossProvider } from './lib/agents/context';
 import MobileLayoutGate from './components/layout/MobileLayoutGate';
 import MobileRevolution from './components/mobile/MobileRevolution';
-import DesktopDashboard from './components/DesktopDashboard';
 import RouteScrollReset from './components/util/RouteScrollReset';
 import { isPrimeV2Enabled } from './env';
 import { DevToolsProvider } from './contexts/DevToolsContext';
@@ -42,6 +41,19 @@ const useScrollbarWidth = () => {
 // Critical components - load immediately
 import HomePage from './pages/HomePage';
 import XspensesProDashboard from './components/XspensesProDashboard';
+import { PrimeChatPage } from './pages/dashboard/PrimeChatPage';
+import { SmartImportChatPage } from './pages/dashboard/SmartImportChatPage';
+import { AIChatAssistantPage } from './pages/dashboard/AIChatAssistantPage';
+import OverviewPage from './pages/dashboard/OverviewPage';
+import WorkspacePage from './pages/dashboard/WorkspacePage';
+import PlanningPage from './pages/dashboard/PlanningPage';
+// import AnalyticsPage from './pages/dashboard/AnalyticsPage'; // Old import
+const AnalyticsPage = lazy(() => import('./pages/dashboard/AnalyticsPage'));
+import BusinessPage from './pages/dashboard/BusinessPage';
+import EntertainmentPage from './pages/dashboard/EntertainmentPage';
+// import ReportsPage from './pages/dashboard/ReportsPage'; // Old import
+const ReportsPage = lazy(() => import('./pages/dashboard/ReportsPage'));
+import TestPage from './pages/dashboard/TestPage';
 
 // Lazy load non-critical components
 // const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
@@ -49,8 +61,12 @@ const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancia
 const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
 const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
 const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
+const TransactionsPage = lazy(() => import('./pages/dashboard/TransactionsPage'));
 // const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
+const SmartCategoriesPage = lazy(() => import('./pages/dashboard/SmartCategoriesPage'));
+const EmployeeChatPage = lazy(() => import('./pages/dashboard/EmployeeChatPage'));
+const AnalyticsAI = lazy(() => import('./pages/dashboard/AnalyticsAI'));
 
 // Feature pages
 const SmartImportAIFeaturePage = lazy(() => import('./pages/features/smart-import-ai'));
@@ -87,7 +103,7 @@ const SpendingPredictionsPage = lazy(() => import('./pages/dashboard/SpendingPre
 const AICategorizationPage = lazy(() => import('./pages/dashboard/AICategorizationPage'));
 const BillRemindersPage = lazy(() => import('./pages/dashboard/BillRemindersPage'));
 const DebtPayoffPlannerPage = lazy(() => import('./pages/dashboard/DebtPayoffPlannerPage'));
-const FinancialTherapistPage = lazy(() => import('./pages/dashboard/FinancialTherapistPage'));
+const AIFinancialTherapistPage = lazy(() => import('./pages/dashboard/AIFinancialTherapistPage'));
 // const TherapistDemoPage = lazy(() => import('./pages/dashboard/TherapistDemoPage'));
 const PersonalPodcastPage = lazy(() => import('./pages/dashboard/PersonalPodcastPage'));
 const OCRTesterPage = lazy(() => import('./pages/OCRTesterPage'));
@@ -101,14 +117,15 @@ const NavCheck = lazy(() => import('./pages/debug/NavCheck'));
 // const PodcastDashboard = lazy(() => import('./pages/PodcastDashboard'));
 // const TaxAssistant = lazy(() => import('./pages/features/tax-assistant'));
 // const PrimeAITestPage = lazy(() => import('./pages/test/PrimeAITestPage'));
-const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistant'));
+const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistantPage'));
 // const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
-const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligence'));
+const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligencePage'));
 // const PrimeLabPage = lazy(() => import('./ui/pages/PrimeLabPage')); // Hidden - using Centralized Chat Runtime instead
 // const TeamRoom = lazy(() => import('./pages/dashboard/TeamRoom'));
 const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
 const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
-const Settings = lazy(() => import('./pages/dashboard/Settings'));
+// const Settings = lazy(() => import('./pages/dashboard/Settings')); // Old import
+const SettingsPage = lazy(() => import('./pages/dashboard/SettingsPage'));
 // const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 // const Reports = lazy(() => import('./pages/dashboard/Reports'));
 // const ViewTransactionsPage = lazy(() => import('./pages/ViewTransactionsPage'));
@@ -133,24 +150,19 @@ const ChatTest = lazy(() => import('./pages/ChatTest'));
 const SimpleTest = lazy(() => import('./pages/SimpleTest'));
 const PodcastGeneratorFeaturePage = lazy(() => import('./pages/features/podcast-generator'));
 
-// Employee Chat Pages (Grade 4: These are chat pages for different AI employees)
-const PrimeChatSimple = lazy(() => import('./pages/chat/PrimeChatSimple'));
-const TagChat = lazy(() => import('./pages/chat/TagChat')); // Day 16: Tag chat page
-const ByteChat = lazy(() => import('./pages/ByteChatTest')); // Uses existing page
+// Employee Chat Pages - Legacy route-based chats now redirect to unified chat
+// Legacy chat pages redirect to dashboard with unified chat open
+const ChatPageRedirect = lazy(() => import('./components/chat/ChatPageRedirect'));
+const ByteChat = lazy(() => import('./pages/ByteChatTest')); // Uses existing page (test page)
 const CrystalChat = lazy(() => import('./pages/dashboard/SpendingPredictionsPage')); // Uses existing
-const GoalieChat = lazy(() => import('./pages/chat/GoalieChat'));
-const AutomationChat = lazy(() => import('./pages/chat/AutomationChat'));
-const DebtChat = lazy(() => import('./pages/chat/DebtChat'));
-const LibertyChat = lazy(() => import('./pages/chat/LibertyChat'));
-const ChimeChat = lazy(() => import('./pages/chat/ChimeChat'));
-const PodcastChat = lazy(() => import('./pages/chat/PodcastChat'));
-const TherapistChat = lazy(() => import('./pages/chat/TherapistChat'));
-const WellnessChat = lazy(() => import('./pages/chat/WellnessChat'));
-const SpotifyChat = lazy(() => import('./pages/chat/SpotifyChat'));
-const TaxChat = lazy(() => import('./pages/chat/TaxChat'));
-const BIChat = lazy(() => import('./pages/chat/BIChat'));
-const AnalyticsChat = lazy(() => import('./pages/chat/AnalyticsChat'));
-const SettingsChat = lazy(() => import('./pages/chat/SettingsChat'));
+// Legacy chat page imports removed - now using ChatPageRedirect component
+// const TherapistChat = lazy(() => import('./pages/chat/TherapistChat'));
+// const WellnessChat = lazy(() => import('./pages/chat/WellnessChat'));
+// const SpotifyChat = lazy(() => import('./pages/chat/SpotifyChat'));
+// const TaxChat = lazy(() => import('./pages/chat/TaxChat'));
+// const BIChat = lazy(() => import('./pages/chat/BIChat'));
+// const AnalyticsChat = lazy(() => import('./pages/chat/AnalyticsChat'));
+// const SettingsChat = lazy(() => import('./pages/chat/SettingsChat'));
 
 // Loading component for Suspense fallback
 const LoadingSpinner = () => (
@@ -264,25 +276,25 @@ function App() {
                         <Route path="/chat-test" element={<ChatTest />} />
                         <Route path="/simple-test" element={<SimpleTest />} />
                         
-                        {/* Employee Chat Routes (Grade 4: Each route shows a chat page for that AI employee) */}
-                        <Route path="/prime" element={<PrimeChatSimple />} />
-                        <Route path="/chat/prime" element={<Navigate to="/prime" replace />} />
-                        <Route path="/smart-categories" element={<TagChat />} />
+                        {/* Employee Chat Routes - Legacy routes now redirect to unified chat */}
+                        <Route path="/prime" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
+                        <Route path="/chat/prime" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
+                        <Route path="/chat/tag" element={<ChatPageRedirect employeeSlug="tag-ai" />} />
                         <Route path="/smart-import" element={<ByteChat />} />
                         <Route path="/predict" element={<CrystalChat />} />
-                        <Route path="/goals" element={<GoalieChat />} />
-                        <Route path="/automation" element={<AutomationChat />} />
-                        <Route path="/debt" element={<DebtChat />} />
-                        <Route path="/freedom" element={<LibertyChat />} />
-                        <Route path="/bills" element={<ChimeChat />} />
-                        <Route path="/podcast" element={<PodcastChat />} />
-                        <Route path="/therapist" element={<TherapistChat />} />
-                        <Route path="/wellness" element={<WellnessChat />} />
-                        <Route path="/spotify" element={<SpotifyChat />} />
-                        <Route path="/tax" element={<TaxChat />} />
-                        <Route path="/bi" element={<BIChat />} />
-                        <Route path="/analytics" element={<AnalyticsChat />} />
-                        <Route path="/settings" element={<SettingsChat />} />
+                        <Route path="/goals" element={<ChatPageRedirect employeeSlug="goalie-ai" />} />
+                        <Route path="/automation" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
+                        <Route path="/debt" element={<ChatPageRedirect employeeSlug="liberty-ai" />} />
+                        <Route path="/freedom" element={<ChatPageRedirect employeeSlug="liberty-ai" />} />
+                        <Route path="/bills" element={<ChatPageRedirect employeeSlug="chime-ai" />} />
+                        <Route path="/podcast" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
+                        <Route path="/therapist" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
+                        <Route path="/wellness" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
+                        <Route path="/spotify" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
+                        <Route path="/tax" element={<ChatPageRedirect employeeSlug="ledger-tax" />} />
+                        <Route path="/bi" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
+                        <Route path="/analytics" element={<ChatPageRedirect employeeSlug="crystal-ai" />} />
+                        <Route path="/settings" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
                       
             <Route path="/debug/mobile" element={<MobileCheck />} />
             <Route path="/debug/mobile-test" element={<MobileTest />} />
@@ -352,25 +364,53 @@ function App() {
                       />
                     }>
                       <Route index element={<XspensesProDashboard />} />
-                      <Route path="smart-import-ai" element={<SmartImportAIPage />} />
-                      <Route path="ai-financial-assistant" element={<AIFinancialAssistantPage />} />
-                      <Route path="transactions" element={<DashboardTransactionsPage />} />
+                      
+                      {/* Test Route */}
+                      <Route path="test" element={<TestPage />} />
+                      
+                      {/* Main Dashboard Pages */}
+                      <Route path="overview" element={<OverviewPage />} />
+                      <Route path="workspace" element={<WorkspacePage />} />
+                      <Route path="planning" element={<PlanningPage />} />
+                      <Route path="analytics" element={<AnalyticsPage />} />
+                      <Route path="business" element={<BusinessPage />} />
+                      <Route path="entertainment" element={<EntertainmentPage />} />
+                      <Route path="reports" element={<ReportsPage />} />
+                      <Route path="settings" element={<SettingsPage />} />
+                      
+                      {/* AI Workspace Pages */}
+                      <Route path="prime-chat" element={<PrimeChatPage />} />
+                      <Route path="smart-import-ai" element={<SmartImportChatPage />} />
+                      <Route path="ai-chat-assistant" element={<AIChatAssistantPage />} />
+                      <Route path="ai-financial-assistant" element={<AIChatAssistantPage />} />
+                      <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-chat-assistant" replace />} />
+                      <Route path="smart-categories" element={<SmartCategoriesPage />} />
+                      <Route path="ai-categorization" element={<SmartCategoriesPage />} />
+                      <Route path="analytics-ai" element={<AnalyticsAI />} />
+                      <Route path="ai-financial-freedom" element={<AIFinancialFreedomPage />} />
+                      
+                      {/* Planning & Analysis */}
+                      <Route path="transactions" element={<TransactionsPage />} />
                       <Route path="goal-concierge" element={<GoalConciergePage />} />
-                      <Route path="smart-categories" element={<AICategorizationPage />} />
                       <Route path="smart-automation" element={<SmartAutomation />} />
                       <Route path="spending-predictions" element={<SpendingPredictionsPage />} />
                       <Route path="debt-payoff-planner" element={<DebtPayoffPlannerPage />} />
-                      <Route path="ai-financial-freedom" element={<AIFinancialFreedomPage />} />
                       <Route path="bill-reminders" element={<BillRemindersPage />} />
+                      
+                      {/* Entertainment & Wellness */}
                       <Route path="personal-podcast" element={<PersonalPodcastPage />} />
                       <Route path="financial-story" element={<FinancialStoryPage />} />
-                      <Route path="financial-therapist" element={<FinancialTherapistPage />} />
+                      <Route path="financial-therapist" element={<AIFinancialTherapistPage />} />
                       <Route path="wellness-studio" element={<WellnessStudioPage />} />
                       <Route path="spotify" element={<SpotifyIntegrationPage />} />
+                      
+                      {/* Business & Tax */}
                       <Route path="tax-assistant" element={<TaxAssistantPage />} />
                       <Route path="business-intelligence" element={<BusinessIntelligencePage />} />
-                      <Route path="analytics" element={<Analytics />} />
-                      <Route path="settings" element={<Settings />} />
+                      {/* Employee Chat Routes */}
+                      <Route path="chat/:employeeId" element={<EmployeeChatPage />} />
+                      <Route path="chat" element={<Navigate to="/dashboard/chat/prime" replace />} />
+                      <Route path="blitz" element={<EmployeeChatPage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
@@ -403,8 +443,8 @@ function App() {
                 {therapistTrigger && <TherapistNotification />}
                 <TherapistModal />
 
-                {/* Dev Tools Panel (dev mode only) */}
-                <DevPanel />
+                {/* Dev Tools Panel removed for clean production UI */}
+                {/* <DevPanel /> */}
 
                 {/* Prime chat mount moved into DashboardLayout */}
                   </DevToolsProvider>

@@ -1,4 +1,16 @@
 /**
+ * ⚠️ DEPRECATED: Merged Guardrails System
+ * 
+ * Phase 2.2: Consolidated November 20, 2025
+ * 
+ * This file was a proposal/backup and is not used in production.
+ * 
+ * CANONICAL API: `netlify/functions/_shared/guardrails-unified.ts`
+ * 
+ * This file will be removed in a future cleanup.
+ * 
+ * ---
+ * 
  * 🛡️ Merged Guardrails System
  * Combines your existing structure with comprehensive PII patterns
  */

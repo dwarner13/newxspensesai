@@ -19,8 +19,7 @@ const AICategorizationPage: React.FC = () => {
   console.log('AICategorizationPage loading...');
   const [categoryOverviewOpen, setCategoryOverviewOpen] = useState(false);
   const [quickCategorizeOpen, setQuickCategorizeOpen] = useState(false);
-  const [chatMessage, setChatMessage] = useState('');
-  const [chatOpen, setChatOpen] = useState(false);
+  // Removed inline chat state - chat is now only in workspace overlay
   const [autoCategoryOpen, setAutoCategoryOpen] = useState(false);
   const [categoryManagementOpen, setCategoryManagementOpen] = useState(false);
   const [transactionsViewOpen, setTransactionsViewOpen] = useState(false);
@@ -31,21 +30,6 @@ const AICategorizationPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
-  const [chatMessages, setChatMessages] = useState<Array<{
-    id: number;
-    type: 'user' | 'ai';
-  content: string;
-  timestamp: string;
-    isLoading?: boolean;
-  }>>([
-    {
-      id: 1,
-      type: 'ai',
-      content: '👋 Hello! I\'m Tag AI, your smart categorization assistant. I can help you view categories, create rules, analyze spending, export data, and process documents. What would you like to do?',
-      timestamp: new Date().toLocaleTimeString(),
-      isLoading: false
-    }
-  ]);
 
   // Simple test to see if component renders
   if (typeof window !== 'undefined') {
@@ -218,118 +202,7 @@ const AICategorizationPage: React.FC = () => {
     processStep();
   };
 
-  const sendMessage = async (message: string) => {
-    console.log('Sending message to Tag AI:', message);
-    
-    // Add user message to chat
-    const newMessage = {
-      id: Date.now(),
-      type: 'user' as const,
-      content: message,
-      timestamp: new Date().toLocaleTimeString()
-    };
-    setChatMessages(prev => [...prev, newMessage]);
-    
-    // Show loading state
-    const loadingMessage = {
-      id: Date.now() + 1,
-      type: 'ai' as const,
-      content: '🤖 Tag AI is thinking...',
-      timestamp: new Date().toLocaleTimeString(),
-      isLoading: true
-    };
-    setChatMessages(prev => [...prev, loadingMessage]);
-    
-    try {
-      // Check if API key is available
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-      if (!apiKey || apiKey === 'your-api-key-here') {
-        // Fallback response when API key is not configured
-        const fallbackResponse = `🧠 **Tag AI Response** (Demo Mode)
-
-I received your message: "${message}"
-
-Since the OpenAI API key isn't configured yet, I'm running in demo mode. Here's what I would normally do:
-
-**For categorization requests:**
-- Analyze transaction patterns
-- Suggest smart categories
-- Create categorization rules
-- Process spending data
-
-**For analysis requests:**
-- Review spending patterns
-- Identify trends and insights
-- Generate reports
-- Provide recommendations
-
-To enable full AI functionality, please configure your OpenAI API key in the environment variables.
-
-What would you like to explore about your financial data?`;
-
-        // Remove loading message and add fallback response
-        setChatMessages(prev => {
-          const filtered = prev.filter(msg => !msg.isLoading);
-          return [...filtered, {
-            id: Date.now() + 2,
-            type: 'ai' as const,
-            content: fallbackResponse,
-            timestamp: new Date().toLocaleTimeString(),
-            isLoading: false
-          }];
-        });
-        return;
-      }
-
-      // Mock Tag AI response for now
-      const response = `🧠 **Tag AI Response** (Demo Mode)
-
-I received your message: "${message}"
-
-Here's what I would normally do:
-
-**For categorization requests:**
-- Analyze transaction patterns
-- Suggest smart categories
-- Create categorization rules
-- Process spending data
-
-**For analysis requests:**
-- Review spending patterns
-- Identify trends and insights
-- Generate reports
-- Provide recommendations
-
-What would you like to explore about your financial data?`;
-      
-      // Remove loading message and add AI response
-      setChatMessages(prev => {
-        const filtered = prev.filter(msg => !msg.isLoading);
-        return [...filtered, {
-          id: Date.now() + 2,
-          type: 'ai' as const,
-          content: response || 'I received your message but couldn\'t generate a response. Please try again.',
-          timestamp: new Date().toLocaleTimeString(),
-          isLoading: false
-        }];
-      });
-      
-    } catch (error) {
-      console.error('Error sending message to Tag AI:', error);
-      
-      // Remove loading message and add error response
-      setChatMessages(prev => {
-        const filtered = prev.filter(msg => !msg.isLoading);
-        return [...filtered, {
-          id: Date.now() + 2,
-          type: 'ai' as const,
-          content: '❌ Sorry, I encountered an error. Please try again.',
-          timestamp: new Date().toLocaleTimeString(),
-          isLoading: false
-        }];
-      });
-    }
-  };
+  // Removed sendMessage function - chat is now only in workspace overlay
 
   // Export functionality
   const exportToCSV = () => {
@@ -492,84 +365,19 @@ What would you like to explore about your financial data?`;
           </p>
         </div>
         
-        {/* Main Chat Interface */}
+        {/* Dashboard Content Area - No inline chat */}
         <div className="flex-1 flex flex-col">
-          <div className="flex-1 flex flex-col">
-            {/* Chat Messages Area */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[400px]">
-              {!chatOpen ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-center max-w-2xl">
-                    <h2
-                      className="text-xl font-bold text-white mb-1"
-                    >
-                      Welcome to Smart Categories
-                    </h2>
-                    <p
-                      className="text-white/60 text-sm mb-3"
-                    >
-                      AI-powered transaction categorization with 96% accuracy
-                    </p>
-                    
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-white">Chat with Tag AI</h2>
-                    <button
-                      onClick={() => setChatOpen(false)}
-                      className="text-white/60 hover:text-white p-2 hover:bg-white/10 rounded-lg transition-colors"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {chatMessages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div
-                          className={`max-w-md px-3 py-2 rounded-lg ${
-                            message.type === 'user'
-                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                              : 'bg-white/10 text-white border border-white/20'
-                          }`}
-                        >
-                          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                          <p className="text-xs opacity-70 mt-1">{message.timestamp}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Input Area */}
-            <div className="px-2 pt-1 pb-0.5 border-t border-white/10 bg-gradient-to-r from-purple-500/5 to-pink-500/5">
-              <div className="flex gap-1">
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    value={chatMessage}
-                    onChange={(e) => setChatMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && chatMessage.trim() && sendMessage(chatMessage)}
-                    placeholder="Ask about categorization, rules, or transaction analysis..."
-                    className="w-full bg-white/5 border border-white/20 rounded-lg px-2 py-1.5 pr-10 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-transparent transition-all text-sm"
-                  />
-                </div>
-                <button
-                  onClick={() => chatMessage.trim() && sendMessage(chatMessage)}
-                  disabled={!chatMessage.trim()}
-                  className="px-2 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-1.5 font-medium text-sm"
-                >
-                  <Bot className="w-4 h-4" />
-                  <span>Send</span>
-                </button>
-              </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-8">
+            <div className="text-center max-w-2xl">
+              <h2 className="text-xl font-bold text-white mb-1">
+                Welcome to Smart Categories
+              </h2>
+              <p className="text-white/60 text-sm mb-6">
+                AI-powered transaction categorization with 96% accuracy
+              </p>
+              <p className="text-white/40 text-xs">
+                Use the workspace overlay to chat with Tag AI about your categories
+              </p>
             </div>
           </div>
         </div>

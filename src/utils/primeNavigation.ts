@@ -30,8 +30,8 @@ export const PRIME_MESSAGES = {
   TAX_YEAR_END: 'Prime, ask Ledger (ledger-tax) to prepare a year-end tax summary with all potential deductions.',
   
   // Forecasting
-  FORECAST_NEXT_MONTH: 'Prime, ask Crystal (crystal-analytics) to forecast next month\'s spending and explain the two biggest drivers.',
-  FORECAST_TRENDS: 'Prime, ask Crystal (crystal-analytics) to analyze my spending trends over the last 3 months.',
+  FORECAST_NEXT_MONTH: 'Prime, ask Crystal (crystal-ai) to forecast next month\'s spending and explain the two biggest drivers.',
+  FORECAST_TRENDS: 'Prime, ask Crystal (crystal-ai) to analyze my spending trends over the last 3 months.',
   
   // Goals
   REVIEW_GOALS: 'Prime, ask Goalie (goalie-coach) to review my financial goals and show progress.',

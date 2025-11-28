@@ -93,7 +93,7 @@ const ConsentContent: Record<
     title: "Dashboard Analytics",
     description:
       "Your spending summary is analyzed in real-time to provide personalized insights and recommendations.",
-    aiEmployees: ["prime-boss", "crystal-analytics"],
+    aiEmployees: ["prime-boss", "crystal-ai"],
     dataTypes: ["transactions", "budgets", "spending patterns"],
     icon: "📊",
   },
@@ -111,7 +111,7 @@ const ConsentContent: Record<
     title: "Smart Document Processing",
     description:
       "Your uploaded bank statements are scanned, parsed, and analyzed using OCR and AI to automatically import and categorize transactions.",
-    aiEmployees: ["byte-docs", "tag-ai", "crystal-analytics"],
+    aiEmployees: ["byte-docs", "tag-ai", "crystal-ai"],
     dataTypes: ["bank statements", "transactions", "account info"],
     icon: "📄",
   },
@@ -138,7 +138,7 @@ const ConsentContent: Record<
     title: "Transaction Processing",
     description:
       "Your transaction data is processed for analysis, categorization, forecasting, and compliance. PII is masked and audit-logged.",
-    aiEmployees: ["tag-ai", "crystal-analytics", "byte-docs"],
+    aiEmployees: ["tag-ai", "crystal-ai", "byte-docs"],
     dataTypes: ["transactions", "merchant names", "amounts", "categories"],
     icon: "💳",
   },
@@ -147,7 +147,7 @@ const ConsentContent: Record<
     title: "Bank Account Sync",
     description:
       "Your connected bank accounts are securely synced and processed for balance tracking, transaction import, and financial health analysis.",
-    aiEmployees: ["byte-docs", "crystal-analytics"],
+    aiEmployees: ["byte-docs", "crystal-ai"],
     dataTypes: ["account info", "balances", "transactions"],
     icon: "🏦",
   },
@@ -156,7 +156,7 @@ const ConsentContent: Record<
     title: "AI Goal Advisor",
     description:
       "Your financial goals and progress are tracked and analyzed to provide personalized recommendations and accountability support.",
-    aiEmployees: ["prime-boss", "crystal-analytics"],
+    aiEmployees: ["prime-boss", "crystal-ai"],
     dataTypes: ["goals", "progress", "milestones"],
     icon: "🎯",
   },
@@ -165,7 +165,7 @@ const ConsentContent: Record<
     title: "Smart Automation",
     description:
       "Your workflow rules are executed and monitored to automate financial tasks like transfers, notifications, and categorization.",
-    aiEmployees: ["tag-ai", "crystal-analytics"],
+    aiEmployees: ["tag-ai", "crystal-ai"],
     dataTypes: ["automation rules", "transaction patterns"],
     icon: "⚙️",
   },
@@ -192,7 +192,7 @@ const ConsentContent: Record<
     title: "Financial Freedom Plan",
     description:
       "Your financial profile is analyzed to create a long-term strategic plan for achieving financial independence.",
-    aiEmployees: ["prime-boss", "crystal-analytics"],
+    aiEmployees: ["prime-boss", "crystal-ai"],
     dataTypes: ["income", "expenses", "assets", "goals"],
     icon: "✨",
   },
@@ -210,7 +210,7 @@ const ConsentContent: Record<
     title: "Personal Finance Podcast",
     description:
       "Your financial data is used to generate personalized podcast episodes with insights specific to your situation. Audio is synthesized and stored securely.",
-    aiEmployees: ["prime-boss", "crystal-analytics"],
+    aiEmployees: ["prime-boss", "crystal-ai"],
     dataTypes: ["financial data", "spending patterns", "goals"],
     icon: "🎙️",
   },
@@ -237,7 +237,7 @@ const ConsentContent: Record<
     title: "Wellness Studio",
     description:
       "Your wellness goals and health data are tracked to provide personalized recommendations for financial and physical wellbeing integration.",
-    aiEmployees: ["prime-boss", "crystal-analytics"],
+    aiEmployees: ["prime-boss", "crystal-ai"],
     dataTypes: ["health goals", "wellness data"],
     icon: "🧘",
   },

@@ -91,7 +91,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Montserrat', 'Inter', 'sans-serif'],
+        sans: ['"Inter"', '"system-ui"', 'sans-serif'],
+        display: ['"Poppins"', '"system-ui"', 'sans-serif'],
         montserrat: ['Montserrat', 'sans-serif'],
       },
       fontWeight: {

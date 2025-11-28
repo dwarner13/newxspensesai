@@ -1,17 +1,37 @@
+/**
+ * DashboardHeader Component
+ * 
+ * Unified two-row header for all dashboard pages:
+ * - Row 1: Page title (left) + Search bar (center) + Spotify/Notifications/Profile icons (right)
+ * - Row 2: Tab strip for workspace navigation
+ */
+
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
-import { User, Settings, LogOut, ChevronDown, Bell } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { User, Settings, LogOut, Bell, Search } from 'lucide-react';
+import { cn } from '../../lib/utils';
+import { StatusBadge } from './StatusBadge';
 
 interface DashboardHeaderProps {
   customTitle?: string;
   customSubtitle?: string;
+  statusBadges?: React.ReactNode;
+  secondaryStatusLabel?: string; // Page-specific secondary status text (e.g., "AI team active", "Insights updated • 5 min ago")
 }
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard': { title: 'FinTech Entertainment Platform', subtitle: 'Welcome back, John! Here\'s your financial overview.' },
+  '/dashboard/overview': { title: 'Overview', subtitle: 'Preview shell for your financial overview. Coming soon: AI-powered trend analysis and insights.' },
+  '/dashboard/planning': { title: 'Planning', subtitle: 'Plan ahead with AI-powered forecasts, goals, and what-if scenarios.' },
+  '/dashboard/analytics': { title: 'Analytics', subtitle: 'Preview shell for comprehensive financial analytics. Coming soon: Interactive charts and AI-powered insights.' },
+  '/dashboard/business': { title: 'Business', subtitle: 'Business and tax AI workspace for professional financial management.' },
+  '/dashboard/entertainment': { title: 'Entertainment', subtitle: 'Wellness, entertainment, and financial "fun" tools to make money management enjoyable.' },
+  '/dashboard/reports': { title: 'Reports', subtitle: 'Preview shell for financial reports. Coming soon: Custom report generation and export functionality.' },
   '/dashboard/transactions': { title: 'Transactions', subtitle: 'View and manage your financial transactions.' },
   '/dashboard/ai-financial-assistant': { title: 'AI Financial Assistant', subtitle: 'Get personalized financial advice from AI.' },
   '/dashboard/smart-import-ai': { title: 'Smart Import AI', subtitle: 'Automatically import and categorize your financial data.' },
+  '/dashboard/prime-chat': { title: 'Prime Chat', subtitle: 'Chat directly with Prime, your AI CEO.' },
+  '/dashboard/ai-chat-assistant': { title: 'AI Chat Assistant', subtitle: 'Chat with your AI financial assistant.' },
   '/dashboard/team-room': { title: 'Team Room', subtitle: 'Collaborate with your AI financial team.' },
   '/dashboard/ai-categorization': { title: 'AI Categorization', subtitle: 'Smart categorization of your transactions.' },
   '/dashboard/goal-concierge': { title: 'AI Goal Concierge', subtitle: 'Set and track your financial goals.' },
@@ -28,106 +48,83 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard/spotify-integration': { title: 'Spotify Integration', subtitle: 'Connect your music and financial wellness.' },
   '/dashboard/tax-assistant': { title: 'Tax Assistant', subtitle: 'AI-powered tax preparation and planning.' },
   '/dashboard/business-intelligence': { title: 'Business Intelligence', subtitle: 'Advanced analytics for your business.' },
-  '/dashboard/analytics': { title: 'Analytics', subtitle: 'Comprehensive financial analytics and insights.' },
   '/dashboard/settings': { title: 'Settings', subtitle: 'Customize your dashboard preferences.' },
-  '/dashboard/reports': { title: 'Reports', subtitle: 'Generate detailed financial reports.' },
 };
 
-export default function DashboardHeader({ customTitle, customSubtitle }: DashboardHeaderProps) {
+// Tab configuration for workspace navigation
+const tabs = [
+  { 
+    id: 'dashboard', 
+    label: 'Dashboard', 
+    match: (path: string) => path === '/dashboard',
+    navigate: '/dashboard'
+  },
+  { 
+    id: 'overview', 
+    label: 'Overview', 
+    match: (path: string) => path.startsWith('/dashboard/overview'),
+    navigate: '/dashboard/overview'
+  },
+  { 
+    id: 'planning', 
+    label: 'Planning', 
+    match: (path: string) => 
+      path.startsWith('/dashboard/planning') ||
+      path.startsWith('/dashboard/transactions') ||
+      path.startsWith('/dashboard/bank-accounts') ||
+      path.startsWith('/dashboard/goal-concierge') ||
+      path.startsWith('/dashboard/smart-automation') ||
+      path.startsWith('/dashboard/spending-predictions') ||
+      path.startsWith('/dashboard/debt-payoff-planner') ||
+      path.startsWith('/dashboard/ai-financial-freedom') ||
+      path.startsWith('/dashboard/bill-reminders'),
+    navigate: '/dashboard/planning'
+  },
+  { 
+    id: 'analytics', 
+    label: 'Analytics', 
+    match: (path: string) => path.startsWith('/dashboard/analytics'),
+    navigate: '/dashboard/analytics'
+  },
+  { 
+    id: 'business', 
+    label: 'Business', 
+    match: (path: string) => 
+      path.startsWith('/dashboard/business') ||
+      path.startsWith('/dashboard/tax-assistant') ||
+      path.startsWith('/dashboard/business-intelligence'),
+    navigate: '/dashboard/business'
+  },
+  { 
+    id: 'entertainment', 
+    label: 'Entertainment', 
+    match: (path: string) => 
+      path.startsWith('/dashboard/entertainment') ||
+      path.startsWith('/dashboard/personal-podcast') ||
+      path.startsWith('/dashboard/financial-story') ||
+      path.startsWith('/dashboard/financial-therapist') ||
+      path.startsWith('/dashboard/wellness-studio') ||
+      path.startsWith('/dashboard/spotify') ||
+      path.startsWith('/dashboard/spotify-integration'),
+    navigate: '/dashboard/entertainment'
+  },
+  { 
+    id: 'reports', 
+    label: 'Reports', 
+    match: (path: string) => path.startsWith('/dashboard/reports'),
+    navigate: '/dashboard/reports'
+  },
+] as const;
+
+export default function DashboardHeader({ customTitle, customSubtitle, statusBadges, secondaryStatusLabel }: DashboardHeaderProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [unreadCount] = useState(3);
+  const [unreadCount] = useState(4);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
-  const location = useLocation();
-
-  // Initialize Prime Boss button
-  useEffect(() => {
-    // SINGLETON GUARD: Prevent duplicate launchers across re-renders
-    if ((window as any).__PRIME_BOSS_MOUNTED) {
-      console.log('[Prime] Launcher already mounted, skipping...');
-      return;
-    }
-    
-    // Clean up legacy buttons from previous implementations
-    const legacySelectors = [
-      '#emergency-prime-button',    // BossBubble debug button
-      '.prime-fab',                 // Generic legacy FAB
-      '#dashboard-prime-bubble',    // Old DashboardPrimeBubble
-      '[data-prime-bubble]',        // Data-attribute based
-      '.dock-button-prime'          // Old PrimeDockButton
-    ];
-    
-    legacySelectors.forEach(selector => {
-      try {
-        const legacy = document.querySelector(selector);
-        if (legacy) {
-          console.log(`[Prime] Removing legacy launcher: ${selector}`);
-          legacy.remove();
-        }
-      } catch (e) {
-        console.warn(`[Prime] Failed to query selector ${selector}:`, e);
-      }
-    });
-    
-    const id = "prime-boss-button";
-    
-    // Remove existing button if any
-    document.getElementById(id)?.remove();
-
-    // Create button element
-    const btn = document.createElement("button");
-    btn.id = id;
-    btn.setAttribute("aria-label", "Open Prime");
-    btn.innerHTML = "👑";
-    btn.style.cssText = `
-      position: fixed; top: 20px; right: 20px;
-      width: 56px; height: 56px; border-radius: 9999px;
-      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-      border: none; cursor: pointer; z-index: 40;
-      font-size: 24px; line-height: 56px; text-align: center;
-      box-shadow: 0 4px 12px rgba(59,130,246,.4);
-      transition: transform .2s ease;
-      animation: prime-pulse 2s infinite;
-    `;
-
-    // Create and inject animation styles
-    const style = document.createElement("style");
-    style.innerHTML = `
-      @keyframes prime-pulse {
-        0%,100% { box-shadow: 0 4px 12px rgba(59,130,246,.4); }
-        50% { box-shadow: 0 4px 20px rgba(59,130,246,.8); }
-      }
-      #prime-boss-button:hover {
-        transform: scale(1.06);
-      }
-      #prime-boss-button:active {
-        transform: scale(0.98);
-      }
-    `;
-    document.head.appendChild(style);
-    
-    // SET SINGLETON GUARD
-    (window as any).__PRIME_BOSS_MOUNTED = true;
-
-    // Attach click handler to open Prime chat
-    btn.onclick = (e: Event) => {
-      e.preventDefault();
-      console.log("[Prime] Button clicked - opening chat");
-      window.dispatchEvent(new CustomEvent('prime:open', {
-        detail: { intent: 'insights', source: 'dashboard-header' }
-      }));
-    };
-
-    // Add button to DOM
-    document.body.appendChild(btn);
-
-    // Cleanup: Remove guard on unmount
-    return () => {
-      btn.remove();
-      delete (window as any).__PRIME_BOSS_MOUNTED;
-    };
-  }, []);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -158,169 +155,258 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
       : { title: 'FinTech Entertainment Platform', subtitle: 'Welcome back, John! Here\'s your financial overview.' };
   }, [customTitle, customSubtitle, location.pathname]);
 
+  // Determine active tab
+  const activeTabId = useMemo(() => {
+    const activeTab = tabs.find(tab => tab.match(location.pathname));
+    return activeTab?.id || 'dashboard';
+  }, [location.pathname]);
+
+  // Handle tab click
+  const handleTabClick = (tab: typeof tabs[number]) => {
+    if (tab.navigate && location.pathname !== tab.navigate) {
+      navigate(tab.navigate);
+    }
+  };
+
   return (
-    <header id="dashboard-header" className="fixed top-0 left-64 right-0 bg-[#0f172a] z-40 border-b border-white/10">
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex items-center justify-between">
-          {/* Title on the left */}
-          <div className="flex-1">
-            <h1
-              className="font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-[#ff4db2] via-[#c084fc] to-[#38bdf8] text-left"
-              style={{ fontSize: "48px", lineHeight: 1.1, letterSpacing: "-0.02em" }}
-            >
+    <header 
+      id="dashboard-header" 
+      className={cn(
+        "w-full border-b border-slate-800/60 bg-slate-950/80 backdrop-blur sticky top-0 z-30"
+      )}
+    >
+      <div className="mx-auto w-full max-w-6xl px-6 py-4 flex flex-col gap-4 overflow-x-hidden">
+        {/* Row 1: Title + subtitle + search + utilities */}
+        <div className="flex items-center gap-3 min-w-0 overflow-x-hidden">
+          {/* Left: title + subtitle */}
+          <div className="flex flex-col min-w-0 shrink-0 max-w-[280px]">
+            <h1 className="text-xl font-semibold text-white truncate">
               {pageInfo.title}
             </h1>
-            <p className="mt-0.5 text-slate-300/90 text-[17px] text-left">
-              {pageInfo.subtitle}
-            </p>
-          </div>
-          
-          {/* Icons on the right */}
-          <div className="flex items-center gap-3 ml-6">
-        {/* Spotify Icon */}
-        <button className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all duration-200 group">
-          <svg 
-            className="w-5 h-5 text-slate-300 group-hover:text-green-400 transition-colors duration-200" 
-            viewBox="0 0 24 24" 
-            fill="currentColor"
-          >
-            <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-9.54-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 3.6-1.08 7.56-.6 10.68 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.24 12.6c.361.181.54.78.301 1.44zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-          </svg>
-        </button>
-        
-        {/* Notifications Bell */}
-        <div className="relative" ref={notificationsRef}>
-          <button 
-            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all duration-200 group relative"
-          >
-            <Bell className="w-5 h-5 text-slate-300 group-hover:text-purple-400 transition-colors duration-200" />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-                {unreadCount}
-              </span>
+            {pageInfo.subtitle && (
+              <p className="text-sm text-slate-400 truncate">
+                {pageInfo.subtitle}
+              </p>
             )}
+          </div>
+
+          {/* Spacer to push search and icons to the right */}
+          <div className="flex-1 min-w-0 hidden md:block"></div>
+
+          {/* Center: search - positioned closer to icons */}
+          <div className="hidden md:flex shrink-0">
+            <div className="w-full max-w-[240px] flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1.5 mr-3">
+              <Search className="w-4 h-4 text-slate-500 flex-shrink-0" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => {
+                  // TODO: Wire global search functionality - connect to search API/endpoint
+                  setSearchQuery(e.target.value);
+                }}
+                className="bg-transparent outline-none text-sm text-slate-100 placeholder:text-slate-500 flex-1 min-w-0"
+              />
+            </div>
+          </div>
+
+          {/* Right: icons - fixed position */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Spotify Icon */}
+            <button 
+              className="h-10 w-10 rounded-full border border-slate-800 bg-slate-900/80 flex items-center justify-center text-slate-100 hover:bg-slate-800/80 hover:border-slate-700 transition group"
+              aria-label="Spotify Integration"
+              onClick={() => navigate('/dashboard/spotify-integration')}
+            >
+            <svg 
+              className="w-4 h-4 text-slate-300 group-hover:text-green-400 transition-colors duration-200" 
+              viewBox="0 0 24 24" 
+              fill="currentColor"
+            >
+              <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-9.54-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 3.6-1.08 7.56-.6 10.68 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.24 12.6c.361.181.54.78.301 1.44zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+            </svg>
           </button>
           
-          {/* Notifications Dropdown */}
-          {isNotificationsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-[#0f172a]/95 backdrop-blur-md border border-purple-500/20 rounded-xl shadow-2xl z-50">
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white font-semibold">AI Team Activity</h3>
-                  <span className="text-xs text-slate-400">{unreadCount} active</span>
+          {/* Notifications Bell */}
+          <div className="relative" ref={notificationsRef}>
+            <button 
+              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+              className="h-10 w-10 rounded-full border border-slate-800 bg-slate-900/80 flex items-center justify-center text-slate-100 hover:bg-slate-800/80 hover:border-slate-700 transition relative"
+              aria-label="Notifications"
+            >
+              <Bell className="w-4 h-4 text-slate-300" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium border-2 border-[#050816]">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+              
+            {/* Notifications Dropdown */}
+            {isNotificationsOpen && (
+              <div className="absolute right-0 top-full mt-2 w-80 bg-[#0b1220]/95 backdrop-blur-md border border-purple-500/20 rounded-xl shadow-2xl z-50">
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-white font-semibold">AI Team Activity</h3>
+                    <span className="text-xs text-slate-400">{unreadCount} active</span>
+                  </div>
+                  
+                  {/* AI Workers Status */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-3 p-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 cursor-pointer transition-colors">
+                      <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white text-sm">🤖</div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white font-medium">Byte</p>
+                        <p className="text-xs text-slate-400">Document Processing Wizard</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-green-400">● Active</div>
+                        <div className="text-xs text-slate-400">Processing</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 cursor-pointer transition-colors">
+                      <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-white text-sm">💎</div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white font-medium">Crystal</p>
+                        <p className="text-xs text-slate-400">Data Analysis Expert</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-green-400">● Active</div>
+                        <div className="text-xs text-slate-400">Analyzing</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 cursor-pointer transition-colors">
+                      <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center text-white text-sm">🏷️</div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white font-medium">Tag</p>
+                        <p className="text-xs text-slate-400">Smart Categorization</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-green-400">● Active</div>
+                        <div className="text-xs text-slate-400">Categorizing</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-2 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 cursor-pointer transition-colors">
+                      <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-lg flex items-center justify-center text-white text-sm">👑</div>
+                      <div className="flex-1">
+                        <p className="text-sm text-white font-medium">Prime</p>
+                        <p className="text-xs text-slate-400">Team Coordinator</p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-green-400">● Active</div>
+                        <div className="text-xs text-slate-400">Coordinating</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Quick Actions */}
+                  <div className="border-t border-purple-500/20 pt-3">
+                    <button 
+                      onClick={() => {
+                        setIsNotificationsOpen(false);
+                        window.dispatchEvent(new CustomEvent('openWatchMeWork', { 
+                          detail: { feature: 'AI Team Overview' } 
+                        }));
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 transition-all duration-200"
+                    >
+                      <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
+                        <span className="text-white text-xs">👁️</span>
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className="text-sm text-white font-medium">Watch Me Work</p>
+                        <p className="text-xs text-slate-400">See AI team in action</p>
+                      </div>
+                    </button>
+                  </div>
                 </div>
-                
-                {/* AI Workers Status */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white text-sm">🤖</div>
-                    <div className="flex-1">
-                      <p className="text-sm text-white font-medium">Byte</p>
-                      <p className="text-xs text-slate-400">Document Processing Wizard</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-green-400">● Active</div>
-                      <div className="text-xs text-slate-400">Processing</div>
-                    </div>
+              </div>
+            )}
+          </div>
+
+          {/* Profile Icon with Dropdown */}
+          <div className="relative" ref={profileRef}>
+            <button 
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="h-10 w-10 rounded-full border border-slate-800 bg-slate-900/80 flex items-center justify-center text-slate-100 hover:bg-slate-800/80 hover:border-slate-700 transition group"
+              aria-label="Profile menu"
+            >
+              <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-teal-500 rounded-full flex items-center justify-center">
+                <User className="w-3 h-3 text-white" />
+              </div>
+            </button>
+
+            {/* Profile Dropdown Menu */}
+            {isProfileOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-[#0f172a]/95 backdrop-blur-md border border-purple-500/20 rounded-xl shadow-2xl z-50">
+                <div className="p-2">
+                  <div className="px-3 py-2 border-b border-purple-500/20 mb-2">
+                    <div className="text-sm font-medium text-white">John Doe</div>
+                    <div className="text-xs text-slate-400">Premium Plan</div>
                   </div>
-                  
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-white text-sm">💎</div>
-                    <div className="flex-1">
-                      <p className="text-sm text-white font-medium">Crystal</p>
-                      <p className="text-xs text-slate-400">Data Analysis Expert</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-green-400">● Active</div>
-                      <div className="text-xs text-slate-400">Analyzing</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center text-white text-sm">🏷️</div>
-                    <div className="flex-1">
-                      <p className="text-sm text-white font-medium">Tag</p>
-                      <p className="text-xs text-slate-400">Smart Categorization</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-green-400">● Active</div>
-                      <div className="text-xs text-slate-400">Categorizing</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-lg flex items-center justify-center text-white text-sm">👑</div>
-                    <div className="flex-1">
-                      <p className="text-sm text-white font-medium">Prime</p>
-                      <p className="text-xs text-slate-400">Team Coordinator</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-green-400">● Active</div>
-                      <div className="text-xs text-slate-400">Coordinating</div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Quick Actions */}
-                <div className="border-t border-purple-500/20 pt-3">
-                  <button 
-                    onClick={() => {
-                      setIsNotificationsOpen(false);
-                      // This will be handled by the parent component
-                      window.dispatchEvent(new CustomEvent('openWatchMeWork', { 
-                        detail: { feature: 'AI Team Overview' } 
-                      }));
-                    }}
-                    className="w-full flex items-center gap-3 p-2 rounded-lg bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 transition-all duration-200"
-                  >
-                    <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
-                      <span className="text-white text-xs">👁️</span>
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm text-white font-medium">Watch Me Work</p>
-                      <p className="text-xs text-slate-400">See AI team in action</p>
-                    </div>
+                  <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200">
+                    <Settings className="w-4 h-4" />
+                    <span className="text-sm">Account Settings</span>
+                  </button>
+                  <div className="border-t border-purple-500/20 my-1"></div>
+                  <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-all duration-200">
+                    <LogOut className="w-4 h-4" />
+                    <span className="text-sm">Sign Out</span>
                   </button>
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
+          </div>
         </div>
 
-        {/* Profile Icon with Dropdown */}
-        <div className="relative" ref={profileRef}>
-          <button 
-            onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-all duration-200 group flex items-center gap-1.5"
-          >
-            <div className="w-5 h-5 bg-gradient-to-br from-purple-500 to-teal-500 rounded-full flex items-center justify-center">
-              <User className="w-3 h-3 text-white" />
-            </div>
-            <ChevronDown className={`w-2.5 h-2.5 text-slate-300 transition-transform duration-200 ${isProfileOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {/* Profile Dropdown Menu */}
-          {isProfileOpen && (
-            <div className="absolute right-0 top-full mt-2 w-48 bg-[#0f172a]/95 backdrop-blur-md border border-purple-500/20 rounded-xl shadow-2xl z-50">
-              <div className="p-2">
-                <div className="px-3 py-2 border-b border-purple-500/20 mb-2">
-                  <div className="text-sm font-medium text-white">John Doe</div>
-                  <div className="text-xs text-slate-400">Premium Plan</div>
-                </div>
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200">
-                  <Settings className="w-4 h-4" />
-                  <span className="text-sm">Account Settings</span>
+        {/* Row 2: Tabs + status chips */}
+        <div className="flex items-center gap-2 overflow-x-hidden min-w-0">
+          {/* Left: main tabs */}
+          <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 min-w-0 flex-1">
+            {tabs.map((tab) => {
+              const isActive = tab.id === activeTabId;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabClick(tab)}
+                  disabled={!tab.navigate}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={cn(
+                    "rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1.5 text-xs font-medium text-slate-200 whitespace-nowrap transition flex-shrink-0",
+                    isActive && "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/30",
+                    !isActive && "hover:bg-slate-900/80",
+                    !tab.navigate && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  {tab.label}
                 </button>
-                <div className="border-t border-purple-500/20 my-1"></div>
-                <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-all duration-200">
-                  <LogOut className="w-4 h-4" />
-                  <span className="text-sm">Sign Out</span>
-                </button>
-              </div>
-            </div>
-          )}
+              );
+            })}
           </div>
+          
+          {/* Right: status chips */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Primary status chip: Prime Online • 24/7 */}
+            {statusBadges ? (
+              // Fallback: if statusBadges prop is provided, render it (for backward compatibility)
+              statusBadges
+            ) : (
+              <>
+                <StatusBadge fixedWidth variant="online">
+                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full inline-block mr-1.5 animate-pulse"></span>
+                  Prime Online • 24/7
+                </StatusBadge>
+                {secondaryStatusLabel && (
+                  <StatusBadge fixedWidth variant="default">
+                    {secondaryStatusLabel}
+                  </StatusBadge>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>

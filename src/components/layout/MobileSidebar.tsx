@@ -131,7 +131,21 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           </li>
           <li>
             <NavLink 
-              to="/dashboard/ai-financial-assistant" 
+              to="/dashboard/prime-chat" 
+              onClick={onClose}
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+            >
+              <Crown size={20} className="flex-shrink-0 text-white/90" />
+              <span className="font-medium text-white/90">👑 Prime Chat</span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/ai-chat-assistant" 
               onClick={onClose}
               className={({ isActive }) => 
                 `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
@@ -145,21 +159,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           </li>
           <li>
             <NavLink 
-              to="/dashboard/team-room" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Users size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Team Room</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/ai-categorization" 
+              to="/dashboard/smart-categories" 
               onClick={onClose}
               className={({ isActive }) => 
                 `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
@@ -169,6 +169,20 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
             >
               <Brain size={20} className="flex-shrink-0 text-white/90" />
               <span className="font-medium text-white/90">Smart Categories</span>
+            </NavLink>
+          </li>
+          <li>
+            <NavLink 
+              to="/dashboard/analytics-ai" 
+              onClick={onClose}
+              className={({ isActive }) => 
+                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
+                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                }`
+              }
+            >
+              <BarChart3 size={20} className="flex-shrink-0 text-white/90" />
+              <span className="font-medium text-white/90">Analytics AI</span>
             </NavLink>
           </li>
         </ul>
@@ -285,7 +299,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
         <ul className="space-y-1 mb-4">
           <li>
             <NavLink 
-              to="/dashboard/podcast" 
+              to="/dashboard/personal-podcast" 
               onClick={onClose}
               className={({ isActive }) => 
                 `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
@@ -341,7 +355,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
           </li>
           <li>
             <NavLink 
-              to="/dashboard/spotify-integration" 
+              to="/dashboard/spotify" 
               onClick={onClose}
               className={({ isActive }) => 
                 `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${

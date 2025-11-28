@@ -82,6 +82,9 @@ export default function PrimeChatV2({ userId, sessionId, open, onClose }: Props)
 
   const accent = '#f7b731';
 
+  // Return null when closed to prevent blocking clicks
+  if (!open) return null;
+
   // Responsive: slide-out right on desktop, bottom drawer on mobile
   return (
     <div
@@ -92,7 +95,7 @@ export default function PrimeChatV2({ userId, sessionId, open, onClose }: Props)
         'text-neutral-100',
         'md:top-0 md:right-0 md:h-full md:w-[420px]',
         'md:translate-x-0',
-        open ? 'translate-y-0 md:translate-x-0' : 'translate-y-full md:translate-x-full',
+        'translate-y-0 md:translate-x-0',
         'bottom-0 left-0 right-0 h-[72vh] rounded-t-2xl md:rounded-none',
       ].join(' ')}
       style={{ borderColor: 'rgba(247,183,49,0.18)' }}

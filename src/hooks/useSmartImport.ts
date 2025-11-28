@@ -15,7 +15,7 @@ export type UploadSource = 'upload' | 'chat';
 export type UploadResult = {
   docId: string;
   queued: boolean;
-  via: 'ocr' | 'statement-parse' | 'unsupported';
+  via: 'ocr' | 'statement-parse' | 'vision-parse' | 'unsupported';
   rejected?: boolean;
   reason?: string;
   pii_redacted?: boolean;

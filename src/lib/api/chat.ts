@@ -5,30 +5,41 @@ export function toMessage(role: ChatMessage['role'], content: string): ChatMessa
   return { role, content };
 }
 
+/**
+ * DEPRECATED: Legacy chat function with messages array format.
+ * Use CHAT_ENDPOINT directly with { userId, message, employeeSlug, sessionId, stream } format.
+ * 
+ * This function is kept for backward compatibility but will be removed.
+ */
 export async function chat({ agent = 'prime', messages, userId, attachments }: { agent?: 'prime'|'byte'|'tag'|'goalie'|'crystal'; userId?: string; messages: ChatMessage[]; attachments?: Array<File | ChatAttachment> }) {
-  if (typeof window !== 'undefined') {
-    try {
-      if (!localStorage.getItem('anonymous_user_id')) {
-        const id = (globalThis.crypto as any)?.randomUUID?.() || String(Date.now());
-        localStorage.setItem('anonymous_user_id', id);
-      }
-    } catch {}
+  // Convert messages array to single message (use last user message)
+  const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+  if (!lastUserMessage) {
+    throw new Error('No user message found');
   }
-  const trimmed = trimHistory(messages);
-  const summaryId = getRollingSummaryId(messages);
 
-  const encodedAttachments: ChatAttachment[] | undefined = attachments && attachments.length
-    ? await Promise.all(attachments.map(async (a: any) => isFile(a) ? fileToAttachment(a as File) : (a as ChatAttachment)))
-    : undefined;
+  // Map agent to employeeSlug
+  const employeeSlugMap: Record<string, string> = {
+    'prime': 'prime-boss',
+    'byte': 'byte-docs',
+    'tag': 'tag-categorize',
+    'goalie': 'goalie-goals',
+    'crystal': 'crystal-ai',
+  };
+  const employeeSlug = employeeSlugMap[agent] || 'prime-boss';
 
-  const body: any = { agent, userId: userId || localStorage.getItem('anonymous_user_id') || 'demo', messages: trimmed, attachments: encodedAttachments };
-  if (summaryId) body.summaryId = summaryId;
-
+  // Use canonical endpoint
   const res = await fetch('/.netlify/functions/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify({
+      userId: userId || localStorage.getItem('anonymous_user_id') || 'demo',
+      message: lastUserMessage.content,
+      employeeSlug,
+      stream: true,
+    })
   });
+
   if (!res.ok) throw new Error(`Chat failed: ${res.status}`);
 
   const ct = res.headers.get('content-type') || '';
@@ -43,25 +54,20 @@ export async function chat({ agent = 'prime', messages, userId, attachments }: {
       done = !!chunk.done;
       if (chunk.value) {
         const text = decoder.decode(chunk.value, { stream: true });
-        // Accept SSE (data: ...) or NDJSON lines
+        // Parse SSE format: data: {...}
         const lines = text.split(/\r?\n/);
         for (const line of lines) {
-          if (!line) continue;
           if (line.startsWith('data:')) {
             const payload = line.slice(5).trim();
             try {
               const json = JSON.parse(payload);
-              if (json.content) content += String(json.content);
+              if (json.type === 'token' && json.token) {
+                content += json.token;
+              } else if (json.content) {
+                content += String(json.content);
+              }
             } catch {
-              content += payload;
-            }
-          } else {
-            // NDJSON or plain text
-            try {
-              const json = JSON.parse(line);
-              if (json.content) content += String(json.content);
-            } catch {
-              content += line;
+              // Ignore parse errors
             }
           }
         }
@@ -112,7 +118,10 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
 }
 
 /**
- * Send chat message to chat-v2 endpoint
+ * DEPRECATED: Legacy chat-v2 function.
+ * Use CHAT_ENDPOINT directly with { userId, message, employeeSlug, sessionId, stream } format.
+ * 
+ * Canonical endpoint: /.netlify/functions/chat
  */
 export interface ChatV2Request {
   message: string;
@@ -131,22 +140,37 @@ export interface ChatV2Response {
 }
 
 export async function sendChatV2(params: ChatV2Request): Promise<ChatV2Response> {
-  const res = await fetch('/.netlify/functions/chat-v2', {
+  // Map to canonical endpoint format
+  const userId = localStorage.getItem('anonymous_user_id') || `anon-${Date.now()}`;
+  
+  const res = await fetch('/.netlify/functions/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      userId,
       message: params.message,
-      convoId: params.convoId,
-      preferredAgent: params.preferredAgent || null
+      sessionId: params.convoId,
+      employeeSlug: params.preferredAgent || 'prime-boss',
+      stream: false, // v2 was non-streaming
     })
   });
   
   if (!res.ok) {
     const errorText = await res.text().catch(() => 'Unknown error');
-    throw new Error(`Chat v2 failed: ${res.status} - ${errorText}`);
+    throw new Error(`Chat failed: ${res.status} - ${errorText}`);
   }
   
-  return await res.json();
+  const data = await res.json();
+  
+  // Convert response format
+  return {
+    agent: data.employee || 'prime-boss',
+    reply: data.content || data.message || '',
+    meta: {
+      piiMasked: data.piiMasked || false,
+      moderationFlagged: data.moderationFlagged || false,
+    }
+  };
 }
 
 

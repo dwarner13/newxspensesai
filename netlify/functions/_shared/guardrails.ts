@@ -1,3 +1,21 @@
+/**
+ * ⚠️ DEPRECATED: Legacy Guardrails Implementation
+ * 
+ * Phase 2.2: Consolidated November 20, 2025
+ * 
+ * This file is deprecated. Use `guardrails-unified.ts` instead.
+ * 
+ * CANONICAL API: `netlify/functions/_shared/guardrails-unified.ts`
+ * 
+ * Migration Guide:
+ * - Replace `import { applyGuardrails } from './guardrails'`
+ *   with `import { runGuardrailsForText, runInputGuardrails } from './guardrails-unified'`
+ * - For single strings: Use `runGuardrailsForText()`
+ * - For message arrays: Use `runInputGuardrails()`
+ * 
+ * This file will be removed in a future cleanup.
+ */
+
 import OpenAI from 'openai';
 import crypto from 'crypto';
 import { supabaseAdmin as supabaseAdmin } from './supabase'
@@ -8,6 +26,8 @@ import { maskPII } from './pii'; // Use canonical maskPII instead of inline reda
 /**
  * Wrap a handler to add guardrails, error handling, and response headers
  * Automatically adds X-Guardrails and X-PII-Mask headers to all responses
+ * 
+ * @deprecated Use guardrails-unified.ts instead
  */
 export function withGuardrails(handler: Handler): Handler {
   return async (event: HandlerEvent, context: HandlerContext) => {
@@ -262,6 +282,16 @@ async function checkHallucination(text: string, userId: string): Promise<{
  * - Jailbreak detection (configurable)
  * - Supabase logging (automatic)
  * - Response headers (X-Guardrails, X-PII-Mask)
+ * 
+ * GUARDRAILS COMPLIANCE FOR CHIME NOTIFICATIONS:
+ * - All text produced by the Chime notification tool (chime_generate_notification) is
+ *   considered user-visible output and must be passed through the same PII masking +
+ *   moderation pipeline as regular chat responses.
+ * - The chime_generate_notification tool applies PII masking internally, but all
+ *   outbound notification text (from notifications_queue) will also pass through this
+ *   guardrails function when being rendered/sent to users.
+ * - No code path should allow notification text to bypass guardrails.
+ * - chime-ai employee is subject to the same guardrail rules as Prime/Liberty/Finley/Crystal.
  * 
  * @param input - Raw user input text
  * @param options - Guardrail configuration options

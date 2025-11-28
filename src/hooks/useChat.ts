@@ -8,6 +8,7 @@ export function useChat(employeeSlug: string) {
   const { user } = useAuth();
   const [messages, setMessages] = useLocalStorage<any[]>(`chat:${employeeSlug}`, []);
   const [pendingTool, setPendingTool] = React.useState<null | { id: string; name: string }>(null);
+  const [activeEmployeeSlug, setActiveEmployeeSlug] = React.useState<string>(employeeSlug);
 
   async function send(text: string, opts?: { attachments?: File[] }) {
     const id = uuid();
@@ -25,14 +26,44 @@ export function useChat(employeeSlug: string) {
     try {
       const resp = await postMessage({
         userId: user?.id || undefined,
-        employeeSlug,
+        employeeSlug: activeEmployeeSlug, // Use active employee (may have changed from handoff)
         message: text,
         sessionId: null,
         stream: false,
       });
 
+      // Handle handoff if present
+      if (resp?.meta?.handoff) {
+        const { from, to } = resp.meta.handoff;
+        console.log(`[useChat] 🔄 Handoff detected: ${from} → ${to}`);
+        setActiveEmployeeSlug(to);
+        
+        // Add handoff notification message
+        const handoffMessage = {
+          id: uuid(),
+          role: 'system' as const,
+          content: `${from} handed you off to ${to}`,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((m) => [...m, handoffMessage]);
+      }
+
+      // Update active employee if response includes it
+      if (resp?.employee && resp.employee !== activeEmployeeSlug) {
+        setActiveEmployeeSlug(resp.employee);
+      }
+
       if (resp?.messages) {
         setMessages((m) => [...m, ...resp.messages]);
+      } else if (resp?.content) {
+        // Handle simple content response
+        const assistantMessage = {
+          id: uuid(),
+          role: 'assistant' as const,
+          content: resp.content,
+          timestamp: new Date().toISOString(),
+        };
+        setMessages((m) => [...m, assistantMessage]);
       }
     } catch (e) {
       console.error('send error', e);
@@ -60,6 +91,7 @@ export function useChat(employeeSlug: string) {
     pendingTool,
     markPendingTool,
     handleToolResponse,
+    activeEmployeeSlug, // Expose active employee (may differ from initial if handoff occurred)
   };
 }
 

@@ -19,7 +19,7 @@
  *
  * // Crystal insight notification
  * await notify({
- *   employee: "crystal-analytics",
+ *   employee: "crystal-ai",
  *   priority: "info",
  *   title: "Spending Spike",
  *   description: "Dining up 28% WoW",
@@ -54,7 +54,7 @@ export type NotificationPriority = "success" | "info" | "warning" | "critical";
 
 export type EmployeeKey =
   | "prime-boss"
-  | "crystal-analytics"
+  | "crystal-ai"
   | "byte-docs"
   | "tag-categorizer"
   | "ledger-tax"
@@ -92,7 +92,7 @@ export interface NotifyResponse {
  *
  * @example
  * const result = await notify({
- *   employee: "crystal-analytics",
+ *   employee: "crystal-ai",
  *   priority: "warning",
  *   title: "Budget Alert",
  *   description: "Dining category exceeded monthly budget",
@@ -206,7 +206,7 @@ export function useNotify() {
  * const { notify } = require('./netlify/functions/_shared/notify');
  * await notify({
  *   userId: user_id,
- *   employee: "crystal-analytics",
+ *   employee: "crystal-ai",
  *   priority: "info",
  *   title: "Import Complete",
  *   description: `${count} transactions imported`
@@ -325,7 +325,7 @@ export async function notifyCrystal(
   }
 ): Promise<NotifyResponse> {
   return notify({
-    employee: "crystal-analytics",
+    employee: "crystal-ai",
     priority: options?.priority || "info",
     title,
     description,

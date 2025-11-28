@@ -1,4 +1,20 @@
 /**
+ * ⚠️ DEPRECATED: Guardrails Compatibility Adapter
+ * 
+ * Phase 2.2: Consolidated November 20, 2025
+ * 
+ * This adapter is no longer needed. Use `guardrails-unified.ts` directly.
+ * 
+ * CANONICAL API: `netlify/functions/_shared/guardrails-unified.ts`
+ * 
+ * Migration Guide:
+ * - Replace `import { ... } from './guardrails_adapter'`
+ *   with `import { runGuardrailsForText, runInputGuardrails } from './guardrails-unified'`
+ * 
+ * This file will be removed in a future cleanup.
+ * 
+ * ---
+ * 
  * 🔄 Guardrails Compatibility Adapter
  * 
  * Bridges old guardrails-production API to new unified guardrails.ts API
@@ -6,6 +22,7 @@
  * This adapter maintains backward compatibility while migrating to canonical guardrails.ts
  * 
  * @module guardrails_adapter
+ * @deprecated Use guardrails-unified.ts instead
  */
 
 import { applyGuardrails, GUARDRAIL_PRESETS, type GuardrailPreset, type GuardrailOutcome } from './guardrails';

@@ -63,6 +63,8 @@ const AIEmployeeChat: React.FC<AIEmployeeChatProps> = ({ userId, initialEmployee
     Tag: { emoji: '🏷️', color: 'from-teal-500 to-cyan-600', description: 'Categorization & Organization' },
     Blitz: { emoji: '⚡', color: 'from-yellow-500 to-orange-600', description: 'Debt Payoff & Strategy' },
     Crystal: { emoji: '🔮', color: 'from-indigo-500 to-blue-600', description: 'Predictions & Forecasting' },
+    'crystal-ai': { emoji: '🔮', color: 'from-purple-500 to-indigo-600', description: 'Financial Insights Analyst' },
+    'finley-ai': { emoji: '📈', color: 'from-teal-500 to-green-600', description: 'Wealth & Forecast AI' },
     Fortune: { emoji: '💰', color: 'from-green-500 to-emerald-600', description: 'Budget Reality & Accountability' },
     Goalie: { emoji: '🥅', color: 'from-purple-500 to-pink-600', description: 'Goal Progress & Achievement' },
     Wisdom: { emoji: '🧠', color: 'from-blue-500 to-indigo-600', description: 'Strategic Analysis & Planning' },

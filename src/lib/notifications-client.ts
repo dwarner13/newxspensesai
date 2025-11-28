@@ -38,7 +38,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export type NotificationPriority = "success" | "info" | "warning" | "critical";
 export type EmployeeKey =
   | "prime-boss"
-  | "crystal-analytics"
+  | "crystal-ai"
   | "byte-docs"
   | "tag-categorizer"
   | "ledger-tax"

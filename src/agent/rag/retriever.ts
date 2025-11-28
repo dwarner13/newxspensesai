@@ -92,7 +92,8 @@ export class KnowledgeRetriever {
     // Cache results
     this.cache.set(cacheKey, {
       result: results,
-      expires: Date.now() + 60 * 60 * 1000, // 1 hour});
+      expires: Date.now() + 60 * 60 * 1000, // 1 hour
+    });
     
     // Log for feedback
     await this.logRetrieval(query, results);

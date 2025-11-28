@@ -19,6 +19,7 @@ interface Message {
 interface UseStreamChatOptions {
   onError?: (error: Error) => void;
   conversationId?: string;
+  employeeSlug?: string; // Phase 3.3: Allow specifying initial employee
 }
 
 export function useStreamChat(options: UseStreamChatOptions = {}) {
@@ -27,6 +28,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
   const [error, setError] = useState<Error | null>(null);
   const [isToolExecuting, setIsToolExecuting] = useState(false);
   const [currentTool, setCurrentTool] = useState<string | null>(null);
+  const [activeEmployeeSlug, setActiveEmployeeSlug] = useState<string>(options.employeeSlug || 'prime-boss');
   const abortControllerRef = useRef<AbortController | null>(null);
   
   const sendMessage = useCallback(async (content: string) => {
@@ -68,7 +70,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
         },
         body: JSON.stringify({
           userId: localStorage.getItem('anonymous_user_id') || `anon-${Date.now()}`,
-          employeeSlug: 'prime-boss',
+          employeeSlug: activeEmployeeSlug, // Phase 3.3: Use active employee (may change after handoff)
           message: content,
           sessionId: options.conversationId,
           stream: true,
@@ -153,6 +155,42 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
                   });
                   break;
                   
+                case 'tool_result':
+                  // Phase 3.1: Handle tool result event
+                  setIsToolExecuting(false);
+                  setCurrentTool(null);
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    const lastMessage = newMessages[newMessages.length - 1];
+                    if (lastMessage && lastMessage.role === 'assistant') {
+                      const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
+                      if (toolCall) {
+                        toolCall.status = 'completed';
+                        toolCall.result = event.result;
+                      }
+                    }
+                    return newMessages;
+                  });
+                  break;
+                  
+                case 'tool_error':
+                  // Phase 3.1: Handle tool error event
+                  setIsToolExecuting(false);
+                  setCurrentTool(null);
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    const lastMessage = newMessages[newMessages.length - 1];
+                    if (lastMessage && lastMessage.role === 'assistant') {
+                      const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
+                      if (toolCall) {
+                        toolCall.status = 'error';
+                        toolCall.error = event.error;
+                      }
+                    }
+                    return newMessages;
+                  });
+                  break;
+                  
                 case 'confirmation_required':
                   setMessages(prev => {
                     const newMessages = [...prev];
@@ -162,6 +200,44 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
                     }
                     return newMessages;
                   });
+                  break;
+                  
+                case 'handoff':
+                  // Phase 3.2: Handle employee handoff with context
+                  console.log(`[useStreamChat] 🔄 Handoff detected: ${event.from} → ${event.to}`, {
+                    reason: event.reason,
+                    summary: event.summary,
+                  });
+                  
+                  // Update active employee
+                  setActiveEmployeeSlug(event.to);
+                  
+                  // Phase 3.2: Add rich handoff notification message with context
+                  setMessages(prev => {
+                    let handoffContent = `🔄 **Handoff**: ${event.from} has transferred you to ${event.to}`;
+                    
+                    if (event.reason) {
+                      handoffContent += `\n\n**Reason**: ${event.reason}`;
+                    }
+                    
+                    if (event.summary) {
+                      handoffContent += `\n\n**Context**: ${event.summary}`;
+                    }
+                    
+                    const handoffMessage: Message = {
+                      id: `handoff-${Date.now()}`,
+                      role: 'assistant',
+                      content: handoffContent,
+                      timestamp: new Date(),
+                    };
+                    return [...prev, handoffMessage];
+                  });
+                  break;
+                  
+                case 'employee':
+                  // Update active employee from backend
+                  console.log(`[useStreamChat] Employee update: ${event.employee}`);
+                  setActiveEmployeeSlug(event.employee);
                   break;
                   
                 case 'error':
@@ -208,7 +284,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       setCurrentTool(null);
       abortControllerRef.current = null;
     }
-  }, [options]);
+  }, [options, activeEmployeeSlug]);
   
   const cancelStream = useCallback(() => {
     if (abortControllerRef.current) {
@@ -227,6 +303,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
     error,
     isToolExecuting,
     currentTool,
+    activeEmployeeSlug, // Expose active employee (may change after handoff)
     sendMessage,
     cancelStream,
     clearMessages,

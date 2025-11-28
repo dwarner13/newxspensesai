@@ -19,11 +19,14 @@ import * as toolStubs from './tool_stubs';
  * 
  * @throws Error if employee doesn't have access to the tool
  */
-export async function runTool(employee: string, tool: string, input: any): Promise<any> {
+export async function runTool(employee: string, tool: string, input: any, userId?: string): Promise<any> {
   // Check capability
   if (!CAPABILITIES[employee]?.includes(tool)) {
     throw new Error(`Employee ${employee} cannot run tool ${tool}`);
   }
+  
+  // Extract userId from input if not provided (for backward compatibility)
+  const effectiveUserId = userId || input?.userId || input?.user_id;
   
   // Route to appropriate implementation
   switch (tool) {
@@ -34,7 +37,8 @@ export async function runTool(employee: string, tool: string, input: any): Promi
       return normalizeVendor(input);
     
     case 'categorize':
-      return await autoCategorize(input);
+      // Pass userId to autoCategorize for Tag learning
+      return await autoCategorize(input, effectiveUserId);
     
     case 'anomaly_detect':
       return findAnomalies(input);
@@ -83,6 +87,10 @@ export async function runTool(employee: string, tool: string, input: any): Promi
       throw new Error(`Unknown tool: ${tool}`);
   }
 }
+
+
+
+
 
 
 

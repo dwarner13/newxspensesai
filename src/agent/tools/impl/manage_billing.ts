@@ -74,7 +74,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
           userId: ctx.userId,
           fromPlan: profile.plan_id,
           toPlan: planId,
-          immediate: false, // Always schedule downgrades});
+          immediate: false, // Always schedule downgrades
+        });
         
         if (!downgradeResult.ok) {
           return Err(downgradeResult.error);

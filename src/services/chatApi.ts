@@ -5,6 +5,10 @@ type Message = {
   content: string;
 }
 
+/**
+ * Send chat message to canonical chat endpoint
+ * Uses format: { userId, message, employeeSlug, sessionId, stream }
+ */
 export async function sendChat({ 
   userId, 
   convoId,
@@ -18,13 +22,35 @@ export async function sendChat({
   employee?: string;
   onToken?: (token: string) => void;
 }) {
+  // Extract last user message
+  const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+  if (!lastUserMessage) {
+    throw new Error('No user message found');
+  }
+
+  // Map employee to employeeSlug
+  const employeeSlugMap: Record<string, string> = {
+    'prime': 'prime-boss',
+    'byte': 'byte-docs',
+    'tag': 'tag-categorize',
+    'goalie': 'goalie-goals',
+    'crystal': 'crystal-ai',
+  };
+  const employeeSlug = employee ? employeeSlugMap[employee] || employee : 'prime-boss';
+
   // Try streaming endpoint first
   try {
     console.log('[chatApi] using endpoint:', CHAT_ENDPOINT);
     const res = await fetch(CHAT_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId, convoId, messages, employee })
+      body: JSON.stringify({ 
+        userId, 
+        message: lastUserMessage.content,
+        employeeSlug,
+        sessionId: convoId,
+        stream: true 
+      })
     });
     
     // Verify we're hitting the v2 backend
@@ -38,7 +64,7 @@ export async function sendChat({
     const decoder = new TextDecoder();
     let buffer = '';
     let assembled = '';
-    let detectedEmployee = employee || 'prime-boss';
+    let detectedEmployee = employeeSlug;
 
     while (true) {
       const { value, done } = await reader.read();
@@ -87,14 +113,14 @@ export async function sendChat({
     'prime-boss': "👑 Prime here! How can I help with your finances?",
     'byte-docs': "📄 Byte here! Need help with documents?",
     'tag-categorize': "🏷️ Tag here! Let me categorize your expenses.",
-    'crystal-analytics': "🔮 Crystal here! I'll analyze your spending trends.",
+    'crystal-ai': "🔮 Crystal here! I'll analyze your spending trends.",
     'ledger-tax': "📊 Ledger here! I can help with tax questions.",
     'goalie-goals': "🎯 Goalie here! Let's work on your financial goals."
   };
 
   // Simple keyword-based routing
-  const lastMessage = messages[messages.length - 1]?.content.toLowerCase() || '';
-  let selectedEmployee = employee || 'prime-boss';
+  const lastMessage = lastUserMessage.content.toLowerCase();
+  let selectedEmployee = employeeSlug;
   
   if (!employee) {
     if (/(receipt|invoice|upload|document)/i.test(lastMessage)) {
@@ -102,7 +128,7 @@ export async function sendChat({
     } else if (/(category|categorize|tag)/i.test(lastMessage)) {
       selectedEmployee = 'tag-categorize';
     } else if (/(trend|report|analytics)/i.test(lastMessage)) {
-      selectedEmployee = 'crystal-analytics';
+      selectedEmployee = 'crystal-ai';
     } else if (/(tax|deduction)/i.test(lastMessage)) {
       selectedEmployee = 'ledger-tax';
     } else if (/(goal|save|budget)/i.test(lastMessage)) {

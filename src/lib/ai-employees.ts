@@ -371,7 +371,7 @@ export async function routeToEmployee(
              { keywords: ['retirement', '401k', 'rrsp', 'pension'], employee: 'finley' },
              { keywords: ['advice', 'help', 'question', 'assistant', 'financial'], employee: 'finley' },
             { keywords: ['goal', 'target', 'save', 'milestone'], employee: 'goalie-coach' },
-            { keywords: ['predict', 'forecast', 'trend', 'future'], employee: 'crystal-analytics' },
+            { keywords: ['predict', 'forecast', 'trend', 'future'], employee: 'crystal-ai' },
             { keywords: ['categorize', 'organize', 'tag', 'label'], employee: 'tag-ai' },
              { keywords: ['freedom', 'independence', 'fire', 'wealth'], employee: 'liberty' },
              { keywords: ['bill', 'payment', 'reminder', 'due'], employee: 'chime' },

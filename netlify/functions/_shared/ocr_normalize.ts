@@ -11,6 +11,7 @@
 
 import { ParsedDoc, InvoiceData, ReceiptData } from './ocr_parsers';
 import { maskPII } from './pii';
+import { categorizeTransaction as sharedCategorize, categorizeTransactionWithLearning } from './categorize';
 
 export type NormalizedTransaction = {
   userId: string;
@@ -33,6 +34,125 @@ export interface CategorizationResult {
   subcategory?: string;
   confidence: number;
   method: 'rules' | 'tag';
+}
+
+/**
+ * Main entry point for OCR result normalization
+ * 
+ * Detects statement format and returns normalized transactions.
+ * If primary parser returns 0 transactions, uses AI fallback parser.
+ */
+export async function normalizeOcrResult(text: string, userId: string = 'default-user'): Promise<NormalizedTransaction[]>;
+export function normalizeOcrResult(text: string, userId: string = 'default-user', openaiClient?: any): Promise<NormalizedTransaction[]> | NormalizedTransaction[];
+export function normalizeOcrResult(text: string, userId: string = 'default-user', openaiClient?: any): Promise<NormalizedTransaction[]> | NormalizedTransaction[] {
+  const normalizedText = text || "";
+
+  // BMO Everyday Banking detection:
+  // Check for specific BMO statement markers
+  if (
+    /Your Everyday Banking statement/i.test(normalizedText) &&
+    /EDMONTON, AB/i.test(normalizedText)
+  ) {
+    const bmoTransactions = parseBmoEverydayStatement(normalizedText);
+    
+    // If we found transactions, return them (no AI fallback needed)
+    if (bmoTransactions.length > 0) {
+      console.log(`[Byte OCR] Parsed ${bmoTransactions.length} transactions with primary parser (BMO format)`);
+      // Convert to NormalizedTransaction format
+      return bmoTransactions.map(tx => ({
+        userId,
+        kind: 'bank' as const,
+        date: tx.date,
+        merchant: tx.merchant,
+        amount: tx.amount,
+        currency: 'CAD',
+        docId: undefined
+      }));
+    }
+  }
+
+  // Also try BMO format if we detect "Everyday Banking" or "For the period ending" patterns
+  // (fallback detection for other BMO statement variants)
+  if (
+    /Everyday Banking/i.test(normalizedText) ||
+    (/For the period ending/i.test(normalizedText) && /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i.test(normalizedText))
+  ) {
+    const bmoTransactions = parseBmoEverydayStatement(normalizedText);
+    if (bmoTransactions.length > 0) {
+      console.log(`[Byte OCR] Parsed ${bmoTransactions.length} transactions with primary parser (BMO variant)`);
+      // Convert to NormalizedTransaction format
+      return bmoTransactions.map(tx => ({
+        userId,
+        kind: 'bank' as const,
+        date: tx.date,
+        merchant: tx.merchant,
+        amount: tx.amount,
+        currency: 'CAD',
+        docId: undefined
+      }));
+    }
+  }
+
+  // Fallback to general bank statement normalization
+  const bankTransactions = normalizeBankStatement(normalizedText);
+  
+  // If primary parser found transactions, return them synchronously
+  if (bankTransactions.length > 0) {
+    console.log(`[Byte OCR] Parsed ${bankTransactions.length} transactions with primary parser`);
+    // Convert to NormalizedTransaction format
+    const result = bankTransactions.map(tx => ({
+      userId,
+      kind: 'bank' as const,
+      date: tx.date,
+      merchant: tx.merchant,
+      amount: tx.amount,
+      currency: 'CAD',
+      docId: undefined
+    }));
+    // Return synchronously (wrap in Promise.resolve if openaiClient was provided to maintain consistent return type)
+    return openaiClient ? Promise.resolve(result) : result;
+  }
+
+  // Primary parser found 0 transactions - use AI fallback if OpenAI client is available
+  if (openaiClient) {
+    console.log(`[Byte OCR] Primary parser found 0 transactions, using AI fallback parser`);
+    
+    // Detect statement type for better AI parsing
+    const isCreditCard = /credit card|visa|mastercard|amex/i.test(normalizedText);
+    const statementType: 'credit_card' | 'bank' | 'unknown' = isCreditCard ? 'credit_card' : 'bank';
+    
+    // Call AI fallback (async)
+    return (async () => {
+      const { aiFallbackParseTransactions } = await import('./ai_fallback_parser.js');
+      const aiTransactions = await aiFallbackParseTransactions({
+        ocrText: normalizedText,
+        statementType,
+        openaiClient,
+      });
+
+      if (aiTransactions.length > 0) {
+        console.log(`[Byte OCR] AI fallback parser produced ${aiTransactions.length} transactions`);
+        // Convert to NormalizedTransaction format and tag with source
+        return aiTransactions.map(tx => ({
+          userId,
+          kind: 'bank' as const,
+          date: tx.date,
+          merchant: tx.merchant,
+          amount: tx.amount,
+          currency: 'CAD',
+          docId: undefined,
+          // Tag as AI fallback (can be used for metadata)
+        }));
+      } else {
+        console.log(`[Byte OCR] AI fallback parser also found 0 transactions`);
+        return [];
+      }
+    })();
+  }
+
+  // No OpenAI client available, return empty array
+  console.log(`[Byte OCR] Primary parser found 0 transactions, but OpenAI client not available for fallback`);
+  return [];
 }
 
 /**
@@ -265,81 +385,29 @@ export async function categorize(tx: NormalizedTransaction): Promise<Categorizat
 }
 
 /**
- * Categorize using Tag LLM (fallback when rules don't match)
+ * Categorize using Tag with learning (fallback when rules don't match)
+ * 
+ * This function uses categorizeTransactionWithLearning which:
+ * 1. First checks if Tag learned from user corrections
+ * 2. Falls back to AI if no learned pattern found
  */
 async function categorizeWithTag(tx: NormalizedTransaction): Promise<CategorizationResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OpenAI API key not configured');
-  }
-  
-  // Mask PII before sending to LLM
-  const maskedMerchant = maskPII(tx.merchant || '', 'last4').masked;
-  const maskedItems = tx.items?.map(item => ({
-    ...item,
-    name: maskPII(item.name, 'last4').masked
-  }));
-  
-  const prompt = `Categorize this transaction into one of these categories:
-- Groceries
-- Dining
-- Transportation (with subcategory: Fuel, Parking, Public Transit, etc.)
-- Utilities
-- Office (with subcategory: Supplies, Equipment, etc.)
-- Shopping (with subcategory: Clothing, Electronics, etc.)
-- Healthcare
-- Entertainment
-- Education
-- Uncategorized
-
-Transaction:
-- Merchant: ${maskedMerchant || 'N/A'}
-- Amount: ${tx.amount ? '$' + tx.amount : 'N/A'}
-- Date: ${tx.date || 'N/A'}
-- Items: ${maskedItems?.map(i => i.name).join(', ') || 'N/A'}
-
-Respond with JSON:
-{
-  "category": "category name",
-  "subcategory": "optional subcategory",
-  "confidence": 0.0-1.0
-}`;
-  
+  // Use the new wrapper function that includes learning
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
-        max_tokens: 100
-      })
+    const result = await categorizeTransactionWithLearning({
+      userId: tx.userId,
+      merchant: tx.merchant || null,
+      description: tx.merchant || 'Transaction',
+      amount: tx.amount || 0
     });
-    
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content || '{}';
-    
-    // Parse JSON response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        category: parsed.category || 'Uncategorized',
-        subcategory: parsed.subcategory,
-        confidence: Math.min(Math.max(parsed.confidence || 0.5, 0), 1),
-        method: 'tag'
-      };
-    }
-    
-    throw new Error('Failed to parse Tag response');
+
+    // Convert to CategorizationResult format
+    return {
+      category: result.category,
+      confidence: result.confidence,
+      source: result.source === 'learned' ? 'learned' : 'ai',
+      method: result.source === 'learned' ? 'learned' : 'tag'
+    };
   } catch (error: any) {
     console.error('[OCR Normalize] Tag categorization error:', error);
     throw error;
@@ -355,10 +423,210 @@ export async function linkToDocument(txId: number, docId: string): Promise<void>
 }
 
 /**
+ * Parse BMO "Everyday Banking" statement format
+ * 
+ * Format: Multi-line transactions where:
+ * - Line 1: Date (e.g., "Sep 17")
+ * - Lines 2..N-2: Description (can span multiple lines)
+ * - Line N-1: Amount (e.g., "20.23" or "1,000.00" or "-25.00")
+ * - Line N: Balance (e.g., "1,489.87")
+ * 
+ * Example:
+ *   Sep 17
+ *   Debit Card Purchase, SOBEYS HOLLICK KENYON
+ *   76.09
+ *   1,519.47
+ */
+function parseBmoEverydayStatement(text: string): Array<{
+  date?: string;
+  merchant?: string;
+  description?: string;
+  amount: number;
+  category?: string;
+  raw_line_text?: string;
+}> {
+  const lines = text
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l.length > 0);
+
+  // 1) Detect year from "For the period ending ... 2025"
+  let year = new Date().getFullYear();
+  for (const line of lines) {
+    const m = /For the period ending .*?(\d{4})$/.exec(line);
+    if (m) {
+      year = Number(m[1]);
+      break;
+    }
+  }
+
+  const monthMap: Record<string, string> = {
+    Jan: "01", Feb: "02", Mar: "03", Apr: "04",
+    May: "05", Jun: "06", Jul: "07", Aug: "08",
+    Sep: "09", Oct: "10", Nov: "11", Dec: "12",
+  };
+
+  const monthRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\b/i;
+  const moneyRegex = /^-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?$/;
+
+  const normalizeMoney = (raw: string): number | null => {
+    const cleaned = raw.replace(/[\$,]/g, "");
+    if (!/^-?\d+(\.\d{2})?$/.test(cleaned)) return null;
+    return Number(cleaned);
+  };
+
+  const transactions: Array<{
+    date?: string;
+    merchant?: string;
+    description?: string;
+    amount: number;
+    category?: string;
+    raw_line_text?: string;
+  }> = [];
+
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const m = monthRegex.exec(line);
+    
+    if (!m) {
+      i++;
+      continue;
+    }
+
+    const monthAbbr = m[1];
+    const day = m[2].padStart(2, "0");
+    const month = monthMap[monthAbbr] ?? "01";
+    const isoDate = `${year}-${month}-${day}`;
+
+    // Collect description lines until we hit an amount line
+    const descLines: string[] = [];
+    i++; // move past the date line
+
+    while (i < lines.length && !moneyRegex.test(lines[i])) {
+      // Stop if we accidentally hit another date (safety guard)
+      if (monthRegex.test(lines[i])) break;
+      descLines.push(lines[i]);
+      i++;
+    }
+
+    if (i >= lines.length) break;
+
+    const amountLine = lines[i];
+    if (!moneyRegex.test(amountLine)) {
+      // Not a valid amount, skip this candidate and continue
+      i++;
+      continue;
+    }
+    
+    const amount = normalizeMoney(amountLine);
+    if (amount === null) {
+      i++;
+      continue;
+    }
+    
+    i++;
+
+    // Check for balance line (optional)
+    if (i < lines.length && moneyRegex.test(lines[i])) {
+      i++; // consume balance line
+    }
+
+    const description = descLines.join(" ").replace(/\s+/g, " ").trim();
+    
+    // Skip if description is empty
+    if (!description || description.length === 0) {
+      continue;
+    }
+    
+    // Extract merchant from description (remove common prefixes)
+    let merchant = description;
+    merchant = merchant.replace(/^(Debit Card Purchase|Credit Card Purchase|ATM Withdrawal|Online Transfer|Bill Payment|Deposit|Withdrawal)[,\s]+/i, '');
+    
+    // Take first part as merchant name
+    const merchantParts = merchant.split(/\s+/);
+    const merchantName = merchantParts[0] || merchant.substring(0, 50);
+
+    // Combine all lines for raw_line_text
+    const rawLines = [line, ...descLines, amountLine];
+    const rawLineText = rawLines.join(' | ');
+
+      transactions.push({
+      date: isoDate,
+      merchant: merchantName,
+      description: description,
+      amount: Math.abs(amount), // Always positive for expenses
+      category: categorizeTransactionSync(description), // Sync fallback - will be re-categorized with learning later
+      raw_line_text: rawLineText
+    });
+  }
+
+  return transactions;
+}
+
+/**
+ * Parse Canadian bank statement line (BMO, TD, RBC format)
+ * 
+ * Format: "Sep 17   Debit Card Purchase SOBEYS HOLLICK KENYON   76.09   1,519.47"
+ * Pattern: Month Day Description Amount Balance
+ */
+function parseCanadianStatementLine(line: string): {
+  date?: string;
+  merchant?: string;
+  description?: string;
+  amount: number;
+  category?: string;
+} | null {
+  // Match: Month Day Description Amount Balance
+  // e.g., "Sep 17   Debit Card Purchase SOBEYS HOLLICK KENYON   76.09   1,519.47"
+  // Handle variable spacing between fields
+  const regex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(.+?)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})$/i;
+  const match = line.match(regex);
+  
+  if (!match) return null;
+  
+  const [, mon, day, description, amountStr] = match;
+  
+  const months: Record<string, string> = {
+    Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+    Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+  };
+  
+  const monthNum = months[mon];
+  if (!monthNum) return null;
+  
+  const amount = parseFloat(amountStr.replace(/,/g, ''));
+  if (isNaN(amount)) return null;
+  
+  // Use current year (or could extract from statement header)
+  const currentYear = new Date().getFullYear();
+  const date = `${currentYear}-${monthNum}-${day.padStart(2, '0')}`;
+  
+  // Extract merchant from description (remove common prefixes like "Debit Card Purchase")
+  let merchant = description.trim();
+  merchant = merchant.replace(/^(Debit Card Purchase|Credit Card Purchase|ATM Withdrawal|Online Transfer|Bill Payment)\s+/i, '');
+  
+  // Take first part as merchant name
+  const merchantParts = merchant.split(/\s+/);
+  const merchantName = merchantParts[0] || merchant.substring(0, 50);
+  
+  return {
+    date,
+    merchant: merchantName,
+    description: description.trim(),
+    amount: -amount, // Treat as debit by default
+    category: 'Uncategorized'
+  };
+}
+
+/**
  * Normalize bank statement text into transaction array
  * 
  * Parses raw OCR text from bank statements and extracts transactions.
  * Returns array of transactions with: date, merchant, description, amount, category, raw_line_text
+ * 
+ * If primary parser returns 0 transactions, AI fallback parser is used automatically.
  */
 export function normalizeBankStatement(rawText: string): Array<{
   date?: string;
@@ -378,6 +646,52 @@ export function normalizeBankStatement(rawText: string): Array<{
   }> = [];
   
   const lines = rawText.split('\n').map(line => line.trim()).filter(line => line.length > 5);
+  
+  // First, try BMO Everyday Banking format (multi-line transactions)
+  // Check if this looks like a BMO statement
+  const isBmoStatement = rawText.includes('Everyday Banking') || 
+                         rawText.includes('For the period ending') ||
+                         /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i.test(rawText);
+  
+  if (isBmoStatement) {
+    const bmoTransactions = parseBmoEverydayStatement(rawText);
+    if (bmoTransactions.length > 0) {
+      const uniqueTransactions = removeDuplicates(bmoTransactions);
+      return uniqueTransactions.sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateA - dateB;
+      });
+    }
+  }
+  
+  // Second, try Canadian bank statement format (single-line)
+  for (const line of lines) {
+    if (isSummaryLine(line)) continue;
+    
+    const canadianTx = parseCanadianStatementLine(line);
+    if (canadianTx) {
+      transactions.push({
+        date: canadianTx.date,
+        merchant: canadianTx.merchant,
+        description: canadianTx.description,
+        amount: Math.abs(canadianTx.amount), // Always positive for expenses
+        category: categorizeTransactionSync(canadianTx.description || ''), // Sync fallback - will be re-categorized with learning later
+        raw_line_text: line
+      });
+      continue; // Skip to next line if Canadian format matched
+    }
+  }
+  
+  // If we found Canadian transactions, return them (don't try other patterns)
+  if (transactions.length > 0) {
+    const uniqueTransactions = removeDuplicates(transactions);
+    return uniqueTransactions.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      return dateA - dateB;
+    });
+  }
   
   // Common bank statement patterns
   const patterns = [
@@ -437,16 +751,16 @@ export function normalizeBankStatement(rawText: string): Array<{
       const amount = parseAmount(amountStr);
       
       if (amount !== null && amount !== 0) {
-        const cleanDescription = cleanDescription(description);
-        const merchant = extractMerchant(cleanDescription);
+        const cleanedDesc = cleanDescription(description);
+        const merchant = extractMerchant(cleanedDesc);
         
-        if (cleanDescription.length > 0) {
+        if (cleanedDesc.length > 0) {
           transactions.push({
             date: normalizeDate(date),
             merchant,
-            description: cleanDescription,
+            description: cleanedDesc,
             amount: Math.abs(amount), // Always positive for expenses
-            category: categorizeTransaction(cleanDescription),
+            category: categorizeTransactionSync(cleanedDesc), // Sync fallback - will be re-categorized with learning later
             raw_line_text: line
           });
         }
@@ -456,11 +770,15 @@ export function normalizeBankStatement(rawText: string): Array<{
   
   // Remove duplicates and sort by date
   const uniqueTransactions = removeDuplicates(transactions);
-  return uniqueTransactions.sort((a, b) => {
+  const sortedTransactions = uniqueTransactions.sort((a, b) => {
     const dateA = a.date ? new Date(a.date).getTime() : 0;
     const dateB = b.date ? new Date(b.date).getTime() : 0;
     return dateA - dateB;
   });
+
+  // If primary parser found 0 transactions, AI fallback is handled by caller (normalizeOcrResult)
+  // This function just returns what it found
+  return sortedTransactions;
 }
 
 /**
@@ -522,8 +840,11 @@ function extractMerchant(description: string): string {
 
 /**
  * Simple categorization based on description keywords
+ * 
+ * NOTE: This is a fallback for synchronous contexts.
+ * For async contexts, use sharedCategorize() which includes learning.
  */
-function categorizeTransaction(description: string): string {
+function categorizeTransactionSync(description: string): string {
   const lower = description.toLowerCase();
   
   // Groceries

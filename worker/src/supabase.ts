@@ -2,11 +2,20 @@ import { createClient } from '@supabase/supabase-js';
 import { config } from './config.js';
 import { logUtils } from './logging.js';
 
-// Initialize Supabase client
+// Initialize Supabase client with service role key
+// auth: { persistSession: false } ensures we don't try to persist auth state in Node.js
 export const supabase = createClient(
   config.supabase.url,
-  config.supabase.serviceRoleKey
+  config.supabase.serviceRoleKey,
+  {
+    auth: {
+      persistSession: false,
+    },
+  }
 );
+
+// Export supabase client for direct use in workflow
+export { supabase as supabaseClient };
 
 // Storage operations
 export class SupabaseStorage {
@@ -107,7 +116,18 @@ export class SupabaseStorage {
 
 // Database operations
 export class SupabaseDatabase {
-  // Create document record
+  // Demo user UUID for consistent use
+  private static readonly DEMO_USER_ID = '00000000-0000-4000-8000-000000000001';
+  
+  // Helper to ensure userId is UUID
+  private static ensureUserId(userId: string): string {
+    if (!userId || userId === 'default-user' || !userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+      return this.DEMO_USER_ID;
+    }
+    return userId;
+  }
+  
+  // Create document record (legacy - use DocumentStore instead)
   static async createDocument(documentData: {
     user_id: string;
     original_url?: string;
@@ -117,9 +137,21 @@ export class SupabaseDatabase {
     error?: string;
   }) {
     try {
+      const finalUserId = this.ensureUserId(documentData.user_id);
+      
       const { data, error } = await supabase
-        .from('documents')
-        .insert(documentData)
+        .from('user_documents')
+        .insert({
+          user_id: finalUserId,
+          original_name: documentData.original_url?.split('/').pop() || 'unknown',
+          doc_type: documentData.type,
+          status: documentData.status,
+          error_message: documentData.error || null,
+          storage_path: documentData.original_url || documentData.redacted_url || '',
+          source: 'upload',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
         .select()
         .single();
       
@@ -127,28 +159,31 @@ export class SupabaseDatabase {
         throw new Error(`Failed to create document: ${error.message}`);
       }
       
-      logUtils.logDatabaseOperation('insert', 'documents', 1, true);
+      logUtils.logDatabaseOperation('insert', 'user_documents', 1, true);
       return data;
     } catch (error) {
-      logUtils.logDatabaseOperation('insert', 'documents', 1, false);
+      logUtils.logDatabaseOperation('insert', 'user_documents', 1, false);
       throw error;
     }
   }
   
-  // Update document status
+  // Update document status (legacy - use DocumentStore instead)
   static async updateDocumentStatus(
     documentId: string,
     status: 'processing' | 'completed' | 'failed',
     error?: string
   ) {
     try {
-      const updateData: any = { status };
+      const updateData: any = { 
+        status,
+        updated_at: new Date().toISOString(),
+      };
       if (error) {
-        updateData.error = error;
+        updateData.error_message = error;
       }
       
       const { data, error: dbError } = await supabase
-        .from('documents')
+        .from('user_documents')
         .update(updateData)
         .eq('id', documentId)
         .select()
@@ -158,10 +193,10 @@ export class SupabaseDatabase {
         throw new Error(`Failed to update document: ${dbError.message}`);
       }
       
-      logUtils.logDatabaseOperation('update', 'documents', 1, true);
+      logUtils.logDatabaseOperation('update', 'user_documents', 1, true);
       return data;
     } catch (error) {
-      logUtils.logDatabaseOperation('update', 'documents', 1, false);
+      logUtils.logDatabaseOperation('update', 'user_documents', 1, false);
       throw error;
     }
   }
@@ -183,9 +218,15 @@ export class SupabaseDatabase {
         return [];
       }
       
+      // Ensure all user_ids are UUIDs
+      const normalizedTransactions = transactions.map(txn => ({
+        ...txn,
+        user_id: this.ensureUserId(txn.user_id),
+      }));
+      
       const { data, error } = await supabase
         .from('transactions')
-        .insert(transactions)
+        .insert(normalizedTransactions)
         .select();
       
       if (error) {
@@ -204,7 +245,7 @@ export class SupabaseDatabase {
   static async getDocument(documentId: string) {
     try {
       const { data, error } = await supabase
-        .from('documents')
+        .from('user_documents')
         .select('*')
         .eq('id', documentId)
         .single();
@@ -240,18 +281,40 @@ export class SupabaseDatabase {
   // Get user's categorization rules
   static async getCategorizationRules(userId: string) {
     try {
+      const finalUserId = this.ensureUserId(userId);
+      
       const { data, error } = await supabase
         .from('categorization_rules')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', finalUserId)
         .order('match_count', { ascending: false });
       
       if (error) {
+        // Check if error is due to missing table
+        const errorMessage = error.message.toLowerCase();
+        if (errorMessage.includes('categorization_rules') || 
+            errorMessage.includes('schema cache') ||
+            errorMessage.includes('relation') && errorMessage.includes('does not exist') ||
+            error.code === 'PGRST204' || // PostgREST table not found
+            error.code === '42P01') { // PostgreSQL relation does not exist
+          console.warn(`[SupabaseDatabase] Rules table not found, returning empty rules array: ${error.message}`);
+          return [];
+        }
+        // For other errors, throw as before
         throw new Error(`Failed to get categorization rules: ${error.message}`);
       }
       
       return data || [];
     } catch (error) {
+      // Check if the caught error indicates missing table
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      if (errorMessage.includes('categorization_rules') || 
+          errorMessage.includes('schema cache') ||
+          errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+        console.warn(`[SupabaseDatabase] Rules table not found, returning empty rules array: ${error instanceof Error ? error.message : String(error)}`);
+        return [];
+      }
+      // Re-throw other errors
       throw error;
     }
   }
@@ -260,11 +323,25 @@ export class SupabaseDatabase {
   static async updateRuleMatchCount(ruleId: string) {
     try {
       // First get current count
-      const { data: currentRule } = await supabase
+      const { data: currentRule, error: getError } = await supabase
         .from('categorization_rules')
         .select('match_count')
         .eq('id', ruleId)
         .single();
+      
+      // If table doesn't exist, silently skip (rules weren't available anyway)
+      if (getError) {
+        const errorMessage = getError.message.toLowerCase();
+        if (errorMessage.includes('categorization_rules') || 
+            errorMessage.includes('schema cache') ||
+            errorMessage.includes('relation') && errorMessage.includes('does not exist') ||
+            getError.code === 'PGRST204' ||
+            getError.code === '42P01') {
+          console.warn(`[SupabaseDatabase] Rules table not found, skipping match count update`);
+          return;
+        }
+        throw new Error(`Failed to get rule for match count update: ${getError.message}`);
+      }
       
       const { error } = await supabase
         .from('categorization_rules')
@@ -275,9 +352,28 @@ export class SupabaseDatabase {
         .eq('id', ruleId);
       
       if (error) {
+        // If table doesn't exist during update, silently skip
+        const errorMessage = error.message.toLowerCase();
+        if (errorMessage.includes('categorization_rules') || 
+            errorMessage.includes('schema cache') ||
+            errorMessage.includes('relation') && errorMessage.includes('does not exist') ||
+            error.code === 'PGRST204' ||
+            error.code === '42P01') {
+          console.warn(`[SupabaseDatabase] Rules table not found, skipping match count update`);
+          return;
+        }
         throw new Error(`Failed to update rule match count: ${error.message}`);
       }
     } catch (error) {
+      // Check if error indicates missing table
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      if (errorMessage.includes('categorization_rules') || 
+          errorMessage.includes('schema cache') ||
+          errorMessage.includes('relation') && errorMessage.includes('does not exist')) {
+        console.warn(`[SupabaseDatabase] Rules table not found, skipping match count update`);
+        return;
+      }
+      // Re-throw other errors
       throw error;
     }
   }

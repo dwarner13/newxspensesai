@@ -4,15 +4,14 @@ import { BrowserRouter as Router } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
-import PrimeChatMount from './ui/components/PrimeChatMount';
+// Legacy chat mounts removed - now using UnifiedAssistantChat from DashboardLayout
+// import PrimeChatMount from './ui/components/PrimeChatMount';
+// import PrimeChatV2Mount from './components/prime/PrimeChatV2Mount';
 import { PRIME_CHAT_V2 } from './lib/flags';
 import './styles.css';
 import './styles/mobile-menu-static.css';
 import './utils/assertSingleMobileNav';
-import PrimeChatV2Mount from './components/prime/PrimeChatV2Mount';
-if (PRIME_CHAT_V2) {
-  console.info('PrimeChatV2 enabled');
-}
+// Legacy PrimeChatV2 flag check removed - unified chat is always enabled
 
 // Import Montserrat font from Google Fonts
 const link = document.createElement('link');

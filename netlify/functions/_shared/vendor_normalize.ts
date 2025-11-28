@@ -51,3 +51,13 @@ export function normalizeVendor(desc: string): { vendor: string; hints: string[]
 
 
 
+
+
+
+
+
+
+
+
+
+

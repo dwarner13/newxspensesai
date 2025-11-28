@@ -35,8 +35,47 @@ export interface PDFParseResult {
 export class PDFProcessor {
   async parsePDF(buffer: Buffer): Promise<PDFParseResult> {
     try {
+      // Ensure buffer is valid and not empty
+      if (!buffer || buffer.length === 0) {
+        throw new Error('PDF buffer is empty or invalid');
+      }
+      
+      // Ensure buffer starts with PDF header
+      const header = buffer.slice(0, 4).toString();
+      if (header !== '%PDF') {
+        throw new Error(`Invalid PDF format: expected PDF header, got ${header}`);
+      }
+      
+      // Workaround for pdf-parse bug: Ensure we have a proper Node.js Buffer
+      // Create a fresh Buffer from the existing one to avoid any internal references
+      const pdfBuffer = Buffer.isBuffer(buffer) 
+        ? Buffer.from(buffer) 
+        : Buffer.from(buffer);
+      
+      // Ensure it's still a valid PDF after conversion
+      const headerCheck = pdfBuffer.slice(0, 4).toString();
+      if (headerCheck !== '%PDF') {
+        throw new Error('Buffer conversion corrupted PDF header');
+      }
+      
       const parse = await getPdfParse();
-      const data = await parse(buffer);
+      
+      // Pass buffer directly - pdf-parse should accept Buffer
+      // Wrap in try-catch to provide better error messages
+      let data;
+      try {
+        // Try parsing with the fresh buffer
+        data = await parse(pdfBuffer);
+      } catch (parseError: any) {
+        // If pdf-parse tries to access a file path, it's likely a library bug
+        // This is a known issue with pdf-parse 1.1.1 - it sometimes tries to access test files
+        if (parseError?.message?.includes('ENOENT') || parseError?.code === 'ENOENT') {
+          // Log the actual buffer info for debugging
+          console.error(`[PDFProcessor] pdf-parse ENOENT error. Buffer length: ${pdfBuffer.length}, header: ${headerCheck}`);
+          throw new Error(`PDF parsing failed: The pdf-parse library encountered an internal error. This may be due to PDF format compatibility. Buffer size: ${pdfBuffer.length} bytes.`);
+        }
+        throw parseError;
+      }
       
       return {
         text: data.text,
@@ -106,7 +145,15 @@ export class PDFProcessor {
         isScanned,
       };
     } catch (error) {
-      throw new Error(`PDF text extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+      // If PDF parsing fails (e.g., pdf-parse library bug), return empty result
+      // This will trigger OCR fallback in the workflow
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.warn(`[PDFProcessor] PDF text extraction failed, will use OCR: ${errorMsg}`);
+      return {
+        text: '',
+        confidence: 0,
+        isScanned: true, // Mark as scanned to force OCR
+      };
     }
   }
   
@@ -150,7 +197,32 @@ export class PDFProcessor {
   // Convert PDF to single image (first page) for simple OCR
   async convertPDFToImage(buffer: Buffer, pageNumber: number = 1): Promise<Buffer> {
     try {
-      const convert = fromBuffer(buffer, {
+      // Validate buffer before processing
+      if (!buffer || buffer.length === 0) {
+        throw new Error('Input Buffer is empty');
+      }
+      
+      // Ensure buffer starts with PDF header
+      const header = buffer.slice(0, 4).toString();
+      if (header !== '%PDF') {
+        throw new Error(`Invalid PDF format: expected PDF header, got ${header}`);
+      }
+      
+      // Create a fresh Buffer copy to ensure pdf2pic receives a proper Node.js Buffer
+      // This prevents issues with buffer references or corrupted buffers
+      const pdfBuffer = Buffer.isBuffer(buffer) 
+        ? Buffer.from(buffer) 
+        : Buffer.from(buffer);
+      
+      // Verify the copy is still valid
+      const headerCheck = pdfBuffer.slice(0, 4).toString();
+      if (headerCheck !== '%PDF') {
+        throw new Error('Buffer copy corrupted PDF header');
+      }
+      
+      console.log(`[PDFProcessor] Converting PDF to image, buffer size: ${pdfBuffer.length} bytes`);
+      
+      const convert = fromBuffer(pdfBuffer, {
         density: 300, // High DPI for better OCR accuracy
         saveFilename: 'page',
         savePath: './temp',
@@ -165,6 +237,8 @@ export class PDFProcessor {
         throw new Error('Failed to convert PDF page to image');
       }
       
+      console.log(`[PDFProcessor] Successfully converted PDF page ${pageNumber} to image, size: ${result.buffer.length} bytes`);
+      
       // Optimize the image for OCR
       const optimizedBuffer = await sharp(result.buffer)
         .resize(2000, 2000, { 
@@ -176,7 +250,8 @@ export class PDFProcessor {
         
       return optimizedBuffer;
     } catch (error) {
-      throw new Error(`PDF to image conversion failed: ${error instanceof Error ? error.message : String(error)}`);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      throw new Error(`PDF to image conversion failed: ${errorMsg}`);
     }
   }
 }
@@ -269,14 +344,26 @@ export class DocumentProcessor {
       
       switch (documentType) {
         case 'pdf':
+          // Try to extract text with confidence
           const pdfResult = await this.pdfProcessor.extractTextWithConfidence(buffer);
+          
+          // Try to get page count, but don't fail if it errors
+          let pageCount = 1;
+          try {
+            const parseResult = await this.pdfProcessor.parsePDF(buffer);
+            pageCount = parseResult.pages;
+          } catch (pageError) {
+            // If parsing fails, use default page count
+            console.warn(`[DocumentProcessor] Could not get page count: ${pageError instanceof Error ? pageError.message : String(pageError)}`);
+          }
+          
           return {
             text: pdfResult.text,
             confidence: pdfResult.confidence,
             documentType: 'pdf',
             isScanned: pdfResult.isScanned,
             metadata: {
-              pages: (await this.pdfProcessor.parsePDF(buffer)).pages,
+              pages: pageCount,
             },
           };
           

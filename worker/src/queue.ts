@@ -7,30 +7,48 @@ import { processDocument } from './workflow/processDocument.js';
 // Redis connection (optional)
 let redis: Redis | null = null;
 
-if (config.redis.url) {
+// Only initialize Redis if URL is provided
+const shouldUseRedis = config.redis.url && config.redis.url.trim() !== '';
+
+if (shouldUseRedis) {
   try {
     redis = new Redis(config.redis.url, {
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: null, // Fix BullMQ deprecation warning
       enableOfflineQueue: false, // Don't queue commands when offline
       retryStrategy(times) {
         if (times > 3) {
-          logger.warn('Redis connection failed after 3 retries. Running without queue support.');
-          return null; // Stop retrying
+          // Stop retrying after 3 attempts - don't log here (handled by error handler)
+          return null;
         }
         return Math.min(times * 200, 2000);
       },
       lazyConnect: true, // Don't connect until first command
+      connectTimeout: 5000, // 5 second timeout
     });
     
-    // Handle connection errors gracefully
+    // Handle connection errors gracefully - only log once per error type
+    let lastErrorCode: string | undefined;
+    let errorLogged = false;
+    
     redis.on('error', (err: Error & { code?: string }) => {
-      logger.warn({
-        error: err.message,
-        code: err.code,
-      }, 'Redis connection error. Queue features disabled. Add Redis database in Railway to enable.');
+      // Only log if this is a new error code and we haven't logged yet
+      if (err.code !== lastErrorCode || !errorLogged) {
+        lastErrorCode = err.code;
+        errorLogged = true;
+        
+        if (err.code === 'ECONNREFUSED') {
+          logger.info('Redis not configured. Running worker in no-queue mode (local dev).');
+        } else {
+          logger.warn({
+            error: err.message,
+            code: err.code,
+          }, 'Redis connection error. Queue features disabled.');
+        }
+      }
     });
     
     redis.on('connect', () => {
+      errorLogged = false; // Reset on successful connection
       logger.info('Redis connected successfully. Queue features enabled.');
     });
     
@@ -47,7 +65,8 @@ if (config.redis.url) {
     redis = null;
   }
 } else {
-  logger.info('REDIS_URL not configured. Queue features disabled. This is normal for testing.');
+  // Clean, single log message for no Redis
+  logger.info('Redis not configured. Running worker in no-queue mode (local dev).');
 }
 
 // Job data interface

@@ -56,6 +56,16 @@ export const employeePersonalities = {
     responseStyle: "mystical, insightful, prophetic"
   },
   
+  "crystal-ai": {
+    name: "Crystal",
+    personality: "Financial Insights Analyst",
+    specialty: "clean financial summaries, income and spending breakdowns",
+    tone: "short, numerical, precise, zero fluff",
+    catchphrases: ["clean summary", "precise data", "accountant-ready", "numerical breakdown"],
+    expertise: ["financial-summaries", "income-analysis", "expense-analysis", "pattern-detection", "trend-insights"],
+    responseStyle: "short, numerical, precise"
+  },
+  
   wisdom: {
     name: "Wisdom",
     personality: "Strategic long-term advisor",
@@ -486,7 +496,7 @@ Remember: You are ${this.personality.name} - stay in character while delivering 
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: context.userId || 'default-user',
+          userId: context.userId || '00000000-0000-4000-8000-000000000001',
           employeeSlug: this.employeeId,
           message: message,
           stream: false

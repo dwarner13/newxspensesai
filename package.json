@@ -4,12 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "netlify dev --port 8888",
+    "dev": "vite --port 8888 --host",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
+    "vite": "vite",
+    "test": "vitest run",
     "test:unit": "vitest run",
     "test:ui": "vitest --ui",
+    "test:watch": "vitest",
     "parity": "tsx scripts/parityTest.ts --old=http://localhost:3000/old-chat --new=http://localhost:8888/.netlify/functions/chat",
     "parity:custom": "tsx scripts/parityTest.ts",
     "test:delegate": "tsx scripts/localDelegateCheck.ts",
@@ -21,7 +24,13 @@
     "sync:goalie": "ts-node scripts/sync-employee-prompt.ts goalie-agent ./docs/GOALIE_PERSONA.md",
     "sync:all": "npm run sync:crystal && npm run sync:prime && npm run sync:byte && npm run sync:tag && npm run sync:ledger && npm run sync:goalie && echo '✅ All employees synced!'",
     "memcap": "tsx scripts/memory_cap_scan.ts",
-    "memcap:live": "tsx scripts/memory_cap_scan.ts --live"
+    "memcap:live": "tsx scripts/memory_cap_scan.ts --live",
+    "test:crystal": "tsx scripts/test-crystal.ts",
+    "test:registry": "tsx scripts/test-employee-registry.ts",
+    "test:finley": "tsx scripts/test-finley.ts",
+    "test:finley-routing": "tsx scripts/test-finley-routing.ts",
+    "netlify:dev": "netlify dev --port 8888",
+    "worker:dev": "cd worker && npm run dev"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.2",
@@ -64,6 +73,7 @@
     "lucide-react": "^0.314.0",
     "openai": "^4.73.0",
     "papaparse": "^5.5.3",
+    "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.3",
     "pdfjs-dist": "^4.4.168",
     "react": "^18.2.0",
@@ -82,6 +92,7 @@
     "uuid": "^13.0.0",
     "vaul": "^0.9.0",
     "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.24.6",
     "zustand": "^4.5.5"
   },
   "devDependencies": {

@@ -6,7 +6,7 @@
  *
  * await notify({
  *   userId: user.id,
- *   employee: "crystal-analytics",
+ *   employee: "crystal-ai",
  *   priority: "action",
  *   title: "Analysis complete",
  *   description: "Your import is ready for review",
@@ -22,7 +22,7 @@ export type NotifyPriority = "info" | "warning" | "action" | "urgent";
 
 export type NotifyEmployeeSlug =
   | "byte-docs"
-  | "crystal-analytics"
+  | "crystal-ai"
   | "tag-ai"
   | "prime-boss"
   | "ledger-tax"

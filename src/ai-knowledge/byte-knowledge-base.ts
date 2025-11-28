@@ -35,6 +35,12 @@ export const BYTE_KNOWLEDGE_BASE = {
       maxFileSize: '50MB',
       maxPages: '100 pages',
       timeout: '30 seconds per document'
+    },
+    visionFallback: {
+      enabled: true,
+      description: 'When classic OCR fails to detect structured transactions in images, I automatically use OpenAI Vision API to intelligently extract transaction data from statement screenshots',
+      useCases: ['Credit card statement screenshots', 'Bank statement images', 'Complex table layouts', 'Non-standard formats'],
+      accuracy: 'High accuracy for structured statement tables with dates, descriptions, and amounts'
     }
   },
 
@@ -62,10 +68,11 @@ export const BYTE_KNOWLEDGE_BASE = {
 
   // Error Handling
   commonIssues: {
-    blurryImages: 'Suggest better lighting or higher resolution',
-    complexLayouts: 'Use advanced parsing algorithms',
+    blurryImages: 'Suggest better lighting or higher resolution. Vision OCR fallback can help with slightly blurry images.',
+    complexLayouts: 'Use advanced parsing algorithms and Vision OCR fallback for complex table structures',
     handwrittenText: 'Lower accuracy expected, manual review recommended',
-    multipleLanguages: 'Language detection and appropriate OCR engine selection'
+    multipleLanguages: 'Language detection and appropriate OCR engine selection',
+    noTransactionsFound: 'If classic OCR finds 0 transactions, Vision OCR fallback automatically attempts to extract structured data from images'
   }
 };
 

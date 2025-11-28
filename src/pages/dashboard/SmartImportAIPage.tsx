@@ -1,10 +1,16 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { UploadCloud, FileText, CheckCircle, AlertTriangle, Loader2, X, Bot } from 'lucide-react';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { useAIMemory } from '../../hooks/useAIMemory';
-import { ByteDocumentChat } from '../../components/chat/_legacy/ByteDocumentChat';
+// Legacy ByteDocumentChat removed - now using unified chat from DashboardLayout
+// import { ByteDocumentChat } from '../../components/chat/_legacy/ByteDocumentChat';
 import { PRIME_CHAT_V2 } from '../../lib/flags';
+import type { SmartDocType, ProcessedDocument } from '../../types/smartImport';
+import { getSectionName } from '../../types/smartImport';
+import { DocList } from '../../components/smartImport/DocList';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface ProcessingFile {
   id: string;
@@ -19,12 +25,7 @@ interface ProcessingFile {
   errorType?: 'format' | 'corrupted' | 'unsupported' | 'size' | 'security';
 }
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'byte';
-  content: string;
-  timestamp: string;
-}
+// Removed ChatMessage interface - chat is now only in workspace overlay popup
 
 interface ProcessingModal {
   isOpen: boolean;
@@ -53,41 +54,22 @@ interface WorkerMessage {
 }
 
 const SmartImportAIPage: React.FC = () => {
-  // AI Memory System Integration
+  const { userId } = useAuth();
+  const { openChat } = useUnifiedChatLauncher();
+  
+  // AI Memory System Integration (for task management only, not chat UI)
   const { 
     createTask, 
     addMessage, 
-    currentTask, 
-    conversation
+    currentTask
+    // conversation removed - chat UI only appears in workspace overlays, not inline
   } = useAIMemory('byte');
 
   const [files, setFiles] = useState<ProcessingFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      role: 'byte',
-      content: "Hey there! I'm Byte, your document processing wizard! 📄 I can handle PDFs, CSVs, receipts, and more with 99.7% accuracy. What would you like to upload today?",
-      timestamp: new Date().toISOString()
-    }
-  ]);
+  // Removed chatMessages state - chat is now only in workspace overlay popup
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [isEmployeePanelOpen, setIsEmployeePanelOpen] = useState(false);
-
-  // Sync with AI memory system
-  useEffect(() => {
-    if (conversation && conversation.messages.length > 0) {
-      const lastMessage = conversation.messages[conversation.messages.length - 1];
-      if (lastMessage.role === 'ai' && !chatMessages.some(m => m.content === lastMessage.content)) {
-        setChatMessages(prev => [...prev, {
-          id: `memory-${Date.now()}`,
-          role: 'byte',
-          content: lastMessage.content,
-          timestamp: lastMessage.timestamp
-        }]);
-      }
-    }
-  }, [conversation, chatMessages]);
 
   // Create task when files are uploaded
   const handleFileUpload = (newFiles: ProcessingFile[]) => {
@@ -112,50 +94,17 @@ const SmartImportAIPage: React.FC = () => {
     }
   };
 
-  // Handle chat with Byte
-  const handleChatWithByte = async (message: string) => {
-    if (!message.trim()) return;
-
-    // Add user message
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: message,
-      timestamp: new Date().toISOString()
-    };
-    setChatMessages(prev => [...prev, userMessage]);
-    
-    // Add to AI memory system
-    addMessage('user', message);
-
-    // Simulate Byte's response based on current task
-    setTimeout(() => {
-      let response = '';
-      
-      if (currentTask && currentTask.status === 'in_progress') {
-        const progress = Math.round(currentTask.progress);
-        response = `I'm currently processing your documents (${progress}% complete)! ${message.toLowerCase().includes('progress') ? 
-          `Here's what I'm doing: extracting transaction data, categorizing expenses, and validating amounts. I should be done in a few more minutes!` :
-          `I can chat while I work! What would you like to know about the processing?`}`;
-      } else if (message.toLowerCase().includes('upload') || message.toLowerCase().includes('file')) {
-        response = `Ready to process more files! Just drag and drop them or click the upload area. I can handle PDFs, CSVs, receipts, and bank statements with 99.7% accuracy! 📄✨`;
-      } else if (message.toLowerCase().includes('how') || message.toLowerCase().includes('what')) {
-        response = `I'm Byte, your document processing wizard! I extract financial data from any document type, categorize transactions automatically, and ensure everything is accurate. You can upload files anytime and chat with me while I work!`;
-      } else {
-        response = `Thanks for chatting! I'm here to help with all your document processing needs. Feel free to upload more files or ask me anything about the data I'm extracting! 📊`;
-      }
-
-      const byteMessage: ChatMessage = {
-        id: `byte-${Date.now()}`,
-        role: 'byte',
-        content: response,
-        timestamp: new Date().toISOString()
-      };
-      setChatMessages(prev => [...prev, byteMessage]);
-      
-      // Add to AI memory system
-      addMessage('ai', response);
-    }, 1500);
+  // Handle opening chat with Byte - opens unified chat overlay
+  const handleChatWithByte = (message?: string) => {
+    const currentImportId = files.length > 0 ? files[files.length - 1].id : undefined;
+    openChat({
+      initialEmployeeSlug: 'byte-docs',
+      context: {
+        page: 'smart-import',
+        importId: currentImportId,
+      },
+      initialQuestion: message,
+    });
   };
   const [processingModal, setProcessingModal] = useState<ProcessingModal>({
     isOpen: false,
@@ -164,8 +113,33 @@ const SmartImportAIPage: React.FC = () => {
     currentStep: 0});
   const [bytePopupOpen, setBytePopupOpen] = useState(false);
   const [watchMeWorkOpen, setWatchMeWorkOpen] = useState(false);
-  const [isByteChatOpen, setIsByteChatOpen] = useState(false);
+  // Legacy Byte chat state removed - now using unified chat from DashboardLayout
+  // const [isByteChatOpen, setIsByteChatOpen] = useState(false);
+  // openChat is already declared above at line 63
+  const [selectedDocType, setSelectedDocType] = useState<SmartDocType | null>(null);
+  const [processedDocs, setProcessedDocs] = useState<ProcessedDocument[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Legacy document processed callback removed - document processing now handled via unified chat
+  // If needed, document processing results can be handled through the unified chat context
+
+  // Derive section arrays - use useMemo to prevent unnecessary recalculations
+  const bankStatements = useMemo(() => 
+    (processedDocs || []).filter(d => d.docType === 'bank_statement'), 
+    [processedDocs]
+  );
+  const receipts = useMemo(() => 
+    (processedDocs || []).filter(d => d.docType === 'receipt'), 
+    [processedDocs]
+  );
+  const csvImports = useMemo(() => 
+    (processedDocs || []).filter(d => d.docType === 'csv'), 
+    [processedDocs]
+  );
+  const otherDocs = useMemo(() => 
+    (processedDocs || []).filter(d => d.docType === 'generic_document'), 
+    [processedDocs]
+  );
 
   // AI Workers state
   const [aiWorkers, setAiWorkers] = useState<AIWorker[]>([
@@ -263,16 +237,17 @@ const SmartImportAIPage: React.FC = () => {
       const newMessage: WorkerMessage = {
         id: Date.now().toString(),
         worker: currentTask.worker,
-        content: currentTask.task,
+        content: String(currentTask.task || ''),
         timestamp: new Date().toISOString(),
         type: currentTask.progress === 100 ? 'status' : 'progress'
       };
 
       setWorkerMessages(prev => [...prev, newMessage]);
 
-      // Add chat messages between workers
+      // Add chat messages between workers for activity feed (worker activity only, not inline chat UI)
       if (Math.random() > 0.7) {
-        const chatMessages = [
+        // Generate random chat message for worker activity feed
+        const workerChatMessages = [
           { worker: 'Byte', content: 'Hey Crystal, I just finished processing that Chase statement!' },
           { worker: 'Crystal', content: 'Perfect! I can see the transaction patterns now. Let me analyze the spending trends.' },
           { worker: 'Tag', content: 'I\'m ready to categorize these transactions. Should I use the smart categories?' },
@@ -281,12 +256,11 @@ const SmartImportAIPage: React.FC = () => {
           { worker: 'Crystal', content: 'I\'ve identified some interesting patterns in the dining expenses.' },
           { worker: 'Tag', content: 'Auto-categorization complete! All transactions are properly tagged.' }
         ];
-
-        const randomChat = chatMessages[Math.floor(Math.random() * chatMessages.length)];
+        const randomChat = workerChatMessages[Math.floor(Math.random() * workerChatMessages.length)];
         const chatMessage: WorkerMessage = {
           id: (Date.now() + 1).toString(),
           worker: randomChat.worker,
-          content: randomChat.content,
+          content: String(randomChat.content || ''),
           timestamp: new Date().toISOString(),
           type: 'chat'
         };
@@ -424,14 +398,7 @@ const SmartImportAIPage: React.FC = () => {
     // Use the new handleFileUpload function
     handleFileUpload(newFiles);
 
-    // Add success message to chat
-    const fileNames = newFiles.map(f => f.name).join(', ');
-    setChatMessages(prev => [...prev, {
-      id: `success-${Date.now()}`,
-      role: 'byte',
-      content: `Awesome! I've received ${newFiles.length} file${newFiles.length > 1 ? 's' : ''}: ${fileNames}. Let me process these for you! 📄✨`,
-      timestamp: new Date().toISOString()
-    }]);
+    // File upload success - chat messages now handled in workspace overlay only
 
     // Show processing modal for the first file
     if (newFiles.length > 0) {
@@ -498,13 +465,7 @@ const SmartImportAIPage: React.FC = () => {
               : f
           ));
 
-          // Add error message to chat
-          setChatMessages(prev => [...prev, {
-            id: `error-${Date.now()}-${index}`,
-            role: 'byte',
-            content: errorCheck.errorMessage,
-            timestamp: new Date().toISOString()
-          }]);
+          // Error handling - chat messages now handled in workspace overlay only
         } else {
           // Handle success case
           const transactions = Math.floor(Math.random() * 200) + 50;
@@ -520,13 +481,7 @@ const SmartImportAIPage: React.FC = () => {
               : f
           ));
 
-          // Add completion message to chat for each file
-          setChatMessages(prev => [...prev, {
-            id: `complete-${Date.now()}-${index}`,
-            role: 'byte',
-            content: `✅ ${file.name} processed successfully! Found ${transactions} transactions with 99.7% accuracy. Ready to view your data! 🎉`,
-            timestamp: new Date().toISOString()
-          }]);
+          // File processing complete - chat messages now handled in workspace overlay only
         }
       }, 3000 + index * 500);
     });
@@ -612,20 +567,25 @@ const SmartImportAIPage: React.FC = () => {
   return (
     <>
       <div className="w-full pt-4 px-4 sm:px-6 lg:px-8 min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
-        {/* Page Title */}
-        <MobilePageTitle 
-          title="Smart Import AI" 
-          subtitle="Automatically import and categorize your financial data"
-        />
-        
-        {/* Desktop Title */}
-        <div className="hidden md:block text-center mb-8">
-          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-2" style={{ WebkitBackgroundClip: 'text' }}>
-            Smart Import AI
-          </h1>
-          <p className="text-white/60 text-lg">
-            Automatically import and categorize your financial data
-          </p>
+        {/* Page title is handled by DashboardHeader - no duplicate title here */}
+        <div>
+          <button
+            onClick={() => {
+              const currentImportId = files.length > 0 ? files[files.length - 1].id : undefined;
+              openChat({
+                initialEmployeeSlug: 'byte-doc',
+                context: {
+                  page: 'smart-import',
+                  importId: currentImportId,
+                },
+                initialQuestion: 'Help me understand and process this statement.'
+              });
+            }}
+            className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 transition-colors"
+          >
+            <span>📄</span>
+            <span>Ask Byte</span>
+          </button>
         </div>
         
         {/* Welcome Banner */}
@@ -647,10 +607,16 @@ const SmartImportAIPage: React.FC = () => {
             <button
               className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
               onClick={() => {
+                setSelectedDocType('generic_document');
                 if (PRIME_CHAT_V2) {
                   window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
                 } else {
-                  setIsByteChatOpen(true);
+                  // Legacy Byte chat removed - now using unified chat
+                  // Open unified chat with Byte employee
+                  openChat({ 
+                    initialEmployeeSlug: 'byte-doc',
+                    context: { page: 'smart-import', importId: doc.id }
+                  });
                 }
               }}
             >
@@ -666,10 +632,16 @@ const SmartImportAIPage: React.FC = () => {
             <button
               className="group flex flex-col items-center gap-3 p-4 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[120px] hover:shadow-lg hover:shadow-green-500/10"
               onClick={() => {
+                setSelectedDocType('receipt');
                 if (PRIME_CHAT_V2) {
                   window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
                 } else {
-                  setIsByteChatOpen(true);
+                  // Legacy Byte chat removed - now using unified chat
+                  // Open unified chat with Byte employee
+                  openChat({ 
+                    initialEmployeeSlug: 'byte-doc',
+                    context: { page: 'smart-import', importId: doc.id }
+                  });
                 }
               }}
             >
@@ -685,10 +657,16 @@ const SmartImportAIPage: React.FC = () => {
             <button
               className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
               onClick={() => {
+                setSelectedDocType('bank_statement');
                 if (PRIME_CHAT_V2) {
                   window.dispatchEvent(new CustomEvent('prime:open', { detail: { intent: 'insights' } }));
                 } else {
-                  setIsByteChatOpen(true);
+                  // Legacy Byte chat removed - now using unified chat
+                  // Open unified chat with Byte employee
+                  openChat({ 
+                    initialEmployeeSlug: 'byte-doc',
+                    context: { page: 'smart-import', importId: doc.id }
+                  });
                 }
               }}
             >
@@ -703,7 +681,14 @@ const SmartImportAIPage: React.FC = () => {
 
             <button
               className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
-              onClick={() => setIsByteChatOpen(true)}
+              onClick={() => {
+                setSelectedDocType('csv');
+                // Legacy Byte chat removed - now using unified chat
+                openChat({ 
+                  initialEmployeeSlug: 'byte-doc',
+                  context: { page: 'smart-import', docType: 'csv' }
+                });
+              }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <span className="text-white text-xl">📊</span>
@@ -755,6 +740,39 @@ const SmartImportAIPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Processed Documents Sections */}
+        {processedDocs && processedDocs.length > 0 && (bankStatements.length > 0 || receipts.length > 0 || csvImports.length > 0 || otherDocs.length > 0) && (
+          <div className="mt-12 space-y-8 max-w-5xl mx-auto pr-4 lg:pr-20">
+            {bankStatements.length > 0 && (
+              <section>
+                <h2 className="text-xl font-bold text-white mb-4">{getSectionName('bank_statement')}</h2>
+                <DocList documents={bankStatements} />
+              </section>
+            )}
+            
+            {receipts.length > 0 && (
+              <section>
+                <h2 className="text-xl font-bold text-white mb-4">{getSectionName('receipt')}</h2>
+                <DocList documents={receipts} />
+              </section>
+            )}
+            
+            {csvImports.length > 0 && (
+              <section>
+                <h2 className="text-xl font-bold text-white mb-4">{getSectionName('csv')}</h2>
+                <DocList documents={csvImports} />
+              </section>
+            )}
+            
+            {otherDocs.length > 0 && (
+              <section>
+                <h2 className="text-xl font-bold text-white mb-4">{getSectionName('generic_document')}</h2>
+                <DocList documents={otherDocs} />
+              </section>
+            )}
+          </div>
+        )}
         
         {/* Byte Popup Modal */}
       
@@ -1410,31 +1428,46 @@ const SmartImportAIPage: React.FC = () => {
                 <div className="w-1/2 p-6 overflow-y-auto">
                   <h3 className="text-lg font-semibold text-white mb-4">Live Activity Feed</h3>
                   <div className="space-y-3 max-h-[calc(90vh-200px)] overflow-y-auto">
-                    {workerMessages.map((message) => (
-                      <div
-                        key={message.id}
-                        className={`p-3 rounded-lg ${
-                          message.type === 'chat' ? 'bg-blue-500/10 border border-blue-500/20' :
-                          message.type === 'status' ? 'bg-green-500/10 border border-green-500/20' :
-                          'bg-purple-500/10 border border-purple-500/20'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-semibold text-white">{message.worker}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            message.type === 'chat' ? 'bg-blue-500/20 text-blue-400' :
-                            message.type === 'status' ? 'bg-green-500/20 text-green-400' :
-                            'bg-purple-500/20 text-purple-400'
-                          }`}>
-                            {message.type}
-                          </span>
-                          <span className="text-xs text-white/40">
-                            {new Date(message.timestamp).toLocaleTimeString()}
-                          </span>
+                    {workerMessages.map((message) => {
+                      // Ensure content is always a string, even if a Promise somehow got in
+                      let displayContent = '';
+                      try {
+                        if (message.content instanceof Promise) {
+                          // If it's a Promise, don't render it (or show a placeholder)
+                          displayContent = 'Processing...';
+                        } else {
+                          displayContent = String(message.content || '');
+                        }
+                      } catch {
+                        displayContent = String(message.content || '');
+                      }
+                      
+                      return (
+                        <div
+                          key={message.id}
+                          className={`p-3 rounded-lg ${
+                            message.type === 'chat' ? 'bg-blue-500/10 border border-blue-500/20' :
+                            message.type === 'status' ? 'bg-green-500/10 border border-green-500/20' :
+                            'bg-purple-500/10 border border-purple-500/20'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-semibold text-white">{message.worker}</span>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              message.type === 'chat' ? 'bg-blue-500/20 text-blue-400' :
+                              message.type === 'status' ? 'bg-green-500/20 text-green-400' :
+                              'bg-purple-500/20 text-purple-400'
+                            }`}>
+                              {message.type}
+                            </span>
+                            <span className="text-xs text-white/40">
+                              {new Date(message.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className="text-white/80 text-sm">{displayContent}</p>
                         </div>
-                        <p className="text-white/80 text-sm">{message.content}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -1445,13 +1478,8 @@ const SmartImportAIPage: React.FC = () => {
 
       </div>
 
-      {/* Byte Document Chat (hidden when Prime v2 is enabled) */}
-      {!PRIME_CHAT_V2 && (
-        <ByteDocumentChat
-          isOpen={isByteChatOpen}
-          onClose={() => setIsByteChatOpen(false)}
-        />
-      )}
+      {/* Legacy ByteDocumentChat removed - now using unified chat from DashboardLayout */}
+      {/* All chat functionality is handled by the unified chat system */}
 
       {/* AI Employee Activity Panel */}
       <div className={`fixed top-0 right-0 h-full w-80 bg-gradient-to-b from-slate-900 to-slate-800 border-l border-white/10 shadow-2xl transform transition-transform duration-300 z-40 ${
@@ -1548,18 +1576,7 @@ const SmartImportAIPage: React.FC = () => {
         <span className="text-xs font-semibold">AI TEAM</span>
       </button>
 
-      {/* Floating Byte Chat Button */}
-      {!PRIME_CHAT_V2 && (
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => setIsByteChatOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full shadow-lg hover:shadow-xl flex items-center justify-center text-white z-40 transition-all duration-200"
-        title="Chat with Byte AI"
-      >
-        <Bot className="w-6 h-6" />
-      </motion.button>
-      )}
+      {/* Legacy Floating Byte Chat Button removed - now using unified chat side tab (desktop) / bottom nav (mobile) */}
     </>
   );
 };

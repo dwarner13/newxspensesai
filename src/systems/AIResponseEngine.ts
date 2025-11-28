@@ -1,5 +1,6 @@
 // AI Response Engine - Handles AI employee responses and personality injection
-import { AIEmployee, AIEmployees, formatEmployeeResponse, handoffTemplates } from './AIEmployeeSystem';
+import { AIEmployee, formatEmployeeResponse, handoffTemplates } from './AIEmployeeSystem';
+import { getEmployee, resolveSlug } from '../employees/registry';
 
 export interface AIResponse {
   employee: AIEmployee;
@@ -37,16 +38,38 @@ export class AIResponseEngine {
     userMessage: string,
     context: any = {}
   ): Promise<AIResponse> {
-    const employee = AIEmployees[employeeId];
-    if (!employee) {
-      throw new Error(`Employee ${employeeId} not found`);
+    // Resolve slug to canonical form and load from registry
+    const canonicalSlug = await resolveSlug(employeeId);
+    const employeeProfile = await getEmployee(canonicalSlug);
+    
+    if (!employeeProfile) {
+      throw new Error(`Employee ${employeeId} (resolved to ${canonicalSlug}) not found`);
     }
+
+    // Convert to legacy format for compatibility
+    const employee: AIEmployee = {
+      id: employeeProfile.slug,
+      name: employeeProfile.title.split('—')[0].trim(),
+      role: employeeProfile.title.split('—')[1]?.trim() || employeeProfile.title,
+      emoji: employeeProfile.emoji || '🤖',
+      department: employeeProfile.capabilities[0] || 'General',
+      expertise: employeeProfile.capabilities,
+      availableFor: employeeProfile.capabilities,
+      prompt: employeeProfile.system_prompt,
+      personality: {
+        tone: 'professional',
+        signaturePhrases: [],
+        emojiStyle: employeeProfile.emoji ? [employeeProfile.emoji] : [],
+        communicationStyle: 'professional'
+      },
+      status: employeeProfile.is_active ? 'online' : 'offline'
+    };
 
     // Get employee-specific response based on their expertise
     let baseResponse = await this.getEmployeeSpecificResponse(employee, userMessage, context);
     
     // Apply personality formatting
-    const formattedResponse = formatEmployeeResponse(employee, baseResponse);
+    const formattedResponse = await formatEmployeeResponse(employee.id, baseResponse);
     
     // Determine if handoff is needed
     const suggestedHandoff = this.determineHandoff(employee, userMessage, context);
@@ -76,25 +99,33 @@ export class AIResponseEngine {
   ): Promise<string> {
     const message = userMessage.toLowerCase();
 
+    // Use canonical slugs for routing
     switch (employee.id) {
+      case 'prime-boss':
       case 'prime':
         return this.getPrimeResponse(userMessage, context);
       
+      case 'byte-docs':
       case 'byte':
         return this.getByteResponse(userMessage, context);
       
+      case 'crystal-ai':
       case 'crystal':
         return this.getCrystalResponse(userMessage, context);
       
+      case 'tag-ai':
       case 'tag':
         return this.getTagResponse(userMessage, context);
       
+      case 'ledger-tax':
       case 'ledger':
         return this.getLedgerResponse(userMessage, context);
       
+      case 'goalie-ai':
       case 'goalie':
         return this.getGoalieResponse(userMessage, context);
       
+      case 'blitz-ai':
       case 'blitz':
         return this.getBlitzResponse(userMessage, context);
       
@@ -283,73 +314,80 @@ export class AIResponseEngine {
   private determineHandoff(employee: AIEmployee, userMessage: string, context: any): string | undefined {
     const message = userMessage.toLowerCase();
 
-    // Prime should hand off to specialists
-    if (employee.id === 'prime') {
-      if (message.includes('document') || message.includes('upload')) return 'byte';
-      if (message.includes('analyze') || message.includes('spending')) return 'crystal';
-      if (message.includes('categorize') || message.includes('organize')) return 'tag';
-      if (message.includes('tax') || message.includes('deduction')) return 'ledger';
-      if (message.includes('goal') || message.includes('save')) return 'goalie';
-      if (message.includes('debt') || message.includes('payoff')) return 'blitz';
+    // Prime should hand off to specialists (using canonical slugs)
+    if (employee.id === 'prime-boss' || employee.id === 'prime') {
+      if (message.includes('document') || message.includes('upload')) return 'byte-docs';
+      if (message.includes('analyze') || message.includes('spending')) return 'crystal-ai';
+      if (message.includes('categorize') || message.includes('organize')) return 'tag-ai';
+      if (message.includes('tax') || message.includes('deduction')) return 'ledger-tax';
+      if (message.includes('goal') || message.includes('save')) return 'goalie-ai';
+      if (message.includes('debt') || message.includes('payoff')) return 'blitz-ai';
     }
 
     // Specialists might hand back to Prime for coordination
-    if (employee.id !== 'prime' && this.isComplexTask(message)) {
-      return 'prime';
+    if (employee.id !== 'prime-boss' && employee.id !== 'prime' && this.isComplexTask(message)) {
+      return 'prime-boss';
     }
 
     return undefined;
   }
 
-  // Identify potential collaborators
+  // Identify potential collaborators (using canonical slugs)
   private identifyCollaborators(employee: AIEmployee, userMessage: string, context: any): string[] {
     const message = userMessage.toLowerCase();
     const collaborators: string[] = [];
 
     // Document + analysis collaboration
     if (message.includes('document') && message.includes('analyze')) {
-      if (employee.id === 'byte') collaborators.push('crystal', 'tag');
-      if (employee.id === 'crystal') collaborators.push('byte', 'tag');
+      if (employee.id === 'byte-docs' || employee.id === 'byte') collaborators.push('crystal-ai', 'tag-ai');
+      if (employee.id === 'crystal-ai' || employee.id === 'crystal') collaborators.push('byte-docs', 'tag-ai');
     }
 
     // Tax + document collaboration
     if (message.includes('tax') && message.includes('document')) {
-      if (employee.id === 'ledger') collaborators.push('byte', 'tag');
-      if (employee.id === 'byte') collaborators.push('ledger', 'tag');
+      if (employee.id === 'ledger-tax' || employee.id === 'ledger') collaborators.push('byte-docs', 'tag-ai');
+      if (employee.id === 'byte-docs' || employee.id === 'byte') collaborators.push('ledger-tax', 'tag-ai');
     }
 
     // Debt + goal collaboration
     if (message.includes('debt') && message.includes('goal')) {
-      if (employee.id === 'blitz') collaborators.push('goalie', 'crystal');
-      if (employee.id === 'goalie') collaborators.push('blitz', 'crystal');
+      if (employee.id === 'blitz-ai' || employee.id === 'blitz') collaborators.push('goalie-ai', 'crystal-ai');
+      if (employee.id === 'goalie-ai' || employee.id === 'goalie') collaborators.push('blitz-ai', 'crystal-ai');
     }
 
     return collaborators;
   }
 
-  // Generate next actions
+  // Generate next actions (using canonical slugs)
   private generateNextActions(employee: AIEmployee, userMessage: string, context: any): string[] {
     const actions: string[] = [];
 
     switch (employee.id) {
+      case 'byte-docs':
       case 'byte':
         actions.push('Upload documents', 'Check processing status', 'Review extracted data');
         break;
+      case 'crystal-ai':
       case 'crystal':
         actions.push('Analyze spending patterns', 'Generate insights report', 'Create predictions');
         break;
+      case 'tag-ai':
       case 'tag':
         actions.push('Categorize transactions', 'Review categories', 'Bulk organize');
         break;
+      case 'ledger-tax':
       case 'ledger':
         actions.push('Review tax deductions', 'Check compliance', 'Optimize tax strategy');
         break;
+      case 'goalie-ai':
       case 'goalie':
         actions.push('Set new goals', 'Track progress', 'Adjust strategy');
         break;
+      case 'blitz-ai':
       case 'blitz':
         actions.push('Create payoff plan', 'Find extra payments', 'Track debt progress');
         break;
+      case 'prime-boss':
       case 'prime':
         actions.push('Coordinate team', 'Strategic overview', 'Assemble experts');
         break;
@@ -372,15 +410,22 @@ export class AIResponseEngine {
       return 'concerned';
     }
 
-    // Default emotions by employee
+    // Default emotions by employee (support both canonical and legacy slugs)
     const defaultEmotions: Record<string, string> = {
-      prime: 'confident',
-      byte: 'focused',
-      crystal: 'analytical',
-      tag: 'organized',
-      ledger: 'authoritative',
-      goalie: 'motivational',
-      blitz: 'intense'
+      'prime-boss': 'confident',
+      'prime': 'confident',
+      'byte-docs': 'focused',
+      'byte': 'focused',
+      'crystal-ai': 'analytical',
+      'crystal': 'analytical',
+      'tag-ai': 'organized',
+      'tag': 'organized',
+      'ledger-tax': 'authoritative',
+      'ledger': 'authoritative',
+      'goalie-ai': 'motivational',
+      'goalie': 'motivational',
+      'blitz-ai': 'intense',
+      'blitz': 'intense'
     };
 
     return defaultEmotions[employee.id] || 'helpful';

@@ -84,7 +84,7 @@ export default function PrimeChat() {
     },
     {
       label: '🔮 Spending Forecast',
-      message: 'Prime, ask Crystal (crystal-analytics) to forecast next month\'s spending and explain the two biggest drivers.',
+      message: 'Prime, ask Crystal (crystal-ai) to forecast next month\'s spending and explain the two biggest drivers.',
     },
   ];
 

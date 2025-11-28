@@ -5,7 +5,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, NavLink } from 'react-router-dom';
 import NAV_ITEMS from '../../navigation/nav-registry';
 import { isActivePath } from '../../navigation/is-active';
 import { EMPLOYEES } from '../../data/aiEmployees';
@@ -33,9 +33,12 @@ interface DesktopSidebarProps {
 const getAIEmployeeForRoute = (route: string) => {
   const routeToEmployee: Record<string, string> = {
     '/dashboard': 'prime',
+    '/dashboard/prime-chat': 'prime',
     '/dashboard/smart-import-ai': 'byte',
-    '/dashboard/ai-assistant': 'finley',
+    '/dashboard/ai-chat-assistant': 'finley',
+    '/dashboard/ai-financial-assistant': 'finley',
     '/dashboard/smart-categories': 'tag',
+    '/dashboard/analytics-ai': 'dash',
     '/dashboard/transactions': 'byte',
     '/dashboard/goal-concierge': 'goalie',
     '/dashboard/smart-automation': 'automa',
@@ -63,7 +66,6 @@ export default function DesktopSidebar({
   onToggleCollapse 
 }: DesktopSidebarProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const [internalCollapsed, setInternalCollapsed] = useState(collapsed);
 
   // Use external collapsed state if provided, otherwise use internal
@@ -106,21 +108,14 @@ export default function DesktopSidebar({
     setCollapsed(newCollapsed);
   };
 
-  const handleNavigation = (to: string) => {
-    navigate(to);
-    // Optional: Track navigation event for analytics
-    if (import.meta.env.DEV) {
-      console.log('[DesktopSidebar] Navigation:', to);
-    }
-  };
-
   return (
     <aside
       data-testid="desktop-sidebar"
       className={clsx(
-        "hidden md:flex flex-col border-r border-zinc-800 bg-zinc-950/40 backdrop-blur transition-all duration-300 h-screen",
+        "hidden md:flex flex-col border-r border-zinc-800 bg-zinc-950/40 backdrop-blur transition-all duration-300 h-screen relative z-50",
         isCollapsed ? "w-[68px]" : "w-56"
       )}
+      style={{ pointerEvents: 'auto' }}
     >
       {/* Header with Logo and Toggle Button */}
       <div className="h-14 flex items-center justify-between px-3 border-b border-zinc-800">
@@ -144,8 +139,8 @@ export default function DesktopSidebar({
         </button>
       </div>
 
-      <ScrollArea className="flex-1 overflow-y-auto">
-        <div className="py-2">
+      <ScrollArea className="flex-1 overflow-y-auto" style={{ pointerEvents: 'auto' }}>
+        <div className="py-2" style={{ pointerEvents: 'auto' }}>
           {groups.map(([groupName, groupItems], groupIndex) => (
             <div key={groupName}>
               {!isCollapsed && (
@@ -159,37 +154,38 @@ export default function DesktopSidebar({
                   const employeeKey = getAIEmployeeForRoute(item.to);
                   const employee = EMPLOYEES.find(emp => emp.key === employeeKey);
                   
-                  const Item = (
-                    <button
+                  const NavLinkContent = (
+                    <NavLink
                       key={item.to}
-                      onClick={() => handleNavigation(item.to)}
-                      className={clsx(
-                        "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 hover:bg-zinc-900/60 active:scale-95 group relative",
-                        active 
+                      to={item.to}
+                      className={({ isActive }) => clsx(
+                        "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 hover:bg-zinc-900/60 active:scale-95 group relative cursor-pointer",
+                        (isActive || active)
                           ? "bg-zinc-900 text-white" 
                           : "text-zinc-300 hover:text-white"
                       )}
+                      style={{ pointerEvents: 'auto' }}
                     >
-                      <span className="w-5 h-5 shrink-0 relative">
+                      <span className="w-5 h-5 shrink-0 relative pointer-events-none">
                         {item.icon}
                         {/* AI Employee Badge */}
                         {employee && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xs opacity-80 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xs opacity-80 group-hover:opacity-100 transition-opacity pointer-events-none">
                             {employee.emoji}
                           </div>
                         )}
                       </span>
                       {!isCollapsed && (
-                        <span className="truncate font-medium">{item.label}</span>
+                        <span className="truncate font-medium pointer-events-none">{item.label}</span>
                       )}
-                    </button>
+                    </NavLink>
                   );
 
                   return isCollapsed ? (
                     <TooltipProvider key={item.to}>
                       <Tooltip delayDuration={150}>
                         <TooltipTrigger asChild>
-                          {Item}
+                          {NavLinkContent}
                         </TooltipTrigger>
                         <TooltipContent side="right" className="text-xs">
                           {item.label}
@@ -197,7 +193,7 @@ export default function DesktopSidebar({
                       </Tooltip>
                     </TooltipProvider>
                   ) : (
-                    <div key={item.to}>{Item}</div>
+                    NavLinkContent
                   );
                 })}
               </div>

@@ -87,11 +87,19 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
           }
         }
         
-        // Auto-categorization
+        // Auto-categorization with Tag learning
         if (autoCategorization && !tx.category) {
-          tx.category = await categorizeTransaction(tx);
-          tx.auto_category = tx.category;
-          tx.confidence = 0.85;
+          const categorizationResult = await categorizeTransactionWithLearning(
+            ctx.userId,
+            tx.vendor || tx.merchant || null,
+            tx.description || tx.vendor || 'Transaction',
+            tx.amount || 0
+          );
+          
+          tx.category = categorizationResult.category;
+          tx.auto_category = categorizationResult.category;
+          tx.confidence = categorizationResult.confidence;
+          tx.category_source = categorizationResult.source; // 'learned' or 'ai'
         }
         
         // Generate embedding for semantic search
@@ -236,8 +244,63 @@ async function checkDuplicate(userId: string, tx: any): Promise<boolean> {
   return !!data;
 }
 
-async function categorizeTransaction(tx: any): Promise<string> {
-  // Rule-based categorization
+/**
+ * Categorize transaction with Tag learning
+ * 
+ * First checks tag_category_feedback for learned patterns,
+ * then falls back to rule-based categorization,
+ * then falls back to 'Other'
+ */
+async function categorizeTransactionWithLearning(
+  userId: string,
+  merchant: string | null | undefined,
+  description: string,
+  amount: number
+): Promise<{ category: string; confidence: number; source: 'learned' | 'ai' }> {
+  const client = getSupabaseServerClient();
+  
+  // Step 1: Check learned patterns from tag_category_feedback
+  if (merchant && merchant.trim()) {
+    try {
+      const { data: feedback } = await client
+        .from('tag_category_feedback')
+        .select('new_category')
+        .eq('user_id', userId)
+        .ilike('merchant', `%${merchant.trim()}%`);
+      
+      if (feedback && feedback.length > 0) {
+        // Count occurrences of each category
+        const categoryCounts: Record<string, number> = {};
+        feedback.forEach((entry) => {
+          const cat = entry.new_category;
+          if (cat) {
+            categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+          }
+        });
+        
+        // Find most common category
+        const entries = Object.entries(categoryCounts);
+        if (entries.length > 0) {
+          entries.sort((a, b) => b[1] - a[1]);
+          const [mostCommonCategory, count] = entries[0];
+          
+          // If we have at least 2 corrections for this merchant, use learned category
+          if (count >= 2) {
+            return {
+              category: mostCommonCategory,
+              confidence: 0.95,
+              source: 'learned'
+            };
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[ingest_statement] Learning check error:', error);
+      // Fall through to rules
+    }
+  }
+  
+  // Step 2: Rule-based categorization (fallback)
   const rules = [
     { pattern: /grocery|supermarket|walmart|metro|loblaws/i, category: 'Groceries' },
     { pattern: /gas|fuel|petro|shell|esso|chevron/i, category: 'Transportation' },
@@ -249,17 +312,26 @@ async function categorizeTransaction(tx: any): Promise<string> {
     { pattern: /rent|mortgage|property/i, category: 'Housing' },
   ];
   
-  const vendor = (tx.vendor || '').toLowerCase();
-  const desc = (tx.description || '').toLowerCase();
+  const vendor = (merchant || '').toLowerCase();
+  const desc = (description || '').toLowerCase();
   const text = `${vendor} ${desc}`;
   
   for (const rule of rules) {
     if (rule.pattern.test(text)) {
-      return rule.category;
+      return {
+        category: rule.category,
+        confidence: 0.85,
+        source: 'ai' // Rule-based is considered AI/automated
+      };
     }
   }
   
-  return 'Other';
+  // Step 3: Default fallback
+  return {
+    category: 'Other',
+    confidence: 0.6,
+    source: 'ai'
+  };
 }
 
 function normalizeVendor(vendor: string): string {

@@ -50,7 +50,7 @@ export const getAIResponse = async (
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        userId: context.userId || 'default-user',
+        userId: context.userId || '00000000-0000-4000-8000-000000000001',
         employeeSlug: 'general-assistant',
         message: userMessage,
         stream: false

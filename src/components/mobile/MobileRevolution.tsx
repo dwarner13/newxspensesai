@@ -728,7 +728,7 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
       {/* Main Content Area */}
       <div className="mobile-content">
         <div className="mobile-dashboard" style={{ 
-          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)'
+          background: '#0b1220' // Match desktop dark theme
         }}>
             {/* Mobile Header */}
             <div className="mobile-header relative z-[60]">

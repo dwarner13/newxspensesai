@@ -30,14 +30,16 @@ export default function TagChat() {
       try {
         const data = JSON.parse(payload);
         if (data && typeof data === 'object') {
-          send(JSON.stringify(data));
+          // If there's a prompt field, use it; otherwise send the structured data
+          const messageToSend = data.prompt || JSON.stringify(data);
+          send(messageToSend);
           localStorage.removeItem('tag:payload');
         }
       } catch (e) {
         // Ignore parse errors
       }
     }
-  }, []);
+  }, [send]);
 
   // Handle send
   const handleSend = async (e?: React.FormEvent) => {
@@ -173,6 +175,9 @@ export default function TagChat() {
     </div>
   );
 }
+
+
+
 
 
 

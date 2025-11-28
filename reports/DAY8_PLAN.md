@@ -170,3 +170,13 @@ Add an OCR pipeline (bytes → text → structured JSON), wire it to Byte routin
 
 
 
+
+
+
+
+
+
+
+
+
+
