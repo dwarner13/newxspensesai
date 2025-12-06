@@ -53,12 +53,14 @@ export function AnalyticsWorkspacePanel() {
   
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-3 flex-shrink-0">
-        <span className="text-3xl">📈</span>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-bold text-white">ANALYTICS WORKSPACE</h3>
-          <p className="text-xs text-slate-500">Reports & insights</p>
+      {/* Header - Match Byte typography */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-indigo-600/20 rounded-lg flex items-center justify-center">
+          <FileText className="w-5 h-5 text-indigo-400" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-white">ANALYTICS WORKSPACE</h3>
+          <p className="text-sm text-slate-400">Reports & insights</p>
         </div>
       </div>
       
@@ -157,4 +159,5 @@ export function AnalyticsWorkspacePanel() {
     </div>
   );
 }
+
 

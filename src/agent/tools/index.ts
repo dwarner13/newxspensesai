@@ -387,7 +387,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['transactions_query', {
     id: 'transactions_query',
-    description: 'Query transactions with flexible filters (date range, category, type, amount, merchant). Use this when Finley needs to analyze spending patterns, calculate totals, or run projections based on actual transaction data.',
+    description: 'Query transactions with flexible filters (date range, category, type, amount, merchant). Use this to analyze spending patterns, calculate totals, list uncategorized transactions, or run projections based on actual transaction data. Can filter by specific categories or leave category empty to get all transactions.',
     inputSchema: transactionsQuery.inputSchema,
     outputSchema: transactionsQuery.outputSchema,
     run: transactionsQuery.execute,

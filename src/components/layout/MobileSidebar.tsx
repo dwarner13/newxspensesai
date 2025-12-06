@@ -22,10 +22,10 @@ import {
   Award,
   Building2,
   BookOpen,
-  Users,
-  Crown
+  Users
 } from 'lucide-react';
 import { EMPLOYEES } from '../../data/aiEmployees';
+import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 
 interface MobileSidebarProps {
   open: boolean;
@@ -77,9 +77,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center">
-            <Crown size={20} className="text-white font-bold" />
-          </div>
+          <PrimeLogoBadge size={32} showGlow={true} />
           <span className="font-black text-xl text-white">XspensesAI</span>
         </div>
         <button

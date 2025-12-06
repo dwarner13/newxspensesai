@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
 import DocumentViewerModal from '../../components/ui/DocumentViewerModal';
 import TransactionCard from '../../components/transactions/TransactionCard';
-import TransactionDetailPanel from '../../components/transactions/TransactionDetailPanel';
+import { TransactionDetailPanel } from '../../components/transactions/TransactionDetailPanel';
 import type { Transaction } from '../../types/transactions';
 import { VALID_CATEGORIES } from '../../orchestrator/aiEmployees';
 import { useAuth } from '../../contexts/AuthContext';

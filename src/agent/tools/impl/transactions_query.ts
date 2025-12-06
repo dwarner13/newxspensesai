@@ -46,8 +46,9 @@ export type Output = z.infer<typeof outputSchema>;
 /**
  * Query transactions with flexible filters
  * 
- * Use this when Finley needs to analyze spending patterns, calculate totals,
- * or run projections based on actual transaction data.
+ * Use this to analyze spending patterns, calculate totals, list uncategorized transactions,
+ * or run projections based on actual transaction data. Can filter by date range, category,
+ * type (income/expense), amount range, or merchant name.
  */
 export async function execute(input: Input, ctx: { userId: string }): Promise<Result<Output>> {
   try {
@@ -68,7 +69,12 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       query = query.lte('date', input.endDate);
     }
     if (input.category) {
-      query = query.eq('category', input.category);
+      // Support filtering uncategorized transactions by passing "Uncategorized" or "null" as category
+      if (input.category.toLowerCase() === 'uncategorized' || input.category.toLowerCase() === 'null') {
+        query = query.is('category', null);
+      } else {
+        query = query.eq('category', input.category);
+      }
     }
     if (input.categories && input.categories.length > 0) {
       query = query.in('category', input.categories);

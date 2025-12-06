@@ -13,7 +13,13 @@ function isStatement(name: string) {
   return ['csv', 'ofx', 'qif'].includes(ext);
 }
 
-export const handler: Handler = async (event) => {
+export const handler: Handler = async (event, context) => {
+  // Byte Speed Mode v2: Non-blocking background processing
+  // Set callbackWaitsForEmptyEventLoop to false for async processing
+  if (context && typeof context.callbackWaitsForEmptyEventLoop === 'boolean') {
+    context.callbackWaitsForEmptyEventLoop = false;
+  }
+  
   try {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
     const { userId, docId } = JSON.parse(event.body || '{}');
@@ -29,25 +35,20 @@ export const handler: Handler = async (event) => {
 
     // Route 1: Images/PDFs → OCR (guardrails run in OCR function)
     if (isImageOrPdf(doc.mime_type)) {
+      // Byte Speed Mode v2: Return immediately, process in background
       const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
-      try {
-        const ocrResponse = await fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, docId }),
-        });
-        
-        if (!ocrResponse.ok) {
-          const errorText = await ocrResponse.text();
-          console.error('[smart-import-finalize] OCR function failed:', errorText);
-          // Don't throw - return queued status anyway (async processing)
-        }
-      } catch (fetchError: any) {
-        console.error('[smart-import-finalize] Error calling OCR function:', fetchError);
-        // Don't throw - return queued status anyway (async processing)
-      }
       
-      return { statusCode: 200, body: JSON.stringify({ queued: true, via: 'ocr' }) };
+      // Fire and forget - don't wait for OCR to complete
+      fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, docId }),
+      }).catch((error) => {
+        console.error('[smart-import-finalize] Background OCR call error:', error);
+      });
+      
+      // Return immediately - Byte can chat while OCR processes
+      return { statusCode: 200, body: JSON.stringify({ started: true, queued: true, via: 'ocr' }) };
     }
 
     // Route 2: CSV/OFX/QIF → Parser with guardrails
@@ -66,25 +67,20 @@ export const handler: Handler = async (event) => {
       const safeKey = `${doc.storage_path}.txt`;
       await sb.storage.from(BUCKET).upload(safeKey, new Blob([result.text], { type: 'text/plain' }), { upsert: true });
 
+      // Byte Speed Mode v2: Return immediately, process in background
       const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
-      try {
-        const parseResponse = await fetch(`${netlifyUrl}/.netlify/functions/smart-import-parse-csv`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, docId, key: safeKey }),
-        });
-        
-        if (!parseResponse.ok) {
-          const errorText = await parseResponse.text();
-          console.error('[smart-import-finalize] Parse CSV function failed:', errorText);
-          // Don't throw - return queued status anyway (async processing)
-        }
-      } catch (fetchError: any) {
-        console.error('[smart-import-finalize] Error calling Parse CSV function:', fetchError);
-        // Don't throw - return queued status anyway (async processing)
-      }
       
-      return { statusCode: 200, body: JSON.stringify({ queued: true, via: 'statement-parse', pii_redacted: result.signals?.pii }) };
+      // Fire and forget - don't wait for parsing to complete
+      fetch(`${netlifyUrl}/.netlify/functions/smart-import-parse-csv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, docId, key: safeKey }),
+      }).catch((error) => {
+        console.error('[smart-import-finalize] Background Parse CSV call error:', error);
+      });
+      
+      // Return immediately - Byte can chat while parsing processes
+      return { statusCode: 200, body: JSON.stringify({ started: true, queued: true, via: 'statement-parse', pii_redacted: result.signals?.pii }) };
     }
 
     // Unknown type

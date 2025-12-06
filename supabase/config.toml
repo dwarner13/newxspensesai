@@ -1,5 +1,12 @@
 # For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
+# 
+# REMOTE PROJECT LINKING:
+# This config file is for local development settings. To link to a remote Supabase project:
+# 1. Run: supabase link --project-ref xlrhuxrlsvbzxdtzlbz
+# 2. This creates .supabase/project.toml with the remote project reference
+# 3. Then use: supabase db push (to push migrations to remote)
+# 
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
 project_id = "project-bolt-fixed"

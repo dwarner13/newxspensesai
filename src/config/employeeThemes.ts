@@ -8,12 +8,12 @@
 export const employeeThemes = {
   prime: {
     emoji: "👑",
-    color: "purple",
-    avatarBg: "bg-purple-500/80",
-    avatarShadow: "shadow-purple-500/30",
-    pill: "border-purple-500/40 bg-purple-500/10 text-purple-100/90",
-    sendGradient: "from-purple-500 to-purple-600",
-    sendShadow: "shadow-purple-500/30",
+    color: "amber",
+    avatarBg: "bg-amber-500/80",
+    avatarShadow: "shadow-amber-500/30",
+    pill: "border-amber-500/40 bg-amber-500/10 text-amber-100/90",
+    sendGradient: "from-amber-500 to-amber-600",
+    sendShadow: "shadow-amber-500/30",
     placeholder: "Ask Prime anything…"
   },
   byte: {

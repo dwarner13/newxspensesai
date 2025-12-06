@@ -179,8 +179,8 @@ export default function DashboardHeader({ customTitle, customSubtitle, statusBad
         {/* Row 1: Title + subtitle + search + utilities */}
         <div className="flex items-center gap-3 min-w-0 overflow-x-hidden">
           {/* Left: title + subtitle */}
-          <div className="flex flex-col min-w-0 shrink-0 max-w-[280px]">
-            <h1 className="text-xl font-semibold text-white truncate">
+          <div className="flex flex-col min-w-0 shrink-0 max-w-xl">
+            <h1 className="text-xl font-semibold text-white whitespace-normal">
               {pageInfo.title}
             </h1>
             {pageInfo.subtitle && (

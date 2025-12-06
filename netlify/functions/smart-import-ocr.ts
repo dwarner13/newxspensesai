@@ -72,7 +72,12 @@ async function runOCR(signedUrl: string, mimeType: string): Promise<string> {
   return 'OCR output placeholder - configure GOOGLE_VISION_API_KEY or OCR_SPACE_API_KEY';
 }
 
-export const handler: Handler = async (event) => {
+export const handler: Handler = async (event, context) => {
+  // Byte Speed Mode v2: Non-blocking background processing
+  if (context && typeof context.callbackWaitsForEmptyEventLoop === 'boolean') {
+    context.callbackWaitsForEmptyEventLoop = false;
+  }
+  
   try {
     const { userId, docId } = JSON.parse(event.body || '{}');
     if (!userId || !docId) {
@@ -164,7 +169,8 @@ export const handler: Handler = async (event) => {
       updated_at: new Date().toISOString()
     }).eq('id', docId);
 
-    // Queue for normalization → transactions (fire and forget)
+    // Byte Speed Mode v2: Return immediately, queue normalization in background
+    // Fire normalization asynchronously - don't wait
     const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
     fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
       method: 'POST',
@@ -172,14 +178,18 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ userId, documentId: docId }),
     }).catch((err) => {
       console.error('[smart-import-ocr] Error calling normalize-transactions:', err);
-      // Don't fail OCR if normalization fails - it can be retried later
     });
     
-    await markDocStatus(docId, 'ready', null);
+    // Update status in background (don't wait)
+    markDocStatus(docId, 'ready', null).catch((err) => {
+      console.error('[smart-import-ocr] Error updating doc status:', err);
+    });
 
+    // Return immediately - Byte can chat while OCR processes
     return { 
       statusCode: 200, 
       body: JSON.stringify({ 
+        started: true,
         ok: true,
         pii_redacted: guardrailResult.signals?.pii || false,
         pii_types: guardrailResult.signals?.piiTypes || [],

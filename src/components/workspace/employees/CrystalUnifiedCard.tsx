@@ -35,16 +35,16 @@ export function CrystalUnifiedCard({ onExpandClick, onChatInputClick }: CrystalU
             <span className="text-3xl">🔮</span>
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-white leading-tight">
+            <h2 className="text-lg font-bold text-white leading-tight truncate">
               Crystal — Spending Predictions AI
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 mt-1 line-clamp-2">
               Future spending oracle · See what's coming before it happens
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 mb-3">
+        <div className="flex items-center gap-2 sm:gap-4 mb-3">
           <div className="flex-1 flex flex-col items-center text-center">
             <div className="text-2xl font-bold text-cyan-400">94.2%</div>
             <div className="text-xs text-slate-500">Prediction Accuracy</div>
@@ -59,12 +59,12 @@ export function CrystalUnifiedCard({ onExpandClick, onChatInputClick }: CrystalU
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button 
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-fuchsia-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-fuchsia-500/30 text-white text-xs sm:text-sm"
           >
             <TrendingUp className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="truncate">Forecast</span>
@@ -73,7 +73,7 @@ export function CrystalUnifiedCard({ onExpandClick, onChatInputClick }: CrystalU
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-fuchsia-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-fuchsia-500/30 text-white text-xs sm:text-sm"
           >
             <Bell className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="truncate">Alerts</span>
@@ -82,7 +82,7 @@ export function CrystalUnifiedCard({ onExpandClick, onChatInputClick }: CrystalU
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-fuchsia-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-fuchsia-500/30 text-white text-xs sm:text-sm"
           >
             <Sliders className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="truncate">Model</span>

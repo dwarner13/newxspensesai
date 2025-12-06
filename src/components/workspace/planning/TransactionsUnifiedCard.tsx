@@ -35,16 +35,16 @@ export function TransactionsUnifiedCard({ onExpandClick, onChatInputClick }: Tra
             <Receipt className="w-8 h-8 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-white leading-tight">
+            <h2 className="text-lg font-bold text-white leading-tight truncate">
               Transactions — Financial Hub
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 mt-1 line-clamp-2">
               Complete transaction history · Track every dollar in and out
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 mb-3">
+        <div className="flex items-center gap-2 sm:gap-4 mb-3">
           <div className="flex-1 flex flex-col items-center text-center">
             <div className="text-2xl font-bold text-blue-400">1,847</div>
             <div className="text-xs text-slate-500">Total Transactions</div>
@@ -59,30 +59,30 @@ export function TransactionsUnifiedCard({ onExpandClick, onChatInputClick }: Tra
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button 
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
           >
             <Plus className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
-            <span className="whitespace-nowrap">Add Transaction</span>
+            <span className="truncate">Add</span>
           </Button>
           <Button 
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
           >
             <Upload className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
-            <span className="whitespace-nowrap">Import</span>
+            <span className="truncate">Import</span>
           </Button>
           <Button 
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
           >
             <Download className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="whitespace-nowrap">Export</span>

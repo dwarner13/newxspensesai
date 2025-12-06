@@ -19,7 +19,7 @@ export function askPrime(message: string, navigate: (path: string) => void) {
  */
 export const PRIME_MESSAGES = {
   // Document Processing
-  IMPORT_DOCUMENTS: 'Prime, ask Byte (byte-doc) to import my latest statements and receipts. Then summarize what you found.',
+  IMPORT_DOCUMENTS: 'Prime, ask Byte (byte-docs) to import my latest statements and receipts. Then summarize what you found.',
   
   // Categorization
   CATEGORIZE_OCTOBER: 'Prime, ask Tag (tag-ai) to categorize October transactions and show the top categories.',

@@ -1,8 +1,8 @@
-// Simple CommonJS-style stub for OCR Netlify function
+// OCR Netlify function - ES Module style
 
-// No imports, no exports – just module.exports.handler
+import type { Handler } from '@netlify/functions';
 
-module.exports.handler = async (event, context) => {
+export const handler: Handler = async (event, context) => {
   return {
     statusCode: 200,
     headers: {
@@ -12,7 +12,7 @@ module.exports.handler = async (event, context) => {
     },
     body: JSON.stringify({
       ok: true,
-      message: 'OCR stub is working (CommonJS, no _shared imports)',
+      message: 'OCR stub is working (ESM)',
       event: {
         path: event.path,
         httpMethod: event.httpMethod,

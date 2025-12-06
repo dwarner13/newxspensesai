@@ -59,7 +59,7 @@ export function StoryWorkspacePanel() {
       <div className="flex items-center gap-3 mb-3 flex-shrink-0">
         <span className="text-3xl">📖</span>
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-bold text-white">STORY WORKSPACE</h3>
+          <h3 className="text-sm font-semibold text-white truncate">STORY WORKSPACE</h3>
           <p className="text-xs text-slate-500">Financial narratives</p>
         </div>
       </div>
@@ -156,4 +156,5 @@ export function StoryWorkspacePanel() {
     </div>
   );
 }
+
 

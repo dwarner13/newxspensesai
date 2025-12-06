@@ -4,6 +4,11 @@
 
 [functions]
   directory = "netlify/functions"
+  # CRITICAL: Use ESBuild bundler to support ES modules (package.json has "type": "module")
+  # ESBuild properly handles import.meta.env and ES module syntax
+  # Without this, Netlify defaults to zisi bundler which outputs CommonJS, causing:
+  # - "module is not defined in ES module scope" errors
+  # - "import.meta is not available with the cjs output format" warnings
   node_bundler = "esbuild"
   # Mark dependencies as external to avoid CommonJS bundling issues
   # jsdom is marked external because it's used by safe_web_research tool but doesn't bundle well
@@ -15,7 +20,7 @@
   # Serve built files from dist (for production-like testing)
   publish = "dist"
   # Start Vite dev server automatically when running 'netlify dev'
-  command = "npm run vite -- --port 5173"
+  command = "pnpm exec vite --port 5173 --host"
   # Vite runs on port 5173, Netlify Dev proxies to it
   targetPort = 5173
   # Use custom framework detection (Vite + React)

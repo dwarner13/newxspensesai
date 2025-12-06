@@ -61,7 +61,7 @@ interface SharedChatInterfaceProps {
 
 export const SharedChatInterface: React.FC<SharedChatInterfaceProps> = ({
   employeeSlug,
-  isOpen = true,
+  isOpen = false,
   onClose,
   mode = 'modal',
   customizations,

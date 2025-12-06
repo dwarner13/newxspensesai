@@ -52,35 +52,41 @@ export function AIWorkspaceHeader({
       'px-4 py-3 md:px-6 md:py-4'
     )}>
       <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-        {/* Avatar */}
-        <div className={cn(
-          'flex h-9 w-9 md:h-10 md:w-10 items-center justify-center rounded-full flex-shrink-0 shadow-lg',
-          avatarColorClass,
-          avatarShadowColorClass
-        )}>
-          <span className="text-xl md:text-2xl">{avatarEmoji}</span>
+        {/* Avatar with Prime-specific gradient glow */}
+        <div className="relative flex-shrink-0">
+          {/* Gradient glow for Prime */}
+          {avatarEmoji === '👑' && (
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-amber-400/30 via-orange-500/20 to-pink-500/30 blur-lg animate-pulse" />
+          )}
+          <div className={cn(
+            'relative flex h-9 w-9 md:h-10 md:w-10 items-center justify-center rounded-full shadow-lg',
+            avatarColorClass,
+            avatarShadowColorClass
+          )}>
+            <span className="text-xl md:text-2xl relative z-10">{avatarEmoji}</span>
+          </div>
         </div>
 
         {/* Title + Subtitle */}
         <div className="flex flex-col min-w-0 flex-1 gap-0.5 md:gap-0">
-          <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 md:gap-2 flex-wrap min-w-0">
             <h2 
               id={titleId}
-              className="truncate text-sm md:text-base font-semibold text-slate-50 min-w-0"
+              className="text-sm md:text-base font-semibold text-slate-50 min-w-0 whitespace-nowrap"
             >
               {title}
             </h2>
             {workspaceLabel && (
               <span className={cn(
                 'inline-flex items-center rounded-full border flex-shrink-0',
-                'px-2 py-0.5 text-[10px] md:text-[11px] font-medium uppercase tracking-wide',
+                'px-2 py-0.5 text-[10px] md:text-[11px] font-medium uppercase tracking-wide whitespace-nowrap',
                 workspacePillColorClass
               )}>
                 {workspaceLabel}
               </span>
             )}
           </div>
-          <p className="text-[11px] md:text-xs text-slate-400 truncate">
+          <p className="text-[11px] md:text-xs text-slate-400 min-w-0 truncate">
             {subtitle}
           </p>
         </div>

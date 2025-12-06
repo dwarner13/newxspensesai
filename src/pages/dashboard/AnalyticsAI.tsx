@@ -13,7 +13,6 @@ import React, { useState } from 'react';
 import { AnalyticsWorkspacePanel } from '../../components/workspace/employees/AnalyticsWorkspacePanel';
 import { AnalyticsUnifiedCard } from '../../components/workspace/employees/AnalyticsUnifiedCard';
 import { DashboardSection } from '../../components/ui/DashboardSection';
-import { ActivityPanel } from '../../components/dashboard/ActivityPanel';
 // import { AnalyticsWorkspaceOverlay } from '../../components/chat/AnalyticsWorkspaceOverlay'; // Create if needed
 
 export default function AnalyticsAI() {
@@ -37,22 +36,17 @@ export default function AnalyticsAI() {
     <>
       <DashboardSection className="flex flex-col">
         {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        {/* 3-column grid: col-span-4 (33%), col-span-5 (42%), col-span-3 (25%) with equal heights */}
-        <div className="grid grid-cols-12 gap-0 items-stretch" style={{ minHeight: 'calc(100vh - 200px)' }}>
+        {/* 2-column grid: col-span-4 (33%), col-span-8 (67%) - Activity Feed handled by DashboardLayout */}
+        <div className="grid grid-cols-12 gap-0 items-stretch overflow-hidden" style={{ minHeight: 'calc(100vh - 200px)' }}>
           {/* LEFT COLUMN (col-span-4 = 33%): Analytics Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col">
+          <section className="col-span-12 lg:col-span-4 flex flex-col overflow-hidden">
             <AnalyticsWorkspacePanel />
           </section>
 
-          {/* CENTER COLUMN (col-span-5 = 42%): Analytics Unified Card */}
-          <section className="col-span-12 lg:col-span-5 flex flex-col">
+          {/* CENTER COLUMN (col-span-8 = 67%): Analytics Unified Card */}
+          <section className="col-span-12 lg:col-span-8 flex flex-col overflow-hidden">
             <AnalyticsUnifiedCard onExpandClick={openAnalyticsWorkspace} onChatInputClick={openAnalyticsWorkspace} />
           </section>
-
-          {/* RIGHT COLUMN (col-span-3 = 25%): Activity Feed */}
-          <aside className="col-span-12 lg:col-span-3 flex flex-col">
-            <ActivityPanel />
-          </aside>
         </div>
       </DashboardSection>
 

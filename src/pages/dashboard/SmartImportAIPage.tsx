@@ -95,13 +95,16 @@ const SmartImportAIPage: React.FC = () => {
   };
 
   // Handle opening chat with Byte - opens unified chat overlay
-  const handleChatWithByte = (message?: string) => {
+  const handleChatWithByte = (message?: string, source: string = 'quick-action') => {
     const currentImportId = files.length > 0 ? files[files.length - 1].id : undefined;
     openChat({
       initialEmployeeSlug: 'byte-docs',
       context: {
         page: 'smart-import',
-        importId: currentImportId,
+        data: {
+          source,
+          importId: currentImportId,
+        },
       },
       initialQuestion: message,
     });
@@ -304,7 +307,7 @@ const SmartImportAIPage: React.FC = () => {
     // Create Byte's contribution to the financial story
     const byteContribution = {
       timestamp: new Date().toISOString(),
-      employee: 'byte-doc',
+      employee: 'byte-docs',
       totalTransactions: totalTransactions,
       processedFiles: processedFiles,
       accuracy: "99.7%",
@@ -573,10 +576,13 @@ const SmartImportAIPage: React.FC = () => {
             onClick={() => {
               const currentImportId = files.length > 0 ? files[files.length - 1].id : undefined;
               openChat({
-                initialEmployeeSlug: 'byte-doc',
+                initialEmployeeSlug: 'byte-docs',
                 context: {
                   page: 'smart-import',
-                  importId: currentImportId,
+                  data: {
+                    source: 'upload-panel',
+                    importId: currentImportId,
+                  },
                 },
                 initialQuestion: 'Help me understand and process this statement.'
               });
@@ -614,8 +620,11 @@ const SmartImportAIPage: React.FC = () => {
                   // Legacy Byte chat removed - now using unified chat
                   // Open unified chat with Byte employee
                   openChat({ 
-                    initialEmployeeSlug: 'byte-doc',
-                    context: { page: 'smart-import', importId: doc.id }
+                    initialEmployeeSlug: 'byte-docs',
+                    context: { 
+                      page: 'smart-import', 
+                      data: { source: 'document-upload', docType: 'generic_document' }
+                    }
                   });
                 }
               }}
@@ -639,8 +648,11 @@ const SmartImportAIPage: React.FC = () => {
                   // Legacy Byte chat removed - now using unified chat
                   // Open unified chat with Byte employee
                   openChat({ 
-                    initialEmployeeSlug: 'byte-doc',
-                    context: { page: 'smart-import', importId: doc.id }
+                    initialEmployeeSlug: 'byte-docs',
+                    context: { 
+                      page: 'smart-import', 
+                      data: { source: 'receipt-scan', docType: 'receipt' }
+                    }
                   });
                 }
               }}
@@ -664,8 +676,11 @@ const SmartImportAIPage: React.FC = () => {
                   // Legacy Byte chat removed - now using unified chat
                   // Open unified chat with Byte employee
                   openChat({ 
-                    initialEmployeeSlug: 'byte-doc',
-                    context: { page: 'smart-import', importId: doc.id }
+                    initialEmployeeSlug: 'byte-docs',
+                    context: { 
+                      page: 'smart-import', 
+                      data: { source: 'bank-statement', docType: 'bank_statement' }
+                    }
                   });
                 }
               }}
@@ -685,8 +700,11 @@ const SmartImportAIPage: React.FC = () => {
                 setSelectedDocType('csv');
                 // Legacy Byte chat removed - now using unified chat
                 openChat({ 
-                  initialEmployeeSlug: 'byte-doc',
-                  context: { page: 'smart-import', docType: 'csv' }
+                  initialEmployeeSlug: 'byte-docs',
+                  context: { 
+                    page: 'smart-import', 
+                    data: { source: 'csv-import', docType: 'csv' }
+                  }
                 });
               }}
             >
@@ -702,7 +720,7 @@ const SmartImportAIPage: React.FC = () => {
             <button
               className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
               onClick={() => {
-                handleChatWithByte("Show me the processing speed and performance metrics");
+                handleChatWithByte("Show me the processing speed and performance metrics", 'performance-metrics');
               }}
             >
               <div className="w-12 h-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -1279,7 +1297,7 @@ const SmartImportAIPage: React.FC = () => {
                 {/* Tag - For categorization */}
                 <button
                   onClick={() => {
-                    handleChatWithByte("I'm handing this off to Tag for categorization");
+                    handleChatWithByte("I'm handing this off to Tag for categorization", 'team-handoff');
                     setShowTeamModal(false);
                   }}
                   className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10"
@@ -1297,7 +1315,7 @@ const SmartImportAIPage: React.FC = () => {
                 {/* Crystal - For analysis */}
                 <button
                   onClick={() => {
-                    handleChatWithByte("I'm handing this off to Crystal for trend analysis");
+                    handleChatWithByte("I'm handing this off to Crystal for trend analysis", 'team-handoff');
                     setShowTeamModal(false);
                   }}
                   className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10"
@@ -1315,7 +1333,7 @@ const SmartImportAIPage: React.FC = () => {
                 {/* Intelia - For business intelligence */}
                 <button
                   onClick={() => {
-                    handleChatWithByte("I'm handing this off to Intelia for business insights");
+                    handleChatWithByte("I'm handing this off to Intelia for business insights", 'team-handoff');
                     setShowTeamModal(false);
                   }}
                   className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10"
@@ -1333,7 +1351,7 @@ const SmartImportAIPage: React.FC = () => {
                 {/* Prime - For executive oversight */}
                 <button
                   onClick={() => {
-                    handleChatWithByte("I'm calling Prime for executive oversight");
+                    handleChatWithByte("I'm calling Prime for executive oversight", 'team-handoff');
                     setShowTeamModal(false);
                   }}
                   className="w-full flex items-center gap-3 p-3 bg-white/5 hover:bg-white/10 rounded-lg transition-all border border-white/10"

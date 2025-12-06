@@ -9,60 +9,124 @@
  * - Right column (25%): Activity Feed
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ByteWorkspacePanel } from '../../components/smart-import/ByteWorkspacePanel';
 import { ByteUnifiedCard } from '../../components/smart-import/ByteUnifiedCard';
+import { ByteSmartImportConsole } from '../../components/smart-import/ByteSmartImportConsole';
 import { DashboardSection } from '../../components/ui/DashboardSection';
-import { ActivityPanel } from '../../components/dashboard/ActivityPanel';
-import { ByteWorkspaceOverlay } from '../../components/chat/ByteWorkspaceOverlay';
+import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
+import { useSmartImport } from '../../hooks/useSmartImport';
+import { useByteQueueStats } from '../../hooks/useByteQueueStats';
 
 export function SmartImportChatPage() {
-  const [isByteWorkspaceOpen, setIsByteWorkspaceOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  // Scroll to top when page loads
+  useScrollToTop();
+  const [isByteConsoleOpen, setIsByteConsoleOpen] = useState(false);
+  
+  // UI-only helper state for Byte console status display
+  const [processingLabel, setProcessingLabel] = useState<string | undefined>();
+  const [lastImportSummary, setLastImportSummary] = useState<string | undefined>();
+  
+  // Single shared Smart Import hook instance for this page
+  const smartImport = useSmartImport();
+  
+  // Destructure what we need from the shared hook instance
+  const {
+    uploading: isUploading,
+    progress: uploadProgress,
+    uploadFileCount,
+    lastUploadSummary,
+    uploadFiles,
+  } = smartImport;
 
-  const openByteWorkspace = () => {
-    setIsByteWorkspaceOpen(true);
-    setIsMinimized(false); // Restore from minimized state
+  // Get queue stats for health label
+  const { data: queueStats } = useByteQueueStats();
+  
+  // Update lastImportSummary when lastUploadSummary changes
+  useEffect(() => {
+    if (lastUploadSummary?.transactionCount) {
+      setLastImportSummary(
+        `Last import: ${lastUploadSummary.transactionCount} transaction${lastUploadSummary.transactionCount !== 1 ? 's' : ''} from ${lastUploadSummary.fileCount} file${lastUploadSummary.fileCount !== 1 ? 's' : ''}`
+      );
+    } else if (lastUploadSummary?.fileCount) {
+      setLastImportSummary(
+        `Last import: ${lastUploadSummary.fileCount} file${lastUploadSummary.fileCount !== 1 ? 's' : ''}`
+      );
+    }
+  }, [lastUploadSummary]);
+
+  // Update processingLabel based on uploading state
+  useEffect(() => {
+    if (isUploading) {
+      setProcessingLabel(`Byte is processing your document${uploadFileCount?.total && uploadFileCount.total > 1 ? 's' : ''}…`);
+    } else {
+      // Clear processing label when upload completes
+      setProcessingLabel(undefined);
+    }
+  }, [isUploading, uploadFileCount]);
+
+  // Format queue health label (UI-only helper)
+  const queueHealthLabel = queueStats?.health?.status === 'good'
+    ? 'Healthy'
+    : queueStats?.health?.status === 'warning'
+    ? 'Processing'
+    : queueStats?.health?.status === 'error'
+    ? 'Issues detected'
+    : undefined;
+
+  const openByteConsole = () => {
+    setIsByteConsoleOpen(true);
   };
-  const closeByteWorkspace = () => {
-    setIsByteWorkspaceOpen(false);
-    setIsMinimized(false); // Clear minimized state when closing
-  };
-  const minimizeByteWorkspace = () => {
-    setIsByteWorkspaceOpen(false);
-    setIsMinimized(true); // Hide overlay but preserve chat state
+  const closeByteConsole = () => {
+    setIsByteConsoleOpen(false);
   };
 
   return (
     <>
       <DashboardSection className="flex flex-col">
         {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        {/* 3-column grid: col-span-4 (33%), col-span-5 (42%), col-span-3 (25%) with equal heights */}
-        <div className="grid grid-cols-12 gap-0 items-stretch" style={{ minHeight: 'calc(100vh - 200px)' }}>
-          {/* LEFT COLUMN (col-span-4 = 33%): Byte Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col">
-            <ByteWorkspacePanel />
-          </section>
-
-          {/* CENTER COLUMN (col-span-5 = 42%): Byte Unified Card */}
-          <section className="col-span-12 lg:col-span-5 flex flex-col">
-            <ByteUnifiedCard onExpandClick={openByteWorkspace} onChatInputClick={openByteWorkspace} />
-          </section>
-
-          {/* RIGHT COLUMN (col-span-3 = 25%): Activity Feed */}
-          <aside className="col-span-12 lg:col-span-3 flex flex-col">
-            <ActivityPanel />
-          </aside>
-        </div>
+        <section className="mt-6 min-h-[520px]">
+          <DashboardThreeColumnLayout
+            left={
+              <div className="h-full flex flex-col">
+                <ByteWorkspacePanel />
+              </div>
+            }
+            middle={
+              <div className="h-full flex flex-col">
+                <ByteUnifiedCard 
+                  onExpandClick={openByteConsole} 
+                  onChatInputClick={openByteConsole}
+                  onUploadStart={openByteConsole}
+                  onUploadFiles={uploadFiles}
+                  uploadFileCount={uploadFileCount}
+                  uploadProgress={uploadProgress}
+                  isUploading={isUploading}
+                />
+              </div>
+            }
+            right={
+              <ActivityFeedSidebar 
+                scope="smart-import"
+                lastUploadSummary={lastUploadSummary}
+              />
+            }
+          />
+        </section>
       </DashboardSection>
 
-      {/* Byte Workspace Overlay - Floating centered chatbot */}
-      <ByteWorkspaceOverlay 
-        open={isByteWorkspaceOpen} 
-        onClose={closeByteWorkspace}
-        minimized={isMinimized}
-        onMinimize={minimizeByteWorkspace}
-      />
+      {/* Floating Byte Smart Import Console - positioned above middle content, not covering activity feed */}
+      <div className="relative z-[30]">
+        <ByteSmartImportConsole
+          isOpen={isByteConsoleOpen}
+          onClose={closeByteConsole}
+          lastImportSummary={lastImportSummary}
+          queueHealthLabel={queueHealthLabel}
+          isUploading={isUploading}
+        />
+      </div>
     </>
   );
 }

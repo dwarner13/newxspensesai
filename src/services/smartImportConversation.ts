@@ -31,7 +31,7 @@ export interface ConversationContext {
 function mapEmployeeIdToSlug(employeeId: string): string {
   const mapping: Record<string, string> = {
     'prime': 'prime-boss',
-    'byte': 'byte-doc',
+    'byte': 'byte-docs',
     'crystal': 'crystal-ai',
     'tag': 'tag-ai',
     'ledger': 'ledger-tax',

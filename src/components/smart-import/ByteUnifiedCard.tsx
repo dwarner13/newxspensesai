@@ -1,148 +1,263 @@
 /**
  * ByteUnifiedCard Component
  * 
- * Unified card for Byte (Smart Import AI) workspace
- * Matches Liberty Financial Freedom layout structure exactly
- * 
- * TEMPORARY SIMPLIFIED VERSION - Debugging crash issue
+ * Unified employee card for Byte (Smart Import AI)
+ * Contains action buttons (Upload, Queue, Stats) in the header section
+ * Stats display is in ByteWorkspacePanel (left column)
+ * Upload functionality is handled here in the center card
  */
 
-import React, { useState, useCallback } from 'react';
-import { UploadCloud, BarChart3, TrendingUp, Send } from 'lucide-react';
-import { Button } from '../ui/button';
+import React, { useRef, useCallback } from 'react';
+import { Upload, List, BarChart3 } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useByteQueueStats } from '../../hooks/useByteQueueStats';
+import { useSmartImportUploadState } from '../../hooks/useSmartImportUploadState';
+import toast from 'react-hot-toast';
 
 interface ByteUnifiedCardProps {
   onExpandClick?: () => void;
   onChatInputClick?: () => void;
+  onUploadClick?: () => void;
+  onUploadStart?: () => void; // Callback when upload starts (for auto-opening console)
+  // Upload props from parent hook instance
+  onUploadFiles?: (userId: string, files: File[], source?: 'upload' | 'chat') => Promise<any[]>;
+  uploadFileCount?: { current: number; total: number };
+  uploadProgress?: number | null;
+  isUploading?: boolean;
 }
 
-export function ByteUnifiedCard({ onExpandClick, onChatInputClick }: ByteUnifiedCardProps) {
-  const [inputValue, setInputValue] = useState('');
+export function ByteUnifiedCard({ 
+  onExpandClick, 
+  onChatInputClick, 
+  onUploadClick,
+  onUploadStart,
+  onUploadFiles,
+  uploadFileCount,
+  uploadProgress,
+  isUploading = false,
+}: ByteUnifiedCardProps) {
+  const { userId } = useAuth();
+  const { refetch: refetchStats } = useByteQueueStats();
+  
+  // Task B: Shared upload state hook (must be at component level)
+  const { addUpload } = useSmartImportUploadState();
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSend = useCallback(() => {
-    if (!inputValue.trim()) return;
-    // Open workspace overlay instead of inline chat
-    if (onChatInputClick) {
-      onChatInputClick();
-    } else if (onExpandClick) {
-      onExpandClick();
+  // Handle file upload - universal uploader (no validation, Smart Import handles everything)
+  const handleFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+
+      if (!files || files.length === 0) {
+        return;
+      }
+
+      if (!userId) {
+        toast.error('Please log in to upload files');
+        return;
+      }
+
+      // IMPORTANT: build the array immediately from the FileList
+      const fileArray = Array.from(files);
+
+      // Clear input AFTER we build the array,
+      // so the user can re-select the same file later
+      e.target.value = '';
+
+      if (fileArray.length === 0) {
+        console.warn('[ByteUnifiedCard] fileArray is empty after conversion – aborting upload');
+        toast.error('No files to upload');
+        return;
+      }
+
+      if (!onUploadFiles) {
+        console.error('[ByteUnifiedCard] onUploadFiles prop is missing!');
+        toast.error('Upload function not available');
+        return;
+      }
+
+      // Task B: Add to shared upload state immediately
+      fileArray.forEach((file, index) => {
+        addUpload({
+          fileName: file.name,
+          source: 'workspace',
+          status: 'uploading',
+          progress: 5,
+        });
+      });
+
+      // Auto-open Byte console when upload starts
+      if (onUploadStart) {
+        onUploadStart();
+      }
+
+      const toastId = toast.loading(`Uploading ${fileArray.length} file(s)...`);
+
+      try {
+        const results = await onUploadFiles(userId, fileArray, 'upload');
+
+        const rejected = results?.filter((r: any) => r?.rejected) ?? [];
+        const successful = results?.filter((r: any) => !r?.rejected) ?? [];
+
+        if (rejected.length > 0) {
+          rejected.forEach((r: any) => {
+            toast.error(`File was rejected: ${r.reason || 'Unknown error'}`, { id: toastId });
+          });
+        }
+
+        if (successful.length > 0) {
+          toast.success(
+            `${successful.length} file(s) uploaded successfully. Byte is processing them now.`,
+            { id: toastId }
+          );
+          // Refresh queue stats after successful upload
+          refetchStats();
+        }
+
+        if (successful.length === 0 && rejected.length === 0) {
+          toast.dismiss(toastId);
+        }
+      } catch (err: any) {
+        console.error('[ByteUnifiedCard] Upload error:', err);
+        toast.error(`Upload failed: ${err?.message || 'Unknown error'}`, { id: toastId });
+      }
+    },
+    [userId, onUploadFiles, refetchStats]
+  );
+
+  const handleUploadButtonClick = useCallback(() => {
+    // Auto-open Byte console when upload button is clicked
+    if (onUploadStart) {
+      onUploadStart();
     }
-    setInputValue('');
-  }, [inputValue, onChatInputClick, onExpandClick]);
+    if (onUploadClick) {
+      onUploadClick();
+    } else {
+      if (!userId) {
+        toast.error('Please log in to upload files');
+        return;
+      }
+      fileInputRef.current?.click();
+    }
+  }, [userId, onUploadClick, onUploadStart]);
+
+  const handleQueueClick = useCallback(() => {
+    // Scroll to workspace panel
+    const workspacePanel = document.querySelector('[data-workspace-panel]');
+    if (workspacePanel) {
+      workspacePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  const handleStatsClick = useCallback(() => {
+    // Scroll to workspace panel stats section
+    const workspacePanel = document.querySelector('[data-workspace-panel]');
+    if (workspacePanel) {
+      workspacePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col h-full">
-      <div className="bg-gradient-to-br from-blue-900/40 to-slate-900/10 border-b border-slate-800 pb-6 flex-shrink-0 -mx-6 -mt-6 px-6 pt-6">
+    <div className="relative overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 shadow-[0_18px_60px_rgba(15,23,42,0.85)] p-6 flex flex-col h-full">
+      {/* Subtle radial glow behind Byte icon */}
+      <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
+      
+      {/* Top Section - Dark Premium Card Header */}
+      <div className="relative flex-shrink-0 pb-6">
+        {/* Header with Icon + Title + Description */}
         <div className="flex items-start gap-4 mb-3">
-          <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/50 flex-shrink-0">
-            <span className="text-3xl">📄</span>
+          {/* Avatar Circle - Glowing */}
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/20 shadow-[0_0_40px_rgba(56,189,248,0.7)] flex-shrink-0">
+            <span className="text-2xl">📄</span>
           </div>
+          
+          {/* Title and Description */}
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-white leading-tight">
+            <h2 className="text-lg font-semibold text-slate-50 leading-tight truncate">
               Byte — Smart Import AI
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
-              Data Processing Specialist · Import and categorize documents automatically
+            <p className="text-xs text-slate-300/80 mt-1 line-clamp-2">
+              Smart Import specialist · Handles documents, OCR and clean transaction data.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 mb-3">
+        {/* Three Stats Row - Soft labels */}
+        <div className="flex items-center gap-2 sm:gap-4 mb-3">
           <div className="flex-1 flex flex-col items-center text-center">
-            <div className="text-2xl font-bold text-blue-400">99.7%</div>
-            <div className="text-xs text-slate-500">Accuracy</div>
+            <div className="text-2xl font-bold text-cyan-400">99.7%</div>
+            <p className="text-[11px] uppercase tracking-wide text-slate-400/80">Accuracy</p>
           </div>
           <div className="flex-1 flex flex-col items-center text-center">
             <div className="text-2xl font-bold text-green-400">2.3s</div>
-            <div className="text-xs text-slate-500">Avg Speed</div>
+            <p className="text-[11px] uppercase tracking-wide text-slate-400/80">Avg Speed</p>
           </div>
           <div className="flex-1 flex flex-col items-center text-center">
             <div className="text-2xl font-bold text-purple-400">24/7</div>
-            <div className="text-xs text-slate-500">Available</div>
+            <p className="text-[11px] uppercase tracking-wide text-slate-400/80">Available</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="secondary" 
-            size="default"
-            onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-blue-500/30 text-white"
-          >
-            <UploadCloud className="w-4 h-4 mr-2 flex-shrink-0" />
-            <span className="truncate">Upload</span>
-          </Button>
-          <Button 
-            variant="secondary" 
-            size="default"
-            onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-blue-500/30 text-white text-xs sm:text-sm"
-          >
-            <BarChart3 className="w-4 h-4 mr-2 flex-shrink-0" />
-            <span className="truncate">Queue</span>
-          </Button>
-          <Button 
-            variant="secondary" 
-            size="default"
-            onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-blue-500/30 text-white text-xs sm:text-sm"
-          >
-            <TrendingUp className="w-4 h-4 mr-2 flex-shrink-0" />
-            <span className="truncate">Stats</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Simplified middle section - removed EmployeeChatWorkspace temporarily */}
-      <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 py-4">
-        <div className="flex flex-col items-center justify-center h-full text-center">
-          <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center text-5xl mb-4">
-            📄
-          </div>
-          <h3 className="text-xl font-bold text-white mb-2">Welcome to Byte</h3>
-          <p className="text-slate-400 mb-4 max-w-md">
-            I'm Byte, your AI document assistant. Click the chat button below to start a conversation.
-          </p>
-        </div>
-      </div>
-
-      <div className="pt-3 pb-0 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300/80 border-t border-slate-800/50 flex-shrink-0 -mx-6 px-6">
-        <div className="inline-flex items-center gap-2">
-          <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-300 border border-emerald-500/20">
-            🔒 Guardrails + PII Protection Active
-          </span>
-        </div>
-        <div className="text-[11px] text-slate-400">
-          Secure • Always Supporting
-        </div>
-      </div>
-
-      <div className="flex-shrink-0 -mx-6 px-6">
-        <div 
-          className="flex items-center gap-3 bg-slate-800 rounded-xl px-3 py-2 border border-slate-700 focus-within:border-blue-500 transition-all duration-200 cursor-pointer"
-          onClick={onChatInputClick || onExpandClick}
-        >
+        {/* Three Action Buttons Row - Soft glass buttons */}
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <input
-            type="text"
-            placeholder="Ask Byte about document imports…"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && inputValue.trim()) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            className="flex-1 bg-transparent text-white text-sm placeholder:text-slate-500 outline-none cursor-pointer"
-            readOnly={!!onChatInputClick}
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.csv,.xlsx,.xls,.jpg,.jpeg,.png,.heic"
+            onChange={handleFileSelect}
+            className="hidden"
           />
-          <button
-            onClick={handleSend}
-            className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-            disabled={!inputValue.trim()}
+          <button 
+            onClick={handleUploadButtonClick}
+            disabled={isUploading || !userId}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-white/10 transition-colors whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <Send className="w-4 h-4 text-white" />
+            <Upload className="h-4 w-4" />
+            <span>{isUploading ? `Uploading... ${uploadProgress ?? 0}%` : 'Upload'}</span>
           </button>
+          <button 
+            onClick={handleQueueClick}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-white/10 transition-colors whitespace-nowrap"
+          >
+            <List className="h-4 w-4" />
+            <span>Queue</span>
+          </button>
+          <button 
+            onClick={handleStatsClick}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-white/10 transition-colors whitespace-nowrap"
+          >
+            <BarChart3 className="h-4 w-4" />
+            <span>Stats</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Chat trigger button - no blue bar, just a pill */}
+      <div className="relative flex-shrink-0 -mx-6 px-6 pt-4 pb-4">
+        <button
+          type="button"
+          onClick={onChatInputClick || onExpandClick}
+          className="mt-4 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-900/60 transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.02]"
+        >
+          <span className="mr-2 text-base">💬</span>
+          Chat with Byte about your imports
+        </button>
+
+        {/* Status line with animated ping dots */}
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-300/80">
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/60 px-3 py-1">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60 opacity-75" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
+            </span>
+            Online 24/7
+          </span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/60 px-3 py-1">
+            <span>🛡️</span>
+            Guardrails + PII protection active
+          </span>
         </div>
       </div>
     </div>

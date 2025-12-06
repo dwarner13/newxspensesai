@@ -13,10 +13,14 @@ import React, { useState } from 'react';
 import { AnalyticsWorkspacePanel } from '../../components/workspace/employees/AnalyticsWorkspacePanel';
 import { AnalyticsUnifiedCard } from '../../components/workspace/employees/AnalyticsUnifiedCard';
 import { DashboardSection } from '../../components/ui/DashboardSection';
-import { ActivityPanel } from '../../components/dashboard/ActivityPanel';
+import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
 // import { AnalyticsWorkspaceOverlay } from '../../components/chat/AnalyticsWorkspaceOverlay'; // Create if needed
 
 export function AnalyticsAIPage() {
+  // Scroll to top when page loads
+  useScrollToTop();
   const [isAnalyticsWorkspaceOpen, setIsAnalyticsWorkspaceOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -36,23 +40,23 @@ export function AnalyticsAIPage() {
   return (
     <>
       <DashboardSection className="flex flex-col">
-        {/* 3-column grid: col-span-4 (33%), col-span-5 (42%), col-span-3 (25%) with equal heights */}
-        <div className="grid grid-cols-12 gap-0 items-stretch" style={{ minHeight: 'calc(100vh - 200px)' }}>
-          {/* LEFT COLUMN (col-span-4 = 33%): Analytics Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col">
-            <AnalyticsWorkspacePanel />
-          </section>
-
-          {/* CENTER COLUMN (col-span-5 = 42%): Analytics Unified Card */}
-          <section className="col-span-12 lg:col-span-5 flex flex-col">
-            <AnalyticsUnifiedCard onExpandClick={openAnalyticsWorkspace} onChatInputClick={openAnalyticsWorkspace} />
-          </section>
-
-          {/* RIGHT COLUMN (col-span-3 = 25%): Activity Feed */}
-          <aside className="col-span-12 lg:col-span-3 flex flex-col">
-            <ActivityPanel />
-          </aside>
-        </div>
+        <section className="mt-6 min-h-[520px]">
+          <DashboardThreeColumnLayout
+            left={
+              <div className="h-full flex flex-col">
+                <AnalyticsWorkspacePanel />
+              </div>
+            }
+            middle={
+              <div className="h-full flex flex-col">
+                <AnalyticsUnifiedCard onExpandClick={openAnalyticsWorkspace} onChatInputClick={openAnalyticsWorkspace} />
+              </div>
+            }
+            right={
+              <ActivityFeedSidebar scope="analytics" />
+            }
+          />
+        </section>
       </DashboardSection>
 
       {/* Analytics Workspace Overlay - Floating centered chatbot */}

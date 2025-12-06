@@ -376,6 +376,40 @@ export function usePrimeChat(
           streamChunkCount: res.headers.get('X-Stream-Chunk-Count') || undefined,
         };
         setHeaders(extractedHeaders);
+        
+        // Extract sessionId from response header (if backend returns it)
+        const responseSessionId = res.headers.get('X-Session-Id') || sessionId;
+        
+        // Store sessionId in localStorage if we have userId and employeeOverride
+        if (responseSessionId && safeUserId && employeeOverride) {
+          try {
+            // Map employeeOverride back to employeeSlug for storage key
+            const employeeSlugMap: Record<EmployeeOverride, string> = {
+              prime: 'prime-boss',
+              tag: 'tag-ai',
+              byte: 'byte-docs',
+              crystal: 'crystal-ai',
+              goalie: 'goalie-agent',
+              automa: 'automa-automation',
+              blitz: 'blitz-debt',
+              liberty: 'liberty-freedom',
+              chime: 'chime-bills',
+              roundtable: 'roundtable-podcast',
+              serenity: 'serenity-therapist',
+              harmony: 'harmony-wellness',
+              wave: 'wave-spotify',
+              ledger: 'ledger-tax',
+              intelia: 'intelia-bi',
+              dash: 'dash-analytics',
+              custodian: 'custodian-settings'
+            };
+            const employeeSlug = employeeOverride ? employeeSlugMap[employeeOverride] || 'prime-boss' : 'prime-boss';
+            const storageKey = `chat_session_${safeUserId}_${employeeSlug}`;
+            localStorage.setItem(storageKey, responseSessionId);
+          } catch (e) {
+            console.warn('[usePrimeChat] Failed to store sessionId in localStorage:', e);
+          }
+        }
 
         // Report headers to dev tools
         if (headersDebug) {

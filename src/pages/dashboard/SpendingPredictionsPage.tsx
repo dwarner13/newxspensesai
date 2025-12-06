@@ -13,10 +13,14 @@ import React, { useState } from 'react';
 import { CrystalWorkspacePanel } from '../../components/workspace/employees/CrystalWorkspacePanel';
 import { CrystalUnifiedCard } from '../../components/workspace/employees/CrystalUnifiedCard';
 import { DashboardSection } from '../../components/ui/DashboardSection';
-import { ActivityPanel } from '../../components/dashboard/ActivityPanel';
+import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
 // import { CrystalWorkspaceOverlay } from '../../components/chat/CrystalWorkspaceOverlay'; // Create if needed
 
 export default function SpendingPredictionsPage() {
+  // Scroll to top when page loads
+  useScrollToTop();
   const [isCrystalWorkspaceOpen, setIsCrystalWorkspaceOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -37,23 +41,23 @@ export default function SpendingPredictionsPage() {
     <>
       <DashboardSection className="flex flex-col">
         {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        {/* 3-column grid: col-span-4 (33%), col-span-5 (42%), col-span-3 (25%) with equal heights */}
-        <div className="grid grid-cols-12 gap-0 items-stretch" style={{ minHeight: 'calc(100vh - 200px)' }}>
-          {/* LEFT COLUMN (col-span-4 = 33%): Crystal Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col">
-            <CrystalWorkspacePanel />
-          </section>
-
-          {/* CENTER COLUMN (col-span-5 = 42%): Crystal Unified Card */}
-          <section className="col-span-12 lg:col-span-5 flex flex-col">
-            <CrystalUnifiedCard onExpandClick={openCrystalWorkspace} onChatInputClick={openCrystalWorkspace} />
-          </section>
-
-          {/* RIGHT COLUMN (col-span-3 = 25%): Activity Feed */}
-          <aside className="col-span-12 lg:col-span-3 flex flex-col">
-            <ActivityPanel />
-          </aside>
-        </div>
+        <section className="mt-6 min-h-[520px]">
+          <DashboardThreeColumnLayout
+            left={
+              <div className="h-full flex flex-col">
+                <CrystalWorkspacePanel />
+              </div>
+            }
+            middle={
+              <div className="h-full flex flex-col">
+                <CrystalUnifiedCard onExpandClick={openCrystalWorkspace} onChatInputClick={openCrystalWorkspace} />
+              </div>
+            }
+            right={
+              <ActivityFeedSidebar scope="spending-predictions" />
+            }
+          />
+        </section>
       </DashboardSection>
 
       {/* Crystal Workspace Overlay - Floating centered chatbot */}

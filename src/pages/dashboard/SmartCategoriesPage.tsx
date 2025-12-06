@@ -9,8 +9,10 @@ import { useSmartImport } from '../../hooks/useSmartImport';
 import { TagWorkspace } from '../../components/workspace/employees/TagWorkspace';
 import { TagWorkspacePanel } from '../../components/workspace/employees/TagWorkspacePanel';
 import { TagUnifiedCard } from '../../components/workspace/employees/TagUnifiedCard';
-import { ActivityPanel } from '../../components/dashboard/ActivityPanel';
 import { DashboardSection } from '../../components/ui/DashboardSection';
+import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
 
 const DEMO_USER_ID = '00000000-0000-4000-8000-000000000001';
 
@@ -30,6 +32,8 @@ export type SmartCategorySummary = {
 };
 
 const SmartCategoriesPage: React.FC = () => {
+  // Scroll to top when page loads
+  useScrollToTop();
   const navigate = useNavigate();
   const location = useLocation();
   const { userId } = useAuth();
@@ -414,23 +418,23 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
     <>
       <DashboardSection className="flex flex-col">
         {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        {/* 3-column grid: col-span-4 (33%), col-span-5 (42%), col-span-3 (25%) with equal heights */}
-        <div className="grid grid-cols-12 gap-0 items-stretch" style={{ minHeight: 'calc(100vh - 200px)' }}>
-          {/* LEFT COLUMN (col-span-4 = 33%): Tag Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col">
-            <TagWorkspacePanel />
-          </section>
-
-          {/* CENTER COLUMN (col-span-5 = 42%): Tag Unified Card */}
-          <section className="col-span-12 lg:col-span-5 flex flex-col">
-            <TagUnifiedCard onExpandClick={openTagWorkspace} onChatInputClick={openTagWorkspace} />
-          </section>
-
-          {/* RIGHT COLUMN (col-span-3 = 25%): Activity Feed */}
-          <aside className="col-span-12 lg:col-span-3 flex flex-col">
-            <ActivityPanel />
-          </aside>
-        </div>
+        <section className="mt-6 min-h-[520px]">
+          <DashboardThreeColumnLayout
+            left={
+              <div className="h-full flex flex-col">
+                <TagWorkspacePanel />
+              </div>
+            }
+            middle={
+              <div className="h-full flex flex-col">
+                <TagUnifiedCard onExpandClick={openTagWorkspace} onChatInputClick={openTagWorkspace} />
+              </div>
+            }
+            right={
+              <ActivityFeedSidebar scope="smart-categories" />
+            }
+          />
+        </section>
       </DashboardSection>
 
       {/* Tag Workspace Overlay - Floating centered chatbot */}

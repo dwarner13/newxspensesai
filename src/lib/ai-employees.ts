@@ -363,7 +363,7 @@ export async function routeToEmployee(
     
                // Define routing rules
            const routingRules = [
-             { keywords: ['import', 'upload', 'receipt', 'document'], employee: 'byte-doc' },
+             { keywords: ['import', 'upload', 'receipt', 'document'], employee: 'byte-docs' },
              { keywords: ['budget', 'budgeting', 'spending', 'expense'], employee: 'finley' },
              { keywords: ['invest', 'investment', 'portfolio', 'stock'], employee: 'finley' },
              { keywords: ['debt', 'credit', 'loan', 'pay off'], employee: 'finley' },

@@ -22,6 +22,7 @@ import { Separator } from '../ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Logo from '../common/Logo';
+import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 import clsx from 'clsx';
 
 interface DesktopSidebarProps {
@@ -112,21 +113,23 @@ export default function DesktopSidebar({
     <aside
       data-testid="desktop-sidebar"
       className={clsx(
-        "hidden md:flex flex-col border-r border-zinc-800 bg-zinc-950/40 backdrop-blur transition-all duration-300 h-screen relative z-50",
+        "hidden md:flex flex-col border-r border-zinc-800 bg-zinc-950/40 backdrop-blur transition-all duration-300 h-screen relative z-[100]",
         isCollapsed ? "w-[68px]" : "w-56"
       )}
-      style={{ pointerEvents: 'auto' }}
+      style={{ pointerEvents: 'auto', position: 'relative' }}
     >
       {/* Header with Logo and Toggle Button */}
       <div className="h-14 flex items-center justify-between px-3 border-b border-zinc-800">
         {isCollapsed ? (
           <div className="flex items-center justify-center flex-1">
-            <Logo size="sm" showText={false} />
+            <PrimeLogoBadge size={32} showGlow={true} />
           </div>
         ) : (
-          <div className="flex items-center gap-3 flex-1">
-            <Logo size="sm" showText={false} />
-            <span className="text-base text-white font-black">XspensesAI</span>
+          <div className="flex items-center gap-2 px-4 pt-4 pb-3 flex-1">
+            <PrimeLogoBadge size={32} showGlow={true} />
+            <span className="font-bold tracking-wide text-sm text-slate-50">
+              XspensesAI
+            </span>
           </div>
         )}
         
@@ -164,7 +167,7 @@ export default function DesktopSidebar({
                           ? "bg-zinc-900 text-white" 
                           : "text-zinc-300 hover:text-white"
                       )}
-                      style={{ pointerEvents: 'auto' }}
+                      style={{ pointerEvents: 'auto', zIndex: 101, position: 'relative' }}
                     >
                       <span className="w-5 h-5 shrink-0 relative pointer-events-none">
                         {item.icon}

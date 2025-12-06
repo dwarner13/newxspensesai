@@ -371,3 +371,10 @@ The component uses the existing `netlify/functions/chat.ts` endpoint:
 
 
 
+
+
+
+
+
+
+

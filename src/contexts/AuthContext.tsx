@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 // import { toast } from 'react-hot-toast'; // Temporarily disabled for debugging
 import { getSupabase } from '../lib/supabase';
@@ -14,6 +14,8 @@ interface AuthContextType {
   session: any;
   ready: boolean;
   isDemoUser: boolean;
+  firstName: string; // User's first name for personalization
+  profile: any; // Full profile data
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,7 +30,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<any>(null);
   const [ready, setReady] = useState(false);
   const [isDemoUser, setIsDemoUser] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
   const navigate = useNavigate();
+  
+  // Compute firstName from profile or user metadata
+  const firstName = useMemo(() => {
+    const raw =
+      profile?.display_name ||
+      profile?.account_name ||
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
+      user?.email?.split('@')[0];
+    
+    if (!raw) return 'there';
+    return raw.split(' ')[0];
+  }, [profile, user]);
   
   console.log('AuthProvider render:', { user: !!user, userId, loading, initialLoad, ready, isDemoUser});
 
@@ -46,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setSession(null);
           setIsDemoUser(true);
+          setProfile(null);
           setLoading(false);
           setInitialLoad(false);
           setReady(true);
@@ -62,6 +79,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(currentSession.user);
           setSession(currentSession);
           setIsDemoUser(false);
+          
+          // Load user profile
+          try {
+            const { data: profileData } = await supabase
+              .from('profiles')
+              .select('display_name, account_name')
+              .eq('id', currentSession.user.id)
+              .maybeSingle();
+            setProfile(profileData);
+          } catch (profileError) {
+            console.warn('🔍 AuthContext: Could not load profile:', profileError);
+            setProfile(null);
+          }
         } else {
           // No session - use demo user
           console.log('🔍 AuthContext: No session - using demo user', DEMO_USER_ID);
@@ -69,6 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setSession(null);
           setIsDemoUser(true);
+          setProfile(null);
         }
       } catch (error) {
         console.error('❌ AuthContext: Error checking session:', error);
@@ -113,6 +144,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setUser(authSession.user);
                 setSession(authSession);
                 setIsDemoUser(false);
+                
+                // Load user profile
+                const supabase = getSupabase();
+                if (supabase) {
+                  try {
+                    const { data: profileData } = await supabase
+                      .from('profiles')
+                      .select('display_name, account_name')
+                      .eq('id', authSession.user.id)
+                      .maybeSingle();
+                    setProfile(profileData);
+                  } catch (profileError) {
+                    console.warn('🔍 AuthContext: Could not load profile:', profileError);
+                  }
+                }
               }
               setLoading(false);
               setInitialLoad(false);
@@ -125,6 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(null);
               setSession(null);
               setIsDemoUser(true);
+              setProfile(null);
               setLoading(false);
               setInitialLoad(false);
               setReady(true);
@@ -309,7 +356,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     session,
     ready,
-    isDemoUser
+    isDemoUser,
+    firstName,
+    profile,
   };
 
   return (

@@ -1,8 +1,8 @@
 /**
  * OverviewSection Component
  * 
- * Main dashboard overview section matching OverviewPage pattern
- * Uses DashboardStatCard components for consistent styling
+ * Main dashboard overview section with Prime-branded welcome hero
+ * Replaces generic AI Assistant hero with Prime welcome card
  * 
  * NOTE: This section layout is intentionally kept in sync with AnalyticsPage and ReportsPage.
  * All dashboard tabs use <div className="space-y-6"> + header + grid gap-6 md:grid-cols-2 xl:grid-cols-3.
@@ -12,10 +12,11 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Crown, Upload, MessageCircle } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import SyncStatusPulse from '../SyncStatusPulse';
-import { DashboardStatCard } from '../DashboardStatCard';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useUnifiedChatLauncher } from '../../../hooks/useUnifiedChatLauncher';
+import { PrimeLogoBadge } from '../../branding/PrimeLogoBadge';
 
 interface OverviewSectionProps {
   isProcessing: boolean;
@@ -40,57 +41,12 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { openChat } = useUnifiedChatLauncher();
 
   // Get user's first name for personalization
   const userName = user?.user_metadata?.first_name || 
                    user?.user_metadata?.full_name?.split(' ')[0] || 
-                   'there';
-
-  // Dashboard cards matching OverviewPage pattern
-  const dashboardCards = [
-    {
-      id: 'prime-command',
-      title: 'Prime Command Center',
-      description: 'Chat with Prime, your AI CEO. Get strategic financial insights and coordinate with your AI team.',
-      icon: <Crown className="w-6 h-6" />,
-      stats: { 
-        status: 'Active', 
-        team: '8 AI employees' 
-      },
-      buttonText: 'Open Workspace',
-      color: 'from-purple-500 to-purple-600',
-      onClick: () => navigate('/dashboard/prime-chat'),
-      navigateTo: '/dashboard/prime-chat',
-    },
-    {
-      id: 'smart-import',
-      title: 'Smart Import AI',
-      description: 'Upload receipts and bank statements. Byte processes them instantly and you can chat about your data in real-time.',
-      icon: <Upload className="w-6 h-6" />,
-      stats: { 
-        processed: dashboardStats?.documentsProcessed || 0, 
-        lastUpload: dashboardStats?.lastDocumentUpload || 'Never' 
-      },
-      buttonText: 'Open Workspace',
-      color: 'from-blue-500 to-blue-600',
-      onClick: () => navigate('/dashboard/smart-import-ai'),
-      navigateTo: '/dashboard/smart-import-ai',
-    },
-    {
-      id: 'ai-chat',
-      title: 'AI Chat Assistant',
-      description: 'Get personalized financial advice anytime. Chat with your AI financial assistant for insights and planning.',
-      icon: <MessageCircle className="w-6 h-6" />,
-      stats: { 
-        available: '24/7', 
-        accuracy: '94%' 
-      },
-      buttonText: 'Open Workspace',
-      color: 'from-green-500 to-green-600',
-      onClick: () => navigate('/dashboard/ai-chat-assistant'),
-      navigateTo: '/dashboard/ai-chat-assistant',
-    },
-  ];
+                   'Darrell';
 
   return (
     <div className="space-y-6">
@@ -115,12 +71,82 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
         </div>
       )}
 
-      {/* Hero Cards Row - Three cards: Prime Command Center, Smart Import AI, AI Chat Assistant */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3 items-stretch">
-        {dashboardCards.map((card) => (
-          <DashboardStatCard key={card.id} {...card} />
-        ))}
-      </div>
+      {/* Prime Welcome Hero Card */}
+      <section className="mt-6 rounded-3xl bg-slate-900/70 backdrop-blur-xl border border-white/5 shadow-[0_0_60px_rgba(252,211,77,0.25)] px-6 py-7 sm:px-8 sm:py-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+          <PrimeLogoBadge size={64} showGlow={true} />
+
+          <div className="flex-1 space-y-2">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-white">
+              Welcome back, {userName}. I'm Prime, your AI financial CEO.
+            </h1>
+            <p className="max-w-xl text-sm sm:text-base text-slate-200/80">
+              I can review your latest imports, explain your spending, and help you plan debt payoff and savings goals. What would you like to focus on first?
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:gap-4">
+          <button
+            type="button"
+            className="
+              inline-flex items-center justify-center
+              px-6 py-3 rounded-full
+              bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500
+              text-slate-900 font-semibold text-sm
+              shadow-lg shadow-amber-500/30
+              hover:shadow-amber-400/50 hover:brightness-110
+              hover:-translate-y-0.5
+              transition-all duration-200
+              gap-2
+            "
+            onClick={() => openChat({ initialEmployeeSlug: 'prime-boss' })}
+          >
+            <span className="text-base">📣</span>
+            <span>Open Prime Chat</span>
+          </button>
+          <button
+            type="button"
+            className="
+              inline-flex items-center justify-center
+              px-6 py-3 rounded-full
+              bg-slate-900/60
+              border border-slate-500/30
+              text-slate-100 font-medium text-sm
+              shadow-md shadow-sky-500/10
+              hover:bg-slate-900/80 hover:border-sky-400/60
+              hover:shadow-sky-400/30
+              hover:-translate-y-0.5
+              transition-all duration-200
+              gap-2
+            "
+            onClick={() => navigate('/dashboard/smart-import-ai')}
+          >
+            <span className="text-base">📄</span>
+            <span>Review my latest imports</span>
+          </button>
+          <button
+            type="button"
+            className="
+              inline-flex items-center justify-center
+              px-6 py-3 rounded-full
+              bg-slate-900/60
+              border border-slate-500/30
+              text-slate-100 font-medium text-sm
+              shadow-md shadow-sky-500/10
+              hover:bg-slate-900/80 hover:border-sky-400/60
+              hover:shadow-sky-400/30
+              hover:-translate-y-0.5
+              transition-all duration-200
+              gap-2
+            "
+            onClick={() => navigate('/dashboard/analytics')}
+          >
+            <span className="text-base">📊</span>
+            <span>Show my top insights</span>
+          </button>
+        </div>
+      </section>
 
       {/* Gmail Sync Status */}
       {!isDemoUser && userId && (

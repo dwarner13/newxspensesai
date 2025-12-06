@@ -36,6 +36,7 @@ export function buildResponseHeaders(params: {
   uniqueRows?: number;
   vendorUnique?: number;
   analysis?: string;
+  sessionId?: string; // Session ID to return to frontend
   // New format aliases (optional)
   guardrails?: string | boolean;
   piiMask?: boolean;
@@ -79,6 +80,8 @@ export function buildResponseHeaders(params: {
     'X-Session-Summarized': summaryWritten === true ? 'yes' : summaryWritten === false ? 'no' : (summaryWritten === 'async' ? 'async' : 'no'),
     'X-Employee': employee,
     'X-Route-Confidence': routeConfidence.toFixed(2),
+    // Add sessionId to headers so frontend can store it
+    ...(params.sessionId && { 'X-Session-Id': params.sessionId }),
     ...(streamChunkCount !== undefined && { 'X-Stream-Chunk-Count': String(streamChunkCount) }),
     ...(ocrProvider && { 'X-OCR-Provider': ocrProvider }),
     ...(ocrParse && { 'X-OCR-Parse': ocrParse }),

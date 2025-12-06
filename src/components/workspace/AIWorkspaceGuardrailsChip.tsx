@@ -23,7 +23,9 @@ export function AIWorkspaceGuardrailsChip({
   textActive,
   textUnknown,
 }: AIWorkspaceGuardrailsChipProps) {
-  const isActive = guardrailsActive === true && piiProtectionActive === true;
+  // Default to active (true) if status is null/undefined - guardrails are always enabled by default
+  // Only show "Unknown" if explicitly set to false
+  const isActive = (guardrailsActive !== false && piiProtectionActive !== false);
 
   // Default text based on variant
   const defaultTextActive = variant === 'header'

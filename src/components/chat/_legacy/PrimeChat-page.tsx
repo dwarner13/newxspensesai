@@ -1,7 +1,17 @@
 /**
- * Prime Chat Page - Central AI Hub
- * =================================
- * All user interactions start here. Prime delegates to specialists as needed.
+ * DEPRECATED: Legacy Prime Chat Page
+ * ===================================
+ * 
+ * This component is deprecated and not used in production.
+ * 
+ * Use instead:
+ * - Main entry: src/pages/dashboard/PrimeChatPage.tsx (route: /dashboard/prime-chat)
+ * - Component: src/components/workspace/employees/PrimeUnifiedCard.tsx
+ * - Chat UI: src/components/chat/EmployeeChatWorkspace.tsx with employeeSlug="prime-boss"
+ * - Backend: netlify/functions/chat.ts (universal chat endpoint)
+ * 
+ * This component uses the old useChat hook and is disabled via PRIME_CHAT_V2 flag.
+ * Kept in _legacy folder for reference only.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -72,7 +82,7 @@ export default function PrimeChat() {
   const quickActions = [
     {
       label: '📄 Import Documents',
-      message: 'Prime, ask Byte (byte-doc) to import my latest statements and receipts. Then summarize what you found.',
+      message: 'Prime, ask Byte (byte-docs) to import my latest statements and receipts. Then summarize what you found.',
     },
     {
       label: '🏷️ Categorize Transactions',

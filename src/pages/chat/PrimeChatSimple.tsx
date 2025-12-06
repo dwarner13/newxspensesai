@@ -1,3 +1,15 @@
+/**
+ * DEPRECATED: This component is no longer the canonical Prime chat UI.
+ * 
+ * Use instead:
+ * - Main entry: src/pages/dashboard/PrimeChatPage.tsx (route: /dashboard/prime-chat)
+ * - Component: src/components/workspace/employees/PrimeUnifiedCard.tsx
+ * - Chat UI: src/components/chat/EmployeeChatWorkspace.tsx with employeeSlug="prime-boss"
+ * 
+ * This component uses the universal chat endpoint (/.netlify/functions/chat) but
+ * is not the main Prime chat experience. Kept for backward compatibility only.
+ */
+
 import React, { useRef, useEffect } from 'react';
 import { Send, X, Crown, User, Loader2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';

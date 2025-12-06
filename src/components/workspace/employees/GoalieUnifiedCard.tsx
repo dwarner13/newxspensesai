@@ -32,16 +32,16 @@ export function GoalieUnifiedCard({ onExpandClick, onChatInputClick }: GoalieUni
             <span className="text-3xl">🥅</span>
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-white leading-tight">
+            <h2 className="text-lg font-bold text-white leading-tight truncate">
               Goalie — AI Goal Concierge
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 mt-1 line-clamp-2">
               Goal tracking specialist · Turn dreams into achievable milestones
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 mb-3">
+        <div className="flex items-center gap-2 sm:gap-4 mb-3">
           <div className="flex-1 flex flex-col items-center text-center">
             <div className="text-2xl font-bold text-blue-400">8</div>
             <div className="text-xs text-slate-500">Active Goals</div>
@@ -56,12 +56,12 @@ export function GoalieUnifiedCard({ onExpandClick, onChatInputClick }: GoalieUni
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button 
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/30 text-white text-xs sm:text-sm"
           >
             <Target className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="truncate">New Goal</span>
@@ -70,7 +70,7 @@ export function GoalieUnifiedCard({ onExpandClick, onChatInputClick }: GoalieUni
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/30 text-white text-xs sm:text-sm"
           >
             <TrendingUp className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="truncate">Progress</span>
@@ -79,7 +79,7 @@ export function GoalieUnifiedCard({ onExpandClick, onChatInputClick }: GoalieUni
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-amber-500/30 text-white text-xs sm:text-sm"
           >
             <Lightbulb className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="truncate">Suggestions</span>

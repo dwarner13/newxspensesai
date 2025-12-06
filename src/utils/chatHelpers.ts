@@ -48,7 +48,7 @@ export function useChatHelpers() {
  */
 export const CHAT_EMPLOYEES = {
   PRIME: 'prime-boss',
-  BYTE: 'byte-doc',
+  BYTE: 'byte-docs',
   TAG: 'tag-ai',
   CRYSTAL: 'crystal-ai',
   LIBERTY: 'liberty-ai',

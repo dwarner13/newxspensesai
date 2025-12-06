@@ -13,10 +13,12 @@ import React, { useState } from 'react';
 import { AnalyticsWorkspacePanel } from '../../components/analytics/AnalyticsWorkspacePanel';
 import { AnalyticsUnifiedCard } from '../../components/analytics/AnalyticsUnifiedCard';
 import { DashboardSection } from '../../components/ui/DashboardSection';
-import { ActivityPanel } from '../../components/dashboard/ActivityPanel';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
 // import { AnalyticsWorkspaceOverlay } from '../../components/chat/AnalyticsWorkspaceOverlay'; // Create if needed
 
-export function AnalyticsPage() {
+export default function AnalyticsPage() {
+  // Scroll to top when page loads
+  useScrollToTop();
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -38,24 +40,19 @@ export function AnalyticsPage() {
   return (
     <>
       <DashboardSection className="flex flex-col">
-        <div className="grid grid-cols-12 gap-0 items-stretch" style={{ minHeight: 'calc(100vh - 200px)' }}>
+        <div className="grid grid-cols-12 gap-0 items-stretch overflow-hidden" style={{ minHeight: 'calc(100vh - 200px)' }}>
           {/* LEFT COLUMN (col-span-4 = 33%): Analytics Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col min-h-0">
+          <section className="col-span-12 lg:col-span-4 flex flex-col overflow-hidden">
             <AnalyticsWorkspacePanel />
           </section>
 
-          {/* CENTER COLUMN (col-span-5 = 42%): Analytics Unified Card */}
-          <section className="col-span-12 lg:col-span-5 flex flex-col min-h-0">
+          {/* CENTER COLUMN (col-span-8 = 67%): Analytics Unified Card - Activity Feed handled by DashboardLayout */}
+          <section className="col-span-12 lg:col-span-8 flex flex-col overflow-hidden">
             <AnalyticsUnifiedCard 
               onExpandClick={openWorkspace} 
               onChatInputClick={openWorkspace} 
             />
           </section>
-
-          {/* RIGHT COLUMN (col-span-3 = 25%): Activity Feed - ONLY ONE */}
-          <aside className="col-span-12 lg:col-span-3 flex flex-col min-h-0">
-            <ActivityPanel />
-          </aside>
         </div>
       </DashboardSection>
 

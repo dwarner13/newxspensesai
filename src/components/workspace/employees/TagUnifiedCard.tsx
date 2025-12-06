@@ -2,12 +2,15 @@
  * TagUnifiedCard Component
  * 
  * Unified card for Tag (Smart Categories AI) workspace
- * Matches ByteUnifiedCard structure exactly
+ * Matches ByteUnifiedCard structure exactly - uses EmployeeChatWorkspace for universal chat
  */
 
-import React, { useState, useCallback } from 'react';
-import { Sparkles, CheckCircle, Plus, Send } from 'lucide-react';
+import React, { useState, useRef, useCallback } from 'react';
+import { Sparkles, CheckCircle, Plus, MessageSquare } from 'lucide-react';
 import { Button } from '../../ui/button';
+import { EmployeeChatWorkspace } from '../../chat/EmployeeChatWorkspace';
+import { AIWorkspaceGuardrailsChip } from '../AIWorkspaceGuardrailsChip';
+import { useChatHistory } from '../../../hooks/useChatHistory';
 
 interface TagUnifiedCardProps {
   onExpandClick?: () => void;
@@ -15,18 +18,33 @@ interface TagUnifiedCardProps {
 }
 
 export function TagUnifiedCard({ onExpandClick, onChatInputClick }: TagUnifiedCardProps) {
-  const [inputValue, setInputValue] = useState('');
+  // Load chat history for Tag
+  const { messages: historyMessages, isLoading: historyLoading } = useChatHistory({
+    employeeSlug: 'tag-ai',
+    limit: 50,
+    autoLoad: true,
+  });
+  
+  // IMPORTANT: Use ref to store send function - avoids state updates that cause re-renders
+  // This breaks the infinite loop because ref updates don't trigger re-renders
+  const sendFunctionRef = useRef<((message: string) => Promise<void>) | null>(null);
+  
+  // Guardrails state from EmployeeChatWorkspace (updated via callback)
+  // Default to true (active) - guardrails are always enabled by default
+  const [guardrailsActive, setGuardrailsActive] = useState<boolean | null>(true);
+  const [piiProtectionActive, setPiiProtectionActive] = useState<boolean | null>(true);
+  
+  // IMPORTANT: Memoize callback to prevent infinite loop - stable reference prevents EmployeeChatWorkspace from re-running effects
+  // Callback only assigns to ref (no state updates), so it's safe
+  const handleSendFunctionReady = useCallback((fn: (message: string) => Promise<void>) => {
+    sendFunctionRef.current = fn;
+  }, []); // Empty deps - callback never changes
 
-  const handleSend = useCallback(() => {
-    if (!inputValue.trim()) return;
-    // Open workspace overlay instead of inline chat
-    if (onChatInputClick) {
-      onChatInputClick();
-    } else if (onExpandClick) {
-      onExpandClick();
-    }
-    setInputValue('');
-  }, [inputValue, onChatInputClick, onExpandClick]);
+  // Handle guardrails state updates from EmployeeChatWorkspace
+  const handleGuardrailsStateChange = useCallback((guardrails: boolean, pii: boolean) => {
+    setGuardrailsActive(guardrails);
+    setPiiProtectionActive(pii);
+  }, []);
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col h-full">
@@ -36,10 +54,10 @@ export function TagUnifiedCard({ onExpandClick, onChatInputClick }: TagUnifiedCa
             <span className="text-3xl">🏷️</span>
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-white leading-tight">
+            <h2 className="text-lg font-bold text-white leading-tight truncate">
               Tag — Smart Categories AI
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 mt-1 line-clamp-2">
               Intelligent categorization · Auto-organize your transactions
             </p>
           </div>
@@ -60,89 +78,132 @@ export function TagUnifiedCard({ onExpandClick, onChatInputClick }: TagUnifiedCa
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button 
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-teal-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-teal-500/30 text-white text-xs sm:text-sm"
           >
             <Sparkles className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
-            <span className="truncate">Auto-Categorize</span>
+            <span className="truncate">Auto-Tag</span>
           </Button>
           <Button 
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-teal-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-teal-500/30 text-white text-xs sm:text-sm"
           >
             <CheckCircle className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
-            <span className="truncate">Review Tags</span>
+            <span className="truncate">Review</span>
           </Button>
           <Button 
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-teal-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-teal-500/30 text-white text-xs sm:text-sm"
           >
             <Plus className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
-            <span className="truncate">New Category</span>
+            <span className="truncate">New</span>
           </Button>
         </div>
+        
+        {/* Chat History Indicator */}
+        {historyMessages.length > 0 && (
+          <div className="text-xs text-slate-400 mt-3 px-3 py-1.5 rounded-lg bg-slate-800/30 border border-slate-700/30">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-3 h-3" />
+              <span>
+                {historyMessages.length} previous message{historyMessages.length !== 1 ? 's' : ''}
+                {historyMessages.length > 0 && (
+                  <span className="text-slate-500 ml-1">
+                    • Last: {new Date(historyMessages[historyMessages.length - 1].createdAt).toLocaleDateString()}
+                  </span>
+                )}
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Simplified middle section */}
-      <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 py-4">
-        <div className="flex flex-col items-center justify-center h-full text-center">
-          <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center text-5xl mb-4">
-            🏷️
-          </div>
-          <h3 className="text-xl font-bold text-white mb-2">Welcome to Tag</h3>
-          <p className="text-slate-400 mb-4 max-w-md">
-            I'm Tag, your smart categorization assistant. Click the chat button below to start organizing your transactions.
-          </p>
-        </div>
+      {/* Chat Workspace */}
+      {/* Tag canonical chat: uses universal chat endpoint with employeeSlug="tag-ai" */}
+      {/* EmployeeChatWorkspace includes built-in file upload, voice, and drag-and-drop support */}
+      <div className="flex-1 min-h-0 overflow-hidden -mx-6">
+        <EmployeeChatWorkspace
+          employeeSlug="tag-ai"
+          className="h-full px-6"
+          showHeader={false}
+          showComposer={true}
+          onSendFunctionReady={handleSendFunctionReady}
+          onGuardrailsStateChange={handleGuardrailsStateChange}
+        />
       </div>
 
       <div className="pt-3 pb-0 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300/80 border-t border-slate-800/50 flex-shrink-0 -mx-6 px-6">
         <div className="inline-flex items-center gap-2">
-          <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-300 border border-emerald-500/20">
-            🔒 Guardrails + PII Protection Active
-          </span>
+          <AIWorkspaceGuardrailsChip
+            guardrailsActive={guardrailsActive}
+            piiProtectionActive={piiProtectionActive}
+            variant="strip"
+            textActive="Guardrails + PII Protection Active"
+            textUnknown="Guardrails Status Unknown"
+          />
         </div>
         <div className="text-[11px] text-slate-400">
           Secure • Learning Continuously
         </div>
       </div>
-
-      <div className="flex-shrink-0 -mx-6 px-6">
-        <div 
-          className="flex items-center gap-3 bg-slate-800 rounded-xl px-3 py-2 border border-slate-700 focus-within:border-teal-500 transition-all duration-200 cursor-pointer"
-          onClick={onChatInputClick || onExpandClick}
-        >
-          <input
-            type="text"
-            placeholder="Ask Tag about categorization…"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && inputValue.trim()) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-            className="flex-1 bg-transparent text-white text-sm placeholder:text-slate-500 outline-none cursor-pointer"
-            readOnly={!!onChatInputClick}
-          />
-          <button
-            onClick={handleSend}
-            className="w-10 h-10 bg-gradient-to-br from-teal-500 to-teal-600 rounded-full flex items-center justify-center shadow-lg shadow-teal-500/30 hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-            disabled={!inputValue.trim()}
-          >
-            <Send className="w-4 h-4 text-white" />
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
+
+// ============================================================================
+// VERIFICATION GUIDE
+// ============================================================================
+// 
+// How to test Tag's universal chat integration with file/voice uploads:
+// 
+// 1. Navigate to /dashboard/smart-categories
+//    - Confirm Tag's unified card shows a chat box with file upload, image, and voice buttons
+//    - Verify drag-and-drop zone is active (entire chat area accepts files)
+// 
+// 2. Test file upload:
+//    - Click the paperclip (📎) icon → select a PDF/CSV/image
+//    - OR drag and drop a file into the chat area
+//    - Expected: File preview appears, upload completes, message sent with file
+//    - Verify: Network request to /.netlify/functions/chat includes file data
+//    - Verify: employeeSlug="tag-ai" in request
+// 
+// 3. Test image upload:
+//    - Click the image (🖼️) icon → select an image
+//    - Expected: Image preview appears, upload completes
+//    - Verify: Image is sent to Tag for processing
+// 
+// 4. Test voice message:
+//    - Click the microphone (🎤) icon
+//    - Expected: Voice recording interface appears (if implemented)
+//    - Note: Voice uses custom event 'chat:voice' - may need global handler
+// 
+// 5. Test text chat:
+//    - Send: "Hi Tag, what do you do?"
+//    - Expect: Tag explains categorizing transactions and learning from corrections
+//    - Verify: Response comes from universal chat endpoint (/.netlify/functions/chat)
+// 
+// 6. Test categorization tools:
+//    - Ask: "Show me my uncategorized transactions"
+//    - Expect: Tag calls transactions_query tool with category: "Uncategorized" filter
+//    - Verify: Tool is executed and results are displayed
+// 
+// 7. Test learning:
+//    - Correct a category: "That gas purchase from Shell is actually Groceries"
+//    - Expect: Tag calls tag_update_transaction_category tool
+//    - Verify: Transaction category is updated and learning rule is saved
+// 
+// 8. Check browser console:
+//    - No "Maximum update depth exceeded" errors
+//    - No missing tool errors
+//    - Chat messages appear in EmployeeChatWorkspace component
+//    - File uploads complete without errors
+// 
+// ============================================================================

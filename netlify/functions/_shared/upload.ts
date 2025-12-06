@@ -3,6 +3,8 @@ import { createHash } from 'crypto';
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// BUCKET must exist in Supabase Storage (see Supabase → Storage → Buckets)
+// If you get "The related resource does not exist" error, create a bucket named "docs" in Supabase Storage
 const BUCKET = 'docs';
 
 export function admin() {
@@ -81,9 +83,10 @@ export async function createUserDocumentRow(
   }
   
   // No duplicate found - insert new document
+  // Note: Migration uses 'source' column, not 'source_type'
   const { data, error } = await sb.from('user_documents').insert({
     user_id: userId,
-    source_type: sourceType,
+    source: sourceType, // Column name is 'source' per migration 20250203_smart_import_phase1_schema.sql
     original_name: originalName,
     mime_type: mime,
     status: 'pending',
@@ -92,7 +95,10 @@ export async function createUserDocumentRow(
     updated_at: new Date().toISOString()
   }).select('*').single();
   
-  if (error) throw error;
+  if (error) {
+    console.error('[createUserDocumentRow] Supabase error inserting into user_documents:', error);
+    throw new Error(`Failed to create user_documents record: ${error.message} (code: ${error.code || 'UNKNOWN'}). Hint: ${error.hint || 'The user_documents table may not exist. Run migrations to create it.'}`);
+  }
   
   return {
     document: data,
@@ -108,7 +114,10 @@ export function storagePathFor(docId: string, ext: string) {
 export async function createSignedUploadUrl(path: string, expiresIn = 600) {
   const sb = admin();
   const { data, error } = await sb.storage.from(BUCKET).createSignedUploadUrl(path, expiresIn);
-  if (error) throw error;
+  if (error) {
+    console.error(`[createSignedUploadUrl] Storage error for bucket "${BUCKET}":`, error);
+    throw new Error(`Failed to create signed upload URL: ${error.message} (code: ${error.code || 'UNKNOWN'}). The storage bucket "${BUCKET}" may not exist. Create it in Supabase → Storage → Buckets.`);
+  }
   return { url: data.signedUrl, token: data.token };
 }
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import MobilePageTitle from '../../components/ui/MobilePageTitle';
-import AIEmployeeChatbot from '../../components/ai/AIEmployeeChatbot';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { 
   Bot, 
   Zap, 
@@ -10,22 +11,22 @@ import {
   Download,
   FileText,
   Table,
-  FileSpreadsheet,
-  BarChart3
+  FileSpreadsheet
 } from 'lucide-react';
 // import { universalAIEmployeeManager } from '../../lib/universalAIEmployeeConnection';
 
 const AICategorizationPage: React.FC = () => {
+  // Scroll to top when page loads
+  useScrollToTop();
+  
   console.log('AICategorizationPage loading...');
+  const { openChat } = useUnifiedChatLauncher();
   const [categoryOverviewOpen, setCategoryOverviewOpen] = useState(false);
   const [quickCategorizeOpen, setQuickCategorizeOpen] = useState(false);
-  // Removed inline chat state - chat is now only in workspace overlay
   const [autoCategoryOpen, setAutoCategoryOpen] = useState(false);
   const [categoryManagementOpen, setCategoryManagementOpen] = useState(false);
   const [transactionsViewOpen, setTransactionsViewOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
-  const [rulesOpen, setRulesOpen] = useState(false);
-  const [generatedRules, setGeneratedRules] = useState<any[]>([]);
   const [processOverviewOpen, setProcessOverviewOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -136,11 +137,12 @@ const AICategorizationPage: React.FC = () => {
       });
     }
     
-    setGeneratedRules(rules);
-    setRulesOpen(true);
-    
-    // Also send to Tag AI for analysis
-    sendMessage(`I've generated ${rules.length} smart categorization rules for ${category}. Please review and suggest improvements.`);
+    // Open unified chat with Tag AI for analysis
+    openChat({
+      initialEmployeeSlug: 'tag-ai',
+      initialQuestion: `I've generated ${rules.length} smart categorization rules for ${category}. Please review and suggest improvements.`,
+      context: { page: 'smart-categories', data: { source: 'generate-rules', category } }
+    });
   };
 
   const startLiveProcessing = () => {
@@ -201,8 +203,6 @@ const AICategorizationPage: React.FC = () => {
     
     processStep();
   };
-
-  // Removed sendMessage function - chat is now only in workspace overlay
 
   // Export functionality
   const exportToCSV = () => {
@@ -529,13 +529,21 @@ const AICategorizationPage: React.FC = () => {
                     </p>
                     <div className="flex gap-1">
                       <button 
-                        onClick={() => sendMessage("Auto-categorize all uncategorized transactions")}
+                        onClick={() => openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Auto-categorize all uncategorized transactions",
+                          context: { page: 'smart-categories', data: { source: 'category-overview' } }
+                        })}
                         className="bg-green-600 hover:bg-green-700 active:scale-95 text-white rounded px-2 py-1 text-xs transition-all duration-200 font-medium"
                       >
                         Auto-Categorize
                       </button>
                       <button 
-                        onClick={() => sendMessage("Review uncategorized transactions together")}
+                        onClick={() => openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Review uncategorized transactions together",
+                          context: { page: 'smart-categories', data: { source: 'category-overview' } }
+                        })}
                         className="bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded px-2 py-1 text-xs transition-all duration-200 font-medium"
                       >
                         Review Together
@@ -583,13 +591,21 @@ const AICategorizationPage: React.FC = () => {
                       <div className="text-white font-semibold text-sm">{category.amount}</div>
                       <div className="flex gap-1">
                         <button 
-                          onClick={() => sendMessage(`Show details for ${category.name} category`)}
+                          onClick={() => openChat({
+                            initialEmployeeSlug: 'tag-ai',
+                            initialQuestion: `Show details for ${category.name} category`,
+                            context: { page: 'smart-categories', data: { source: 'category-overview', category: category.name } }
+                          })}
                           className="bg-blue-500/20 hover:bg-blue-500/30 active:scale-95 text-blue-400 rounded px-2 py-1 text-xs transition-all duration-200 font-medium"
                         >
                           Ask Tag
                         </button>
                         <button 
-                          onClick={() => sendMessage(`View all ${category.name} transactions`)}
+                          onClick={() => openChat({
+                            initialEmployeeSlug: 'tag-ai',
+                            initialQuestion: `View all ${category.name} transactions`,
+                            context: { page: 'smart-categories', data: { source: 'category-overview', category: category.name } }
+                          })}
                           className="bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded px-2 py-1 text-xs transition-all duration-200 font-medium"
                         >
                           View All
@@ -608,7 +624,11 @@ const AICategorizationPage: React.FC = () => {
                     <div className="text-white/60 text-xs">Need attention</div>
                   </div>
                   <button 
-                    onClick={() => sendMessage("Show uncategorized transactions")}
+                    onClick={() => openChat({
+                      initialEmployeeSlug: 'tag-ai',
+                      initialQuestion: "Show uncategorized transactions",
+                      context: { page: 'smart-categories', data: { source: 'category-overview' } }
+                    })}
                     className="bg-yellow-500/20 hover:bg-yellow-500/30 active:scale-95 text-yellow-400 rounded-lg px-3 py-2 text-sm transition-all duration-200 font-medium"
                   >
                     Fix
@@ -636,7 +656,11 @@ const AICategorizationPage: React.FC = () => {
                 </button>
                 
                 <button 
-                  onClick={() => setChatOpen(true)}
+                  onClick={() => openChat({
+                    initialEmployeeSlug: 'tag-ai',
+                    initialQuestion: "Help me create a new category",
+                    context: { page: 'smart-categories', data: { source: 'category-overview' } }
+                  })}
                   className="flex-1 h-9 bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 active:scale-95 text-white rounded-lg transition-all duration-200 text-xs font-medium"
                 >
                   Create Category
@@ -683,13 +707,21 @@ const AICategorizationPage: React.FC = () => {
                     </p>
                     <div className="flex gap-2">
                       <button 
-                        onClick={() => sendMessage("Auto-categorize all uncategorized transactions using smart patterns")}
+                        onClick={() => openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Auto-categorize all uncategorized transactions using smart patterns",
+                          context: { page: 'smart-categories', data: { source: 'quick-categorize' } }
+                        })}
                         className="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-lg px-3 py-2 text-sm transition-all duration-200"
                       >
                         Auto-Categorize All
                       </button>
                       <button 
-                        onClick={() => sendMessage("Show me the uncategorized transactions to review")}
+                        onClick={() => openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Show me the uncategorized transactions to review",
+                          context: { page: 'smart-categories', data: { source: 'quick-categorize' } }
+                        })}
                         className="bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-lg px-3 py-2 text-sm transition-all duration-200"
                       >
                         Review First
@@ -705,19 +737,31 @@ const AICategorizationPage: React.FC = () => {
                   <h3 className="text-white font-semibold text-sm mb-3">Smart Bulk Actions</h3>
                   <div className="space-y-2">
                     <button 
-                      onClick={() => sendMessage("Categorize all transactions from the last 30 days")}
+                      onClick={() => openChat({
+                        initialEmployeeSlug: 'tag-ai',
+                        initialQuestion: "Categorize all transactions from the last 30 days",
+                        context: { page: 'smart-categories', data: { source: 'quick-categorize' } }
+                      })}
                       className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 text-white rounded-lg px-3 py-2 text-sm transition-opacity"
                     >
                       Last 30 Days
                     </button>
                     <button 
-                      onClick={() => sendMessage("Categorize all transactions by merchant name")}
+                      onClick={() => openChat({
+                        initialEmployeeSlug: 'tag-ai',
+                        initialQuestion: "Categorize all transactions by merchant name",
+                        context: { page: 'smart-categories', data: { source: 'quick-categorize' } }
+                      })}
                       className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-3 py-2 text-sm transition-opacity"
                     >
                       By Merchant
                     </button>
                     <button 
-                      onClick={() => sendMessage("Categorize all transactions by amount range")}
+                      onClick={() => openChat({
+                        initialEmployeeSlug: 'tag-ai',
+                        initialQuestion: "Categorize all transactions by amount range",
+                        context: { page: 'smart-categories', data: { source: 'quick-categorize' } }
+                      })}
                       className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:opacity-90 text-white rounded-lg px-3 py-2 text-sm transition-opacity"
                     >
                       By Amount
@@ -729,19 +773,31 @@ const AICategorizationPage: React.FC = () => {
                   <h3 className="text-white font-semibold text-sm mb-3">Quick Filters</h3>
                   <div className="space-y-2">
                     <button 
-                      onClick={() => sendMessage("Show only uncategorized transactions")}
+                      onClick={() => openChat({
+                        initialEmployeeSlug: 'tag-ai',
+                        initialQuestion: "Show only uncategorized transactions",
+                        context: { page: 'smart-categories', data: { source: 'quick-categorize' } }
+                      })}
                       className="w-full bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-2 text-sm transition-colors"
                     >
                       Uncategorized Only
                     </button>
                     <button 
-                      onClick={() => sendMessage("Show transactions from this month")}
+                      onClick={() => openChat({
+                        initialEmployeeSlug: 'tag-ai',
+                        initialQuestion: "Show transactions from this month",
+                        context: { page: 'smart-categories', data: { source: 'quick-categorize' } }
+                      })}
                       className="w-full bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-2 text-sm transition-colors"
                     >
                       This Month
                     </button>
                     <button 
-                      onClick={() => sendMessage("Show transactions over $100")}
+                      onClick={() => openChat({
+                        initialEmployeeSlug: 'tag-ai',
+                        initialQuestion: "Show transactions over $100",
+                        context: { page: 'smart-categories', data: { source: 'quick-categorize' } }
+                      })}
                       className="w-full bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-2 text-sm transition-colors"
                     >
                       Over $100
@@ -772,7 +828,11 @@ const AICategorizationPage: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <div className="text-white font-semibold text-sm">{transaction.amount}</div>
                         <button 
-                          onClick={() => sendMessage(`Categorize ${transaction.merchant} as ${transaction.suggested}`)}
+                          onClick={() => openChat({
+                            initialEmployeeSlug: 'tag-ai',
+                            initialQuestion: `Categorize ${transaction.merchant} as ${transaction.suggested}`,
+                            context: { page: 'smart-categories', data: { source: 'quick-categorize', merchant: transaction.merchant } }
+                          })}
                           className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded px-2 py-1 text-xs transition-colors"
                         >
                           {transaction.suggested}
@@ -822,113 +882,15 @@ const AICategorizationPage: React.FC = () => {
                 </div>
                 
                 <button 
-                  onClick={() => sendMessage("Create custom categorization rules")}
+                  onClick={() => openChat({
+                    initialEmployeeSlug: 'tag-ai',
+                    initialQuestion: "Create custom categorization rules",
+                    context: { page: 'smart-categories', data: { source: 'quick-categorize' } }
+                  })}
                   className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-4 py-3 transition-opacity text-sm font-medium"
                 >
                   Create Rules
                 </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tag AI Chat Interface */}
-        {chatOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-slate-800 rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-xl font-semibold text-white">🧠 Smart Tag AI</h3>
-                  <p className="text-sm text-gray-400">Your central hub for all categorization actions</p>
-                </div>
-                <button 
-                  onClick={() => setChatOpen(false)}
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              
-              <div className="flex-1 bg-slate-700 rounded-lg p-4 mb-4 overflow-y-auto">
-                <div className="space-y-4">
-                  {chatMessages.map((message) => (
-                    <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`rounded-lg p-3 max-w-[80%] ${
-                        message.type === 'user' 
-                          ? 'bg-blue-500 text-white' 
-                          : message.isLoading 
-                            ? 'bg-slate-600 text-gray-300 animate-pulse' 
-                            : 'bg-slate-600 text-white'
-                      }`}>
-                        <p className="text-sm whitespace-pre-line">{message.content}</p>
-                        <p className="text-xs opacity-70 mt-1">{message.timestamp}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div className="flex gap-2 flex-wrap">
-                  <button
-                    onClick={() => sendMessage("Show me all my categories")}
-                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
-                  >
-                    View Categories
-                  </button>
-                  <button
-                    onClick={() => sendMessage("Create smart categorization rules")}
-                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
-                  >
-                    Create Rules
-                  </button>
-                  <button
-                    onClick={() => sendMessage("Analyze my spending patterns")}
-                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
-                  >
-                    Analyze Spending
-                  </button>
-                  <button
-                    onClick={() => sendMessage("Export my data")}
-                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
-                  >
-                    Export Data
-                  </button>
-                  <button
-                    onClick={() => sendMessage("Process new document")}
-                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
-                  >
-                    Upload Document
-                  </button>
-                  <button
-                    onClick={() => sendMessage("Show uncategorized transactions")}
-                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
-                  >
-                    View Uncategorized
-                  </button>
-                </div>
-                
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={chatMessage}
-                    onChange={(e) => setChatMessage(e.target.value)}
-                    placeholder="Ask Tag AI anything about your categories..."
-                    className="flex-1 bg-slate-700 text-white rounded-lg px-4 py-3 border border-slate-600 focus:border-blue-500 focus:outline-none"
-                    onKeyPress={(e) => e.key === 'Enter' && sendMessage(chatMessage)}
-                  />
-                  <button
-                    onClick={() => {
-                      if (chatMessage.trim()) {
-                        sendMessage(chatMessage);
-                        setChatMessage('');
-                      }
-                    }}
-                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-6 py-3 transition-opacity font-medium"
-                  >
-                    Send
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -967,7 +929,11 @@ const AICategorizationPage: React.FC = () => {
                     <p className="text-xs text-gray-300 mb-3 flex-grow">Tag AI analyzes your transaction history and automatically categorizes new transactions based on merchant names, amounts, and patterns.</p>
                     <button
                       onClick={() => {
-                        sendMessage("Please auto-categorize all my uncategorized transactions using smart pattern recognition");
+                        openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Please auto-categorize all my uncategorized transactions using smart pattern recognition",
+                          context: { page: 'smart-categories', data: { source: 'auto-category' } }
+                        });
                         setAutoCategoryOpen(false);
                       }}
                       className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-xs font-medium"
@@ -989,7 +955,11 @@ const AICategorizationPage: React.FC = () => {
                     <p className="text-xs text-gray-300 mb-3 flex-grow">Analyze your spending patterns and get suggestions for new categories and rules based on your transaction history.</p>
                     <button
                       onClick={() => {
-                        sendMessage("Analyze my spending patterns and suggest new categories and categorization rules");
+                        openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Analyze my spending patterns and suggest new categories and categorization rules",
+                          context: { page: 'smart-categories', data: { source: 'auto-category' } }
+                        });
                         setAutoCategoryOpen(false);
                       }}
                       className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-xs font-medium"
@@ -1011,7 +981,11 @@ const AICategorizationPage: React.FC = () => {
                     <p className="text-xs text-gray-300 mb-3 flex-grow">Let Tag AI create intelligent categorization rules that will automatically categorize future transactions.</p>
                     <button
                       onClick={() => {
-                        sendMessage("Create smart categorization rules for my most common merchants and transaction types");
+                        openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Create smart categorization rules for my most common merchants and transaction types",
+                          context: { page: 'smart-categories', data: { source: 'auto-category' } }
+                        });
                         setAutoCategoryOpen(false);
                       }}
                       className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-xs font-medium"
@@ -1033,7 +1007,11 @@ const AICategorizationPage: React.FC = () => {
                     <p className="text-xs text-gray-300 mb-3 flex-grow">Process large batches of transactions at once using Tag AI's intelligent categorization engine.</p>
                     <button
                       onClick={() => {
-                        sendMessage("Help me bulk categorize all my transactions from the last 30 days");
+                        openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Help me bulk categorize all my transactions from the last 30 days",
+                          context: { page: 'smart-categories', data: { source: 'auto-category' } }
+                        });
                         setAutoCategoryOpen(false);
                       }}
                       className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-xs font-medium"
@@ -1049,7 +1027,11 @@ const AICategorizationPage: React.FC = () => {
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => {
-                        sendMessage("Show me all uncategorized transactions and suggest categories for them");
+                        openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Show me all uncategorized transactions and suggest categories for them",
+                          context: { page: 'smart-categories', data: { source: 'auto-category' } }
+                        });
                         setAutoCategoryOpen(false);
                       }}
                       className="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-2 rounded transition-colors"
@@ -1058,7 +1040,11 @@ const AICategorizationPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        sendMessage("Review my current categories and suggest improvements or new ones");
+                        openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Review my current categories and suggest improvements or new ones",
+                          context: { page: 'smart-categories', data: { source: 'auto-category' } }
+                        });
                         setAutoCategoryOpen(false);
                       }}
                       className="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-2 rounded transition-colors"
@@ -1067,7 +1053,11 @@ const AICategorizationPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        sendMessage("Create a rule to automatically categorize transactions from [merchant name] as [category name]");
+                        openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Create a rule to automatically categorize transactions from [merchant name] as [category name]",
+                          context: { page: 'smart-categories', data: { source: 'auto-category' } }
+                        });
                         setAutoCategoryOpen(false);
                       }}
                       className="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-2 rounded transition-colors"
@@ -1076,7 +1066,11 @@ const AICategorizationPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => {
-                        sendMessage("Help me optimize my expense categories for better budgeting and tax purposes");
+                        openChat({
+                          initialEmployeeSlug: 'tag-ai',
+                          initialQuestion: "Help me optimize my expense categories for better budgeting and tax purposes",
+                          context: { page: 'smart-categories', data: { source: 'auto-category' } }
+                        });
                         setAutoCategoryOpen(false);
                       }}
                       className="bg-slate-600 hover:bg-slate-500 text-white text-sm px-3 py-2 rounded transition-colors"
@@ -1264,35 +1258,14 @@ const AICategorizationPage: React.FC = () => {
               </div>
 
                       <div className="space-y-2">
-                  <input
-                    type="text"
-                          value={chatMessage}
-                          onChange={(e) => setChatMessage(e.target.value)}
-                          placeholder="Ask Tag AI about your categories..."
-                          className="w-full bg-slate-600 text-white rounded-lg px-3 py-2 border border-slate-500 focus:border-purple-500 focus:outline-none text-sm"
-                          onKeyPress={(e) => {
-                            if (e.key === 'Enter') {
-                              sendMessage(chatMessage);
-                              setChatMessage('');
-                            }
-                          }}
-                  />
-                  <button
-                          onClick={() => {
-                            sendMessage(chatMessage);
-                            setChatMessage('');
-                          }}
-                          className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-3 py-2 transition-opacity text-sm"
-                        >
-                          Send to Tag AI
-                  </button>
-                </div>
-
-                      <div className="space-y-2">
                         <p className="text-xs text-gray-400">Quick Actions:</p>
                         <button
                           onClick={() => {
-                            sendMessage("Give me a complete overview of all my spending categories and suggest improvements");
+                            openChat({
+                              initialEmployeeSlug: 'tag-ai',
+                              initialQuestion: "Give me a complete overview of all my spending categories and suggest improvements",
+                              context: { page: 'smart-categories', data: { source: 'category-management' } }
+                            });
                             setCategoryManagementOpen(false);
                           }}
                           className="w-full bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
@@ -1301,7 +1274,11 @@ const AICategorizationPage: React.FC = () => {
                         </button>
                         <button
                           onClick={() => {
-                            sendMessage("Help me create smart rules to automatically categorize future transactions");
+                            openChat({
+                              initialEmployeeSlug: 'tag-ai',
+                              initialQuestion: "Help me create smart rules to automatically categorize future transactions",
+                              context: { page: 'smart-categories', data: { source: 'category-management' } }
+                            });
                             setCategoryManagementOpen(false);
                           }}
                           className="w-full bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
@@ -1310,7 +1287,11 @@ const AICategorizationPage: React.FC = () => {
                         </button>
                         <button
                           onClick={() => {
-                            sendMessage("Find all transactions that might be miscategorized and suggest corrections");
+                            openChat({
+                              initialEmployeeSlug: 'tag-ai',
+                              initialQuestion: "Find all transactions that might be miscategorized and suggest corrections",
+                              context: { page: 'smart-categories', data: { source: 'category-management' } }
+                            });
                             setCategoryManagementOpen(false);
                           }}
                           className="w-full bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
@@ -1491,7 +1472,10 @@ const AICategorizationPage: React.FC = () => {
                   <button
                     onClick={() => {
                       setProcessOverviewOpen(false);
-                      setChatOpen(true);
+                      openChat({
+                        initialEmployeeSlug: 'tag-ai',
+                        context: { page: 'smart-categories', data: { source: 'process-overview' } }
+                      });
                     }}
                     className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 text-white rounded-lg px-6 py-3 transition-opacity font-medium"
                   >
@@ -1562,7 +1546,11 @@ const AICategorizationPage: React.FC = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
-                      sendMessage(`Analyze my ${selectedCategory} spending patterns and suggest optimizations`);
+                      openChat({
+                        initialEmployeeSlug: 'tag-ai',
+                        initialQuestion: `Analyze my ${selectedCategory} spending patterns and suggest optimizations`,
+                        context: { page: 'smart-categories', data: { source: 'transactions-view', category: selectedCategory } }
+                      });
                       setTransactionsViewOpen(false);
                     }}
                     className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90 text-white rounded-lg px-4 py-3 transition-opacity font-medium"
@@ -1571,7 +1559,11 @@ const AICategorizationPage: React.FC = () => {
                   </button>
                   <button
                     onClick={() => {
-                      sendMessage(`Help me create better categorization rules for ${selectedCategory} transactions`);
+                      openChat({
+                        initialEmployeeSlug: 'tag-ai',
+                        initialQuestion: `Help me create better categorization rules for ${selectedCategory} transactions`,
+                        context: { page: 'smart-categories', data: { source: 'transactions-view', category: selectedCategory } }
+                      });
                       setTransactionsViewOpen(false);
                     }}
                     className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:opacity-90 text-white rounded-lg px-4 py-3 transition-opacity font-medium"

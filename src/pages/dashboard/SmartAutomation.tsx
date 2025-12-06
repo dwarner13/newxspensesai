@@ -13,10 +13,14 @@ import React, { useState } from 'react';
 import { AutomationWorkspacePanel } from '../../components/workspace/planning/AutomationWorkspacePanel';
 import { AutomationUnifiedCard } from '../../components/workspace/planning/AutomationUnifiedCard';
 import { DashboardSection } from '../../components/ui/DashboardSection';
-import { ActivityPanel } from '../../components/dashboard/ActivityPanel';
+import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
 // import { AutomationWorkspaceOverlay } from '../../components/chat/AutomationWorkspaceOverlay'; // Create if needed
 
 export default function SmartAutomationPage() {
+  // Scroll to top when page loads
+  useScrollToTop();
   const [isAutomationWorkspaceOpen, setIsAutomationWorkspaceOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -37,23 +41,23 @@ export default function SmartAutomationPage() {
     <>
       <DashboardSection className="flex flex-col">
         {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        {/* 3-column grid: col-span-4 (33%), col-span-5 (42%), col-span-3 (25%) with equal heights */}
-        <div className="grid grid-cols-12 gap-0 items-stretch" style={{ minHeight: 'calc(100vh - 200px)' }}>
-          {/* LEFT COLUMN (col-span-4 = 33%): Automation Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col">
-            <AutomationWorkspacePanel />
-          </section>
-
-          {/* CENTER COLUMN (col-span-5 = 42%): Automation Unified Card */}
-          <section className="col-span-12 lg:col-span-5 flex flex-col">
-            <AutomationUnifiedCard onExpandClick={openAutomationWorkspace} onChatInputClick={openAutomationWorkspace} />
-          </section>
-
-          {/* RIGHT COLUMN (col-span-3 = 25%): Activity Feed */}
-          <aside className="col-span-12 lg:col-span-3 flex flex-col">
-            <ActivityPanel />
-          </aside>
-        </div>
+        <section className="mt-6 min-h-[520px]">
+          <DashboardThreeColumnLayout
+            left={
+              <div className="h-full flex flex-col">
+                <AutomationWorkspacePanel />
+              </div>
+            }
+            middle={
+              <div className="h-full flex flex-col">
+                <AutomationUnifiedCard onExpandClick={openAutomationWorkspace} onChatInputClick={openAutomationWorkspace} />
+              </div>
+            }
+            right={
+              <ActivityFeedSidebar scope="smart-automation" />
+            }
+          />
+        </section>
       </DashboardSection>
 
       {/* Automation Workspace Overlay - Floating centered chatbot */}

@@ -35,16 +35,16 @@ export function DebtUnifiedCard({ onExpandClick, onChatInputClick }: DebtUnified
             <CreditCard className="w-8 h-8 text-white" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-white leading-tight">
+            <h2 className="text-lg font-bold text-white leading-tight truncate">
               Debt — Payoff Planner
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 mt-1 line-clamp-2">
               Debt elimination specialist · Optimize your path to freedom
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 mb-3">
+        <div className="flex items-center gap-2 sm:gap-4 mb-3">
           <div className="flex-1 flex flex-col items-center text-center">
             <div className="text-2xl font-bold text-rose-400">$12,450</div>
             <div className="text-xs text-slate-500">Total Debt</div>
@@ -59,12 +59,12 @@ export function DebtUnifiedCard({ onExpandClick, onChatInputClick }: DebtUnified
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Button 
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-rose-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-rose-500/30 text-white text-xs sm:text-sm"
           >
             <FileText className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="truncate">View Plan</span>
@@ -73,7 +73,7 @@ export function DebtUnifiedCard({ onExpandClick, onChatInputClick }: DebtUnified
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-rose-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-rose-500/30 text-white text-xs sm:text-sm"
           >
             <DollarSign className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="truncate">Payment</span>
@@ -82,7 +82,7 @@ export function DebtUnifiedCard({ onExpandClick, onChatInputClick }: DebtUnified
             variant="secondary" 
             size="default"
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-rose-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-rose-500/30 text-white text-xs sm:text-sm"
           >
             <GitBranch className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
             <span className="truncate">Compare</span>

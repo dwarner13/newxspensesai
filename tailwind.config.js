@@ -108,6 +108,7 @@ export default {
         'fade-in': 'fadeIn 0.3s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',
         'bounce-light': 'bounceLight 2s infinite',
+        'byte-pulse': 'bytePulse 1.8s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -127,6 +128,11 @@ export default {
             transform: 'translateY(-10px)',
             animationTimingFunction: 'cubic-bezier(0, 0, 0.2, 1)',
           },
+        },
+        bytePulse: {
+          '0%': { transform: 'translateX(-30%)', opacity: 0.4 },
+          '50%': { transform: 'translateX(0%)', opacity: 1 },
+          '100%': { transform: 'translateX(30%)', opacity: 0.4 },
         },
       },
       spacing: {

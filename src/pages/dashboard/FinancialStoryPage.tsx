@@ -13,9 +13,13 @@ import React, { useState } from 'react';
 import { StoryWorkspacePanel } from '../../components/workspace/entertainment/StoryWorkspacePanel';
 import { StoryUnifiedCard } from '../../components/workspace/entertainment/StoryUnifiedCard';
 import { DashboardSection } from '../../components/ui/DashboardSection';
-import { ActivityPanel } from '../../components/dashboard/ActivityPanel';
+import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
 
 export default function FinancialStoryPage() {
+  // Scroll to top when page loads
+  useScrollToTop();
   const [isStoryWorkspaceOpen, setIsStoryWorkspaceOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -35,22 +39,23 @@ export default function FinancialStoryPage() {
   return (
     <>
       <DashboardSection className="flex flex-col">
-        <div className="grid grid-cols-12 gap-0 items-stretch" style={{ minHeight: 'calc(100vh - 200px)' }}>
-          {/* LEFT COLUMN (col-span-4 = 33%): Story Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col min-h-0">
-            <StoryWorkspacePanel />
-          </section>
-
-          {/* CENTER COLUMN (col-span-5 = 42%): Story Unified Card */}
-          <section className="col-span-12 lg:col-span-5 flex flex-col min-h-0">
-            <StoryUnifiedCard onExpandClick={openStoryWorkspace} onChatInputClick={openStoryWorkspace} />
-          </section>
-
-          {/* RIGHT COLUMN (col-span-3 = 25%): Activity Feed */}
-          <aside className="col-span-12 lg:col-span-3 flex flex-col min-h-0">
-            <ActivityPanel />
-          </aside>
-        </div>
+        <section className="mt-6 min-h-[520px]">
+          <DashboardThreeColumnLayout
+            left={
+              <div className="h-full flex flex-col">
+                <StoryWorkspacePanel />
+              </div>
+            }
+            middle={
+              <div className="h-full flex flex-col">
+                <StoryUnifiedCard onExpandClick={openStoryWorkspace} onChatInputClick={openStoryWorkspace} />
+              </div>
+            }
+            right={
+              <ActivityFeedSidebar scope="financial-story" />
+            }
+          />
+        </section>
       </DashboardSection>
     </>
   );

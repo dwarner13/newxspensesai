@@ -12,6 +12,7 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { detectRecurringPatternsForUser } from '../../src/services/recurringDetection.js';
 import type { Transaction } from '../../src/types/database.types.js';
+import { logActivityEvent } from './_shared/activity-logger.js';
 
 export const handler: Handler = async (event, context) => {
   // CORS headers
@@ -180,6 +181,23 @@ export const handler: Handler = async (event, context) => {
     await deactivateStaleObligations(supabase, userId);
 
     console.log(`[Sync Recurring] Completed: ${obligationsUpserted} obligations upserted`);
+
+    // Log activity event if obligations were updated
+    if (obligationsUpserted > 0) {
+      try {
+        await logActivityEvent(userId, {
+          actorSlug: 'liberty-ai',
+          actorLabel: 'Liberty',
+          title: 'Liberty updated your debt payoff plan',
+          description: `Detected ${obligationsUpserted} recurring payment${obligationsUpserted !== 1 ? 's' : ''} and updated your payoff schedule.`,
+          category: 'debt',
+          severity: 'info',
+          metadata: { obligationsUpserted, patternsDetected: patterns.length },
+        });
+      } catch (error: any) {
+        console.warn('[Sync Recurring] Failed to log activity event:', error);
+      }
+    }
 
     return {
       statusCode: 200,

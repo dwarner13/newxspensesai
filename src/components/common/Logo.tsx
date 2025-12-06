@@ -1,6 +1,6 @@
 import React from 'react';
-import { Crown } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 
 interface LogoProps {
   size?: 'sm' | 'md' | 'lg';
@@ -33,10 +33,17 @@ export default function Logo({
     lg: 'text-2xl'
   };
 
+  // Map Logo sizes to PrimeLogoBadge sizes
+  const badgeSizes = {
+    sm: 24,
+    md: 32,
+    lg: 40
+  };
+
   const LogoContent = (
     <div className={`flex items-center ${className}`}>
-      <div className={`${sizeClasses[size]} bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center mr-2 shadow-lg`}>
-        <Crown size={iconSizes[size]} className="text-white font-bold" />
+      <div className="mr-2">
+        <PrimeLogoBadge size={badgeSizes[size]} showGlow={true} />
       </div>
       {showText && (
         <span className={`font-bold text-white tracking-tight ${textSizes[size]} font-['Montserrat']`}>

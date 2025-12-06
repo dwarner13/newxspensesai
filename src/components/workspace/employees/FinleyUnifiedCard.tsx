@@ -4,7 +4,6 @@
 
 import React, { useState, useCallback } from 'react';
 import { MessageSquare, History, Lightbulb, Send } from 'lucide-react';
-import { Button } from '../../ui/button';
 
 interface FinleyUnifiedCardProps {
   onExpandClick?: () => void;
@@ -27,22 +26,28 @@ export function FinleyUnifiedCard({ onExpandClick, onChatInputClick }: FinleyUni
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col h-full">
+      {/* Top Section - Specialist Card Header - Match Goalie structure */}
       <div className="bg-gradient-to-br from-orange-900/40 to-slate-900/10 border-b border-slate-800 pb-6 flex-shrink-0 -mx-6 -mt-6 px-6 pt-6">
+        {/* Header with Icon + Title + Description */}
         <div className="flex items-start gap-4 mb-3">
+          {/* Avatar Circle - Match Goalie size */}
           <div className="w-16 h-16 bg-orange-600 rounded-full flex items-center justify-center shadow-lg shadow-orange-500/50 flex-shrink-0">
             <span className="text-3xl">💼</span>
           </div>
+          
+          {/* Title and Description - Match Goalie typography */}
           <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-white leading-tight">
+            <h2 className="text-lg font-bold text-white leading-tight truncate">
               Finley — AI Financial Assistant
             </h2>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-sm text-slate-400 mt-1 line-clamp-2">
               Personalized financial brain · Ask anything about your finances
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 mb-3">
+        {/* Three Stats Row - Match Goalie KPI sizes */}
+        <div className="flex items-center gap-2 sm:gap-4 mb-3">
           <div className="flex-1 flex flex-col items-center text-center">
             <div className="text-2xl font-bold text-blue-400">234</div>
             <div className="text-xs text-slate-500">Questions Answered</div>
@@ -57,38 +62,33 @@ export function FinleyUnifiedCard({ onExpandClick, onChatInputClick }: FinleyUni
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="secondary" 
-            size="default"
+        {/* Three Action Buttons Row - Match Goalie button sizes */}
+        <div className="flex items-center gap-2">
+          <button 
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-orange-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-orange-500/30 text-white text-xs sm:text-sm px-2 sm:px-4 py-2 transition-all"
           >
-            <MessageSquare className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
-            <span className="truncate">Ask Question</span>
-          </Button>
-          <Button 
-            variant="secondary" 
-            size="default"
+            <MessageSquare className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">Ask</span>
+          </button>
+          <button 
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-orange-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-orange-500/30 text-white text-xs sm:text-sm px-2 sm:px-4 py-2 transition-all"
           >
-            <History className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
-            <span className="truncate">View History</span>
-          </Button>
-          <Button 
-            variant="secondary" 
-            size="default"
+            <History className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">History</span>
+          </button>
+          <button 
             onClick={onExpandClick}
-            className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-orange-500/30 text-white text-xs sm:text-sm"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1 sm:gap-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-orange-500/30 text-white text-xs sm:text-sm px-2 sm:px-4 py-2 transition-all"
           >
-            <Lightbulb className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
-            <span className="truncate">Get Advice</span>
-          </Button>
+            <Lightbulb className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">Advice</span>
+          </button>
         </div>
       </div>
 
-      {/* Simplified middle section */}
+      {/* Simplified middle section - Match Goalie */}
       <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 py-4">
         <div className="flex flex-col items-center justify-center h-full text-center">
           <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center text-5xl mb-4">
@@ -96,7 +96,7 @@ export function FinleyUnifiedCard({ onExpandClick, onChatInputClick }: FinleyUni
           </div>
           <h3 className="text-xl font-bold text-white mb-2">Welcome to Finley</h3>
           <p className="text-slate-400 mb-4 max-w-md">
-            I'm Finley, your AI financial assistant. Click the chat button below to start a conversation.
+            I'm Finley, your AI financial assistant. Click the chat button below to ask questions about your finances.
           </p>
         </div>
       </div>
@@ -108,7 +108,7 @@ export function FinleyUnifiedCard({ onExpandClick, onChatInputClick }: FinleyUni
           </span>
         </div>
         <div className="text-[11px] text-slate-400">
-          Secure • Always Learning
+          Secure • Always Answering
         </div>
       </div>
 

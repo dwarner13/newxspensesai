@@ -1,12 +1,15 @@
 /**
  * ByteWorkspacePanel Component
  * 
- * Left sidebar panel for Byte workspace showing 6 workspace items with badges
- * Updated styling: gray-900 bg, gray-800 border, rounded-xl, padding 24px
+ * Left sidebar panel for Byte workspace showing real-time stats and upload functionality
+ * Single source of truth for Smart Import workspace
  */
 
 import React from 'react';
-import { FileText, Clock, CheckCircle, BarChart3, Loader2, TrendingUp } from 'lucide-react';
+import { FileText, Clock, CheckCircle, BarChart3, Loader2, TrendingUp, AlertTriangle } from 'lucide-react';
+import { useByteQueueStats } from '../../hooks/useByteQueueStats';
+import { useSmartImport } from '../../hooks/useSmartImport';
+import { useSmartImportUploadState } from '../../hooks/useSmartImportUploadState';
 
 interface StatusCard {
   id: string;
@@ -90,126 +93,187 @@ const badgeLabels = {
   stats: 'Stats',
 };
 
-export function ByteWorkspacePanel() {
-  // Separate top cards from the new bottom card
-  const topCards = statusCards.filter(card => card.id === '5' || card.id === '6'); // Processing Queue Status and Monthly Statistics
+interface ByteWorkspacePanelProps {
+  // Legacy props kept for backward compatibility, but we use shared state from hook
+  isUploading?: boolean;
+  uploadProgress?: number;
+  uploadFileCount?: { current: number; total: number };
+}
+
+export function ByteWorkspacePanel({ 
+  isUploading: legacyIsUploading,
+  uploadProgress: legacyProgress,
+  uploadFileCount: legacyFileCount
+}: ByteWorkspacePanelProps) {
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useByteQueueStats();
+  
+  // Use shared upload status from Smart Import hook
+  const { uploadStatus, uploadFileCount } = useSmartImport();
+  
+  // Task C: Shared upload state for synchronized status display
+  const { uploads: sharedUploads } = useSmartImportUploadState();
+  const activeUploads = sharedUploads.filter(u => u.status !== 'completed' && u.status !== 'failed');
+  
+  // Show live upload strip when not idle and not error
+  const showLiveUpload = uploadStatus.step !== 'idle' && uploadStatus.step !== 'error';
+  
   
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 h-full flex flex-col">
+    <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 h-full flex flex-col" data-workspace-panel>
       {/* Header */}
-      <div className="flex items-center gap-3 mb-3 flex-shrink-0">
-        <span className="text-3xl">📄</span>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-bold text-white">BYTE WORKSPACE</h3>
-          <p className="text-xs text-slate-500">Document processing status</p>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-10 h-10 bg-blue-600/20 rounded-lg flex items-center justify-center">
+          <FileText className="w-5 h-5 text-blue-400" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-white">BYTE WORKSPACE</h3>
+          <p className="text-sm text-slate-400">Document processing status</p>
         </div>
       </div>
-      
-      {/* Card 1 - Processing Queue Status */}
-      <div className="mb-4 flex-shrink-0">
-        <div className="group p-4 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-800/90 hover:border-slate-600 transition-all duration-200 cursor-pointer">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between mb-2">
-                <h4 className="text-sm font-semibold text-white">
-                  {topCards.find(c => c.id === '5')?.title}
-                </h4>
-                <div className={`px-2 py-1 rounded text-xs font-medium border flex-shrink-0 ml-2 ${badgeStyles.processing}`}>
-                  {badgeLabels.processing}
+
+      {/* Processing Queue Status */}
+      <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-medium text-white">Processing Queue Status</h4>
+          <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
+            Processing
+          </span>
+        </div>
+        {statsError ? (
+          <p className="text-sm text-red-400">Unable to load stats</p>
+        ) : statsLoading ? (
+          <p className="text-sm text-slate-500 animate-pulse">Loading stats...</p>
+        ) : (
+          <>
+            <p className="text-sm text-slate-400">
+              {((stats?.queue.pending || 0) + (stats?.queue.processing || 0)) || 0} items in progress
+            </p>
+            {(stats?.queue.completed || 0) > 0 && (
+              <p className="text-xs text-green-400 mt-1">
+                ✓ {stats.queue.completed} completed
+              </p>
+            )}
+          </>
+        )}
+        
+        {/* Live Upload Progress Strip - Shows when file is uploading or processing */}
+        {showLiveUpload && (
+          <div className="mt-4 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 shadow-[0_0_20px_rgba(56,189,248,0.25)]">
+            <div className="flex items-center justify-between gap-3">
+              {/* Left: animated Byte icon + text */}
+              <div className="flex items-center gap-3">
+                <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/80">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500/40" />
+                  <div className="relative flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/80">
+                    <FileText className="h-4 w-4 text-slate-950" />
+                  </div>
+                </div>
+
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">
+                    {uploadStatus.step === 'completed' ? 'Completed' : 'In progress'}
+                  </span>
+                  <span className="text-sm text-slate-100">
+                    {uploadStatus.fileName ?? 'Document'} •{' '}
+                    {uploadStatus.step === 'processing'
+                      ? 'Processing & normalizing…'
+                      : 'Uploading to Smart Import…'}
+                  </span>
                 </div>
               </div>
-              <p className="text-xs text-slate-400 mt-2">
-                {topCards.find(c => c.id === '5')?.description}
-              </p>
-              <div className="w-full bg-slate-700 rounded-full h-1 mt-2 mb-1">
-                <div 
-                  className="bg-blue-500 h-1 rounded-full transition-all"
-                  style={{ width: `${topCards.find(c => c.id === '5')?.progress || 0}%` }}
-                />
+
+              {/* Right: percentage */}
+              <div className="flex flex-col items-end">
+                <span className="text-[11px] text-slate-400">Progress</span>
+                <span className="text-lg font-semibold text-sky-300 tabular-nums">
+                  {Math.max(5, uploadStatus.progress).toFixed(0)}%
+                </span>
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                {topCards.find(c => c.id === '5')?.timestamp}
-              </p>
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Card 2 - Monthly Statistics */}
-      <div className="mb-4 flex-shrink-0">
-        <div className="group p-4 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-800/90 hover:border-slate-600 transition-all duration-200 cursor-pointer">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-start justify-between mb-2">
-                <h4 className="text-sm font-semibold text-white">
-                  {topCards.find(c => c.id === '6')?.title}
-                </h4>
-                <div className={`px-2 py-1 rounded text-xs font-medium border flex-shrink-0 ml-2 ${badgeStyles.stats}`}>
-                  {badgeLabels.stats}
-                </div>
+            {/* Progress bar */}
+            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-sky-400 via-emerald-400 to-sky-400 transition-[width] duration-300 ease-out"
+                style={{ width: `${Math.max(5, uploadStatus.progress)}%` }}
+              />
+            </div>
+
+            {/* Helper text */}
+            <p className="mt-2 text-[11px] text-slate-400">
+              {uploadStatus.step === 'processing'
+                ? 'Reading, cleaning and organizing your transactions…'
+                : 'Byte is scanning, cleaning, and preparing your transactions for Smart Categories.'}
+            </p>
+          </div>
+        )}
+
+        {/* Task C: Live imports strip from shared upload state */}
+        {activeUploads.length > 0 && (
+          <div className="mt-3 rounded-2xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-xs text-slate-300">
+            <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">
+              Live imports
+            </p>
+            {activeUploads.map(upload => (
+              <div key={upload.id} className="flex items-center justify-between py-0.5">
+                <span className="truncate max-w-[65%]">{upload.fileName}</span>
+                <span className="text-[11px] text-slate-400">
+                  {upload.status === 'uploading' && 'Uploading…'}
+                  {upload.status === 'processing' && 'Processing…'}
+                  {upload.status === 'failed' && 'Failed'}
+                </span>
               </div>
-              <p className="text-xs text-slate-400 mt-2">
-                {topCards.find(c => c.id === '6')?.description}
-              </p>
-              <p className="text-xs text-green-400 flex items-center gap-1 mt-2">
-                <span>📈</span>
-                {topCards.find(c => c.id === '6')?.trend}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                {topCards.find(c => c.id === '6')?.timestamp}
-              </p>
-            </div>
+            ))}
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Card 3 - Import Health & Alerts (flex-1 to fill remaining height and align with other columns) */}
-      <div className="flex-1 flex flex-col min-h-0">
-        <div className="p-4 rounded-lg bg-slate-800 border border-slate-700 h-full flex flex-col">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-3 flex-shrink-0">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-100 tracking-wide">
-                Import Health & Alerts
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Data quality snapshot
-              </p>
-            </div>
-            <span className="inline-flex items-center rounded-full bg-sky-500/10 px-2.5 py-1 text-[11px] font-medium text-sky-300 border border-sky-500/30">
-              Insights
-            </span>
-          </div>
-
-          {/* Small metrics row */}
-          <div className="grid grid-cols-3 gap-3 text-xs mb-3 flex-shrink-0">
-            <div className="rounded-xl bg-slate-900/60 px-3 py-2 border border-slate-700/50">
-              <p className="text-slate-400">Error rate</p>
-              <p className="mt-1 text-sm font-semibold text-slate-50">0.8%</p>
-            </div>
-            <div className="rounded-xl bg-slate-900/60 px-3 py-2 border border-slate-700/50">
-              <p className="text-slate-400">Failed docs</p>
-              <p className="mt-1 text-sm font-semibold text-slate-50">5</p>
-            </div>
-            <div className="rounded-xl bg-slate-900/60 px-3 py-2 border border-slate-700/50">
-              <p className="text-slate-400">Manual reviews</p>
-              <p className="mt-1 text-sm font-semibold text-slate-50">3</p>
-            </div>
-          </div>
-
-          {/* Short alerts list */}
-          <div className="flex-1 min-h-0 overflow-y-auto hide-scrollbar space-y-2 text-[11px] text-slate-200">
-            <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              🔍 <span className="font-medium">3 bank statements</span> failed OCR.
-              Click to re-run with enhanced parsing.
-            </div>
-            <div className="rounded-lg bg-slate-900/70 px-3 py-2 border border-slate-700/50">
-              📄 <span className="font-medium">2 receipts</span> missing totals.
-              Byte recommends manual confirmation.
-            </div>
-          </div>
+      {/* Monthly Statistics */}
+      <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-medium text-white">Monthly Statistics</h4>
+          <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full">
+            Stats
+          </span>
         </div>
+        {statsError ? (
+          <p className="text-sm text-red-400">Unable to load stats</p>
+        ) : statsLoading ? (
+          <p className="text-sm text-slate-500 animate-pulse">Loading stats...</p>
+        ) : (
+          <>
+            <p className="text-sm text-slate-400">
+              {stats?.monthly.totalThisMonth || 0} documents this month
+            </p>
+            {stats?.monthly.deltaPercent !== undefined && stats.monthly.deltaPercent !== 0 && (
+              <p className="text-xs text-green-400 mt-1">
+                📈 {stats.monthly.deltaPercent > 0 ? '+' : ''}{stats.monthly.deltaPercent}% vs last month
+              </p>
+            )}
+          </>
+        )}
       </div>
+
+      {/* Import Health */}
+      <div className="bg-slate-800/50 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-medium text-white">Import Health</h4>
+          <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full">
+            Healthy
+          </span>
+        </div>
+        {statsError ? (
+          <p className="text-sm text-red-400">Unable to load health status</p>
+        ) : statsLoading ? (
+          <p className="text-sm text-slate-500 animate-pulse">Loading health status...</p>
+        ) : (
+          <p className="text-sm text-slate-400">
+            {stats?.health.status === 'good' ? 'All systems operational' : 'Some issues detected'}
+          </p>
+        )}
+      </div>
+
+      <div className="flex-1" />
     </div>
   );
 }

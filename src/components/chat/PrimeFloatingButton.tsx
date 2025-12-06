@@ -1,72 +1,55 @@
-import React from 'react';
-import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
-import { getEmployeeDisplayForSlug } from '../../utils/employeeUtils';
-import { cn } from '../../lib/utils';
-
 /**
- * Prime Floating Action Button (FAB)
+ * Prime Floating Button Component
  * 
- * Desktop-only floating button bottom-right for quick Prime chat access
- * MultipurposeThemes-inspired styling with gradient and glow effects
+ * Floating action button that opens unified chat slideout with Prime.
+ * Positioned at bottom-right of the screen.
  */
-export const PrimeFloatingButton: React.FC = () => {
-  const {
-    isOpen,
-    activeEmployeeSlug,
-    isWorking,
-    hasActivity,
-    openChat,
-  } = useUnifiedChatLauncher();
 
-  // Get display info for Prime
-  const { emoji } = getEmployeeDisplayForSlug('prime-boss');
+import React from 'react';
+import { useLocation } from 'react-router-dom';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 
-  // Determine visual activity state
-  const showActivity = !isOpen && (isWorking || hasActivity);
+interface PrimeFloatingButtonProps {
+  /** Handler for when Prime button is clicked (optional, uses unified chat if not provided) */
+  onPrimeClick?: () => void;
+  
+  /** Whether to hide the button */
+  hidden?: boolean;
+}
 
-  // Click handler - open Prime chat
+export function PrimeFloatingButton({ onPrimeClick, hidden = false }: PrimeFloatingButtonProps) {
+  const location = useLocation();
+  const { openChat } = useUnifiedChatLauncher();
+  
+  // Hide on all dashboard routes
+  const isDashboardRoute = location.pathname.startsWith('/dashboard');
+
+  if (hidden || isDashboardRoute) return null;
+
   const handleClick = () => {
-    openChat({ 
-      initialEmployeeSlug: 'prime-boss',
-      context: { source: 'dashboard-prime-fab' }
-    });
+    if (onPrimeClick) {
+      // If custom handler provided, use it (for backward compatibility)
+      onPrimeClick();
+    } else {
+      // Default: open unified chat slideout with Prime
+      openChat({ initialEmployeeSlug: 'prime-boss' });
+    }
   };
 
   return (
     <button
-      type="button"
       onClick={handleClick}
-      aria-label="Ask Prime"
-      className={cn(
-        "hidden md:flex fixed bottom-6 right-6 z-30",
-        "flex items-center gap-2 px-4 py-2.5 rounded-full",
-        "bg-gradient-to-r from-sky-500/80 via-purple-500/80 to-fuchsia-500/80",
-        "backdrop-blur-sm",
-        "border border-white/20",
-        "text-white font-medium text-sm",
-        "shadow-[0_8px_32px_rgba(139,92,246,0.3)]",
-        "hover:shadow-[0_12px_48px_rgba(139,92,246,0.4)]",
-        "hover:scale-105 hover:brightness-110",
-        "active:scale-95",
-        "transition-all duration-200 ease-out",
-        // Activity pulse
-        showActivity && "animate-pulse ring-2 ring-purple-400/50 ring-offset-2 ring-offset-[#020617]"
-      )}
+      aria-label="Open Prime Chat"
+      className="fixed z-30 rounded-full shadow-lg transition-transform active:scale-95 hover:scale-105"
+      style={{
+        bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+        right: 'calc(24px + env(safe-area-inset-right, 0px))',
+        width: 56,
+        height: 56,
+        background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+      }}
     >
-      {/* Prime emoji/icon */}
-      <span className="text-lg leading-none" aria-hidden="true">
-        {emoji}
-      </span>
-
-      {/* Label */}
-      <span className="whitespace-nowrap">
-        Ask Prime
-      </span>
-
-      {/* Activity indicator */}
-      {showActivity && (
-        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-[#020617] animate-pulse" />
-      )}
+      <span className="text-2xl">👑</span>
     </button>
   );
-};
+}

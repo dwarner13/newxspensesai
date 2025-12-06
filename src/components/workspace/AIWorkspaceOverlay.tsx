@@ -11,6 +11,7 @@ import { AIWorkspaceContainer } from './AIWorkspaceContainer';
 import { AIWorkspaceHeader } from './AIWorkspaceHeader';
 import { AIWorkspaceGuardrailsChip } from './AIWorkspaceGuardrailsChip';
 import { AIWorkspaceInput } from './AIWorkspaceInput';
+import { PrimeStatusBar } from '../chat/PrimeStatusBar';
 
 export interface AIWorkspaceOverlayProps {
   open: boolean;
@@ -54,6 +55,9 @@ export interface AIWorkspaceOverlayProps {
   // Optional: minimize button
   showMinimize?: boolean;
   onMinimize?: () => void;
+  
+  // Optional: allowed employees for handoffs
+  allowedEmployees?: string[];
 }
 
 export function AIWorkspaceOverlay({
@@ -78,12 +82,15 @@ export function AIWorkspaceOverlay({
   initialQuestion,
   showMinimize = false,
   onMinimize,
+  allowedEmployees,
 }: AIWorkspaceOverlayProps) {
   const [inputValue, setInputValue] = useState('');
   const [sendFunction, setSendFunction] = useState<((message: string) => Promise<void>) | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [guardrailsActive, setGuardrailsActive] = useState<boolean | null>(null);
-  const [piiProtectionActive, setPiiProtectionActive] = useState<boolean | null>(null);
+  // IMPORTANT: Default guardrails to active (true) to show "Active" status immediately
+  // The actual status will be updated from EmployeeChatWorkspace when headers are received
+  const [guardrailsActive, setGuardrailsActive] = useState<boolean | null>(true);
+  const [piiProtectionActive, setPiiProtectionActive] = useState<boolean | null>(true);
 
   const isLoading = isStreaming || !sendFunction;
 
@@ -134,6 +141,11 @@ export function AIWorkspaceOverlay({
         titleId={titleId}
       />
 
+      {/* Prime Status Bar - Only show for Prime */}
+      {(employeeSlug === 'prime-boss' || employeeSlug === 'prime-ai') && (
+        <PrimeStatusBar />
+      )}
+
       {/* Body Layout - Responsive height calculation */}
       <div className="flex flex-col min-h-0 h-[calc(92vh-4rem)] md:h-[calc(72vh-4rem)]">
         {/* Chat scroll area */}
@@ -145,6 +157,13 @@ export function AIWorkspaceOverlay({
             showComposer={false}
             conversationId={conversationId}
             initialQuestion={initialQuestion}
+            allowedEmployees={allowedEmployees ?? [
+              "prime-boss",
+              "byte-docs",
+              "tag-ai",
+              "crystal-analytics",
+              "finley-forecasts",
+            ]}
             onSendFunctionReady={handleSendFunctionReady}
             onStreamingStateChange={setIsStreaming}
             onGuardrailsStateChange={(guardrails, pii) => {

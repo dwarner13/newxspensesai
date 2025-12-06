@@ -139,6 +139,7 @@ export const handler: Handler = async (event, context) => {
     // ========================================================================
     // 0.5. RATE LIMITING (Optional - fails open if not available)
     // ========================================================================
+    let isRateLimited = false;
     try {
       const rateLimitModule = await import('./_shared/rate-limit.js');
       if (rateLimitModule.assertWithinRateLimit) {
@@ -146,6 +147,7 @@ export const handler: Handler = async (event, context) => {
       }
     } catch (rateLimitError: any) {
       if (rateLimitError.statusCode === 429) {
+        // Rate limit exceeded - return proper 429 response
         const retryAfter = rateLimitError.retryAfter || 60;
         return {
           statusCode: 429,
@@ -160,10 +162,12 @@ export const handler: Handler = async (event, context) => {
           }),
         };
       }
-      // For other errors (including module not found), fail open (don't block user)
+      // For other errors (including module not found, table missing, etc.), fail open
+      // In local dev, rate limiting may not be available - don't crash
       if (rateLimitError.code !== 'MODULE_NOT_FOUND') {
-        console.warn('[Chat] Rate limit check failed (non-fatal):', rateLimitError);
+        console.warn('[Chat] Rate limit check failed (non-fatal, failing open):', rateLimitError.message || rateLimitError);
       }
+      isRateLimited = false; // Fail open in dev/local
     }
 
     let sb;
@@ -171,15 +175,32 @@ export const handler: Handler = async (event, context) => {
       sb = admin();
     } catch (error: any) {
       console.error('[Chat] Failed to initialize Supabase:', error);
+      // Return graceful error instead of 500
+      const isStreaming = stream !== false;
+      if (isStreaming) {
+        const errorMessage = "I'm sorry, I'm having trouble connecting to the database right now. Please try again in a moment.";
+        return {
+          statusCode: 200,
+          headers: {
+            ...baseHeaders,
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+          body: `data: ${JSON.stringify({ role: 'assistant', content: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
+        };
+      }
       return {
-        statusCode: 500,
+        statusCode: 200,
         headers: {
           ...baseHeaders,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          ok: false,
           error: 'Database configuration error',
-          message: error.message,
+          content: "I'm sorry, I'm having trouble connecting to the database right now. Please try again in a moment.",
+          message: process.env.NETLIFY_DEV === 'true' ? error.message : undefined,
         }),
       };
     }
@@ -190,54 +211,68 @@ export const handler: Handler = async (event, context) => {
     // Phase 2.2: All guardrails go through unified API (includes config loading)
     // Run guardrails on the user message BEFORE routing/model calls
     // This ensures all employees (Prime, Liberty, Tag, etc.) share the same protection
-    const guardrailContext: GuardrailContext = {
-      userId,
-      sessionId: sessionId || undefined,
-      employeeSlug: employeeSlug || undefined,
-      source: 'chat',
-    };
-
+    
     // Get guardrail config to access preset for routing
     // Default to 'balanced' if config fetch fails
     let preset: 'strict' | 'balanced' | 'creative' = 'balanced';
     try {
+      const { getGuardrailConfig } = await import('./_shared/guardrails-unified.js');
       const guardrailConfig = await getGuardrailConfig(userId);
       preset = guardrailConfig.preset || 'balanced';
     } catch (error) {
-      console.error('[Chat] Failed to get guardrail config, using default preset:', error);
+      console.warn('[Chat] Failed to get guardrail config, using default preset:', error);
       preset = 'balanced';
     }
+    
+    let masked = message;
+    let piiFound: string[] = [];
+    let guardrailResult: any = { ok: true, signals: {}, maskedMessages: [{ role: 'user', content: message }] };
+    
+    try {
+      const guardrailContext: GuardrailContext = {
+        userId,
+        sessionId: sessionId || undefined,
+        employeeSlug: employeeSlug || undefined,
+        source: 'chat',
+      };
 
-    const guardrailResult = await runInputGuardrails(guardrailContext, {
-      messages: [{ role: 'user', content: message }],
-    });
-
-    if (!guardrailResult.ok) {
-      const headers = buildResponseHeaders({
-        guardrailsActive: true,
-        piiMaskEnabled: guardrailResult.signals?.pii || false,
-        employee: employeeSlug || 'prime-boss',
+      guardrailResult = await runInputGuardrails(guardrailContext, {
+        messages: [{ role: 'user', content: message }],
       });
 
-      const blockedResponse = sendBlockedResponse(
-        guardrailResult.blockedReason || 'policy_violation',
-        guardrailResult.events
-      );
+      if (!guardrailResult.ok) {
+        const headers = buildResponseHeaders({
+          guardrailsActive: true,
+          piiMaskEnabled: guardrailResult.signals?.pii || false,
+          employee: employeeSlug || 'prime-boss',
+        });
 
-      return {
-        statusCode: blockedResponse.statusCode,
-        headers: {
-          ...baseHeaders,
-          ...headers,
-          ...blockedResponse.headers,
-        },
-        body: blockedResponse.body,
-      };
+        const blockedResponse = sendBlockedResponse(
+          guardrailResult.blockedReason || 'policy_violation',
+          guardrailResult.events || []
+        );
+
+        return {
+          statusCode: blockedResponse.statusCode || 200,
+          headers: {
+            ...baseHeaders,
+            ...headers,
+            ...blockedResponse.headers,
+          },
+          body: blockedResponse.body,
+        };
+      }
+
+      // Use the masked text from guardrails result
+      masked = guardrailResult.maskedMessages?.[0]?.content || message;
+      piiFound = guardrailResult.signals?.piiTypes || [];
+    } catch (guardrailError: any) {
+      // Guardrails failed - log but don't crash, use original message
+      console.warn('[Chat] Guardrails check failed (non-fatal, using original message):', guardrailError.message || guardrailError);
+      masked = message;
+      piiFound = [];
+      // Continue with original message - fail open in dev
     }
-
-    // Use the masked text from guardrails result
-    const masked = guardrailResult.maskedMessages[0]?.content || message;
-    const piiFound = guardrailResult.signals?.piiTypes || [];
 
     console.log(`[Chat] Guardrails passed, PII masked: ${piiFound.length > 0}`, {
       original: message.slice(0, 40),
@@ -250,14 +285,48 @@ export const handler: Handler = async (event, context) => {
     // ========================================================================
     // 4. EMPLOYEE ROUTING
     // ========================================================================
-    const routing = await routeToEmployee({
-      userText: masked,
-      requestedEmployee: employeeSlug || null,
-      mode: preset,
-    });
+    // Restore original routing behavior: pass employeeSlug directly to router
+    // Router handles normalization internally via resolveSlug()
+    // Only normalize here for UI aliases (prime -> prime-boss, byte -> byte-docs, etc.)
+    // but preserve canonical slugs as-is
+    const requestedEmployeeSlug = employeeSlug 
+      ? normalizeEmployeeSlug(employeeSlug) // Only normalizes known aliases, preserves canonical slugs
+      : null; // null means router will auto-route based on message content
+    
+    let routing: any;
+    let finalEmployeeSlug = 'prime-boss'; // Default fallback
+    let systemPreamble: string | null = null;
+    let employeePersona: string | null = null;
+    
+    try {
+      routing = await routeToEmployee({
+        userText: masked,
+        requestedEmployee: requestedEmployeeSlug, // Pass normalized slug or null
+        mode: preset, // Use guardrail preset (strict/balanced/creative)
+      });
 
-    const { employee, systemPreamble, employeePersona } = routing;
-    let finalEmployeeSlug = employee || 'prime-boss';
+      const { employee, systemPreamble: routingPreamble, employeePersona: routingPersona } = routing;
+      
+      // Router already normalizes via resolveSlug(), so use its result directly
+      // Only normalize again if router returned something unexpected
+      if (employee) {
+        finalEmployeeSlug = employee; // Router's resolveSlug already normalized it
+      } else if (requestedEmployeeSlug) {
+        finalEmployeeSlug = requestedEmployeeSlug; // Fallback to requested if router returned null
+      } else {
+        finalEmployeeSlug = 'prime-boss'; // Ultimate fallback
+      }
+      
+      systemPreamble = routingPreamble || null;
+      employeePersona = routingPersona || null;
+    } catch (routingError: any) {
+      // Routing failed - use requested employee or fallback to Prime
+      console.warn('[Chat] Employee routing failed (non-fatal, using requested employee):', routingError.message || routingError);
+      finalEmployeeSlug = requestedEmployeeSlug || 'prime-boss';
+      systemPreamble = null;
+      employeePersona = null;
+    }
+    
     const originalEmployeeSlug = finalEmployeeSlug; // Track original for handoff detection
 
     // Check for custom system prompt from frontend (e.g., from EmployeeChatPage with category context)
@@ -275,14 +344,24 @@ export const handler: Handler = async (event, context) => {
     let employeeTools: string[] = [];
     let toolModules: Record<string, any> = {};
     let employeeSystemPrompt: string | null = null; // Load system_prompt from database
+    
+    // Defensive employee profile loading - don't crash if profile missing
+    // If profile is missing, continue without tools/system prompt (router's persona will be used)
     try {
-      const { data: employeeProfile } = await sb
+      const { data: employeeProfile, error: profileError } = await sb
         .from('employee_profiles')
         .select('tools_allowed, system_prompt')
         .eq('slug', finalEmployeeSlug)
         .maybeSingle();
       
-      if (employeeProfile) {
+      if (profileError) {
+        console.warn(`[Chat] Database error loading employee profile for ${finalEmployeeSlug}:`, profileError);
+        // Don't change finalEmployeeSlug - continue with requested employee, just without tools
+        console.log(`[Chat] Continuing with ${finalEmployeeSlug} without tools due to profile error`);
+      } else if (!employeeProfile) {
+        console.warn(`[Chat] No employee profile found for ${finalEmployeeSlug} - continuing without tools (router persona will be used)`);
+        // Don't change finalEmployeeSlug - continue with requested employee, router's persona will be used
+      } else {
         // Load tools
         if (employeeProfile.tools_allowed && Array.isArray(employeeProfile.tools_allowed)) {
           employeeTools = employeeProfile.tools_allowed;
@@ -317,12 +396,13 @@ export const handler: Handler = async (event, context) => {
           employeeSystemPrompt = employeeProfile.system_prompt;
           console.log(`[Chat] Loaded system_prompt from database for ${finalEmployeeSlug} (${employeeSystemPrompt.length} chars)`);
         }
-      } else {
-        console.warn(`[Chat] No employee profile found for ${finalEmployeeSlug}`);
       }
     } catch (error: any) {
-      console.warn('[Chat] Failed to load employee profile:', error);
-      // Continue without tools if loading fails
+      console.error('[Chat] Failed to load employee profile (non-fatal):', error);
+      // Don't change finalEmployeeSlug - continue with requested employee
+      // Router's persona and system prompt will be used instead
+      console.log(`[Chat] Continuing with ${finalEmployeeSlug} using router persona due to profile loading error`);
+      // Continue without tools if loading fails - chat will still work with router's persona
     }
 
     // ========================================================================
@@ -562,13 +642,32 @@ export const handler: Handler = async (event, context) => {
     // 9. CALL OPENAI (Streaming)
     // ========================================================================
     if (!openai) {
+      // Return graceful error instead of 500
+      const isStreaming = stream !== false;
+      if (isStreaming) {
+        const errorMessage = "I'm sorry, the AI service is not properly configured right now. Please contact support or try again later.";
+        return {
+          statusCode: 200,
+          headers: {
+            ...baseHeaders,
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+          body: `data: ${JSON.stringify({ role: 'assistant', content: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
+        };
+      }
       return {
-        statusCode: 500,
+        statusCode: 200,
         headers: {
           ...baseHeaders,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ error: 'OpenAI API key not configured' }),
+        body: JSON.stringify({
+          ok: false,
+          error: 'OpenAI API key not configured',
+          content: "I'm sorry, the AI service is not properly configured right now. Please contact support or try again later.",
+        }),
       };
     }
 
@@ -588,85 +687,103 @@ export const handler: Handler = async (event, context) => {
 
     if (stream) {
       // Streaming response (SSE) with tool support
-      // Convert tools to OpenAI format if available
-      const openaiTools = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
-      
-      // Get employee-specific model configuration
-      const modelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
-      
-      // Note: Netlify Functions streaming requires returning a promise that resolves to chunks
-      const stream = await openai.chat.completions.create({
-        model: modelConfig.model,
-        messages,
-        temperature: modelConfig.temperature,
-        max_tokens: modelConfig.maxTokens,
-        stream: true,
-        tools: openaiTools, // Add tools if available
-      });
-
-      // Build response headers (will be updated if handoff occurs)
-      let headers = buildResponseHeaders({
-        guardrailsActive: true,
-        piiMaskEnabled: (guardrailResult.signals.piiTypes || []).length > 0,
-        memoryHitTopScore: memoryHitScore,
-        memoryHitCount: memoryFacts.length,
-        employee: finalEmployeeSlug,
-        routeConfidence: 0.8,
-      });
-
-      // Create streaming response with tool calling support
-      let assistantContent = '';
-      let toolCalls: any[] = [];
-      const requestStartTime = Date.now();
-      let firstTokenTime: number | null = null;
-      
-      // Send employee header first (will be updated if handoff occurs)
-      const encoder = new TextEncoder();
-      let streamBuffer = `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n`;
-
-      // Stream tokens and collect tool calls
-      for await (const chunk of stream) {
-        // Track time to first token
-        if (!firstTokenTime && chunk.choices[0]?.delta?.content) {
-          firstTokenTime = Date.now();
+      try {
+        // Convert tools to OpenAI format if available
+        let openaiTools: any = undefined;
+        try {
+          openaiTools = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
+        } catch (toolError: any) {
+          console.warn('[Chat] Failed to convert tools to OpenAI format (non-fatal):', toolError);
+          // Continue without tools
         }
-        const delta = chunk.choices[0]?.delta;
-        if (delta?.content) {
-          assistantContent += delta.content;
-          streamBuffer += `data: ${JSON.stringify({ type: 'token', token: delta.content })}\n\n`;
+        
+        // Get employee-specific model configuration
+        let modelConfig;
+        try {
+          modelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
+        } catch (configError: any) {
+          console.warn('[Chat] Failed to get employee model config (non-fatal, using defaults):', configError);
+          // Fallback to default config
+          modelConfig = {
+            model: 'gpt-4o-mini',
+            temperature: 0.7,
+            maxTokens: 2000,
+          };
         }
-        // Collect tool calls from stream
-        if (delta?.tool_calls) {
-          for (const toolCall of delta.tool_calls) {
-            const index = toolCall.index || 0;
-            if (!toolCalls[index]) {
-              toolCalls[index] = {
-                id: toolCall.id,
-                type: 'function',
-                function: { name: toolCall.function?.name || '', arguments: '' }
-              };
-              
-              // Phase 3.1: Send tool_calling event when tool call detected
-              if (toolCall.function?.name) {
-                streamBuffer += `data: ${JSON.stringify({
-                  type: 'tool_call',
-                  tool: {
-                    id: toolCall.id,
-                    name: toolCall.function.name,
-                    arguments: {}
-                  }
-                })}\n\n`;
+        
+        // Note: Netlify Functions streaming requires returning a promise that resolves to chunks
+        const stream = await openai.chat.completions.create({
+          model: modelConfig.model,
+          messages,
+          temperature: modelConfig.temperature,
+          max_tokens: modelConfig.maxTokens,
+          stream: true,
+          tools: openaiTools, // Add tools if available
+        });
+
+        // Build response headers (will be updated if handoff occurs)
+        let headers = buildResponseHeaders({
+          guardrailsActive: true,
+          piiMaskEnabled: (guardrailResult.signals.piiTypes || []).length > 0,
+          memoryHitTopScore: memoryHitScore,
+          memoryHitCount: memoryFacts.length,
+          employee: finalEmployeeSlug,
+          routeConfidence: 0.8,
+        });
+
+        // Create streaming response with tool calling support
+        let assistantContent = '';
+        let toolCalls: any[] = [];
+        const requestStartTime = Date.now();
+        let firstTokenTime: number | null = null;
+        
+        // Send employee header first (will be updated if handoff occurs)
+        const encoder = new TextEncoder();
+        let streamBuffer = `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n`;
+
+        // Stream tokens and collect tool calls
+        for await (const chunk of stream) {
+          // Track time to first token
+          if (!firstTokenTime && chunk.choices[0]?.delta?.content) {
+            firstTokenTime = Date.now();
+          }
+          const delta = chunk.choices[0]?.delta;
+          if (delta?.content) {
+            assistantContent += delta.content;
+            streamBuffer += `data: ${JSON.stringify({ type: 'token', token: delta.content })}\n\n`;
+          }
+          // Collect tool calls from stream
+          if (delta?.tool_calls) {
+            for (const toolCall of delta.tool_calls) {
+              const index = toolCall.index || 0;
+              if (!toolCalls[index]) {
+                toolCalls[index] = {
+                  id: toolCall.id,
+                  type: 'function',
+                  function: { name: toolCall.function?.name || '', arguments: '' }
+                };
+                
+                // Phase 3.1: Send tool_calling event when tool call detected
+                if (toolCall.function?.name) {
+                  streamBuffer += `data: ${JSON.stringify({
+                    type: 'tool_call',
+                    tool: {
+                      id: toolCall.id,
+                      name: toolCall.function.name,
+                      arguments: {}
+                    }
+                  })}\n\n`;
+                }
               }
-            }
-            if (toolCall.function?.name) {
-              toolCalls[index].function.name = toolCall.function.name;
-            }
-            if (toolCall.function?.arguments) {
-              toolCalls[index].function.arguments += toolCall.function.arguments;
+              if (toolCall.function?.name) {
+                toolCalls[index].function.name = toolCall.function.name;
+              }
+              if (toolCall.function?.arguments) {
+                toolCalls[index].function.arguments += toolCall.function.arguments;
+              }
             }
           }
         }
-      }
 
       // Handle tool calls if any
       if (toolCalls.length > 0 && Object.keys(toolModules).length > 0) {
@@ -938,9 +1055,10 @@ export const handler: Handler = async (event, context) => {
             });
           }
         }
+      }
 
-        // If we have tool results, make another completion call with tool results
-        if (toolResults.length > 0) {
+      // If we have tool results, make another completion call with tool results
+      if (toolResults.length > 0) {
           messages.push(
             { role: 'assistant', content: assistantContent, tool_calls: toolCalls.map(tc => ({
               id: tc.id,
@@ -951,129 +1069,181 @@ export const handler: Handler = async (event, context) => {
           );
 
           // Second completion with tool results
-          // If handoff occurred, reload tools for new employee
-          const openaiToolsAfterHandoff = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
-          
-          // Use model config for current employee (may have changed after handoff)
-          const modelConfigAfterHandoff = await getEmployeeModelConfig(finalEmployeeSlug);
-          
-          const secondStream = await openai.chat.completions.create({
-            model: modelConfigAfterHandoff.model,
-            messages,
-            temperature: modelConfigAfterHandoff.temperature,
-            max_tokens: modelConfigAfterHandoff.maxTokens,
-            stream: true,
-            tools: openaiToolsAfterHandoff,
-          });
-
-          assistantContent = ''; // Reset for final response
-          for await (const chunk of secondStream) {
-            const delta = chunk.choices[0]?.delta?.content;
-            if (delta) {
-              assistantContent += delta;
-              streamBuffer += `data: ${JSON.stringify({ type: 'token', token: delta })}\n\n`;
+          try {
+            // If handoff occurred, reload tools for new employee
+            let openaiToolsAfterHandoff: any = undefined;
+            try {
+              openaiToolsAfterHandoff = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
+            } catch (toolError: any) {
+              console.warn('[Chat] Failed to convert tools after handoff (non-fatal):', toolError);
             }
+            
+            // Use model config for current employee (may have changed after handoff)
+            let modelConfigAfterHandoff;
+            try {
+              modelConfigAfterHandoff = await getEmployeeModelConfig(finalEmployeeSlug);
+            } catch (configError: any) {
+              console.warn('[Chat] Failed to get model config after handoff (non-fatal, using defaults):', configError);
+              modelConfigAfterHandoff = {
+                model: 'gpt-4o-mini',
+                temperature: 0.7,
+                maxTokens: 2000,
+              };
+            }
+            
+            const secondStream = await openai.chat.completions.create({
+              model: modelConfigAfterHandoff.model,
+              messages,
+              temperature: modelConfigAfterHandoff.temperature,
+              max_tokens: modelConfigAfterHandoff.maxTokens,
+              stream: true,
+              tools: openaiToolsAfterHandoff,
+            });
+
+            assistantContent = ''; // Reset for final response
+            for await (const chunk of secondStream) {
+              const delta = chunk.choices[0]?.delta?.content;
+              if (delta) {
+                assistantContent += delta;
+                streamBuffer += `data: ${JSON.stringify({ type: 'token', token: delta })}\n\n`;
+              }
+            }
+          } catch (secondStreamError: any) {
+            console.error('[Chat] Second streaming call failed after tool execution:', secondStreamError);
+            // Add error message to stream
+            const errorMsg = "I had trouble processing the tool results. Let me try a different approach.";
+            assistantContent = errorMsg;
+            streamBuffer += `data: ${JSON.stringify({ type: 'token', token: errorMsg })}\n\n`;
           }
         }
-      }
 
-      // Update employee header if handoff occurred
-      if (finalEmployeeSlug !== originalEmployeeSlug) {
-        streamBuffer = `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n` + streamBuffer;
-      }
+        // Update employee header if handoff occurred
+        if (finalEmployeeSlug !== originalEmployeeSlug) {
+          streamBuffer = `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n` + streamBuffer;
+        }
 
-      // Send completion signal
-      streamBuffer += `data: ${JSON.stringify({ type: 'done' })}\n\n`;
+        // Send completion signal
+        streamBuffer += `data: ${JSON.stringify({ type: 'done' })}\n\n`;
 
-      // Calculate token usage (rough estimate)
-      const promptTokens = estimateTokens(systemMessage + masked + recentMessages.map((m: any) => m.content).join(''));
-      const completionTokens = estimateTokens(assistantContent);
-      const totalTokens = promptTokens + completionTokens;
-      const durationMs = Date.now() - requestStartTime;
-      const latencyMs = firstTokenTime ? firstTokenTime - requestStartTime : null;
+        // Calculate token usage (rough estimate)
+        const promptTokens = estimateTokens(systemMessage + masked + recentMessages.map((m: any) => m.content).join(''));
+        const completionTokens = estimateTokens(assistantContent);
+        const totalTokens = promptTokens + completionTokens;
+        const durationMs = Date.now() - requestStartTime;
+        const latencyMs = firstTokenTime ? firstTokenTime - requestStartTime : null;
 
-      // Save assistant message (will be redacted if needed) - non-blocking
-      try {
-        await sb.from('chat_messages').insert({
-          session_id: finalSessionId,
-          user_id: userId,
-          role: 'assistant',
-          content: assistantContent,
-          tokens: completionTokens,
+        // Save assistant message (will be redacted if needed) - non-blocking
+        try {
+          await sb.from('chat_messages').insert({
+            session_id: finalSessionId,
+            user_id: userId,
+            role: 'assistant',
+            content: assistantContent,
+            tokens: completionTokens,
+          });
+        } catch (error: any) {
+          console.warn('[Chat] Failed to save assistant message:', error);
+          // Continue even if save fails
+        }
+
+        // Log usage metrics (non-blocking)
+        try {
+          const toolsUsed = toolCalls.length > 0 ? toolCalls.map((tc: any) => tc.function?.name).filter(Boolean) : null;
+          
+          await sb.from('chat_usage_log').insert({
+            user_id: userId,
+            session_id: finalSessionId,
+            employee_slug: finalEmployeeSlug,
+            prompt_tokens: promptTokens,
+            completion_tokens: completionTokens,
+            total_tokens: totalTokens,
+            model: modelConfig.model,
+            latency_ms: latencyMs,
+            duration_ms: durationMs,
+            tools_used: toolsUsed,
+            success: true,
+          });
+        } catch (error: any) {
+          console.warn('[Chat] Failed to log usage metrics:', error);
+          // Continue even if logging fails
+        }
+
+        // Phase 2.3: Queue memory extraction for async processing (non-blocking)
+        // Extraction happens in background worker, doesn't block chat response
+        queueMemoryExtraction({
+          userId,
+          sessionId: finalSessionId,
+          userMessage: masked,
+          assistantResponse: assistantContent
+        }).catch((error: any) => {
+          // Log but don't fail - extraction failures shouldn't break chat
+          console.warn('[Chat] Failed to queue memory extraction (non-fatal):', error);
+          // Worker will retry failed jobs automatically
         });
-      } catch (error: any) {
-        console.warn('[Chat] Failed to save assistant message:', error);
-        // Continue even if save fails
+
+        return {
+          statusCode: 200,
+          headers: {
+            ...baseHeaders,
+            ...headers,
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+          body: streamBuffer,
+        };
+      } catch (streamingError: any) {
+        console.error('[Chat] Streaming OpenAI call failed:', streamingError);
+        // Return graceful error in SSE format
+        const errorMessage = "I'm sorry, I encountered an error while generating my response. Please try again in a moment.";
+        return {
+          statusCode: 200,
+          headers: {
+            ...baseHeaders,
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+          body: `data: ${JSON.stringify({ role: 'assistant', content: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
+        };
       }
-
-      // Log usage metrics (non-blocking)
-      try {
-        const modelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
-        const toolsUsed = toolCalls.length > 0 ? toolCalls.map((tc: any) => tc.function?.name).filter(Boolean) : null;
-        
-        await sb.from('chat_usage_log').insert({
-          user_id: userId,
-          session_id: finalSessionId,
-          employee_slug: finalEmployeeSlug,
-          prompt_tokens: promptTokens,
-          completion_tokens: completionTokens,
-          total_tokens: totalTokens,
-          model: modelConfig.model,
-          latency_ms: latencyMs,
-          duration_ms: durationMs,
-          tools_used: toolsUsed,
-          success: true,
-        });
-      } catch (error: any) {
-        console.warn('[Chat] Failed to log usage metrics:', error);
-        // Continue even if logging fails
-      }
-
-      // Phase 2.3: Queue memory extraction for async processing (non-blocking)
-      // Extraction happens in background worker, doesn't block chat response
-      queueMemoryExtraction({
-        userId,
-        sessionId: finalSessionId,
-        userMessage: masked,
-        assistantResponse: assistantContent
-      }).catch((error: any) => {
-        // Log but don't fail - extraction failures shouldn't break chat
-        console.warn('[Chat] Failed to queue memory extraction (non-fatal):', error);
-        // Worker will retry failed jobs automatically
-      });
-
-      return {
-        statusCode: 200,
-        headers: {
-          ...baseHeaders,
-          ...headers,
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-        },
-        body: streamBuffer,
-      };
     } else {
       // Non-streaming response with tool calling support
-      const openaiTools = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
-      
-      // Get employee-specific model configuration
-      const modelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
-      
-      let completion = await openai.chat.completions.create({
-        model: modelConfig.model,
-        messages,
-        temperature: modelConfig.temperature,
-        max_tokens: modelConfig.maxTokens,
-        stream: false,
-        tools: openaiTools,
-      });
+      try {
+        let openaiTools: any = undefined;
+        try {
+          openaiTools = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
+        } catch (toolError: any) {
+          console.warn('[Chat] Failed to convert tools to OpenAI format (non-fatal):', toolError);
+        }
+        
+        // Get employee-specific model configuration
+        let modelConfig;
+        try {
+          modelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
+        } catch (configError: any) {
+          console.warn('[Chat] Failed to get employee model config (non-fatal, using defaults):', configError);
+          modelConfig = {
+            model: 'gpt-4o-mini',
+            temperature: 0.7,
+            maxTokens: 2000,
+          };
+        }
+        
+        let completion = await openai.chat.completions.create({
+          model: modelConfig.model,
+          messages,
+          temperature: modelConfig.temperature,
+          max_tokens: modelConfig.maxTokens,
+          stream: false,
+          tools: openaiTools,
+        });
 
-      let assistantContent = completion.choices[0]?.message?.content || '';
-      let toolCalls = completion.choices[0]?.message?.tool_calls || [];
+        let assistantContent = completion.choices[0]?.message?.content || '';
+        let toolCalls = completion.choices[0]?.message?.tool_calls || [];
 
-      // Handle tool calls if any
-      if (toolCalls.length > 0 && Object.keys(toolModules).length > 0) {
+        // Handle tool calls if any
+        if (toolCalls.length > 0 && Object.keys(toolModules).length > 0) {
         console.log(`[Chat] Processing ${toolCalls.length} tool calls (non-streaming)`);
         
         const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
@@ -1282,27 +1452,48 @@ export const handler: Handler = async (event, context) => {
 
         // Second completion with tool results
         if (toolResults.length > 0) {
-          messages.push(
-            { role: 'assistant', content: assistantContent || null, tool_calls: toolCalls },
-            ...toolResults
-          );
+          try {
+            messages.push(
+              { role: 'assistant', content: assistantContent || null, tool_calls: toolCalls },
+              ...toolResults
+            );
 
-          // If handoff occurred, reload tools for new employee
-          const openaiToolsAfterHandoff = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
+            // If handoff occurred, reload tools for new employee
+            let openaiToolsAfterHandoff: any = undefined;
+            try {
+              openaiToolsAfterHandoff = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
+            } catch (toolError: any) {
+              console.warn('[Chat] Failed to convert tools after handoff (non-fatal):', toolError);
+            }
 
-          // Use model config for current employee (may have changed after handoff)
-          const modelConfigAfterHandoff = await getEmployeeModelConfig(finalEmployeeSlug);
+            // Use model config for current employee (may have changed after handoff)
+            let modelConfigAfterHandoff;
+            try {
+              modelConfigAfterHandoff = await getEmployeeModelConfig(finalEmployeeSlug);
+            } catch (configError: any) {
+              console.warn('[Chat] Failed to get model config after handoff (non-fatal, using defaults):', configError);
+              modelConfigAfterHandoff = {
+                model: 'gpt-4o-mini',
+                temperature: 0.7,
+                maxTokens: 2000,
+              };
+            }
 
-          completion = await openai.chat.completions.create({
-            model: modelConfigAfterHandoff.model,
-            messages,
-            temperature: modelConfigAfterHandoff.temperature,
-            max_tokens: modelConfigAfterHandoff.maxTokens,
-            stream: false,
-            tools: openaiToolsAfterHandoff,
-          });
+            completion = await openai.chat.completions.create({
+              model: modelConfigAfterHandoff.model,
+              messages,
+              temperature: modelConfigAfterHandoff.temperature,
+              max_tokens: modelConfigAfterHandoff.maxTokens,
+              stream: false,
+              tools: openaiToolsAfterHandoff,
+            });
 
-          assistantContent = completion.choices[0]?.message?.content || assistantContent;
+            assistantContent = completion.choices[0]?.message?.content || assistantContent;
+          } catch (secondCompletionError: any) {
+            console.error('[Chat] Second completion call failed after tool execution:', secondCompletionError);
+            // Use original assistant content or add error message
+            assistantContent = assistantContent || "I had trouble processing the tool results, but I can still help you with your question.";
+          }
         }
       }
 
@@ -1377,24 +1568,49 @@ export const handler: Handler = async (event, context) => {
         ? { from: originalEmployeeSlug, to: finalEmployeeSlug }
         : undefined;
 
-      return {
-        statusCode: 200,
-        headers: {
-          ...baseHeaders,
-          ...headers,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ok: true,
-          content: assistantContent,
-          employee: finalEmployeeSlug,
-          sessionId: finalSessionId,
-          ...(handoffMeta && { meta: { handoff: handoffMeta } }),
-        }),
-      };
+        return {
+          statusCode: 200,
+          headers: {
+            ...baseHeaders,
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ok: true,
+            content: assistantContent,
+            employee: finalEmployeeSlug,
+            sessionId: finalSessionId,
+            ...(handoffMeta && { meta: { handoff: handoffMeta } }),
+          }),
+        };
+      } catch (nonStreamingError: any) {
+        console.error('[Chat] Non-streaming OpenAI call failed:', nonStreamingError);
+        // Return graceful error in JSON format
+        const headers = buildResponseHeaders({
+          guardrailsActive: true,
+          piiMaskEnabled: (guardrailResult?.signals?.piiTypes || []).length > 0,
+          employee: finalEmployeeSlug || 'prime-boss',
+        });
+        return {
+          statusCode: 200,
+          headers: {
+            ...baseHeaders,
+            ...headers,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ok: false,
+            error: 'OpenAI API error',
+            content: "I'm sorry, I encountered an error while generating my response. Please try again in a moment.",
+            employee: finalEmployeeSlug || 'prime-boss',
+            sessionId: finalSessionId,
+            message: process.env.NETLIFY_DEV === 'true' ? nonStreamingError.message : undefined,
+          }),
+        };
+      }
     }
   } catch (error: any) {
-    console.error('[Chat] Error:', error);
+    console.error('[Chat] Unhandled error:', error);
     console.error('[Chat] Error stack:', error.stack);
     console.error('[Chat] Error details:', {
       message: error.message,
@@ -1402,16 +1618,49 @@ export const handler: Handler = async (event, context) => {
       code: error.code,
     });
     
+    // Return safe error response instead of crashing
+    // For streaming requests, send error as SSE message
+    if (event.body) {
+      try {
+        const body = JSON.parse(event.body || '{}') as ChatRequest;
+        if (body.stream !== false) {
+          // Streaming response - send error as SSE
+          const errorMessage = "I ran into an internal error while answering. Please try again in a moment, or let Prime know something went wrong.";
+          const errorSSE = `data: ${JSON.stringify({
+            type: 'token',
+            token: errorMessage
+          })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`;
+          
+          return {
+            statusCode: 200,
+            headers: {
+              ...baseHeaders,
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+            },
+            body: errorSSE,
+          };
+        }
+      } catch (parseError) {
+        // If we can't parse body, fall through to JSON error response
+      }
+    }
+    
+    // Non-streaming or fallback: return JSON error
+    // Use 200 status code with error in body to avoid breaking frontend
     return {
-      statusCode: 500,
+      statusCode: 200,
       headers: {
         ...baseHeaders,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
+        ok: false,
         error: 'Internal server error',
-        message: error.message,
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        content: "I ran into an internal error while answering. Please try again in a moment, or let Prime know something went wrong.",
+        message: process.env.NETLIFY_DEV === 'true' ? error.message : undefined,
+        details: process.env.NETLIFY_DEV === 'true' ? error.stack : undefined,
       }),
     };
   }
@@ -1420,6 +1669,47 @@ export const handler: Handler = async (event, context) => {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
+
+/**
+ * Normalize employee slug (handle aliases from UI)
+ * Converts short names to canonical slugs, but preserves canonical slugs as-is
+ * 
+ * This is a lightweight normalization for UI aliases only.
+ * The router's resolveSlug() handles full canonicalization including database lookups.
+ */
+function normalizeEmployeeSlug(slug: string | null | undefined): string | null {
+  if (!slug) return null; // Return null to let router auto-route
+  
+  const normalized = slug.toLowerCase().trim();
+  
+  // Only normalize known UI aliases
+  switch (normalized) {
+    case 'prime':
+      return 'prime-boss';
+    case 'byte':
+      return 'byte-docs';
+    case 'tag':
+      return 'tag-ai';
+    case 'crystal':
+      return 'crystal-analytics';
+    case 'finley':
+      return 'finley-forecasts';
+    case 'goalie':
+      return 'goalie-goals';
+    case 'blitz':
+      return 'blitz-debt';
+    case 'liberty':
+      return 'liberty-freedom';
+    case 'chime':
+      return 'chime-reminders';
+    case 'ledger':
+      return 'ledger-tax';
+    default:
+      // Return as-is if already canonical (router will handle further normalization)
+      // This preserves slugs like 'prime-boss', 'byte-docs', 'tag-ai', etc.
+      return normalized;
+  }
+}
 
 /**
  * Estimate token count (rough approximation: ~4 chars per token)

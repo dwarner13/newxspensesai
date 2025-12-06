@@ -15,9 +15,11 @@ import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
 import UnifiedAssistantChat from "../components/chat/UnifiedAssistantChat";
 import { useUnifiedChatLauncher } from "../hooks/useUnifiedChatLauncher";
 import { PrimeFloatingButton } from "../components/chat/PrimeFloatingButton";
-import { ActivityPanel } from "../components/dashboard/ActivityPanel";
+import { ActivityFeedSidebar } from "../components/dashboard/ActivityFeedSidebar";
 import DesktopChatSideBar from "../components/chat/DesktopChatSideBar";
 import { StatusBadge } from "../components/ui/StatusBadge";
+import { PrimeSidebarChat } from "../components/chat/PrimeSidebarChat";
+import { ChatHistorySidebar } from "../components/chat/ChatHistorySidebar";
 
 // DashboardHeaderWithBadges - Wrapper that adds status badges based on route
 function DashboardHeaderWithBadges() {
@@ -107,54 +109,74 @@ function DashboardHeaderWithBadges() {
   return <DashboardHeader statusBadges={statusBadges} secondaryStatusLabel={secondaryStatusLabel} />;
 }
 
-// DashboardContentGrid - adjusts column ratios based on route
+// DashboardContentGrid - shows Activity Feed sidebar on the right for non-workspace pages
+// Workspace pages (using DashboardThreeColumnLayout) handle their own Activity Feed
 function DashboardContentGrid({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   
-  // Pages that handle their own 3-column layout (including ActivityPanel)
-  // These should not be wrapped in the standard 2-column layout
-  const isWorkspacePage = location.pathname.includes('/smart-import-ai') || 
-                          location.pathname.includes('/ai-chat-assistant') ||
-                          location.pathname.includes('/prime-chat') ||
-                          location.pathname.includes('/smart-categories') ||
-                          location.pathname.includes('/analytics-ai') ||
-                          location.pathname.includes('/ai-financial-freedom') ||
-                          location.pathname.includes('/transactions') ||
-                          location.pathname.includes('/bank-accounts') ||
-                          location.pathname.includes('/goal-concierge') ||
-                          location.pathname.includes('/smart-automation') ||
-                          location.pathname.includes('/spending-predictions') ||
-                          location.pathname.includes('/debt-payoff-planner') ||
-                          location.pathname.includes('/bill-reminders') ||
-                          location.pathname.includes('/personal-podcast') ||
-                          location.pathname.includes('/financial-story') ||
-                          location.pathname.includes('/financial-therapist') ||
-                          location.pathname.includes('/wellness-studio') ||
-                          location.pathname.includes('/spotify') ||
-                          location.pathname.includes('/tax-assistant') ||
-                          location.pathname.includes('/business-intelligence') ||
-                          location.pathname.includes('/analytics') ||
-                          location.pathname.includes('/settings') ||
-                          location.pathname.includes('/reports');
+  // Pages that use DashboardThreeColumnLayout and manage their own Activity Feed
+  const workspacePages = [
+    '/prime-chat',
+    '/smart-import-ai',
+    '/smart-import-chat',
+    '/transactions',
+    '/smart-categories',
+    '/analytics-ai',
+    '/analytics',
+    '/ai-chat-assistant',
+    '/ai-financial-freedom',
+    '/bank-accounts',
+    '/goal-concierge',
+    '/smart-automation',
+    '/spending-predictions',
+    '/debt-payoff-planner',
+    '/bill-reminders',
+    '/personal-podcast',
+    '/financial-story',
+    '/financial-therapist',
+    '/wellness-studio',
+    '/spotify',
+    '/tax-assistant',
+    '/business-intelligence',
+  ];
   
+  const isWorkspacePage = workspacePages.some(path => location.pathname.includes(path));
+  
+  // For workspace pages, don't add Activity Feed (they use DashboardThreeColumnLayout)
   if (isWorkspacePage) {
-    // Workspace pages render their own 3-column layout including ActivityPanel
     return <>{children}</>;
   }
   
-  // Standard 2-column layout for other pages
-  const gridCols = 'xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]';
+  // Determine activity scope based on route
+  const getActivityScope = (): string | undefined => {
+    if (location.pathname.includes('/prime-chat')) return 'prime';
+    if (location.pathname.includes('/settings')) return 'settings';
+    if (location.pathname.includes('/reports')) return 'reports';
+    if (location.pathname === '/dashboard' || location.pathname === '/dashboard/') return 'dashboard';
+    return undefined; // Show all activity
+  };
+  
+  const activityScope = getActivityScope();
+  
+  // Check if this is Prime Chat page - use 3-column layout (33% | 34% | 33%)
+  const isPrimeChatPage = location.pathname.includes('/prime-chat');
+  
+  // Standard 2-column layout for all pages with Activity Feed sidebar
+  // For Prime Chat: 3 columns (33% | 34% | 33%) - middle is slightly larger
+  const gridCols = isPrimeChatPage 
+    ? 'xl:grid-cols-[1fr_1.03fr_1fr]' 
+    : 'xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)]';
   
   return (
     <div className={`grid gap-6 ${gridCols}`}>
-      {/* MIDDLE COLUMN - Main Dashboard Content */}
-      <div className="min-w-0">
+      {/* LEFT/MIDDLE COLUMN - Main Dashboard Content */}
+      <div className={`min-w-0 ${isPrimeChatPage ? 'col-span-2' : ''}`}>
         {children}
       </div>
 
-      {/* RIGHT COLUMN - Activity Panel */}
+      {/* RIGHT COLUMN - Activity Feed Sidebar */}
       <div className="hidden xl:block shrink-0">
-        <ActivityPanel />
+        <ActivityFeedSidebar scope={activityScope} />
       </div>
     </div>
   );
@@ -163,11 +185,48 @@ function DashboardContentGrid({ children }: { children: React.ReactNode }) {
 
 export default function DashboardLayout() {
   const location = useLocation();
+  
+  // Hide Prime Floating Button on Prime Chat page (PrimeChatPage has its own Prime Tools button)
+  const isPrimeChatPage = location.pathname.includes('/prime-chat');
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { isOpen: isChatOpen, options: chatOptions, openChat, closeChat } = useUnifiedChatLauncher();
+  const [isPrimeSidebarOpen, setIsPrimeSidebarOpen] = useState(false);
+  const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
+
+  // Close Prime sidebar when opening chat history (and vice versa)
+  const handleOpenChatHistory = () => {
+    setIsPrimeSidebarOpen(false);
+    setIsChatHistoryOpen(true);
+  };
+  
+  // Listen for global chat history open event (for docked rails in panels)
+  useEffect(() => {
+    const handleGlobalOpenHistory = () => {
+      setIsPrimeSidebarOpen(false);
+      setIsChatHistoryOpen(true);
+    };
+    
+    window.addEventListener('openChatHistory', handleGlobalOpenHistory);
+    return () => {
+      window.removeEventListener('openChatHistory', handleGlobalOpenHistory);
+    };
+  }, []);
+
+  const handleCloseChatHistory = () => {
+    setIsChatHistoryOpen(false);
+  };
+
+  const handleOpenPrimeSidebar = () => {
+    setIsChatHistoryOpen(false);
+    setIsPrimeSidebarOpen(true);
+  };
+
+  const handleClosePrimeSidebar = () => {
+    setIsPrimeSidebarOpen(false);
+  };
 
   // Prime intro hook
   const { showIntro, complete } = usePrimeIntro();
@@ -254,30 +313,24 @@ export default function DashboardLayout() {
     }
   }, [isMobileMenuOpen]);
 
-  // Listen for global chat open events
-  useEffect(() => {
-    const handleOpen = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      openChat(customEvent.detail);
-    };
-    const handleUnifiedOpen = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      openChat(customEvent.detail);
-    };
-    
-    window.addEventListener('prime:open', handleOpen as EventListener);
-    window.addEventListener('unified-chat:open', handleUnifiedOpen as EventListener);
-    
-    return () => {
-      window.removeEventListener('prime:open', handleOpen as EventListener);
-      window.removeEventListener('unified-chat:open', handleUnifiedOpen as EventListener);
-    };
-  }, [openChat]);
+  // Note: Removed event listeners for 'prime:open' and 'unified-chat:open' to prevent infinite recursion
+  // DashboardLayout already uses useUnifiedChatLauncher hook directly, so it automatically reacts to state changes
+  // Components should call openChat() from the hook directly, not dispatch events that loop back
 
   // Reset scroll position when route changes
   useEffect(() => {
     console.log('[DashboardLayout] Route changed to:', location.pathname);
-    window.scrollTo(0, 0);
+    // Scroll window to top
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    
+    // Also scroll the main content container to top
+    const mainContent = document.querySelector('main');
+    if (mainContent) {
+      mainContent.scrollTo?.({ top: 0, left: 0, behavior: 'instant' });
+      if (mainContent.scrollTop !== undefined) {
+        mainContent.scrollTop = 0;
+      }
+    }
   }, [location.pathname]);
 
   if (isMobile) {
@@ -372,6 +425,36 @@ export default function DashboardLayout() {
           initialQuestion={chatOptions.initialQuestion}
         />
         
+        {/* Prime Sidebar Chat - Right sidebar for Prime chat on all dashboard pages */}
+        {isPrimeSidebarOpen && (
+          <aside
+            className="fixed right-0 top-0 h-full w-full md:w-[420px] border-l border-slate-800 bg-slate-950/95 backdrop-blur z-[999]"
+            aria-label="Prime chat sidebar"
+          >
+            {/* Sidebar Header */}
+            <div className="flex justify-between items-center px-4 py-3 border-b border-slate-800 bg-slate-900/50">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">👑</span>
+                <span className="text-sm font-medium text-slate-200">
+                  Prime — Chat
+                </span>
+              </div>
+            <button
+              onClick={handleClosePrimeSidebar}
+              className="text-slate-400 hover:text-slate-100 text-lg leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-slate-800 transition-colors"
+              aria-label="Close Prime chat"
+            >
+              ✕
+            </button>
+            </div>
+
+            {/* Chat Content */}
+            <div className="h-[calc(100%-48px)]">
+              <PrimeSidebarChat />
+            </div>
+          </aside>
+        )}
+        
       </div>
     );
   }
@@ -379,7 +462,7 @@ export default function DashboardLayout() {
   // Desktop Layout - 3-column structure
   // 
   // Z-INDEX LAYERING (bottom to top):
-  // - ActivityPanel: default z-index (stays in document flow)
+  // - ActivityFeed: default z-index (stays in document flow)
   // - PrimeFloatingButton: z-30 (floats above content, below header)
   // - DesktopChatSideBar: z-998 (right-edge tab)
   // - UnifiedAssistantChat: z-999 (slide-out panel, highest)
@@ -396,7 +479,7 @@ export default function DashboardLayout() {
   return (
     <div className="flex min-h-screen bg-slate-950">
       {/* LEFT COLUMN - Desktop Sidebar */}
-      <div className="fixed left-0 top-0 h-full z-30">
+      <div className="fixed left-0 top-0 h-full z-[100]" style={{ pointerEvents: 'auto' }}>
         <DesktopSidebar 
           collapsed={isSidebarCollapsed}
           onToggleCollapse={setIsSidebarCollapsed}
@@ -408,7 +491,7 @@ export default function DashboardLayout() {
         <DashboardHeaderWithBadges />
         
         {/* Main content: no nested overflow scroll */}
-        <main className="flex-1 px-8 pb-10">
+        <main className="flex-1 px-8 pb-10" data-dashboard-content>
           <DashboardContentGrid>
             <Outlet />
           </DashboardContentGrid>
@@ -418,7 +501,7 @@ export default function DashboardLayout() {
       {/* Prime Intro Modal */}
       <PrimeIntroModal open={showIntro} onComplete={complete} />
 
-      {/* Unified Assistant Chat - Slide-out panel (z-999, overlays ActivityPanel) */}
+      {/* Unified Assistant Chat - Slide-out panel (z-999, overlays ActivityFeed) */}
       <UnifiedAssistantChat
         isOpen={isChatOpen}
         onClose={closeChat}
@@ -427,12 +510,72 @@ export default function DashboardLayout() {
         context={chatOptions.context}
         initialQuestion={chatOptions.initialQuestion}
       />
+      
+      {/* Prime Sidebar Chat - Right sidebar for Prime chat on all dashboard pages */}
+      {isPrimeSidebarOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[998]"
+            onClick={handleClosePrimeSidebar}
+            aria-hidden="true"
+          />
+          
+          {/* Slideout Panel */}
+          <aside
+            className="fixed top-4 bottom-4 right-4 w-full md:w-[420px] md:max-w-[420px] rounded-3xl bg-slate-950/90 backdrop-blur-xl border border-white/5 shadow-[0_0_60px_rgba(252,211,77,0.15)] z-[999] flex flex-col overflow-hidden"
+            aria-label="Prime chat sidebar"
+          >
+            {/* Sidebar Header */}
+            <div className="flex justify-between items-center px-4 py-3 border-b border-white/10 bg-slate-900/50">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 shadow-[0_0_20px_rgba(252,211,77,0.4)]">
+                  <span className="text-lg">👑</span>
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-white">Prime — AI Command Center</div>
+                  <div className="text-xs text-slate-400">CEO & Strategic Orchestrator</div>
+                </div>
+              </div>
+              <button
+                onClick={handleClosePrimeSidebar}
+                className="text-slate-400 hover:text-slate-100 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/10 transition-colors"
+                aria-label="Close Prime chat"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Chat Content */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <PrimeSidebarChat />
+            </div>
+          </aside>
+        </>
+      )}
+
+      {/* Chat History Sidebar */}
+      <ChatHistorySidebar
+        isOpen={isChatHistoryOpen}
+        onClose={handleCloseChatHistory}
+      />
 
       {/* Desktop Side Chat Tab - Right-edge vertical tab (z-998) */}
-      <DesktopChatSideBar />
+      {/* Prime button opens Prime sidebar, other buttons open UnifiedAssistantChat */}
+      {/* Hide on Prime Chat page - PrimeChatPage manages its own rail visibility */}
+      {!location.pathname.includes('/prime-chat') && (
+        <DesktopChatSideBar 
+          onPrimeClick={handleOpenPrimeSidebar}
+          onHistoryClick={handleOpenChatHistory}
+        />
+      )}
 
       {/* Prime Floating Action Button - Bottom-right (z-30, below header z-40) */}
-      <PrimeFloatingButton />
+      {/* Opens unified chat slideout with Prime when clicked */}
+      {/* Hide on Prime Chat page - PrimeChatPage has its own Prime Tools button */}
+      <PrimeFloatingButton 
+        hidden={location.pathname.includes('/prime-chat')} 
+      />
       
     </div>
   );

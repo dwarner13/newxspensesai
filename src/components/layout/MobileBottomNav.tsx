@@ -63,7 +63,7 @@ export default function MobileBottomNav({
   // Map employee key to slug
   const employeeKeyToSlug: Record<string, string> = {
     'prime': 'prime-boss',
-    'byte': 'byte-doc',
+    'byte': 'byte-docs',
     'tag': 'tag-ai',
     'crystal': 'crystal-ai',
     'blitz': 'blitz-debt',
@@ -106,7 +106,7 @@ export default function MobileBottomNav({
               e.preventDefault();
               // Legacy Byte chat removed - now using unified chat
               openChat({ 
-                initialEmployeeSlug: 'byte-doc',
+                initialEmployeeSlug: 'byte-docs',
                 context: { page: location.pathname }
               });
             }

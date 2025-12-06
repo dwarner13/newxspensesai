@@ -93,20 +93,21 @@ export function useUnifiedChatLauncher() {
     };
     notifyListeners();
     
-    // Also dispatch a custom event for components that listen
-    window.dispatchEvent(new CustomEvent('unified-chat:open', {
-      detail: options,
-    }));
+    // NOTE: Removed event dispatch to prevent infinite recursion
+    // Components should use the hook directly via useUnifiedChatLauncher()
+    // React's state system handles reactivity automatically
   }, []);
 
   const closeChat = useCallback(() => {
     globalChatState = {
+      ...globalChatState,
       isOpen: false,
       options: {},
     };
     notifyListeners();
     
-    window.dispatchEvent(new CustomEvent('unified-chat:close'));
+    // NOTE: Removed event dispatch to prevent infinite recursion
+    // Components should use the hook directly via useUnifiedChatLauncher()
   }, []);
 
   const setChatContext = useCallback((context: ChatLaunchOptions['context']) => {
@@ -205,23 +206,32 @@ export function useUnifiedChatLauncher() {
 
 // Export global functions for use outside React components
 export function openUnifiedChat(options?: ChatLaunchOptions) {
+  const newSlug = options?.initialEmployeeSlug || globalChatState.activeEmployeeSlug || 'prime-boss';
+  const display = getEmployeeDisplay(newSlug);
+  
   globalChatState = {
+    ...globalChatState,
     isOpen: true,
     options: options || {},
-    activeEmployeeSlug: options?.initialEmployeeSlug || globalChatState.activeEmployeeSlug || 'prime-boss',
+    activeEmployeeSlug: newSlug,
+    activeEmployeeEmoji: display.emoji,
+    activeEmployeeShortName: display.shortName,
   };
   notifyListeners();
-  window.dispatchEvent(new CustomEvent('unified-chat:open', {
-    detail: options,
-  }));
+  
+  // NOTE: Removed event dispatch to prevent infinite recursion
+  // Components should use the hook directly via useUnifiedChatLauncher()
 }
 
 export function closeUnifiedChat() {
   globalChatState = {
+    ...globalChatState,
     isOpen: false,
     options: {},
   };
   notifyListeners();
-  window.dispatchEvent(new CustomEvent('unified-chat:close'));
+  
+  // NOTE: Removed event dispatch to prevent infinite recursion
+  // Components should use the hook directly via useUnifiedChatLauncher()
 }
 

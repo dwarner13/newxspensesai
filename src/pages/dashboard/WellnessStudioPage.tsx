@@ -13,9 +13,13 @@ import React, { useState } from 'react';
 import { WellnessWorkspacePanel } from '../../components/workspace/entertainment/WellnessWorkspacePanel';
 import { WellnessUnifiedCard } from '../../components/workspace/entertainment/WellnessUnifiedCard';
 import { DashboardSection } from '../../components/ui/DashboardSection';
-import { ActivityPanel } from '../../components/dashboard/ActivityPanel';
+import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
 
 export default function WellnessStudioPage() {
+  // Scroll to top when page loads
+  useScrollToTop();
   const [isWellnessWorkspaceOpen, setIsWellnessWorkspaceOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
 
@@ -35,22 +39,23 @@ export default function WellnessStudioPage() {
   return (
     <>
       <DashboardSection className="flex flex-col">
-        <div className="grid grid-cols-12 gap-0 items-stretch" style={{ minHeight: 'calc(100vh - 200px)' }}>
-          {/* LEFT COLUMN (col-span-4 = 33%): Wellness Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col min-h-0">
-            <WellnessWorkspacePanel />
-          </section>
-
-          {/* CENTER COLUMN (col-span-5 = 42%): Wellness Unified Card */}
-          <section className="col-span-12 lg:col-span-5 flex flex-col min-h-0">
-            <WellnessUnifiedCard onExpandClick={openWellnessWorkspace} onChatInputClick={openWellnessWorkspace} />
-          </section>
-
-          {/* RIGHT COLUMN (col-span-3 = 25%): Activity Feed */}
-          <aside className="col-span-12 lg:col-span-3 flex flex-col min-h-0">
-            <ActivityPanel />
-          </aside>
-        </div>
+        <section className="mt-6 min-h-[520px]">
+          <DashboardThreeColumnLayout
+            left={
+              <div className="h-full flex flex-col">
+                <WellnessWorkspacePanel />
+              </div>
+            }
+            middle={
+              <div className="h-full flex flex-col">
+                <WellnessUnifiedCard onExpandClick={openWellnessWorkspace} onChatInputClick={openWellnessWorkspace} />
+              </div>
+            }
+            right={
+              <ActivityFeedSidebar scope="wellness-studio" />
+            }
+          />
+        </section>
       </DashboardSection>
     </>
   );

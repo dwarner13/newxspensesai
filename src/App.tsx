@@ -47,12 +47,10 @@ import { AIChatAssistantPage } from './pages/dashboard/AIChatAssistantPage';
 import OverviewPage from './pages/dashboard/OverviewPage';
 import WorkspacePage from './pages/dashboard/WorkspacePage';
 import PlanningPage from './pages/dashboard/PlanningPage';
-// import AnalyticsPage from './pages/dashboard/AnalyticsPage'; // Old import
-const AnalyticsPage = lazy(() => import('./pages/dashboard/AnalyticsPage'));
+const AnalyticsPage = lazy(() => import('@/pages/dashboard/AnalyticsPage'));
 import BusinessPage from './pages/dashboard/BusinessPage';
 import EntertainmentPage from './pages/dashboard/EntertainmentPage';
-// import ReportsPage from './pages/dashboard/ReportsPage'; // Old import
-const ReportsPage = lazy(() => import('./pages/dashboard/ReportsPage'));
+const ReportsPage = lazy(() => import('@/pages/dashboard/ReportsPage'));
 import TestPage from './pages/dashboard/TestPage';
 
 // Lazy load non-critical components
@@ -372,10 +370,10 @@ function App() {
                       <Route path="overview" element={<OverviewPage />} />
                       <Route path="workspace" element={<WorkspacePage />} />
                       <Route path="planning" element={<PlanningPage />} />
-                      <Route path="analytics" element={<AnalyticsPage />} />
+                      <Route path="analytics" element={<Suspense fallback={<LoadingSpinner />}><AnalyticsPage /></Suspense>} />
                       <Route path="business" element={<BusinessPage />} />
                       <Route path="entertainment" element={<EntertainmentPage />} />
-                      <Route path="reports" element={<ReportsPage />} />
+                      <Route path="reports" element={<Suspense fallback={<LoadingSpinner />}><ReportsPage /></Suspense>} />
                       <Route path="settings" element={<SettingsPage />} />
                       
                       {/* AI Workspace Pages */}
@@ -412,7 +410,6 @@ function App() {
                       <Route path="chat" element={<Navigate to="/dashboard/chat/prime" replace />} />
                       <Route path="blitz" element={<EmployeeChatPage />} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
-                      <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-financial-assistant" replace />} />
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
                       {/* <Route path="bank-accounts" element={<BankAccountsPage />} /> */}
                       {/* <Route path="goal-concierge" element={<GoalConciergePage />} /> */}

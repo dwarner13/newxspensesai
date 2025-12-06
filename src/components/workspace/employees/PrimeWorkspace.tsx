@@ -4,7 +4,7 @@
  * Wrapper around AIWorkspaceOverlay with Prime-specific configuration
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AIWorkspaceOverlay } from '../AIWorkspaceOverlay';
 import { getEmployeeTheme } from '../../../config/employeeThemes';
 
@@ -26,6 +26,11 @@ export function PrimeWorkspace({
   initialQuestion 
 }: PrimeWorkspaceProps) {
   const theme = getEmployeeTheme('prime');
+  
+  // Debug logging
+  useEffect(() => {
+    console.log('[PrimeWorkspace] Component rendered with open:', open, 'minimized:', minimized);
+  }, [open, minimized]);
   
   // Default minimize handler: hide overlay but preserve chat state
   const handleMinimize = onMinimize || onClose;
@@ -53,6 +58,13 @@ export function PrimeWorkspace({
       onMinimize={handleMinimize}
       conversationId={conversationId}
       initialQuestion={initialQuestion}
+      allowedEmployees={[
+        "prime-boss",
+        "byte-docs",
+        "tag-ai",
+        "crystal-analytics",
+        "finley-forecasts",
+      ]}
     />
   );
 }
