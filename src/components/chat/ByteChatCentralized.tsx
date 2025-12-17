@@ -5,5 +5,5 @@
  * The actual implementation is in _legacy/ByteChatCentralized.tsx
  */
 
-export { ByteChatCentralized, ByteChatCentralized as default } from './_legacy/ByteChatCentralized';
+export { ByteChatCentralized, ByteChatCentralized as default } from './_legacy/ByteChatCentralized.tsx';
 
