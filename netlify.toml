@@ -13,6 +13,9 @@
   # Mark dependencies as external to avoid CommonJS bundling issues
   # jsdom is marked external because it's used by safe_web_research tool but doesn't bundle well
   external_node_modules = ["@supabase/supabase-js", "openai", "undici", "jsdom", "@mozilla/readability"]
+  # NOTE: Environment variables are configured in Netlify Dashboard
+  # VITE_ prefixed vars are automatically excluded from functions (frontend-only)
+  # To avoid AWS Lambda 4KB env var limit, ensure only necessary vars are set in dashboard
 
 [dev]
   # Netlify Dev will start on port 8888
