@@ -25,9 +25,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Loader2, Send, User } from 'lucide-react';
 import { useStreamChat } from '../../../ui/hooks/useStreamChat.ts';
-import { getEmployee } from '../../employees/registry';
-import { ToolExecutionList, type ToolCall } from './ToolExecution';
-import type { EmployeeProfile } from '../../employees/registry';
+import { getEmployee } from '../../../employees/registry.ts';
+import { ToolExecutionList, type ToolCall } from '../ToolExecution.tsx';
+import type { EmployeeProfile } from '../../../employees/registry.ts';
 
 interface SharedChatInterfaceProps {
   /** Canonical employee slug (e.g., 'prime-boss', 'crystal-ai') */
