@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { SharedChatInterface } from './SharedChatInterface';
+import { SharedChatInterface } from './SharedChatInterface.tsx';
 
 interface ByteChatCentralizedProps {
   isOpen: boolean;
