@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite --port 8888 --host",
     "build": "tsc && vite build",
+    "build:ci": "pnpm -s build",
+    "predeploy:ci": "pnpm -s build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "vite": "vite",
