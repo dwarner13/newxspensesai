@@ -50,13 +50,40 @@ AWS Lambda has a 4KB limit on environment variables per function. Netlify passes
    SPOTIFY_CLIENT_SECRET
    ```
 
-### Option 2: Move VITE_ Variables to Build-Only
+### Option 2: Move VITE_ Variables to Build-Only (REQUIRED FIX)
 
-In Netlify Dashboard, you can set variables as "Build-time only" which excludes them from functions:
+**This MUST be done in Netlify Dashboard - there's no code-based solution.**
 
-1. Go to **Site settings → Environment variables**
-2. For each `VITE_` variable, check "Build-time only" option
-3. This prevents them from being passed to Lambda functions
+**Step-by-step instructions:**
+
+1. Go to **Netlify Dashboard** → Your Site (`xspensesai-staging`)
+2. Click **Site settings** (gear icon)
+3. Click **Environment variables** in the left sidebar
+4. For EACH of these `VITE_` variables, click the **Edit** button (pencil icon):
+   - `VITE_CHAT_BUBBLE_ENABLED`
+   - `VITE_CHAT_ENDPOINT`
+   - `VITE_DEMO_USER_ID`
+   - `VITE_SPOTIFY_CLIENT_ID`
+   - `VITE_SPOTIFY_REDIRECT_URI`
+   - `VITE_SUPABASE_ANON_KEY`
+   - `VITE_SUPABASE_URL`
+
+5. In the edit dialog, find the **"Scopes"** section
+6. **Uncheck "Functions"** (keep only "Builds" checked)
+7. Click **Save**
+8. Repeat for all 7 `VITE_` variables
+9. **Redeploy** the site
+
+**Visual guide:**
+- When editing a variable, you should see checkboxes for:
+  - ☑️ Builds
+  - ☑️ Functions ← **UNCHECK THIS** for VITE_ variables
+  - ☑️ Deploy previews (optional)
+
+**Why this works:**
+- Variables scoped to "Builds" only are available during `pnpm build`
+- They are NOT passed to Lambda functions at runtime
+- This reduces the env var payload sent to AWS Lambda
 
 ### Option 3: Use Netlify's Function-Specific Variables (Advanced)
 
