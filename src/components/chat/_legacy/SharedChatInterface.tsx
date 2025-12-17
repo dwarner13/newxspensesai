@@ -24,7 +24,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Loader2, Send, User } from 'lucide-react';
-import { useStreamChat } from '../../ui/hooks/useStreamChat';
+import { useStreamChat } from '../../../ui/hooks/useStreamChat.ts';
 import { getEmployee } from '../../employees/registry';
 import { ToolExecutionList, type ToolCall } from './ToolExecution';
 import type { EmployeeProfile } from '../../employees/registry';
