@@ -101,11 +101,11 @@ After reducing env vars:
 
 These are being passed to functions:
 - DEMO_USER_ID
-- GMAIL_CLIENT_ID
-- GMAIL_CLIENT_SECRET
-- GMAIL_REDIRECT_URI
-- GMAIL_REDIRECT_URI_LOCAL
-- GMAIL_SCOPES
+- GMAIL_CLIENT_ID (can be removed if Gmail features disabled)
+- GMAIL_CLIENT_SECRET (can be removed if Gmail features disabled)
+- GMAIL_REDIRECT_URI (can be removed if Gmail features disabled)
+- GMAIL_REDIRECT_URI_LOCAL (can be removed if Gmail features disabled)
+- GMAIL_SCOPES (can be removed - hardcoded in code, Gmail functions disabled)
 - OCR_SPACE_API_KEY
 - OPENAI_API_KEY
 - REACT_APP_GOOGLE_VISION_API_KEY
@@ -121,5 +121,8 @@ These are being passed to functions:
 - VITE_SUPABASE_ANON_KEY (should be build-only)
 - VITE_SUPABASE_URL (should be build-only)
 
-**Action**: Mark all `VITE_` variables as "Build-time only" in Netlify Dashboard.
+**Action**: 
+1. **Mark all `VITE_` variables as "Build-time only"** in Netlify Dashboard (uncheck "Functions" scope)
+2. **Remove `GMAIL_SCOPES`** from Netlify Dashboard (it's hardcoded in code and Gmail functions are disabled)
+3. **Consider removing other Gmail vars** if Gmail features are not in use
 
