@@ -9,52 +9,52 @@
  * - Right column (25%): Activity Feed
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { TaxWorkspacePanel } from '../../components/tax/TaxWorkspacePanel';
 import { TaxUnifiedCard } from '../../components/tax/TaxUnifiedCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 // import { TaxWorkspaceOverlay } from '../../components/chat/TaxWorkspaceOverlay'; // Create if needed
 
-export function TaxAssistantPage() {
+export default function TaxAssistantPage() {
   // Scroll to top when page loads
   useScrollToTop();
-  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-
-  const openWorkspace = () => {
-    setIsWorkspaceOpen(true);
-    setIsMinimized(false);
-  };
-
-  const closeWorkspace = () => {
-    setIsWorkspaceOpen(false);
-    setIsMinimized(false);
-  };
-
-  const minimizeWorkspace = () => {
-    setIsWorkspaceOpen(false);
-    setIsMinimized(true);
-  };
+  const { openChat } = useUnifiedChatLauncher();
 
   return (
     <>
-      <DashboardSection className="flex flex-col">
-        <div className="grid grid-cols-12 gap-0 items-stretch overflow-hidden" style={{ minHeight: 'calc(100vh - 200px)' }}>
-          {/* LEFT COLUMN (col-span-4 = 33%): Tax Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col overflow-hidden">
-            <TaxWorkspacePanel />
-          </section>
-
-          {/* CENTER COLUMN (col-span-8 = 67%): Tax Unified Card - Activity Feed handled by DashboardLayout */}
-          <section className="col-span-12 lg:col-span-8 flex flex-col overflow-hidden">
-            <TaxUnifiedCard 
-              onExpandClick={openWorkspace} 
-              onChatInputClick={openWorkspace} 
-            />
-          </section>
-        </div>
-      </DashboardSection>
+      <DashboardPageShell
+        left={<TaxWorkspacePanel />}
+        center={
+          <TaxUnifiedCard 
+            onExpandClick={() => {
+              openChat({
+                initialEmployeeSlug: 'tax-assistant',
+                context: {
+                  page: 'tax-assistant',
+                  data: {
+                    source: 'tax-assistant-page',
+                  },
+                },
+              });
+            }}
+            onChatInputClick={() => {
+              openChat({
+                initialEmployeeSlug: 'tax-assistant',
+                context: {
+                  page: 'tax-assistant',
+                  data: {
+                    source: 'tax-assistant-page',
+                  },
+                },
+              });
+            }}
+          />
+        }
+        right={<ActivityFeedSidebar scope="tax-assistant" />}
+      />
 
       {/* Tax Workspace Overlay - Floating centered chatbot */}
       {/* Uncomment when TaxWorkspaceOverlay is created */}

@@ -74,9 +74,19 @@ export function useUnifiedChatLauncher() {
   }, []);
 
   const openChat = useCallback((options?: ChatLaunchOptions) => {
+    // Make initialEmployeeSlug authoritative - if provided, use it; otherwise fallback to current activeEmployeeSlug or default
     const newSlug = options?.initialEmployeeSlug || globalChatState.activeEmployeeSlug || 'prime-boss';
     // Update employee display info when opening
     const display = getEmployeeDisplay(newSlug);
+    
+    // Dev log for debugging
+    if (import.meta.env.DEV) {
+      console.log(`[useUnifiedChatLauncher] Opening worker chat: ${newSlug}`, {
+        providedSlug: options?.initialEmployeeSlug,
+        currentActiveSlug: globalChatState.activeEmployeeSlug,
+        resolvedSlug: newSlug,
+      });
+    }
     
     globalChatState = {
       ...globalChatState,

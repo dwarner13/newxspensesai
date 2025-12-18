@@ -104,6 +104,8 @@ const toolModules: Map<string, ToolModule> = new Map([
     outputSchema: ingestStatementEnhanced.outputSchema,
     run: ingestStatementEnhanced.execute,
     meta: {
+      requiresConfirm: true,
+      mutates: true,
       costly: true,
       timeout: 120000, // 2 minutes for OCR processing
       rateLimit: { perMinute: 3 },
@@ -152,6 +154,7 @@ const toolModules: Map<string, ToolModule> = new Map([
     meta: {
       requiresConfirm: true,
       mutates: true,
+      dangerous: true,
       timeout: 30000,
       rateLimit: { perMinute: 5 },
     },
@@ -321,6 +324,7 @@ const toolModules: Map<string, ToolModule> = new Map([
     outputSchema: tagUpdateTransactionCategory.outputSchema,
     run: tagUpdateTransactionCategory.execute,
     meta: {
+      requiresConfirm: true,
       mutates: true,
       timeout: 15000,
       rateLimit: { perMinute: 30 },
@@ -333,6 +337,7 @@ const toolModules: Map<string, ToolModule> = new Map([
     outputSchema: tagCreateManualTransaction.outputSchema,
     run: tagCreateManualTransaction.execute,
     meta: {
+      requiresConfirm: true,
       mutates: true,
       timeout: 15000,
       rateLimit: { perMinute: 20 },
@@ -652,11 +657,31 @@ export function pickTools(ids: string[]): Record<string, ToolModule> {
 export async function executeTool(
   tool: ToolModule,
   input: any,
-  ctx: ToolContext
+  ctx: ToolContext,
+  loggingOptions?: {
+    employeeSlug?: string;
+    mode?: 'explain-only' | 'propose-confirm' | 'auto-pilot';
+    autonomyLevel?: number;
+  }
 ): Promise<any> {
   // Validate input
   const validation = tool.inputSchema.safeParse(input);
   if (!validation.success) {
+    // Log validation error (fire-and-forget)
+    if (loggingOptions?.employeeSlug) {
+      const { logToolExecution, generateInputSummary } = await import('./logToolExecution');
+      logToolExecution({
+        userId: ctx.userId,
+        employeeSlug: loggingOptions.employeeSlug,
+        toolId: tool.id,
+        mode: loggingOptions.mode || 'propose-confirm',
+        autonomyLevel: loggingOptions.autonomyLevel ?? 1,
+        inputSummary: generateInputSummary(tool.id, input),
+        status: 'error',
+        errorMessage: 'Invalid input validation',
+      }).catch(err => console.error('[executeTool] Failed to log validation error:', err));
+    }
+    
     return {
       error: 'Invalid input',
       details: validation.error.errors,
@@ -668,6 +693,21 @@ export async function executeTool(
     const rateLimitKey = `tool:${tool.id}:${ctx.userId}`;
     const isAllowed = await checkToolRateLimit(rateLimitKey, tool.meta.rateLimit);
     if (!isAllowed) {
+      // Log rate limit (fire-and-forget)
+      if (loggingOptions?.employeeSlug) {
+        const { logToolExecution, generateInputSummary } = await import('./logToolExecution');
+        logToolExecution({
+          userId: ctx.userId,
+          employeeSlug: loggingOptions.employeeSlug,
+          toolId: tool.id,
+          mode: loggingOptions.mode || 'propose-confirm',
+          autonomyLevel: loggingOptions.autonomyLevel ?? 1,
+          inputSummary: generateInputSummary(tool.id, input),
+          status: 'skipped',
+          errorMessage: 'Rate limit exceeded',
+        }).catch(err => console.error('[executeTool] Failed to log rate limit:', err));
+      }
+      
       return {
         error: 'Rate limit exceeded',
         retryAfter: 60,
@@ -707,16 +747,62 @@ export async function executeTool(
     const outputValidation = tool.outputSchema.safeParse(unwrappedResult);
     if (!outputValidation.success) {
       console.error('Tool output validation failed:', outputValidation.error);
+      
+      // Log failed validation
+      if (loggingOptions?.employeeSlug) {
+        const { logToolExecution } = await import('./logToolExecution');
+        logToolExecution({
+          userId: ctx.userId,
+          employeeSlug: loggingOptions.employeeSlug,
+          toolId: tool.id,
+          mode: loggingOptions.mode || 'propose-confirm',
+          autonomyLevel: loggingOptions.autonomyLevel ?? 1,
+          status: 'error',
+          errorMessage: 'Tool returned invalid output',
+        }).catch(err => console.error('[executeTool] Failed to log validation error:', err));
+      }
+      
       return {
         error: 'Tool returned invalid output',
         details: outputValidation.error.errors,
       };
     }
     
+    // Log successful execution (fire-and-forget)
+    if (loggingOptions?.employeeSlug) {
+      const { logToolExecution, extractAffectedCount, generateInputSummary } = await import('./logToolExecution');
+      logToolExecution({
+        userId: ctx.userId,
+        employeeSlug: loggingOptions.employeeSlug,
+        toolId: tool.id,
+        mode: loggingOptions.mode || 'propose-confirm',
+        autonomyLevel: loggingOptions.autonomyLevel ?? 1,
+        inputSummary: generateInputSummary(tool.id, input),
+        affectedCount: extractAffectedCount(outputValidation.data),
+        status: 'success',
+      }).catch(err => console.error('[executeTool] Failed to log tool execution:', err));
+    }
+    
     return outputValidation.data;
     
   } catch (error) {
     clearTimeout(timeoutId);
+    
+    // Log error (fire-and-forget)
+    if (loggingOptions?.employeeSlug) {
+      const { logToolExecution, generateInputSummary } = await import('./logToolExecution');
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logToolExecution({
+        userId: ctx.userId,
+        employeeSlug: loggingOptions.employeeSlug,
+        toolId: tool.id,
+        mode: loggingOptions.mode || 'propose-confirm',
+        autonomyLevel: loggingOptions.autonomyLevel ?? 1,
+        inputSummary: generateInputSummary(tool.id, input),
+        status: error.name === 'AbortError' ? 'cancelled' : 'error',
+        errorMessage: errorMessage,
+      }).catch(err => console.error('[executeTool] Failed to log error:', err));
+    }
     
     if (error.name === 'AbortError') {
       return {

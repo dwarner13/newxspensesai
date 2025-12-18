@@ -1,7 +1,7 @@
 import React from 'react';
 import { DashboardStatCard, DashboardStatCardProps } from '../DashboardStatCard';
 import { cardIcons } from '../dashboardCardsConfig';
-import { getThemeClasses } from '../../theme/dashboardTheme';
+import { DashboardSection } from '../../ui/DashboardSection';
 
 interface BusinessTaxSectionProps {
   cards: Omit<DashboardStatCardProps, 'icon'>[];
@@ -9,11 +9,10 @@ interface BusinessTaxSectionProps {
 
 export const BusinessTaxSection: React.FC<BusinessTaxSectionProps> = ({ cards }) => {
   return (
-    <>
-      <div className="text-center">
-        <h2 className="text-sm font-semibold tracking-wide text-slate-300 uppercase mb-1">BUSINESS & TAX</h2>
-        <p className="text-xs text-slate-500">Professional tools for business and tax management</p>
-      </div>
+    <DashboardSection
+      title="BUSINESS & TAX"
+      subtitle="Professional tools for business and tax management"
+    >
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
           <DashboardStatCard
@@ -23,7 +22,7 @@ export const BusinessTaxSection: React.FC<BusinessTaxSectionProps> = ({ cards })
           />
         ))}
       </div>
-    </>
+    </DashboardSection>
   );
 };
 

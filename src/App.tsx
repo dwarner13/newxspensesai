@@ -9,7 +9,6 @@ import DashboardLayout from './layouts/DashboardLayout';
 import MarketingLayout from './layouts/MarketingLayout';
 import { ErrorBoundary } from './components/util/ErrorBoundary';
 
-import { AuthProvider } from './contexts/AuthContext';
 import { AudioProvider } from './contexts/AudioContext';
 import { PersonalPodcastProvider } from './contexts/PersonalPodcastContext';
 import { AIFinancialAssistantProvider } from './contexts/AIFinancialAssistantContext';
@@ -22,6 +21,8 @@ import RouteScrollReset from './components/util/RouteScrollReset';
 import { isPrimeV2Enabled } from './env';
 import { DevToolsProvider } from './contexts/DevToolsContext';
 import DevPanel from './components/dev/DevPanel';
+import { JobsDrawer } from './components/system/JobsDrawer';
+import { useJobsRealtime } from './lib/realtime/useJobsRealtime';
 
 // Scroll bar width calculation hook
 const useScrollbarWidth = () => {
@@ -60,7 +61,7 @@ const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage
 const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
 const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
 const TransactionsPage = lazy(() => import('./pages/dashboard/TransactionsPage'));
-// const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
+const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 const SmartCategoriesPage = lazy(() => import('./pages/dashboard/SmartCategoriesPage'));
 const EmployeeChatPage = lazy(() => import('./pages/dashboard/EmployeeChatPage'));
@@ -124,10 +125,12 @@ const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
 const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
 // const Settings = lazy(() => import('./pages/dashboard/Settings')); // Old import
 const SettingsPage = lazy(() => import('./pages/dashboard/SettingsPage'));
+const ProfilePage = lazy(() => import('./pages/settings/ProfilePage'));
 // const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 // const Reports = lazy(() => import('./pages/dashboard/Reports'));
 // const ViewTransactionsPage = lazy(() => import('./pages/ViewTransactionsPage'));
 const AIFinancialFreedomPage = lazy(() => import('./pages/dashboard/AIFinancialFreedomPage'));
+const NotFoundPage = lazy(() => import('./pages/dashboard/NotFoundPage'));
 // const AIFinancialFreedomFeaturePage = lazy(() => import('./pages/features/ai-financial-freedom'));
 const AIEmployees = lazy(() => import('./pages/AIEmployees'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
@@ -147,6 +150,12 @@ const ByteChatTest = lazy(() => import('./pages/ByteChatTest'));
 const ChatTest = lazy(() => import('./pages/ChatTest'));
 const SimpleTest = lazy(() => import('./pages/SimpleTest'));
 const PodcastGeneratorFeaturePage = lazy(() => import('./pages/features/podcast-generator'));
+
+// Auth pages
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import AuthCallbackPage from './pages/AuthCallbackPage';
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 
 // Employee Chat Pages - Legacy route-based chats now redirect to unified chat
 // Legacy chat pages redirect to dashboard with unified chat open
@@ -236,10 +245,12 @@ function App() {
   // Calculate scrollbar width for fixed elements
   useScrollbarWidth();
   
+  // Initialize jobs realtime subscriptions (global, works across all pages)
+  useJobsRealtime();
+  
   return (
     <BossProvider>
-      <AuthProvider>
-        <AudioProvider>
+      <AudioProvider>
           <PersonalPodcastProvider>
             <AIFinancialAssistantProvider>
               <UserProvider>
@@ -256,6 +267,12 @@ function App() {
                         <Route path="/contact" element={<ContactPage />} />
                         <Route path="/reviews" element={<ReviewsPage />} />
                         <Route path="/pricing" element={<PricingPage />} />
+                        
+                        {/* Auth routes */}
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/signup" element={<SignupPage />} />
+                        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                        <Route path="/reset-password" element={<Suspense fallback={<LoadingSpinner />}><ResetPasswordPage /></Suspense>} />
                         
                         {/* Spotify integration routes */}
                         <Route path="/callback" element={<SpotifyCallbackPage />} />
@@ -374,7 +391,8 @@ function App() {
                       <Route path="business" element={<BusinessPage />} />
                       <Route path="entertainment" element={<EntertainmentPage />} />
                       <Route path="reports" element={<Suspense fallback={<LoadingSpinner />}><ReportsPage /></Suspense>} />
-                      <Route path="settings" element={<SettingsPage />} />
+                      <Route path="settings" element={<Suspense fallback={<LoadingSpinner />}><SettingsPage /></Suspense>} />
+                      <Route path="settings/profile" element={<Suspense fallback={<LoadingSpinner />}><ProfilePage /></Suspense>} />
                       
                       {/* AI Workspace Pages */}
                       <Route path="prime-chat" element={<PrimeChatPage />} />
@@ -382,18 +400,19 @@ function App() {
                       <Route path="ai-chat-assistant" element={<AIChatAssistantPage />} />
                       <Route path="ai-financial-assistant" element={<AIChatAssistantPage />} />
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-chat-assistant" replace />} />
-                      <Route path="smart-categories" element={<SmartCategoriesPage />} />
-                      <Route path="ai-categorization" element={<SmartCategoriesPage />} />
-                      <Route path="analytics-ai" element={<AnalyticsAI />} />
-                      <Route path="ai-financial-freedom" element={<AIFinancialFreedomPage />} />
+                      <Route path="smart-categories" element={<Suspense fallback={<LoadingSpinner />}><SmartCategoriesPage /></Suspense>} />
+                      <Route path="ai-categorization" element={<Suspense fallback={<LoadingSpinner />}><SmartCategoriesPage /></Suspense>} />
+                      <Route path="analytics-ai" element={<Suspense fallback={<LoadingSpinner />}><AnalyticsAI /></Suspense>} />
+                      <Route path="ai-financial-freedom" element={<Suspense fallback={<LoadingSpinner />}><AIFinancialFreedomPage /></Suspense>} />
                       
                       {/* Planning & Analysis */}
                       <Route path="transactions" element={<TransactionsPage />} />
+                      <Route path="bank-accounts" element={<Suspense fallback={<LoadingSpinner />}><BankAccountsPage /></Suspense>} />
                       <Route path="goal-concierge" element={<GoalConciergePage />} />
-                      <Route path="smart-automation" element={<SmartAutomation />} />
-                      <Route path="spending-predictions" element={<SpendingPredictionsPage />} />
-                      <Route path="debt-payoff-planner" element={<DebtPayoffPlannerPage />} />
-                      <Route path="bill-reminders" element={<BillRemindersPage />} />
+                      <Route path="smart-automation" element={<Suspense fallback={<LoadingSpinner />}><SmartAutomation /></Suspense>} />
+                      <Route path="spending-predictions" element={<Suspense fallback={<LoadingSpinner />}><SpendingPredictionsPage /></Suspense>} />
+                      <Route path="debt-payoff-planner" element={<Suspense fallback={<LoadingSpinner />}><DebtPayoffPlannerPage /></Suspense>} />
+                      <Route path="bill-reminders" element={<Suspense fallback={<LoadingSpinner />}><BillRemindersPage /></Suspense>} />
                       
                       {/* Entertainment & Wellness */}
                       <Route path="personal-podcast" element={<PersonalPodcastPage />} />
@@ -403,12 +422,21 @@ function App() {
                       <Route path="spotify" element={<SpotifyIntegrationPage />} />
                       
                       {/* Business & Tax */}
-                      <Route path="tax-assistant" element={<TaxAssistantPage />} />
-                      <Route path="business-intelligence" element={<BusinessIntelligencePage />} />
+                      <Route path="tax-assistant" element={<Suspense fallback={<LoadingSpinner />}><TaxAssistantPage /></Suspense>} />
+                      <Route path="business-intelligence" element={<Suspense fallback={<LoadingSpinner />}><BusinessIntelligencePage /></Suspense>} />
+                      
+                      {/* Missing routes: redirects for sidebar compatibility */}
+                      <Route path="podcast" element={<Navigate to="/dashboard/personal-podcast" replace />} />
+                      <Route path="spotify-integration" element={<Navigate to="/dashboard/spotify" replace />} />
+                      <Route path="team-room" element={<Navigate to="/dashboard/prime-chat" replace />} />
+                      
                       {/* Employee Chat Routes */}
                       <Route path="chat/:employeeId" element={<EmployeeChatPage />} />
                       <Route path="chat" element={<Navigate to="/dashboard/chat/prime" replace />} />
                       <Route path="blitz" element={<EmployeeChatPage />} />
+                      
+                      {/* Catch-all: 404 for unmatched dashboard routes */}
+                      <Route path="*" element={<Suspense fallback={<LoadingSpinner />}><NotFoundPage /></Suspense>} />
                       {/* <Route path="three-column-demo" element={<ThreeColumnDashboardDemo />} /> */}
                       {/* <Route path="financial-story" element={<FinancialStoryPage />} /> */}
                       {/* <Route path="bank-accounts" element={<BankAccountsPage />} /> */}
@@ -443,14 +471,16 @@ function App() {
                 {/* Dev Tools Panel removed for clean production UI */}
                 {/* <DevPanel /> */}
 
+                {/* Global Jobs System - Jobs Drawer (Pulse button integrated into DesktopChatSideBar) */}
+                <JobsDrawer />
+
                 {/* Prime chat mount moved into DashboardLayout */}
                   </DevToolsProvider>
                 </WorkspaceProvider>
               </UserProvider>
-          </AIFinancialAssistantProvider>
-        </PersonalPodcastProvider>
-      </AudioProvider>
-    </AuthProvider>
+            </AIFinancialAssistantProvider>
+          </PersonalPodcastProvider>
+        </AudioProvider>
     </BossProvider>
   );
 }

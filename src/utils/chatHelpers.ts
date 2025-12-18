@@ -53,7 +53,7 @@ export const CHAT_EMPLOYEES = {
   CRYSTAL: 'crystal-ai',
   LIBERTY: 'liberty-ai',
   GOALIE: 'goalie-ai',
-  FINLEY: 'finley-ai',
+  FINLEY: 'finley-forecasts',
   BLITZ: 'blitz-ai',
   CHIME: 'chime-ai',
   LEDGER: 'ledger-tax',

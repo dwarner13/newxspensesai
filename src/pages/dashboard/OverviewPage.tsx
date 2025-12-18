@@ -8,7 +8,9 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardStatCard } from '../../components/dashboard/DashboardStatCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { DashboardCardGrid } from '../../components/dashboard/DashboardCardGrid';
 import { TrendingUp, Target, BarChart3 } from 'lucide-react';
 
 export default function OverviewPage() {
@@ -17,6 +19,41 @@ export default function OverviewPage() {
   // Debug: Log when component renders
   useEffect(() => {
     console.log('[OverviewPage] Component mounted/rendered');
+    
+    // Dev-only: Audit card widths to diagnose layout issue
+    if (process.env.NODE_ENV === 'development') {
+      setTimeout(() => {
+        const overviewCard = document.querySelector('[data-card="overview-card"]');
+        const mainCard = document.querySelector('[data-card="main-card"]');
+        
+        if (overviewCard) {
+          const overviewStyles = window.getComputedStyle(overviewCard);
+          const overviewParent = overviewCard.parentElement;
+          const overviewParentStyles = overviewParent ? window.getComputedStyle(overviewParent) : null;
+          const middleColumn = overviewCard.closest('[data-grid-wrapper]')?.querySelector('div:nth-child(2)');
+          const middleColumnStyles = middleColumn ? window.getComputedStyle(middleColumn) : null;
+          
+          console.log('=== OVERVIEW CARD AUDIT ===');
+          console.log('Card offsetWidth:', overviewCard.offsetWidth, 'px');
+          console.log('Card computed width:', overviewStyles.width);
+          console.log('Card className:', overviewCard.className);
+          console.log('Parent gridTemplateColumns:', overviewParentStyles?.gridTemplateColumns);
+          console.log('Middle column computed width:', middleColumnStyles?.width);
+        }
+        
+        if (mainCard) {
+          const mainStyles = window.getComputedStyle(mainCard);
+          const mainParent = mainCard.parentElement;
+          const mainParentStyles = mainParent ? window.getComputedStyle(mainParent) : null;
+          
+          console.log('=== MAIN DASHBOARD CARD AUDIT ===');
+          console.log('Card offsetWidth:', mainCard.offsetWidth, 'px');
+          console.log('Card computed width:', mainStyles.width);
+          console.log('Card className:', mainCard.className);
+          console.log('Parent gridTemplateColumns:', mainParentStyles?.gridTemplateColumns);
+        }
+      }, 500);
+    }
   }, []);
 
   const cards = [
@@ -53,13 +90,17 @@ export default function OverviewPage() {
   ];
 
   return (
-    <DashboardSection>
-      {/* Hero Cards Row - Three cards matching main dashboard layout */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3 items-stretch">
-        {cards.map((card) => (
-          <DashboardStatCard key={card.id} {...card} />
-        ))}
-      </div>
-    </DashboardSection>
+    <DashboardPageShell
+      center={
+        <DashboardCardGrid>
+          {cards.map((card, index) => (
+            <div key={card.id} data-card={index === 0 ? "overview-card" : undefined}>
+              <DashboardStatCard {...card} />
+            </div>
+          ))}
+        </DashboardCardGrid>
+      }
+      right={<ActivityFeedSidebar scope="overview" />}
+    />
   );
 }

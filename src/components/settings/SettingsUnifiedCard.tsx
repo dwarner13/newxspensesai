@@ -6,6 +6,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, Sliders, Shield, Send, Settings } from 'lucide-react';
 import { Button } from '../ui/button';
 
@@ -15,6 +16,7 @@ interface SettingsUnifiedCardProps {
 }
 
 export function SettingsUnifiedCard({ onExpandClick, onChatInputClick }: SettingsUnifiedCardProps) {
+  const navigate = useNavigate();
   const [inputValue, setInputValue] = useState('');
 
   const handleSend = useCallback(() => {
@@ -63,7 +65,7 @@ export function SettingsUnifiedCard({ onExpandClick, onChatInputClick }: Setting
           <Button 
             variant="secondary" 
             size="default"
-            onClick={onExpandClick}
+            onClick={() => navigate('/dashboard/settings/profile')}
             className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
           >
             <User className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />

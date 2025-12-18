@@ -726,6 +726,12 @@ body::after {
   }
 }
 
+@keyframes flash-green {
+  0% { border-left-color: transparent; }
+  50% { border-left-color: rgb(16, 185, 129); box-shadow: 0 0 20px rgba(16, 185, 129, 0.5); }
+  100% { border-left-color: rgb(16, 185, 129); }
+}
+
 @keyframes fadeInUp {
   from {
     opacity: 0;

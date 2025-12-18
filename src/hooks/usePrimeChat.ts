@@ -23,6 +23,7 @@ export interface UploadItem {
 
 interface SendOptions {
   files?: UploadItem[];
+  documentIds?: string[]; // Document IDs from Smart Import uploads
 }
 
 export interface ChatHeaders {
@@ -44,6 +45,12 @@ export interface ToolCallDebug {
   timestamp: number;
 }
 
+export interface PendingConfirmation {
+  toolId: string;
+  summary: string;
+  originalInput: any;
+}
+
 // Grade 4 explanation: This type lists all the employees you can chat with
 type EmployeeOverride = 'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian';
 
@@ -59,6 +66,45 @@ export function usePrimeChat(
   
   // Ensure userId is a string (defensive check)
   const safeUserId = typeof userId === 'string' ? userId : String(userId || 'temp-user');
+  
+  // Retrieve sessionId from localStorage if not provided and we have userId + employeeOverride
+  const [effectiveSessionId, setEffectiveSessionId] = useState<string | undefined>(() => {
+    if (sessionId) return sessionId; // Use provided sessionId if available
+    
+    // Try to retrieve from localStorage
+    if (safeUserId && employeeOverride) {
+      try {
+        const employeeSlugMap: Record<EmployeeOverride, string> = {
+          prime: 'prime-boss',
+          tag: 'tag-ai',
+          byte: 'byte-docs',
+          crystal: 'crystal-ai',
+          goalie: 'goalie-agent',
+          automa: 'automa-automation',
+          blitz: 'blitz-debt',
+          liberty: 'liberty-freedom',
+          chime: 'chime-bills',
+          roundtable: 'roundtable-podcast',
+          serenity: 'serenity-therapist',
+          harmony: 'harmony-wellness',
+          wave: 'wave-spotify',
+          ledger: 'ledger-tax',
+          intelia: 'intelia-bi',
+          dash: 'dash-analytics',
+          custodian: 'custodian-settings'
+        };
+        const employeeSlug = employeeOverride ? employeeSlugMap[employeeOverride] || 'prime-boss' : 'prime-boss';
+        const storageKey = `chat_session_${safeUserId}_${employeeSlug}`;
+        const storedSessionId = localStorage.getItem(storageKey);
+        if (storedSessionId) {
+          return storedSessionId;
+        }
+      } catch (e) {
+        console.warn('[usePrimeChat] Failed to retrieve sessionId from localStorage:', e);
+      }
+    }
+    return undefined;
+  });
   
   // Ensure systemPrompt is a string or null (defensive check)
   let safeSystemPrompt: string | null | undefined = systemPrompt;
@@ -82,6 +128,7 @@ export function usePrimeChat(
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [headers, setHeaders] = useState<ChatHeaders>({});
   const [toolCalls, setToolCalls] = useState<ToolCallDebug[]>([]);
+  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const retryCountRef = useRef<number>(0);
   const bufferRef = useRef<string>('');
@@ -208,6 +255,21 @@ export function usePrimeChat(
             if (import.meta.env.DEV) {
               console.log(`[usePrimeChat] Active employee updated: ${j.employee}`);
             }
+          }
+          
+          // Handle confirmation_required events
+          if (j.type === 'confirmation_required' && j.tool && j.summary) {
+            console.log(`[usePrimeChat] Confirmation required for tool: ${j.tool}`, j);
+            // Note: originalInput is stored in the tool result sent to LLM, not in SSE event
+            // The LLM will have access to it when user confirms
+            setPendingConfirmation({
+              toolId: j.tool,
+              summary: j.summary || `This will ${j.tool}`,
+              originalInput: {}, // Not available in SSE event, but LLM has it in conversation history
+            });
+            // Stop streaming while waiting for confirmation
+            setIsStreaming(false);
+            return { aiText, hasContent };
           }
           
           // Handle tool_executing events (dev mode)
@@ -344,10 +406,11 @@ export function usePrimeChat(
           },
           body: JSON.stringify({
             userId: safeUserId, // Use safe userId (always a string)
-            sessionId,
+            sessionId: effectiveSessionId || sessionId, // Use effectiveSessionId (from localStorage or prop)
             message: content,
             employeeSlug,
             ...(safeSystemPrompt ? { systemPromptOverride: safeSystemPrompt } : {}), // Use safe systemPrompt
+            ...(opts?.documentIds && opts.documentIds.length > 0 ? { documentIds: opts.documentIds } : {}), // Include document IDs if provided
           }),
           signal: controller.signal,
         });
@@ -378,7 +441,12 @@ export function usePrimeChat(
         setHeaders(extractedHeaders);
         
         // Extract sessionId from response header (if backend returns it)
-        const responseSessionId = res.headers.get('X-Session-Id') || sessionId;
+        const responseSessionId = res.headers.get('X-Session-Id') || effectiveSessionId || sessionId;
+        
+        // Update effectiveSessionId state if we got a new one from backend
+        if (responseSessionId && responseSessionId !== effectiveSessionId) {
+          setEffectiveSessionId(responseSessionId);
+        }
         
         // Store sessionId in localStorage if we have userId and employeeOverride
         if (responseSessionId && safeUserId && employeeOverride) {
@@ -498,6 +566,37 @@ export function usePrimeChat(
     resetStream();
   }, [resetStream]);
 
+  // Confirm tool execution - sends "yes" message to backend
+  // The backend LLM will re-execute the tool with confirm: true
+  const confirmToolExecution = useCallback(async (confirmation: PendingConfirmation) => {
+    if (!pendingConfirmation || pendingConfirmation.toolId !== confirmation.toolId) {
+      console.warn('[usePrimeChat] Confirmation mismatch or no pending confirmation');
+      return;
+    }
+
+    // Clear pending confirmation
+    setPendingConfirmation(null);
+
+    // Send "yes" message - backend LLM will re-execute the tool with confirm: true
+    await send('yes');
+  }, [pendingConfirmation, send]);
+
+  // Cancel tool execution
+  const cancelToolExecution = useCallback(() => {
+    if (!pendingConfirmation) return;
+
+    // Clear pending confirmation
+    setPendingConfirmation(null);
+
+    // Add cancellation message
+    setMessages(prev => [...prev, {
+      id: `cancel-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      role: 'assistant',
+      content: "Okay, I won't run that change.",
+      createdAt: new Date().toISOString(),
+    }]);
+  }, [pendingConfirmation]);
+
   return {
     messages,
     input,
@@ -507,6 +606,9 @@ export function usePrimeChat(
     headers, // Grade 4: Expose headers so components can show them (like X-Employee, X-Memory-Hit)
     toolCalls: import.meta.env.DEV ? toolCalls : [], // Dev-only tool call tracking
     activeEmployeeSlug: activeEmployeeSlug || headers.employee, // Current active employee (from handoff or header)
+    pendingConfirmation, // Confirmation state for tool execution
+    confirmToolExecution, // Method to confirm tool execution
+    cancelToolExecution, // Method to cancel tool execution
     addUploadFiles,
     removeUpload,
     send,

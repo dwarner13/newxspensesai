@@ -2,6 +2,7 @@
  * ByteUnifiedCard Component
  * 
  * Unified employee card for Byte (Smart Import AI)
+ * Uses EmployeeUnifiedCardBase for consistent premium styling.
  * Contains action buttons (Upload, Queue, Stats) in the header section
  * Stats display is in ByteWorkspacePanel (left column)
  * Upload functionality is handled here in the center card
@@ -12,6 +13,8 @@ import { Upload, List, BarChart3 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useByteQueueStats } from '../../hooks/useByteQueueStats';
 import { useSmartImportUploadState } from '../../hooks/useSmartImportUploadState';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { EmployeeUnifiedCardBase, type SecondaryAction } from '../workspace/employees/EmployeeUnifiedCardBase';
 import toast from 'react-hot-toast';
 
 interface ByteUnifiedCardProps {
@@ -38,11 +41,30 @@ export function ByteUnifiedCard({
 }: ByteUnifiedCardProps) {
   const { userId } = useAuth();
   const { refetch: refetchStats } = useByteQueueStats();
+  const { openChat } = useUnifiedChatLauncher();
   
   // Task B: Shared upload state hook (must be at component level)
   const { addUpload } = useSmartImportUploadState();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handler to open unified chat with Byte
+  const handleChatClick = useCallback(() => {
+    console.log('[ByteUnifiedCard] Opening chat with Byte...');
+    openChat({
+      initialEmployeeSlug: 'byte-docs',
+      context: {
+        page: 'smart-import',
+        data: {
+          source: 'workspace-byte',
+        },
+      },
+    });
+    console.log('[ByteUnifiedCard] Chat opened, isOpen should be true');
+    if (onChatInputClick) {
+      onChatInputClick();
+    }
+  }, [openChat, onChatInputClick]);
 
   // Handle file upload - universal uploader (no validation, Smart Import handles everything)
   const handleFileSelect = useCallback(
@@ -158,108 +180,43 @@ export function ByteUnifiedCard({
     }
   }, []);
 
+  // Secondary actions for Byte
+  const secondaryActions: SecondaryAction[] = [
+    {
+      label: isUploading ? `Uploading... ${uploadProgress ?? 0}%` : 'Upload',
+      icon: <Upload className="h-4 w-4" />,
+      onClick: handleUploadButtonClick,
+      disabled: isUploading || !userId,
+    },
+    {
+      label: 'Queue',
+      icon: <List className="h-4 w-4" />,
+      onClick: handleQueueClick,
+    },
+    {
+      label: 'Stats',
+      icon: <BarChart3 className="h-4 w-4" />,
+      onClick: handleStatsClick,
+    },
+  ];
+
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 shadow-[0_18px_60px_rgba(15,23,42,0.85)] p-6 flex flex-col h-full">
-      {/* Subtle radial glow behind Byte icon */}
-      <div className="pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
-      
-      {/* Top Section - Dark Premium Card Header */}
-      <div className="relative flex-shrink-0 pb-6">
-        {/* Header with Icon + Title + Description */}
-        <div className="flex items-start gap-4 mb-3">
-          {/* Avatar Circle - Glowing */}
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/20 shadow-[0_0_40px_rgba(56,189,248,0.7)] flex-shrink-0">
-            <span className="text-2xl">📄</span>
-          </div>
-          
-          {/* Title and Description */}
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold text-slate-50 leading-tight truncate">
-              Byte — Smart Import AI
-            </h2>
-            <p className="text-xs text-slate-300/80 mt-1 line-clamp-2">
-              Smart Import specialist · Handles documents, OCR and clean transaction data.
-            </p>
-          </div>
-        </div>
-
-        {/* Three Stats Row - Soft labels */}
-        <div className="flex items-center gap-2 sm:gap-4 mb-3">
-          <div className="flex-1 flex flex-col items-center text-center">
-            <div className="text-2xl font-bold text-cyan-400">99.7%</div>
-            <p className="text-[11px] uppercase tracking-wide text-slate-400/80">Accuracy</p>
-          </div>
-          <div className="flex-1 flex flex-col items-center text-center">
-            <div className="text-2xl font-bold text-green-400">2.3s</div>
-            <p className="text-[11px] uppercase tracking-wide text-slate-400/80">Avg Speed</p>
-          </div>
-          <div className="flex-1 flex flex-col items-center text-center">
-            <div className="text-2xl font-bold text-purple-400">24/7</div>
-            <p className="text-[11px] uppercase tracking-wide text-slate-400/80">Available</p>
-          </div>
-        </div>
-
-        {/* Three Action Buttons Row - Soft glass buttons */}
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".pdf,.csv,.xlsx,.xls,.jpg,.jpeg,.png,.heic"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          <button 
-            onClick={handleUploadButtonClick}
-            disabled={isUploading || !userId}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-white/10 transition-colors whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            <Upload className="h-4 w-4" />
-            <span>{isUploading ? `Uploading... ${uploadProgress ?? 0}%` : 'Upload'}</span>
-          </button>
-          <button 
-            onClick={handleQueueClick}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-white/10 transition-colors whitespace-nowrap"
-          >
-            <List className="h-4 w-4" />
-            <span>Queue</span>
-          </button>
-          <button 
-            onClick={handleStatsClick}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-full bg-white/5 px-4 py-2 text-xs font-medium text-slate-100 hover:bg-white/10 transition-colors whitespace-nowrap"
-          >
-            <BarChart3 className="h-4 w-4" />
-            <span>Stats</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Chat trigger button - no blue bar, just a pill */}
-      <div className="relative flex-shrink-0 -mx-6 px-6 pt-4 pb-4">
-        <button
-          type="button"
-          onClick={onChatInputClick || onExpandClick}
-          className="mt-4 inline-flex items-center justify-center rounded-full bg-gradient-to-r from-sky-400 via-blue-500 to-indigo-500 px-6 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-900/60 transition-transform duration-200 hover:-translate-y-0.5 hover:scale-[1.02]"
-        >
-          <span className="mr-2 text-base">💬</span>
-          Chat with Byte about your imports
-        </button>
-
-        {/* Status line with animated ping dots */}
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-300/80">
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/60 px-3 py-1">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60 opacity-75" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
-            </span>
-            Online 24/7
-          </span>
-          <span className="inline-flex items-center gap-1 rounded-full bg-slate-900/60 px-3 py-1">
-            <span>🛡️</span>
-            Guardrails + PII protection active
-          </span>
-        </div>
-      </div>
-    </div>
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".pdf,.csv,.xlsx,.xls,.jpg,.jpeg,.png,.heic"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+      <EmployeeUnifiedCardBase
+        employeeSlug="byte-docs"
+        primaryActionLabel="Chat with Byte about your imports"
+        onPrimaryActionClick={handleChatClick}
+        secondaryActions={secondaryActions}
+        footerStatusText="Online 24/7"
+      />
+    </>
   );
 }

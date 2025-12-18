@@ -167,7 +167,7 @@ export default function DesktopSidebar({
                           ? "bg-zinc-900 text-white" 
                           : "text-zinc-300 hover:text-white"
                       )}
-                      style={{ pointerEvents: 'auto', zIndex: 101, position: 'relative' }}
+                      style={{ pointerEvents: 'auto', position: 'relative', zIndex: 101 }}
                     >
                       <span className="w-5 h-5 shrink-0 relative pointer-events-none">
                         {item.icon}

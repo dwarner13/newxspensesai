@@ -1,8 +1,17 @@
 /**
  * ByteWorkspaceOverlay Component
  * 
+ * ⚠️ LEGACY - DEPRECATED - DO NOT USE
+ * 
+ * This component is being phased out in favor of UnifiedAssistantChat.
+ * All new chat implementations should use:
+ * - useUnifiedChatLauncher().openChat({ initialEmployeeSlug: 'byte-docs' })
+ * - UnifiedAssistantChat (rendered globally by DashboardLayout)
+ * 
  * Thin wrapper around AIWorkspaceOverlay with Byte-specific configuration
  * Maintains backward compatibility with existing imports
+ * 
+ * @deprecated Use UnifiedAssistantChat instead
  */
 
 import React from 'react';

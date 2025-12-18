@@ -24,7 +24,8 @@ import { PII_DETECTORS, getDetector, getCriticalDetectors, type MaskStrategy } f
 // ============================================================================
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL!;
+// Server-side only: use process.env (VITE_ vars not available in Netlify Functions)
+const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const MAX_INPUT_LENGTH = 100_000; // 100k chars max

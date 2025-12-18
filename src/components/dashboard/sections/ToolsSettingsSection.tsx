@@ -1,7 +1,7 @@
 import React from 'react';
 import { DashboardStatCard, DashboardStatCardProps } from '../DashboardStatCard';
 import { cardIcons } from '../dashboardCardsConfig';
-import { getThemeClasses } from '../../theme/dashboardTheme';
+import { DashboardSection } from '../../ui/DashboardSection';
 
 interface ToolsSettingsSectionProps {
   cards: Omit<DashboardStatCardProps, 'icon'>[];
@@ -9,11 +9,10 @@ interface ToolsSettingsSectionProps {
 
 export const ToolsSettingsSection: React.FC<ToolsSettingsSectionProps> = ({ cards }) => {
   return (
-    <>
-      <div className="text-center">
-        <h2 className="text-sm font-semibold tracking-wide text-slate-300 uppercase mb-1">TOOLS & SETTINGS</h2>
-        <p className="text-xs text-slate-500">Manage your account and access advanced tools</p>
-      </div>
+    <DashboardSection
+      title="TOOLS & SETTINGS"
+      subtitle="Manage your account and access advanced tools"
+    >
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
           <DashboardStatCard
@@ -23,7 +22,7 @@ export const ToolsSettingsSection: React.FC<ToolsSettingsSectionProps> = ({ card
           />
         ))}
       </div>
-    </>
+    </DashboardSection>
   );
 };
 

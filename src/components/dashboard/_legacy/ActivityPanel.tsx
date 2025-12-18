@@ -1,3 +1,7 @@
+// LEGACY: Old activity panel component kept for reference.
+// The dashboard now uses ActivityFeedSidebar + ActivityFeed components for all activity displays.
+// This component used mock data and is not integrated with the real activity feed system.
+
 /**
  * ActivityPanel Component
  * 
@@ -54,3 +58,7 @@ export const ActivityPanel: React.FC = () => {
     </div>
   );
 };
+
+
+
+

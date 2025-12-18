@@ -12,15 +12,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Crown, Upload, Tags, LineChart, LayoutDashboard, History, Grid3X3 } from 'lucide-react';
+import { Crown, Upload, Tags, LineChart, LayoutDashboard, History, Grid3X3, Activity } from 'lucide-react';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { usePrimeOverlaySafe } from '../../context/PrimeOverlayContext';
 import { cn } from '../../lib/utils';
 import { MiniWorkspacePanel, type MiniWorkspaceId, type MiniWorkspaceConfig } from './MiniWorkspacePanel';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
+import { useJobsSystemStore } from '../../state/jobsSystemStore';
 
 interface DesktopChatSideBarProps {
-  onPrimeClick?: () => void; // Optional callback for Prime button click
   onHistoryClick?: () => void; // Optional callback for History button click
   dockedToPanel?: boolean; // If true, dock to panel instead of floating over dashboard
   className?: string; // Additional className
@@ -75,7 +75,6 @@ const MINI_WORKSPACES: MiniWorkspaceConfig[] = [
 ];
 
 export default function DesktopChatSideBar({ 
-  onPrimeClick, 
   onHistoryClick,
   dockedToPanel = false,
   className,
@@ -87,6 +86,9 @@ export default function DesktopChatSideBar({
   
   // Get Prime Tools overlay state (safe - defaults to false if not in provider)
   const { setPrimeToolsOpen } = usePrimeOverlaySafe();
+  
+  // Get jobs system state for AI Pulse button
+  const { runningCount, needsUserCount, unreadAiCount, setDrawerOpen } = useJobsSystemStore();
 
   const handleOpenMiniWorkspace = (id: MiniWorkspaceId) => {
     setActiveMiniWorkspace(id);
@@ -109,6 +111,17 @@ export default function DesktopChatSideBar({
   // Actions configuration with gradient accents
   const actions = [
     {
+      id: 'ai-pulse',
+      label: 'AI Pulse',
+      slug: null,
+      Icon: Activity,
+      accent: 'from-sky-400 via-cyan-400 to-emerald-400',
+      isAiPulse: true, // Special flag for AI Pulse button
+      onClick: () => {
+        setDrawerOpen(true);
+      },
+    },
+    {
       id: 'prime' as MiniWorkspaceId,
       label: 'Prime',
       slug: 'prime-boss',
@@ -118,8 +131,7 @@ export default function DesktopChatSideBar({
         openChat({
           initialEmployeeSlug: 'prime-boss',
           context: {
-            source: 'desktop-rail',
-            entry: 'prime-icon',
+            source: 'rail-prime',
           },
         });
       },
@@ -131,9 +143,11 @@ export default function DesktopChatSideBar({
       Icon: Upload,
       accent: 'from-sky-400 via-cyan-400 to-emerald-400',
       onClick: () => {
-        // Open unified Byte chat slideout (not ByteSmartImportConsole modal)
         openChat({
           initialEmployeeSlug: 'byte-docs',
+          context: {
+            source: 'rail-byte',
+          },
         });
       },
     },
@@ -147,8 +161,7 @@ export default function DesktopChatSideBar({
         openChat({
           initialEmployeeSlug: 'tag-ai',
           context: {
-            source: 'desktop-rail',
-            entry: 'tag-icon',
+            source: 'rail-tag',
           },
         });
       },
@@ -163,8 +176,7 @@ export default function DesktopChatSideBar({
         openChat({
           initialEmployeeSlug: 'crystal-analytics',
           context: {
-            source: 'desktop-rail',
-            entry: 'crystal-icon',
+            source: 'rail-analytics',
           },
         });
       },
@@ -279,11 +291,14 @@ export default function DesktopChatSideBar({
     <>
       <div
         className={cn(
-          'pointer-events-auto fixed right-6 top-[56%] z-50 -translate-y-1/2 max-lg:hidden',
+          'pointer-events-auto fixed right-4 -translate-y-1/2 z-50 hidden md:flex flex-col',
           // Hide/dim when Prime slideout is open (check if any mini workspace is open)
           activeMiniWorkspace && 'opacity-30 pointer-events-none',
           className
         )}
+        style={{
+          top: 'clamp(160px, 52vh, calc(100vh - 240px))',
+        }}
       >
         <motion.div
           initial={{ opacity: 0, x: 16 }}
@@ -293,8 +308,11 @@ export default function DesktopChatSideBar({
             flex flex-col items-center gap-2
             rounded-3xl border border-slate-800/80 bg-slate-950/90
             px-2.5 py-3
-            shadow-[0_0_0_1px_rgba(15,23,42,0.9),0_24px_80px_rgba(15,23,42,0.95)]
+            shadow-xl shadow-black/40
             backdrop-blur-xl
+            transition-all duration-150
+            hover:scale-[1.06]
+            hover:ring-2 hover:ring-amber-400/40
           "
         >
           {actions.map((action, index) => {
@@ -303,6 +321,12 @@ export default function DesktopChatSideBar({
             // Get gradient from workspace config if available
             const workspaceConfig = MINI_WORKSPACES.find((w) => w.id === action.id);
             const accent = workspaceConfig?.accent || action.accent;
+            
+            // Special handling for AI Pulse button
+            const isAiPulse = (action as any).isAiPulse === true;
+            const hasActiveWork = runningCount > 0;
+            const hasNeedsUser = needsUserCount > 0;
+            const hasUnreadAi = unreadAiCount > 0;
             
             return (
               <motion.button
@@ -313,36 +337,63 @@ export default function DesktopChatSideBar({
                 animate="animate"
                 transition={{ duration: 0.18, delay: index * 0.03 }}
                 onClick={action.onClick}
-                className={`
-                  group relative flex h-11 w-11 items-center justify-center
-                  rounded-2xl border border-slate-800/80 bg-slate-900/80
-                  shadow-[0_10px_28px_rgba(15,23,42,0.9)]
-                  transition-all duration-200
-                  hover:-translate-y-[2px] hover:border-slate-500
-                  hover:bg-slate-900
-                  ${isActive ? 'border-transparent bg-slate-900' : ''}
-                `}
+                className={cn(
+                  "group relative flex h-11 w-11 items-center justify-center",
+                  "rounded-2xl border border-slate-800/80 bg-slate-900/80",
+                  "shadow-[0_10px_28px_rgba(15,23,42,0.9)]",
+                  "transition-all duration-200",
+                  "hover:-translate-y-[2px] hover:border-slate-500",
+                  "hover:bg-slate-900 hover:shadow-lg hover:shadow-amber-500/20",
+                  isActive && "border-transparent bg-slate-900 ring-2 ring-amber-400/50",
+                  // Amber highlight when needs user
+                  isAiPulse && hasNeedsUser && "ring-2 ring-amber-500/60 ring-offset-1 ring-offset-slate-900"
+                )}
               >
-                {/* Glow ring for active/hover */}
-                <span
-                  className={`
-                    pointer-events-none absolute inset-[-2px] rounded-2xl opacity-0
-                    bg-gradient-to-br ${accent}
-                    blur
-                    transition-opacity duration-200
-                    group-hover:opacity-70
-                    ${isActive ? 'opacity-80' : ''}
-                  `}
-                />
+                {/* Pulse ring effect when work is running (confined to button bounds) */}
+                {isAiPulse && hasActiveWork && (
+                  <>
+                    <div className="absolute inset-0 rounded-2xl bg-sky-500/20 animate-ping" />
+                    <div className="absolute inset-0 rounded-2xl bg-sky-500/10 animate-pulse" />
+                  </>
+                )}
+                
+                {/* Glow ring for active/hover (only if not AI Pulse with active work) */}
+                {!isAiPulse && (
+                  <span
+                    className={cn(
+                      "pointer-events-none absolute inset-[-2px] rounded-2xl opacity-0",
+                      `bg-gradient-to-br ${accent}`,
+                      "blur",
+                      "transition-opacity duration-200",
+                      "group-hover:opacity-70",
+                      isActive && "opacity-80"
+                    )}
+                  />
+                )}
                 
                 {action.id === 'prime' ? (
-                  <div className="group-hover:scale-105 transition-transform duration-200">
+                  <div className="group-hover:scale-105 transition-transform duration-200 relative z-10">
                     <PrimeLogoBadge size={36} showGlow={true} />
                   </div>
                 ) : (
-                  <span className="relative flex h-8 w-8 items-center justify-center rounded-2xl bg-slate-950/80 text-slate-50">
+                  <span className={cn(
+                    "relative flex h-8 w-8 items-center justify-center rounded-2xl bg-slate-950/80 text-slate-50 z-10",
+                    // Color changes for AI Pulse based on state
+                    isAiPulse && hasActiveWork && "text-sky-400",
+                    isAiPulse && hasNeedsUser && "text-amber-400",
+                    !isAiPulse && "text-slate-50"
+                  )}>
                     <Icon className="w-5 h-5" />
                   </span>
+                )}
+
+                {/* Unread badge for AI Pulse (top-right, inside button) */}
+                {isAiPulse && hasUnreadAi && (
+                  <div className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-amber-500 border-2 border-slate-900 flex items-center justify-center z-20">
+                    <span className="text-[9px] font-bold text-white leading-none">
+                      {unreadAiCount > 99 ? '99+' : unreadAiCount}
+                    </span>
+                  </div>
                 )}
 
                 {/* Tooltip label */}
@@ -359,6 +410,7 @@ export default function DesktopChatSideBar({
                   "
                 >
                   {action.label}
+                  {isAiPulse && hasUnreadAi && ` (${unreadAiCount})`}
                 </span>
               </motion.button>
             );

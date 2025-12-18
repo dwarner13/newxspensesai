@@ -247,3 +247,5 @@ Events display color-coded severity badges:
 
 
 
+
+

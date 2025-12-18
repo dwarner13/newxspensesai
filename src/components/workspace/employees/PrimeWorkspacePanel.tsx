@@ -30,6 +30,7 @@ export interface PrimeEmployee {
 
 interface PrimeWorkspacePanelProps {
   onEmployeeClick?: (employee: PrimeEmployee) => void;
+  className?: string;
 }
 
 type PrimePanelId = "team" | "settings" | "memory" | "integrations" | null;
@@ -37,7 +38,7 @@ type PrimePanelId = "team" | "settings" | "memory" | "integrations" | null;
 // Number of employees to show before showing "View full AI team" button
 const VISIBLE_EMPLOYEE_COUNT = 6;
 
-export function PrimeWorkspacePanel({ onEmployeeClick }: PrimeWorkspacePanelProps = {}) {
+export function PrimeWorkspacePanel({ onEmployeeClick, className }: PrimeWorkspacePanelProps = {}) {
   const { data: liveStats, isLoading, isError, refetch: refetchStats } = usePrimeLiveStats();
   const activityFeed = useActivityFeed({ category: 'prime', pollMs: 60000 });
   
@@ -183,7 +184,7 @@ export function PrimeWorkspacePanel({ onEmployeeClick }: PrimeWorkspacePanelProp
   const remainingCount = Math.max(aiAgents.length - VISIBLE_EMPLOYEE_COUNT, 0);
 
   return (
-    <Card className="h-full w-full flex flex-col bg-slate-900 border-slate-800">
+    <Card className={cn("h-full w-full flex flex-col bg-slate-900 border-slate-800", className)}>
       <CardHeader className="pb-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -289,7 +290,7 @@ export function PrimeWorkspacePanel({ onEmployeeClick }: PrimeWorkspacePanelProp
                   <div 
                     key={agent.slug || agent.name}
                     onClick={() => onEmployeeClick?.(employee)}
-                    className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 transition-colors cursor-pointer"
+                    className="flex items-center gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700/50 hover:border-slate-600 hover:bg-slate-800/70 hover:shadow-[0_0_12px_rgba(251,191,36,0.15)] transition-all duration-200 cursor-pointer"
                   >
                     {/* Icon - fixed size */}
                     <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">

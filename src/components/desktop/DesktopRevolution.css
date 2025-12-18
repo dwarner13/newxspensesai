@@ -4,6 +4,8 @@
  * 
  * CRITICAL: Only applies on desktop screens > 1200px
  * Mobile and tablet experiences remain unchanged
+ * 
+ * SCOPED: All styles prefixed with .desktop-revolution-container to prevent global overrides
  */
 
 /* ================================================================================
@@ -26,7 +28,7 @@
      DISCOVERY TICKER STYLES
      ================================================================================ */
   
-  .discovery-ticker {
+  .desktop-revolution-container .discovery-ticker {
     background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(10px);
     padding: 1rem 2rem;
@@ -35,13 +37,13 @@
     margin-bottom: 2rem;
   }
   
-  .ticker-content {
+  .desktop-revolution-container .ticker-content {
     display: flex;
     white-space: nowrap;
     animation: ticker 20s linear infinite;
   }
   
-  .ticker-item {
+  .desktop-revolution-container .ticker-item {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -51,7 +53,7 @@
     font-weight: 500;
   }
   
-  .ticker-icon {
+  .desktop-revolution-container .ticker-icon {
     font-size: 1.1rem;
   }
   
@@ -64,7 +66,7 @@
      HERO SECTION STYLES
      ================================================================================ */
   
-  .hero-section {
+  .desktop-revolution-container .hero-section {
     background: rgba(0, 0, 0, 0.2);
     padding: 2rem 3rem;
     margin: 2rem 3rem;
@@ -75,7 +77,7 @@
     transition: all 0.5s ease;
   }
   
-  .hero-background {
+  .desktop-revolution-container .hero-background {
     position: absolute;
     top: 0;
     left: 0;
@@ -85,7 +87,7 @@
     opacity: 0.1;
   }
   
-  .hero-content {
+  .desktop-revolution-container .hero-content {
     position: relative;
     z-index: 2;
     display: flex;
@@ -93,14 +95,14 @@
     gap: 2rem;
   }
   
-  .hero-employee {
+  .desktop-revolution-container .hero-employee {
     display: flex;
     align-items: center;
     gap: 2rem;
     width: 100%;
   }
   
-  .hero-avatar {
+  .desktop-revolution-container .hero-avatar {
     width: 80px;
     height: 80px;
     background: rgba(255, 255, 255, 0.1);
@@ -113,11 +115,11 @@
     animation: float 3s ease-in-out infinite;
   }
   
-  .hero-message {
+  .desktop-revolution-container .hero-message {
     flex: 1;
   }
   
-  .hero-title {
+  .desktop-revolution-container .hero-title {
     color: white;
     font-size: 1.8rem;
     font-weight: 700;
@@ -125,14 +127,14 @@
     line-height: 1.2;
   }
   
-  .hero-subtitle {
+  .desktop-revolution-container .hero-subtitle {
     color: rgba(255, 255, 255, 0.8);
     font-size: 1rem;
     margin-bottom: 1.5rem;
     line-height: 1.4;
   }
   
-  .hero-action {
+  .desktop-revolution-container .hero-action {
     background: rgba(255, 255, 255, 0.2);
     border: 1px solid rgba(255, 255, 255, 0.3);
     border-radius: 25px;
@@ -145,7 +147,7 @@
     backdrop-filter: blur(10px);
   }
   
-  .hero-action:hover {
+  .desktop-revolution-container .hero-action:hover {
     background: rgba(255, 255, 255, 0.3);
     transform: translateY(-2px);
   }
@@ -159,7 +161,7 @@
      EMPLOYEE SIDEBAR STYLES
      ================================================================================ */
   
-  .employee-sidebar {
+  .desktop-revolution-container .employee-sidebar {
     width: 300px;
     position: fixed;
     right: 0;
@@ -173,7 +175,7 @@
     backdrop-filter: blur(10px);
   }
   
-  .employee-sidebar-header {
+  .desktop-revolution-container .employee-sidebar-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -182,7 +184,7 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   }
   
-  .sidebar-title {
+  .desktop-revolution-container .sidebar-title {
     color: white;
     font-size: 0.9rem;
     font-weight: 600;
@@ -190,12 +192,12 @@
     letter-spacing: 1px;
   }
   
-  .sidebar-actions {
+  .desktop-revolution-container .sidebar-actions {
     display: flex;
     gap: 0.5rem;
   }
   
-  .sidebar-action-btn {
+  .desktop-revolution-container .sidebar-action-btn {
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 6px;
@@ -205,16 +207,16 @@
     transition: all 0.2s ease;
   }
   
-  .sidebar-action-btn:hover {
+  .desktop-revolution-container .sidebar-action-btn:hover {
     background: rgba(255, 255, 255, 0.2);
     color: white;
   }
   
-  .employee-section {
+  .desktop-revolution-container .employee-section {
     margin-bottom: 2rem;
   }
   
-  .section-header {
+  .desktop-revolution-container .section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -226,14 +228,14 @@
     letter-spacing: 0.5px;
   }
   
-  .employee-count {
+  .desktop-revolution-container .employee-count {
     background: rgba(255, 255, 255, 0.1);
     padding: 0.2rem 0.5rem;
     border-radius: 10px;
     font-size: 0.7rem;
   }
   
-  .employee-list-item {
+  .desktop-revolution-container .employee-list-item {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -244,11 +246,11 @@
     cursor: pointer;
   }
   
-  .employee-list-item:hover {
+  .desktop-revolution-container .employee-list-item:hover {
     background: rgba(255, 255, 255, 0.05);
   }
   
-  .employee-avatar {
+  .desktop-revolution-container .employee-avatar {
     position: relative;
     width: 40px;
     height: 40px;
@@ -260,7 +262,7 @@
     font-size: 1.2rem;
   }
   
-  .status-indicator {
+  .desktop-revolution-container .status-indicator {
     position: absolute;
     bottom: -2px;
     right: -2px;
@@ -270,36 +272,36 @@
     border: 2px solid #1a1a2e;
   }
   
-  .status-online {
+  .desktop-revolution-container .status-online {
     background: #00ff88;
     animation: pulse 2s infinite;
   }
   
-  .status-away {
+  .desktop-revolution-container .status-away {
     background: #ffaa00;
   }
   
-  .status-offline {
+  .desktop-revolution-container .status-offline {
     background: rgba(255, 255, 255, 0.3);
   }
   
-  .employee-info {
+  .desktop-revolution-container .employee-info {
     flex: 1;
   }
   
-  .employee-name {
+  .desktop-revolution-container .employee-name {
     color: white;
     font-size: 0.9rem;
     font-weight: 600;
     margin-bottom: 0.2rem;
   }
   
-  .employee-activity {
+  .desktop-revolution-container .employee-activity {
     color: rgba(255, 255, 255, 0.6);
     font-size: 0.8rem;
   }
   
-  .follow-btn {
+  .desktop-revolution-container .follow-btn {
     background: #3b82f6;
     border: none;
     border-radius: 15px;
@@ -311,11 +313,11 @@
     transition: all 0.2s ease;
   }
   
-  .follow-btn:hover {
+  .desktop-revolution-container .follow-btn:hover {
     background: #2563eb;
   }
   
-  .show-more-btn {
+  .desktop-revolution-container .show-more-btn {
     width: 100%;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -327,7 +329,7 @@
     transition: all 0.2s ease;
   }
   
-  .show-more-btn:hover {
+  .desktop-revolution-container .show-more-btn:hover {
     background: rgba(255, 255, 255, 0.1);
     color: white;
   }
@@ -336,7 +338,7 @@
      LIVE ACTIVITY FEED STYLES
      ================================================================================ */
   
-  .activity-feed-section {
+  .desktop-revolution-container .activity-feed-section {
     margin-top: 3rem;
     padding: 2rem 3rem;
     background: rgba(255, 255, 255, 0.02);
@@ -344,21 +346,21 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
   
-  .activity-feed-header {
+  .desktop-revolution-container .activity-feed-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 1.5rem;
   }
   
-  .activity-feed-title {
+  .desktop-revolution-container .activity-feed-title {
     color: white;
     font-size: 1.5rem;
     font-weight: 700;
     margin: 0;
   }
   
-  .live-indicator {
+  .desktop-revolution-container .live-indicator {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -369,7 +371,7 @@
     letter-spacing: 1px;
   }
   
-  .activity-indicator {
+  .desktop-revolution-container .activity-indicator {
     width: 8px;
     height: 8px;
     background: #00ff88;
@@ -377,13 +379,13 @@
     animation: pulse 1s infinite;
   }
   
-  .activity-grid {
+  .desktop-revolution-container .activity-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1rem;
   }
   
-  .activity-card {
+  .desktop-revolution-container .activity-card {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     padding: 1rem;
@@ -394,12 +396,12 @@
     transition: all 0.2s ease;
   }
   
-  .activity-card:hover {
+  .desktop-revolution-container .activity-card:hover {
     background: rgba(255, 255, 255, 0.08);
     transform: translateY(-2px);
   }
   
-  .activity-avatar {
+  .desktop-revolution-container .activity-avatar {
     width: 40px;
     height: 40px;
     background: rgba(255, 255, 255, 0.1);
@@ -410,17 +412,17 @@
     font-size: 1.2rem;
   }
   
-  .activity-details {
+  .desktop-revolution-container .activity-details {
     flex: 1;
   }
   
-  .activity-message {
+  .desktop-revolution-container .activity-message {
     color: white;
     font-size: 0.9rem;
     margin-bottom: 0.3rem;
   }
   
-  .activity-time {
+  .desktop-revolution-container .activity-time {
     color: rgba(255, 255, 255, 0.6);
     font-size: 0.8rem;
   }
@@ -429,7 +431,7 @@
      ACHIEVEMENT POPUP STYLES
      ================================================================================ */
   
-  .achievement-popup {
+  .desktop-revolution-container .achievement-popup {
     position: fixed;
     top: 100px;
     right: 20px;
@@ -446,21 +448,21 @@
     max-width: 300px;
   }
   
-  .achievement-icon {
+  .desktop-revolution-container .achievement-icon {
     font-size: 1.5rem;
   }
   
-  .achievement-content {
+  .desktop-revolution-container .achievement-content {
     flex: 1;
   }
   
-  .achievement-title {
+  .desktop-revolution-container .achievement-title {
     font-weight: 700;
     font-size: 0.9rem;
     margin-bottom: 0.2rem;
   }
   
-  .achievement-description {
+  .desktop-revolution-container .achievement-description {
     font-size: 0.8rem;
     opacity: 0.8;
   }
@@ -490,7 +492,7 @@
     }
   }
   
-  .animated-slide-in {
+  .desktop-revolution-container .animated-slide-in {
     animation: slideIn 0.3s ease;
   }
   
@@ -510,16 +512,16 @@
      ================================================================================ */
   
   @media only screen and (max-width: 1400px) {
-    .employee-sidebar {
+    .desktop-revolution-container .employee-sidebar {
       width: 250px;
     }
     
-    .hero-section {
+    .desktop-revolution-container .hero-section {
       margin: 2rem 1rem;
       padding: 1.5rem 2rem;
     }
     
-    .activity-feed-section {
+    .desktop-revolution-container .activity-feed-section {
       padding: 1.5rem 2rem;
     }
   }
@@ -532,11 +534,11 @@
 /* Ensure desktop components are completely hidden on mobile/tablet */
 @media only screen and (max-width: 1200px) {
   .desktop-revolution-container,
-  .discovery-ticker,
-  .hero-section,
-  .employee-sidebar,
-  .activity-feed-section,
-  .achievement-popup {
+  .desktop-revolution-container .discovery-ticker,
+  .desktop-revolution-container .hero-section,
+  .desktop-revolution-container .employee-sidebar,
+  .desktop-revolution-container .activity-feed-section,
+  .desktop-revolution-container .achievement-popup {
     display: none !important;
   }
 }
@@ -546,7 +548,7 @@
    ================================================================================ */
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  .desktop-revolution-container * {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -559,11 +561,11 @@
 
 /* Desktop revolution works with existing dark mode */
 @media (prefers-color-scheme: dark) {
-  .employee-sidebar {
+  .desktop-revolution-container .employee-sidebar {
     background: rgba(0, 0, 0, 0.3);
   }
   
-  .activity-feed-section {
+  .desktop-revolution-container .activity-feed-section {
     background: rgba(0, 0, 0, 0.2);
   }
 }

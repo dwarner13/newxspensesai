@@ -68,6 +68,18 @@ export interface RecalledFact {
 // ============================================================================
 
 /**
+ * Normalize sessionId to handle various input types safely
+ */
+function normalizeSessionId(raw: unknown): string | null {
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object' && 'id' in (raw as any)) {
+    const v = (raw as any).id;
+    if (typeof v === 'string') return v;
+  }
+  return null;
+}
+
+/**
  * Generate SHA256 hash of normalized fact
  */
 function hashFact(fact: string): string {
@@ -246,6 +258,18 @@ export async function recall(params: RecallParams): Promise<RecalledFact[]> {
     return [];
   }
 
+  // Normalize sessionId before using it
+  const normalizedSessionId = normalizeSessionId(sessionId);
+  const sessionPrefix = normalizedSessionId
+    ? normalizedSessionId.substring(0, 8)
+    : 'no-session';
+
+  console.log(
+    '[MEMORY] recall() sessionId=%s userId=%s',
+    sessionPrefix,
+    typeof userId === 'string' && userId.length > 8 ? userId.substring(0, 8) : userId
+  );
+
   const sb = admin();
   const queryEmbedding = await generateEmbedding(query);
   
@@ -256,15 +280,19 @@ export async function recall(params: RecallParams): Promise<RecalledFact[]> {
 
   try {
     // Session-aware recall: prioritize memories from the current session
-    if (sessionId) {
-      console.log(`[MEMORY] recall() sessionId=${sessionId.substring(0, 8)}... userId=${userId.substring(0, 8)}...`);
+    const sessionFilter =
+      normalizedSessionId && normalizedSessionId.length > 0
+        ? { session_id: normalizedSessionId }
+        : null;
+
+    if (normalizedSessionId) {
       
       // First, try to get session-scoped memories from memory_embeddings
       const { data: sessionEmbeddings, error: sessionError } = await sb
         .from('memory_embeddings')
         .select('id, chunk, content_redacted, source_id, embedding')
         .eq('user_id', userId)
-        .eq('source_id', sessionId)
+        .eq('source_id', normalizedSessionId)
         .limit(k * 2); // Get more candidates for similarity filtering
 
       if (!sessionError && sessionEmbeddings && sessionEmbeddings.length > 0) {
@@ -339,7 +367,7 @@ export async function recall(params: RecallParams): Promise<RecalledFact[]> {
       // Map results and boost session-scoped facts
       const mappedFacts = (facts || []).map((f: any) => ({
         fact: f.fact || '',
-        score: f.source_message_id === sessionId ? 0.7 : 0.5, // Boost session-scoped facts
+        score: f.source_message_id === normalizedSessionId ? 0.7 : 0.5, // Boost session-scoped facts
         fact_id: f.id
       }));
 
@@ -355,7 +383,7 @@ export async function recall(params: RecallParams): Promise<RecalledFact[]> {
       fact_id: item.id || ''
     })).filter((r: RecalledFact) => r.score >= minScore);
 
-    if (sessionId) {
+    if (normalizedSessionId) {
       console.log(`[MEMORY] recall() globalHits=${globalResults.length} (fallback from session)`);
     } else {
       console.log(`[MEMORY] recall() globalHits=${globalResults.length} (no sessionId provided)`);
@@ -631,13 +659,16 @@ export async function getMemory(params: {
     similarityThreshold: minScore
   });
 
+  // Normalize sessionId before passing to recall
+  const normalizedSessionId = normalizeSessionId(sessionId);
+
   // Also use recall() for backward compatibility and additional facts
   const recalledFacts = await recall({
     userId,
     query,
     k: maxFacts,
     minScore,
-    sessionId
+    sessionId: normalizedSessionId || undefined
   });
 
   // Merge facts from both sources (deduplicate by fact_id)
@@ -815,7 +846,11 @@ export async function queueMemoryExtraction(params: {
       return;
     }
 
-    console.log(`[Memory] Queued extraction job for user ${userId.substring(0, 8)}... session ${sessionId.substring(0, 8)}...`);
+    const normalizedSessionId = normalizeSessionId(sessionId);
+    const sessionPrefix = normalizedSessionId
+      ? normalizedSessionId.substring(0, 8)
+      : 'no-session';
+    console.log(`[Memory] Queued extraction job for user ${userId.substring(0, 8)}... session ${sessionPrefix}...`);
   } catch (error: any) {
     // Check for FK constraint errors
     if (error?.code === '23503' || error?.message?.includes('foreign key constraint')) {

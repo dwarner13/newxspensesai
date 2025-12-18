@@ -82,7 +82,28 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       verifyChatBackend(response);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Clear streaming state immediately on error
+        setIsStreaming(false);
+        setIsToolExecuting(false);
+        setCurrentTool(null);
+        
+        // Try to get error message from response body
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (e) {
+          // If response isn't JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        
+        const error = new Error(errorMessage);
+        setError(error);
+        options.onError?.(error);
+        
+        // Remove assistant message placeholder if error
+        setMessages(prev => prev.slice(0, -1));
+        return;
       }
       
       const reader = response.body?.getReader();
@@ -93,175 +114,190 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       }
       
       let buffer = '';
+      let firstChunk = true;
       
       while (true) {
         const { done, value } = await reader.read();
         
-        if (done) break;
+        if (done) {
+          console.log('[useStreamChat] Stream completed');
+          break;
+        }
         
-        buffer += decoder.decode(value, { stream: true});
+        const chunkString = decoder.decode(value, { stream: true });
+        if (firstChunk) {
+          console.debug('[useStreamChat] first chunk', chunkString.slice(0, 200));
+          firstChunk = false;
+        }
         
-        // Process complete SSE events
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        buffer += chunkString;
         
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              const event = data as StreamEvent;
+        // Process complete SSE events (separated by \n\n)
+        let eventEndIndex;
+        while ((eventEndIndex = buffer.indexOf('\n\n')) !== -1) {
+          const eventText = buffer.slice(0, eventEndIndex);
+          buffer = buffer.slice(eventEndIndex + 2);
+          
+          // Find the data: line in this event
+          const lines = eventText.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                const event = data as StreamEvent;
               
-              switch (event.type) {
-                case 'text':
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      lastMessage.content += event.content;
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'tool_call':
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      lastMessage.toolCalls = lastMessage.toolCalls || [];
-                      lastMessage.toolCalls.push({
-                        id: event.tool.id,
-                        name: event.tool.name,
-                        status: 'pending',
-                      });
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'tool_executing':
-                  setIsToolExecuting(true);
-                  setCurrentTool(event.tool);
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
-                      if (toolCall) {
-                        toolCall.status = 'executing';
-                      }
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'tool_result':
-                  // Phase 3.1: Handle tool result event
-                  setIsToolExecuting(false);
-                  setCurrentTool(null);
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
-                      if (toolCall) {
-                        toolCall.status = 'completed';
-                        toolCall.result = event.result;
-                      }
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'tool_error':
-                  // Phase 3.1: Handle tool error event
-                  setIsToolExecuting(false);
-                  setCurrentTool(null);
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
-                      if (toolCall) {
-                        toolCall.status = 'error';
-                        toolCall.error = event.error;
-                      }
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'confirmation_required':
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      lastMessage.content += `\n\n⚠️ **Confirmation Required**\n${event.summary}\n\nPlease confirm by saying "yes" or "confirm" to proceed.`;
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'handoff':
-                  // Phase 3.2: Handle employee handoff with context
-                  console.log(`[useStreamChat] 🔄 Handoff detected: ${event.from} → ${event.to}`, {
-                    reason: event.reason,
-                    summary: event.summary,
-                  });
-                  
-                  // Update active employee
-                  setActiveEmployeeSlug(event.to);
-                  
-                  // Phase 3.2: Add rich handoff notification message with context
-                  setMessages(prev => {
-                    let handoffContent = `🔄 **Handoff**: ${event.from} has transferred you to ${event.to}`;
-                    
-                    if (event.reason) {
-                      handoffContent += `\n\n**Reason**: ${event.reason}`;
-                    }
-                    
-                    if (event.summary) {
-                      handoffContent += `\n\n**Context**: ${event.summary}`;
-                    }
-                    
-                    const handoffMessage: Message = {
-                      id: `handoff-${Date.now()}`,
-                      role: 'assistant',
-                      content: handoffContent,
-                      timestamp: new Date(),
-                    };
-                    return [...prev, handoffMessage];
-                  });
-                  break;
-                  
-                case 'employee':
-                  // Update active employee from backend
-                  console.log(`[useStreamChat] Employee update: ${event.employee}`);
-                  setActiveEmployeeSlug(event.employee);
-                  break;
-                  
-                case 'error':
-                  throw new Error(event.error);
-                  
-                case 'done':
-                  setIsStreaming(false);
-                  setIsToolExecuting(false);
-                  setCurrentTool(null);
-                  
-                  if (event.processingTime) {
+                switch (event.type) {
+                  case 'text':
                     setMessages(prev => {
                       const newMessages = [...prev];
                       const lastMessage = newMessages[newMessages.length - 1];
                       if (lastMessage && lastMessage.role === 'assistant') {
-                        lastMessage.processingTime = event.processingTime;
+                        lastMessage.content += event.content;
                       }
                       return newMessages;
                     });
-                  }
-                  break;
+                    break;
+                    
+                  case 'tool_call':
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        lastMessage.toolCalls = lastMessage.toolCalls || [];
+                        lastMessage.toolCalls.push({
+                          id: event.tool.id,
+                          name: event.tool.name,
+                          status: 'pending',
+                        });
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'tool_executing':
+                    setIsToolExecuting(true);
+                    setCurrentTool(event.tool);
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
+                        if (toolCall) {
+                          toolCall.status = 'executing';
+                        }
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'tool_result':
+                    // Phase 3.1: Handle tool result event
+                    setIsToolExecuting(false);
+                    setCurrentTool(null);
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
+                        if (toolCall) {
+                          toolCall.status = 'completed';
+                          toolCall.result = event.result;
+                        }
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'tool_error':
+                    // Phase 3.1: Handle tool error event
+                    setIsToolExecuting(false);
+                    setCurrentTool(null);
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
+                        if (toolCall) {
+                          toolCall.status = 'error';
+                          toolCall.error = event.error;
+                        }
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'confirmation_required':
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        lastMessage.content += `\n\n⚠️ **Confirmation Required**\n${event.summary}\n\nPlease confirm by saying "yes" or "confirm" to proceed.`;
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'handoff':
+                    // Phase 3.2: Handle employee handoff with context
+                    console.log(`[useStreamChat] 🔄 Handoff detected: ${event.from} → ${event.to}`, {
+                      reason: event.reason,
+                      summary: event.summary,
+                    });
+                    
+                    // Update active employee
+                    setActiveEmployeeSlug(event.to);
+                    
+                    // Phase 3.2: Add rich handoff notification message with context
+                    setMessages(prev => {
+                      let handoffContent = `🔄 **Handoff**: ${event.from} has transferred you to ${event.to}`;
+                      
+                      if (event.reason) {
+                        handoffContent += `\n\n**Reason**: ${event.reason}`;
+                      }
+                      
+                      if (event.summary) {
+                        handoffContent += `\n\n**Context**: ${event.summary}`;
+                      }
+                      
+                      const handoffMessage: Message = {
+                        id: `handoff-${Date.now()}`,
+                        role: 'assistant',
+                        content: handoffContent,
+                        timestamp: new Date(),
+                      };
+                      return [...prev, handoffMessage];
+                    });
+                    break;
+                    
+                  case 'employee':
+                    // Update active employee from backend
+                    console.log(`[useStreamChat] Employee update: ${event.employee}`);
+                    setActiveEmployeeSlug(event.employee);
+                    break;
+                    
+                  case 'error':
+                    throw new Error(event.error);
+                    
+                  case 'done':
+                    setIsStreaming(false);
+                    setIsToolExecuting(false);
+                    setCurrentTool(null);
+                    
+                    if (event.processingTime) {
+                      setMessages(prev => {
+                        const newMessages = [...prev];
+                        const lastMessage = newMessages[newMessages.length - 1];
+                        if (lastMessage && lastMessage.role === 'assistant') {
+                          lastMessage.processingTime = event.processingTime;
+                        }
+                        return newMessages;
+                      });
+                    }
+                    break;
+                }
+              } catch (e) {
+                console.error('Failed to parse SSE event:', e, 'Raw line:', line);
               }
-            } catch (e) {
-              console.error('Failed to parse SSE event:', e);
             }
           }
         }
@@ -269,19 +305,26 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
     } catch (err) {
       const error = err as Error;
       
+      // Always clear streaming state on error
+      setIsStreaming(false);
+      setIsToolExecuting(false);
+      setCurrentTool(null);
+      
       if (error.name === 'AbortError') {
-        console.log('Stream aborted');
+        console.log('[useStreamChat] Stream aborted');
       } else {
+        console.error('[useStreamChat] Stream error:', {
+          error: error.message,
+          name: error.name,
+          stack: error.stack,
+        });
         setError(error);
         options.onError?.(error);
         
         // Remove assistant message if error
         setMessages(prev => prev.slice(0, -1));
       }
-    } finally {
-      setIsStreaming(false);
-      setIsToolExecuting(false);
-      setCurrentTool(null);
+      
       abortControllerRef.current = null;
     }
   }, [options, activeEmployeeSlug]);

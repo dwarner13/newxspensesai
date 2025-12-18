@@ -46,6 +46,11 @@ export interface Database {
         Insert: Omit<UserTask, 'id' | 'created_at' | 'updated_at' | 'completed_at'>;
         Update: Partial<Omit<UserTask, 'id' | 'user_id' | 'created_at'>>;
       };
+      tool_executions: {
+        Row: ToolExecutionRecord;
+        Insert: Omit<ToolExecutionRecord, 'id' | 'created_at'>;
+        Update: Partial<Omit<ToolExecutionRecord, 'id' | 'user_id' | 'created_at'>>;
+      };
     };
     Views: {
       [key: string]: {
@@ -188,4 +193,18 @@ export interface ParsedFileData {
   transactions: Transaction[];
   fileName: string;
   fileType: 'csv' | 'pdf';
+}
+
+export interface ToolExecutionRecord {
+  id: string;
+  user_id: string;
+  employee_slug: string;
+  tool_id: string;
+  mode: 'explain-only' | 'propose-confirm' | 'auto-pilot';
+  autonomy_level: number; // 0-3 as defined in AI_TOOLS_AUTONOMY_AUDIT_v1
+  input_summary: string | null;
+  affected_count: number | null;
+  status: 'success' | 'error' | 'skipped' | 'cancelled';
+  error_message: string | null;
+  created_at: string;
 }

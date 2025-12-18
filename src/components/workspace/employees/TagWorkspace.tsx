@@ -1,7 +1,16 @@
 /**
  * TagWorkspace Component
  * 
+ * ⚠️ LEGACY - DEPRECATED - DO NOT USE
+ * 
+ * This component is being phased out in favor of UnifiedAssistantChat.
+ * All new chat implementations should use:
+ * - useUnifiedChatLauncher().openChat({ initialEmployeeSlug: 'tag-ai' })
+ * - UnifiedAssistantChat (rendered globally by DashboardLayout)
+ * 
  * Wrapper around AIWorkspaceOverlay with Tag-specific configuration
+ * 
+ * @deprecated Use UnifiedAssistantChat instead
  */
 
 import React from 'react';

@@ -39,6 +39,7 @@ import { PlanningAnalysisSection } from './sections/PlanningAnalysisSection';
 import { WellnessEntertainmentSection } from './sections/WellnessEntertainmentSection';
 import { BusinessTaxSection } from './sections/BusinessTaxSection';
 import { ToolsSettingsSection } from './sections/ToolsSettingsSection';
+import { DashboardHeroRow } from './DashboardHeroRow';
 
 interface ConnectedDashboardProps {
   className?: string;
@@ -343,30 +344,40 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
 
   return (
     <div className={`flex flex-col gap-6 ${className}`}>
-      <OverviewSection
-        isProcessing={isProcessing}
-        processingStatus={processingStatus}
-        showNotification={showNotification}
-        isDemoUser={isDemoUser}
-        userId={userId}
-        dashboardStats={{
-          documentsProcessed: dashboardStats.documentsProcessed,
-          lastDocumentUpload: dashboardStats.lastDocumentUpload,
-          totalTransactions: dashboardStats.totalTransactions,
-        }}
+      {/* Hero Row: Prime Welcome Card + Activity Feed (2-column layout) */}
+      <DashboardHeroRow
+        hero={
+          <OverviewSection
+            isProcessing={isProcessing}
+            processingStatus={processingStatus}
+            showNotification={showNotification}
+            isDemoUser={isDemoUser}
+            userId={userId}
+            dashboardStats={{
+              documentsProcessed: dashboardStats.documentsProcessed,
+              lastDocumentUpload: dashboardStats.lastDocumentUpload,
+              totalTransactions: dashboardStats.totalTransactions,
+            }}
+            className="h-full"
+          />
+        }
+        activityScope="dashboard"
       />
 
-      <CoreAIToolsSection cards={coreAIToolsCards} />
+      {/* All sections below hero - rail space handled globally by DashboardThreeColumnLayout */}
+      <div>
+        <CoreAIToolsSection cards={coreAIToolsCards} />
 
-      <PlanningAnalysisSection cards={planningAnalysisCards} />
+        <PlanningAnalysisSection cards={planningAnalysisCards} />
 
-      <WellnessEntertainmentSection 
-        cards={entertainmentWellnessCards}
-      />
+        <WellnessEntertainmentSection 
+          cards={entertainmentWellnessCards}
+        />
 
-      <BusinessTaxSection cards={businessTaxCards} />
+        <BusinessTaxSection cards={businessTaxCards} />
 
-      <ToolsSettingsSection cards={toolsSettingsCards} />
+        <ToolsSettingsSection cards={toolsSettingsCards} />
+      </div>
 
       {/* Mock Processing Modal */}
       <MockProcessingModal

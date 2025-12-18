@@ -9,65 +9,54 @@
  * - Right column (25%): Activity Feed
  */
 
-import React, { useState } from 'react';
 import { CrystalWorkspacePanel } from '../../components/workspace/employees/CrystalWorkspacePanel';
 import { CrystalUnifiedCard } from '../../components/workspace/employees/CrystalUnifiedCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
-import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 // import { CrystalWorkspaceOverlay } from '../../components/chat/CrystalWorkspaceOverlay'; // Create if needed
 
 export default function SpendingPredictionsPage() {
   // Scroll to top when page loads
   useScrollToTop();
-  const [isCrystalWorkspaceOpen, setIsCrystalWorkspaceOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-
-  const openCrystalWorkspace = () => {
-    setIsCrystalWorkspaceOpen(true);
-    setIsMinimized(false);
-  };
-  const closeCrystalWorkspace = () => {
-    setIsCrystalWorkspaceOpen(false);
-    setIsMinimized(false);
-  };
-  const minimizeCrystalWorkspace = () => {
-    setIsCrystalWorkspaceOpen(false);
-    setIsMinimized(true);
-  };
+  const { openChat } = useUnifiedChatLauncher();
+  // Unified chat is opened via CrystalUnifiedCard using useUnifiedChatLauncher
+  // No local chat state needed - all chat goes through UnifiedAssistantChat
 
   return (
     <>
-      <DashboardSection className="flex flex-col">
-        {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        <section className="mt-6 min-h-[520px]">
-          <DashboardThreeColumnLayout
-            left={
-              <div className="h-full flex flex-col">
-                <CrystalWorkspacePanel />
-              </div>
-            }
-            middle={
-              <div className="h-full flex flex-col">
-                <CrystalUnifiedCard onExpandClick={openCrystalWorkspace} onChatInputClick={openCrystalWorkspace} />
-              </div>
-            }
-            right={
-              <ActivityFeedSidebar scope="spending-predictions" />
-            }
+      {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
+      <DashboardPageShell
+        left={<CrystalWorkspacePanel />}
+        center={
+          <CrystalUnifiedCard 
+            onExpandClick={() => {
+              openChat({
+                initialEmployeeSlug: 'crystal-spending',
+                context: {
+                  page: 'spending-predictions',
+                  data: {
+                    source: 'spending-predictions-page',
+                  },
+                },
+              });
+            }}
+            onChatInputClick={() => {
+              openChat({
+                initialEmployeeSlug: 'crystal-spending',
+                context: {
+                  page: 'spending-predictions',
+                  data: {
+                    source: 'spending-predictions-page',
+                  },
+                },
+              });
+            }}
           />
-        </section>
-      </DashboardSection>
-
-      {/* Crystal Workspace Overlay - Floating centered chatbot */}
-      {/* Uncomment when CrystalWorkspaceOverlay is created */}
-      {/* <CrystalWorkspaceOverlay 
-        open={isCrystalWorkspaceOpen} 
-        onClose={closeCrystalWorkspace}
-        minimized={isMinimized}
-        onMinimize={minimizeCrystalWorkspace}
-      /> */}
+        }
+        right={<ActivityFeedSidebar scope="spending-predictions" />}
+      />
     </>
   );
 }

@@ -22,7 +22,8 @@ const SLUG_TO_KEY: Record<string, string> = {
   'goalie-goals': 'goalie',
   'goalie-ai': 'goalie',
   'finley-financial': 'finley',
-  'finley-ai': 'finley',
+  'finley-forecasts': 'finley',
+  'finley-ai': 'finley', // Legacy, kept for backward compatibility
   'ledger-tax': 'ledger',
   'chime-reminders': 'chime',
   'chime-ai': 'chime',

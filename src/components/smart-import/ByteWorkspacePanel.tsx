@@ -243,9 +243,9 @@ export function ByteWorkspacePanel({
         ) : (
           <>
             <p className="text-sm text-slate-400">
-              {stats?.monthly.totalThisMonth || 0} documents this month
+              {stats?.monthly?.totalThisMonth ?? 0} documents this month
             </p>
-            {stats?.monthly.deltaPercent !== undefined && stats.monthly.deltaPercent !== 0 && (
+            {stats?.monthly?.deltaPercent !== undefined && stats.monthly.deltaPercent !== 0 && (
               <p className="text-xs text-green-400 mt-1">
                 📈 {stats.monthly.deltaPercent > 0 ? '+' : ''}{stats.monthly.deltaPercent}% vs last month
               </p>
@@ -268,7 +268,7 @@ export function ByteWorkspacePanel({
           <p className="text-sm text-slate-500 animate-pulse">Loading health status...</p>
         ) : (
           <p className="text-sm text-slate-400">
-            {stats?.health.status === 'good' ? 'All systems operational' : 'Some issues detected'}
+            {stats?.health?.status === 'good' ? 'All systems operational' : 'Some issues detected'}
           </p>
         )}
       </div>

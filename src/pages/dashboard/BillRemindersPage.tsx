@@ -9,56 +9,53 @@
  * - Right column (25%): Activity Feed
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { BillsWorkspacePanel } from '../../components/workspace/planning/BillsWorkspacePanel';
 import { BillsUnifiedCard } from '../../components/workspace/planning/BillsUnifiedCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
-import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 // import { BillsWorkspaceOverlay } from '../../components/chat/BillsWorkspaceOverlay'; // Create if needed
 
 export default function BillRemindersPage() {
   // Scroll to top when page loads
   useScrollToTop();
-  const [isBillsWorkspaceOpen, setIsBillsWorkspaceOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-
-  const openBillsWorkspace = () => {
-    setIsBillsWorkspaceOpen(true);
-    setIsMinimized(false);
-  };
-  const closeBillsWorkspace = () => {
-    setIsBillsWorkspaceOpen(false);
-    setIsMinimized(false);
-  };
-  const minimizeBillsWorkspace = () => {
-    setIsBillsWorkspaceOpen(false);
-    setIsMinimized(true);
-  };
+  const { openChat } = useUnifiedChatLauncher();
 
   return (
     <>
-      <DashboardSection className="flex flex-col">
-        {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        <section className="mt-6 min-h-[520px]">
-          <DashboardThreeColumnLayout
-            left={
-              <div className="h-full flex flex-col">
-                <BillsWorkspacePanel />
-              </div>
-            }
-            middle={
-              <div className="h-full flex flex-col">
-                <BillsUnifiedCard onExpandClick={openBillsWorkspace} onChatInputClick={openBillsWorkspace} />
-              </div>
-            }
-            right={
-              <ActivityFeedSidebar scope="bill-reminders" />
-            }
+      {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
+      <DashboardPageShell
+        left={<BillsWorkspacePanel />}
+        center={
+          <BillsUnifiedCard 
+            onExpandClick={() => {
+              openChat({
+                initialEmployeeSlug: 'bill-reminders',
+                context: {
+                  page: 'bill-reminders',
+                  data: {
+                    source: 'bill-reminders-page',
+                  },
+                },
+              });
+            }}
+            onChatInputClick={() => {
+              openChat({
+                initialEmployeeSlug: 'bill-reminders',
+                context: {
+                  page: 'bill-reminders',
+                  data: {
+                    source: 'bill-reminders-page',
+                  },
+                },
+              });
+            }}
           />
-        </section>
-      </DashboardSection>
+        }
+        right={<ActivityFeedSidebar scope="bill-reminders" />}
+      />
 
       {/* Bills Workspace Overlay - Floating centered chatbot */}
       {/* Uncomment when BillsWorkspaceOverlay is created */}

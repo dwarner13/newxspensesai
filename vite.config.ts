@@ -82,9 +82,9 @@ export default defineConfig({
     format: 'es'
   },
   server: {
-    port: 5173,
+    port: 8888,
     open: false, // Disable auto-open to prevent hanging
-    host: '0.0.0.0', // Listen on all interfaces
+    host: true, // Listen on all interfaces (equivalent to '0.0.0.0')
     hmr: {
       overlay: false, // Disable error overlay
     },

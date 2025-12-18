@@ -420,6 +420,15 @@ const AICategorizationPage: React.FC = () => {
 
           {/* Box 3: AI Chat Assistant */}
           <button
+            onClick={() => {
+              openChat({
+                initialEmployeeSlug: 'tag-ai',
+                context: {
+                  page: 'ai-categorization',
+                  source: 'ai-categorization-page',
+                },
+              });
+            }}
             className="group flex flex-col items-center gap-3 p-6 bg-white/5 hover:bg-white/10 rounded-xl text-center transition-all duration-300 border border-white/10 hover:border-white/20 min-h-[140px] hover:shadow-lg hover:shadow-purple-500/20 hover:ring-2 hover:ring-purple-500/30 hover:ring-opacity-50"
           >
             <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -1101,9 +1110,9 @@ const AICategorizationPage: React.FC = () => {
                 </button>
               </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6">
                 {/* Categories List */}
-          <div className="lg:col-span-2">
+          <div>
                   <h4 className="text-lg font-semibold text-white mb-4">All Categories</h4>
                   <div className="space-y-3">
                     {/* Sample Categories */}
@@ -1238,68 +1247,6 @@ const AICategorizationPage: React.FC = () => {
                         </button>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Tag AI Chat Panel */}
-                <div className="lg:col-span-1">
-                  <h4 className="text-lg font-semibold text-white mb-4">💬 Chat with Tag AI</h4>
-                  <div className="bg-slate-700 rounded-lg p-4 h-full">
-                    <div className="space-y-4">
-                      <div className="bg-slate-600 rounded-lg p-3 text-sm text-gray-300">
-                        <p className="font-semibold mb-2">🧠 Tag AI can help with:</p>
-                        <ul className="space-y-1 text-xs">
-                          <li>• Analyzing spending patterns</li>
-                          <li>• Suggesting new categories</li>
-                          <li>• Creating categorization rules</li>
-                          <li>• Optimizing existing categories</li>
-                          <li>• Finding uncategorized transactions</li>
-                        </ul>
-              </div>
-
-                      <div className="space-y-2">
-                        <p className="text-xs text-gray-400">Quick Actions:</p>
-                        <button
-                          onClick={() => {
-                            openChat({
-                              initialEmployeeSlug: 'tag-ai',
-                              initialQuestion: "Give me a complete overview of all my spending categories and suggest improvements",
-                              context: { page: 'smart-categories', data: { source: 'category-management' } }
-                            });
-                            setCategoryManagementOpen(false);
-                          }}
-                          className="w-full bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
-                        >
-                          Category Overview
-                        </button>
-                        <button
-                          onClick={() => {
-                            openChat({
-                              initialEmployeeSlug: 'tag-ai',
-                              initialQuestion: "Help me create smart rules to automatically categorize future transactions",
-                              context: { page: 'smart-categories', data: { source: 'category-management' } }
-                            });
-                            setCategoryManagementOpen(false);
-                          }}
-                          className="w-full bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
-                        >
-                          Create Rules
-                        </button>
-                        <button
-                          onClick={() => {
-                            openChat({
-                              initialEmployeeSlug: 'tag-ai',
-                              initialQuestion: "Find all transactions that might be miscategorized and suggest corrections",
-                              context: { page: 'smart-categories', data: { source: 'category-management' } }
-                            });
-                            setCategoryManagementOpen(false);
-                          }}
-                          className="w-full bg-slate-600 hover:bg-slate-500 text-white text-xs px-3 py-2 rounded transition-colors"
-                        >
-                          Find Errors
-                        </button>
-              </div>
-          </div>
                   </div>
                 </div>
               </div>

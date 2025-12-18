@@ -9,56 +9,56 @@
  * - Right column (25%): Activity Feed
  */
 
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { GoalieWorkspacePanel } from '../../components/workspace/employees/GoalieWorkspacePanel';
 import { GoalieUnifiedCard } from '../../components/workspace/employees/GoalieUnifiedCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
-import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 // import { GoalieWorkspaceOverlay } from '../../components/chat/GoalieWorkspaceOverlay'; // Create if needed
 
 export default function GoalConciergePage() {
   // Scroll to top when page loads
   useScrollToTop();
-  const [isGoalieWorkspaceOpen, setIsGoalieWorkspaceOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-
-  const openGoalieWorkspace = () => {
-    setIsGoalieWorkspaceOpen(true);
-    setIsMinimized(false);
-  };
-  const closeGoalieWorkspace = () => {
-    setIsGoalieWorkspaceOpen(false);
-    setIsMinimized(false);
-  };
-  const minimizeGoalieWorkspace = () => {
-    setIsGoalieWorkspaceOpen(false);
-    setIsMinimized(true);
-  };
+  useEffect(() => {
+    console.log("[route-mount]", "/dashboard/goal-concierge", "GoalConciergePage");
+  }, []);
+  const { openChat } = useUnifiedChatLauncher();
 
   return (
     <>
-      <DashboardSection className="flex flex-col">
-        {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        <section className="mt-6 min-h-[520px]">
-          <DashboardThreeColumnLayout
-            left={
-              <div className="h-full flex flex-col">
-                <GoalieWorkspacePanel />
-              </div>
-            }
-            middle={
-              <div className="h-full flex flex-col">
-                <GoalieUnifiedCard onExpandClick={openGoalieWorkspace} onChatInputClick={openGoalieWorkspace} />
-              </div>
-            }
-            right={
-              <ActivityFeedSidebar scope="goal-concierge" />
-            }
+      {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
+      <DashboardPageShell
+        left={<GoalieWorkspacePanel />}
+        center={
+          <GoalieUnifiedCard 
+            onExpandClick={() => {
+              openChat({
+                initialEmployeeSlug: 'goalie-goals',
+                context: {
+                  page: 'goal-concierge',
+                  data: {
+                    source: 'goal-concierge-page',
+                  },
+                },
+              });
+            }}
+            onChatInputClick={() => {
+              openChat({
+                initialEmployeeSlug: 'goalie-goals',
+                context: {
+                  page: 'goal-concierge',
+                  data: {
+                    source: 'goal-concierge-page',
+                  },
+                },
+              });
+            }}
           />
-        </section>
-      </DashboardSection>
+        }
+        right={<ActivityFeedSidebar scope="goal-concierge" />}
+      />
 
       {/* Goalie Workspace Overlay - Floating centered chatbot */}
       {/* Uncomment when GoalieWorkspaceOverlay is created */}

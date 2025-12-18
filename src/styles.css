@@ -8,6 +8,15 @@
 /* Calculate scrollbar width for fixed elements */
 :root {
   --scrollbar-width: calc(100vw - 100%);
+  /* Right floating rail space reservation - matches DashboardHeader pr-24 md:pr-28 */
+  /* Rail is at right-4 (16px) + button width (~44px) + margin = ~60px, reserving 96px/112px for safety */
+  --rail-space: 96px; /* Default: 24 * 4px = 96px */
+}
+
+@media (min-width: 768px) {
+  :root {
+    --rail-space: 112px; /* md: 28 * 4px = 112px */
+  }
 }
 
 /* Alternative approach: Use JavaScript to set scrollbar width */
@@ -82,6 +91,8 @@ body {
 }
 
 /* Ensure main content area can scroll independently */
+/* NOTE: This max-width only applies to top-nav pages, NOT sidebar dashboard pages */
+/* Sidebar pages use DashboardPageShell which expands fully (flex-1 min-w-0 w-full max-w-full) */
 .dashboard-main-content {
   min-height: 0;
   flex: 1;
@@ -94,41 +105,61 @@ body {
   max-width: calc(100vw - 80px - 280px); /* Account for collapsed left sidebar (80px) and right sidebar (280px) */
 }
 
+/* Sidebar dashboard pages (with data-dashboard-content attribute) should expand fully */
+/* Components control their own width via className - no !important needed */
+/* DashboardLayout main element already has: flex-1 min-w-0 w-full max-w-full */
+[data-dashboard-content] {
+  /* Width controlled by component className - removed !important overrides */
+}
+
+/* DashboardPageShell and its children expand fully */
+/* DashboardThreeColumnLayout wrapper already has: w-full max-w-full min-w-0 */
+[data-grid-wrapper] {
+  /* Width controlled by component className - removed !important overrides */
+}
+
+/* .xai-dash-grid width controlled by component inline styles and className */
+/* DashboardThreeColumnLayout sets width via inline style on desktop */
+.xai-dash-grid {
+  /* Width controlled by component - removed !important overrides */
+}
+
 /* Fix dashboard card sizing consistency */
-.dashboard-main-content .grid {
+/* EXCLUDE DashboardThreeColumnLayout from these rules - it has its own grid template */
+.dashboard-main-content .grid:not([data-dashboard-three-col]) {
   grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
 }
 
 @media (min-width: 768px) {
-  .dashboard-main-content .grid {
+  .dashboard-main-content .grid:not([data-dashboard-three-col]) {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
 
 @media (min-width: 1280px) {
-  .dashboard-main-content .grid {
+  .dashboard-main-content .grid:not([data-dashboard-three-col]) {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
 
-.dashboard-main-content .grid.gap-6 {
+.dashboard-main-content .grid.gap-6:not([data-dashboard-three-col]) {
   gap: 1.5rem !important;
 }
 
 /* Force card sizing consistency */
-.dashboard-main-content section .grid {
+.dashboard-main-content section .grid:not([data-dashboard-three-col]) {
   display: grid !important;
   grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
 }
 
 @media (min-width: 768px) {
-  .dashboard-main-content section .grid {
+  .dashboard-main-content section .grid:not([data-dashboard-three-col]) {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
 
 @media (min-width: 1280px) {
-  .dashboard-main-content section .grid {
+  .dashboard-main-content section .grid:not([data-dashboard-three-col]) {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
@@ -151,6 +182,63 @@ body {
 
 .dashboard-main-content section .grid > * > *:last-child {
   margin-top: auto !important;
+}
+
+/* ===============================
+   Sidebar Dashboard Grid (FINAL)
+   =============================== */
+/* CRITICAL: This CSS must override all other grid rules for sidebar dashboard pages */
+/* Task B: Ensure global CSS is loaded and correct */
+
+/* Step 3: Fix properly - Ensure grid container can expand */
+/* Component controls width via inline styles on desktop - removed !important */
+.xai-dash-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  /* Max-width controlled by component inline styles - removed !important */
+}
+
+/* Step 3: Responsive grid template - 2-column on lg+, 3-column on 2xl+ */
+/* Component inline styles take precedence - these are fallback only */
+/* lg+ (1024px-1535px): 2-column layout (left + center with embedded Activity Feed) */
+/* NOTE: Only applies if component doesn't set inline grid-template-columns */
+@media (min-width: 1024px) and (max-width: 1535px) {
+  .xai-dash-grid.has-left {
+    grid-template-columns: 300px minmax(0, 1fr);
+    width: 100%;
+    max-width: none;
+  }
+  .xai-dash-grid.no-left {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    max-width: none;
+  }
+}
+
+/* 2xl (1536px+): 3-column layout (left + center + right) */
+/* NOTE: Component inline styles take precedence - this is fallback only */
+@media (min-width: 1536px) {
+  .xai-dash-grid.has-left {
+    grid-template-columns: 300px minmax(0, 1fr) 280px;
+    width: 100%;
+    max-width: none;
+  }
+  .xai-dash-grid.no-left {
+    grid-template-columns: minmax(0, 1fr) 280px;
+    width: 100%;
+    max-width: none;
+  }
+}
+
+/* Ensure grid wrapper doesn't constrain width */
+/* Component already sets width via className and inline styles - removed !important */
+section[data-grid-wrapper] {
+  /* Width controlled by component - removed !important overrides */
+  min-width: 0;
 }
 
 /* Ensure buttons are properly spaced and aligned */

@@ -9,6 +9,15 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 /**
+ * Check if a string is a valid UUID format
+ */
+function isValidUuid(value: string | null | undefined): boolean {
+  if (!value) return false;
+  // UUID format: 8-4-4-4-12 hex digits with hyphens
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+}
+
+/**
  * Check if user_id column expects UUID or TEXT
  * For anonymous users, we'll use TEXT to avoid foreign key constraints
  */
@@ -16,6 +25,18 @@ function shouldUseTextUserId(userId: string): boolean {
   // If it's an anonymous user ID, use TEXT (no foreign key constraint)
   // If it's a UUID format, assume it needs to match users table
   return userId.startsWith('anon-');
+}
+
+/**
+ * Get a safe database user ID for UUID columns
+ * Returns the userId if it's a valid UUID, otherwise returns a demo user UUID
+ */
+function getDbUserIdForUuidColumn(userId: string): string {
+  if (isValidUuid(userId)) {
+    return userId;
+  }
+  // Return a demo user UUID for anonymous users to avoid UUID type errors
+  return '00000000-0000-4000-8000-000000000001';
 }
 
 /**
@@ -32,9 +53,12 @@ export async function ensureSession(
   sessionId?: string,
   employeeSlug: string = 'prime-boss'
 ): Promise<{ sessionId: string; employee_slug: string }> {
-  // For anonymous users, use the original string to avoid foreign key constraints
-  // For UUID users, use as-is (they should exist in users table)
-  const dbUserId = shouldUseTextUserId(userId) ? userId : userId;
+  // For anonymous users, check if user_id column is UUID type
+  // If it's UUID type, use a demo UUID to avoid type errors
+  // If it's TEXT type, use the original string
+  const dbUserId = shouldUseTextUserId(userId) 
+    ? (isValidUuid(userId) ? userId : getDbUserIdForUuidColumn(userId))
+    : userId;
   
   // If session ID provided, verify it exists
   if (sessionId) {

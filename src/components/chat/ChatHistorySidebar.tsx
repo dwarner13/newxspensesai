@@ -224,14 +224,14 @@ export function ChatHistorySidebar({ isOpen, onClose }: ChatHistorySidebarProps)
                                   )}
                                 >
                                   <div className="flex items-center justify-between gap-2">
-                                    <div className="flex flex-col flex-1 min-w-0">
-                                      <span className="text-xs font-semibold tracking-[0.18em] uppercase text-slate-400">
-                                        New Chat
-                                      </span>
-                                      <span className="text-sm text-slate-100 line-clamp-1 mt-0.5">
-                                        {session.last_message_preview || session.title || "Conversation with Prime"}
-                                      </span>
-                                    </div>
+                                  <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="text-xs font-semibold tracking-[0.18em] uppercase text-slate-400">
+                                      {session.title || "New Chat"}
+                                    </span>
+                                    <span className="text-sm text-slate-100 line-clamp-1 mt-0.5">
+                                      {session.summary || session.last_message_preview || "Conversation with Prime"}
+                                    </span>
+                                  </div>
                                     <span className="text-[11px] text-slate-500 flex-shrink-0">
                                       {formatRelativeTime(session.last_message_at || session.created_at) || formatTime(session.last_message_at || session.created_at)}
                                     </span>

@@ -8,15 +8,16 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { User, Settings, LogOut, Bell, Search } from 'lucide-react';
+import { User, Settings, LogOut, Bell, Search, Command } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { StatusBadge } from './StatusBadge';
+import { HeaderAIStatus } from './HeaderAIStatus';
+import { CommandPalette } from './CommandPalette';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
 
 interface DashboardHeaderProps {
   customTitle?: string;
   customSubtitle?: string;
-  statusBadges?: React.ReactNode;
-  secondaryStatusLabel?: string; // Page-specific secondary status text (e.g., "AI team active", "Insights updated • 5 min ago")
+  // Note: statusBadges and secondaryStatusLabel removed - all pages now use HeaderAIStatus in tabs row
 }
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
@@ -116,12 +117,13 @@ const tabs = [
   },
 ] as const;
 
-export default function DashboardHeader({ customTitle, customSubtitle, statusBadges, secondaryStatusLabel }: DashboardHeaderProps) {
+export default function DashboardHeader({ customTitle, customSubtitle }: DashboardHeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [unreadCount] = useState(4);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -168,6 +170,27 @@ export default function DashboardHeader({ customTitle, customSubtitle, statusBad
     }
   };
 
+  // Keyboard shortcut handler (Ctrl+K / Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl+K (Windows/Linux) or Cmd+K (Mac)
+      const isModifierPressed = e.ctrlKey || e.metaKey;
+      const isKKey = e.key === 'k' || e.key === 'K';
+      
+      // Don't trigger if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      const isInputFocused = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA';
+      
+      if (isModifierPressed && isKKey && !isInputFocused) {
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <header 
       id="dashboard-header" 
@@ -175,27 +198,26 @@ export default function DashboardHeader({ customTitle, customSubtitle, statusBad
         "w-full border-b border-slate-800/60 bg-slate-950/80 backdrop-blur sticky top-0 z-30"
       )}
     >
-      <div className="mx-auto w-full max-w-6xl px-6 py-4 flex flex-col gap-4 overflow-x-hidden">
+      <div className="mx-auto w-full max-w-6xl px-6 py-4 flex flex-col gap-4 pr-24 md:pr-28 min-w-0">
         {/* Row 1: Title + subtitle + search + utilities */}
-        <div className="flex items-center gap-3 min-w-0 overflow-x-hidden">
+        <div className="flex items-center gap-4 min-w-0 w-full">
           {/* Left: title + subtitle */}
-          <div className="flex flex-col min-w-0 shrink-0 max-w-xl">
-            <h1 className="text-xl font-semibold text-white whitespace-normal">
-              {pageInfo.title}
-            </h1>
-            {pageInfo.subtitle && (
-              <p className="text-sm text-slate-400 truncate">
-                {pageInfo.subtitle}
-              </p>
-            )}
+          <div className="flex items-start gap-3 min-w-0 shrink-0">
+            <div className="flex flex-col min-w-0 shrink-0 max-w-xl">
+              <h1 className="text-xl font-semibold text-white truncate">
+                {pageInfo.title}
+              </h1>
+              {pageInfo.subtitle && (
+                <p className="text-sm text-slate-400 truncate">
+                  {pageInfo.subtitle}
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* Spacer to push search and icons to the right */}
-          <div className="flex-1 min-w-0 hidden md:block"></div>
-
-          {/* Center: search - positioned closer to icons */}
-          <div className="hidden md:flex shrink-0">
-            <div className="w-full max-w-[240px] flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1.5 mr-3">
+          {/* Center: search - takes remaining space */}
+          <div className="hidden md:flex min-w-0 flex-1">
+            <div className="w-full min-w-0 max-w-[260px] flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1.5 mr-3">
               <Search className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <input
                 type="text"
@@ -205,13 +227,31 @@ export default function DashboardHeader({ customTitle, customSubtitle, statusBad
                   // TODO: Wire global search functionality - connect to search API/endpoint
                   setSearchQuery(e.target.value);
                 }}
-                className="bg-transparent outline-none text-sm text-slate-100 placeholder:text-slate-500 flex-1 min-w-0"
+                className="bg-transparent outline-none text-sm text-slate-100 placeholder:text-slate-500 flex-1 min-w-0 w-full"
               />
             </div>
           </div>
 
-          {/* Right: icons - fixed position */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Right: icons */}
+          <div className="flex items-center gap-3 flex-none">
+            {/* Command Palette Button */}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button 
+                    className="h-10 w-10 rounded-full border border-slate-800 bg-slate-900/80 flex items-center justify-center text-slate-100 hover:bg-slate-800/80 hover:border-slate-700 transition group"
+                    aria-label="Command Palette"
+                    onClick={() => setIsCommandPaletteOpen(true)}
+                  >
+                    <Command className="w-4 h-4 text-slate-300 group-hover:text-purple-400 transition-colors duration-200" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="bg-slate-900 text-slate-100 border-slate-800">
+                  Command (Ctrl+K)
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
             {/* Spotify Icon */}
             <button 
               className="h-10 w-10 rounded-full border border-slate-800 bg-slate-900/80 flex items-center justify-center text-slate-100 hover:bg-slate-800/80 hover:border-slate-700 transition group"
@@ -363,53 +403,46 @@ export default function DashboardHeader({ customTitle, customSubtitle, statusBad
           </div>
         </div>
 
-        {/* Row 2: Tabs + status chips */}
-        <div className="flex items-center gap-2 overflow-x-hidden min-w-0">
-          {/* Left: main tabs */}
-          <div className="flex flex-wrap md:flex-nowrap items-center gap-1.5 min-w-0 flex-1">
-            {tabs.map((tab) => {
-              const isActive = tab.id === activeTabId;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabClick(tab)}
-                  disabled={!tab.navigate}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={cn(
-                    "rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1.5 text-xs font-medium text-slate-200 whitespace-nowrap transition flex-shrink-0",
-                    isActive && "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/30",
-                    !isActive && "hover:bg-slate-900/80",
-                    !tab.navigate && 'opacity-50 cursor-not-allowed'
-                  )}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
+        {/* Row 2: Tabs + AI Active indicator */}
+        <div className="flex items-center gap-4 min-w-0 w-full pr-[96px]">
+          {/* Left: main tabs - scrollable container */}
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap no-scrollbar">
+              {tabs.map((tab) => {
+                const isActive = tab.id === activeTabId;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabClick(tab)}
+                    disabled={!tab.navigate}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      "rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1.5 text-xs font-medium text-slate-200 whitespace-nowrap transition",
+                      "flex-none",
+                      isActive && "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/30",
+                      !isActive && "hover:bg-slate-900/80",
+                      !tab.navigate && 'opacity-50 cursor-not-allowed'
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           
-          {/* Right: status chips */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Primary status chip: Prime Online • 24/7 */}
-            {statusBadges ? (
-              // Fallback: if statusBadges prop is provided, render it (for backward compatibility)
-              statusBadges
-            ) : (
-              <>
-                <StatusBadge fixedWidth variant="online">
-                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full inline-block mr-1.5 animate-pulse"></span>
-                  Prime Online • 24/7
-                </StatusBadge>
-                {secondaryStatusLabel && (
-                  <StatusBadge fixedWidth variant="default">
-                    {secondaryStatusLabel}
-                  </StatusBadge>
-                )}
-              </>
-            )}
+          {/* Right: AI Active indicator */}
+          <div className="flex items-center gap-2 flex-none">
+            <HeaderAIStatus />
           </div>
         </div>
       </div>
+
+      {/* Command Palette Modal */}
+      <CommandPalette 
+        isOpen={isCommandPaletteOpen} 
+        onClose={() => setIsCommandPaletteOpen(false)} 
+      />
     </header>
   );
 }

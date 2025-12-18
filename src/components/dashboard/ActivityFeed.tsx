@@ -1,5 +1,6 @@
 import React from 'react';
 import { useActivityFeed, type ActivityEvent } from '../../hooks/useActivityFeed';
+import { cn } from '../../lib/utils';
 
 type LocalEvent = {
   id: string;
@@ -14,6 +15,7 @@ type ActivityFeedProps = {
   limit?: number;
   category?: string;
   localEvents?: LocalEvent[];
+  variant?: 'column' | 'embedded';
 };
 
 /**
@@ -84,6 +86,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   limit = 20,
   category,
   localEvents = [],
+  variant = 'column',
 }) => {
   const { events, isLoading, isError, errorMessage } = useActivityFeed({
     limit,
@@ -108,28 +111,45 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
     ...events,
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+  // Variant styling: 'column' = standalone card, 'embedded' = integrated into parent grid
+  const isEmbedded = variant === 'embedded';
+  
   return (
-    <div className="w-full max-w-[320px] shrink-0 rounded-xl border border-slate-800 bg-slate-900 p-3 flex flex-col h-full overflow-hidden">
-      {/* Header - Stacked layout for narrow column */}
-      <div className="flex flex-col gap-0.5 mb-3 flex-shrink-0">
+    <div 
+      className={cn(
+        "w-full shrink-0 flex flex-col h-full overflow-hidden",
+        !isEmbedded && "rounded-3xl border border-white/5 bg-slate-900/70 p-4" // Column: standalone card styling with padding
+      )}
+      data-variant={variant}
+      data-embedded={isEmbedded}
+      style={isEmbedded ? {
+        padding: 0,
+        borderRadius: '0.5rem',
+        border: '1px solid rgba(30, 41, 59, 0.5)',
+        backgroundColor: 'rgba(15, 23, 42, 0.5)',
+        minHeight: 0
+      } : undefined} // Force embedded styles via inline styles
+    >
+      {/* Header - Compact stacked layout */}
+      <div className={cn("flex flex-col gap-0.5 mb-3 flex-shrink-0", isEmbedded && "px-4 pt-4")}>
         <h3 className="text-xs font-semibold tracking-wider text-slate-100 uppercase">
           {title}
         </h3>
         <span className="text-[10px] text-slate-500 truncate">Recent AI team activity</span>
       </div>
 
-      {/* Body */}
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-2 no-scrollbar">
+      {/* Body - Tighter vertical spacing */}
+      <div className={cn("flex-1 min-h-0 overflow-y-auto space-y-2 no-scrollbar", isEmbedded && "px-4 pb-4")}>
         {isLoading ? (
           // Loading skeleton
           <>
             {[1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="flex items-start gap-3 rounded-xl px-3 py-2 animate-pulse"
+                className="flex items-start gap-2.5 rounded-xl px-2.5 py-1.5 animate-pulse"
               >
-                <div className="w-8 h-8 rounded-full bg-slate-800 shrink-0" />
-                <div className="flex-1 space-y-1.5">
+                <div className="w-7 h-7 rounded-full bg-slate-800 shrink-0" />
+                <div className="flex-1 space-y-1">
                   <div className="h-3 bg-slate-800 rounded w-3/4" />
                   <div className="h-2 bg-slate-800/50 rounded w-1/2" />
                 </div>
@@ -137,38 +157,38 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
             ))}
           </>
         ) : isError ? (
-          // Error state
-          <div className="px-3 py-4 text-center">
-            <p className="text-sm text-slate-400">
+          // Error state - Compact
+          <div className="px-2.5 py-3 text-center">
+            <p className="text-xs text-slate-400">
               Activity temporarily unavailable
             </p>
             {errorMessage && (
-              <p className="text-xs text-slate-500 mt-1">{errorMessage}</p>
+              <p className="text-[10px] text-slate-500 mt-1">{errorMessage}</p>
             )}
           </div>
         ) : mergedEvents.length === 0 ? (
-          // Empty State
+          // Empty State - Compact
           <div className="flex-1 flex flex-col items-center justify-center text-center p-2">
             <p className="text-[11px] text-slate-500 leading-relaxed">
               No recent activity yet.
             </p>
-            <p className="text-[10px] text-slate-600 mt-1 leading-relaxed">
+            <p className="text-[10px] text-slate-600 mt-0.5 leading-relaxed">
               Start by uploading or chatting.
             </p>
           </div>
         ) : (
-          // Events list
+          // Events list - Compact styling
           mergedEvents.map((event) => (
             <div
               key={event.id}
-              className="flex items-start gap-3 rounded-xl px-3 py-2 hover:bg-slate-900/80 transition"
+              className="flex items-start gap-2.5 rounded-xl px-2.5 py-1.5 hover:bg-slate-800/60 transition-colors"
             >
-              {/* Actor icon */}
-              <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0 text-lg">
+              {/* Actor icon - Slightly smaller */}
+              <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center shrink-0 text-base">
                 {getActorIcon(event.actorSlug)}
               </div>
 
-              {/* Content */}
+              {/* Content - Tighter spacing */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2 mb-0.5">
                   <p className="text-xs font-medium text-slate-200 leading-snug break-words">
@@ -176,7 +196,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
                   </p>
                   {event.severity && event.severity !== 'info' && (
                     <span
-                      className={`text-xs px-2.5 py-0.5 rounded-full shrink-0 ${getSeverityStyles(
+                      className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${getSeverityStyles(
                         event.severity
                       )}`}
                     >
@@ -185,11 +205,11 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
                   )}
                 </div>
                 {event.description && (
-                  <p className="text-xs text-slate-400 leading-snug mb-1 break-words">
+                  <p className="text-[11px] text-slate-400 leading-snug mb-0.5 break-words">
                     {event.description}
                   </p>
                 )}
-                <p className="text-[11px] text-slate-600">
+                <p className="text-[10px] text-slate-600">
                   {formatTimeAgo(event.createdAt)}
                 </p>
               </div>

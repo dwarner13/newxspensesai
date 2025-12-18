@@ -11,7 +11,9 @@
 
 import { useNavigate } from 'react-router-dom';
 import { DashboardStatCard } from '../../components/dashboard/DashboardStatCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { DashboardCardGrid } from '../../components/dashboard/DashboardCardGrid';
 import { Receipt, Shield, Target, Zap, TrendingUp, PiggyBank, Shield as FreedomIcon, Calendar } from 'lucide-react';
 
 export default function PlanningPage() {
@@ -101,12 +103,15 @@ export default function PlanningPage() {
   ];
 
   return (
-    <DashboardSection>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3 items-stretch">
-        {cards.map((card) => (
-          <DashboardStatCard key={card.id} {...card} />
-        ))}
-      </div>
-    </DashboardSection>
+    <DashboardPageShell
+      center={
+        <DashboardCardGrid>
+          {cards.map((card) => (
+            <DashboardStatCard key={card.id} {...card} />
+          ))}
+        </DashboardCardGrid>
+      }
+      right={<ActivityFeedSidebar scope="planning" />}
+    />
   );
 }

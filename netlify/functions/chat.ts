@@ -7,6 +7,7 @@
  * - Memory retrieval and storage
  * - Streaming responses (SSE)
  * - Session management
+ * - 🗄️ Custodian: Conversation summaries (non-blocking, async)
  * 
  * GUARDRAILS INTEGRATION:
  * - All user messages go through runInputGuardrails() BEFORE routing/model calls
@@ -30,9 +31,21 @@
  * 4. Backend calls getRecentMessages(sessionId) to load conversation history
  * 5. Backend saves new messages to chat_messages table with session_id
  * 6. Next request with same sessionId will load previous messages → maintains context
+ * 
+ * RECENT CHANGES (2025-01-20):
+ * - Added Custodian conversation summary generation (updateConversationSummaryForCustodian)
+ *   - Runs asynchronously after messages are saved (non-blocking)
+ *   - Generates title, summary, and tags using OpenAI
+ *   - Upserts into chat_convo_summaries table
+ *   - Wrapped in try/catch to prevent chat failures
+ * - Module system: Uses ES modules (package.json "type": "module")
+ *   - Netlify.toml configured with node_bundler = "esbuild" for proper ES module support
+ *   - All imports use .js extensions for ES module compatibility
+ * - Export: Uses named export `export const handler: Handler` (Netlify standard)
  */
 
 import type { Handler } from '@netlify/functions';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { admin } from './_shared/supabase.js';
 // Phase 2.2: Use unified guardrails API (single source of truth)
 import { 
@@ -54,6 +67,7 @@ import {
 import { ensureSession, getRecentMessages } from './_shared/session.js';
 import { buildResponseHeaders } from './_shared/headers.js';
 import { getEmployeeModelConfig } from './_shared/employeeModelConfig.js';
+import { verifyAuth } from './_shared/verifyAuth.js';
 import OpenAI from 'openai';
 // Import tool system for Tag tools
 import { toOpenAIToolDefs, pickTools, executeTool } from '../../src/agent/tools/index.js';
@@ -72,6 +86,7 @@ interface ChatRequest {
   sessionId?: string;
   stream?: boolean;
   systemPromptOverride?: string; // Custom system prompt from frontend (e.g., category/transaction context)
+  documentIds?: string[]; // Document IDs from Smart Import uploads
 }
 
 // ============================================================================
@@ -87,10 +102,305 @@ if (!openai) {
 }
 
 // ============================================================================
+// HELPERS
+// ============================================================================
+
+/**
+ * Normalize sessionId to handle various input types safely
+ */
+function normalizeSessionId(raw: unknown): string | null {
+  if (typeof raw === 'string') return raw;
+  if (raw && typeof raw === 'object' && 'id' in (raw as any)) {
+    const v = (raw as any).id;
+    if (typeof v === 'string') return v;
+  }
+  return null;
+}
+
+/**
+ * Load documents and build attachment context for chat
+ * @param sb - Supabase client
+ * @param userId - User ID
+ * @param documentIds - Array of document IDs
+ * @returns Attachment context string or null if no documents/processing
+ */
+async function buildAttachmentContext(
+  sb: SupabaseClient,
+  userId: string,
+  documentIds: string[]
+): Promise<string | null> {
+  if (!documentIds || documentIds.length === 0) {
+    return null;
+  }
+
+  try {
+    // Load documents from user_documents table
+    const { data: documents, error } = await sb
+      .from('user_documents')
+      .select('id, original_name, mime_type, ocr_text, status, created_at')
+      .in('id', documentIds)
+      .eq('user_id', userId); // Security: only allow user to read their own documents
+
+    if (error) {
+      console.error('[Chat] Error loading documents:', error);
+      return null;
+    }
+
+    if (!documents || documents.length === 0) {
+      console.warn('[Chat] No documents found for provided documentIds');
+      return null;
+    }
+
+    const contextParts: string[] = [];
+    const processingDocs: string[] = [];
+
+    for (const doc of documents) {
+      const isProcessing = doc.status === 'pending' || doc.status === 'processing';
+      const hasContent = doc.ocr_text && doc.ocr_text.trim().length > 0;
+
+      if (isProcessing && !hasContent) {
+        processingDocs.push(doc.original_name || 'document');
+        continue;
+      }
+
+      // Build context for each document
+      const docContext: string[] = [];
+      docContext.push(`Document: ${doc.original_name || 'Untitled'}`);
+      
+      if (doc.mime_type) {
+        docContext.push(`Type: ${doc.mime_type}`);
+      }
+
+      if (hasContent) {
+        // Truncate OCR text to ~2000 characters to avoid token limits
+        const ocrText = doc.ocr_text.trim();
+        const truncatedText = ocrText.length > 2000 
+          ? ocrText.substring(0, 2000) + '... (truncated)'
+          : ocrText;
+        docContext.push(`Extracted content:\n${truncatedText}`);
+      } else if (isProcessing) {
+        docContext.push('Status: Still processing (OCR/parsing in progress)');
+      }
+
+      contextParts.push(docContext.join('\n'));
+    }
+
+    if (processingDocs.length > 0) {
+      contextParts.push(
+        `\nNote: ${processingDocs.length} document(s) are still being processed: ${processingDocs.join(', ')}. ` +
+        `I'll summarize them once processing completes.`
+      );
+    }
+
+    if (contextParts.length === 0) {
+      return null;
+    }
+
+    return `\n\n--- ATTACHED DOCUMENTS ---\n${contextParts.join('\n\n---\n')}\n--- END ATTACHED DOCUMENTS ---\n`;
+  } catch (error: any) {
+    console.error('[Chat] Error building attachment context:', error);
+    return null;
+  }
+}
+
+// ============================================================================
+// CUSTODIAN: CONVERSATION SUMMARY HELPER
+// ============================================================================
+
+/**
+ * Update conversation summary for Custodian
+ * Generates title, summary, and tags using OpenAI, then upserts into chat_convo_summaries
+ * @param sb - Supabase client
+ * @param userId - User ID
+ * @param conversationId - Conversation/session ID
+ * @param messages - Full conversation messages array
+ * @param employeesInvolved - Array of employee slugs involved in conversation
+ */
+async function updateConversationSummaryForCustodian(
+  sb: SupabaseClient,
+  userId: string,
+  conversationId: string,
+  messages: Array<{ role: string; content: string }>,
+  employeesInvolved: string[]
+): Promise<void> {
+  // Skip if OpenAI not configured or no messages
+  if (!openai || messages.length === 0) {
+    return;
+  }
+
+  try {
+    // Get conversation text (last 20 messages for context, or all if fewer)
+    const recentMessages = messages.slice(-20);
+    const conversationText = recentMessages
+      .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+      .join('\n\n');
+
+    // Call OpenAI to generate title, summary, and tags
+    const summaryResponse = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `You are Custodian, an AI assistant that creates concise summaries of financial conversations.
+
+Generate:
+1. A short title (3-8 words) that captures the main topic
+2. A 1-2 sentence summary of what was discussed
+3. 2-5 relevant tags (e.g., "budgeting", "debt", "investments", "taxes", "spending-analysis")
+
+Return JSON format:
+{
+  "title": "Short descriptive title",
+  "summary": "One to two sentence summary of the conversation.",
+  "tags": ["tag1", "tag2", "tag3"]
+}`
+        },
+        {
+          role: 'user',
+          content: `Summarize this conversation:\n\n${conversationText}`
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 300,
+    });
+
+    const content = summaryResponse.choices[0]?.message?.content;
+    if (!content) {
+      console.warn('[Custodian] No summary content generated');
+      return;
+    }
+
+    // Parse JSON response
+    let summaryData: { title: string; summary: string; tags: string[] };
+    try {
+      // Extract JSON from markdown code blocks if present
+      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/) || [null, content];
+      summaryData = JSON.parse(jsonMatch[1] || content);
+    } catch (parseError) {
+      console.warn('[Custodian] Failed to parse summary JSON:', parseError);
+      // Fallback: create basic summary from first user message
+      const firstUserMessage = messages.find(m => m.role === 'user')?.content || '';
+      summaryData = {
+        title: firstUserMessage.substring(0, 50) || 'New Conversation',
+        summary: firstUserMessage.substring(0, 200) || 'Conversation started.',
+        tags: [],
+      };
+    }
+
+    // Get conversation timestamps from messages (if available) or use current time
+    // Note: messages array doesn't have created_at, so we'll use current time for last_message_at
+    // and query the database for started_at if needed
+    const now = new Date().toISOString();
+    let startedAt = now;
+    let lastMessageAt = now;
+    
+    // Try to get started_at from first message in database
+    try {
+      const { data: firstMessage } = await sb
+        .from('chat_messages')
+        .select('created_at')
+        .eq('session_id', conversationId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      
+      if (firstMessage?.created_at) {
+        startedAt = firstMessage.created_at;
+      }
+    } catch (e) {
+      // Ignore errors, use current time
+    }
+    
+    // Try to get last_message_at from last message in database
+    try {
+      const { data: lastMessage } = await sb
+        .from('chat_messages')
+        .select('created_at')
+        .eq('session_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (lastMessage?.created_at) {
+        lastMessageAt = lastMessage.created_at;
+      }
+    } catch (e) {
+      // Ignore errors, use current time
+    }
+
+    // Upsert into chat_convo_summaries (conflict on unique index idx_convo_summaries_user_conversation)
+    // Note: Supabase upsert uses the unique constraint columns, not the index name
+    // updated_at is auto-managed by trigger, so we don't include it in upsert
+    const { error: upsertError } = await sb
+      .from('chat_convo_summaries')
+      .upsert({
+        user_id: userId,
+        conversation_id: conversationId,
+        title: summaryData.title,
+        summary: summaryData.summary,
+        tags: summaryData.tags || [],
+        employees_involved: employeesInvolved,
+        started_at: startedAt,
+        last_message_at: lastMessageAt,
+        pinned: false,
+        // updated_at is auto-updated by trigger, don't include it
+      }, {
+        onConflict: 'user_id,conversation_id', // Matches unique constraint
+        ignoreDuplicates: false, // Update existing rows
+      });
+
+    if (upsertError) {
+      console.error('[Custodian] Failed to upsert chat_convo_summaries:', {
+        error: upsertError,
+        userId,
+        conversationId,
+        message: upsertError.message,
+        details: upsertError.details,
+        hint: upsertError.hint,
+      });
+    } else {
+      console.log(`[Custodian] ✅ Updated summary for conversation ${conversationId}`);
+    }
+  } catch (error: any) {
+    // Non-blocking: log error but don't throw
+    console.warn('[Custodian] Error updating conversation summary:', error);
+  }
+}
+
+// ============================================================================
 // MAIN HANDLER
 // ============================================================================
 
 export const handler: Handler = async (event, context) => {
+  // Environment variable diagnostics (safe - never logs secrets)
+  const envCheck = {
+    hasOpenAI: !!process.env.OPENAI_API_KEY,
+    hasSupabaseUrl: !!process.env.SUPABASE_URL,
+    hasAnon: !!process.env.SUPABASE_ANON_KEY,
+    hasServiceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+  };
+  console.log('[chat] env check', envCheck);
+
+  // Validate required environment variables
+  if (!envCheck.hasOpenAI || !envCheck.hasSupabaseUrl) {
+    const missing = [];
+    if (!envCheck.hasOpenAI) missing.push('OPENAI_API_KEY');
+    if (!envCheck.hasSupabaseUrl) missing.push('SUPABASE_URL');
+    
+    return {
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({ 
+        error: 'Missing server environment variables',
+        missing: missing.join(', '),
+        message: 'Server configuration error. Please contact support.',
+      }),
+    };
+  }
+
   // CORS headers (will be enhanced with guardrail headers later)
   const baseHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -120,19 +430,32 @@ export const handler: Handler = async (event, context) => {
   }
 
   try {
-    // Parse request body
-    const body = JSON.parse(event.body || '{}') as ChatRequest;
-    const { userId, employeeSlug, message, sessionId, stream = true, systemPromptOverride } = body;
+    // Verify authentication from JWT token
+    const { userId, error: authError } = await verifyAuth(event);
+    if (authError || !userId) {
+      return {
+        statusCode: 401,
+        headers: {
+          ...baseHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ error: authError || 'Authentication required' }),
+      };
+    }
 
-    // Validate required fields
-    if (!userId || !message) {
+    // Parse request body (userId now comes from JWT, not body)
+    const body = JSON.parse(event.body || '{}') as ChatRequest;
+    const { employeeSlug, message, sessionId, stream = true, systemPromptOverride, documentIds } = body;
+
+    // Validate required fields (userId already verified from JWT)
+    if (!message) {
       return {
         statusCode: 400,
         headers: {
           ...baseHeaders,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ error: 'userId and message are required' }),
+        body: JSON.stringify({ error: 'message is required' }),
       };
     }
 
@@ -408,13 +731,30 @@ export const handler: Handler = async (event, context) => {
     // ========================================================================
     // 5. SESSION MANAGEMENT
     // ========================================================================
-    let finalSessionId: string;
+    let finalSessionId: string | null = null;
+    let sessionEmployeeSlug: string = finalEmployeeSlug; // Track employee from session (may change after handoff)
     try {
-      finalSessionId = await ensureSession(sb, userId, sessionId, finalEmployeeSlug);
+      const sessionResult = await ensureSession(sb, userId, sessionId, finalEmployeeSlug);
+      // ensureSession returns { sessionId: string, employee_slug: string }
+      finalSessionId = sessionResult?.sessionId ?? normalizeSessionId(sessionId) ?? null;
+      // Use employee_slug from session if available (handles handoff scenarios)
+      if (sessionResult?.employee_slug) {
+        sessionEmployeeSlug = sessionResult.employee_slug;
+        // If session has a different employee than requested, update finalEmployeeSlug
+        if (sessionEmployeeSlug !== finalEmployeeSlug) {
+          console.log(`[Chat] Session employee mismatch: requested ${finalEmployeeSlug}, session has ${sessionEmployeeSlug} (likely from handoff)`);
+          finalEmployeeSlug = sessionEmployeeSlug;
+        }
+      }
+      
+      if (!finalSessionId) {
+        throw new Error('Failed to get session ID from ensureSession');
+      }
     } catch (error: any) {
       console.error('[Chat] Session creation failed:', error);
       // Use a fallback session ID if database fails
-      finalSessionId = sessionId || `session-${userId}-${Date.now()}`;
+      const fallbackId = normalizeSessionId(sessionId) ?? `session-${userId}-${Date.now()}`;
+      finalSessionId = typeof fallbackId === 'string' ? fallbackId : null;
     }
 
     // ========================================================================
@@ -423,11 +763,12 @@ export const handler: Handler = async (event, context) => {
     // Check if this is a Smart Import AI conversation (check session context)
     let isSmartImportAI = false;
     try {
-      if (finalSessionId) {
+      const normalizedSessionIdForCheck = normalizeSessionId(finalSessionId);
+      if (normalizedSessionIdForCheck) {
         const { data: sessionData } = await sb
           .from('chat_sessions')
           .select('context')
-          .eq('id', finalSessionId)
+          .eq('id', normalizedSessionIdForCheck)
           .maybeSingle();
         
         if (sessionData?.context && typeof sessionData.context === 'object' && 'workspace' in sessionData.context) {
@@ -447,9 +788,10 @@ export const handler: Handler = async (event, context) => {
     
     try {
       // Phase 2.1: Use unified memory API for comprehensive context
+      const normalizedSessionId = normalizeSessionId(finalSessionId);
       const memory = await getMemory({
         userId,
-        sessionId: finalSessionId,
+        sessionId: normalizedSessionId || '',
         query: masked,
         options: {
           maxFacts: isSmartImportAI ? 8 : 5,
@@ -492,12 +834,13 @@ export const handler: Handler = async (event, context) => {
       console.warn('[Chat] Memory retrieval failed:', error);
       // Fallback to legacy recall() for backward compatibility
       try {
+        const normalizedSessionId = normalizeSessionId(finalSessionId);
         memoryFacts = await recall({
           userId,
           query: masked,
           k: isSmartImportAI ? 8 : 5,
           minScore: 0.2,
-          sessionId: finalSessionId
+          sessionId: normalizedSessionId || undefined
         });
         memoryHitScore = memoryFacts.length > 0 ? memoryFacts[0].score : null;
         memoryContext = memoryFacts.length > 0
@@ -510,18 +853,35 @@ export const handler: Handler = async (event, context) => {
     }
 
     // Log memory recall summary
-    console.log(`[CHAT] memory recall userId=${userId.substring(0, 8)}... sessionId=${finalSessionId.substring(0, 8)}... employee=${finalEmployeeSlug} hasContext=${memoryContext.length > 0}`);
+    const safeSessionId =
+      typeof finalSessionId === "string"
+        ? finalSessionId
+        : String(finalSessionId || "");
+    const sessionIdForLog = safeSessionId.length > 0
+      ? safeSessionId.substring(0, 8)
+      : 'no-session';
+    console.log(`[CHAT] memory recall userId=${typeof userId === 'string' && userId.length > 8 ? userId.substring(0, 8) : userId}... sessionId=${sessionIdForLog}... employee=${finalEmployeeSlug} hasContext=${memoryContext.length > 0}`);
 
     // ========================================================================
     // 7. GET RECENT MESSAGES
     // ========================================================================
     let recentMessages: any[] = [];
     try {
-      recentMessages = await getRecentMessages(sb, finalSessionId, 4000);
-      if (recentMessages.length > 0) {
-        console.log(`[Chat] ✅ Loaded ${recentMessages.length} previous messages from session ${finalSessionId}`);
+      const normalizedSessionIdForMessages = normalizeSessionId(finalSessionId);
+      if (normalizedSessionIdForMessages) {
+        recentMessages = await getRecentMessages(sb, normalizedSessionIdForMessages, 4000);
       } else {
-        console.log(`[Chat] ℹ️ No previous messages found for session ${finalSessionId} (this is normal for new conversations)`);
+        recentMessages = [];
+      }
+      const normalizedSessionIdForLog = normalizeSessionId(finalSessionId) || 'no-session';
+      const safeSessionId2 =
+        typeof normalizedSessionIdForLog === "string"
+          ? normalizedSessionIdForLog
+          : String(normalizedSessionIdForLog || "");
+      if (recentMessages.length > 0) {
+        console.log(`[Chat] ✅ Loaded ${recentMessages.length} previous messages from session ${safeSessionId2.substring(0, 8)}...`);
+      } else {
+        console.log(`[Chat] ℹ️ No previous messages found for session ${safeSessionId2.substring(0, 8)}... (this is normal for new conversations)`);
       }
     } catch (error: any) {
       console.warn('[Chat] ⚠️ Failed to load recent messages:', error);
@@ -627,13 +987,25 @@ export const handler: Handler = async (event, context) => {
     }
     const systemMessage = systemMessageParts.join('\n\n').trim();
 
+    // Build attachment context if documentIds provided
+    let attachmentContext: string | null = null;
+    if (documentIds && documentIds.length > 0) {
+      attachmentContext = await buildAttachmentContext(sb, userId, documentIds);
+    }
+
+    // Combine user message with attachment context
+    let userMessageContent = masked;
+    if (attachmentContext) {
+      userMessageContent = `${masked}${attachmentContext}`;
+    }
+
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemMessage },
       ...recentMessages.map((m: any) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
       })),
-      { role: 'user', content: masked },
+      { role: 'user', content: userMessageContent },
     ];
 
     console.log(`[Chat] Context: ${recentMessages.length} history messages, ${memoryFacts.length} memory facts`);
@@ -687,7 +1059,17 @@ export const handler: Handler = async (event, context) => {
 
     if (stream) {
       // Streaming response (SSE) with tool support
+      console.log('[Chat] Streaming mode enabled for employee:', finalEmployeeSlug, 'userId:', userId);
+      
+      // Capture original employee slug before potential handoff
+      const originalEmployeeSlug = finalEmployeeSlug;
+      
+      // Declare toolResults at function scope to ensure it's accessible throughout the streaming block
+      const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+      
       try {
+        // Send meta event at start for debugging (will be added to streamBuffer)
+        
         // Convert tools to OpenAI format if available
         let openaiTools: any = undefined;
         try {
@@ -712,7 +1094,8 @@ export const handler: Handler = async (event, context) => {
         }
         
         // Note: Netlify Functions streaming requires returning a promise that resolves to chunks
-        const stream = await openai.chat.completions.create({
+        console.log('[Chat] OPENAI streaming call start', { employeeSlug: finalEmployeeSlug, userId });
+        const openaiStream = await openai.chat.completions.create({
           model: modelConfig.model,
           messages,
           temperature: modelConfig.temperature,
@@ -720,6 +1103,7 @@ export const handler: Handler = async (event, context) => {
           stream: true,
           tools: openaiTools, // Add tools if available
         });
+        console.log('[Chat] OPENAI streaming call initiated, starting to process chunks');
 
         // Build response headers (will be updated if handoff occurs)
         let headers = buildResponseHeaders({
@@ -729,6 +1113,7 @@ export const handler: Handler = async (event, context) => {
           memoryHitCount: memoryFacts.length,
           employee: finalEmployeeSlug,
           routeConfidence: 0.8,
+          sessionId: finalSessionId || undefined, // Include sessionId in headers for frontend
         });
 
         // Create streaming response with tool calling support
@@ -737,12 +1122,14 @@ export const handler: Handler = async (event, context) => {
         const requestStartTime = Date.now();
         let firstTokenTime: number | null = null;
         
+        // Send meta event at start for debugging
+        let streamBuffer = `event: meta\ndata: ${JSON.stringify({ status: 'starting' })}\n\n`;
+        
         // Send employee header first (will be updated if handoff occurs)
-        const encoder = new TextEncoder();
-        let streamBuffer = `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n`;
+        streamBuffer += `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n`;
 
         // Stream tokens and collect tool calls
-        for await (const chunk of stream) {
+        for await (const chunk of openaiStream) {
           // Track time to first token
           if (!firstTokenTime && chunk.choices[0]?.delta?.content) {
             firstTokenTime = Date.now();
@@ -750,7 +1137,8 @@ export const handler: Handler = async (event, context) => {
           const delta = chunk.choices[0]?.delta;
           if (delta?.content) {
             assistantContent += delta.content;
-            streamBuffer += `data: ${JSON.stringify({ type: 'token', token: delta.content })}\n\n`;
+            // Frontend expects type: 'text' with content property, not type: 'token' with token
+            streamBuffer += `data: ${JSON.stringify({ type: 'text', content: delta.content })}\n\n`;
           }
           // Collect tool calls from stream
           if (delta?.tool_calls) {
@@ -790,389 +1178,395 @@ export const handler: Handler = async (event, context) => {
         console.log(`[Chat] Processing ${toolCalls.length} tool calls`);
         
         // Execute tools and add results to messages
-        const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+        // toolResults already declared at function scope above
         for (const toolCall of toolCalls) {
-          if (!toolCall.id || !toolCall.function?.name) continue;
-          
-          const toolName = toolCall.function.name;
-          const toolModule = toolModules[toolName];
-          
-          if (!toolModule) {
-            console.warn(`[Chat] Tool ${toolName} not found in modules`);
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify({ error: `Tool ${toolName} not available` }),
-            });
-            continue;
-          }
+                if (!toolCall.id || !toolCall.function?.name) continue;
+                
+                const toolName = toolCall.function.name;
+                const toolModule = toolModules[toolName];
+                
+                if (!toolModule) {
+                  console.warn(`[Chat] Tool ${toolName} not found in modules`);
+                  toolResults.push({
+                    role: 'tool',
+                    tool_call_id: toolCall.id,
+                    content: JSON.stringify({ error: `Tool ${toolName} not available` }),
+                  });
+                  continue;
+                }
 
-          try {
-            // Parse args once for logging and execution
-            const args = JSON.parse(toolCall.function.arguments || '{}');
-            
-            // Enhanced logging for all tools
-            console.log(`[Chat] Executing tool: ${toolName}`, {
-              employee: finalEmployeeSlug,
-              tool: toolName,
-              args: process.env.NETLIFY_DEV === 'true' ? args : '[redacted]',
-            });
-            
-            // Special debug logging for tag_category_brain
-            if (toolName === 'tag_category_brain') {
-              console.log(`[Tag Category Brain] Category: "${args.category || 'unknown'}", Timeframe: "${args.timeframe || 'all'}", UserId: ${userId}`);
-            }
-            
-            // Warn if tag_explain_category is called with obviously invalid transaction IDs
-            if (toolName === 'tag_explain_category' && args.transactionId) {
-              const invalidIds = ['upload', 'statement', 'document', 'file', 'smart import', 'import'];
-              const txIdLower = String(args.transactionId).toLowerCase().trim();
-              if (invalidIds.includes(txIdLower)) {
-                console.warn(`[Chat] ⚠️ Tag called tag_explain_category with invalid transactionId: "${args.transactionId}". This looks like an upload question that should trigger handoff instead.`);
-              }
-            }
-            
-            const toolContext: ToolContext = {
-              userId,
-              conversationId: finalSessionId,
-              sessionId: finalSessionId,
-            };
-            
-            // Special debug logging for request_employee_handoff BEFORE execution
-            if (toolName === 'request_employee_handoff') {
-              console.log(`[Chat] 🔄 HANDOFF REQUEST (streaming): ${finalEmployeeSlug} → ${args.target_slug || 'unknown'}`, {
-                reason: args.reason || 'No reason provided',
-                summary: args.summary_for_next_employee || 'No summary provided',
-                userId,
-                sessionId: finalSessionId,
-              });
-            }
-            
-            // Phase 3.1: Send tool_executing event before execution
-            streamBuffer += `data: ${JSON.stringify({
-              type: 'tool_executing',
-              tool: toolName
-            })}\n\n`;
-            
-            const result = await executeTool(toolModule, args, toolContext);
-            
-            // Check if result has error field (from executeTool error handling)
-            if (result && typeof result === 'object' && 'error' in result) {
-              console.error(`[Chat] Tool ${toolName} returned error:`, result.error);
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: JSON.stringify({ 
-                  error: result.error || 'Tool execution failed',
-                  message: 'I had trouble loading stats for this category, but I can still talk about your finances in general.',
-                }),
-              });
-            } else {
-              // Special handling for employee handoff (streaming)
-              // Check for new schema: data.requested_handoff === true
-              if (toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
-                const handoffData = (result as any).data;
-                if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
-                  const targetSlug = handoffData.target_slug;
-                  const reason = handoffData.reason || 'Better suited for this question';
-                  const summary = handoffData.summary_for_next_employee;
-                  
-                  console.log(`[Chat] ✅ HANDOFF COMPLETE (streaming): ${originalEmployeeSlug} → ${targetSlug}`, {
-                    reason,
-                    summary,
-                    sessionId: finalSessionId,
-                  });
-                  
-                  // Phase 3.2: Gather handoff context
-                  let recentMessages: any[] = [];
-                  let keyFacts: string[] = [];
-                  
-                  try {
-                    // Get recent messages (last 10)
-                    const { data: messagesData } = await sb
-                      .from('chat_messages')
-                      .select('role, content, created_at')
-                      .eq('session_id', finalSessionId)
-                      .order('created_at', { ascending: false })
-                      .limit(10);
-                    
-                    if (messagesData) {
-                      recentMessages = messagesData.reverse(); // Oldest first
-                    }
-                    
-                    // Extract key facts from memory
-                    if (memoryFacts && memoryFacts.length > 0) {
-                      keyFacts = memoryFacts.slice(0, 5).map(f => f.fact);
-                    }
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to gather handoff context:', error);
-                  }
-                  
-                  // Phase 3.2: Store handoff context in database
-                  try {
-                    await sb.from('handoffs').insert({
-                      user_id: userId,
-                      session_id: finalSessionId,
-                      from_employee: originalEmployeeSlug,
-                      to_employee: targetSlug,
-                      reason: reason,
-                      context_summary: summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`,
-                      key_facts: keyFacts,
-                      recent_messages: recentMessages,
-                      user_intent: masked.substring(0, 500), // Current user message
-                      status: 'initiated',
-                    });
-                    
-                    console.log(`[Chat] Stored handoff context for session ${finalSessionId}`);
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to store handoff context:', error);
-                  }
-                  
-                  // Update session's employee_slug
-                  try {
-                    await sb
-                      .from('chat_sessions')
-                      .update({ employee_slug: targetSlug })
-                      .eq('id', finalSessionId);
-                    
-                    console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug}`);
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to update session employee_slug:', error);
-                  }
-                  
-                  // Insert system message about handoff
-                  try {
-                    const handoffMessage = summary 
-                      ? `Handoff: Conversation moved to ${targetSlug}. Context: ${summary}`
-                      : `Handoff: Conversation moved to ${targetSlug}.`;
-                    
-                    await sb.from('chat_messages').insert({
-                      session_id: finalSessionId,
-                      user_id: userId,
-                      role: 'system',
-                      content: handoffMessage,
-                      tokens: estimateTokens(handoffMessage),
-                    });
-                    
-                    console.log(`[Chat] Inserted handoff system message for session ${finalSessionId}`);
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to insert handoff system message:', error);
-                  }
-                  
-                  // Update finalEmployeeSlug for this request
-                  finalEmployeeSlug = targetSlug;
-                  
-                  // Reload employee profile and tools for new employee
-                  try {
-                    const { data: newEmployeeProfile } = await sb
-                      .from('employee_profiles')
-                      .select('tools_allowed')
-                      .eq('slug', finalEmployeeSlug)
-                      .maybeSingle();
-                    
-                    if (newEmployeeProfile?.tools_allowed && Array.isArray(newEmployeeProfile.tools_allowed)) {
-                      employeeTools = newEmployeeProfile.tools_allowed;
-                      toolModules = pickTools(employeeTools);
-                      console.log(`[Chat] Loaded ${employeeTools.length} tools for new employee ${finalEmployeeSlug}:`, employeeTools);
-                    }
-                  } catch (error: any) {
-                    console.warn('[Chat] Failed to reload employee tools after handoff:', error);
-                  }
-                  
-                  // Update headers to reflect new employee
-                  headers = buildResponseHeaders({
-                    guardrailsActive: true,
-                    piiMaskEnabled: (guardrailResult.signals.piiTypes || []).length > 0,
-                    memoryHitTopScore: memoryHitScore,
-                    memoryHitCount: memoryFacts.length,
-                    employee: finalEmployeeSlug,
-                    routeConfidence: 0.9, // High confidence for explicit handoff
-                  });
-                  
-                  // Send handoff event in stream
-                  const handoffEvent = {
-                    type: 'handoff',
-                    from: originalEmployeeSlug,
-                    to: targetSlug,
-                    reason,
-                    summary
-                  };
-                  streamBuffer += `data: ${JSON.stringify(handoffEvent)}\n\n`;
-                  
-                  // Enhanced logging for debugging (guarded by env flag)
-                  if (process.env.NETLIFY_DEV === 'true' || process.env.DEBUG_HANDOFF === 'true') {
-                    console.log(`[Chat] 📤 HANDOFF EVENT SENT (streaming):`, handoffEvent);
-                  }
-                }
-              }
-              
-              // executeTool handles Result unwrapping and returns the validated output directly
-              
-              // Phase 3.1: Send tool_result event with formatted result
-              // Format result for display (limit size, handle sensitive data)
-              let displayResult = result;
-              if (typeof result === 'object' && result !== null) {
-                // Create a safe copy for display (limit depth, remove sensitive fields)
                 try {
-                  displayResult = JSON.parse(JSON.stringify(result));
-                  // Limit large arrays/objects
-                  if (Array.isArray(displayResult) && displayResult.length > 10) {
-                    displayResult = displayResult.slice(0, 10).concat([`... and ${displayResult.length - 10} more items`]);
+                  // Parse args once for logging and execution
+                  const args = JSON.parse(toolCall.function.arguments || '{}');
+                  
+                  // Enhanced logging for all tools
+                  console.log(`[Chat] Executing tool: ${toolName}`, {
+                    employee: finalEmployeeSlug,
+                    tool: toolName,
+                    args: process.env.NETLIFY_DEV === 'true' ? args : '[redacted]',
+                  });
+                  
+                  // Special debug logging for tag_category_brain
+                  if (toolName === 'tag_category_brain') {
+                    console.log(`[Tag Category Brain] Category: "${args.category || 'unknown'}", Timeframe: "${args.timeframe || 'all'}", UserId: ${userId}`);
                   }
-                } catch (e) {
-                  // If JSON parsing fails, use string representation
-                  displayResult = String(result).substring(0, 500);
+                  
+                  // Warn if tag_explain_category is called with obviously invalid transaction IDs
+                  if (toolName === 'tag_explain_category' && args.transactionId) {
+                    const invalidIds = ['upload', 'statement', 'document', 'file', 'smart import', 'import'];
+                    const txIdLower = String(args.transactionId).toLowerCase().trim();
+                    if (invalidIds.includes(txIdLower)) {
+                      console.warn(`[Chat] ⚠️ Tag called tag_explain_category with invalid transactionId: "${args.transactionId}". This looks like an upload question that should trigger handoff instead.`);
+                    }
+                  }
+                  
+                  const toolContext: ToolContext = {
+                    userId,
+                    conversationId: finalSessionId,
+                    sessionId: finalSessionId,
+                  };
+                  
+                  // Special debug logging for request_employee_handoff BEFORE execution
+                  if (toolName === 'request_employee_handoff') {
+                    console.log(`[Chat] 🔄 HANDOFF REQUEST (streaming): ${finalEmployeeSlug} → ${args.target_slug || 'unknown'}`, {
+                      reason: args.reason || 'No reason provided',
+                      summary: args.summary_for_next_employee || 'No summary provided',
+                      userId,
+                      sessionId: finalSessionId,
+                    });
+                  }
+                  
+                  // Phase 3.1: Send tool_executing event before execution
+                  streamBuffer += `data: ${JSON.stringify({
+                    type: 'tool_executing',
+                    tool: toolName
+                  })}\n\n`;
+                  
+                  const result = await executeTool(toolModule, args, toolContext, {
+                    employeeSlug: finalEmployeeSlug,
+                    mode: 'propose-confirm', // TODO: Get from user preferences
+                    autonomyLevel: 1, // TODO: Get from user preferences or tool metadata
+                  });
+                  
+                  // Check if result has error field (from executeTool error handling)
+                  if (result && typeof result === 'object' && 'error' in result) {
+                    console.error(`[Chat] Tool ${toolName} returned error:`, result.error);
+                    toolResults.push({
+                      role: 'tool',
+                      tool_call_id: toolCall.id,
+                      content: JSON.stringify({ 
+                        error: result.error || 'Tool execution failed',
+                        message: 'I had trouble loading stats for this category, but I can still talk about your finances in general.',
+                      }),
+                    });
+                  } else {
+                    // Special handling for employee handoff (streaming)
+                    // Check for new schema: data.requested_handoff === true
+                    if (toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
+                      const handoffData = (result as any).data;
+                      if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
+                        // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
+                        if (!finalSessionId) {
+                          console.error('[Chat] ❌ HANDOFF FAILED: No valid sessionId available. Cannot proceed with handoff.');
+                          // Continue without handoff - don't crash
+                          continue;
+                        }
+                        
+                        const targetSlug = handoffData.target_slug;
+                        const reason = handoffData.reason || 'Better suited for this question';
+                        const summary = handoffData.summary_for_next_employee;
+                        
+                        console.log(`[Chat] ✅ HANDOFF COMPLETE (streaming): ${originalEmployeeSlug} → ${targetSlug}`, {
+                          reason,
+                          summary: summary?.substring(0, 100),
+                          sessionId: finalSessionId.substring(0, 8) + '...',
+                          sessionId: finalSessionId,
+                        });
+                        
+                        // Phase 3.2: Gather handoff context
+                        let recentMessages: any[] = [];
+                        let keyFacts: string[] = [];
+                        
+                        try {
+                          // Get recent messages (last 10)
+                          const { data: messagesData } = await sb
+                            .from('chat_messages')
+                            .select('role, content, created_at')
+                            .eq('session_id', finalSessionId)
+                            .order('created_at', { ascending: false })
+                            .limit(10);
+                          
+                          if (messagesData) {
+                            recentMessages = messagesData.reverse(); // Oldest first
+                          }
+                          
+                          // Extract key facts from memory
+                          if (memoryFacts && memoryFacts.length > 0) {
+                            keyFacts = memoryFacts.slice(0, 5).map(f => f.fact);
+                          }
+                        } catch (error: any) {
+                          console.warn('[Chat] Failed to gather handoff context:', error);
+                        }
+                        
+                        // Phase 3.2: Store handoff context in database
+                        try {
+                          await sb.from('handoffs').insert({
+                            user_id: userId,
+                            session_id: finalSessionId,
+                            from_employee: originalEmployeeSlug,
+                            to_employee: targetSlug,
+                            reason: reason,
+                            context_summary: summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`,
+                            key_facts: keyFacts,
+                            recent_messages: recentMessages,
+                            user_intent: masked.substring(0, 500), // Current user message
+                            status: 'initiated',
+                          });
+                          
+                          console.log(`[Chat] Stored handoff context for session ${finalSessionId}`);
+                        } catch (error: any) {
+                          console.warn('[Chat] Failed to store handoff context:', error);
+                        }
+                        
+                        // Update session's employee_slug
+                        try {
+                          await sb
+                            .from('chat_sessions')
+                            .update({ employee_slug: targetSlug })
+                            .eq('id', finalSessionId);
+                          
+                          console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug}`);
+                        } catch (error: any) {
+                          console.warn('[Chat] Failed to update session employee_slug:', error);
+                        }
+                        
+                        // Insert system message about handoff
+                        try {
+                          const handoffMessage = summary 
+                            ? `Handoff: Conversation moved to ${targetSlug}. Context: ${summary}`
+                            : `Handoff: Conversation moved to ${targetSlug}.`;
+                          
+                          await sb.from('chat_messages').insert({
+                            session_id: finalSessionId,
+                            user_id: userId,
+                            role: 'system',
+                            content: handoffMessage,
+                            tokens: estimateTokens(handoffMessage),
+                          });
+                          
+                          console.log(`[Chat] Inserted handoff system message for session ${finalSessionId}`);
+                        } catch (error: any) {
+                          console.warn('[Chat] Failed to insert handoff system message:', error);
+                        }
+                        
+                        // Update finalEmployeeSlug for this request
+                        finalEmployeeSlug = targetSlug;
+                        
+                        // Reload employee profile and tools for new employee
+                        try {
+                          const { data: newEmployeeProfile } = await sb
+                            .from('employee_profiles')
+                            .select('tools_allowed')
+                            .eq('slug', finalEmployeeSlug)
+                            .maybeSingle();
+                          
+                          if (newEmployeeProfile?.tools_allowed && Array.isArray(newEmployeeProfile.tools_allowed)) {
+                            employeeTools = newEmployeeProfile.tools_allowed;
+                            toolModules = pickTools(employeeTools);
+                            console.log(`[Chat] Loaded ${employeeTools.length} tools for new employee ${finalEmployeeSlug}:`, employeeTools);
+                          }
+                        } catch (error: any) {
+                          console.warn('[Chat] Failed to reload employee tools after handoff:', error);
+                        }
+                        
+                        // Send handoff event in stream
+                        const handoffEvent = {
+                          type: 'handoff',
+                          from: originalEmployeeSlug,
+                          to: targetSlug,
+                          reason,
+                          summary
+                        };
+                        streamBuffer += `data: ${JSON.stringify(handoffEvent)}\n\n`;
+                        
+                        // Enhanced logging for debugging (guarded by env flag)
+                        if (process.env.NETLIFY_DEV === 'true' || process.env.DEBUG_HANDOFF === 'true') {
+                          console.log(`[Chat] 📤 HANDOFF EVENT SENT (streaming):`, handoffEvent);
+                        }
+                      }
+                    }
+                    
+                    // executeTool handles Result unwrapping and returns the validated output directly
+                    
+                    // Phase 3.1: Send tool_result event with formatted result
+                    // Format result for display (limit size, handle sensitive data)
+                    let displayResult = result;
+                    if (typeof result === 'object' && result !== null) {
+                      // Create a safe copy for display (limit depth, remove sensitive fields)
+                      try {
+                        displayResult = JSON.parse(JSON.stringify(result));
+                        // Limit large arrays/objects
+                        if (Array.isArray(displayResult) && displayResult.length > 10) {
+                          displayResult = displayResult.slice(0, 10).concat([`... and ${displayResult.length - 10} more items`]);
+                        }
+                      } catch (e) {
+                        // If JSON parsing fails, use string representation
+                        displayResult = String(result).substring(0, 500);
+                      }
+                    }
+                    
+                    streamBuffer += `data: ${JSON.stringify({
+                      type: 'tool_result',
+                      tool: toolName,
+                      result: displayResult
+                    })}\n\n`;
+                    
+                    toolResults.push({
+                      role: 'tool',
+                      tool_call_id: toolCall.id,
+                      content: JSON.stringify(result),
+                    });
+                    
+                    console.log(`[Chat] Tool ${toolName} executed successfully`);
+                  }
+                } catch (error: any) {
+                  console.error(`[Chat] Tool execution error for ${toolName}:`, {
+                    error: error.message,
+                    stack: process.env.NETLIFY_DEV === 'true' ? error.stack : undefined,
+                    employee: finalEmployeeSlug,
+                  });
+                  toolResults.push({
+                    role: 'tool',
+                    tool_call_id: toolCall.id,
+                    content: JSON.stringify({ 
+                      error: error.message || 'Tool execution failed',
+                      message: 'I had trouble loading stats for this category, but I can still talk about your finances in general.',
+                    }),
+                  });
                 }
               }
-              
-              streamBuffer += `data: ${JSON.stringify({
-                type: 'tool_result',
-                tool: toolName,
-                result: displayResult
-              })}\n\n`;
-              
-              toolResults.push({
-                role: 'tool',
-                tool_call_id: toolCall.id,
-                content: JSON.stringify(result),
-              });
-              
-              console.log(`[Chat] Tool ${toolName} executed successfully`);
             }
-          } catch (error: any) {
-            console.error(`[Chat] Tool execution error for ${toolName}:`, {
-              error: error.message,
-              stack: process.env.NETLIFY_DEV === 'true' ? error.stack : undefined,
-              employee: finalEmployeeSlug,
-            });
-            toolResults.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: JSON.stringify({ 
-                error: error.message || 'Tool execution failed',
-                message: 'I had trouble loading stats for this category, but I can still talk about your finances in general.',
-              }),
-            });
-          }
-        }
-      }
 
       // If we have tool results, make another completion call with tool results
       if (toolResults.length > 0) {
-          messages.push(
-            { role: 'assistant', content: assistantContent, tool_calls: toolCalls.map(tc => ({
-              id: tc.id,
-              type: 'function' as const,
-              function: { name: tc.function.name, arguments: tc.function.arguments }
-            })) },
-            ...toolResults
-          );
+        messages.push(
+          { role: 'assistant', content: assistantContent, tool_calls: toolCalls.map(tc => ({
+            id: tc.id,
+            type: 'function' as const,
+            function: { name: tc.function.name, arguments: tc.function.arguments }
+          })) },
+          ...toolResults
+        );
 
-          // Second completion with tool results
+        // Second completion with tool results
+        try {
+          // If handoff occurred, reload tools for new employee
+          let openaiToolsAfterHandoff: any = undefined;
           try {
-            // If handoff occurred, reload tools for new employee
-            let openaiToolsAfterHandoff: any = undefined;
-            try {
-              openaiToolsAfterHandoff = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
-            } catch (toolError: any) {
-              console.warn('[Chat] Failed to convert tools after handoff (non-fatal):', toolError);
-            }
-            
-            // Use model config for current employee (may have changed after handoff)
-            let modelConfigAfterHandoff;
-            try {
-              modelConfigAfterHandoff = await getEmployeeModelConfig(finalEmployeeSlug);
-            } catch (configError: any) {
-              console.warn('[Chat] Failed to get model config after handoff (non-fatal, using defaults):', configError);
-              modelConfigAfterHandoff = {
-                model: 'gpt-4o-mini',
-                temperature: 0.7,
-                maxTokens: 2000,
-              };
-            }
-            
-            const secondStream = await openai.chat.completions.create({
-              model: modelConfigAfterHandoff.model,
-              messages,
-              temperature: modelConfigAfterHandoff.temperature,
-              max_tokens: modelConfigAfterHandoff.maxTokens,
-              stream: true,
-              tools: openaiToolsAfterHandoff,
-            });
-
-            assistantContent = ''; // Reset for final response
-            for await (const chunk of secondStream) {
-              const delta = chunk.choices[0]?.delta?.content;
-              if (delta) {
-                assistantContent += delta;
-                streamBuffer += `data: ${JSON.stringify({ type: 'token', token: delta })}\n\n`;
-              }
-            }
-          } catch (secondStreamError: any) {
-            console.error('[Chat] Second streaming call failed after tool execution:', secondStreamError);
-            // Add error message to stream
-            const errorMsg = "I had trouble processing the tool results. Let me try a different approach.";
-            assistantContent = errorMsg;
-            streamBuffer += `data: ${JSON.stringify({ type: 'token', token: errorMsg })}\n\n`;
+            openaiToolsAfterHandoff = employeeTools.length > 0 ? toOpenAIToolDefs(employeeTools) : undefined;
+          } catch (toolError: any) {
+            console.warn('[Chat] Failed to convert tools after handoff (non-fatal):', toolError);
           }
-        }
-
-        // Update employee header if handoff occurred
-        if (finalEmployeeSlug !== originalEmployeeSlug) {
-          streamBuffer = `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n` + streamBuffer;
-        }
-
-        // Send completion signal
-        streamBuffer += `data: ${JSON.stringify({ type: 'done' })}\n\n`;
-
-        // Calculate token usage (rough estimate)
-        const promptTokens = estimateTokens(systemMessage + masked + recentMessages.map((m: any) => m.content).join(''));
-        const completionTokens = estimateTokens(assistantContent);
-        const totalTokens = promptTokens + completionTokens;
-        const durationMs = Date.now() - requestStartTime;
-        const latencyMs = firstTokenTime ? firstTokenTime - requestStartTime : null;
-
-        // Save assistant message (will be redacted if needed) - non-blocking
-        try {
-          await sb.from('chat_messages').insert({
-            session_id: finalSessionId,
-            user_id: userId,
-            role: 'assistant',
-            content: assistantContent,
-            tokens: completionTokens,
-          });
-        } catch (error: any) {
-          console.warn('[Chat] Failed to save assistant message:', error);
-          // Continue even if save fails
-        }
-
-        // Log usage metrics (non-blocking)
-        try {
-          const toolsUsed = toolCalls.length > 0 ? toolCalls.map((tc: any) => tc.function?.name).filter(Boolean) : null;
           
-          await sb.from('chat_usage_log').insert({
-            user_id: userId,
-            session_id: finalSessionId,
-            employee_slug: finalEmployeeSlug,
-            prompt_tokens: promptTokens,
-            completion_tokens: completionTokens,
-            total_tokens: totalTokens,
-            model: modelConfig.model,
-            latency_ms: latencyMs,
-            duration_ms: durationMs,
-            tools_used: toolsUsed,
-            success: true,
+          // Use model config for current employee (may have changed after handoff)
+          let modelConfigAfterHandoff;
+          try {
+            modelConfigAfterHandoff = await getEmployeeModelConfig(finalEmployeeSlug);
+          } catch (configError: any) {
+            console.warn('[Chat] Failed to get model config after handoff (non-fatal, using defaults):', configError);
+            modelConfigAfterHandoff = {
+              model: 'gpt-4o-mini',
+              temperature: 0.7,
+              maxTokens: 2000,
+            };
+          }
+          
+          const secondStream = await openai.chat.completions.create({
+            model: modelConfigAfterHandoff.model,
+            messages,
+            temperature: modelConfigAfterHandoff.temperature,
+            max_tokens: modelConfigAfterHandoff.maxTokens,
+            stream: true,
+            tools: openaiToolsAfterHandoff,
           });
-        } catch (error: any) {
-          console.warn('[Chat] Failed to log usage metrics:', error);
-          // Continue even if logging fails
-        }
 
-        // Phase 2.3: Queue memory extraction for async processing (non-blocking)
-        // Extraction happens in background worker, doesn't block chat response
+                assistantContent = ''; // Reset for final response
+                for await (const chunk of secondStream) {
+                  const delta = chunk.choices[0]?.delta?.content;
+                  if (delta) {
+                    assistantContent += delta;
+                    // Frontend expects type: 'text' with content property
+                    streamBuffer += `data: ${JSON.stringify({ type: 'text', content: delta })}\n\n`;
+                  }
+                }
+              } catch (secondStreamError: any) {
+                console.error('[Chat] Second streaming call failed after tool execution:', secondStreamError);
+                // Add error message to stream
+                const errorMsg = "I had trouble processing the tool results. Let me try a different approach.";
+                assistantContent = errorMsg;
+                streamBuffer += `data: ${JSON.stringify({ type: 'text', content: errorMsg })}\n\n`;
+              }
+      }
+
+      // Update employee header if handoff occurred
+      if (finalEmployeeSlug !== originalEmployeeSlug) {
+        streamBuffer = `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n` + streamBuffer;
+      }
+
+      // Send completion signal
+      streamBuffer += `data: ${JSON.stringify({ type: 'done' })}\n\n`;
+      console.log('[Chat] OPENAI streaming call completed, total content length:', assistantContent.length);
+
+      // Calculate token usage (rough estimate)
+      const promptTokens = estimateTokens(systemMessage + masked + recentMessages.map((m: any) => m.content).join(''));
+      const completionTokens = estimateTokens(assistantContent);
+      const totalTokens = promptTokens + completionTokens;
+      const durationMs = Date.now() - requestStartTime;
+      const latencyMs = firstTokenTime ? firstTokenTime - requestStartTime : null;
+
+      // Save assistant message (will be redacted if needed) - non-blocking
+      try {
+        await sb.from('chat_messages').insert({
+          session_id: finalSessionId,
+          user_id: userId,
+          role: 'assistant',
+          content: assistantContent,
+          tokens: completionTokens,
+        });
+      } catch (error: any) {
+        console.warn('[Chat] Failed to save assistant message:', error);
+        // Continue even if save fails
+      }
+
+      // Log usage metrics (non-blocking)
+      try {
+        const toolsUsed = toolCalls.length > 0 ? toolCalls.map((tc: any) => tc.function?.name).filter(Boolean) : null;
+        
+        await sb.from('chat_usage_log').insert({
+          user_id: userId,
+          session_id: finalSessionId,
+          employee_slug: finalEmployeeSlug,
+          prompt_tokens: promptTokens,
+          completion_tokens: completionTokens,
+          total_tokens: totalTokens,
+          model: modelConfig.model,
+          latency_ms: latencyMs,
+          duration_ms: durationMs,
+          tools_used: toolsUsed,
+          success: true,
+        });
+      } catch (error: any) {
+        console.warn('[Chat] Failed to log usage metrics:', error);
+        // Continue even if logging fails
+      }
+
+      // Phase 2.3: Queue memory extraction for async processing (non-blocking)
+      // Extraction happens in background worker, doesn't block chat response
+      const normalizedSessionIdForExtraction = normalizeSessionId(finalSessionId);
+      if (normalizedSessionIdForExtraction) {
         queueMemoryExtraction({
           userId,
-          sessionId: finalSessionId,
+          sessionId: normalizedSessionIdForExtraction,
           userMessage: masked,
           assistantResponse: assistantContent
         }).catch((error: any) => {
@@ -1180,33 +1574,86 @@ export const handler: Handler = async (event, context) => {
           console.warn('[Chat] Failed to queue memory extraction (non-fatal):', error);
           // Worker will retry failed jobs automatically
         });
-
-        return {
-          statusCode: 200,
-          headers: {
-            ...baseHeaders,
-            ...headers,
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          },
-          body: streamBuffer,
-        };
-      } catch (streamingError: any) {
-        console.error('[Chat] Streaming OpenAI call failed:', streamingError);
-        // Return graceful error in SSE format
-        const errorMessage = "I'm sorry, I encountered an error while generating my response. Please try again in a moment.";
-        return {
-          statusCode: 200,
-          headers: {
-            ...baseHeaders,
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-          },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
-        };
       }
+
+      // Custodian: Update conversation summary (non-blocking, async)
+      // Fetch all messages for this conversation and generate summary
+      (async () => {
+        try {
+          // Get all messages for this conversation
+          const { data: allMessages } = await sb
+            .from('chat_messages')
+            .select('role, content, created_at')
+            .eq('session_id', finalSessionId)
+            .order('created_at', { ascending: true });
+
+          if (!allMessages || allMessages.length === 0) {
+            return;
+          }
+
+          // Get employees involved from session and handoffs
+          const employeesInvolved = new Set<string>();
+          employeesInvolved.add(finalEmployeeSlug);
+          
+          // Check for handoffs in this session
+          try {
+            const { data: handoffs } = await sb
+              .from('handoffs')
+              .select('from_employee, to_employee')
+              .eq('session_id', finalSessionId);
+            
+            if (handoffs) {
+              handoffs.forEach((h: any) => {
+                if (h.from_employee) employeesInvolved.add(h.from_employee);
+                if (h.to_employee) employeesInvolved.add(h.to_employee);
+              });
+            }
+          } catch (e) {
+            // Ignore handoff lookup errors
+          }
+
+          // Call summary update
+          await updateConversationSummaryForCustodian(
+            sb,
+            userId,
+            finalSessionId,
+            allMessages.map(m => ({ role: m.role, content: m.content })),
+            Array.from(employeesInvolved)
+          );
+        } catch (error: any) {
+          console.warn('[Custodian] Failed to update conversation summary:', error);
+        }
+      })();
+
+      return {
+        statusCode: 200,
+        headers: {
+          ...baseHeaders,
+          ...headers,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive',
+          // important for the frontend check in chatEndpoint.ts
+          'X-Chat-Backend': 'v2',
+        },
+        body: streamBuffer,
+      };
+    } catch (streamingError: any) {
+      console.error('[Chat] Streaming OpenAI call failed:', streamingError);
+      // Return graceful error in SSE format
+      const errorMessage = "Sorry, Prime ran into a problem. Please try again.";
+      return {
+        statusCode: 200,
+        headers: {
+          ...baseHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive',
+          'X-Chat-Backend': 'v2',
+        },
+        body: `data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
+      };
+    }
     } else {
       // Non-streaming response with tool calling support
       try {
@@ -1297,7 +1744,11 @@ export const handler: Handler = async (event, context) => {
               });
             }
             
-            const result = await executeTool(toolModule, args, toolContext);
+            const result = await executeTool(toolModule, args, toolContext, {
+              employeeSlug: finalEmployeeSlug,
+              mode: 'propose-confirm', // TODO: Get from user preferences
+              autonomyLevel: 1, // TODO: Get from user preferences or tool metadata
+            });
             
             // Check if result has error field (from executeTool error handling)
             if (result && typeof result === 'object' && 'error' in result) {
@@ -1316,13 +1767,21 @@ export const handler: Handler = async (event, context) => {
               if (toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
                 const handoffData = (result as any).data;
                 if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
+                  // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
+                  if (!finalSessionId) {
+                    console.error('[Chat] ❌ HANDOFF FAILED: No valid sessionId available. Cannot proceed with handoff.');
+                    // Continue without handoff - don't crash
+                    continue;
+                  }
+                  
                   const targetSlug = handoffData.target_slug;
                   const reason = handoffData.reason || 'Better suited for this question';
                   const summary = handoffData.summary_for_next_employee;
                   
                   console.log(`[Chat] ✅ HANDOFF COMPLETE (non-streaming): ${originalEmployeeSlug} → ${targetSlug}`, {
                     reason,
-                    summary,
+                    summary: summary?.substring(0, 100),
+                    sessionId: finalSessionId.substring(0, 8) + '...',
                     sessionId: finalSessionId,
                   });
                   
@@ -1542,16 +2001,68 @@ export const handler: Handler = async (event, context) => {
 
       // Phase 2.3: Queue memory extraction for async processing (non-blocking)
       // Extraction happens in background worker, doesn't block chat response
-      queueMemoryExtraction({
-        userId,
-        sessionId: finalSessionId,
-        userMessage: masked,
-        assistantResponse: assistantContent
-      }).catch((error: any) => {
-        // Log but don't fail - extraction failures shouldn't break chat
-        console.warn('[Chat] Failed to queue memory extraction (non-fatal):', error);
-        // Worker will retry failed jobs automatically
-      });
+      const normalizedSessionIdForExtraction2 = normalizeSessionId(finalSessionId);
+      if (normalizedSessionIdForExtraction2) {
+        queueMemoryExtraction({
+          userId,
+          sessionId: normalizedSessionIdForExtraction2,
+          userMessage: masked,
+          assistantResponse: assistantContent
+        }).catch((error: any) => {
+          // Log but don't fail - extraction failures shouldn't break chat
+          console.warn('[Chat] Failed to queue memory extraction (non-fatal):', error);
+          // Worker will retry failed jobs automatically
+        });
+      }
+
+      // Custodian: Update conversation summary (non-blocking)
+      // Fetch all messages for this conversation and generate summary
+      (async () => {
+        try {
+          // Get all messages for this conversation
+          const { data: allMessages } = await sb
+            .from('chat_messages')
+            .select('role, content, created_at')
+            .eq('session_id', finalSessionId)
+            .order('created_at', { ascending: true });
+
+          if (!allMessages || allMessages.length === 0) {
+            return;
+          }
+
+          // Get employees involved from session and handoffs
+          const employeesInvolved = new Set<string>();
+          employeesInvolved.add(finalEmployeeSlug);
+          
+          // Check for handoffs in this session
+          try {
+            const { data: handoffs } = await sb
+              .from('handoffs')
+              .select('from_employee, to_employee')
+              .eq('session_id', finalSessionId);
+            
+            if (handoffs) {
+              handoffs.forEach((h: any) => {
+                if (h.from_employee) employeesInvolved.add(h.from_employee);
+                if (h.to_employee) employeesInvolved.add(h.to_employee);
+              });
+            }
+          } catch (e) {
+            // Ignore handoff lookup errors
+          }
+
+          // Call summary update
+          await updateConversationSummaryForCustodian(
+            sb,
+            userId,
+            finalSessionId,
+            allMessages.map(m => ({ role: m.role, content: m.content })),
+            Array.from(employeesInvolved)
+          );
+        } catch (error: any) {
+          console.warn('[Custodian] Failed to update conversation summary:', error);
+        }
+      })();
 
       // Build headers (may have been updated during handoff)
       const headers = buildResponseHeaders({
@@ -1561,6 +2072,7 @@ export const handler: Handler = async (event, context) => {
         memoryHitCount: memoryFacts.length,
         employee: finalEmployeeSlug,
         routeConfidence: 0.8,
+        sessionId: finalSessionId || undefined, // Include sessionId in headers for frontend
       });
 
       // Check if handoff occurred
@@ -1610,56 +2122,56 @@ export const handler: Handler = async (event, context) => {
       }
     }
   } catch (error: any) {
-    console.error('[Chat] Unhandled error:', error);
-    console.error('[Chat] Error stack:', error.stack);
-    console.error('[Chat] Error details:', {
-      message: error.message,
-      name: error.name,
-      code: error.code,
+    console.error('[Chat] Unhandled error in handler', {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code,
+      stack: error?.stack,
+      userId: (event.body ? JSON.parse(event.body || '{}') : {}).userId,
     });
     
-    // Return safe error response instead of crashing
-    // For streaming requests, send error as SSE message
-    if (event.body) {
-      try {
-        const body = JSON.parse(event.body || '{}') as ChatRequest;
-        if (body.stream !== false) {
-          // Streaming response - send error as SSE
-          const errorMessage = "I ran into an internal error while answering. Please try again in a moment, or let Prime know something went wrong.";
-          const errorSSE = `data: ${JSON.stringify({
-            type: 'token',
-            token: errorMessage
-          })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`;
-          
-          return {
-            statusCode: 200,
-            headers: {
-              ...baseHeaders,
-              'Content-Type': 'text/event-stream',
-              'Cache-Control': 'no-cache',
-              'Connection': 'keep-alive',
-            },
-            body: errorSSE,
-          };
-        }
-      } catch (parseError) {
-        // If we can't parse body, fall through to JSON error response
-      }
+    // Determine if this was a streaming request
+    let isStreaming = true;
+    try {
+      const body = event.body ? JSON.parse(event.body || '{}') as ChatRequest : {};
+      isStreaming = body.stream !== false;
+    } catch (parseError) {
+      // Default to streaming if we can't parse
+      isStreaming = true;
     }
     
-    // Non-streaming or fallback: return JSON error
-    // Use 200 status code with error in body to avoid breaking frontend
+    // For streaming requests, send error as SSE message
+    if (isStreaming) {
+      const errorMessage = "I ran into an internal error while answering. Please try again in a moment, or let Prime know something went wrong.";
+      const errorSSE = `data: ${JSON.stringify({
+        type: 'error',
+        error: errorMessage
+      })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`;
+      
+      return {
+        statusCode: 200,
+        headers: {
+          ...baseHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'X-Chat-Backend': 'v2',
+        },
+        body: errorSSE,
+      };
+    }
+    
+    // Non-streaming: return JSON error with proper 500 status
     return {
-      statusCode: 200,
+      statusCode: 500,
       headers: {
         ...baseHeaders,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         ok: false,
-        error: 'Internal server error',
-        content: "I ran into an internal error while answering. Please try again in a moment, or let Prime know something went wrong.",
-        message: process.env.NETLIFY_DEV === 'true' ? error.message : undefined,
+        error: 'chat_internal_error',
+        message: error?.message ?? 'Unexpected error in chat handler',
         details: process.env.NETLIFY_DEV === 'true' ? error.stack : undefined,
       }),
     };

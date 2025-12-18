@@ -110,7 +110,8 @@ export function getEmployeeThemeBySlug(slug: string): typeof employeeThemes[keyo
     'tag-ai': 'tag',
     'crystal-ai': 'crystal',
     'crystal-analytics': 'crystal',
-    'finley-ai': 'finley',
+    'finley-forecasts': 'finley',
+    'finley-ai': 'finley', // Legacy, kept for backward compatibility
     'finley-financial': 'finley',
     'goalie-ai': 'goalie',
     'goalie-goals': 'goalie',

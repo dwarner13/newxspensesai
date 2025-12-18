@@ -1,8 +1,20 @@
 /**
+ * LEGACY: Deprecated chat UI. Dashboard now uses UnifiedAssistantChat + useUnifiedChatLauncher.
+ * Kept only for reference and should not be used in new code.
+ * 
  * AIWorkspaceOverlay Component
+ * 
+ * ⚠️ LEGACY - DEPRECATED - DO NOT USE
+ * 
+ * This component is being phased out in favor of UnifiedAssistantChat.
+ * All new chat implementations should use:
+ * - useUnifiedChatLauncher().openChat()
+ * - UnifiedAssistantChat (rendered globally by DashboardLayout)
  * 
  * Universal floating workspace overlay for any AI employee
  * Combines backdrop, header, chat body, guardrails status, and input composer
+ * 
+ * @deprecated Use UnifiedAssistantChat instead
  */
 
 import React, { useState, useCallback } from 'react';

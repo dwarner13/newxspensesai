@@ -15,8 +15,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { TransactionsWorkspacePanel, type TransactionsQuickViewMode } from '../../components/workspace/planning/TransactionsWorkspacePanel';
-import { DashboardSection } from '../../components/ui/DashboardSection';
-import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useTransactions } from '../../hooks/useTransactions';
@@ -155,68 +154,62 @@ export default function TransactionsPage() {
 
   return (
     <>
-      <DashboardSection className="flex flex-col">
-        {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        <section className="mt-6 min-h-[520px]">
-          <DashboardThreeColumnLayout
-            left={
-              <div className="h-full flex flex-col gap-4">
-                <TransactionsWorkspacePanel
-                  totalCount={totalCount}
-                  monthCount={monthCount}
-                  pendingCount={pendingCount}
-                  uncategorizedCount={uncategorizedCount}
-                  lastImportCount={lastImportCount}
-                  openQuickView={openQuickView}
-                />
-                <PendingReviewCard
-                  pendingCount={pendingCount}
-                  lowConfidenceCount={lowConfidenceCount}
-                  onReviewClick={handleReviewClick}
-                />
-                <ProgressIndicator stats={progressStats} />
-              </div>
-            }
-            middle={
-              <div className="h-full flex flex-col bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                {/* Search Bar */}
-                <div className="p-4 border-b border-slate-800 flex-shrink-0">
-                  <SemanticSearch
-                    allTransactions={allTransactions}
-                    onResults={setSearchResults}
-                  />
-                </div>
+      {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
+      <DashboardPageShell
+        left={
+          <div className="h-full flex flex-col gap-4">
+            <TransactionsWorkspacePanel
+              totalCount={totalCount}
+              monthCount={monthCount}
+              pendingCount={pendingCount}
+              uncategorizedCount={uncategorizedCount}
+              lastImportCount={lastImportCount}
+              openQuickView={openQuickView}
+            />
+            <PendingReviewCard
+              pendingCount={pendingCount}
+              lowConfidenceCount={lowConfidenceCount}
+              onReviewClick={handleReviewClick}
+            />
+            <ProgressIndicator stats={progressStats} />
+          </div>
+        }
+        center={
+          <div className="h-full flex flex-col bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+            {/* Search Bar */}
+            <div className="p-4 border-b border-slate-800 flex-shrink-0">
+              <SemanticSearch
+                allTransactions={allTransactions}
+                onResults={setSearchResults}
+              />
+            </div>
 
-                {/* Bulk Actions Bar */}
-                <BulkActionsBar
-                  selectedCount={selectedIds.size}
-                  onAction={handleBulkAction}
-                  onClearSelection={handleClearSelection}
-                />
+            {/* Bulk Actions Bar */}
+            <BulkActionsBar
+              selectedCount={selectedIds.size}
+              onAction={handleBulkAction}
+              onClearSelection={handleClearSelection}
+            />
 
-                {/* Transaction List */}
-                <div className="flex-1 min-h-0 overflow-hidden">
-                  {transactionsLoading || pendingLoading ? (
-                    <div className="flex items-center justify-center h-full">
-                      <p className="text-sm text-slate-400">Loading transactions...</p>
-                    </div>
-                  ) : (
-                    <TransactionList
-                      transactions={displayTransactions}
-                      pendingTransactions={displayPending}
-                      filters={filters}
-                      onTransactionClick={handleTransactionClick}
-                    />
-                  )}
+            {/* Transaction List */}
+            <div className="flex-1 min-h-0 overflow-hidden">
+              {transactionsLoading || pendingLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-slate-400">Loading transactions...</p>
                 </div>
-              </div>
-            }
-            right={
-              <ActivityFeedSidebar scope="transactions" />
-            }
-          />
-        </section>
-      </DashboardSection>
+              ) : (
+                <TransactionList
+                  transactions={displayTransactions}
+                  pendingTransactions={displayPending}
+                  filters={filters}
+                  onTransactionClick={handleTransactionClick}
+                />
+              )}
+            </div>
+          </div>
+        }
+        right={<ActivityFeedSidebar scope="transactions" />}
+      />
 
       {/* Split Transaction Modal */}
       <SplitTransactionModal

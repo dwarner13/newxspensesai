@@ -32,7 +32,12 @@ export function PrimeFloatingButton({ onPrimeClick, hidden = false }: PrimeFloat
       onPrimeClick();
     } else {
       // Default: open unified chat slideout with Prime
-      openChat({ initialEmployeeSlug: 'prime-boss' });
+      openChat({ 
+        initialEmployeeSlug: 'prime-boss',
+        context: {
+          source: 'floating-bubble-prime',
+        },
+      });
     }
   };
 
@@ -40,7 +45,7 @@ export function PrimeFloatingButton({ onPrimeClick, hidden = false }: PrimeFloat
     <button
       onClick={handleClick}
       aria-label="Open Prime Chat"
-      className="fixed z-30 rounded-full shadow-lg transition-transform active:scale-95 hover:scale-105"
+      className="fixed z-40 rounded-full shadow-lg transition-transform active:scale-95 hover:scale-105"
       style={{
         bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
         right: 'calc(24px + env(safe-area-inset-right, 0px))',

@@ -40,24 +40,25 @@ export function useTransactions(): UseTransactionsResult {
         throw new Error('Supabase client not available');
       }
 
+      // Simplified query without nested joins to avoid 400 errors
+      // If relationships are needed, fetch them separately
       const { data, error } = await supabase
         .from('transactions')
-        .select(`
-          *,
-          import:imports(
-            id,
-            status,
-            document:user_documents(
-              id,
-              original_name,
-              storage_path
-            )
-          )
-        `)
+        .select('*')
         .eq('user_id', userId)
         .order('posted_at', { ascending: false });
 
       if (error) {
+        // Handle schema errors gracefully (table might not exist)
+        if (error.code === 'PGRST116' || 
+            error.code === '42P01' ||
+            error.message?.includes('does not exist') ||
+            (error.message?.includes('relation') && error.message?.includes('does not exist'))) {
+          // Table doesn't exist - return empty array
+          setTransactions([]);
+          setIsError(false);
+          return;
+        }
         throw error;
       }
 

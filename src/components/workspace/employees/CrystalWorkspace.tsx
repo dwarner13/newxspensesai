@@ -1,7 +1,16 @@
 /**
  * CrystalWorkspace Component
  * 
+ * ⚠️ LEGACY - DEPRECATED - DO NOT USE
+ * 
+ * This component is being phased out in favor of UnifiedAssistantChat.
+ * All new chat implementations should use:
+ * - useUnifiedChatLauncher().openChat({ initialEmployeeSlug: 'crystal-analytics' })
+ * - UnifiedAssistantChat (rendered globally by DashboardLayout)
+ * 
  * Wrapper around AIWorkspaceOverlay with Crystal-specific configuration
+ * 
+ * @deprecated Use UnifiedAssistantChat instead
  */
 
 import React from 'react';

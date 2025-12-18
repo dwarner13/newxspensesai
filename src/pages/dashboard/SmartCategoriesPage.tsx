@@ -1,20 +1,27 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import MobilePageTitle from '../../components/ui/MobilePageTitle';
 import { supabase } from '../../lib/supabase';
-import type { Transaction } from '../../types/transactions';
-import { Loader2, Tag, TrendingUp, Sparkles, Brain, Crown } from 'lucide-react';
+import { Tag, Brain, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useSmartImport } from '../../hooks/useSmartImport';
-import { TagWorkspace } from '../../components/workspace/employees/TagWorkspace';
 import { TagWorkspacePanel } from '../../components/workspace/employees/TagWorkspacePanel';
 import { TagUnifiedCard } from '../../components/workspace/employees/TagUnifiedCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
-import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 
-const DEMO_USER_ID = '00000000-0000-4000-8000-000000000001';
+// Local Transaction type for Smart Categories page
+interface Transaction {
+  id: string;
+  date: string;
+  description: string;
+  category: string;
+  amount: number;
+  type: 'income' | 'expense';
+  merchant: string | null;
+  confidence?: number | null;
+  source_type?: string | null;
+}
 
 export type SmartCategorySummary = {
   category: string;
@@ -37,23 +44,23 @@ const SmartCategoriesPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { userId } = useAuth();
+  const { openChat } = useUnifiedChatLauncher();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedPeriod, setSelectedPeriod] = useState<'all-time'>('all-time');
   
-  // Workspace overlay state
-  const [isTagWorkspaceOpen, setIsTagWorkspaceOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  // Removed workspace overlay state - now using unified chat slideout
   const [selectedCategoryForChat, setSelectedCategoryForChat] = useState<SmartCategorySummary | null>(null);
-  
-  // Smart Import hook for file uploads (used by workspace overlay, not inline)
-  const { uploadFile } = useSmartImport();
 
   // Fetch transactions with Tag learning data
+  // Use requestIdleCallback or setTimeout to avoid blocking initial render
   useEffect(() => {
     if (userId) {
-      fetchTransactions();
+      // Defer data fetch slightly to allow UI to render first
+      const timeoutId = setTimeout(() => {
+        fetchTransactions();
+      }, 0);
+      return () => clearTimeout(timeoutId);
     }
   }, [userId]);
 
@@ -73,12 +80,13 @@ const SmartCategoriesPage: React.FC = () => {
       }
 
       // Fetch transactions with category_source and confidence for Tag learning metrics
+      // Reduced limit for faster initial load - can paginate later if needed
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
         .select('id, date, posted_at, description, merchant, category, amount, type, confidence, category_source, source_type')
         .eq('user_id', userId)
         .order('posted_at', { ascending: false })
-        .limit(1000); // Increased limit to get better category stats
+        .limit(250); // Reduced from 1000 for faster loading
 
       if (transactionsError) {
         throw new Error(transactionsError.message || 'Failed to load transactions');
@@ -88,11 +96,11 @@ const SmartCategoriesPage: React.FC = () => {
       // Include category_source and confidence for Tag learning metrics
       const formattedTransactions: Transaction[] = (transactionsData || []).map((tx: any) => ({
         id: tx.id,
-        date: tx.date || tx.posted_at,
+        date: tx.date || tx.posted_at || '',
         description: tx.description || tx.memo || tx.merchant || 'Unknown',
         category: tx.category || 'Uncategorized',
         amount: typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount) || 0,
-        type: tx.type === 'income' || tx.type === 'Credit' ? 'income' : 'expense',
+        type: (tx.type === 'income' || tx.type === 'Credit') ? 'income' : 'expense',
         merchant: tx.merchant || null,
         confidence: tx.confidence ?? null,
         source_type: tx.category_source || tx.source_type || null, // Use category_source from migration
@@ -246,10 +254,23 @@ const SmartCategoriesPage: React.FC = () => {
   };
 
   const handleAskTag = (categorySummary: SmartCategorySummary) => {
-    // Open Tag workspace overlay with category context
+    // Open unified chat with Tag employee
     setSelectedCategoryForChat(categorySummary);
-    setIsTagWorkspaceOpen(true);
-    setIsMinimized(false);
+    openChat({
+      initialEmployeeSlug: 'tag-ai',
+      context: {
+        page: 'smart-categories',
+        data: {
+          source: 'workspace-tag',
+          category: categorySummary.category,
+          learnedCount: categorySummary.learnedCount,
+          aiCount: categorySummary.aiCount,
+          avgConfidence: categorySummary.avgConfidence,
+          transactionCount: categorySummary.transactionCount,
+          totalAmount: categorySummary.totalAmount,
+        },
+      },
+    });
   };
 
   const handleAskCrystal = (categorySummary: SmartCategorySummary) => {
@@ -395,54 +416,55 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
 - Use emojis sparingly (only when celebrating: 🎉 ✅)`;
   }, [chatContext]);
 
-  // Removed all inline chat code - chat is now only in workspace overlay
+  // Removed all inline chat code - chat is now only in unified slideout
 
-  // Workspace overlay handlers (consolidated)
+  // Handler to open unified chat with Tag
   const openTagWorkspace = () => {
-    setIsTagWorkspaceOpen(true);
-    setIsMinimized(false);
-  };
-  
-  const closeTagWorkspace = () => {
-    setIsTagWorkspaceOpen(false);
-    setIsMinimized(false);
-    setSelectedCategoryForChat(null);
-  };
-  
-  const minimizeTagWorkspace = () => {
-    setIsTagWorkspaceOpen(false);
-    setIsMinimized(true);
+    openChat({
+      initialEmployeeSlug: 'tag-ai',
+      context: {
+        page: 'smart-categories',
+        data: {
+          source: 'workspace-tag',
+        },
+      },
+    });
   };
 
+  // Show loading state immediately - don't wait for data
+  // This ensures the page renders instantly even while fetching transactions
   return (
     <>
-      <DashboardSection className="flex flex-col">
-        {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        <section className="mt-6 min-h-[520px]">
-          <DashboardThreeColumnLayout
-            left={
-              <div className="h-full flex flex-col">
-                <TagWorkspacePanel />
-              </div>
-            }
-            middle={
-              <div className="h-full flex flex-col">
-                <TagUnifiedCard onExpandClick={openTagWorkspace} onChatInputClick={openTagWorkspace} />
-              </div>
-            }
-            right={
-              <ActivityFeedSidebar scope="smart-categories" />
-            }
-          />
-        </section>
-      </DashboardSection>
-
-      {/* Tag Workspace Overlay - Floating centered chatbot */}
-      <TagWorkspace 
-        open={isTagWorkspaceOpen} 
-        onClose={closeTagWorkspace}
-        minimized={isMinimized}
-        onMinimize={minimizeTagWorkspace}
+      {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
+      <DashboardPageShell
+        left={<TagWorkspacePanel />}
+        center={
+          <TagUnifiedCard 
+              onExpandClick={() => {
+                openChat({
+                  initialEmployeeSlug: 'tag-ai',
+                  context: {
+                    page: 'smart-categories',
+                    data: {
+                      source: 'smart-categories-page',
+                    },
+                  },
+                });
+              }}
+              onChatInputClick={() => {
+                openChat({
+                  initialEmployeeSlug: 'tag-ai',
+                  context: {
+                    page: 'smart-categories',
+                    data: {
+                      source: 'smart-categories-page',
+                    },
+                  },
+                });
+              }}
+            />
+        }
+        right={<ActivityFeedSidebar scope="smart-categories" />}
       />
     </>
   );

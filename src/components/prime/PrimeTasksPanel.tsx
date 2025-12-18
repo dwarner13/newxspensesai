@@ -11,6 +11,9 @@ import { useNavigate } from 'react-router-dom';
 import type { PrimePanelBaseProps } from './PrimeTeamPanel';
 import DesktopChatSideBar from '../chat/DesktopChatSideBar';
 import { PrimeTasksSlideoutContent, type PrimeTask as SlideoutTask } from './PrimeTasksSlideoutContent';
+import { PrimeSlideoutShell } from './PrimeSlideoutShell';
+import { PrimeTasksContent } from './PrimeTasksContent';
+import { Button } from '@/components/ui/button';
 
 type PrimeTaskStatus = 'completed' | 'in-progress' | 'failed';
 
@@ -136,6 +139,17 @@ export const PrimeTasksPanel: React.FC<PrimePanelBaseProps> = ({ isOpen, onClose
   // Map tasks to new format
   const slideoutTasks = mapToSlideoutTasks(tasks);
 
+  // Filter tasks
+  const filtered =
+    filter === 'all'
+      ? slideoutTasks
+      : slideoutTasks.filter((t) => t.status === filter);
+
+  // Calculate stats for header badge
+  const completed = slideoutTasks.filter((t) => t.status === 'completed').length;
+  const total = slideoutTasks.length || 1;
+  const completionPct = Math.round((completed / total) * 100);
+
   // Handle filter change
   const handleFilterChange = (newFilter: 'all' | 'completed' | 'in_progress' | 'failed' | 'queued') => {
     setFilter(newFilter);
@@ -248,20 +262,93 @@ export const PrimeTasksPanel: React.FC<PrimePanelBaseProps> = ({ isOpen, onClose
           <DesktopChatSideBar dockedToPanel />
         </div>
         
-        {/* New floating card component */}
+        {/* Shell wrapper */}
         <div className="relative h-full w-full">
-          <PrimeTasksSlideoutContent
-            tasks={slideoutTasks}
-            activeFilter={filter}
-            onFilterChange={handleFilterChange}
+          <PrimeSlideoutShell
+            title="PRIME TASKS"
+            subtitle="Command Queue"
+            icon={<span>⚡</span>}
+            headerActions={
+              <div className="flex flex-col items-end gap-1">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                  Queue Health
+                </p>
+                <div className="flex items-center gap-2 text-xs text-slate-200">
+                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-emerald-300">
+                    {completionPct}% complete
+                  </span>
+                </div>
+                <div className="mt-1 flex w-40 overflow-hidden rounded-full bg-slate-800/80">
+                  <div
+                    className="h-1.5 bg-gradient-to-r from-emerald-400 via-sky-400 to-slate-500 transition-[width]"
+                    style={{ width: `${completionPct}%` }}
+                  />
+                </div>
+              </div>
+            }
             onClose={onClose}
-            onTaskClick={handleTaskClick}
-            onClearCompleted={handleClearCompleted}
-            onPauseQueue={() => {
-              console.log('Pause queue - placeholder');
-              // TODO: Implement pause queue functionality
-            }}
-          />
+            footer={
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <p className="text-slate-400">
+                  Prime keeps a rolling log of your AI activity and automations.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="h-8 rounded-full border-slate-700 bg-slate-900/90 text-xs text-slate-200 hover:border-amber-400 hover:text-amber-200"
+                    onClick={handleClearCompleted}
+                  >
+                    🧹 Clear completed
+                  </Button>
+                  <Button
+                    className="h-8 rounded-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500 text-xs font-semibold text-slate-950 shadow-[0_10px_28px_rgba(59,130,246,0.6)] hover:brightness-110"
+                    onClick={() => {
+                      console.log('Pause queue - placeholder');
+                    }}
+                  >
+                    ⚡ Pause queue
+                  </Button>
+                </div>
+              </div>
+            }
+          >
+            {/* Filters */}
+            <div className="px-6 pt-4 pb-2 border-b border-slate-800/70">
+              <div className="flex flex-wrap gap-2 text-xs">
+                {[
+                  { id: 'all', label: 'All', count: total },
+                  { id: 'completed', label: 'Completed', count: completed },
+                  { id: 'in_progress', label: 'In Progress', count: slideoutTasks.filter((t) => t.status === 'in_progress').length },
+                  { id: 'failed', label: 'Failed', count: slideoutTasks.filter((t) => t.status === 'failed').length },
+                  { id: 'queued', label: 'Queued', count: slideoutTasks.filter((t) => t.status === 'queued').length },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() =>
+                      handleFilterChange(
+                        f.id as 'all' | 'completed' | 'failed' | 'queued' | 'in_progress'
+                      )
+                    }
+                    className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 transition ${
+                      filter === f.id
+                        ? 'border-sky-400/80 bg-sky-500/10 text-sky-200'
+                        : 'border-slate-700 bg-slate-900/70 text-slate-300 hover:border-slate-500 hover:bg-slate-900'
+                    }`}
+                  >
+                    <span>{f.label}</span>
+                    <span className="text-[10px] text-slate-400">({f.count})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Task cards */}
+            <PrimeTasksContent
+              tasks={filtered}
+              onTaskClick={handleTaskClick}
+            />
+          </PrimeSlideoutShell>
         </div>
       </div>
     </div>

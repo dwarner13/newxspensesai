@@ -17,6 +17,7 @@ import SyncStatusPulse from '../SyncStatusPulse';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUnifiedChatLauncher } from '../../../hooks/useUnifiedChatLauncher';
 import { PrimeLogoBadge } from '../../branding/PrimeLogoBadge';
+import { cn } from '../../../lib/utils';
 
 interface OverviewSectionProps {
   isProcessing: boolean;
@@ -29,6 +30,7 @@ interface OverviewSectionProps {
     lastDocumentUpload: string | null;
     totalTransactions: number;
   };
+  className?: string;
 }
 
 export const OverviewSection: React.FC<OverviewSectionProps> = ({
@@ -38,6 +40,7 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
   isDemoUser,
   userId,
   dashboardStats,
+  className,
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -48,8 +51,33 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
                    user?.user_metadata?.full_name?.split(' ')[0] || 
                    'Darrell';
 
+  // Hero button styles - Equal size, smaller buttons
+  const baseButton =
+    "group flex w-full items-center justify-center gap-2 rounded-full border px-4 py-2.5 text-xs md:text-sm font-medium bg-[#050816]/90 text-slate-50 whitespace-nowrap transition-all duration-200";
+
+  const primeGlow =
+    "border-amber-400/80 shadow-[0_0_18px_rgba(251,191,36,0.5)] hover:shadow-[0_0_26px_rgba(251,191,36,0.7)]";
+
+  const normalGlow =
+    "border-slate-500/60 shadow-[0_0_0_1px_rgba(148,163,184,0.3)] hover:shadow-[0_0_18px_rgba(15,23,42,0.8)]";
+
+  const getButtonClasses = (isPrime: boolean) =>
+    cn(
+      baseButton,
+      "hover:bg-[#020617]",
+      isPrime ? primeGlow : normalGlow
+    );
+
+  const getIconCircleClasses = (isPrime: boolean) =>
+    cn(
+      "flex h-7 w-7 items-center justify-center rounded-full text-sm",
+      isPrime
+        ? "bg-gradient-to-br from-amber-400 via-orange-400 to-pink-500 shadow-[0_0_14px_rgba(251,191,36,0.7)]"
+        : "bg-slate-800/80"
+    );
+
   return (
-    <div className="space-y-6">
+    <div className="w-full h-full flex flex-col space-y-6">
       {/* Processing Status */}
       {isProcessing && (
         <div className="bg-orange-500 text-white p-4 rounded-lg flex items-center space-x-3">
@@ -72,79 +100,60 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
       )}
 
       {/* Prime Welcome Hero Card */}
-      <section className="mt-6 rounded-3xl bg-slate-900/70 backdrop-blur-xl border border-white/5 shadow-[0_0_60px_rgba(252,211,77,0.25)] px-6 py-7 sm:px-8 sm:py-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
-          <PrimeLogoBadge size={64} showGlow={true} />
-
-          <div className="flex-1 space-y-2">
-            <h1 className="text-2xl sm:text-3xl font-semibold text-white">
-              Welcome back, {userName}. I'm Prime, your AI financial CEO.
+      <section className={cn("relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#121728] via-[#141a30] to-[#101522] shadow-xl border border-white/5 h-full flex flex-col", className)}>
+        <div className="flex flex-col gap-6 px-8 py-8 lg:py-10 flex-1">
+          {/* TEXT BLOCK */}
+          <div className="max-w-2xl">
+            <p className="text-sm text-slate-400 mb-2">
+              Welcome back, {userName}.
+            </p>
+            <h1 className="text-2xl lg:text-3xl font-semibold text-white mb-2">
+              I'm Prime, your AI financial CEO.
             </h1>
-            <p className="max-w-xl text-sm sm:text-base text-slate-200/80">
-              I can review your latest imports, explain your spending, and help you plan debt payoff and savings goals. What would you like to focus on first?
+            <p className="text-slate-300 text-sm lg:text-base">
+              I can review your latest imports, explain your spending, and help you
+              plan debt payoff and savings goals. What would you like to focus on first?
             </p>
           </div>
-        </div>
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:gap-4">
-          <button
-            type="button"
-            className="
-              inline-flex items-center justify-center
-              px-6 py-3 rounded-full
-              bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500
-              text-slate-900 font-semibold text-sm
-              shadow-lg shadow-amber-500/30
-              hover:shadow-amber-400/50 hover:brightness-110
-              hover:-translate-y-0.5
-              transition-all duration-200
-              gap-2
-            "
-            onClick={() => openChat({ initialEmployeeSlug: 'prime-boss' })}
-          >
-            <span className="text-base">📣</span>
-            <span>Open Prime Chat</span>
-          </button>
-          <button
-            type="button"
-            className="
-              inline-flex items-center justify-center
-              px-6 py-3 rounded-full
-              bg-slate-900/60
-              border border-slate-500/30
-              text-slate-100 font-medium text-sm
-              shadow-md shadow-sky-500/10
-              hover:bg-slate-900/80 hover:border-sky-400/60
-              hover:shadow-sky-400/30
-              hover:-translate-y-0.5
-              transition-all duration-200
-              gap-2
-            "
-            onClick={() => navigate('/dashboard/smart-import-ai')}
-          >
-            <span className="text-base">📄</span>
-            <span>Review my latest imports</span>
-          </button>
-          <button
-            type="button"
-            className="
-              inline-flex items-center justify-center
-              px-6 py-3 rounded-full
-              bg-slate-900/60
-              border border-slate-500/30
-              text-slate-100 font-medium text-sm
-              shadow-md shadow-sky-500/10
-              hover:bg-slate-900/80 hover:border-sky-400/60
-              hover:shadow-sky-400/30
-              hover:-translate-y-0.5
-              transition-all duration-200
-              gap-2
-            "
-            onClick={() => navigate('/dashboard/analytics')}
-          >
-            <span className="text-base">📊</span>
-            <span>Show my top insights</span>
-          </button>
+          {/* CTA BUTTON ROW */}
+          <div className="flex flex-wrap gap-4">
+            {/* Primary: Open Prime Chat */}
+            <button
+              type="button"
+              className={getButtonClasses(true)}
+              onClick={() => openChat({ initialEmployeeSlug: 'prime-boss' })}
+            >
+              <span className={getIconCircleClasses(true)}>
+                👑
+              </span>
+              <span className="tracking-tight">Open Prime Chat</span>
+            </button>
+
+            {/* Secondary: Review my latest imports */}
+            <button
+              type="button"
+              className={getButtonClasses(false)}
+              onClick={() => navigate('/dashboard/smart-import-ai')}
+            >
+              <span className={getIconCircleClasses(false)}>
+                📄
+              </span>
+              <span className="tracking-tight">Review my latest imports</span>
+            </button>
+
+            {/* Secondary: Show my top insights */}
+            <button
+              type="button"
+              className={getButtonClasses(false)}
+              onClick={() => navigate('/dashboard/analytics')}
+            >
+              <span className={getIconCircleClasses(false)}>
+                📊
+              </span>
+              <span className="tracking-tight">Show my top insights</span>
+            </button>
+          </div>
         </div>
       </section>
 

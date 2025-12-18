@@ -80,16 +80,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setSession(currentSession);
           setIsDemoUser(false);
           
-          // Load user profile
+          // Load user profile, create if missing
           try {
-            const { data: profileData } = await supabase
+            const userId = currentSession.user.id;
+            const userEmail = currentSession.user.email || '';
+            
+            // Try to load existing profile
+            const { data: profileData, error: selectError } = await supabase
               .from('profiles')
-              .select('display_name, account_name')
-              .eq('id', currentSession.user.id)
+              .select('*')
+              .eq('id', userId)
               .maybeSingle();
-            setProfile(profileData);
+            
+            if (profileData) {
+              // Profile exists, use it
+              setProfile(profileData);
+            } else {
+              // Profile missing, create it
+              console.log('🔍 AuthContext: Profile missing, creating new profile for user:', userId);
+              const displayName = currentSession.user.user_metadata?.full_name 
+                || currentSession.user.user_metadata?.name 
+                || userEmail.split('@')[0] 
+                || 'User';
+              
+              const { data: newProfile, error: insertError } = await supabase
+                .from('profiles')
+                .insert({
+                  id: userId,
+                  email: userEmail,
+                  display_name: displayName,
+                  role: 'free',
+                  plan: 'free',
+                })
+                .select()
+                .single();
+              
+              if (insertError) {
+                console.error('❌ AuthContext: Failed to create profile:', insertError);
+                setProfile(null);
+              } else {
+                console.log('✅ AuthContext: Profile created successfully');
+                setProfile(newProfile);
+              }
+            }
           } catch (profileError) {
-            console.warn('🔍 AuthContext: Could not load profile:', profileError);
+            console.warn('🔍 AuthContext: Could not load/create profile:', profileError);
             setProfile(null);
           }
         } else {
@@ -145,18 +180,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 setSession(authSession);
                 setIsDemoUser(false);
                 
-                // Load user profile
+                // Load user profile, create if missing
                 const supabase = getSupabase();
                 if (supabase) {
                   try {
-                    const { data: profileData } = await supabase
+                    const userId = authSession.user.id;
+                    const userEmail = authSession.user.email || '';
+                    
+                    // Try to load existing profile
+                    const { data: profileData, error: selectError } = await supabase
                       .from('profiles')
-                      .select('display_name, account_name')
-                      .eq('id', authSession.user.id)
+                      .select('*')
+                      .eq('id', userId)
                       .maybeSingle();
-                    setProfile(profileData);
+                    
+                    if (profileData) {
+                      // Profile exists, use it
+                      setProfile(profileData);
+                    } else {
+                      // Profile missing, create it
+                      console.log('🔍 AuthContext: Profile missing on SIGNED_IN, creating new profile for user:', userId);
+                      const displayName = authSession.user.user_metadata?.full_name 
+                        || authSession.user.user_metadata?.name 
+                        || userEmail.split('@')[0] 
+                        || 'User';
+                      
+                      const { data: newProfile, error: insertError } = await supabase
+                        .from('profiles')
+                        .insert({
+                          id: userId,
+                          email: userEmail,
+                          display_name: displayName,
+                          role: 'free',
+                          plan: 'free',
+                        })
+                        .select()
+                        .single();
+                      
+                      if (insertError) {
+                        console.error('❌ AuthContext: Failed to create profile on SIGNED_IN:', insertError);
+                        setProfile(null);
+                      } else {
+                        console.log('✅ AuthContext: Profile created successfully on SIGNED_IN');
+                        setProfile(newProfile);
+                      }
+                    }
                   } catch (profileError) {
-                    console.warn('🔍 AuthContext: Could not load profile:', profileError);
+                    console.warn('🔍 AuthContext: Could not load/create profile:', profileError);
+                    setProfile(null);
                   }
                 }
               }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ActivityFeed } from './ActivityFeed';
 import type { SmartImportUploadSummary } from '../../hooks/useSmartImport';
+import { cn } from '../../lib/utils';
 
 export type ActivityFeedSidebarProps = {
   /**
@@ -13,6 +14,14 @@ export type ActivityFeedSidebarProps = {
    * Optional upload summary to add to activity feed when upload completes
    */
   lastUploadSummary?: SmartImportUploadSummary | null;
+  /**
+   * Optional className for styling
+   */
+  className?: string;
+  /**
+   * Variant: 'column' = standalone column styling, 'embedded' = integrated into parent grid
+   */
+  variant?: 'column' | 'embedded';
 };
 
 /**
@@ -22,7 +31,7 @@ export type ActivityFeedSidebarProps = {
  * Wraps the ActivityFeed component and supports scope-based filtering.
  * Can also inject local upload events for Smart Import.
  */
-export function ActivityFeedSidebar({ scope, lastUploadSummary }: ActivityFeedSidebarProps) {
+export function ActivityFeedSidebar({ scope, lastUploadSummary, className, variant = 'column' }: ActivityFeedSidebarProps) {
   const [localEvents, setLocalEvents] = useState<Array<{
     id: string;
     type: 'upload';
@@ -63,13 +72,19 @@ export function ActivityFeedSidebar({ scope, lastUploadSummary }: ActivityFeedSi
   }, [lastUploadSummary]);
 
   return (
-    <aside className="w-full h-full flex flex-col">
-      <ActivityFeed 
-        title="ACTIVITY FEED"
-        limit={20}
-        category={scope}
-        localEvents={localEvents}
-      />
+    <aside className={cn("w-full h-full flex flex-col overflow-hidden", className)}>
+      <div className="relative w-full h-full overflow-hidden">
+        {/* Activity Feed content - no extra padding needed, parent handles spacing */}
+        <div className="h-full w-full overflow-hidden">
+          <ActivityFeed 
+            title="ACTIVITY FEED"
+            limit={20}
+            category={scope}
+            localEvents={localEvents}
+            variant={variant}
+          />
+        </div>
+      </div>
     </aside>
   );
 }

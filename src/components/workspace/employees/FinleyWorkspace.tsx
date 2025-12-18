@@ -22,7 +22,7 @@ export function FinleyWorkspace({ open, onClose, conversationId, initialQuestion
     <AIWorkspaceOverlay
       open={open}
       onClose={onClose}
-      employeeSlug="finley-ai"
+      employeeSlug="finley-forecasts"
       title="Finley — AI Financial Assistant"
       subtitle="Personalized financial brain · Ask anything about your finances, get insights, and plan your future."
       workspaceLabel="Financial Assistant Workspace"

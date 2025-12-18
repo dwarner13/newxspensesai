@@ -17,6 +17,10 @@ export interface ChatSession {
   last_message_at: string | null;
   last_message_preview: string | null;
   created_at: string;
+  summary?: string | null;
+  tags?: string[];
+  employees_involved?: string[];
+  pinned?: boolean;
 }
 
 interface UseChatSessionsOptions {
@@ -35,7 +39,7 @@ export function useChatSessions({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Fetch chat sessions with last message preview
+  // Fetch chat sessions from Custodian summaries
   const loadSessions = useCallback(async () => {
     if (!userId) {
       setIsLoading(false);
@@ -52,64 +56,110 @@ export function useChatSessions({
         return;
       }
 
-      // Fetch recent sessions with message count
-      // Use updated_at for sorting (updated when messages are added)
-      const { data: sessionsData, error: sessionsError } = await supabase
-        .from('chat_sessions')
-        .select('id, employee_slug, title, message_count, created_at, updated_at')
-        .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
-        .limit(limit * 2); // Fetch more to account for grouping
+      // Fetch conversation summaries from Custodian (ordered by last_message_at desc)
+      // Handle both convo_id and conversation_id column names for backward compatibility
+      // Fallback to chat_sessions if chat_convo_summaries doesn't exist
+      let summariesData: any[] | null = null;
+      let summariesError: any = null;
 
-      if (sessionsError) {
-        console.warn('[useChatSessions] Failed to load sessions:', sessionsError);
-        setError(sessionsError as any);
-        setIsLoading(false);
-        return;
+      try {
+        const result = await supabase
+          .from('chat_convo_summaries')
+          .select('convo_id, conversation_id, title, summary, tags, employees_involved, started_at, last_message_at, pinned')
+          .eq('user_id', userId)
+          .order('last_message_at', { ascending: false })
+          .limit(limit * 2); // Fetch more to account for grouping
+
+        summariesData = result.data;
+        summariesError = result.error;
+      } catch (err) {
+        console.log('[useChatSessions] chat_convo_summaries table not available, using fallback');
+        summariesError = err;
       }
 
-      if (!sessionsData || sessionsData.length === 0) {
+      // If chat_convo_summaries fails, fallback to chat_sessions table
+      if (summariesError || !summariesData) {
+        console.log('[useChatSessions] chat_convo_summaries not available, using chat_sessions fallback');
+        
+        try {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('chat_sessions')
+            .select('id, user_id, employee_slug, title, last_message_at, created_at')
+            .eq('user_id', userId)
+            .order('last_message_at', { ascending: false })
+            .limit(limit * 2);
+
+          if (fallbackError) {
+            console.error('[useChatSessions] Fallback to chat_sessions also failed:', fallbackError);
+            setSessions([]);
+            setIsLoading(false);
+            return;
+          }
+
+          // Transform chat_sessions to expected format
+          summariesData = fallbackData?.map((session: any) => ({
+            convo_id: session.id,
+            conversation_id: session.id,
+            title: session.title || `Chat with ${session.employee_slug || 'AI'}`,
+            summary: null,
+            tags: [],
+            employees_involved: session.employee_slug ? [session.employee_slug] : [],
+            started_at: session.created_at,
+            last_message_at: session.last_message_at || session.created_at,
+            pinned: false
+          })) || [];
+        } catch (fallbackErr) {
+          console.error('[useChatSessions] Error in fallback query:', fallbackErr);
+          setSessions([]);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      if (!summariesData || summariesData.length === 0) {
         setSessions([]);
         setIsLoading(false);
         return;
       }
 
-      // For each session, get the last message preview
-      const sessionsWithPreview: ChatSession[] = await Promise.all(
-        sessionsData.map(async (session) => {
-          // Get last message for preview
-          const { data: lastMessage } = await supabase
-            .from('chat_messages')
-            .select('content, created_at')
-            .eq('session_id', session.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+      // Convert summaries to ChatSession format
+      // Get employee_slug from employees_involved (use first one or 'prime-boss' as fallback)
+      // Support both convo_id and conversation_id for backward compatibility
+      const sessionsWithPreview: ChatSession[] = summariesData.map((summary: any) => {
+        const employeeSlug = summary.employees_involved && summary.employees_involved.length > 0
+          ? summary.employees_involved[0]
+          : 'prime-boss';
 
-          return {
-            id: session.id,
-            employee_slug: session.employee_slug || 'prime-boss',
-            title: session.title,
-            message_count: session.message_count || 0,
-            last_message_at: lastMessage?.created_at || session.updated_at || session.created_at,
-            last_message_preview: lastMessage?.content 
-              ? (lastMessage.content.length > 60 
-                  ? lastMessage.content.substring(0, 60) + '...' 
-                  : lastMessage.content)
-              : null,
-            created_at: session.created_at,
-          };
-        })
-      );
+        // Use conversation_id if available, fallback to convo_id (handle both column names)
+        const conversationId = summary.conversation_id ?? summary.convo_id ?? null;
 
-      // Group by employee and limit per employee
+        return {
+          id: conversationId || '',
+          employee_slug: employeeSlug,
+          title: summary.title,
+          message_count: 0, // Not tracked in summaries
+          last_message_at: summary.last_message_at,
+          last_message_preview: summary.summary || null,
+          created_at: summary.started_at,
+          summary: summary.summary,
+          tags: summary.tags || [],
+          employees_involved: summary.employees_involved || [],
+          pinned: summary.pinned || false,
+        };
+      });
+
+      // Group by employee (use first employee from employees_involved or employee_slug)
       const grouped = new Map<string, ChatSession[]>();
       sessionsWithPreview.forEach(session => {
-        const employee = session.employee_slug;
-        if (!grouped.has(employee)) {
-          grouped.set(employee, []);
+        // Use first employee from employees_involved if available, otherwise use employee_slug
+        const primaryEmployee = (session.employees_involved && session.employees_involved.length > 0)
+          ? session.employees_involved[0]
+          : session.employee_slug;
+        
+        if (!grouped.has(primaryEmployee)) {
+          grouped.set(primaryEmployee, []);
         }
-        grouped.get(employee)!.push(session);
+        grouped.get(primaryEmployee)!.push(session);
       });
 
       // Take up to perEmployee sessions per employee, then flatten

@@ -24,12 +24,27 @@ const supabase = createClient(
 );
 
 /**
+ * Check if a string is a valid UUID format
+ */
+function isValidUuid(value: string | null | undefined): boolean {
+  if (!value) return false;
+  // UUID format: 8-4-4-4-12 hex digits with hyphens
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+}
+
+/**
  * Assert that user is within rate limit
  * @param userId - User ID to check
  * @param maxPerMinute - Maximum requests per minute (default: 20)
  * @throws Error with statusCode 429 if rate limit exceeded
  */
 export async function assertWithinRateLimit(userId: string, maxPerMinute = 20) {
+  // Skip rate limiting for non-UUID users (anon users) to avoid UUID type errors
+  if (!isValidUuid(userId)) {
+    console.warn('[Rate Limit] Skipping DB rate limit for non-uuid user', userId.substring(0, 20));
+    return; // Fail open - allow request to proceed
+  }
+
   const now = new Date();
   const windowMs = 60_000; // 1 minute in milliseconds
 

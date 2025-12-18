@@ -9,54 +9,51 @@
  * - Right column (25%): Activity Feed
  */
 
-import React, { useState } from 'react';
+import React from 'react';
 import { WellnessWorkspacePanel } from '../../components/workspace/entertainment/WellnessWorkspacePanel';
 import { WellnessUnifiedCard } from '../../components/workspace/entertainment/WellnessUnifiedCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
-import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 
 export default function WellnessStudioPage() {
   // Scroll to top when page loads
   useScrollToTop();
-  const [isWellnessWorkspaceOpen, setIsWellnessWorkspaceOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-
-  const openWellnessWorkspace = () => {
-    setIsWellnessWorkspaceOpen(true);
-    setIsMinimized(false);
-  };
-  const closeWellnessWorkspace = () => {
-    setIsWellnessWorkspaceOpen(false);
-    setIsMinimized(false);
-  };
-  const minimizeWellnessWorkspace = () => {
-    setIsWellnessWorkspaceOpen(false);
-    setIsMinimized(true);
-  };
+  const { openChat } = useUnifiedChatLauncher();
 
   return (
     <>
-      <DashboardSection className="flex flex-col">
-        <section className="mt-6 min-h-[520px]">
-          <DashboardThreeColumnLayout
-            left={
-              <div className="h-full flex flex-col">
-                <WellnessWorkspacePanel />
-              </div>
-            }
-            middle={
-              <div className="h-full flex flex-col">
-                <WellnessUnifiedCard onExpandClick={openWellnessWorkspace} onChatInputClick={openWellnessWorkspace} />
-              </div>
-            }
-            right={
-              <ActivityFeedSidebar scope="wellness-studio" />
-            }
+      <DashboardPageShell
+        left={<WellnessWorkspacePanel />}
+        center={
+          <WellnessUnifiedCard 
+            onExpandClick={() => {
+              openChat({
+                initialEmployeeSlug: 'wellness-studio',
+                context: {
+                  page: 'wellness-studio',
+                  data: {
+                    source: 'wellness-studio-page',
+                  },
+                },
+              });
+            }}
+            onChatInputClick={() => {
+              openChat({
+                initialEmployeeSlug: 'wellness-studio',
+                context: {
+                  page: 'wellness-studio',
+                  data: {
+                    source: 'wellness-studio-page',
+                  },
+                },
+              });
+            }}
           />
-        </section>
-      </DashboardSection>
+        }
+        right={<ActivityFeedSidebar scope="wellness-studio" />}
+      />
     </>
   );
 }

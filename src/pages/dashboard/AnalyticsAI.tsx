@@ -9,55 +9,56 @@
  * - Right column (25%): Activity Feed
  */
 
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { AnalyticsWorkspacePanel } from '../../components/workspace/employees/AnalyticsWorkspacePanel';
 import { AnalyticsUnifiedCard } from '../../components/workspace/employees/AnalyticsUnifiedCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
-// import { AnalyticsWorkspaceOverlay } from '../../components/chat/AnalyticsWorkspaceOverlay'; // Create if needed
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
+import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { useScrollToTop } from '../../hooks/useScrollToTop';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 
 export default function AnalyticsAI() {
-  const [isAnalyticsWorkspaceOpen, setIsAnalyticsWorkspaceOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  // Debug: Log component mount
+  useEffect(() => {
+    console.log('[AnalyticsAI] Component mounted', window.location.pathname);
+  }, []);
 
-  const openAnalyticsWorkspace = () => {
-    setIsAnalyticsWorkspaceOpen(true);
-    setIsMinimized(false);
-  };
-  const closeAnalyticsWorkspace = () => {
-    setIsAnalyticsWorkspaceOpen(false);
-    setIsMinimized(false);
-  };
-  const minimizeAnalyticsWorkspace = () => {
-    setIsAnalyticsWorkspaceOpen(false);
-    setIsMinimized(true);
-  };
+  // Scroll to top when page loads
+  useScrollToTop();
+  const { openChat } = useUnifiedChatLauncher();
+  
+  // Unified chat is opened via AnalyticsUnifiedCard using useUnifiedChatLauncher
+  // No local chat state needed - all chat goes through UnifiedAssistantChat
 
   return (
     <>
-      <DashboardSection className="flex flex-col">
-        {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        {/* 2-column grid: col-span-4 (33%), col-span-8 (67%) - Activity Feed handled by DashboardLayout */}
-        <div className="grid grid-cols-12 gap-0 items-stretch overflow-hidden" style={{ minHeight: 'calc(100vh - 200px)' }}>
-          {/* LEFT COLUMN (col-span-4 = 33%): Analytics Workspace */}
-          <section className="col-span-12 lg:col-span-4 flex flex-col overflow-hidden">
-            <AnalyticsWorkspacePanel />
-          </section>
-
-          {/* CENTER COLUMN (col-span-8 = 67%): Analytics Unified Card */}
-          <section className="col-span-12 lg:col-span-8 flex flex-col overflow-hidden">
-            <AnalyticsUnifiedCard onExpandClick={openAnalyticsWorkspace} onChatInputClick={openAnalyticsWorkspace} />
-          </section>
-        </div>
-      </DashboardSection>
-
-      {/* Analytics Workspace Overlay - Floating centered chatbot */}
-      {/* Uncomment when AnalyticsWorkspaceOverlay is created */}
-      {/* <AnalyticsWorkspaceOverlay 
-        open={isAnalyticsWorkspaceOpen} 
-        onClose={closeAnalyticsWorkspace}
-        minimized={isMinimized}
-        onMinimize={minimizeAnalyticsWorkspace}
-      /> */}
+      {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
+      <DashboardPageShell
+        left={<AnalyticsWorkspacePanel />}
+        center={
+          <AnalyticsUnifiedCard 
+            onExpandClick={() => {
+              openChat({
+                initialEmployeeSlug: 'crystal-analytics',
+                context: {
+                  page: 'analytics-ai',
+                  source: 'analytics-ai-page',
+                },
+              });
+            }}
+            onChatInputClick={() => {
+              openChat({
+                initialEmployeeSlug: 'crystal-analytics',
+                context: {
+                  page: 'analytics-ai',
+                  source: 'analytics-ai-page',
+                },
+              });
+            }}
+          />
+        }
+        right={<ActivityFeedSidebar scope="analytics-ai" />}
+      />
     </>
   );
 }

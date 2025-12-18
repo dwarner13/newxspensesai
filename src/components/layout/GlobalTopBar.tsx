@@ -13,15 +13,19 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Settings, LogOut, Bell, Search, Crown } from 'lucide-react';
 import { cn } from '../../lib/utils';
+import { useJobsSystemStore } from '../../state/jobsSystemStore';
+import { NotificationsPanel } from '../system/NotificationsPanel';
 
 export function GlobalTopBar() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [unreadCount] = useState(4); // Mock unread count
   const notificationsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+  
+  // Get real notification count from jobs system store
+  const { unreadAllCount } = useJobsSystemStore();
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -92,96 +96,18 @@ export function GlobalTopBar() {
             aria-label="Notifications"
           >
             <Bell className="w-4 h-4 text-slate-300" />
-            {unreadCount > 0 && (
+            {unreadAllCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium border-2 border-[#030816]">
-                {unreadCount}
+                {unreadAllCount > 99 ? '99+' : unreadAllCount}
               </span>
             )}
           </button>
             
-          {/* Notifications Dropdown */}
-          {isNotificationsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 bg-[#0b1220]/95 backdrop-blur-md border border-purple-500/20 rounded-xl shadow-2xl z-50">
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-white font-semibold">AI Team Activity</h3>
-                  <span className="text-xs text-slate-400">{unreadCount} active</span>
-                </div>
-                
-                {/* AI Workers Status */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center text-white text-sm">🤖</div>
-                    <div className="flex-1">
-                      <p className="text-sm text-white font-medium">Byte</p>
-                      <p className="text-xs text-slate-400">Document Processing Wizard</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-green-400">● Active</div>
-                      <div className="text-xs text-slate-400">Processing</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-white text-sm">💎</div>
-                    <div className="flex-1">
-                      <p className="text-sm text-white font-medium">Crystal</p>
-                      <p className="text-xs text-slate-400">Data Analysis Expert</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-green-400">● Active</div>
-                      <div className="text-xs text-slate-400">Analyzing</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center text-white text-sm">🏷️</div>
-                    <div className="flex-1">
-                      <p className="text-sm text-white font-medium">Tag</p>
-                      <p className="text-xs text-slate-400">Smart Categorization</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-green-400">● Active</div>
-                      <div className="text-xs text-slate-400">Categorizing</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 p-2 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 cursor-pointer transition-colors">
-                    <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-lg flex items-center justify-center text-white text-sm">👑</div>
-                    <div className="flex-1">
-                      <p className="text-sm text-white font-medium">Prime</p>
-                      <p className="text-xs text-slate-400">Team Coordinator</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-green-400">● Active</div>
-                      <div className="text-xs text-slate-400">Coordinating</div>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Quick Actions */}
-                <div className="border-t border-purple-500/20 pt-3">
-                  <button 
-                    onClick={() => {
-                      setIsNotificationsOpen(false);
-                      window.dispatchEvent(new CustomEvent('openWatchMeWork', { 
-                        detail: { feature: 'AI Team Overview' } 
-                      }));
-                    }}
-                    className="w-full flex items-center gap-3 p-2 rounded-lg bg-gradient-to-r from-purple-500/20 to-blue-500/20 hover:from-purple-500/30 hover:to-blue-500/30 transition-all duration-200"
-                  >
-                    <div className="w-6 h-6 bg-gradient-to-r from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
-                      <span className="text-white text-xs">👁️</span>
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm text-white font-medium">Watch Me Work</p>
-                      <p className="text-xs text-slate-400">See AI team in action</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Notifications Panel */}
+          <NotificationsPanel 
+            isOpen={isNotificationsOpen} 
+            onClose={() => setIsNotificationsOpen(false)} 
+          />
         </div>
 
         {/* Profile Icon with Dropdown */}
@@ -221,6 +147,8 @@ export function GlobalTopBar() {
     </header>
   );
 }
+
+
 
 
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { DashboardStatCard, DashboardStatCardProps } from '../DashboardStatCard';
 import { cardIcons } from '../dashboardCardsConfig';
-import { getThemeClasses } from '../../theme/dashboardTheme';
+import { DashboardSection } from '../../ui/DashboardSection';
 
 interface PlanningAnalysisSectionProps {
   cards: Omit<DashboardStatCardProps, 'icon'>[];
@@ -9,11 +9,10 @@ interface PlanningAnalysisSectionProps {
 
 export const PlanningAnalysisSection: React.FC<PlanningAnalysisSectionProps> = ({ cards }) => {
   return (
-    <>
-      <div className="text-center">
-        <h2 className="text-sm font-semibold tracking-wide text-slate-300 uppercase mb-1">PLANNING & ANALYSIS</h2>
-        <p className="text-xs text-slate-500">Advanced tools for financial planning and strategic analysis</p>
-      </div>
+    <DashboardSection
+      title="PLANNING & ANALYSIS"
+      subtitle="Advanced tools for financial planning and strategic analysis"
+    >
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((card) => (
           <DashboardStatCard
@@ -23,7 +22,7 @@ export const PlanningAnalysisSection: React.FC<PlanningAnalysisSectionProps> = (
           />
         ))}
       </div>
-    </>
+    </DashboardSection>
   );
 };
 

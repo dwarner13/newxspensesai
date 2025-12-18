@@ -4,20 +4,19 @@
  * Complete workspace layout for Prime (AI Command Center)
  * 
  * Layout:
- * - Left column (33%): Prime Workspace Panel
- * - Center column (42%): Prime Unified Card
- * - Right column (25%): Activity Feed
+ * - Left column: Prime Workspace Panel (Active Employees)
+ * - Center column: Unified Chat UI (Prime chat workspace)
+ * - Right column: Activity Feed
+ * - Floating rail: DesktopChatSideBar (right edge)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { PrimeWorkspacePanel, type PrimeEmployee } from '../../components/workspace/employees/PrimeWorkspacePanel';
-import { PrimeUnifiedCard } from '../../components/workspace/employees/PrimeUnifiedCard';
-import { DashboardSection } from '../../components/ui/DashboardSection';
-import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
-import DesktopChatSideBar from '../../components/chat/DesktopChatSideBar';
 import { ChatHistorySidebar } from '../../components/chat/ChatHistorySidebar';
+import DesktopChatSideBar from '../../components/chat/DesktopChatSideBar';
 import { EmployeeControlPanel } from '../../components/prime/EmployeeControlPanel';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { PrimeToolsCommandCenter } from '../../components/prime/PrimeToolsCommandCenter';
@@ -26,23 +25,21 @@ import { usePrimeLiveStats } from '../../hooks/usePrimeLiveStats';
 import { useActivityFeed } from '../../hooks/useActivityFeed';
 import { PrimeTeamStatusPanel, type PrimeStatusView } from '../../components/prime/panels/PrimeTeamStatusPanel';
 import UnifiedAssistantChat from '../../components/chat/UnifiedAssistantChat';
-import { PrimeLogoBadge } from '../../components/branding/PrimeLogoBadge';
+import { useChatSessions } from '../../hooks/useChatSessions';
 
 export function PrimeChatPage() {
   // Scroll to top when page loads
   useScrollToTop();
   
-  // Use unified chat launcher - open Prime chat when page loads
-  const { isOpen: isUnifiedChatOpen, setActiveEmployee, openChat, closeChat } = useUnifiedChatLauncher();
+  // Load chat sessions for history sidebar
+  const { sessions, loadSessions } = useChatSessions({
+    limit: 50,
+    perEmployee: 10,
+    autoLoad: true,
+  });
   
-  // Open unified chat with Prime when page loads
-  useEffect(() => {
-    setActiveEmployee('prime-boss');
-    openChat({ initialEmployeeSlug: 'prime-boss' });
-  }, [setActiveEmployee, openChat]);
-  
-  // Panel state - controls which slide-in panel is open (Team or Tasks)
-  const [primePanel, setPrimePanel] = useState<'none' | 'team' | 'tasks'>('none');
+  // Panel state - controls which slide-in panel is open (Team, Tasks, or Chat)
+  const [primePanel, setPrimePanel] = useState<'none' | 'team' | 'tasks' | 'chat'>('none'); // Default to none (chat now opens via unified launcher)
   
   // Prime Tools Command Center state
   const [isPrimeToolsOpen, setIsPrimeToolsOpen] = useState(false);
@@ -56,6 +53,9 @@ export function PrimeChatPage() {
   
   // Track whether Tasks slideout is open (derived from primePanel)
   const isPrimeTasksOpen = primePanel === 'tasks';
+  
+  // Track whether Chat slideout is open (derived from primePanel)
+  const isPrimeChatOpen = primePanel === 'chat';
   
   // Chat history sidebar state
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
@@ -100,44 +100,48 @@ export function PrimeChatPage() {
     };
   }, []);
 
-  const openWorkspace = () => {
-    // Set Prime as the active employee and open unified chat
-    setActiveEmployee('prime-boss');
-    openChat({ initialEmployeeSlug: 'prime-boss' });
-  };
+  // Get unified chat launcher for opening chat with other employees
+  const { openChat, isOpen: isChatOpen } = useUnifiedChatLauncher();
 
   return (
     <PrimeOverlayProvider>
-      <DashboardSection className="flex flex-col">
-        {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        <section className="mt-6 min-h-[520px]">
-          <DashboardThreeColumnLayout
-            left={
-              <PrimeWorkspacePanel 
-                onEmployeeClick={(employee) => {
-                  setSelectedEmployee(employee);
-                  setIsEmployeePanelOpen(true);
-                }}
-              />
-            }
-            middle={
-              <PrimeUnifiedCard 
-                onExpandClick={openWorkspace} 
-                onChatInputClick={openWorkspace}
-                primePanel={primePanel}
-                onPrimePanelChange={setPrimePanel}
-              />
-            }
-            right={
-              <ActivityFeedSidebar scope="prime" />
-            }
+      {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
+      <DashboardPageShell
+        left={
+          <PrimeWorkspacePanel 
+            onEmployeeClick={(employee) => {
+              setSelectedEmployee(employee);
+              setIsEmployeePanelOpen(true);
+            }}
+            className="min-w-0 w-full h-full"
           />
-        </section>
-      </DashboardSection>
+        }
+        center={
+          <div className="relative min-w-0 w-full h-full flex flex-col overflow-hidden">
+            {/* Premium Prime aura background - subtle gradient glow (clipped) */}
+            <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-amber-500/5 via-orange-500/3 to-pink-500/5 pointer-events-none" />
+            {/* Chat workspace - inline mode */}
+            <UnifiedAssistantChat
+              mode="inline"
+              initialEmployeeSlug="prime-boss"
+              context={{
+                page: 'prime-chat',
+                source: 'prime-chat-page',
+              }}
+              compact={true}
+            />
+          </div>
+        }
+        right={
+          <ActivityFeedSidebar scope="prime" className="min-w-0 w-full h-full" />
+        }
+      />
 
-      {/* Desktop Side Chat Tab - Hide when panel is open (panels have their own docked rail) */}
-      {!hasOpenPanel && (
-        <DesktopChatSideBar onHistoryClick={handleOpenChatHistory} />
+      {/* Floating Action Rail - Right edge (same as main dashboard) */}
+      {!isChatOpen && (
+        <DesktopChatSideBar 
+          onHistoryClick={handleOpenChatHistory}
+        />
       )}
       
       {/* Chat History Sidebar */}

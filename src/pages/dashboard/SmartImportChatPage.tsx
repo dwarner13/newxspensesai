@@ -7,23 +7,32 @@
  * - Left column (33%): Byte Workspace Panel with 6 status cards
  * - Center column (42%): Byte Unified Card (single card with header, messages, input)
  * - Right column (25%): Activity Feed
+ * 
+ * ⚠️ CHAT ARCHITECTURE SAFEGUARD:
+ * - This page MUST NOT render any legacy/inline chat components
+ * - All chat for Byte should go through UnifiedAssistantChat via useUnifiedChatLauncher()
+ * - ByteUnifiedCard only triggers chat opening - it does NOT render inline chat
+ * - The unified slide-out chat is rendered globally by DashboardLayout
  */
 
 import React, { useState, useEffect } from 'react';
 import { ByteWorkspacePanel } from '../../components/smart-import/ByteWorkspacePanel';
 import { ByteUnifiedCard } from '../../components/smart-import/ByteUnifiedCard';
-import { ByteSmartImportConsole } from '../../components/smart-import/ByteSmartImportConsole';
-import { DashboardSection } from '../../components/ui/DashboardSection';
-import { DashboardThreeColumnLayout } from '../../components/layout/DashboardThreeColumnLayout';
+import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useSmartImport } from '../../hooks/useSmartImport';
 import { useByteQueueStats } from '../../hooks/useByteQueueStats';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { MessageSquare } from 'lucide-react';
 
 export function SmartImportChatPage() {
   // Scroll to top when page loads
   useScrollToTop();
-  const [isByteConsoleOpen, setIsByteConsoleOpen] = useState(false);
+  useEffect(() => {
+    console.log("[route-mount]", "/dashboard/smart-import-ai", "SmartImportChatPage");
+  }, []);
+  const { openChat } = useUnifiedChatLauncher();
   
   // UI-only helper state for Byte console status display
   const [processingLabel, setProcessingLabel] = useState<string | undefined>();
@@ -67,66 +76,60 @@ export function SmartImportChatPage() {
     }
   }, [isUploading, uploadFileCount]);
 
-  // Format queue health label (UI-only helper)
-  const queueHealthLabel = queueStats?.health?.status === 'good'
-    ? 'Healthy'
-    : queueStats?.health?.status === 'warning'
-    ? 'Processing'
-    : queueStats?.health?.status === 'error'
-    ? 'Issues detected'
-    : undefined;
-
-  const openByteConsole = () => {
-    setIsByteConsoleOpen(true);
-  };
-  const closeByteConsole = () => {
-    setIsByteConsoleOpen(false);
-  };
-
   return (
     <>
-      <DashboardSection className="flex flex-col">
-        {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-        <section className="mt-6 min-h-[520px]">
-          <DashboardThreeColumnLayout
-            left={
-              <div className="h-full flex flex-col">
-                <ByteWorkspacePanel />
-              </div>
-            }
-            middle={
-              <div className="h-full flex flex-col">
-                <ByteUnifiedCard 
-                  onExpandClick={openByteConsole} 
-                  onChatInputClick={openByteConsole}
-                  onUploadStart={openByteConsole}
-                  onUploadFiles={uploadFiles}
-                  uploadFileCount={uploadFileCount}
-                  uploadProgress={uploadProgress}
-                  isUploading={isUploading}
-                />
-              </div>
-            }
-            right={
-              <ActivityFeedSidebar 
-                scope="smart-import"
-                lastUploadSummary={lastUploadSummary}
-              />
-            }
+      {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
+      <DashboardPageShell
+        left={<ByteWorkspacePanel />}
+        center={
+          <ByteUnifiedCard 
+            onExpandClick={() => {
+              openChat({
+                initialEmployeeSlug: 'byte-docs',
+                context: {
+                  page: 'smart-import',
+                  data: {
+                    source: 'smart-import-page',
+                  },
+                },
+              });
+            }}
+            onChatInputClick={() => {
+              openChat({
+                initialEmployeeSlug: 'byte-docs',
+                context: {
+                  page: 'smart-import',
+                  data: {
+                    source: 'smart-import-page',
+                  },
+                },
+              });
+            }}
+            onUploadStart={() => {
+              // Open chat when upload starts
+              openChat({
+                initialEmployeeSlug: 'byte-docs',
+                context: {
+                  page: 'smart-import',
+                  data: {
+                    source: 'smart-import-upload',
+                  },
+                },
+              });
+            }}
+            onUploadFiles={uploadFiles}
+            uploadFileCount={uploadFileCount}
+            uploadProgress={uploadProgress}
+            isUploading={isUploading}
           />
-        </section>
-      </DashboardSection>
-
-      {/* Floating Byte Smart Import Console - positioned above middle content, not covering activity feed */}
-      <div className="relative z-[30]">
-        <ByteSmartImportConsole
-          isOpen={isByteConsoleOpen}
-          onClose={closeByteConsole}
-          lastImportSummary={lastImportSummary}
-          queueHealthLabel={queueHealthLabel}
-          isUploading={isUploading}
-        />
-      </div>
+        }
+        right={
+          <ActivityFeedSidebar 
+            scope="smart-import"
+            lastUploadSummary={lastUploadSummary}
+          />
+        }
+      />
     </>
   );
 }
