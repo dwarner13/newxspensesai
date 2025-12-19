@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getSupabase } from '../../lib/supabase';
-import { isDemoMode, isGuestSession, getGuestSession } from '../../lib/demoAuth';
+import { isDemoMode, isGuestSession } from '../../lib/demoAuth';
 
 /**
  * OnboardingGuard Component
@@ -13,81 +12,41 @@ import { isDemoMode, isGuestSession, getGuestSession } from '../../lib/demoAuth'
  * If completed, allows access to protected routes
  */
 export default function OnboardingGuard({ children }: { children: React.ReactNode }) {
-  const { user, userId, loading, initialLoad } = useAuth();
-  const [checkingProfile, setCheckingProfile] = useState(true);
-  const [profileCompleted, setProfileCompleted] = useState<boolean | null>(null);
+  const { user, userId, loading, initialLoad, profile, isProfileLoading } = useAuth();
   const location = useLocation();
 
-  useEffect(() => {
-    const checkProfileStatus = async () => {
-      // Skip if still loading auth
-      if (loading || initialLoad) {
-        return;
-      }
+  // Demo user or guest session - skip onboarding check
+  const isDemoUserId = userId === '00000000-0000-4000-8000-000000000001';
+  const isGuest = isDemoMode() && isGuestSession();
+  
+  // Compute profile completed status
+  const profileCompleted = useMemo(() => {
+    // Skip check for demo/guest users
+    if (isDemoUserId || isGuest) {
+      return true;
+    }
 
-      // If no user, don't check profile (AuthGuard will handle login redirect)
-      if (!user || !userId) {
-        setCheckingProfile(false);
-        return;
-      }
+    // If no user/userId, not completed (will redirect to login)
+    if (!user || !userId) {
+      return null;
+    }
 
-      // Demo user or guest session - skip onboarding check
-      const isDemoUserId = userId === '00000000-0000-4000-8000-000000000001';
-      const isGuest = isDemoMode() && isGuestSession();
-      if (isDemoUserId || isGuest) {
-        setProfileCompleted(true);
-        setCheckingProfile(false);
-        return;
-      }
+    // If profile is still loading, return null (will show loading state)
+    if (isProfileLoading || loading || initialLoad) {
+      return null;
+    }
 
-      try {
-        const supabase = getSupabase();
-        if (!supabase) {
-          // No Supabase - allow access (dev mode)
-          console.log('⚡ Dev mode: OnboardingGuard skipping profile check');
-          setProfileCompleted(true);
-          setCheckingProfile(false);
-          return;
-        }
+    // If profile doesn't exist, user needs onboarding
+    if (!profile) {
+      return false;
+    }
 
-        // Check profile_completed status
-        const { data: profile, error } = await supabase
-          .from('profiles')
-          .select('profile_completed')
-          .eq('id', userId)
-          .maybeSingle();
-
-        if (error) {
-          console.error('Error checking profile status:', error);
-          // On error, allow access (fail open)
-          setProfileCompleted(true);
-          setCheckingProfile(false);
-          return;
-        }
-
-        // If profile doesn't exist, user needs onboarding
-        if (!profile) {
-          setProfileCompleted(false);
-          setCheckingProfile(false);
-          return;
-        }
-
-        // Check profile_completed field (defaults to false if null)
-        setProfileCompleted(profile.profile_completed === true);
-        setCheckingProfile(false);
-      } catch (error) {
-        console.error('Error checking profile:', error);
-        // On error, allow access (fail open)
-        setProfileCompleted(true);
-        setCheckingProfile(false);
-      }
-    };
-
-    checkProfileStatus();
-  }, [user, userId, loading, initialLoad]);
+    // Check profile_completed field (defaults to false if null)
+    return profile.profile_completed === true;
+  }, [user, userId, profile, isProfileLoading, loading, initialLoad, isDemoUserId, isGuest]);
 
   // Show loading while checking auth or profile
-  if (loading || initialLoad || checkingProfile) {
+  if (loading || initialLoad || isProfileLoading || profileCompleted === null) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#0f172a] to-[#1a1e3a] flex items-center justify-center">
         <div className="text-center flex flex-col items-center justify-center">

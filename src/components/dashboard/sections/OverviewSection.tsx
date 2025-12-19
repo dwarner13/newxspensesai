@@ -46,10 +46,8 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
   const { user } = useAuth();
   const { openChat } = useUnifiedChatLauncher();
 
-  // Get user's first name for personalization
-  const userName = user?.user_metadata?.first_name || 
-                   user?.user_metadata?.full_name?.split(' ')[0] || 
-                   'Darrell';
+  // Use firstName from AuthContext (computed from profile.display_name)
+  const userName = firstName;
 
   // Hero button styles - Equal size, smaller buttons
   const baseButton =

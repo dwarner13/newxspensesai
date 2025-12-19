@@ -1,8 +1,9 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 // import { toast } from 'react-hot-toast'; // Temporarily disabled for debugging
 import { getSupabase } from '../lib/supabase';
 import { isDemoMode, getGuestSession, createGuestUser, clearGuestSession } from '../lib/demoAuth';
+import { getOrCreateProfile, type Profile } from '../lib/profileHelpers';
 
 interface AuthContextType {
   user: any;
@@ -16,7 +17,9 @@ interface AuthContextType {
   ready: boolean;
   isDemoUser: boolean;
   firstName: string; // User's first name for personalization
-  profile: any; // Full profile data
+  profile: Profile | null; // Full profile data
+  isProfileLoading: boolean; // Separate from auth loading
+  refreshProfile: () => Promise<void>; // Refresh profile from DB
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -62,14 +65,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<any>(null);
   const [ready, setReady] = useState(false);
   const [isDemoUser, setIsDemoUser] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const navigate = useNavigate();
   
   // Compute firstName from profile or user metadata
+  // Priority: profile.display_name > profile.full_name > user metadata > email prefix > "there"
   const firstName = useMemo(() => {
     const raw =
       profile?.display_name ||
-      profile?.account_name ||
+      profile?.full_name ||
       user?.user_metadata?.full_name ||
       user?.user_metadata?.name ||
       user?.email?.split('@')[0];
@@ -77,6 +82,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!raw) return 'there';
     return raw.split(' ')[0];
   }, [profile, user]);
+
+  // Refresh profile function - reloads profile from database
+  const refreshProfile = useCallback(async () => {
+    if (!userId || !user?.email) {
+      return;
+    }
+
+    setIsProfileLoading(true);
+    try {
+      const refreshedProfile = await getOrCreateProfile(userId, user.email);
+      setProfile(refreshedProfile);
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[AuthContext] Error refreshing profile:', error);
+      }
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [userId, user?.email]);
   
   console.log('AuthProvider render:', { user: !!user, userId, loading, initialLoad, ready, isDemoUser});
 
@@ -152,73 +176,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsDemoUser(false);
           
           // Load user profile, create if missing
+          setIsProfileLoading(true);
           try {
             const userId = currentSession.user.id;
             const userEmail = currentSession.user.email || '';
             
-            if (import.meta.env.DEV) {
-              console.log('[AuthContext] 📊 Fetching profile', { userId, email: userEmail });
-            }
-            
-            // Try to load existing profile
-            const { data: profileData, error: selectError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', userId)
-              .maybeSingle();
-            
-            if (profileData) {
-              // Profile exists, use it
-              if (import.meta.env.DEV) {
-                console.log('[AuthContext] ✅ Profile loaded', {
-                  id: profileData.id,
-                  display_name: profileData.display_name,
-                  full_name: profileData.full_name,
-                  plan: profileData.plan,
-                  role: profileData.role,
-                  level: profileData.level,
-                });
-              }
-              setProfile(profileData);
-            } else {
-              // Profile missing, create it
-              if (import.meta.env.DEV) {
-                console.log('[AuthContext] ⚠️ Profile missing, creating new profile', { userId, email: userEmail });
-              }
-              const displayName = currentSession.user.user_metadata?.full_name 
-                || currentSession.user.user_metadata?.name 
-                || userEmail.split('@')[0] 
-                || 'User';
-              
-              const { data: newProfile, error: insertError } = await supabase
-                .from('profiles')
-                .insert({
-                  id: userId,
-                  email: userEmail,
-                  display_name: displayName,
-                  role: 'free',
-                  plan: 'free',
-                })
-                .select()
-                .single();
-              
-              if (insertError) {
-                console.error('[AuthContext] ❌ Failed to create profile:', insertError);
-                setProfile(null);
-              } else {
-                if (import.meta.env.DEV) {
-                  console.log('[AuthContext] ✅ Profile created successfully', {
-                    id: newProfile.id,
-                    display_name: newProfile.display_name,
-                    plan: newProfile.plan,
-                  });
-                }
-                setProfile(newProfile);
-              }
-            }
+            const profileData = await getOrCreateProfile(userId, userEmail);
+            setProfile(profileData);
           } catch (profileError) {
-            console.warn('[AuthContext] ⚠️ Could not load/create profile:', profileError);
+            if (import.meta.env.DEV) {
+              console.error('[AuthContext] ❌ Profile loading failed:', profileError);
+            }
             setProfile(null);
+          } finally {
+            setIsProfileLoading(false);
           }
         } else {
           // No session found
@@ -321,47 +292,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     const userId = authSession.user.id;
                     const userEmail = authSession.user.email || '';
                     
-                    // Try to load existing profile
-                    const { data: profileData, error: selectError } = await supabase
-                      .from('profiles')
-                      .select('*')
-                      .eq('id', userId)
-                      .maybeSingle();
-                    
-                    if (profileData) {
-                      // Profile exists, use it
-                      setProfile(profileData);
-                    } else {
-                      // Profile missing, create it
-                      console.log('🔍 AuthContext: Profile missing on SIGNED_IN, creating new profile for user:', userId);
-                      const displayName = authSession.user.user_metadata?.full_name 
-                        || authSession.user.user_metadata?.name 
-                        || userEmail.split('@')[0] 
-                        || 'User';
-                      
-                      const { data: newProfile, error: insertError } = await supabase
-                        .from('profiles')
-                        .insert({
-                          id: userId,
-                          email: userEmail,
-                          display_name: displayName,
-                          role: 'free',
-                          plan: 'free',
-                        })
-                        .select()
-                        .single();
-                      
-                      if (insertError) {
-                        console.error('❌ AuthContext: Failed to create profile on SIGNED_IN:', insertError);
-                        setProfile(null);
-                      } else {
-                        console.log('✅ AuthContext: Profile created successfully on SIGNED_IN');
-                        setProfile(newProfile);
-                      }
-                    }
+                    setIsProfileLoading(true);
+                    const profileData = await getOrCreateProfile(userId, userEmail);
+                    setProfile(profileData);
+                    setIsProfileLoading(false);
                   } catch (profileError) {
-                    console.warn('🔍 AuthContext: Could not load/create profile:', profileError);
+                    if (import.meta.env.DEV) {
+                      console.warn('[AuthContext] Could not load/create profile:', profileError);
+                    }
                     setProfile(null);
+                    setIsProfileLoading(false);
                   }
                 }
               }
@@ -599,6 +539,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isDemoUser,
     firstName,
     profile,
+    isProfileLoading,
+    refreshProfile,
   };
 
   return (

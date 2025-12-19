@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
+import { useAuth } from './AuthContext';
 
 // Podcast Episode Types
 export interface PodcastEpisode {
@@ -210,6 +211,7 @@ const PersonalPodcastContext = createContext<PersonalPodcastContextType | undefi
 // Podcast Provider Component
 export function PersonalPodcastProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(podcastReducer, initialState);
+  const { firstName } = useAuth(); // Get userName from AuthContext
 
   // Generate a new episode
   const generateEpisode = async (triggerType: string, financialData?: any): Promise<PodcastEpisode> => {
@@ -289,7 +291,8 @@ export function PersonalPodcastProvider({ children }: { children: ReactNode }) {
 
   // Generate episode title
   const generateEpisodeTitle = (triggerType: string, financialData: any): string => {
-    const userName = 'Sarah'; // TODO: Get from user context
+    // Use firstName from provider level (computed from profile.display_name)
+    const userName = firstName;
     const currentMonth = new Date().toLocaleString('default', { month: 'long' });
     const currentYear = new Date().getFullYear();
 
@@ -335,7 +338,8 @@ export function PersonalPodcastProvider({ children }: { children: ReactNode }) {
   const generateAIScript = async (triggerType: string, financialData: any, preferences: PodcastPreferences): Promise<string> => {
     // TODO: Integrate with actual AI service
     // For now, return a mock script
-    const userName = 'Sarah';
+    // Use firstName from AuthContext (computed from profile.display_name)
+    const userName = firstName;
     const { spendingTotal, topCategories, goalProgress, achievements, insights, trends } = financialData;
 
     const script = `
