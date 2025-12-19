@@ -15,7 +15,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Crown, Sparkles, X } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { useAuth } from '../../contexts/AuthContext';
 import { 
@@ -26,6 +26,7 @@ import {
 } from '../../lib/userIdentity';
 import { getSupabase } from '../../lib/supabase';
 import { isDemoMode } from '../../lib/demoAuth';
+import { getEmployeeDisplayConfig } from '../../config/employeeDisplayConfig';
 
 interface ProfileData {
   display_name: string;
@@ -280,40 +281,50 @@ export function PrimeCustodianOnboardingModal({
             >
               {/* Prime Step */}
               {step === 'prime' && (
-                <div className="p-8 text-center space-y-6">
-                  {/* Prime Icon */}
-                  <div className="flex justify-center">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 via-orange-500 to-pink-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                      <Crown className="w-10 h-10 text-white" />
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.4, ease: [0.2, 0.9, 0.2, 1] }}
+                  className="p-6 flex flex-col"
+                >
+                  {/* Prime Welcome Card - Matching Custodian glass card style */}
+                  <div className="bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-pink-500/10 border border-amber-500/20 rounded-xl p-6">
+                    <div className="flex items-start gap-4 mb-6">
+                      {/* Prime Icon - Matching Custodian icon style */}
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 via-orange-500 to-pink-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/30">
+                        <span className="text-2xl">👑</span>
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-white mb-2">Prime</h3>
+                        <p className="text-sm text-slate-300 mb-3">
+                          I oversee your entire financial system.
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          Before we begin, Custodian will help set up your profile in just a few questions.
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Welcome Message */}
-                  <div className="space-y-3">
-                    <h2 className="text-2xl font-bold text-white">
-                      Welcome to XspensesAI
-                    </h2>
-                    <p className="text-slate-300 leading-relaxed">
-                      I'm Prime — I oversee your entire financial system.
-                    </p>
-                    <p className="text-slate-400 text-sm">
-                      Before we begin, Custodian will help set up your profile in just a few questions.
-                    </p>
+                    {/* Continue Button - Matching dashboard primary button style */}
+                    <Button
+                      onClick={handleContinue}
+                      className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50 transition-all duration-200"
+                    >
+                      Continue
+                    </Button>
                   </div>
-
-                  {/* Continue Button */}
-                  <Button
-                    onClick={handleContinue}
-                    className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold"
-                  >
-                    Continue
-                  </Button>
-                </div>
+                </motion.div>
               )}
 
               {/* Custodian Step */}
               {step === 'custodian' && (
-                <div className="flex flex-col h-full max-h-[80vh]">
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, ease: [0.2, 0.9, 0.2, 1] }}
+                  className="flex flex-col h-full max-h-[80vh]"
+                >
                   {/* Header */}
                   <div className="flex items-center justify-between p-6 border-b border-slate-800/80 flex-shrink-0">
                     <div className="flex items-center gap-3">
@@ -405,7 +416,7 @@ export function PrimeCustodianOnboardingModal({
                       </div>
                     </div>
                   )}
-                </div>
+                </motion.div>
               )}
 
               {/* Complete Step */}
