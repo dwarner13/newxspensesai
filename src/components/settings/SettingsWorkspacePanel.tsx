@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { User, Bell, Link as LinkIcon, Shield } from 'lucide-react';
+import { useAccountCenterPanel } from './AccountCenterPanel';
 
 interface StatusCard {
   id: string;
@@ -52,6 +53,7 @@ const badgeLabels = {
 
 export function SettingsWorkspacePanel() {
   const topCards = statusCards;
+  const { openPanel } = useAccountCenterPanel();
   
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 h-full flex flex-col">
@@ -66,7 +68,7 @@ export function SettingsWorkspacePanel() {
       
       {/* Card 1 - Account Settings */}
       <div className="mb-4 flex-shrink-0">
-        <div className="group p-4 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-800/90 hover:border-slate-600 transition-all duration-200 cursor-pointer">
+        <div className="group p-4 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-800/90 hover:border-slate-600 transition-all duration-200">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between mb-2">
@@ -88,6 +90,12 @@ export function SettingsWorkspacePanel() {
               </p>
             </div>
           </div>
+          <button
+            onClick={() => openPanel('account')}
+            className="mt-3 w-full px-3 py-1.5 text-xs font-medium text-white bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
+          >
+            Account
+          </button>
         </div>
       </div>
 

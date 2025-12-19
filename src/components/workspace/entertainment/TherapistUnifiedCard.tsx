@@ -56,7 +56,7 @@ export function TherapistUnifiedCard({ onExpandClick, onChatInputClick }: Therap
   return (
     <EmployeeUnifiedCardBase
       employeeSlug="financial-therapist"
-      primaryActionLabel="Chat with Therapist about your money wellness"
+      primaryActionLabel="Chat with Serenity about your money wellness"
       onPrimaryActionClick={handleChatClick}
       secondaryActions={secondaryActions}
       footerStatusText="Online 24/7"

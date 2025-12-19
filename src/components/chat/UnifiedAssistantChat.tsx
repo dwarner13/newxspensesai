@@ -6,7 +6,7 @@
  * Styled to match Prime Tasks and Prime Team panels for visual consistency.
  */
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, Send, User, ArrowRight, X, Upload, Eye, EyeOff, History, LayoutDashboard, Grid3X3, Tags, LineChart } from 'lucide-react';
 // Migration: Using unified chat engine instead of useStreamChat
@@ -32,6 +32,9 @@ import DesktopChatSideBar from './DesktopChatSideBar';
 import { Button } from '../ui/button';
 import { useNavigate } from 'react-router-dom';
 import { usePrimeOverlaySafe } from '../../context/PrimeOverlayContext';
+import { TypingIndicator } from './TypingIndicator';
+import { TypingIndicatorRow } from './TypingIndicatorRow';
+import { useUnifiedTypingController } from '../../hooks/useUnifiedTypingController';
 
 // Quick prompts are now defined in EMPLOYEE_DISPLAY_CONFIG
 // Access via: displayConfig.chatQuickPrompts
@@ -63,6 +66,15 @@ interface UnifiedAssistantChatProps {
   
   /** Compact mode - reduces padding and text sizes for tighter layout */
   compact?: boolean;
+  
+  /** Show typing indicator (default: true for slideout, false for inline preview mode) */
+  showTypingIndicator?: boolean;
+  
+  /** Render mode: 'slideout' (floating panel) or 'page' (embedded in page) */
+  renderMode?: 'slideout' | 'page';
+  
+  /** Disable chat runtime (no engine, no streaming, static UI only) */
+  disableRuntime?: boolean;
 }
 
 export default function UnifiedAssistantChat({
@@ -75,7 +87,24 @@ export default function UnifiedAssistantChat({
   mode = 'slideout', // Default to slideout for backward compatibility
   floatingRail,
   compact = false,
+  showTypingIndicator = mode !== 'inline', // Default: show for slideout/overlay, hide for inline
+  renderMode = mode === 'inline' ? 'page' : 'slideout', // Default: page for inline, slideout otherwise
+  disableRuntime = renderMode === 'page', // Default: disable runtime for page mode
 }: UnifiedAssistantChatProps) {
+  
+  // Debug: Log chat mount (dev only)
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[CHAT_MOUNT]', { 
+        source: 'UnifiedAssistantChat', 
+        route: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
+        employeeSlug: initialEmployeeSlug,
+        renderMode,
+        disableRuntime,
+        hasRuntime: !disableRuntime
+      });
+    }
+  }, [initialEmployeeSlug, renderMode, disableRuntime]);
   const [inputMessage, setInputMessage] = useState('');
   const [isRailHidden, setIsRailHidden] = useState(false); // Rail is visible by default
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -107,6 +136,13 @@ export default function UnifiedAssistantChat({
   const effectiveEmployeeSlug = initialEmployeeSlug || globalActiveEmployeeSlug || 'prime-boss';
 
   // Use unified chat engine (wraps usePrimeChat for consistent API)
+  // Always call hook (React rules), but pass undefined employeeSlug when runtime disabled to prevent initialization
+  const engineResult = useUnifiedChatEngine({
+    employeeSlug: disableRuntime ? undefined : effectiveEmployeeSlug,
+    conversationId: disableRuntime ? undefined : conversationId,
+  });
+  
+  // Use empty/default values when runtime is disabled (hook will still initialize but with no employee)
   const {
     messages,
     isStreaming,
@@ -115,42 +151,54 @@ export default function UnifiedAssistantChat({
     currentTool,
     activeEmployeeSlug: engineActiveEmployeeSlug,
     sendMessage,
-    headers, // Guardrails headers for status chip
+    headers,
     pendingConfirmation,
     confirmToolExecution,
     cancelToolExecution,
-    cancelStream, // Abort in-flight streaming requests
-  } = useUnifiedChatEngine({
-    employeeSlug: effectiveEmployeeSlug,
-    conversationId,
-  });
+    cancelStream,
+  } = disableRuntime ? {
+    messages: [],
+    isStreaming: false,
+    error: null,
+    isToolExecuting: false,
+    currentTool: null,
+    activeEmployeeSlug: effectiveEmployeeSlug,
+    sendMessage: async () => {
+      if (import.meta.env.DEV) console.warn('[UnifiedAssistantChat] sendMessage called but runtime is disabled');
+    },
+    headers: {},
+    pendingConfirmation: null,
+    confirmToolExecution: async () => {},
+    cancelToolExecution: () => {},
+    cancelStream: () => {},
+  } : engineResult;
   
-  // Sync engineActiveEmployeeSlug to global launcher when handoff occurs
+  // Sync engineActiveEmployeeSlug to global launcher when handoff occurs (only when runtime enabled)
   useEffect(() => {
-    if (engineActiveEmployeeSlug && engineActiveEmployeeSlug !== globalActiveEmployeeSlug) {
+    if (!disableRuntime && engineActiveEmployeeSlug && engineActiveEmployeeSlug !== globalActiveEmployeeSlug) {
       console.log(`[UnifiedAssistantChat] 🔄 Handoff detected: updating global activeEmployeeSlug from ${globalActiveEmployeeSlug} to ${engineActiveEmployeeSlug}`);
       setActiveEmployeeGlobal(engineActiveEmployeeSlug);
     }
-  }, [engineActiveEmployeeSlug, globalActiveEmployeeSlug, setActiveEmployeeGlobal]);
+  }, [engineActiveEmployeeSlug, globalActiveEmployeeSlug, setActiveEmployeeGlobal, disableRuntime]);
   
   // Use effectiveEmployeeSlug for currentEmployeeSlug to ensure consistency
   // Priority: initialEmployeeSlug prop > globalActiveEmployeeSlug > engineActiveEmployeeSlug > default
   // This ensures the component always reflects the correct worker when switching
   const currentEmployeeSlug = effectiveEmployeeSlug;
 
-  // Sync streaming state to global launcher for header indicator
+  // Sync streaming state to global launcher for header indicator (only when runtime enabled)
   useEffect(() => {
-    if (isOpen) {
+    if (!disableRuntime && isOpen) {
       setIsWorking(isStreaming);
-    } else {
+    } else if (!disableRuntime) {
       setIsWorking(false);
     }
-  }, [isOpen, isStreaming, setIsWorking]);
+  }, [isOpen, isStreaming, setIsWorking, disableRuntime]);
 
-  // Auto-send initial question if provided (only once when chat opens)
+  // Auto-send initial question if provided (only once when chat opens, only when runtime enabled)
   const initialQuestionSentRef = useRef(false);
   useEffect(() => {
-    if (isOpen && initialQuestion && !initialQuestionSentRef.current && messages.length === 0 && !isStreaming) {
+    if (!disableRuntime && isOpen && initialQuestion && !initialQuestionSentRef.current && messages.length === 0 && !isStreaming) {
       // Small delay to ensure component is fully mounted
       const timeoutId = setTimeout(() => {
         sendMessage(initialQuestion);
@@ -162,7 +210,7 @@ export default function UnifiedAssistantChat({
     if (!isOpen) {
       initialQuestionSentRef.current = false;
     }
-  }, [isOpen, initialQuestion, messages.length, isStreaming, sendMessage]);
+  }, [isOpen, initialQuestion, messages.length, isStreaming, sendMessage, disableRuntime]);
   const normalizedSlug = (currentEmployeeSlug?.toLowerCase().trim() || 'prime-boss') as keyof typeof EMPLOYEE_DISPLAY_CONFIG;
   
   // Use employeeDisplayConfig as the single source of truth for chat UI
@@ -171,19 +219,101 @@ export default function UnifiedAssistantChat({
   // Legacy: Keep employeeChatConfig for backward compatibility (welcomeMessage, etc.)
   const chatConfig = EMPLOYEE_CHAT_CONFIG[normalizedSlug as keyof typeof EMPLOYEE_CHAT_CONFIG] ?? EMPLOYEE_CHAT_CONFIG['prime-boss'];
   
-  // Debug: Log which employee is being used
+  // Debug: Log which employee is being used + render tracking
   useEffect(() => {
-    if (isOpen) {
-      console.log('[UnifiedAssistantChat] Active employee:', {
-        globalActiveEmployeeSlug,
-        engineActiveEmployeeSlug,
+    if (import.meta.env.DEV) {
+      if (isOpen) {
+        console.log('[UnifiedAssistantChat] 🎨 Render', {
+          globalActiveEmployeeSlug,
+          engineActiveEmployeeSlug,
+          initialEmployeeSlug,
+          currentEmployeeSlug,
+          normalizedSlug,
+          chatTitle: displayConfig.chatTitle,
+          messageCount: messages.length,
+          isStreaming,
+        });
+      }
+    }
+  }, [isOpen, globalActiveEmployeeSlug, engineActiveEmployeeSlug, initialEmployeeSlug, currentEmployeeSlug, normalizedSlug, displayConfig.chatTitle, messages.length, isStreaming]);
+
+  // Dev-only mount/unmount logging with unique ID
+  const mountIdRef = useRef<string>(`chat-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[UnifiedAssistantChat] 🟢 Mounted', { 
+        mountId: mountIdRef.current,
         initialEmployeeSlug,
+        isOpen,
+        conversationId 
+      });
+      return () => {
+        console.log('[UnifiedAssistantChat] 🔴 Unmounted', { 
+          mountId: mountIdRef.current,
+          initialEmployeeSlug,
+          reason: 'Component unmounting'
+        });
+      };
+    }
+  }, []); // Empty deps - only log on mount/unmount, not on every prop change
+  
+  // Log when isOpen changes (but don't remount)
+  const openTimeRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      if (isOpen && !openTimeRef.current) {
+        // Slideout opening
+        openTimeRef.current = Date.now();
+        console.log('[UnifiedAssistantChat] 🚀 OPEN event', { 
+          mountId: mountIdRef.current,
+          employeeSlug: currentEmployeeSlug,
+          conversationId,
+          timestamp: new Date().toISOString()
+        });
+      } else if (!isOpen && openTimeRef.current) {
+        // Slideout closing
+        const duration = Date.now() - openTimeRef.current;
+        console.log('[UnifiedAssistantChat] 🔒 CLOSE event', { 
+          mountId: mountIdRef.current,
+          duration: `${duration}ms`,
+          timestamp: new Date().toISOString()
+        });
+        openTimeRef.current = null;
+      }
+      
+      console.log('[UnifiedAssistantChat] 📊 isOpen changed', { 
+        mountId: mountIdRef.current,
+        isOpen,
+        previousEmployeeSlug: previousEmployeeSlugRef.current,
         currentEmployeeSlug,
-        normalizedSlug,
-        chatTitle: displayConfig.chatTitle
+        conversationId
       });
     }
-  }, [isOpen, globalActiveEmployeeSlug, engineActiveEmployeeSlug, initialEmployeeSlug, currentEmployeeSlug, normalizedSlug, displayConfig.chatTitle]);
+  }, [isOpen, currentEmployeeSlug, conversationId]);
+  
+  // Chat ready state - typing/greeting only starts after open stabilizes
+  const [chatReady, setChatReady] = useState(false);
+  
+  // Set chatReady after open stabilizes (one frame after open)
+  useEffect(() => {
+    if (isOpen && !chatReady) {
+      // Wait for next frame to ensure layout is stable
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setChatReady(true);
+          if (import.meta.env.DEV) {
+            console.log('[UnifiedAssistantChat] ✅ Chat ready', { 
+              mountId: mountIdRef.current,
+              employeeSlug: currentEmployeeSlug,
+              timeSinceOpen: openTimeRef.current ? `${Date.now() - openTimeRef.current}ms` : 'unknown'
+            });
+          }
+        });
+      });
+    } else if (!isOpen) {
+      setChatReady(false);
+    }
+  }, [isOpen, chatReady, currentEmployeeSlug]);
   
   // Quick prompts removed - no suggestion chips in chat UI
   
@@ -201,13 +331,18 @@ export default function UnifiedAssistantChat({
     error: byteUploadError,
   } = useByteInlineUpload(isByte ? userId : undefined);
   
-  // Tag typewriter greeting state
-  const [showTagIntroTyping, setShowTagIntroTyping] = useState(false);
-  const [tagIntroText, setTagIntroText] = useState('');
-  const [typedTagIntro, setTypedTagIntro] = useState('');
-  const [isTagTyping, setIsTagTyping] = useState(false);
-  const tagIntroCompletedRef = useRef(false);
+  // Unified typing controller (replaces all employee-specific typing logic)
+  const typingController = useUnifiedTypingController(conversationId || null, currentEmployeeSlug);
+  const { isTyping, typingEmployeeSlug, beginTyping, endTyping, withTyping, isTypingFor } = typingController;
+  
+  // Universal on-open greeting state (Tag-style, works for all employees)
+  // Uses unified typing controller for greeting typing indicator
+  const [showGreetingTyping, setShowGreetingTyping] = useState(false);
+  const [greetingText, setGreetingText] = useState('');
+  const [typedGreeting, setTypedGreeting] = useState('');
+  const greetingCompletedRef = useRef(false);
   const previousEmployeeSlugRef = useRef<string | null>(null);
+  const previousConversationIdRef = useRef<string | null>(null);
 
   // Scroll-to-bottom helper that ensures the newest message is fully visible
   const scrollToBottom = (smooth = true) => {
@@ -362,6 +497,9 @@ export default function UnifiedAssistantChat({
       }
     }
     
+    // Begin typing indicator using unified controller
+    beginTyping(currentEmployeeSlug, conversationId || null);
+    
     // Clear input immediately for better UX (don't wait for send to complete)
     setInputMessage('');
     
@@ -383,6 +521,7 @@ export default function UnifiedAssistantChat({
     // the user will see the UI update and can send to the new employee.
     try {
       await sendMessage(finalMessage, { documentIds: documentIds.length > 0 ? documentIds : undefined });
+      // Typing will end automatically when streaming starts (isStreaming becomes true)
       // Refresh chat history after sending a message so it appears in history sidebar
       // Use a small delay to allow backend to update chat_convo_summaries
       setTimeout(() => {
@@ -390,7 +529,8 @@ export default function UnifiedAssistantChat({
       }, 2000);
     } catch (err) {
       // Error is handled by useUnifiedChatEngine and displayed in UI
-      // Input stays cleared even if send fails
+      // End typing on error
+      endTyping();
       console.error('[UnifiedAssistantChat] Send failed:', err);
     }
   };
@@ -531,25 +671,38 @@ export default function UnifiedAssistantChat({
     };
   }, [cancelStream]);
 
-  // Filter out system messages for display
-  const displayMessages = messages.filter((m) => m.role !== 'system');
+  // Add greeting as a virtual message when showing (converted from separate region to message row)
+  // This ensures greeting appears as a normal assistant message, not a separate card with duplicate avatar
+  const greetingMessage = showGreetingTyping && greetingText ? {
+    id: 'greeting-message',
+    role: 'assistant' as const,
+    content: typedGreeting || greetingText,
+    timestamp: new Date(),
+  } : null;
   
-  // Check if user has sent/received any messages (not just system messages)
-  const hasMessages = (displayMessages?.length ?? 0) > 0;
+  // Filter out system messages for display, prepend greeting message if showing
+  const displayMessages = [
+    ...(greetingMessage ? [greetingMessage] : []),
+    ...messages.filter((m) => m.role !== 'system')
+  ];
   
-  // Detect handoff from Prime (must be called before early return)
+  // Check if thread has any assistant messages (greeting only shows when thread is empty)
+  // User messages don't count - greeting should show even if user sent a message but assistant hasn't responded
+  const hasAssistantMessages = (messages.filter((m) => m.role === 'assistant')?.length ?? 0) > 0;
+  
+  // Detect handoff from Prime (works for all employees, not just Tag)
   const isHandoffFromPrime = useMemo(() => {
-    // Check if we just switched from Prime to Tag
-    if (isTag && previousEmployeeSlugRef.current === 'prime-boss') {
+    // Check if we just switched from Prime to current employee
+    if (previousEmployeeSlugRef.current === 'prime-boss' && currentEmployeeSlug !== 'prime-boss') {
       return true;
     }
     // Also check context for handoff indicators
-    if (isTag && context) {
+    if (context) {
       const ctxStr = JSON.stringify(context).toLowerCase();
       return ctxStr.includes('handoff') || ctxStr.includes('prime') || ctxStr.includes('sourceemployee');
     }
     return false;
-  }, [isTag, context]);
+  }, [currentEmployeeSlug, context]);
   
   // Track previous employee slug for handoff detection (must be called before early return)
   useEffect(() => {
@@ -557,61 +710,161 @@ export default function UnifiedAssistantChat({
       previousEmployeeSlugRef.current = currentEmployeeSlug;
     }
   }, [currentEmployeeSlug]);
-  
-  // Tag typewriter greeting effect (must be called before early return)
+
+  // Universal on-open greeting effect (Tag-style, works for all employees)
+  // FRAME-0 LOCK: Only start greeting AFTER chat is ready (open stabilized)
   useEffect(() => {
-    if (!isTag || !isOpen || tagIntroCompletedRef.current) return;
+    // Only show greeting if:
+    // 1. Chat is open
+    // 2. Chat is ready (open stabilized - no typing until then)
+    // 3. Thread is empty (no assistant messages yet)
+    // 4. Employee config has openGreeting defined
+    // 5. Greeting hasn't been completed yet
+    if (!isOpen || !chatReady || hasAssistantMessages || greetingCompletedRef.current) return;
     
-    // Determine greeting text
-    let greetingText = '';
-    if (isHandoffFromPrime) {
-      greetingText = 'Prime handed this to me. How can I help with your categories?';
-    } else if (hasMessages) {
-      greetingText = `Welcome back, ${firstName || 'there'}! What would you like to work on?`;
-    } else {
-      greetingText = `Hey ${firstName || 'there'}! I'm Tag, your Smart Categories assistant. What can I help you categorize today?`;
+    const chatConfig = EMPLOYEE_CHAT_CONFIG[currentEmployeeSlug as keyof typeof EMPLOYEE_CHAT_CONFIG];
+    // Check if greeting is enabled (default: true if openGreeting exists)
+    if (chatConfig?.openGreetingEnabled === false) return;
+    if (!chatConfig?.openGreeting) return;
+    
+    // Reset greeting state when employee or conversation changes
+    if (currentEmployeeSlug !== previousEmployeeSlugRef.current || conversationId !== previousConversationIdRef.current) {
+      setShowGreetingTyping(false);
+      setTypedGreeting('');
+      endTyping(); // Use unified controller
+      greetingCompletedRef.current = false;
+      previousEmployeeSlugRef.current = currentEmployeeSlug;
+      previousConversationIdRef.current = conversationId || null;
     }
     
-    setTagIntroText(greetingText);
-    setShowTagIntroTyping(true);
-    setIsTagTyping(true);
-    setTypedTagIntro('');
+    // Determine greeting text (use config, with handoff detection)
+    let finalGreetingText = chatConfig.openGreeting;
+    if (isHandoffFromPrime && normalizedSlug === 'tag-ai') {
+      // Tag-specific handoff greeting
+      finalGreetingText = 'Prime handed this to me. How can I help with your categories?';
+    } else if (isHandoffFromPrime) {
+      // Generic handoff greeting for other employees
+      finalGreetingText = `Prime handed this to me. ${chatConfig.openGreeting}`;
+    } else {
+      // Use configured greeting, optionally personalize with firstName
+      finalGreetingText = chatConfig.openGreeting.replace(/\{firstName\}/g, firstName || 'there');
+    }
     
-    // Show typing indicator for 500-900ms
-    const typingDelay = 500 + Math.random() * 400;
+    setGreetingText(finalGreetingText);
+    setShowGreetingTyping(true);
+    
+    // Show typing indicator if configured (using unified controller)
+    const showTyping = chatConfig.showTypingOnOpen !== false; // Default to true
+    const delayMs = chatConfig.openGreetingDelayMs ?? 700; // Default: 700ms (matches config default)
+    
+    if (showTyping) {
+      beginTyping(currentEmployeeSlug, conversationId || null);
+    }
+    
     let typeInterval: NodeJS.Timeout | null = null;
     
     const typingTimeout = setTimeout(() => {
-      setIsTagTyping(false);
+      endTyping(); // End typing before showing greeting
       
       // Type out greeting character by character
       let currentIndex = 0;
       typeInterval = setInterval(() => {
-        if (currentIndex < greetingText.length) {
-          setTypedTagIntro(greetingText.slice(0, currentIndex + 1));
+        if (currentIndex < finalGreetingText.length) {
+          setTypedGreeting(finalGreetingText.slice(0, currentIndex + 1));
           currentIndex++;
         } else {
           if (typeInterval) clearInterval(typeInterval);
-          tagIntroCompletedRef.current = true;
+          greetingCompletedRef.current = true;
         }
       }, 20 + Math.random() * 15); // 20-35ms per character
-    }, typingDelay);
+    }, delayMs);
     
     return () => {
       clearTimeout(typingTimeout);
       if (typeInterval) clearInterval(typeInterval);
+      endTyping(); // Cleanup typing on unmount
     };
-  }, [isTag, isOpen, isHandoffFromPrime, hasMessages, firstName]);
+  }, [isOpen, hasAssistantMessages, chatReady, currentEmployeeSlug, isHandoffFromPrime, firstName, normalizedSlug, conversationId, beginTyping, endTyping]);
   
-  // Reset Tag intro when chat closes or employee changes (must be called before early return)
+  // Reset greeting when chat closes or employee/conversation changes (must be called before early return)
   useEffect(() => {
-    if (!isOpen || !isTag) {
-      setShowTagIntroTyping(false);
-      setTypedTagIntro('');
-      setIsTagTyping(false);
-      tagIntroCompletedRef.current = false;
+    if (!isOpen || currentEmployeeSlug !== previousEmployeeSlugRef.current || conversationId !== previousConversationIdRef.current) {
+      setShowGreetingTyping(false);
+      setTypedGreeting('');
+      endTyping(); // Use unified controller
+      greetingCompletedRef.current = false;
+      if (currentEmployeeSlug !== previousEmployeeSlugRef.current) {
+        previousEmployeeSlugRef.current = currentEmployeeSlug;
+      }
+      if (conversationId !== previousConversationIdRef.current) {
+        previousConversationIdRef.current = conversationId || null;
+      }
     }
-  }, [isOpen, isTag]);
+  }, [isOpen, currentEmployeeSlug, conversationId, endTyping]);
+
+  // DEV ASSERTION: Prevent double typing visuals and double avatars
+  useEffect(() => {
+    if (!import.meta.env.DEV || !chatReady) return;
+    
+    const greetingTyping = showGreetingTyping && isTypingFor(currentEmployeeSlug);
+    const normalTyping = isStreaming || (isTyping && !showGreetingTyping);
+    
+    if (greetingTyping && normalTyping) {
+      console.error('[UnifiedAssistantChat] ⚠️ DOUBLE TYPING DETECTED: Both greeting typing and normal typing are active!', {
+        greetingTyping,
+        normalTyping,
+        showGreetingTyping,
+        isTyping,
+        isStreaming,
+        currentEmployeeSlug
+      });
+    }
+    
+    // Check for multiple typing indicators in DOM
+    const typingIndicators = document.querySelectorAll('[data-typing-indicator="true"], [class*="TypingIndicator"]');
+    if (typingIndicators.length > 1) {
+      console.warn('[UnifiedAssistantChat] ⚠️ Multiple typing indicators found in DOM:', typingIndicators.length);
+    }
+  }, [chatReady, showGreetingTyping, isTyping, isStreaming, currentEmployeeSlug, isTypingFor]);
+  
+  // End typing when streaming starts (response arrives)
+  useEffect(() => {
+    if (isStreaming && isTyping) {
+      endTyping();
+    }
+  }, [isStreaming, isTyping, endTyping]);
+
+  // Handle inline Prime input click/focus - opens Prime slide-out
+  // MUST be declared before early return to maintain hook order
+  const isInlinePrime = mode === 'inline' && currentEmployeeSlug === 'prime-boss';
+  
+  // Shared function to open Prime slide-out and focus its input
+  const openPrimeSlideoutAndFocus = useCallback(() => {
+    // Open Prime slide-out
+    openChat({
+      initialEmployeeSlug: 'prime-boss',
+      context: {
+        page: 'prime-chat',
+        source: 'prime-chat-page-inline-input',
+      },
+    });
+    
+    // Focus slide-out input after animation completes
+    setTimeout(() => {
+      // Find the slide-out textarea and focus it
+      const slideoutTextarea = document.querySelector('[data-slideout-chat-input]') as HTMLTextAreaElement;
+      if (slideoutTextarea) {
+        slideoutTextarea.focus();
+      } else {
+        // Fallback: find any textarea in the slide-out
+        const slideoutPanel = document.querySelector('[data-prime-slideout-shell]');
+        const textarea = slideoutPanel?.querySelector('textarea');
+        if (textarea) {
+          textarea.focus();
+        }
+      }
+    }, 300); // Wait for slide-out animation (matches PrimeSlideoutShell animation duration)
+  }, [openChat]);
 
   // For inline mode, always render (isOpen is ignored)
   // For slideout/overlay mode, only render if isOpen is true
@@ -687,38 +940,9 @@ export default function UnifiedAssistantChat({
     </div>
   ) : null;
 
-  // WELCOME REGION - Welcome card (only shown when no messages, NOT for Tag, NOT for Byte)
-  // Tag uses typewriter greeting instead
-  // Byte uses compact hint bar instead of big welcome card
-  // Fixed height to prevent layout shift when messages appear
-  const welcomeRegion = !hasMessages && !isStreaming && !isTag && !isByte && (
-    <div className={compact ? "px-4 pt-3 pb-2 shrink-0 min-h-[120px]" : "px-4 pt-4 pb-3 shrink-0 min-h-[140px]"}>
-      <div className="w-full max-w-full mx-0 min-w-0">
-        {/* Welcome card - polished premium styling */}
-        <div className={compact ? "rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 via-white/3 to-transparent p-4 shadow-lg shadow-black/20 backdrop-blur-sm" : "rounded-2xl border border-white/10 bg-gradient-to-br from-white/5 via-white/3 to-transparent p-5 shadow-lg shadow-black/20 backdrop-blur-sm"}>
-          <div className="flex items-start gap-3">
-            <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-gradient-to-br ${displayConfig.gradient} shadow-lg ring-2 ring-white/10`}>
-              <span className="text-lg">{displayConfig.emoji}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold text-white mb-1">
-                {displayConfig.chatTitle}
-              </h3>
-              <p className="text-xs text-slate-400 mb-2">
-                {displayConfig.chatSubtitle}
-              </p>
-              <p className={compact ? "text-xs text-slate-200 leading-6" : "text-xs text-slate-200 leading-relaxed"}>
-                {chatConfig.welcomeMessage}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   // BYTE QUIET HINT TEXT - Subtle one-liner below upload (no duplicate upload actions)
-  const byteHintBar = isByte && !hasMessages && !isStreaming ? (
+  // Note: Removed welcomeRegion and universalGreetingRegion - greeting is now a message row
+  const byteHintBar = isByte && !hasAssistantMessages && !isStreaming ? (
     <div className="px-4 pt-1 pb-2 shrink-0">
       <p className="text-[10px] text-slate-500 text-center">
         PDF, CSV, JPG/PNG • Max 25MB
@@ -726,59 +950,11 @@ export default function UnifiedAssistantChat({
     </div>
   ) : null;
 
-  // TAG TYPEWRITER GREETING - Compact bubble above messages (UI-only, not persisted)
-  const tagGreetingRegion = isTag && showTagIntroTyping && (
-    <div className="px-4 pt-4 pb-2 shrink-0">
-      <div className="w-full max-w-full mx-0 min-w-0">
-        {/* Handoff banner chip */}
-        {isHandoffFromPrime && (
-          <div className="mb-2 flex items-center justify-start">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-900/30 border border-purple-500/40 text-xs text-purple-300">
-              <ArrowRight className="w-3 h-3" />
-              <span className="font-medium">Handoff from Prime</span>
-            </div>
-          </div>
-        )}
-        
-        {/* Typewriter greeting bubble */}
-        <div className="inline-flex items-start gap-2 px-4 py-2.5 rounded-2xl bg-slate-800/80 text-slate-100 border border-slate-700/70 max-w-[85%]">
-          {/* Tag avatar */}
-          <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${displayConfig.gradient}`}>
-            <span className="text-sm">{displayConfig.emoji}</span>
-          </div>
-          
-          {/* Greeting text */}
-          <div className="flex-1 min-w-0">
-            {isTagTyping ? (
-              <div className="flex items-center gap-1.5">
-                <div className="flex gap-1">
-                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
-                <span className="text-xs text-slate-400">Tag is typing...</span>
-              </div>
-            ) : (
-              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                {typedTagIntro}
-                {typedTagIntro.length < tagIntroText.length && (
-                  <span className="inline-block w-0.5 h-4 bg-slate-400 ml-0.5 animate-pulse" />
-                )}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-  
-  // COMBINED REGION - ByteUploadPanel + Byte hint bar + Welcome card + Tag greeting (for PrimeSlideoutShell welcomeRegion prop)
+  // COMBINED REGION - ByteUploadPanel + Byte hint bar only (no welcome/greeting regions - they're now messages)
   const combinedWelcomeRegion = (
     <>
       {byteUploadRegion}
       {byteHintBar}
-      {tagGreetingRegion}
-      {welcomeRegion}
     </>
   );
 
@@ -798,8 +974,29 @@ export default function UnifiedAssistantChat({
 
   const guardrailsStatusText = getGuardrailsStatusText();
 
+  // Handle inline Prime input click/focus handlers (use openPrimeSlideoutAndFocus from above)
+  const handleInlinePrimeInputFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    if (!isInlinePrime) return;
+    
+    // Blur the inline input immediately (it's read-only anyway)
+    e.target.blur();
+    
+    // Open Prime slide-out
+    openPrimeSlideoutAndFocus();
+  };
+  
+  const handleInlinePrimeInputMouseDown = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    if (!isInlinePrime) return;
+    
+    // Prevent default focus on inline input
+    e.preventDefault();
+    
+    // Open Prime slide-out
+    openPrimeSlideoutAndFocus();
+  };
+
   const inputFooter = (
-    <div className="w-full max-w-full mx-0 min-w-0">
+    <div className="w-full max-w-full mx-0 min-w-0 shrink-0">
       <ChatInputBar
         value={inputMessage}
         onChange={setInputMessage}
@@ -813,6 +1010,9 @@ export default function UnifiedAssistantChat({
         showPlusIcon={isByte}
         onAttachmentsChange={isByte ? handleAttachmentSelect : undefined}
         onStop={cancelStream}
+        onInputFocus={isInlinePrime ? handleInlinePrimeInputFocus : undefined}
+        onInputMouseDown={isInlinePrime ? handleInlinePrimeInputMouseDown : undefined}
+        readOnly={isInlinePrime}
       />
     </div>
   );
@@ -855,16 +1055,9 @@ export default function UnifiedAssistantChat({
           className="flex-1 min-h-0 overflow-y-auto hide-scrollbar"
           style={{ scrollbarGutter: 'stable' }}
         >
-          <div className={compact ? "px-4 pt-3 pb-3" : "px-4 pt-4 pb-4"}>
+            <div className={compact ? "px-4 pt-3 pb-3" : "px-4 pt-4 pb-4"}>
             <div className="w-full max-w-full mx-0 min-w-0 space-y-3">
-              {/* Welcome block - only shown when no messages */}
-              {!hasMessages && !isStreaming && welcomeRegion && (
-                <div className="space-y-3 min-h-0">
-                  {welcomeRegion}
-                </div>
-              )}
-
-              {/* Messages list */}
+              {/* Messages list - greeting is now a message row, no separate welcome region */}
               <div className="space-y-3">
                 {/* Status indicator */}
                 {uploadStatus && (
@@ -940,12 +1133,26 @@ export default function UnifiedAssistantChat({
                   </div>
                 )}
 
+                {/* Handoff banner pill - shown above greeting message (NO AVATAR - simple text pill only) */}
+                {greetingMessage && isHandoffFromPrime && (
+                  <div className="flex items-center justify-start px-4 pb-2">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-900/30 border border-purple-500/40 text-xs text-purple-300">
+                      <ArrowRight className="w-3 h-3" />
+                      <span className="font-medium">Handoff from Prime</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Messages list */}
                 {displayMessages.map((message) => {
+                  const isGreetingMessage = message.id === 'greeting-message';
                   const isHandoffMessage = message.role === 'assistant' && 
                     (message.content.toLowerCase().includes('bring in') || 
                      message.content.toLowerCase().includes('handoff') ||
                      message.content.toLowerCase().includes('connect you with'));
+                  
+                  // When greeting is typing, TypingIndicatorRow renders its own avatar - don't render message row avatar
+                  const isGreetingTyping = chatReady && isGreetingMessage && isTypingFor(currentEmployeeSlug);
                   
                   return (
                     <div
@@ -954,73 +1161,84 @@ export default function UnifiedAssistantChat({
                         message.role === 'user' ? 'justify-end' : 'justify-start'
                       }`}
                     >
-                      <div
-                        className={`flex items-start gap-2 max-w-[85%] ${
-                          message.role === 'user' ? 'flex-row-reverse' : ''
-                        }`}
-                      >
-                        {/* Avatar */}
-                        {message.role === 'user' ? (
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-700">
-                            <User className="w-4 h-4 text-slate-200" />
-                          </div>
-                        ) : normalizedSlug === 'prime-boss' ? (
-                          <PrimeLogoBadge size={32} className="flex-shrink-0" />
-                        ) : (
-                          <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${displayConfig.gradient}`}>
-                            <span className="text-sm">{displayConfig.emoji}</span>
-                          </div>
-                        )}
-
-                        {/* Message bubble */}
+                      {/* When greeting is typing, TypingIndicatorRow handles the entire row (including avatar) */}
+                      {isGreetingTyping && showTypingIndicator && renderMode === 'slideout' ? (
+                        <TypingIndicatorRow 
+                          employeeSlug={currentEmployeeSlug}
+                          displayName={displayConfig.displayName}
+                          compact={true}
+                        />
+                      ) : (
                         <div
-                          className={`px-4 py-2 text-sm rounded-2xl ${
-                            message.role === 'user'
-                              ? 'border border-amber-400/70 bg-slate-900/90 text-slate-50 shadow-[0_0_24px_rgba(251,191,36,0.60)]'
-                              : isHandoffMessage
-                              ? 'bg-purple-900/40 border border-purple-500/30 text-slate-100'
-                              : 'bg-slate-800/80 text-slate-100 border border-slate-700/70'
+                          className={`flex items-start gap-2 max-w-[85%] ${
+                            message.role === 'user' ? 'flex-row-reverse' : ''
                           }`}
                         >
-                          {isHandoffMessage && (
-                            <div className="flex items-center gap-1.5 mb-2 text-purple-300 text-xs">
-                              <ArrowRight className="w-3 h-3" />
-                              <span className="font-medium">Handoff</span>
+                          {/* Avatar - NOT rendered when greeting is typing (TypingIndicatorRow has its own) */}
+                          {message.role === 'user' ? (
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-700">
+                              <User className="w-4 h-4 text-slate-200" />
+                            </div>
+                          ) : normalizedSlug === 'prime-boss' ? (
+                            <PrimeLogoBadge size={32} className="flex-shrink-0" />
+                          ) : (
+                            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${displayConfig.gradient}`}>
+                              <span className="text-sm">{displayConfig.emoji}</span>
                             </div>
                           )}
-                          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
-                            {message.content}
-                          </p>
-                          {(() => {
-                            let timeLabel: string | null = null;
-                            if (message.timestamp) {
-                              const d = new Date(message.timestamp);
-                              if (!Number.isNaN(d.getTime())) {
-                                timeLabel = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+                          {/* Message bubble */}
+                          <div
+                            className={`px-4 py-2 text-sm rounded-2xl ${
+                              message.role === 'user'
+                                ? 'border border-amber-400/70 bg-slate-900/90 text-slate-50 shadow-[0_0_24px_rgba(251,191,36,0.60)]'
+                                : isHandoffMessage
+                                ? 'bg-purple-900/40 border border-purple-500/30 text-slate-100'
+                                : 'bg-slate-800/80 text-slate-100 border border-slate-700/70'
+                            }`}
+                          >
+                            {isHandoffMessage && (
+                              <div className="flex items-center gap-1.5 mb-2 text-purple-300 text-xs">
+                                <ArrowRight className="w-3 h-3" />
+                                <span className="font-medium">Handoff</span>
+                              </div>
+                            )}
+                            <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                              {message.content}
+                              {isGreetingMessage && typedGreeting.length < greetingText.length && (
+                                <span className="inline-block w-0.5 h-4 bg-slate-400 ml-0.5 animate-pulse" />
+                              )}
+                            </p>
+                            {(() => {
+                              let timeLabel: string | null = null;
+                              if (message.timestamp) {
+                                const d = new Date(message.timestamp);
+                                if (!Number.isNaN(d.getTime())) {
+                                  timeLabel = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                                }
                               }
-                            }
-                            return timeLabel ? (
-                              <p className="text-[10px] mt-1.5 opacity-60">
-                                {timeLabel}
-                              </p>
-                            ) : null;
-                          })()}
+                              return timeLabel ? (
+                                <p className="text-[10px] mt-1.5 opacity-60">
+                                  {timeLabel}
+                                </p>
+                              ) : null;
+                            })()}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   );
                 })}
 
-                {/* Loading indicator */}
-                {isStreaming && (
-                  <div className="flex justify-start">
-                    <div className="flex items-center gap-2 bg-slate-800/80 rounded-2xl px-4 py-2.5 border border-white/5">
-                      <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                      <span className="text-sm text-slate-300">
-                        {displayConfig.chatTitle.split('—')[0].trim()} is thinking{isToolExecuting && currentTool ? ` (using ${currentTool})` : ''}...
-                      </span>
-                    </div>
-                  </div>
+                {/* Typing indicator (unified, canonical component) - ONLY ONE typing indicator allowed */}
+                {/* FRAME-0 LOCK: Only show typing after chat is ready (open stabilized) */}
+                {/* Greeting typing shows as TypingIndicatorRow in message list, so suppress this one during greeting */}
+                {/* Only show typing in slideout mode, never in page mode */}
+                {showTypingIndicator && renderMode === 'slideout' && chatReady && (isStreaming || (isTyping && !showGreetingTyping)) && (
+                  <TypingIndicatorRow 
+                    employeeSlug={currentEmployeeSlug}
+                    displayName={displayConfig.displayName}
+                  />
                 )}
 
                 {/* Error message */}
@@ -1076,8 +1294,16 @@ export default function UnifiedAssistantChat({
             style={{ willChange: 'opacity' }}
           />
           
-          {/* Panel with rail inside */}
-          <div className="relative z-50 h-full w-full md:w-auto overflow-visible flex items-stretch">
+          {/* Panel with rail inside - locked height, no auto-sizing */}
+          {/* CRITICAL: This wrapper must not resize - use fixed height constraints */}
+          <div 
+            className="relative z-50 h-full w-full md:w-auto overflow-visible flex items-stretch min-h-0"
+            style={{
+              // Ensure wrapper doesn't cause resize
+              height: '100%',
+              maxHeight: '100%',
+            }}
+          >
             <PrimeSlideoutShell
             title={displayConfig.chatTitle}
             subtitle={displayConfig.chatSubtitle}
@@ -1183,8 +1409,9 @@ export default function UnifiedAssistantChat({
               footer={inputFooter}
             >
               {/* MESSAGES AREA - PrimeSlideoutShell's scroll area handles scrolling, this is just content wrapper */}
-              <div className="h-full">
-                <div className="px-4 pt-4 pb-4" ref={scrollContainerRef}>
+              {/* Locked height: h-full ensures it fills the scroll container, min-h-0 prevents flex overflow */}
+              <div className="h-full min-h-0">
+                <div className="px-4 pt-4 pb-4 min-w-0" ref={scrollContainerRef}>
                   <div className="w-full max-w-full mx-0 min-w-0 space-y-3">
 
                     {/* Messages list */}
@@ -1253,88 +1480,113 @@ export default function UnifiedAssistantChat({
                       </div>
                       )}
 
+                      {/* Handoff banner pill - shown above greeting message */}
+                      {greetingMessage && isHandoffFromPrime && (
+                        <div className="flex items-center justify-start px-4 pb-2">
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-900/30 border border-purple-500/40 text-xs text-purple-300">
+                            <ArrowRight className="w-3 h-3" />
+                            <span className="font-medium">Handoff from Prime</span>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Messages list */}
                       {displayMessages.map((message) => {
-                    // Detect handoff messages
-                    const isHandoffMessage = message.role === 'assistant' && 
-                      (message.content.toLowerCase().includes('bring in') || 
-                       message.content.toLowerCase().includes('handoff') ||
-                       message.content.toLowerCase().includes('connect you with'));
-                    
-                    return (
-                      <div
-                        key={message.id}
-                        className={`flex scroll-mt-10 ${
-                          message.role === 'user' ? 'justify-end' : 'justify-start'
-                        }`}
-                      >
-                        <div
-                          className={`flex items-start gap-2 max-w-[85%] ${
-                            message.role === 'user' ? 'flex-row-reverse' : ''
-                          }`}
-                        >
-                          {/* Avatar */}
-                          {message.role === 'user' ? (
-                            <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-700">
-                              <User className="w-4 h-4 text-slate-200" />
-                            </div>
-                          ) : normalizedSlug === 'prime-boss' ? (
-                            <PrimeLogoBadge size={32} className="flex-shrink-0" />
-                          ) : (
-                            <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${displayConfig.gradient}`}>
-                              <span className="text-sm">{displayConfig.emoji}</span>
-                            </div>
-                          )}
-
-                          {/* Message bubble */}
+                        const isGreetingMessage = message.id === 'greeting-message';
+                        // Detect handoff messages
+                        const isHandoffMessage = message.role === 'assistant' && 
+                          (message.content.toLowerCase().includes('bring in') || 
+                           message.content.toLowerCase().includes('handoff') ||
+                           message.content.toLowerCase().includes('connect you with'));
+                        
+                        // When greeting is typing, TypingIndicatorRow renders its own avatar - don't render message row avatar
+                        const isGreetingTyping = chatReady && isGreetingMessage && isTypingFor(currentEmployeeSlug);
+                        
+                        return (
                           <div
-                            className={`px-4 py-2 text-sm rounded-2xl ${
-                              message.role === 'user'
-                                ? 'border border-amber-400/70 bg-slate-900/90 text-slate-50 shadow-[0_0_24px_rgba(251,191,36,0.60)]'
-                                : isHandoffMessage
-                                ? 'bg-purple-900/40 border border-purple-500/30 text-slate-100'
-                                : 'bg-slate-800/80 text-slate-100 border border-slate-700/70'
+                            key={message.id}
+                            className={`flex scroll-mt-10 ${
+                              message.role === 'user' ? 'justify-end' : 'justify-start'
                             }`}
                           >
-                            {isHandoffMessage && (
-                              <div className="flex items-center gap-1.5 mb-2 text-purple-300 text-xs">
-                                <ArrowRight className="w-3 h-3" />
-                                <span className="font-medium">Handoff</span>
+                            {/* When greeting is typing, TypingIndicatorRow handles the entire row (including avatar) */}
+                            {isGreetingTyping && showTypingIndicator && renderMode === 'slideout' ? (
+                              <TypingIndicatorRow 
+                                employeeSlug={currentEmployeeSlug}
+                                displayName={displayConfig.displayName}
+                                compact={true}
+                              />
+                            ) : (
+                              <div
+                                className={`flex items-start gap-2 max-w-[85%] ${
+                                  message.role === 'user' ? 'flex-row-reverse' : ''
+                                }`}
+                              >
+                                {/* Avatar - NOT rendered when greeting is typing (TypingIndicatorRow has its own) */}
+                                {message.role === 'user' ? (
+                                  <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-700">
+                                    <User className="w-4 h-4 text-slate-200" />
+                                  </div>
+                                ) : normalizedSlug === 'prime-boss' ? (
+                                  <PrimeLogoBadge size={32} className="flex-shrink-0" />
+                                ) : (
+                                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${displayConfig.gradient}`}>
+                                    <span className="text-sm">{displayConfig.emoji}</span>
+                                  </div>
+                                )}
+
+                                {/* Message bubble */}
+                                <div
+                                  className={`px-4 py-2 text-sm rounded-2xl ${
+                                    message.role === 'user'
+                                      ? 'border border-amber-400/70 bg-slate-900/90 text-slate-50 shadow-[0_0_24px_rgba(251,191,36,0.60)]'
+                                      : isHandoffMessage
+                                      ? 'bg-purple-900/40 border border-purple-500/30 text-slate-100'
+                                      : 'bg-slate-800/80 text-slate-100 border border-slate-700/70'
+                                  }`}
+                                >
+                                  {isHandoffMessage && (
+                                    <div className="flex items-center gap-1.5 mb-2 text-purple-300 text-xs">
+                                      <ArrowRight className="w-3 h-3" />
+                                      <span className="font-medium">Handoff</span>
+                                    </div>
+                                  )}
+                                  <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                                    {message.content}
+                                    {isGreetingMessage && typedGreeting.length < greetingText.length && (
+                                      <span className="inline-block w-0.5 h-4 bg-slate-400 ml-0.5 animate-pulse" />
+                                    )}
+                                  </p>
+                                  {(() => {
+                                    let timeLabel: string | null = null;
+                                    if (message.timestamp) {
+                                      const d = new Date(message.timestamp);
+                                      if (!Number.isNaN(d.getTime())) {
+                                        timeLabel = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                                      }
+                                    }
+                                    return timeLabel ? (
+                                      <p className="text-[10px] mt-1.5 opacity-60">
+                                        {timeLabel}
+                                      </p>
+                                    ) : null;
+                                  })()}
+                                </div>
                               </div>
                             )}
-                            <p className="text-sm whitespace-pre-wrap leading-relaxed">
-                              {message.content}
-                            </p>
-                            {(() => {
-                              let timeLabel: string | null = null;
-                              if (message.timestamp) {
-                                const d = new Date(message.timestamp);
-                                if (!Number.isNaN(d.getTime())) {
-                                  timeLabel = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-                                }
-                              }
-                              return timeLabel ? (
-                                <p className="text-[10px] mt-1.5 opacity-60">
-                                  {timeLabel}
-                                </p>
-                              ) : null;
-                            })()}
                           </div>
-                        </div>
-                      </div>
-                    );
+                        );
                       })}
 
-                      {/* Loading indicator */}
-                      {isStreaming && (
-                        <div className="flex justify-start">
-                          <div className="flex items-center gap-2 bg-slate-800/80 rounded-2xl px-4 py-2.5 border border-white/5">
-                            <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                    <span className="text-sm text-slate-300">
-                      {displayConfig.chatTitle.split('—')[0].trim()} is thinking{isToolExecuting && currentTool ? ` (using ${currentTool})` : ''}...
-                    </span>
-                          </div>
-                        </div>
+                      {/* Typing indicator (unified, canonical component) - ONLY ONE typing indicator allowed */}
+                      {/* FRAME-0 LOCK: Only show typing after chat is ready (open stabilized) */}
+                      {/* Greeting typing shows INSIDE greeting message bubble, so suppress this one during greeting */}
+                      {/* Only show typing in slideout mode, never in page mode */}
+                      {showTypingIndicator && renderMode === 'slideout' && chatReady && (isStreaming || (isTyping && !showGreetingTyping)) && (
+                        <TypingIndicatorRow 
+                          employeeSlug={currentEmployeeSlug}
+                          displayName={displayConfig.displayName}
+                        />
                       )}
 
                       {/* Error message */}

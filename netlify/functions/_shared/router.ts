@@ -420,6 +420,38 @@ export async function routeToEmployee(params: {
     // Route to Chime for notifications and reminders
     selectedEmployee = 'chime-ai';
     console.log(`[Router] Selected employee: chime-ai for message: "${last.substring(0, 100)}..."`);
+  // ============================================================================
+  // CUSTODIAN ROUTING - System Help & Escalation (Priority: High)
+  // ============================================================================
+  // Custodian handles: system errors, out-of-scope requests, diagnostics,
+  // settings questions, handoff triage, and escalation scenarios.
+  //
+  // Test cases that SHOULD route to Custodian:
+  // - "This isn't working"
+  // - "I need system help"
+  // - "Something went wrong"
+  // - "Can't proceed"
+  // - "Out of scope"
+  // - "Settings question"
+  // - "How do I change my profile?"
+  //
+  // Confidence: 0.85-1.0 for clearly system/escalation questions
+  // ============================================================================
+  } else if (
+    // System error/issue language
+    /(this isn't working|something went wrong|error occurred|system error|bug|broken|not working|doesn't work|failed|failure)/i.test(last) ||
+    // Escalation language
+    /(out of scope|cannot proceed|can't proceed|needs system help|need system help|escalate|escalation|triage|diagnose|diagnosis)/i.test(last) ||
+    // Settings/controls language
+    /(how do i (change|update|modify|set)|change my (profile|settings|preferences|account)|update my (profile|settings|preferences)|system settings|account settings|profile settings)/i.test(last) ||
+    // Help/assistance language that suggests system-level help
+    /(i need help with|help me with|assist me with|support for)/i.test(last) && /(system|settings|account|profile|configuration|setup)/i.test(last) ||
+    // Explicit Custodian mentions
+    /(custodian|system brain|handoff triage)/i.test(last)
+  ) {
+    // Route to Custodian for system help and escalation
+    selectedEmployee = 'custodian';
+    console.log(`[Router] Selected employee: custodian for escalation/system help: "${last.substring(0, 100)}..."`);
   } else {
     // Check for notification/reminder intent before falling back to Prime
     if (looksLikeNotificationIntent(userText)) {

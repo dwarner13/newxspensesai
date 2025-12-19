@@ -103,7 +103,7 @@ const mapToSlideoutTasks = (tasks: PrimeTask[]): SlideoutTask[] => {
                    task.employeeSlug === 'tag-ai' ? 'Smart Categories' :
                    task.employeeSlug === 'crystal-ai' ? 'Analytics AI' :
                    task.employeeSlug === 'liberty-ai' ? 'Debt & Freedom AI' :
-                   task.employeeSlug === 'blitz-debt' ? 'Debt Payoff AI' :
+                   task.employeeSlug === 'blitz-debt' ? 'Debt Payoff & Savings' :
                    task.employeeSlug === 'goalie-goals' ? 'Goals & Savings AI' :
                    'AI Assistant',
     ago: task.createdAt,

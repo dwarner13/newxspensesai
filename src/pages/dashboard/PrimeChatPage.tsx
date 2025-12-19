@@ -5,9 +5,12 @@
  * 
  * Layout:
  * - Left column: Prime Workspace Panel (Active Employees)
- * - Center column: Unified Chat UI (Prime chat workspace)
+ * - Center column: Prime Command Center hero card (static, no chat UI)
  * - Right column: Activity Feed
  * - Floating rail: DesktopChatSideBar (right edge)
+ * 
+ * Chat is available ONLY via slideout (opened from floating rail or hero card button).
+ * This page does NOT render any live chat UI (no messages, no input, no typing).
  */
 
 import React, { useState } from 'react';
@@ -24,19 +27,11 @@ import { PrimeOverlayProvider } from '../../context/PrimeOverlayContext';
 import { usePrimeLiveStats } from '../../hooks/usePrimeLiveStats';
 import { useActivityFeed } from '../../hooks/useActivityFeed';
 import { PrimeTeamStatusPanel, type PrimeStatusView } from '../../components/prime/panels/PrimeTeamStatusPanel';
-import UnifiedAssistantChat from '../../components/chat/UnifiedAssistantChat';
-import { useChatSessions } from '../../hooks/useChatSessions';
+import { PrimeUnifiedCard } from '../../components/workspace/employees/PrimeUnifiedCard';
 
 export function PrimeChatPage() {
   // Scroll to top when page loads
   useScrollToTop();
-  
-  // Load chat sessions for history sidebar
-  const { sessions, loadSessions } = useChatSessions({
-    limit: 50,
-    perEmployee: 10,
-    autoLoad: true,
-  });
   
   // Panel state - controls which slide-in panel is open (Team, Tasks, or Chat)
   const [primePanel, setPrimePanel] = useState<'none' | 'team' | 'tasks' | 'chat'>('none'); // Default to none (chat now opens via unified launcher)
@@ -117,20 +112,21 @@ export function PrimeChatPage() {
           />
         }
         center={
-          <div className="relative min-w-0 w-full h-full flex flex-col overflow-hidden">
-            {/* Premium Prime aura background - subtle gradient glow (clipped) */}
-            <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-amber-500/5 via-orange-500/3 to-pink-500/5 pointer-events-none" />
-            {/* Chat workspace - inline mode */}
-            <UnifiedAssistantChat
-              mode="inline"
-              initialEmployeeSlug="prime-boss"
-              context={{
-                page: 'prime-chat',
-                source: 'prime-chat-page',
-              }}
-              compact={true}
-            />
-          </div>
+          <PrimeUnifiedCard 
+            onChatInputClick={() => {
+              openChat({
+                initialEmployeeSlug: 'prime-boss',
+                context: {
+                  page: 'prime-chat',
+                  data: {
+                    source: 'prime-chat-page',
+                  },
+                },
+              });
+            }}
+            primePanel={primePanel}
+            onPrimePanelChange={setPrimePanel}
+          />
         }
         right={
           <ActivityFeedSidebar scope="prime" className="min-w-0 w-full h-full" />

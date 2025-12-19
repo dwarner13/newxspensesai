@@ -142,7 +142,8 @@ export function getEmployeeDisplay(slug?: string): {
       return { emoji: '📊', shortName: 'Crystal' };
     case 'blitz-ai':
     case 'blitz-debt':
-      return { emoji: '⚡', shortName: 'Blitz' };
+    case 'debt-payoff-planner':
+      return { emoji: '🔥', shortName: 'Spark' };
     case 'liberty-ai':
     case 'liberty-freedom':
       return { emoji: '🗽', shortName: 'Liberty' };
@@ -197,7 +198,8 @@ export function getChatTabDisplay(slug?: string): {
       return { emoji: '📊', label: 'Work with Crystal' };
     case 'blitz-ai':
     case 'blitz-debt':
-      return { emoji: '⚡', label: 'Work with Blitz' };
+    case 'debt-payoff-planner':
+      return { emoji: '🔥', label: 'Work with Spark' };
     case 'liberty-ai':
     case 'liberty-freedom':
       return { emoji: '🗽', label: 'Work with Liberty' };

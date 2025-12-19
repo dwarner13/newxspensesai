@@ -39,6 +39,7 @@ import {
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 import Logo from '../common/Logo';
 import { useUser } from "../../contexts/UserContext";
+import { useProfile } from '../../hooks/useProfile';
 import { EMPLOYEES } from '../../data/aiEmployees';
 
 // AI Employee Status Component
@@ -532,12 +533,12 @@ export default function AIEnhancedSidebar({
                   <User size={20} className="text-white" />
                 </div>
                 <div className="flex-1">
-                  <div className="font-semibold text-white text-sm">{user?.name || 'John Doe'}</div>
-                  <div className="text-xs text-white/80">{user?.plan || 'Premium Plan'}</div>
+                  <div className="font-semibold text-white text-sm">{profile.fullName}</div>
+                  <div className="text-xs text-white/80">{profile.planDisplay}</div>
                 </div>
               </div>
               <div className="bg-white/20 text-white px-2 py-1 rounded-md text-xs font-medium backdrop-blur-sm">
-                Level 8 Money Master
+                Level {profile.level} {profile.levelTitle}
               </div>
             </div>
           )}

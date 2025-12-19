@@ -140,3 +140,7 @@ If the grid template still shows `300px 220px 320px`:
 4. **Check for inline styles:** Ensure no inline `style` prop is overriding the CSS
 5. **Verify CSS order:** The `.xai-dash-grid` CSS should come AFTER the `.dashboard-main-content` rules
 
+
+
+
+

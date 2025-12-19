@@ -12,19 +12,36 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useJobsSystemStore, type Job, type Notification } from '../../state/jobsSystemStore';
 import toast from 'react-hot-toast';
 
+/**
+ * Validate UUID format
+ * Prevents invalid user IDs from causing database errors
+ */
+function isValidUuid(value: string | null | undefined): boolean {
+  if (!value) return false;
+  // UUID format: 8-4-4-4-12 hex digits with hyphens
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+}
+
 export function useJobsRealtime() {
   const { userId, isDemoUser } = useAuth();
   const { upsertJob, upsertNotification, setJobs, setNotifications } = useJobsSystemStore();
   
-  // Use demo user ID if in demo mode
-  const effectiveUserId = userId || (isDemoUser ? '00000000-0000-4000-8000-000000000001' : null);
+  // Use demo user ID if in demo mode, but validate UUID format
+  const demoUserId = '00000000-0000-4000-8000-000000000001';
+  const effectiveUserId = userId || (isDemoUser ? demoUserId : null);
   
   // Track if jobs table exists to prevent retrying
   const [jobsTableExists, setJobsTableExists] = React.useState<boolean | null>(null);
   const [notificationsTableExists, setNotificationsTableExists] = React.useState<boolean | null>(null);
   
   useEffect(() => {
-    if (!effectiveUserId) return;
+    // Guard: Skip if no userId or invalid UUID format
+    if (!effectiveUserId || !isValidUuid(effectiveUserId)) {
+      if (effectiveUserId && import.meta.env.DEV) {
+        console.warn('[useJobsRealtime] Skipping - invalid userId format:', effectiveUserId);
+      }
+      return;
+    }
     
     const supabase = getSupabase();
     if (!supabase) {

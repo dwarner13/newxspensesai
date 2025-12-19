@@ -18,6 +18,11 @@ import { PrimeFloatingButton } from "../components/chat/PrimeFloatingButton";
 import { ActivityFeedSidebar } from "../components/dashboard/ActivityFeedSidebar";
 import DesktopChatSideBar from "../components/chat/DesktopChatSideBar";
 import { ChatHistorySidebar } from "../components/chat/ChatHistorySidebar";
+import { ControlCenterDrawer } from "../components/settings/ControlCenterDrawer";
+import { AccountCenterPanel } from "../components/settings/AccountCenterPanel";
+import { UnifiedOnboardingFlow } from "../components/onboarding/UnifiedOnboardingFlow";
+import { PrimeToolsPanel } from "../components/prime/PrimeToolsPanel";
+import { PrimeOverlayProvider } from "../context/PrimeOverlayContext";
 
 // DashboardHeaderWithBadges - Wrapper (now simplified, no custom badges)
 function DashboardHeaderWithBadges() {
@@ -54,7 +59,9 @@ function DashboardContentGrid({ children }: { children: React.ReactNode }) {
     '/dashboard/financial-freedom',
     '/dashboard/ai-financial-freedom',
     '/dashboard/personal-podcast',
-    '/dashboard/spotify-integration',
+    '/dashboard/spotify', // Spotify Integration page (matches route path)
+    '/dashboard/spotify-integration', // Legacy redirect path
+    '/dashboard/financial-story', // Financial Story page (The Roundtable)
     '/dashboard/transactions',
     '/dashboard/settings',
     // Main dashboard pages that now use DashboardPageShell with Activity Feed in right slot
@@ -379,7 +386,8 @@ export default function DashboardLayout() {
   // - No nested scroll containers - browser window handles scrolling
   // - Header is sticky, content scrolls beneath it
   return (
-    <div className="flex min-h-screen bg-slate-950">
+    <PrimeOverlayProvider>
+      <div className="flex min-h-screen bg-slate-950">
       {/* LEFT COLUMN - Desktop Sidebar */}
       {/* High z-index ensures sidebar is above chat overlays (z-50) and other content */}
       <div className="fixed left-0 top-0 h-full z-[100]" style={{ pointerEvents: 'auto' }}>
@@ -416,6 +424,7 @@ export default function DashboardLayout() {
         conversationId={chatOptions.conversationId}
         context={chatOptions.context}
         initialQuestion={chatOptions.initialQuestion}
+        renderMode="slideout"
       />
       
 
@@ -441,7 +450,20 @@ export default function DashboardLayout() {
       <PrimeFloatingButton 
         hidden={location.pathname.includes('/prime-chat')} 
       />
+
+      {/* Control Center Drawer - Profile/Preferences/Security */}
+      <ControlCenterDrawer />
       
-    </div>
+      {/* Account Center Panel - Account/Billing/Custodian Support/Data & Privacy */}
+      <AccountCenterPanel />
+
+      {/* Prime Tools Panel - Opens from floating rail Prime Tools button */}
+      <PrimeToolsPanel />
+
+      {/* Unified Onboarding Flow - Prime → Custodian Modal (Guest + Auth) */}
+      <UnifiedOnboardingFlow />
+      
+      </div>
+    </PrimeOverlayProvider>
   );
 }

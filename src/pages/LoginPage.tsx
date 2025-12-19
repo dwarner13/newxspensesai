@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { AlertTriangle, Mail, Lock, Eye, EyeOff, Check, ArrowRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { isDemoMode, setGuestSession } from '../lib/demoAuth';
 
 export default function LoginPage() {
   const { user, loading, signInWithGoogle, signInWithApple } = useAuth();
@@ -212,10 +213,13 @@ export default function LoginPage() {
         <div className="mt-8 space-y-6">
           {/* Social Sign In Buttons */}
           <div className="grid grid-cols-1 gap-3">
-            {import.meta.env.DEV ? (
+            {isDemoMode() ? (
               <button
                 className="w-full flex justify-center items-center px-4 py-3 border border-gray-700 rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-800 focus:ring-primary-500 transition-colors"
-                onClick={() => navigate('/dashboard')}
+                onClick={() => {
+                  setGuestSession();
+                  navigate('/dashboard', { replace: true });
+                }}
               >
                 Continue as Guest
               </button>
@@ -294,9 +298,19 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-300">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+                  Password
+                </label>
+                {!isRegister && (
+                  <Link
+                    to="/reset-password"
+                    className="text-sm text-primary-400 hover:text-primary-300 transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                )}
+              </div>
               <div className="mt-1 relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock size={16} className="text-gray-500" />

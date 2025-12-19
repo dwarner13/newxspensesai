@@ -124,3 +124,7 @@ With the fix:
 - Center column expands to fill remaining space
 - Left column is fixed at 300px
 
+
+
+
+

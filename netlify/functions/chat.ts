@@ -1513,6 +1513,61 @@ export const handler: Handler = async (event, context) => {
         streamBuffer = `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n` + streamBuffer;
       }
 
+      // ========================================================================
+      // CUSTODIAN CLOSE-OUT SUMMARY (Step 6)
+      // ========================================================================
+      // When Custodian resolves an issue or hands off, append a structured summary
+      // This helps users understand what was done and what's next
+      // Check if Custodian was involved (either as original or final employee)
+      const custodianWasInvolved = originalEmployeeSlug === 'custodian' || finalEmployeeSlug === 'custodian';
+      const didHandoff = finalEmployeeSlug !== originalEmployeeSlug;
+      const custodianHandedOff = originalEmployeeSlug === 'custodian' && didHandoff;
+      
+      if (custodianWasInvolved && assistantContent.trim().length > 0) {
+        try {
+          // Generate structured summary
+          // Format: Diagnosis, What we changed, How to verify, Next steps / who owns it
+          const summaryParts: string[] = [];
+          
+          if (custodianHandedOff) {
+            // Handoff summary - Custodian handed off to another employee
+            summaryParts.push(`\n\n---\n**Custodian Summary:**`);
+            summaryParts.push(`**Diagnosis:** Issue triaged and routed to appropriate specialist.`);
+            summaryParts.push(`**Action Taken:** Handed off to ${finalEmployeeSlug} for specialized assistance.`);
+            summaryParts.push(`**Next Steps:** Continue conversation with ${finalEmployeeSlug} - they have the context needed.`);
+          } else if (finalEmployeeSlug === 'custodian') {
+            // Resolution summary (when Custodian resolves without handoff)
+            // Extract key points from response (simple heuristic)
+            const responseLower = assistantContent.toLowerCase();
+            const hasDiagnosis = responseLower.includes('issue') || responseLower.includes('problem') || responseLower.includes('error') || responseLower.includes('diagnos');
+            const hasAction = responseLower.includes('changed') || responseLower.includes('updated') || responseLower.includes('fixed') || responseLower.includes('resolved') || responseLower.includes('addressed');
+            
+            if (hasDiagnosis || hasAction) {
+              summaryParts.push(`\n\n---\n**Custodian Summary:**`);
+              if (hasDiagnosis) {
+                summaryParts.push(`**Diagnosis:** Issue identified and addressed.`);
+              }
+              if (hasAction) {
+                summaryParts.push(`**What Changed:** See response above for details.`);
+              }
+              summaryParts.push(`**How to Verify:** Test the functionality or check settings as described.`);
+              summaryParts.push(`**Next Steps:** If issues persist, feel free to ask for further assistance.`);
+            }
+          }
+          
+          // Only append summary if we detected a resolution/handoff pattern
+          if (summaryParts.length > 0) {
+            const summaryText = summaryParts.join('\n');
+            streamBuffer += `data: ${JSON.stringify({ type: 'text', content: summaryText })}\n\n`;
+            // Also append to assistantContent for database storage
+            assistantContent += summaryText;
+          }
+        } catch (error: any) {
+          // Fail silently - don't break chat if summary generation fails
+          console.warn('[Chat] Failed to generate Custodian close-out summary:', error);
+        }
+      }
+
       // Send completion signal
       streamBuffer += `data: ${JSON.stringify({ type: 'done' })}\n\n`;
       console.log('[Chat] OPENAI streaming call completed, total content length:', assistantContent.length);

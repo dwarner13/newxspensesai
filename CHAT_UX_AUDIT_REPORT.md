@@ -129,3 +129,7 @@ const stop = useCallback(() => {
 - All fixes apply to `UnifiedAssistantChat` which is used by all workers
 - No per-worker changes needed
 
+
+
+
+

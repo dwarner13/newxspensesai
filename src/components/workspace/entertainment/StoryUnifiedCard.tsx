@@ -56,7 +56,7 @@ export function StoryUnifiedCard({ onExpandClick, onChatInputClick }: StoryUnifi
   return (
     <EmployeeUnifiedCardBase
       employeeSlug="financial-story"
-      primaryActionLabel="Chat about your financial story"
+      primaryActionLabel="Chat with The Roundtable about your financial story"
       onPrimaryActionClick={handleChatClick}
       secondaryActions={secondaryActions}
       footerStatusText="Online 24/7"

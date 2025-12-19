@@ -45,6 +45,11 @@ export interface EmployeeChatConfig {
   badgeLabel?: string; // Badge text (e.g., "Prime-Level AI", "Smart Import AI")
   quickActions?: QuickAction[]; // Quick action buttons
   suggestedPrompts?: SuggestedPrompt[]; // Suggested prompts for empty chat state
+  // On-open greeting (Tag-style)
+  openGreeting?: string; // Greeting message to show when chat opens (if thread is empty)
+  openGreetingEnabled?: boolean; // Whether greeting is enabled (default: true if openGreeting exists)
+  openGreetingDelayMs?: number; // Delay before showing greeting (default: 700ms)
+  showTypingOnOpen?: boolean; // Show typing indicator before greeting (default: true)
 }
 
 export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> = {
@@ -54,6 +59,9 @@ export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> =
     subtitle: 'AI Orchestrator & Financial Guide',
     welcomeMessage: 'You\'re not alone with your money anymore. I\'m here to help coordinate your financial team, answer questions, and route you to the right specialist when you need expert help.',
     gradient: 'from-amber-400 via-orange-500 to-pink-500',
+    openGreeting: 'Hi! I\'m Prime. What do you feel like doing today?',
+    openGreetingDelayMs: 650,
+    showTypingOnOpen: true,
     cardTitle: 'Prime — Chat',
     description: 'Your strategic AI CEO orchestrating 30+ specialized employees. I route tasks, coordinate workflows, and ensure you get the right expert for every question.',
     badgeLabel: 'Prime-Level AI',
@@ -103,6 +111,9 @@ export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> =
     subtitle: 'Smart Import & OCR Wizard',
     welcomeMessage: 'I\'m your document processing expert. Upload receipts, bank statements, CSVs, or PDFs and I\'ll extract all transactions automatically with 99.7% accuracy. Just drag and drop or click to upload!',
     gradient: 'from-sky-400 via-cyan-400 to-emerald-400',
+    openGreeting: 'Hey! I\'m Byte, your Smart Import assistant. Upload documents, receipts, or bank statements and I\'ll process them instantly.',
+    openGreetingDelayMs: 650,
+    showTypingOnOpen: true,
     cardTitle: 'Byte — Smart Import AI',
     description: 'I process bank statements, receipts, invoices, and CSV files with 99.7% accuracy. Upload documents and I\'ll extract transactions automatically.',
     badgeLabel: 'Smart Import AI',
@@ -124,6 +135,9 @@ export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> =
     subtitle: 'Smart Categories & Rules Engine',
     welcomeMessage: 'I\'m your categorization expert. I help fix mis-categorized expenses, create smart rules, and clean up uncategorized transactions. Let me organize your finances automatically!',
     gradient: 'from-yellow-300 via-amber-400 to-orange-500',
+    openGreeting: 'Hey there! I\'m Tag, your Smart Categories assistant. What can I help you categorize today?',
+    openGreetingDelayMs: 650,
+    showTypingOnOpen: true,
     cardTitle: 'Tag — Smart Categories',
     description: 'I automatically categorize transactions and learn from your patterns. Create custom rules, fix mis-categorized expenses, and keep your finances organized.',
     badgeLabel: 'Smart Categories',
@@ -145,6 +159,9 @@ export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> =
     subtitle: 'Analytics & Insights',
     welcomeMessage: 'I\'m your financial analyst. I uncover spending trends, identify top merchants, generate monthly summaries, and detect unusual patterns. Ask me anything about your financial data!',
     gradient: 'from-purple-400 via-indigo-400 to-sky-400',
+    openGreeting: 'Hi! I\'m Crystal, your Analytics AI. I analyze spending patterns and provide insights. What would you like to know?',
+    openGreetingDelayMs: 650,
+    showTypingOnOpen: true,
     cardTitle: 'Crystal — Analytics AI',
     description: 'I analyze your spending patterns, detect anomalies, and provide actionable insights. Get monthly trends, forecasts, and recommendations.',
     badgeLabel: 'Analytics AI',
@@ -166,6 +183,9 @@ export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> =
     subtitle: 'Financial Forecasting',
     welcomeMessage: 'I create financial forecasts and projections. Ask me about future cash flow, savings goals, or budget planning.',
     gradient: 'from-teal-400 via-green-400 to-emerald-400',
+    openGreeting: 'Hi! I\'m Finley, your Forecasting AI. I help predict future cash flow and plan budgets. What would you like to forecast?',
+    openGreetingDelayMs: 900,
+    showTypingOnOpen: true,
   },
   'goalie-goals': {
     emoji: '🎯',
@@ -173,13 +193,19 @@ export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> =
     subtitle: 'Goal Progress & Achievement',
     welcomeMessage: 'I track your financial goals and help you stay on track. Ask me about goal progress or create new goals.',
     gradient: 'from-purple-400 via-pink-400 to-rose-400',
+    openGreeting: 'Hey! I\'m Goalie, your Goals AI. I track progress and help you achieve your financial goals. What goal would you like to work on?',
+    openGreetingDelayMs: 900,
+    showTypingOnOpen: true,
   },
   'blitz-debt': {
-    emoji: '⚡',
-    title: 'Blitz — Chat',
-    subtitle: 'Debt Payoff Strategy',
-    welcomeMessage: 'I help you pay off debt faster with optimized strategies. Ask me about debt payoff plans or interest optimization.',
-    gradient: 'from-yellow-400 via-orange-400 to-red-400',
+    emoji: '🔥',
+    title: 'Spark — Chat',
+    subtitle: 'Debt Payoff & Savings',
+    welcomeMessage: 'I\'m Spark, your hype man for financial freedom! Every dollar paid down is a win, every milestone is a celebration. Let\'s crush your debt together and build momentum toward freedom.',
+    gradient: 'from-yellow-400 via-orange-500 to-red-500',
+    openGreeting: 'Hey! I\'m Spark — your hype man for financial freedom! 🎯 Every dollar paid down is a win, every milestone is a celebration, and every setback is just fuel for the comeback. What debt would you like to tackle first?',
+    openGreetingDelayMs: 900,
+    showTypingOnOpen: true,
   },
   'liberty-freedom': {
     emoji: '🗽',
@@ -187,6 +213,9 @@ export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> =
     subtitle: 'Financial Freedom Planning',
     welcomeMessage: 'I help you achieve financial freedom through strategic planning. Ask me about FIRE, savings rates, or investment strategies.',
     gradient: 'from-blue-400 via-indigo-400 to-purple-400',
+    openGreeting: 'Hey! I\'m Liberty, your Financial Freedom AI. I help plan your path to financial independence. What would you like to explore?',
+    openGreetingDelayMs: 900,
+    showTypingOnOpen: true,
   },
   'chime-reminders': {
     emoji: '🔔',
@@ -194,6 +223,9 @@ export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> =
     subtitle: 'Reminders & Notifications',
     welcomeMessage: 'I keep you informed about important financial events. Ask me about upcoming bills, payment reminders, or alerts.',
     gradient: 'from-yellow-400 via-amber-400 to-orange-400',
+    openGreeting: 'Hi! I\'m Chime, your Reminders AI. I keep you informed about bills, payments, and important financial events. What do you need to remember?',
+    openGreetingDelayMs: 900,
+    showTypingOnOpen: true,
   },
   'ledger-tax': {
     emoji: '📋',
@@ -201,6 +233,9 @@ export const EMPLOYEE_CHAT_CONFIG: Record<EmployeeChatKey, EmployeeChatConfig> =
     subtitle: 'Tax & Accounting',
     welcomeMessage: 'I help with tax preparation and accounting questions. Ask me about deductions, tax strategies, or record keeping.',
     gradient: 'from-gray-400 via-slate-400 to-zinc-400',
+    openGreeting: 'Hey! I\'m Ledger, your Tax & Accounting AI. I help with tax prep, deductions, and record keeping. What tax question can I help with?',
+    openGreetingDelayMs: 900,
+    showTypingOnOpen: true,
   },
 };
 

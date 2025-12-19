@@ -56,7 +56,7 @@ export function BillsUnifiedCard({ onExpandClick, onChatInputClick }: BillsUnifi
   return (
     <EmployeeUnifiedCardBase
       employeeSlug="bill-reminders"
-      primaryActionLabel="Chat about your bills and reminders"
+      primaryActionLabel="Chat with Chime about your bills and reminders"
       onPrimaryActionClick={handleChatClick}
       secondaryActions={secondaryActions}
       footerStatusText="Online 24/7"

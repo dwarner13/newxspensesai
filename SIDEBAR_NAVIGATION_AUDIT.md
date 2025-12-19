@@ -112,3 +112,7 @@ All routes in `App.tsx` match the paths in nav-registry.tsx. No broken routes de
 2. **Add missing "Bank Accounts" link to MobileSidebar**
 3. **Audit Sidebar.tsx and AIEnhancedSidebar.tsx** - Remove if unused, or update to use nav-registry
 
+
+
+
+

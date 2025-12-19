@@ -9,6 +9,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { cn } from '../../lib/utils';
 import { Paperclip, X, File, Plus, Camera, Image, FileText } from 'lucide-react';
+import { CHAT_INPUT_MAX_HEIGHT_PX } from '../../lib/chatSlideoutConstants';
 
 export interface ChatInputBarProps {
   /** Input value */
@@ -46,7 +47,19 @@ export interface ChatInputBarProps {
   
   /** Optional cancel/stop handler (for stopping streaming) */
   onStop?: () => void;
+  
+  /** Optional focus handler for the input (for launcher behavior) */
+  onInputFocus?: (e: React.FocusEvent<HTMLTextAreaElement>) => void;
+  
+  /** Optional mouse down handler for the input (for launcher behavior) */
+  onInputMouseDown?: (e: React.MouseEvent<HTMLTextAreaElement>) => void;
+  
+  /** Whether input is read-only (for launcher-only mode) */
+  readOnly?: boolean;
 }
+
+const CHAT_INPUT_MAX_CHARS = 2000;
+const CHAT_INPUT_COUNTER_THRESHOLD = 1600;
 
 export function ChatInputBar({
   value,
@@ -61,6 +74,9 @@ export function ChatInputBar({
   showPlusIcon = false,
   onAttachmentsChange,
   onStop,
+  onInputFocus,
+  onInputMouseDown,
+  readOnly = false,
 }: ChatInputBarProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -75,23 +91,45 @@ export function ChatInputBar({
   
   const MAX_ATTACHMENTS = 5;
 
-  // Auto-resize textarea
+  // Auto-resize textarea (capped at max-height to prevent footer height changes)
+  // CRITICAL: Footer container must remain shrink-0 and never grow beyond cap
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
+      // Reset height to auto to get accurate scrollHeight
       textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 96)}px`;
+      // Cap at CHAT_INPUT_MAX_HEIGHT_PX to prevent footer expansion
+      const newHeight = Math.min(textarea.scrollHeight, CHAT_INPUT_MAX_HEIGHT_PX);
+      textarea.style.height = `${newHeight}px`;
+      // Ensure overflow-y: auto when content exceeds max height
+      if (textarea.scrollHeight > CHAT_INPUT_MAX_HEIGHT_PX) {
+        textarea.style.overflowY = 'auto';
+      } else {
+        textarea.style.overflowY = 'hidden';
+      }
     }
   }, [value]);
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && (value.trim() || attachments.length > 0) && !isStreaming) {
+      if (!disabled && (value.trim() || attachments.length > 0) && !isStreaming && value.length <= CHAT_INPUT_MAX_CHARS) {
         handleSubmit();
       }
     }
   };
+  
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    // Enforce character limit
+    if (newValue.length <= CHAT_INPUT_MAX_CHARS) {
+      onChange(newValue);
+    }
+  };
+  
+  const charCount = value.length;
+  const showCounter = charCount >= CHAT_INPUT_COUNTER_THRESHOLD;
+  const isOverLimit = charCount > CHAT_INPUT_MAX_CHARS;
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -187,7 +225,7 @@ export function ChatInputBar({
     if (e) {
       e.preventDefault();
     }
-    if (!disabled && (value.trim() || attachments.length > 0) && !isStreaming) {
+    if (!disabled && (value.trim() || attachments.length > 0) && !isStreaming && value.length <= CHAT_INPUT_MAX_CHARS) {
       onSubmit({ attachments: attachments.length > 0 ? attachments : undefined });
       // Clear attachments after submit
       setAttachments([]);
@@ -195,11 +233,11 @@ export function ChatInputBar({
   };
 
   return (
-    <div className="w-full">
+    <div className="w-full shrink-0">
       <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-2">
         {/* Attachment chips - shown above input when files are attached */}
         {attachments.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2">
+          <div className="mb-2 flex flex-wrap gap-2 shrink-0">
             {attachments.map((file, index) => (
               <div
                 key={`${file.name}-${file.size}-${index}`}
@@ -222,7 +260,8 @@ export function ChatInputBar({
           </div>
         )}
 
-        <div className="flex items-end gap-2 relative">
+        {/* Input container - fixed height to prevent footer layout shifts */}
+        <div className="flex items-end gap-2 relative shrink-0" style={{ minHeight: '36px', maxHeight: '152px' }}>
           {/* Attachment button */}
           <button
             ref={buttonRef}
@@ -325,18 +364,37 @@ export function ChatInputBar({
             disabled={disabled || isStreaming}
           />
 
-          {/* Text input */}
-          <div className="flex-1 rounded-full bg-black/40 border border-white/10 px-4 py-2 flex items-center">
+          {/* Text input - fixed height container prevents layout shifts */}
+          {/* CRITICAL: Container maxHeight matches CHAT_INPUT_MAX_HEIGHT_PX to prevent footer growth */}
+          <div className="flex-1 rounded-full bg-black/40 border border-white/10 px-4 py-2 flex items-center shrink-0 relative" style={{ minHeight: '36px', maxHeight: `${CHAT_INPUT_MAX_HEIGHT_PX}px` }}>
             <textarea
               ref={textareaRef}
               value={value}
-              onChange={(e) => onChange(e.target.value)}
+              onChange={handleChange}
               onKeyDown={handleKeyPress}
+              onFocus={onInputFocus}
+              onMouseDown={onInputMouseDown}
               placeholder={placeholder}
               rows={1}
               disabled={disabled}
-              className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 resize-none outline-none border-none max-h-24 min-h-[22px]"
+              readOnly={readOnly}
+              maxLength={CHAT_INPUT_MAX_CHARS}
+              data-slideout-chat-input={!readOnly ? 'true' : undefined}
+              className={cn(
+                "flex-1 bg-transparent text-sm text-white placeholder:text-white/40 resize-none outline-none border-none min-h-[22px]",
+                readOnly && "cursor-pointer"
+              )}
+              style={{ maxHeight: `${CHAT_INPUT_MAX_HEIGHT_PX}px`, overflowY: 'auto' }}
             />
+            
+            {/* Character counter - shown when >= threshold, positioned absolutely to not affect layout */}
+            {showCounter && (
+              <div className="absolute bottom-full right-0 mb-1 px-2 py-0.5 rounded text-[10px] font-medium bg-black/80 backdrop-blur-sm border border-white/10 text-white/70 z-10">
+                <span className={isOverLimit ? 'text-red-400' : ''}>
+                  {charCount}/{CHAT_INPUT_MAX_CHARS}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Stop button (shown during streaming) or Send button */}
@@ -368,7 +426,7 @@ export function ChatInputBar({
           ) : (
             <button
               type="submit"
-              disabled={isStreaming || (!value.trim() && attachments.length === 0) || disabled}
+              disabled={isStreaming || (!value.trim() && attachments.length === 0) || disabled || isOverLimit}
               className={cn(
                 "h-9 w-9 rounded-full flex items-center justify-center transition-all shrink-0",
                 "bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600",
@@ -400,9 +458,9 @@ export function ChatInputBar({
           )}
         </div>
 
-        {/* Guardrails status pill - centered below input */}
+        {/* Guardrails status pill - centered below input (shrink-0 to prevent layout shifts) */}
         {guardrailsStatus && (
-          <div className="flex justify-center mt-1">
+          <div className="flex justify-center mt-1 shrink-0">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-900/70 text-emerald-300 text-[11px] font-medium shadow shadow-emerald-500/30">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
               <span>{guardrailsStatus}</span>

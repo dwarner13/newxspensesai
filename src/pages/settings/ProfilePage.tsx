@@ -1,61 +1,57 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Save, Sparkles, Globe, DollarSign, Calendar, Shield, Crown } from 'lucide-react';
+import { User, Save, RotateCcw, CheckCircle, AlertCircle, Loader2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getSupabase } from '../../lib/supabase';
-import toast from 'react-hot-toast';
 import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { Button } from '../../components/ui/button';
 
 interface ProfileData {
   id: string;
   email: string | null;
   display_name: string | null;
-  account_name: string | null;
-  avatar_url: string | null;
-  time_zone: string | null;
-  currency: string | null;
-  date_locale: string | null;
-  account_mode: 'personal' | 'business' | 'both';
   business_name: string | null;
-  role: 'free' | 'premium' | 'admin';
-  plan: 'free' | 'starter' | 'pro' | 'enterprise';
+  currency: string | null;
+  account_mode: 'personal' | 'business' | 'both' | null;
 }
 
-interface CustodianSuggestion {
-  id: string;
-  field: keyof ProfileData;
-  label: string;
-  value: string;
-  reason: string;
-}
+type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export default function ProfilePage() {
   const { user, userId } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [formData, setFormData] = useState<Partial<ProfileData>>({});
-  const [suggestions, setSuggestions] = useState<CustodianSuggestion[]>([]);
+  const [originalData, setOriginalData] = useState<Partial<ProfileData>>({});
 
   // Load profile data
   useEffect(() => {
-    loadProfile();
+    if (userId && userId !== '00000000-0000-4000-8000-000000000001') {
+      loadProfile();
+    } else {
+      setLoading(false);
+    }
   }, [userId]);
 
   const loadProfile = async () => {
-    if (!userId || userId === '00000000-0000-4000-8000-000000000001') {
-      // Demo user - skip
-      setLoading(false);
-      return;
-    }
+    if (!userId) return;
 
     try {
       setLoading(true);
       const supabase = getSupabase();
       if (!supabase) {
-        toast.error('Database connection unavailable');
+        console.error('Database connection unavailable');
+        setLoading(false);
+        return;
+      }
+
+      // Get current user from auth
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) {
+        console.error('No authenticated user');
         setLoading(false);
         return;
       }
@@ -63,158 +59,73 @@ export default function ProfilePage() {
       // Try to load existing profile
       const { data: profileData, error: selectError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, email, display_name, business_name, currency, account_mode')
         .eq('id', userId)
         .maybeSingle();
 
       if (profileData) {
         setProfile(profileData);
-        setFormData({
+        const initialData = {
           display_name: profileData.display_name || '',
-          account_name: profileData.account_name || '',
-          avatar_url: profileData.avatar_url || '',
-          time_zone: profileData.time_zone || '',
-          currency: profileData.currency || 'USD',
-          date_locale: profileData.date_locale || 'en-US',
-          account_mode: profileData.account_mode || 'both',
           business_name: profileData.business_name || '',
-        });
+          currency: profileData.currency || 'CAD',
+          account_mode: profileData.account_mode || 'both',
+        };
+        setFormData(initialData);
+        setOriginalData(initialData);
       } else {
         // Create profile if missing
-        const userEmail = user?.email || '';
-        const displayName = user?.user_metadata?.full_name 
-          || user?.user_metadata?.name 
-          || userEmail.split('@')[0] 
+        const displayName = authUser.user_metadata?.full_name 
+          || authUser.user_metadata?.name 
+          || authUser.email?.split('@')[0] 
           || 'New User';
+
+        const newProfileData = {
+          id: userId,
+          email: authUser.email || null,
+          display_name: displayName,
+          business_name: null,
+          currency: 'CAD',
+          account_mode: 'both' as const,
+        };
 
         const { data: newProfile, error: insertError } = await supabase
           .from('profiles')
-          .insert({
-            id: userId,
-            email: userEmail,
-            display_name: displayName,
-            account_name: displayName,
-            role: 'free',
-            plan: 'free',
-            currency: 'USD',
-            date_locale: 'en-US',
-            account_mode: 'both',
-            business_name: null,
-          })
-          .select()
+          .insert(newProfileData)
+          .select('id, email, display_name, business_name, currency, account_mode')
           .single();
 
         if (insertError) {
           console.error('Failed to create profile:', insertError);
-          toast.error('Failed to create profile');
-        } else {
-          setProfile(newProfile);
-          setFormData({
-            display_name: newProfile.display_name || '',
-            account_name: newProfile.account_name || '',
-            avatar_url: newProfile.avatar_url || '',
-            time_zone: newProfile.time_zone || '',
-            currency: newProfile.currency || 'USD',
-            date_locale: newProfile.date_locale || 'en-US',
-            account_mode: newProfile.account_mode || 'both',
-            business_name: newProfile.business_name || '',
-          });
+          setLoading(false);
+          return;
         }
-      }
 
-      // Generate Custodian suggestions
-      generateSuggestions(profileData || null);
+        setProfile(newProfile);
+        const initialData = {
+          display_name: newProfile.display_name || '',
+          business_name: newProfile.business_name || '',
+          currency: newProfile.currency || 'CAD',
+          account_mode: newProfile.account_mode || 'both',
+        };
+        setFormData(initialData);
+        setOriginalData(initialData);
+      }
     } catch (error: any) {
       console.error('Error loading profile:', error);
-      toast.error('Failed to load profile');
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateSuggestions = (currentProfile: ProfileData | null) => {
-    const newSuggestions: CustodianSuggestion[] = [];
-
-    // Suggestion 1: Currency based on timezone
-    if (!currentProfile?.currency && currentProfile?.time_zone) {
-      const tz = currentProfile.time_zone.toLowerCase();
-      if (tz.includes('canada') || tz.includes('toronto') || tz.includes('vancouver')) {
-        newSuggestions.push({
-          id: 'currency-cad',
-          field: 'currency',
-          label: 'Currency',
-          value: 'CAD',
-          reason: 'Detected Canadian timezone',
-        });
-      }
-    }
-
-    // Suggestion 2: Display name from email
-    if (!currentProfile?.display_name && user?.email) {
-      const nameFromEmail = user.email.split('@')[0];
-      newSuggestions.push({
-        id: 'display-name-email',
-        field: 'display_name',
-        label: 'Display Name',
-        value: nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1),
-        reason: 'Derived from email address',
-      });
-    }
-
-    // Suggestion 3: Timezone from browser
-    if (!currentProfile?.time_zone) {
-      try {
-        const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        newSuggestions.push({
-          id: 'timezone-browser',
-          field: 'time_zone',
-          label: 'Timezone',
-          value: browserTz,
-          reason: 'Detected from browser settings',
-        });
-      } catch (e) {
-        // Ignore
-      }
-    }
-
-    // Suggestion 4: Date locale from browser
-    if (!currentProfile?.date_locale) {
-      try {
-        const browserLocale = Intl.DateTimeFormat().resolvedOptions().locale;
-        newSuggestions.push({
-          id: 'date-locale-browser',
-          field: 'date_locale',
-          label: 'Date Locale',
-          value: browserLocale,
-          reason: 'Detected from browser settings',
-        });
-      } catch (e) {
-        // Ignore
-      }
-    }
-
-    setSuggestions(newSuggestions);
-  };
-
-  const applySuggestion = (suggestion: CustodianSuggestion) => {
-    setFormData(prev => ({
-      ...prev,
-      [suggestion.field]: suggestion.value,
-    }));
-    
-    // Remove suggestion after applying
-    setSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
-    toast.success(`Applied suggestion: ${suggestion.label}`);
   };
 
   const handleSave = async () => {
     if (!userId || !profile) return;
 
     try {
-      setSaving(true);
+      setSaveStatus('saving');
       const supabase = getSupabase();
       if (!supabase) {
-        toast.error('Database connection unavailable');
+        setSaveStatus('error');
         return;
       }
 
@@ -222,33 +133,36 @@ export default function ProfilePage() {
         .from('profiles')
         .update({
           display_name: formData.display_name || null,
-          account_name: formData.account_name || null,
-          avatar_url: formData.avatar_url || null,
-          time_zone: formData.time_zone || null,
-          currency: formData.currency || 'USD',
-          date_locale: formData.date_locale || 'en-US',
+          business_name: formData.business_name || null,
+          currency: formData.currency || 'CAD',
           account_mode: formData.account_mode || 'both',
-          business_name: (formData.account_mode === 'business' || formData.account_mode === 'both') 
-            ? (formData.business_name || null) 
-            : null,
         })
         .eq('id', userId);
 
       if (error) {
         console.error('Failed to update profile:', error);
-        toast.error('Failed to save profile');
+        setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 3000);
       } else {
-        toast.success('Profile saved successfully');
+        setSaveStatus('saved');
+        setOriginalData({ ...formData });
+        setTimeout(() => setSaveStatus('idle'), 2000);
         // Reload profile to get updated data
         await loadProfile();
       }
     } catch (error: any) {
       console.error('Error saving profile:', error);
-      toast.error('Failed to save profile');
-    } finally {
-      setSaving(false);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     }
   };
+
+  const handleReset = () => {
+    setFormData({ ...originalData });
+    setSaveStatus('idle');
+  };
+
+  const hasChanges = JSON.stringify(formData) !== JSON.stringify(originalData);
 
   if (loading) {
     return (
@@ -264,7 +178,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (!profile) {
+  if (!profile || !user) {
     return (
       <DashboardPageShell
         left={<div className="p-6 text-white">No profile found</div>}
@@ -278,39 +192,49 @@ export default function ProfilePage() {
     <DashboardPageShell
       left={
         <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 h-full flex flex-col">
-          <div className="flex items-center gap-3 mb-6">
-            <User className="w-6 h-6 text-purple-400" />
-            <div>
-              <h3 className="text-lg font-semibold text-white">Profile</h3>
-              <p className="text-xs text-slate-400">Manage your account</p>
+          <div className="flex items-center gap-3 mb-3 flex-shrink-0">
+            <span className="text-3xl">👤</span>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-semibold text-white truncate">PROFILE</h3>
+              <p className="text-xs text-slate-500">Account management</p>
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-2 flex-shrink-0">
             <div className="p-3 rounded-lg bg-slate-800 border border-slate-700">
               <p className="text-xs text-slate-400">Email</p>
-              <p className="text-sm text-white mt-1">{profile.email || 'Not set'}</p>
+              <p className="text-sm text-white mt-1">{profile.email || user.email || 'Not set'}</p>
             </div>
             <div className="p-3 rounded-lg bg-slate-800 border border-slate-700">
-              <p className="text-xs text-slate-400">Role</p>
-              <p className="text-sm text-white mt-1 capitalize">{profile.role}</p>
-            </div>
-            <div className="p-3 rounded-lg bg-slate-800 border border-slate-700">
-              <p className="text-xs text-slate-400">Plan</p>
-              <p className="text-sm text-white mt-1 capitalize">{profile.plan}</p>
+              <p className="text-xs text-slate-400">User ID</p>
+              <p className="text-sm text-white mt-1 font-mono text-xs">{profile.id}</p>
             </div>
           </div>
         </div>
       }
       center={
         <div className="space-y-6">
-          {/* Profile Basics */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <User className="w-5 h-5" />
-              Profile Basics
+            <div className="flex items-center gap-3 mb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/dashboard/settings')}
+                className="text-slate-400 hover:text-white"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Settings
+              </Button>
+            </div>
+
+            <h2 className="text-lg font-bold text-white mb-3">
+              Profile Settings
             </h2>
+            <p className="text-sm text-slate-400 mt-1 mb-6">
+              Manage your account information and preferences
+            </p>
             
             <div className="space-y-4">
+              {/* Display Name */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
                   Display Name
@@ -324,238 +248,130 @@ export default function ProfilePage() {
                 />
               </div>
 
+              {/* Business Name */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Account Name
+                  Business Name <span className="text-slate-500 text-xs">(optional)</span>
                 </label>
                 <input
                   type="text"
-                  value={formData.account_name || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, account_name: e.target.value }))}
+                  value={formData.business_name || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, business_name: e.target.value }))}
                   className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Account name"
+                  placeholder="Your business name"
                 />
               </div>
 
+              {/* Currency */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Avatar URL
-                </label>
-                <input
-                  type="text"
-                  value={formData.avatar_url || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, avatar_url: e.target.value }))}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="https://example.com/avatar.jpg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                  <Globe className="w-4 h-4" />
-                  Timezone
-                </label>
-                <input
-                  type="text"
-                  value={formData.time_zone || ''}
-                  onChange={(e) => setFormData(prev => ({ ...prev, time_zone: e.target.value }))}
-                  className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="America/New_York"
-                />
-                <p className="text-xs text-slate-500 mt-1">Example: America/New_York, Europe/London</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" />
                   Currency
                 </label>
                 <select
-                  value={formData.currency || 'USD'}
+                  value={formData.currency || 'CAD'}
                   onChange={(e) => setFormData(prev => ({ ...prev, currency: e.target.value }))}
                   className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
+                  <option value="CAD">CAD - Canadian Dollar</option>
                   <option value="USD">USD - US Dollar</option>
                   <option value="EUR">EUR - Euro</option>
                   <option value="GBP">GBP - British Pound</option>
-                  <option value="CAD">CAD - Canadian Dollar</option>
                   <option value="AUD">AUD - Australian Dollar</option>
                   <option value="JPY">JPY - Japanese Yen</option>
                 </select>
               </div>
 
+              {/* Role/Goal */}
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Date Locale
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Role / Goal
                 </label>
                 <select
-                  value={formData.date_locale || 'en-US'}
-                  onChange={(e) => setFormData(prev => ({ ...prev, date_locale: e.target.value }))}
+                  value={formData.account_mode || 'both'}
+                  onChange={(e) => setFormData(prev => ({ ...prev, account_mode: e.target.value as 'personal' | 'business' | 'both' }))}
                   className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
-                  <option value="en-US">en-US - English (US)</option>
-                  <option value="en-GB">en-GB - English (UK)</option>
-                  <option value="fr-FR">fr-FR - French</option>
-                  <option value="de-DE">de-DE - German</option>
-                  <option value="es-ES">es-ES - Spanish</option>
-                  <option value="ja-JP">ja-JP - Japanese</option>
+                  <option value="personal">Personal</option>
+                  <option value="business">Business</option>
+                  <option value="both">Both</option>
                 </select>
               </div>
 
-              {/* Account Mode */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                  <Briefcase className="w-4 h-4" />
-                  Account Mode
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, account_mode: 'personal' }))}
-                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
-                      formData.account_mode === 'personal'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
-                    }`}
-                  >
-                    Personal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, account_mode: 'business' }))}
-                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
-                      formData.account_mode === 'business'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
-                    }`}
-                  >
-                    Business
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, account_mode: 'both' }))}
-                    className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
-                      formData.account_mode === 'both'
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
-                    }`}
-                  >
-                    Both
-                  </button>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">Choose how you'll use XspensesAI</p>
-              </div>
-
-              {/* Business Name - shown when account_mode is business or both */}
-              {(formData.account_mode === 'business' || formData.account_mode === 'both') && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Business Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.business_name || ''}
-                    onChange={(e) => setFormData(prev => ({ ...prev, business_name: e.target.value }))}
-                    className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="Your business name"
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Custodian Suggestions */}
-          {suggestions.length > 0 && (
-            <div className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border border-purple-800/50 rounded-xl p-6">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-purple-400" />
-                Smart Profile (Custodian Suggestions)
-              </h2>
-              <p className="text-sm text-slate-400 mb-4">
-                We've detected some smart defaults for your profile. Click "Apply" to use them.
-              </p>
-              
-              <div className="space-y-3">
-                {suggestions.map((suggestion) => (
-                  <div
-                    key={suggestion.id}
-                    className="p-4 bg-slate-800/50 border border-purple-700/30 rounded-lg flex items-start justify-between gap-4"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-white">{suggestion.label}</span>
-                        <span className="text-xs text-purple-400 bg-purple-900/30 px-2 py-1 rounded">
-                          {suggestion.value}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-400">{suggestion.reason}</p>
-                    </div>
-                    <button
-                      onClick={() => applySuggestion(suggestion)}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
-                    >
-                      Apply
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* System Info */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
-            <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-              <Shield className="w-5 h-5" />
-              System
-            </h2>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2 flex items-center gap-2">
-                  <Crown className="w-4 h-4" />
-                  Role
-                </label>
-                <input
-                  type="text"
-                  value={profile.role}
-                  disabled
-                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-400 cursor-not-allowed"
-                />
-                <p className="text-xs text-slate-500 mt-1">Role is managed by system</p>
-              </div>
-
+              {/* Email (read-only) */}
               <div>
                 <label className="block text-sm font-medium text-slate-400 mb-2">
-                  Plan
+                  Email <span className="text-slate-500 text-xs">(read-only)</span>
                 </label>
                 <input
                   type="text"
-                  value={profile.plan}
+                  value={profile.email || user.email || ''}
                   disabled
                   className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-400 cursor-not-allowed"
                 />
-                <p className="text-xs text-slate-500 mt-1">Plan is managed by system</p>
+              </div>
+
+              {/* User ID (read-only) */}
+              <div>
+                <label className="block text-sm font-medium text-slate-400 mb-2">
+                  User ID <span className="text-slate-500 text-xs">(read-only)</span>
+                </label>
+                <input
+                  type="text"
+                  value={profile.id}
+                  disabled
+                  className="w-full px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-slate-400 cursor-not-allowed font-mono text-xs"
+                />
               </div>
             </div>
-          </div>
 
-          {/* Save Button */}
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={() => navigate('/dashboard/settings')}
-              className="px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            {/* Status Indicator */}
+            <div className="mt-6 flex items-center gap-2">
+              {saveStatus === 'saving' && (
+                <>
+                  <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />
+                  <span className="text-sm text-blue-400">Saving…</span>
+                </>
+              )}
+              {saveStatus === 'saved' && (
+                <>
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                  <span className="text-sm text-green-400">Saved</span>
+                </>
+              )}
+              {saveStatus === 'error' && (
+                <>
+                  <AlertCircle className="w-4 h-4 text-red-400" />
+                  <span className="text-sm text-red-400">Error</span>
+                </>
+              )}
+              {saveStatus === 'idle' && hasChanges && (
+                <span className="text-sm text-slate-400">You have unsaved changes</span>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 mt-6">
+              <Button
+                onClick={handleReset}
+                disabled={!hasChanges || saveStatus === 'saving'}
+                variant="secondary"
+                size="default"
+                className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
+              >
+                <RotateCcw className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                Reset
+              </Button>
+              <Button
+                onClick={handleSave}
+                disabled={!hasChanges || saveStatus === 'saving'}
+                variant="secondary"
+                size="default"
+                className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
+              >
+                <Save className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
+                Save Changes
+              </Button>
+            </div>
           </div>
         </div>
       }
@@ -563,4 +379,3 @@ export default function ProfilePage() {
     />
   );
 }
-

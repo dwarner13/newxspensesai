@@ -56,7 +56,7 @@ export function DebtUnifiedCard({ onExpandClick, onChatInputClick }: DebtUnified
   return (
     <EmployeeUnifiedCardBase
       employeeSlug="debt-payoff-planner"
-      primaryActionLabel="Chat with Debt about your payoff plan"
+      primaryActionLabel="Chat with Spark about your payoff plan"
       onPrimaryActionClick={handleChatClick}
       secondaryActions={secondaryActions}
       footerStatusText="Online 24/7"

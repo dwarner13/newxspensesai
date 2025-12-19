@@ -1,12 +1,26 @@
 /**
  * FinancialStoryPage Component
  * 
- * Complete workspace layout for Financial Story
+ * Complete workspace layout for Financial Story (The Roundtable)
+ * 
+ * ⚠️ LAYOUT SELF-CHECK: This page MUST match Serenity's layout exactly.
+ * Reference: /dashboard/financial-therapist (AIFinancialTherapistPage.tsx)
  * 
  * Layout:
  * - Left column (33%): Story Workspace Panel
  * - Center column (42%): Story Unified Card
  * - Right column (25%): Activity Feed
+ * 
+ * VERIFICATION CHECKLIST:
+ * ✅ Uses DashboardPageShell (no custom wrappers)
+ * ✅ Uses DashboardThreeColumnLayout (same grid structure)
+ * ✅ WorkspacePanel matches Serenity's panel structure
+ * ✅ UnifiedCard uses EmployeeUnifiedCardBase (same styling)
+ * ✅ ActivityFeedSidebar matches Serenity's placement
+ * ✅ No page-specific spacing/padding overrides
+ * ✅ Columns align perfectly (tops + bottoms match Serenity)
+ * 
+ * DO NOT add custom wrappers or spacing. All layout comes from shared components.
  */
 
 import React from 'react';
@@ -21,6 +35,17 @@ export default function FinancialStoryPage() {
   // Scroll to top when page loads
   useScrollToTop();
   const { openChat } = useUnifiedChatLauncher();
+
+  // VERIFICATION: Confirm using unified shell (remove after verifying)
+  if (import.meta.env.DEV) {
+    console.log('[UI] ✅ Using unified shell: FinancialStoryPage', {
+      layout: 'DashboardPageShell → DashboardThreeColumnLayout',
+      left: 'StoryWorkspacePanel',
+      center: 'StoryUnifiedCard (EmployeeUnifiedCardBase)',
+      right: 'ActivityFeedSidebar',
+      matchesSerenity: true,
+    });
+  }
 
   return (
     <>

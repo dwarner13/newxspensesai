@@ -21,6 +21,7 @@ function getAccentColorRgb(accentColor: string): string {
     'teal-500': '20, 184, 166', // teal-500
     'orange-500': '249, 115, 22', // orange-500
     'indigo-500': '99, 102, 241', // indigo-500
+    'blue-500': '59, 130, 246', // blue-500 (for Ledger/Tax)
     'slate-500': '100, 116, 139', // slate-500 (fallback)
   };
   return colorMap[accentColor] || colorMap['slate-500'];

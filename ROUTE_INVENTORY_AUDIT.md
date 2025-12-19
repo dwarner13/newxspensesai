@@ -107,3 +107,7 @@ Need to check:
 3. Check for auth guards that might redirect
 4. Test actual click behavior
 
+
+
+
+

@@ -56,7 +56,7 @@ export function WellnessUnifiedCard({ onExpandClick, onChatInputClick }: Wellnes
   return (
     <EmployeeUnifiedCardBase
       employeeSlug="wellness-studio"
-      primaryActionLabel="Chat with Wellness about your financial self-care"
+      primaryActionLabel="Chat with Harmony about your financial self-care"
       onPrimaryActionClick={handleChatClick}
       secondaryActions={secondaryActions}
       footerStatusText="Online 24/7"

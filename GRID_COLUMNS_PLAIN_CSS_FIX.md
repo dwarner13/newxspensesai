@@ -203,3 +203,7 @@ To verify the fix:
    - No warnings about missing grid template values
    - Visual: Center card is wide, activity feed is narrow
 
+
+
+
+

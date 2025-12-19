@@ -56,7 +56,7 @@ export function SpotifyUnifiedCard({ onExpandClick, onChatInputClick }: SpotifyU
   return (
     <EmployeeUnifiedCardBase
       employeeSlug="spotify-integration"
-      primaryActionLabel="Chat about your music integration"
+      primaryActionLabel="Chat with Wave about your music integration"
       onPrimaryActionClick={handleChatClick}
       secondaryActions={secondaryActions}
       footerStatusText="Online 24/7"

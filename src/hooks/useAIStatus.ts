@@ -41,3 +41,7 @@ export function useAIStatus(): AIStatusState {
   }, [isChatOpen, isChatWorking, runningCount]);
 }
 
+
+
+
+

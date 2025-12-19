@@ -108,9 +108,11 @@ function mapEmployeeSlugToOverride(employeeSlug?: string): 'prime' | 'byte' | 't
     'harmony-wellness': 'harmony',
     'wave-spotify': 'wave',
     'ledger-tax': 'ledger',
+    'tax-assistant': 'ledger', // Tax Assistant page uses Ledger employee
     'intelia-bi': 'intelia',
     'dash-analytics': 'dash',
     'custodian-settings': 'custodian',
+    'custodian': 'custodian',
   };
   
   return slugMap[employeeSlug] || 'prime'; // Default to prime

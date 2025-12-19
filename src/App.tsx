@@ -8,6 +8,7 @@ import AppLayout from './components/layout/AppLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import MarketingLayout from './layouts/MarketingLayout';
 import { ErrorBoundary } from './components/util/ErrorBoundary';
+import { DelayedLoadingSpinner } from './components/ui/DelayedLoadingSpinner';
 
 import { AudioProvider } from './contexts/AudioContext';
 import { PersonalPodcastProvider } from './contexts/PersonalPodcastContext';
@@ -15,9 +16,11 @@ import { AIFinancialAssistantProvider } from './contexts/AIFinancialAssistantCon
 import { UserProvider } from './contexts/UserContext';
 import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import { BossProvider } from './lib/agents/context';
+import { ProfileProvider } from './contexts/ProfileContext';
 import MobileLayoutGate from './components/layout/MobileLayoutGate';
 import MobileRevolution from './components/mobile/MobileRevolution';
 import RouteScrollReset from './components/util/RouteScrollReset';
+import OnboardingGuard from './components/auth/OnboardingGuard';
 import { isPrimeV2Enabled } from './env';
 import { DevToolsProvider } from './contexts/DevToolsContext';
 import DevPanel from './components/dev/DevPanel';
@@ -126,6 +129,10 @@ const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
 // const Settings = lazy(() => import('./pages/dashboard/Settings')); // Old import
 const SettingsPage = lazy(() => import('./pages/dashboard/SettingsPage'));
 const ProfilePage = lazy(() => import('./pages/settings/ProfilePage'));
+const PreferencesPage = lazy(() => import('./pages/settings/PreferencesPage'));
+const SecurityPage = lazy(() => import('./pages/settings/SecurityPage'));
+const OnboardingWelcomePage = lazy(() => import('./pages/onboarding/OnboardingWelcomePage'));
+const OnboardingSetupPage = lazy(() => import('./pages/onboarding/OnboardingSetupPage'));
 // const ReportsPage = lazy(() => import('./pages/ReportsPage'));
 // const Reports = lazy(() => import('./pages/dashboard/Reports'));
 // const ViewTransactionsPage = lazy(() => import('./pages/ViewTransactionsPage'));
@@ -171,46 +178,9 @@ const CrystalChat = lazy(() => import('./pages/dashboard/SpendingPredictionsPage
 // const AnalyticsChat = lazy(() => import('./pages/chat/AnalyticsChat'));
 // const SettingsChat = lazy(() => import('./pages/chat/SettingsChat'));
 
-// Loading component for Suspense fallback
+// Loading component for Suspense fallback - now uses delayed visibility to prevent flicker
 const LoadingSpinner = () => (
-  <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col items-center justify-center">
-    {/* Prime's Crown with Glow Effect */}
-    <div className="relative mb-8">
-      <div className="w-32 h-32 bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 rounded-full flex items-center justify-center shadow-2xl animate-pulse">
-        <span className="text-6xl">👑</span>
-      </div>
-      {/* Glow effect around the crown */}
-      <div className="absolute inset-0 w-32 h-32 bg-gradient-to-r from-purple-400 via-pink-400 to-orange-400 rounded-full blur-xl opacity-50 animate-pulse"></div>
-    </div>
-    
-    {/* Loading Message */}
-    <div className="text-center mb-8">
-      <h1 className="text-2xl md:text-3xl font-bold text-white mb-4">
-        Connecting to AI...
-      </h1>
-      <p className="text-lg text-white/80 max-w-md mx-auto">
-        Assembling your AI dream team under Prime's leadership
-      </p>
-    </div>
-    
-    {/* Loading Progress Bar */}
-    <div className="w-64 h-2 bg-white/20 rounded-full overflow-hidden mb-8">
-      <div className="h-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 rounded-full animate-pulse"></div>
-    </div>
-    
-    {/* Loading Stages */}
-    <div className="text-center space-y-2">
-      <div className="text-white/70 text-sm animate-pulse">
-        🔍 Initializing AI systems...
-      </div>
-      <div className="text-white/70 text-sm animate-pulse">
-        🧠 Loading financial intelligence...
-      </div>
-      <div className="text-white/70 text-sm animate-pulse">
-        👥 Assembling your AI team...
-      </div>
-    </div>
-  </div>
+  <DelayedLoadingSpinner isLoading={true} showDelayMs={350} minDisplayMs={400} />
 );
 
 // Scroll restoration component
@@ -254,6 +224,7 @@ function App() {
           <PersonalPodcastProvider>
             <AIFinancialAssistantProvider>
               <UserProvider>
+                <ProfileProvider>
                 <WorkspaceProvider>
                   <DevToolsProvider>
                     <ScrollToTop />
@@ -273,6 +244,10 @@ function App() {
                         <Route path="/signup" element={<SignupPage />} />
                         <Route path="/auth/callback" element={<AuthCallbackPage />} />
                         <Route path="/reset-password" element={<Suspense fallback={<LoadingSpinner />}><ResetPasswordPage /></Suspense>} />
+                        
+                        {/* Onboarding routes - accessible without profile_completed check */}
+                        <Route path="/onboarding/welcome" element={<Suspense fallback={<LoadingSpinner />}><OnboardingWelcomePage /></Suspense>} />
+                        <Route path="/onboarding/setup" element={<Suspense fallback={<LoadingSpinner />}><OnboardingSetupPage /></Suspense>} />
                         
                         {/* Spotify integration routes */}
                         <Route path="/callback" element={<SpotifyCallbackPage />} />
@@ -360,9 +335,10 @@ function App() {
                     
                     {/* Dashboard routes with persistent layout - Each route shows its specific page */}
                     <Route path="/dashboard" element={
-                      <MobileLayoutGate 
-                        Mobile={MobileRevolution} 
-                        Desktop={DashboardLayout}
+                      <OnboardingGuard>
+                        <MobileLayoutGate 
+                          Mobile={MobileRevolution} 
+                          Desktop={DashboardLayout}
                         mobileProps={{
                           currentView: 'dashboard',
                           onViewChange: (view: string) => console.log('View change:', view),
@@ -377,6 +353,7 @@ function App() {
                         }}
                         desktopProps={{}}
                       />
+                      </OnboardingGuard>
                     }>
                       <Route index element={<XspensesProDashboard />} />
                       
@@ -393,6 +370,8 @@ function App() {
                       <Route path="reports" element={<Suspense fallback={<LoadingSpinner />}><ReportsPage /></Suspense>} />
                       <Route path="settings" element={<Suspense fallback={<LoadingSpinner />}><SettingsPage /></Suspense>} />
                       <Route path="settings/profile" element={<Suspense fallback={<LoadingSpinner />}><ProfilePage /></Suspense>} />
+                      <Route path="settings/preferences" element={<Suspense fallback={<LoadingSpinner />}><PreferencesPage /></Suspense>} />
+                      <Route path="settings/security" element={<Suspense fallback={<LoadingSpinner />}><SecurityPage /></Suspense>} />
                       
                       {/* AI Workspace Pages */}
                       <Route path="prime-chat" element={<PrimeChatPage />} />
@@ -477,6 +456,7 @@ function App() {
                 {/* Prime chat mount moved into DashboardLayout */}
                   </DevToolsProvider>
                 </WorkspaceProvider>
+                </ProfileProvider>
               </UserProvider>
             </AIFinancialAssistantProvider>
           </PersonalPodcastProvider>

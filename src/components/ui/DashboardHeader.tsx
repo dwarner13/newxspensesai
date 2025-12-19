@@ -13,6 +13,9 @@ import { cn } from '../../lib/utils';
 import { HeaderAIStatus } from './HeaderAIStatus';
 import { CommandPalette } from './CommandPalette';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
+import { GuestModeBadge } from './GuestModeBadge';
+import { useControlCenterDrawer } from '../settings/ControlCenterDrawer';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface DashboardHeaderProps {
   customTitle?: string;
@@ -21,7 +24,7 @@ interface DashboardHeaderProps {
 }
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  '/dashboard': { title: 'FinTech Entertainment Platform', subtitle: 'Welcome back, John! Here\'s your financial overview.' },
+  '/dashboard': { title: 'FinTech Entertainment Platform', subtitle: 'Welcome back! Here\'s your financial overview.' },
   '/dashboard/overview': { title: 'Overview', subtitle: 'Preview shell for your financial overview. Coming soon: AI-powered trend analysis and insights.' },
   '/dashboard/planning': { title: 'Planning', subtitle: 'Plan ahead with AI-powered forecasts, goals, and what-if scenarios.' },
   '/dashboard/analytics': { title: 'Analytics', subtitle: 'Preview shell for comprehensive financial analytics. Coming soon: Interactive charts and AI-powered insights.' },
@@ -40,14 +43,14 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard/spending-predictions': { title: 'Spending Predictions', subtitle: 'Predict and analyze your spending patterns.' },
   '/dashboard/debt-payoff-planner': { title: 'Debt Payoff Planner', subtitle: 'Plan and track your debt payoff strategy.' },
   '/dashboard/ai-financial-freedom': { title: 'AI Financial Freedom', subtitle: 'Achieve financial independence with AI guidance.' },
-  '/dashboard/bill-reminders': { title: 'Bill Reminder System', subtitle: 'Never miss a payment with smart reminders.' },
+  '/dashboard/bill-reminders': { title: 'Chime — Bill Reminders', subtitle: 'Never miss a bill again — Chime keeps you on time and in control.' },
   '/dashboard/podcast': { title: 'Personal Podcast', subtitle: 'Your personalized financial podcast.' },
-  '/dashboard/financial-story': { title: 'Financial Story', subtitle: 'Your financial journey visualized.' },
-  '/dashboard/financial-therapist': { title: 'AI Financial Therapist', subtitle: 'Get emotional support for financial decisions.' },
-  '/dashboard/wellness-studio': { title: 'Wellness Studio', subtitle: 'Mindful money management and wellness.' },
-  '/dashboard/spotify': { title: 'Spotify Integration', subtitle: 'Connect your music and financial wellness.' },
-  '/dashboard/spotify-integration': { title: 'Spotify Integration', subtitle: 'Connect your music and financial wellness.' },
-  '/dashboard/tax-assistant': { title: 'Tax Assistant', subtitle: 'AI-powered tax preparation and planning.' },
+  '/dashboard/financial-story': { title: 'The Roundtable — Financial Story', subtitle: 'Turn your financial journey into a story — milestones, insights, and weekly highlights.' },
+  '/dashboard/financial-therapist': { title: 'Serenity — Financial Therapist', subtitle: 'Emotional support for money decisions — reduce stress and build healthier habits.' },
+  '/dashboard/wellness-studio': { title: 'Harmony — Wellness Studio', subtitle: 'Mindful money practices to balance your financial health and reduce stress.' },
+  '/dashboard/spotify': { title: 'Wave — Spotify Integration', subtitle: 'Connect your music to your workflow — playlists, focus, and motivation.' },
+  '/dashboard/spotify-integration': { title: 'Wave — Spotify Integration', subtitle: 'Connect your music to your workflow — playlists, focus, and motivation.' },
+  '/dashboard/tax-assistant': { title: 'Ledger — Tax Assistant', subtitle: 'Maximize deductions and minimize tax stress — guidance and organization.' },
   '/dashboard/business-intelligence': { title: 'Business Intelligence', subtitle: 'Advanced analytics for your business.' },
   '/dashboard/settings': { title: 'Settings', subtitle: 'Customize your dashboard preferences.' },
 };
@@ -120,6 +123,8 @@ const tabs = [
 export default function DashboardHeader({ customTitle, customSubtitle }: DashboardHeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { openDrawer } = useControlCenterDrawer();
+  const { firstName } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -154,8 +159,8 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
       .find(p => location.pathname.startsWith(p));
     return match
       ? pageTitles[match]
-      : { title: 'FinTech Entertainment Platform', subtitle: 'Welcome back, John! Here\'s your financial overview.' };
-  }, [customTitle, customSubtitle, location.pathname]);
+      : { title: 'FinTech Entertainment Platform', subtitle: `Welcome back, ${firstName || 'there'}! Here's your financial overview.` };
+  }, [customTitle, customSubtitle, location.pathname, firstName]);
 
   // Determine active tab
   const activeTabId = useMemo(() => {
@@ -198,7 +203,7 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
         "w-full border-b border-slate-800/60 bg-slate-950/80 backdrop-blur sticky top-0 z-30"
       )}
     >
-      <div className="mx-auto w-full max-w-6xl px-6 py-4 flex flex-col gap-4 pr-24 md:pr-28 min-w-0">
+      <div className="mx-auto w-full max-w-6xl px-6 py-4 flex flex-col gap-3 min-w-0">
         {/* Row 1: Title + subtitle + search + utilities */}
         <div className="flex items-center gap-4 min-w-0 w-full">
           {/* Left: title + subtitle */}
@@ -215,9 +220,9 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
             </div>
           </div>
 
-          {/* Center: search - takes remaining space */}
-          <div className="hidden md:flex min-w-0 flex-1">
-            <div className="w-full min-w-0 max-w-[260px] flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-3 py-1.5 mr-3">
+          {/* Center: search - smaller, unified with icon cluster */}
+          <div className="hidden md:flex min-w-0 flex-1 justify-center">
+            <div className="w-full min-w-0 max-w-[320px] flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/60 px-4 h-10">
               <Search className="w-4 h-4 text-slate-500 flex-shrink-0" />
               <input
                 type="text"
@@ -233,7 +238,7 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
           </div>
 
           {/* Right: icons */}
-          <div className="flex items-center gap-3 flex-none">
+          <div className="flex items-center gap-3 flex-none shrink-0">
             {/* Command Palette Button */}
             <TooltipProvider>
               <Tooltip>
@@ -367,10 +372,13 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
             )}
           </div>
 
-          {/* Profile Icon with Dropdown */}
+          {/* Profile Icon - Opens Control Center Drawer */}
           <div className="relative" ref={profileRef}>
             <button 
-              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              onClick={() => {
+                setIsProfileOpen(false);
+                openDrawer('profile');
+              }}
               className="h-10 w-10 rounded-full border border-slate-800 bg-slate-900/80 flex items-center justify-center text-slate-100 hover:bg-slate-800/80 hover:border-slate-700 transition group"
               aria-label="Profile menu"
             >
@@ -378,36 +386,23 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
                 <User className="w-3 h-3 text-white" />
               </div>
             </button>
-
-            {/* Profile Dropdown Menu */}
-            {isProfileOpen && (
-              <div className="absolute right-0 top-full mt-2 w-48 bg-[#0f172a]/95 backdrop-blur-md border border-purple-500/20 rounded-xl shadow-2xl z-50">
-                <div className="p-2">
-                  <div className="px-3 py-2 border-b border-purple-500/20 mb-2">
-                    <div className="text-sm font-medium text-white">John Doe</div>
-                    <div className="text-xs text-slate-400">Premium Plan</div>
-                  </div>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200">
-                    <Settings className="w-4 h-4" />
-                    <span className="text-sm">Account Settings</span>
-                  </button>
-                  <div className="border-t border-purple-500/20 my-1"></div>
-                  <button className="w-full flex items-center gap-3 px-3 py-2 text-slate-300 hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-all duration-200">
-                    <LogOut className="w-4 h-4" />
-                    <span className="text-sm">Sign Out</span>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
           </div>
         </div>
 
-        {/* Row 2: Tabs + AI Active indicator */}
-        <div className="flex items-center gap-4 min-w-0 w-full pr-[96px]">
+        {/* Row 2: Tabs + Status pills (Guest Mode + AI Active + 24/7) */}
+        {/* Flex-wrap ensures status pills wrap below tabs on narrow screens instead of overlapping */}
+        <div className="flex items-center justify-between gap-4 min-w-0 w-full flex-wrap">
           {/* Left: main tabs - scrollable container */}
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap no-scrollbar">
+          <div className="min-w-0 flex-1 overflow-hidden shrink-0">
+            <div 
+              className="flex items-center gap-2 overflow-x-auto whitespace-nowrap no-scrollbar"
+              style={{
+                scrollbarWidth: 'none' as const,
+                msOverflowStyle: 'none' as const,
+                WebkitOverflowScrolling: 'touch' as const
+              }}
+            >
               {tabs.map((tab) => {
                 const isActive = tab.id === activeTabId;
                 return (
@@ -431,8 +426,10 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
             </div>
           </div>
           
-          {/* Right: AI Active indicator */}
-          <div className="flex items-center gap-2 flex-none">
+          {/* Right: Status pills (Guest Mode + AI Active) - wraps below tabs on narrow screens */}
+          {/* pr-[var(--rail-space,96px)] ensures safe spacing from floating rail on desktop */}
+          <div className="flex items-center gap-3 flex-none shrink-0 justify-end pr-[var(--rail-space,96px)] md:pr-[var(--rail-space,112px)]">
+            <GuestModeBadge />
             <HeaderAIStatus />
           </div>
         </div>

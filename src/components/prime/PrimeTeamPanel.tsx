@@ -84,10 +84,10 @@ const PRIME_EMPLOYEES: PrimeEmployee[] = [
   },
   {
     id: 'blitz',
-    name: 'Blitz',
+    name: 'Spark',
     slug: 'blitz-debt',
-    role: 'Debt Payoff AI',
-    emoji: '⚡',
+    role: 'Debt Payoff & Savings',
+    emoji: '🔥',
     status: 'busy',
     lastTask: 'Analyzing debt consolidation options',
     lastUpdated: '3 min ago',

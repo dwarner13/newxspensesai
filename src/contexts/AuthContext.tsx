@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useMemo } fr
 import { useNavigate } from 'react-router-dom';
 // import { toast } from 'react-hot-toast'; // Temporarily disabled for debugging
 import { getSupabase } from '../lib/supabase';
+import { isDemoMode, getGuestSession, createGuestUser, clearGuestSession } from '../lib/demoAuth';
 
 interface AuthContextType {
   user: any;
@@ -20,8 +21,39 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Check if demo mode is allowed
+ * Demo mode is ONLY allowed in:
+ * 1. Local development (import.meta.env.DEV === true)
+ * 2. When explicitly forced (VITE_FORCE_DEMO === 'true')
+ * 
+ * In staging/production, demo mode is DISABLED - users must use real auth
+ */
+function isDemoAllowed(): boolean {
+  // Allow demo in dev mode
+  if (import.meta.env.DEV === true) {
+    return true;
+  }
+  // Allow demo if explicitly forced (for testing)
+  if (import.meta.env.VITE_FORCE_DEMO === 'true') {
+    return true;
+  }
+  // Disable demo in staging/production
+  return false;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const DEMO_USER_ID = import.meta.env.VITE_DEMO_USER_ID || "00000000-0000-4000-8000-000000000001";
+  const demoAllowed = isDemoAllowed();
+  
+  // Dev-only logging
+  if (import.meta.env.DEV) {
+    console.log('[AuthContext] Environment:', {
+      mode: import.meta.env.DEV ? 'dev' : 'production',
+      demoEnabled: demoAllowed,
+      forceDemo: import.meta.env.VITE_FORCE_DEMO === 'true',
+    });
+  }
   
   const [user, setUser] = useState<any>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -53,16 +85,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const checkSession = async () => {
       try {
+        // ========================================================================
+        // STEP 1: Check for guest session (demo mode only)
+        // ========================================================================
+        if (isDemoMode()) {
+          const guestSession = getGuestSession();
+          if (guestSession) {
+            const guestUser = createGuestUser();
+            console.log('🔍 AuthContext: Guest session found - using guest user', guestSession.demo_user_id);
+            setUserId(guestSession.demo_user_id);
+            setUser(guestUser);
+            setSession(null); // No Supabase session for guest
+            setIsDemoUser(true);
+            setProfile(null);
+            setLoading(false);
+            setInitialLoad(false);
+            setReady(true);
+            return;
+          }
+        }
+        
         const supabase = getSupabase();
         
         if (!supabase) {
-          // No Supabase - use demo user
-          console.log('🔍 AuthContext: No Supabase configured - using demo user', DEMO_USER_ID);
-          setUserId(DEMO_USER_ID);
-          setUser(null);
-          setSession(null);
-          setIsDemoUser(true);
-          setProfile(null);
+          // No Supabase configured
+          if (demoAllowed) {
+            // Dev mode - use demo user
+            console.log('🔍 AuthContext: No Supabase configured - using demo user (dev mode)', DEMO_USER_ID);
+            setUserId(DEMO_USER_ID);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(true);
+            setProfile(null);
+          } else {
+            // Staging/prod - require real auth, no demo fallback
+            console.log('🔍 AuthContext: No Supabase configured - requiring real auth (no demo fallback)');
+            setUserId(null);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(false);
+            setProfile(null);
+          }
           setLoading(false);
           setInitialLoad(false);
           setReady(true);
@@ -74,8 +137,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (currentSession?.user?.id) {
           // Real user logged in
+          const userId = currentSession.user.id;
+          if (import.meta.env.DEV) {
+            console.log('[AuthContext] User ID source: real auth', {
+              userId,
+              email: currentSession.user.email,
+              mode: import.meta.env.DEV ? 'dev' : 'production',
+            });
+          }
           console.log('🔍 AuthContext: Logged in as', currentSession.user.email);
-          setUserId(currentSession.user.id);
+          setUserId(userId);
           setUser(currentSession.user);
           setSession(currentSession);
           setIsDemoUser(false);
@@ -84,6 +155,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             const userId = currentSession.user.id;
             const userEmail = currentSession.user.email || '';
+            
+            if (import.meta.env.DEV) {
+              console.log('[AuthContext] 📊 Fetching profile', { userId, email: userEmail });
+            }
             
             // Try to load existing profile
             const { data: profileData, error: selectError } = await supabase
@@ -94,10 +169,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             if (profileData) {
               // Profile exists, use it
+              if (import.meta.env.DEV) {
+                console.log('[AuthContext] ✅ Profile loaded', {
+                  id: profileData.id,
+                  display_name: profileData.display_name,
+                  full_name: profileData.full_name,
+                  plan: profileData.plan,
+                  role: profileData.role,
+                  level: profileData.level,
+                });
+              }
               setProfile(profileData);
             } else {
               // Profile missing, create it
-              console.log('🔍 AuthContext: Profile missing, creating new profile for user:', userId);
+              if (import.meta.env.DEV) {
+                console.log('[AuthContext] ⚠️ Profile missing, creating new profile', { userId, email: userEmail });
+              }
               const displayName = currentSession.user.user_metadata?.full_name 
                 || currentSession.user.user_metadata?.name 
                 || userEmail.split('@')[0] 
@@ -116,33 +203,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .single();
               
               if (insertError) {
-                console.error('❌ AuthContext: Failed to create profile:', insertError);
+                console.error('[AuthContext] ❌ Failed to create profile:', insertError);
                 setProfile(null);
               } else {
-                console.log('✅ AuthContext: Profile created successfully');
+                if (import.meta.env.DEV) {
+                  console.log('[AuthContext] ✅ Profile created successfully', {
+                    id: newProfile.id,
+                    display_name: newProfile.display_name,
+                    plan: newProfile.plan,
+                  });
+                }
                 setProfile(newProfile);
               }
             }
           } catch (profileError) {
-            console.warn('🔍 AuthContext: Could not load/create profile:', profileError);
+            console.warn('[AuthContext] ⚠️ Could not load/create profile:', profileError);
             setProfile(null);
           }
         } else {
-          // No session - use demo user
-          console.log('🔍 AuthContext: No session - using demo user', DEMO_USER_ID);
+          // No session found
+          if (demoAllowed) {
+            // Dev mode - use demo user
+            if (import.meta.env.DEV) {
+              console.log('[AuthContext] User ID source: demo user (dev mode)', {
+                userId: DEMO_USER_ID,
+                mode: 'dev',
+                demoEnabled: true,
+              });
+            }
+            console.log('🔍 AuthContext: No session - using demo user (dev mode)', DEMO_USER_ID);
+            setUserId(DEMO_USER_ID);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(true);
+            setProfile(null);
+          } else {
+            // Staging/prod - no session means user must log in (no demo fallback)
+            if (import.meta.env.DEV) {
+              console.log('[AuthContext] User ID source: null (staging/prod, no demo)', {
+                userId: null,
+                mode: 'production',
+                demoEnabled: false,
+              });
+            }
+            console.log('🔍 AuthContext: No session - user must log in (no demo fallback)');
+            setUserId(null);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(false);
+            setProfile(null);
+          }
+        }
+      } catch (error) {
+        console.error('❌ AuthContext: Error checking session:', error);
+        // On error, only use demo user if allowed
+        if (demoAllowed) {
           setUserId(DEMO_USER_ID);
           setUser(null);
           setSession(null);
           setIsDemoUser(true);
-          setProfile(null);
+        } else {
+          // Staging/prod - on error, require login (no demo fallback)
+          setUserId(null);
+          setUser(null);
+          setSession(null);
+          setIsDemoUser(false);
         }
-      } catch (error) {
-        console.error('❌ AuthContext: Error checking session:', error);
-        // On error, use demo user
-        setUserId(DEMO_USER_ID);
-        setUser(null);
-        setSession(null);
-        setIsDemoUser(true);
       } finally {
         setLoading(false);
         setInitialLoad(false);
@@ -157,11 +283,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       const supabase = getSupabase();
-      // In mock mode, supabase is null – short-circuit to demo user.
+      // In mock mode, supabase is null
       if (!supabase) {
-        setUser({ id: DEMO_USER_ID, email: "demo@xspensesai.local" });
-        setUserId(DEMO_USER_ID);
-        setIsDemoUser(true);
+        if (demoAllowed) {
+          // Dev mode - use demo user
+          setUser({ id: DEMO_USER_ID, email: "demo@xspensesai.local" });
+          setUserId(DEMO_USER_ID);
+          setIsDemoUser(true);
+        } else {
+          // Staging/prod - require real auth
+          setUser(null);
+          setUserId(null);
+          setIsDemoUser(false);
+        }
         setLoading(false);
         setInitialLoad(false);
         setReady(true);
@@ -237,11 +371,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               break;
               
             case 'SIGNED_OUT':
-              console.log('🔍 AuthContext: User signed out - switching to demo user');
-              setUserId(DEMO_USER_ID);
-              setUser(null);
-              setSession(null);
-              setIsDemoUser(true);
+              console.log('🔍 AuthContext: User signed out');
+              if (demoAllowed) {
+                // Dev mode - switch to demo user
+                setUserId(DEMO_USER_ID);
+                setUser(null);
+                setSession(null);
+                setIsDemoUser(true);
+              } else {
+                // Staging/prod - clear user, require login (no demo fallback)
+                setUserId(null);
+                setUser(null);
+                setSession(null);
+                setIsDemoUser(false);
+              }
               setProfile(null);
               setLoading(false);
               setInitialLoad(false);
@@ -383,22 +526,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔍 AuthContext: Signing out user...');
 
+      // Clear Supabase session if exists
       const supabase = getSupabase();
       if (supabase?.auth) {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
       }
 
-      // Switch to demo user after sign out
-      setUserId(DEMO_USER_ID);
+      // Clear ALL guest/demo localStorage keys
+      try {
+        // Guest session
+        localStorage.removeItem('xspensesai_guest_session');
+        // Guest profile
+        localStorage.removeItem('xai_profile_guest');
+        // Guest preferences
+        localStorage.removeItem('xai_prefs_guest');
+        // Any other demo-related keys
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('guest') || key.includes('demo') || key.includes('xai_'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log('✅ Cleared all guest/demo localStorage keys');
+      } catch (storageError) {
+        console.warn('⚠️ AuthContext: Failed to clear some localStorage keys:', storageError);
+      }
+
+      // Clear user state
+      setUserId(null);
       setUser(null);
       setSession(null);
-      setIsDemoUser(true);
-      sessionStorage.removeItem('xspensesai-intended-path');
-      console.log('✅ Signed out successfully - switched to demo user');
+      setIsDemoUser(false);
+      setProfile(null);
+      console.log('✅ Signed out successfully');
       
-      // Stay on current page (demo mode) instead of navigating to login
-      // If you want to force login page: navigate('/login', { replace: true });
+      // Clear session storage
+      sessionStorage.removeItem('xspensesai-intended-path');
+      
+      // Navigate to login page
+      navigate('/login', { replace: true });
     } catch (error) {
       console.error('❌ AuthContext: Logout error:', error);
       throw error;

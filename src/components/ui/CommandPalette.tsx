@@ -299,3 +299,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   return createPortal(modalContent, document.body);
 }
 
+
+
+
+

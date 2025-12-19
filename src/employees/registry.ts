@@ -166,6 +166,7 @@ export async function resolveSlug(inputSlug: string): Promise<string> {
         'liberty': 'liberty-ai',
         'liberty-freedom': 'liberty-ai',
         'chime': 'chime-ai',
+        'custodian': 'custodian',
       };
       return aliasMap[inputSlug] || 'prime-boss';
     }
@@ -223,6 +224,9 @@ export async function resolveSlug(inputSlug: string): Promise<string> {
     
     // Ledger aliases
     'ledger': 'ledger-tax',
+    
+    // Custodian aliases
+    'custodian': 'custodian',
   };
   
   return aliasMap[inputSlug] || 'prime-boss';

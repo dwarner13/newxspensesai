@@ -58,6 +58,24 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
     setMessages(prev => [...prev, assistantMessage]);
     
     try {
+      // Check if guest mode - return mock response
+      // Use dynamic import to avoid circular dependencies
+      const demoAuthModule = await import('../../lib/demoAuth');
+      if (demoAuthModule.isDemoMode() && demoAuthModule.isGuestSession()) {
+        console.log('[useStreamChat] Guest mode detected - returning mock response');
+        setIsStreaming(false);
+        setIsToolExecuting(false);
+        setCurrentTool(null);
+        
+        // Update assistant message with mock response
+        setMessages(prev => prev.map((msg, idx) => 
+          idx === prev.length - 1 && msg.role === 'assistant'
+            ? { ...msg, content: 'Guest mode is enabled. Connect Supabase/Netlify to use full AI features.', isStreaming: false }
+            : msg
+        ));
+        return;
+      }
+      
       // Create abort controller for cancellation
       abortControllerRef.current = new AbortController();
       

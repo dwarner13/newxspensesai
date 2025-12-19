@@ -9,6 +9,7 @@ import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Sliders, Shield, Send, Settings } from 'lucide-react';
 import { Button } from '../ui/button';
+import { useControlCenterDrawer } from './ControlCenterDrawer';
 
 interface SettingsUnifiedCardProps {
   onExpandClick?: () => void;
@@ -17,6 +18,7 @@ interface SettingsUnifiedCardProps {
 
 export function SettingsUnifiedCard({ onExpandClick, onChatInputClick }: SettingsUnifiedCardProps) {
   const navigate = useNavigate();
+  const { openDrawer } = useControlCenterDrawer();
   const [inputValue, setInputValue] = useState('');
 
   const handleSend = useCallback(() => {
@@ -65,7 +67,7 @@ export function SettingsUnifiedCard({ onExpandClick, onChatInputClick }: Setting
           <Button 
             variant="secondary" 
             size="default"
-            onClick={() => navigate('/dashboard/settings/profile')}
+            onClick={() => openDrawer('profile')}
             className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
           >
             <User className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
@@ -74,7 +76,7 @@ export function SettingsUnifiedCard({ onExpandClick, onChatInputClick }: Setting
           <Button 
             variant="secondary" 
             size="default"
-            onClick={onExpandClick}
+            onClick={() => openDrawer('preferences')}
             className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
           >
             <Sliders className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />
@@ -83,7 +85,7 @@ export function SettingsUnifiedCard({ onExpandClick, onChatInputClick }: Setting
           <Button 
             variant="secondary" 
             size="default"
-            onClick={onExpandClick}
+            onClick={() => openDrawer('security')}
             className="flex-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500/30 text-white text-xs sm:text-sm"
           >
             <Shield className="w-4 h-4 mr-1 sm:mr-2 flex-shrink-0" />

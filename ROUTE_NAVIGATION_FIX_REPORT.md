@@ -97,3 +97,7 @@
 2. **Check UnifiedAssistantChat** - Ensure it doesn't block clicks when closed
 3. **Monitor console** - Check for any navigation errors
 
+
+
+
+

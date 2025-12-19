@@ -147,3 +147,7 @@ If the grid template still shows `300px 236px 320px`:
 
 The inline style ensures the grid template is correct even if CSS fails to load or is overridden.
 
+
+
+
+
