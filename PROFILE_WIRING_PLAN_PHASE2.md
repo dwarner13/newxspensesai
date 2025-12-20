@@ -308,3 +308,5 @@ await supabase.from('profiles').upsert({
 
 **Total**: ~2.5 hours for core implementation
 
+
+

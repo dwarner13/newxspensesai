@@ -83,6 +83,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return raw.split(' ')[0];
   }, [profile, user]);
 
+  // Non-blocking profile loader - fire-and-forget, never gates auth init
+  const loadProfile = useCallback(async (uid: string, userEmail?: string) => {
+    setIsProfileLoading(true);
+    try {
+      const profile = await getOrCreateProfile(uid, userEmail || '');
+      setProfile(profile ?? null);
+    } catch (e) {
+      console.warn('[AuthContext] Profile load failed', e);
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, []);
+
   // Refresh profile function - reloads profile from database
   const refreshProfile = useCallback(async () => {
     if (!userId || !user?.email) {
@@ -105,9 +118,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   console.log('AuthProvider render:', { user: !!user, userId, loading, initialLoad, ready, isDemoUser});
 
   useEffect(() => {
-    console.log('🔍 AuthContext: Checking Supabase session...');
-    
-    const checkSession = async () => {
+    let alive = true;
+    const safe = (fn: () => void) => alive && fn();
+
+    const finish = () =>
+      safe(() => {
+        setLoading(false);
+        setInitialLoad(false);
+        setReady(true);
+      });
+
+    (async () => {
+      const timeout = setTimeout(() => {
+        console.warn('[AuthContext] Safety timeout triggered');
+        finish();
+      }, 8000);
+
       try {
         // ========================================================================
         // STEP 1: Check for guest session (demo mode only)
@@ -117,18 +143,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (guestSession) {
             const guestUser = createGuestUser();
             console.log('🔍 AuthContext: Guest session found - using guest user', guestSession.demo_user_id);
-            setUserId(guestSession.demo_user_id);
-            setUser(guestUser);
-            setSession(null); // No Supabase session for guest
-            setIsDemoUser(true);
-            setProfile(null);
-            setLoading(false);
-            setInitialLoad(false);
-            setReady(true);
+            safe(() => {
+              setUserId(guestSession.demo_user_id);
+              setUser(guestUser);
+              setSession(null); // No Supabase session for guest
+              setIsDemoUser(true);
+              setProfile(null);
+            });
+            clearTimeout(timeout);
+            finish();
             return;
           }
         }
-        
+
+        console.log('[AuthContext] Checking Supabase session...');
         const supabase = getSupabase();
         
         if (!supabase) {
@@ -136,28 +164,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (demoAllowed) {
             // Dev mode - use demo user
             console.log('🔍 AuthContext: No Supabase configured - using demo user (dev mode)', DEMO_USER_ID);
-            setUserId(DEMO_USER_ID);
-            setUser(null);
-            setSession(null);
-            setIsDemoUser(true);
-            setProfile(null);
+            safe(() => {
+              setUserId(DEMO_USER_ID);
+              setUser(null);
+              setSession(null);
+              setIsDemoUser(true);
+              setProfile(null);
+            });
           } else {
             // Staging/prod - require real auth, no demo fallback
             console.log('🔍 AuthContext: No Supabase configured - requiring real auth (no demo fallback)');
-            setUserId(null);
-            setUser(null);
-            setSession(null);
-            setIsDemoUser(false);
-            setProfile(null);
+            safe(() => {
+              setUserId(null);
+              setUser(null);
+              setSession(null);
+              setIsDemoUser(false);
+              setProfile(null);
+            });
           }
-          setLoading(false);
-          setInitialLoad(false);
-          setReady(true);
+          clearTimeout(timeout);
+          finish();
           return;
         }
-        
-        // Check for existing session
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+
+        const { data, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.warn('[AuthContext] getSession error', error);
+        }
+
+        const currentSession = data?.session;
         
         if (currentSession?.user?.id) {
           // Real user logged in
@@ -170,27 +206,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
           }
           console.log('🔍 AuthContext: Logged in as', currentSession.user.email);
-          setUserId(userId);
-          setUser(currentSession.user);
-          setSession(currentSession);
-          setIsDemoUser(false);
-          
-          // Load user profile, create if missing
-          setIsProfileLoading(true);
-          try {
-            const userId = currentSession.user.id;
-            const userEmail = currentSession.user.email || '';
-            
-            const profileData = await getOrCreateProfile(userId, userEmail);
-            setProfile(profileData);
-          } catch (profileError) {
-            if (import.meta.env.DEV) {
-              console.error('[AuthContext] ❌ Profile loading failed:', profileError);
-            }
-            setProfile(null);
-          } finally {
-            setIsProfileLoading(false);
-          }
+          safe(() => {
+            setUserId(userId);
+            setUser(currentSession.user);
+            setSession(currentSession);
+            setIsDemoUser(false);
+          });
+
+          // Fire-and-forget profile load
+          void loadProfile(userId, currentSession.user.email || undefined);
         } else {
           // No session found
           if (demoAllowed) {
@@ -203,11 +227,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               });
             }
             console.log('🔍 AuthContext: No session - using demo user (dev mode)', DEMO_USER_ID);
-            setUserId(DEMO_USER_ID);
-            setUser(null);
-            setSession(null);
-            setIsDemoUser(true);
-            setProfile(null);
+            safe(() => {
+              setUserId(DEMO_USER_ID);
+              setUser(null);
+              setSession(null);
+              setIsDemoUser(true);
+              setProfile(null);
+            });
           } else {
             // Staging/prod - no session means user must log in (no demo fallback)
             if (import.meta.env.DEV) {
@@ -218,160 +244,117 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               });
             }
             console.log('🔍 AuthContext: No session - user must log in (no demo fallback)');
+            safe(() => {
+              setUserId(null);
+              setUser(null);
+              setSession(null);
+              setIsDemoUser(false);
+              setProfile(null);
+            });
+          }
+        }
+
+      } catch (e) {
+        console.warn('[AuthContext] bootstrap threw', e);
+        // On error, only use demo user if allowed
+        if (demoAllowed) {
+          safe(() => {
+            setUserId(DEMO_USER_ID);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(true);
+            setProfile(null);
+          });
+        } else {
+          // Staging/prod - on error, require login (no demo fallback)
+          safe(() => {
             setUserId(null);
             setUser(null);
             setSession(null);
             setIsDemoUser(false);
             setProfile(null);
-          }
-        }
-      } catch (error) {
-        console.error('❌ AuthContext: Error checking session:', error);
-        // On error, only use demo user if allowed
-        if (demoAllowed) {
-          setUserId(DEMO_USER_ID);
-          setUser(null);
-          setSession(null);
-          setIsDemoUser(true);
-        } else {
-          // Staging/prod - on error, require login (no demo fallback)
-          setUserId(null);
-          setUser(null);
-          setSession(null);
-          setIsDemoUser(false);
+          });
         }
       } finally {
-        setLoading(false);
-        setInitialLoad(false);
-        setReady(true);
+        clearTimeout(timeout);
+        finish();
       }
-    };
+    })();
 
-    checkSession();
-
-    // Set up auth state change listener
-    let subscription: any = null;
-    
-    try {
-      const supabase = getSupabase();
-      // In mock mode, supabase is null
-      if (!supabase) {
-        if (demoAllowed) {
-          // Dev mode - use demo user
+    const supabase = getSupabase();
+    if (!supabase) {
+      if (demoAllowed) {
+        // Dev mode - use demo user
+        safe(() => {
           setUser({ id: DEMO_USER_ID, email: "demo@xspensesai.local" });
           setUserId(DEMO_USER_ID);
           setIsDemoUser(true);
-        } else {
-          // Staging/prod - require real auth
+        });
+      } else {
+        // Staging/prod - require real auth
+        safe(() => {
           setUser(null);
           setUserId(null);
           setIsDemoUser(false);
-        }
-        setLoading(false);
-        setInitialLoad(false);
-        setReady(true);
-        return;
+        });
       }
-      const { data } = supabase.auth.onAuthStateChange(
-        async (event: string, authSession: any) => {
-          console.log('🔍 AuthContext: Auth state change:', event, authSession?.user?.email);
-          
-          switch (event) {
-            case 'SIGNED_IN':
-              console.log('🔍 AuthContext: User signed in');
-              if (authSession?.user?.id) {
-                setUserId(authSession.user.id);
-                setUser(authSession.user);
-                setSession(authSession);
-                setIsDemoUser(false);
-                
-                // Load user profile, create if missing
-                const supabase = getSupabase();
-                if (supabase) {
-                  try {
-                    const userId = authSession.user.id;
-                    const userEmail = authSession.user.email || '';
-                    
-                    setIsProfileLoading(true);
-                    const profileData = await getOrCreateProfile(userId, userEmail);
-                    setProfile(profileData);
-                    setIsProfileLoading(false);
-                  } catch (profileError) {
-                    if (import.meta.env.DEV) {
-                      console.warn('[AuthContext] Could not load/create profile:', profileError);
-                    }
-                    setProfile(null);
-                    setIsProfileLoading(false);
-                  }
-                }
-              }
-              setLoading(false);
-              setInitialLoad(false);
-              setReady(true);
-              break;
-              
-            case 'SIGNED_OUT':
-              console.log('🔍 AuthContext: User signed out');
-              if (demoAllowed) {
-                // Dev mode - switch to demo user
-                setUserId(DEMO_USER_ID);
-                setUser(null);
-                setSession(null);
-                setIsDemoUser(true);
-              } else {
-                // Staging/prod - clear user, require login (no demo fallback)
-                setUserId(null);
-                setUser(null);
-                setSession(null);
-                setIsDemoUser(false);
-              }
-              setProfile(null);
-              setLoading(false);
-              setInitialLoad(false);
-              setReady(true);
-              break;
-              
-            case 'TOKEN_REFRESHED':
-              console.log('🔍 AuthContext: Token refreshed');
-              if (authSession?.user?.id) {
-                setUserId(authSession.user.id);
-                setUser(authSession.user);
-                setSession(authSession);
-              }
-              break;
-              
-            case 'USER_UPDATED':
-              console.log('🔍 AuthContext: User updated');
-              if (authSession?.user?.id) {
-                setUserId(authSession.user.id);
-                setUser(authSession.user);
-                setSession(authSession);
-              }
-              break;
-              
-            case 'INITIAL_SESSION':
-              console.log('🔍 AuthContext: Initial session event');
-              // Handle initial session - don't change state, just log
-              break;
-              
-            default:
-              console.log('🔍 AuthContext: Unhandled auth event:', event);
-          }
-        }
-      );
-      subscription = data.subscription;
-    } catch (error) {
-      console.error('❌ AuthContext: Failed to set up auth listener:', error);
+      finish();
+      return () => {
+        alive = false;
+      };
     }
 
-    // Cleanup function
-    return () => {
-      console.log('🔍 AuthContext: Cleaning up auth context...');
-      if (subscription) {
-        subscription?.unsubscribe?.();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('[AuthContext] Auth state change:', _event);
+
+      safe(() => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setUserId(session?.user?.id ?? null);
+      });
+
+      // Fire-and-forget profile load
+      if (session?.user?.id) {
+        void loadProfile(session.user.id, session.user.email || undefined);
       }
+
+      // Handle demo mode logic for SIGNED_OUT
+      if (_event === 'SIGNED_OUT') {
+        console.log('🔍 AuthContext: User signed out');
+        if (demoAllowed) {
+          // Dev mode - switch to demo user
+          safe(() => {
+            setUserId(DEMO_USER_ID);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(true);
+            setProfile(null);
+          });
+        } else {
+          // Staging/prod - clear user, require login (no demo fallback)
+          safe(() => {
+            setUserId(null);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(false);
+            setProfile(null);
+          });
+        }
+      } else if (_event === 'SIGNED_IN') {
+        console.log('🔍 AuthContext: User signed in');
+        safe(() => {
+          setIsDemoUser(false);
+        });
+      }
+
+      finish();
+    });
+
+    return () => {
+      alive = false;
+      sub?.subscription?.unsubscribe?.();
     };
-  }, [navigate]);
+  }, [navigate, demoAllowed, DEMO_USER_ID, loadProfile]);
 
   const signInWithGoogle = async () => {
     try {
