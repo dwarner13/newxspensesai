@@ -183,7 +183,8 @@ export async function deleteUserData(userId: string): Promise<Result<void>> {
       }
     } catch (storageError) {
       // Silently ignore storage errors - files may not exist or bucket may not exist
-      if (import.meta.env.DEV) {
+      // Use process.env for server-safe DEV detection (no import.meta in CJS)
+      if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV !== 'production') {
         console.warn('[deleteUserData] Storage deletion error (non-critical):', storageError);
       }
     }
