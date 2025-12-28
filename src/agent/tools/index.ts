@@ -47,6 +47,9 @@ import * as chimeListObligations from './impl/chime_list_obligations';
 import * as chimeListUpcomingNotifications from './impl/chime_list_upcoming_notifications';
 import * as chimeDraftNotificationCopy from './impl/chime_draft_notification_copy';
 import * as chimeGenerateNotification from './impl/chime_generate_notification';
+import * as getRecentDocuments from './impl/get_recent_documents';
+import * as getDocumentById from './impl/get_document_by_id';
+import * as getTransactionsByDocument from './impl/get_transactions_by_document';
 import { OpenAIToolDef } from '../../server/ai/openai';
 
 export interface ToolModule {
@@ -623,6 +626,39 @@ const toolModules: Map<string, ToolModule> = new Map([
     meta: {
       timeout: 10000,
       rateLimit: { perMinute: 50 },
+    },
+  }],
+  ['get_recent_documents', {
+    id: 'get_recent_documents',
+    description: 'Get recent documents uploaded by the user. Returns metadata (name, status, dates) but NOT raw OCR text. Use when Prime needs to show the user their latest uploads or imports. For full OCR text, use get_document_by_id instead.',
+    inputSchema: getRecentDocuments.inputSchema,
+    outputSchema: getRecentDocuments.outputSchema,
+    run: getRecentDocuments.execute,
+    meta: {
+      timeout: 10000,
+      rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['get_document_by_id', {
+    id: 'get_document_by_id',
+    description: 'Get a specific document by ID, including redacted OCR text. Use when Byte needs to summarize or analyze a specific document. The OCR text is already redacted (PII masked) by guardrails, so it\'s safe to include.',
+    inputSchema: getDocumentById.inputSchema,
+    outputSchema: getDocumentById.outputSchema,
+    run: getDocumentById.execute,
+    meta: {
+      timeout: 10000,
+      rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['get_transactions_by_document', {
+    id: 'get_transactions_by_document',
+    description: 'Get transactions linked to a specific document. Use when Tag needs to categorize transactions from a specific upload, or when Prime needs to show transaction details for a document.',
+    inputSchema: getTransactionsByDocument.inputSchema,
+    outputSchema: getTransactionsByDocument.outputSchema,
+    run: getTransactionsByDocument.execute,
+    meta: {
+      timeout: 15000,
+      rateLimit: { perMinute: 30 },
     },
   }],
 ]);

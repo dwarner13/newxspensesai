@@ -390,13 +390,13 @@ const AIEmployees = () => {
     {
       id: 'custodian',
       name: 'Custodian',
-      avatar: '🔐',
-      bio: 'Security, privacy, and preferences—Custodian keeps your account in perfect order.',
-      expertise: 'Settings',
-      proTip: 'Your account security is my priority!',
+      avatar: '🛡️',
+      bio: 'Security and integrity authority. Ensures account security, maintains data integrity, and manages preferences so Prime and the team can deliver trustworthy insights.',
+      expertise: 'Security & Integrity',
+      proTip: 'Security and accuracy are foundational to trustworthy insights.',
       feature: 'Settings',
-      color: 'from-gray-500 to-slate-600',
-      department: 'Security & Privacy',
+      color: 'from-emerald-500 to-teal-600',
+      department: 'Security & Integrity',
       superpower: 'Bank-Level Security'
     },
     {

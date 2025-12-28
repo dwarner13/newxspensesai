@@ -203,11 +203,15 @@ export async function isProfileComplete(): Promise<boolean> {
     
     const { data: profile } = await supabase
       .from('profiles')
-      .select('profile_completed')
+      .select('metadata')
       .eq('id', identity.userId)
       .maybeSingle();
     
-    return profile?.profile_completed === true;
+    const metadata = profile?.metadata && typeof profile.metadata === 'object'
+      ? profile.metadata as Record<string, any>
+      : null;
+    
+    return metadata?.onboarding?.completed === true;
   } catch (error) {
     console.error('[userIdentity] Failed to check profile completion:', error);
     return false;

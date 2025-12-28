@@ -6,6 +6,8 @@
  * Supports file attachments (ChatGPT-style)
  */
 
+// ====== CHAT SEND / RECEIVE ======
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { cn } from '../../lib/utils';
 import { Paperclip, X, File, Plus, Camera, Image, FileText } from 'lucide-react';
@@ -39,6 +41,9 @@ export interface ChatInputBarProps {
   /** Optional guardrails status text (shown below input) */
   guardrailsStatus?: string;
   
+  /** Optional guardrails last checked timestamp (for dev tooltips) */
+  guardrailsLastChecked?: string;
+  
   /** Whether to show "+" icon instead of paperclip (for Byte/ChatGPT-style) */
   showPlusIcon?: boolean;
   
@@ -71,6 +76,7 @@ export function ChatInputBar({
   sendButtonGradient = 'from-amber-400 via-orange-500 to-pink-500',
   sendButtonGlow = 'rgba(251,191,36,0.65)',
   guardrailsStatus,
+  guardrailsLastChecked,
   showPlusIcon = false,
   onAttachmentsChange,
   onStop,
@@ -113,7 +119,11 @@ export function ChatInputBar({
   const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && (value.trim() || attachments.length > 0) && !isStreaming && value.length <= CHAT_INPUT_MAX_CHARS) {
+      // CRITICAL: Block submission if input is invalid (same checks as handleSubmit)
+      const trimmedValue = typeof value === 'string' ? value.trim() : '';
+      const isValidInput = trimmedValue.length > 0 && trimmedValue !== 'undefined';
+      
+      if (!disabled && (isValidInput || attachments.length > 0) && !isStreaming && value.length <= CHAT_INPUT_MAX_CHARS) {
         handleSubmit();
       }
     }
@@ -176,8 +186,8 @@ export function ChatInputBar({
 
   const handleAttachClick = useCallback(() => {
     if (showPlusIcon) {
-      // Open menu for "+" icon
-      setIsMenuOpen(true);
+      // Toggle menu for "+" icon
+      setIsMenuOpen(prev => !prev);
     } else {
       // Direct file picker for paperclip icon
       fileInputRef.current?.click();
@@ -197,7 +207,7 @@ export function ChatInputBar({
     }
   }, [isMenuOpen]);
 
-  // Close menu on click outside
+  // Close menu on click outside (use capture phase to handle button clicks properly)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -211,8 +221,9 @@ export function ChatInputBar({
       }
     };
     if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      // Use capture phase to ensure we catch clicks before they bubble
+      document.addEventListener('mousedown', handleClickOutside, true);
+      return () => document.removeEventListener('mousedown', handleClickOutside, true);
     }
   }, [isMenuOpen]);
 
@@ -225,6 +236,7 @@ export function ChatInputBar({
     if (e) {
       e.preventDefault();
     }
+    // PART 2: Prevent double-submit - block if already streaming or disabled
     if (!disabled && (value.trim() || attachments.length > 0) && !isStreaming && value.length <= CHAT_INPUT_MAX_CHARS) {
       onSubmit({ attachments: attachments.length > 0 ? attachments : undefined });
       // Clear attachments after submit
@@ -459,10 +471,28 @@ export function ChatInputBar({
         </div>
 
         {/* Guardrails status pill - centered below input (shrink-0 to prevent layout shifts) */}
+        {/* SINGLE SOURCE OF TRUTH: This is the ONLY guardrails indicator in chat */}
         {guardrailsStatus && (
           <div className="flex justify-center mt-1 shrink-0">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-900/70 text-emerald-300 text-[11px] font-medium shadow shadow-emerald-500/30">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <div 
+              className={cn(
+                "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-medium shadow transition-colors",
+                guardrailsStatus.includes('Secured') 
+                  ? "bg-emerald-900/70 text-emerald-300 shadow-emerald-500/30"
+                  : guardrailsStatus.includes('Degraded')
+                  ? "bg-amber-900/70 text-amber-300 shadow-amber-500/30"
+                  : "bg-slate-800/70 text-slate-400 shadow-slate-500/20"
+              )}
+              title={import.meta.env.DEV && guardrailsLastChecked ? `Last checked: ${guardrailsLastChecked}` : undefined}
+            >
+              <span className={cn(
+                "h-1.5 w-1.5 rounded-full",
+                guardrailsStatus.includes('Secured') 
+                  ? "bg-emerald-400"
+                  : guardrailsStatus.includes('Degraded')
+                  ? "bg-amber-400"
+                  : "bg-slate-500"
+              )} />
               <span>{guardrailsStatus}</span>
             </div>
           </div>

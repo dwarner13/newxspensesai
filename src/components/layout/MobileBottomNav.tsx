@@ -90,7 +90,7 @@ export default function MobileBottomNav({
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#0b1220] border-t border-white/10">
+    <div data-mobile-bottom-nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0b1220] border-t border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="flex items-center justify-between px-2 py-2">
         {navItems.map((item) => {
           const isActive = location.pathname === item.to;

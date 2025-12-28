@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { emitBus } from '../lib/bus';
+import { buildUserContext } from '../lib/userContextHelpers';
 
 export const GREETING_SUGGESTIONS = [
   { 
@@ -38,6 +39,7 @@ export const GREETING_TEXT = "Hi! I'm Prime. What do you feel like doing today?"
  */
 export function usePrimeAutoGreet(enabled: boolean = true, onOpen?: () => void) {
   const greetedRef = useRef(false);
+  const userContext = buildUserContext(); // Use buildUserContext helper
 
   useEffect(() => {
     if (!enabled || greetedRef.current) return;
@@ -50,13 +52,27 @@ export function usePrimeAutoGreet(enabled: boolean = true, onOpen?: () => void) 
       // Trigger chat open if callback provided
       if (onOpen) onOpen();
 
+      // Use preferredName from userContext for personalized greeting
+      const userName = userContext.preferredName;
+      const personalizedGreeting = userName !== 'there' 
+        ? `Hi ${userName}! I'm Prime. What do you feel like doing today?`
+        : GREETING_TEXT;
+
+      // Debug log (dev only)
+      if (import.meta.env.DEV) {
+        console.log('[usePrimeAutoGreet] Using preferred name:', userName, {
+          source: 'buildUserContext',
+          fullContext: userContext,
+        });
+      }
+
       // Send greeting via bus
       emitBus('CHAT_OPEN', {
-        greeting: GREETING_TEXT,
+        greeting: personalizedGreeting,
         suggestions: GREETING_SUGGESTIONS,
       });
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [enabled, onOpen]);
+  }, [enabled, onOpen, userContext.preferredName]);
 }

@@ -15,6 +15,7 @@ export interface DashboardStatCardProps {
   onClick: () => void;
   navigateTo?: string; // Optional route to navigate to (takes precedence over onClick)
   isLoading?: boolean;
+  minHeight?: string; // Optional min-height class (e.g., 'min-h-[320px]', 'min-h-[280px]')
 }
 
 /**
@@ -31,6 +32,7 @@ export const DashboardStatCard: React.FC<DashboardStatCardProps> = ({
   onClick,
   navigateTo,
   isLoading = false,
+  minHeight = "min-h-[280px]",
 }) => {
   const navigate = useNavigate();
 
@@ -53,7 +55,7 @@ export const DashboardStatCard: React.FC<DashboardStatCardProps> = ({
         "hover:border-sky-500/60",
         "transition-all duration-200",
         "p-6",
-        "min-h-[280px]"
+        minHeight
       )}
     >
       {/* Top section: icon, title, status, description */}

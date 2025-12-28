@@ -9,6 +9,7 @@
  */
 
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { getEmployeeDisplayConfig, type EmployeeStat } from '../../../config/employeeDisplayConfig';
 
 /**
@@ -70,11 +71,13 @@ export function EmployeeUnifiedCardBase({
   children,
   className = '',
 }: EmployeeUnifiedCardBaseProps) {
+  const location = useLocation();
+  const isPrimeChatPage = location.pathname === '/dashboard/prime-chat';
   const config = getEmployeeDisplayConfig(employeeSlug);
   const displayStats = stats || config.stats || [];
 
   return (
-    <div className={`relative overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 shadow-[0_18px_60px_rgba(15,23,42,0.85)] p-6 flex flex-col h-full ${className}`}>
+    <div className={`relative overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 shadow-[0_18px_60px_rgba(15,23,42,0.85)] p-6 flex flex-col ${isPrimeChatPage ? '' : 'h-full'} ${className}`}>
       {/* Subtle radial glow behind employee icon */}
       <div className={`pointer-events-none absolute -top-24 -right-24 h-72 w-72 rounded-full ${config.accentGlow} blur-3xl`} />
       
@@ -129,8 +132,11 @@ export function EmployeeUnifiedCardBase({
       </div>
 
       {/* Middle Section - Custom content or default empty state */}
+      {/* CRITICAL: On /dashboard/prime-chat, NO nested scroll - BODY is scroll owner */}
       {children && (
-        <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6 py-4">
+        <div 
+          className={`flex-1 ${isPrimeChatPage ? 'overflow-visible' : 'min-h-0 overflow-y-auto'} -mx-6 px-6 py-4`}
+        >
           {children}
         </div>
       )}

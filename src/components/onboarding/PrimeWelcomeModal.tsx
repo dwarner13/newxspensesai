@@ -1,6 +1,9 @@
 /**
  * Prime Welcome Modal
  * 
+ * @deprecated This component is legacy and should NOT be used.
+ * Use PrimeCustodianOnboardingModal instead (the new WOW onboarding flow).
+ * 
  * First-time user welcome experience.
  * Shows when profile_completed = false or profile row is missing.
  */
@@ -8,6 +11,7 @@
 import React from 'react';
 import { Crown, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ONBOARDING_MODE } from '../../config/onboardingConfig';
 
 interface PrimeWelcomeModalProps {
   isOpen: boolean;
@@ -15,6 +19,11 @@ interface PrimeWelcomeModalProps {
 }
 
 export function PrimeWelcomeModal({ isOpen, onContinue }: PrimeWelcomeModalProps) {
+  // Hard-block: Prevent mounting if legacy onboarding is disabled
+  if (!ONBOARDING_MODE.legacyEnabled) {
+    return null;
+  }
+  
   if (!isOpen) return null;
 
   return (
@@ -54,7 +63,7 @@ export function PrimeWelcomeModal({ isOpen, onContinue }: PrimeWelcomeModalProps
               <div className="text-center space-y-6">
                 {/* Prime Icon */}
                 <div className="flex justify-center">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-400 via-orange-500 to-pink-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 via-blue-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/30">
                     <Crown className="w-10 h-10 text-white" />
                   </div>
                 </div>
@@ -65,19 +74,19 @@ export function PrimeWelcomeModal({ isOpen, onContinue }: PrimeWelcomeModalProps
                     Welcome to XspensesAI
                   </h2>
                   <p className="text-slate-300 leading-relaxed">
-                    I'm Prime — I oversee your entire financial system.
+                    I'm Prime — your financial operating system.
                   </p>
                   <p className="text-slate-400 text-sm">
-                    Before we begin, Custodian will help set up your profile in just a few questions.
+                    Custodian will personalize XspensesAI in under a minute.
                   </p>
                 </div>
 
                 {/* Continue Button */}
                 <button
                   onClick={onContinue}
-                  className="w-full px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg shadow-amber-500/30 hover:shadow-amber-500/50"
+                  className="group relative w-full px-6 py-3 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 border border-purple-400/30 hover:border-purple-400/50 text-white font-semibold rounded-lg transition-all duration-300 shadow-[0_4px_16px_rgba(139,92,246,0.3)] hover:shadow-[0_8px_24px_rgba(139,92,246,0.4)] overflow-hidden"
                 >
-                  Continue
+                  <span className="relative">Start my setup</span>
                 </button>
               </div>
             </motion.div>
@@ -87,6 +96,7 @@ export function PrimeWelcomeModal({ isOpen, onContinue }: PrimeWelcomeModalProps
     </AnimatePresence>
   );
 }
+
 
 
 

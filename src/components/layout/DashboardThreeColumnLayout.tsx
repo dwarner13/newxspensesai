@@ -13,6 +13,7 @@
  */
 
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { cn } from '../../lib/utils';
 import { ActivityFeedSidebar } from '../dashboard/ActivityFeedSidebar';
 
@@ -63,6 +64,8 @@ export function DashboardThreeColumnLayout({
   center,
   right,
 }: DashboardThreeColumnLayoutProps) {
+  const location = useLocation();
+  const isPrimeChatPage = location.pathname === '/dashboard/prime-chat';
   const hasLeftContent = hasRenderableContent(left);
   const hasRightContent = hasRenderableContent(right);
   
@@ -91,15 +94,13 @@ export function DashboardThreeColumnLayout({
   return (
     <section 
       data-grid-wrapper
-      className="w-full max-w-full min-w-0 overflow-x-hidden h-full min-h-[520px]"
+      className="w-full max-w-full min-w-0 overflow-x-hidden min-h-[520px]"
       style={
         isDesktop
           ? {
               // Force full width on desktop to prevent any parent constraints
               width: '100%',
-              maxWidth: 'none',
-              // Reserve space for floating rail on desktop (96px default, 112px on md+)
-              paddingRight: 'var(--rail-space, 96px)',
+              // Rail is position:fixed so no space reservation needed
             }
           : undefined
       }
@@ -109,7 +110,7 @@ export function DashboardThreeColumnLayout({
       <div 
         data-dashboard-three-col
         className={cn(
-          'xai-dash-grid',
+          'xai-dash-grid min-w-0 w-full max-w-full overflow-x-hidden',
           hasLeftContent ? 'has-left' : 'no-left',
           className
         )}
@@ -127,31 +128,34 @@ export function DashboardThreeColumnLayout({
         }
       >
         {/* Left Column - Workspace Panel (35%) */}
+        {/* CRITICAL: On /dashboard/prime-chat, remove h-full to allow natural height growth */}
         {hasLeftContent && (
-          <div className="min-w-0 w-full h-full min-h-0 flex items-stretch">
-            <div className="w-full h-full min-h-0 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
+          <div className={`min-w-0 w-full ${isPrimeChatPage ? '' : 'h-full'} min-h-0 flex items-stretch`}>
+            <div className={`w-full ${isPrimeChatPage ? '' : 'h-full'} min-h-0 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)]`}>
               {left}
             </div>
           </div>
         )}
 
-        {/* Right Column - Main Content + Activity Feed Stack (65%) */}
-        <div className="min-w-0 w-full h-full min-h-0 flex flex-col gap-6 items-stretch">
-          {/* Main Center Content - Takes remaining space */}
+        {/* Right Column - Main Content ONLY (no Activity Feed at bottom on Prime Chat) */}
+        <div className="min-w-0 w-full min-h-0 flex flex-col gap-6 items-stretch">
+          {/* Main Center Content - Takes full space */}
           <div className="min-w-0 min-h-0 flex-1">
-            <div className="w-full h-full min-h-0 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
+            <div className={`w-full ${isPrimeChatPage ? 'h-full' : 'min-h-0'} rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)]`}>
               {center}
             </div>
           </div>
 
           {/* Activity Feed - Pinned to bottom with max height */}
-          {hasRightContent && isDesktop && (
+          {/* CRITICAL: No nested scrolling - Activity Feed is part of main scroll flow */}
+          {/* Activity Feed removed on Prime Chat page to eliminate scrollbar */}
+          {hasRightContent && isDesktop && !isPrimeChatPage && (
             <div className="min-w-0 shrink-0">
               <div 
                 className="w-full rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
                 style={{
                   maxHeight: '420px',
-                  overflow: 'auto'
+                  overflow: 'visible' // No nested scroll - part of main scroll container
                 }}
               >
                 {/* Render ActivityFeedSidebar with embedded variant, or clone other components */}

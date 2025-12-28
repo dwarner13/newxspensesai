@@ -1,9 +1,9 @@
 [build]
   command = "pnpm build"
   publish = "dist"
+  functions = "netlify/functions"
 
 [functions]
-  directory = "netlify/functions"
   # CRITICAL: Use ESBuild bundler to support ES modules (package.json has "type": "module")
   # ESBuild properly handles import.meta.env and ES module syntax
   # Without this, Netlify defaults to zisi bundler which outputs CommonJS, causing:
@@ -28,11 +28,14 @@
   targetPort = 5173
   # Use custom framework detection (Vite + React)
   framework = "#custom"
-  # Temporarily skip function building to get server running
-  # Functions will be built on-demand when called
-  # functions = []
+  # Load functions directly from TypeScript source (no dist folder needed for local dev)
+  functions = "netlify/functions"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[functions.esbuild]
+  sourcemap = false
+

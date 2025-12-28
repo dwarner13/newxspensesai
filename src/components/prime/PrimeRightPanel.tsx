@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { X } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useRightPanel } from "../../context/RightPanelContext";
 
 export type PrimePanelId = "team" | "settings" | "memory" | "integrations";
 
@@ -25,24 +26,49 @@ export function PrimeRightPanel({
   onPanelChange,
   panelRef,
 }: PrimeRightPanelProps) {
-  if (!open) return null;
+  const { registerPanel } = useRightPanel();
+
+  // Register panel state with context (idempotent - registerPanel handles deduplication)
+  useEffect(() => {
+    const panelIdKey = panelId || "prime-panel";
+    registerPanel(panelIdKey, open);
+  }, [open, panelId, registerPanel]);
+
+  // Toggle body class when panel opens/closes (for CSS-based rail dimming)
+  useEffect(() => {
+    document.body.classList.toggle("has-right-panel-open", open);
+    return () => {
+      document.body.classList.remove("has-right-panel-open");
+    };
+  }, [open]);
+
+  // Always render container, toggle visibility via CSS (prevents unmount/remount)
+  // This preserves greeting state and prevents blink
 
   return (
     <>
-      {/* Slideout */}
+      {/* Slideout - Always rendered, visibility controlled by CSS */}
       <aside
         ref={panelRef}
+        data-right-drawer="true"
         className={cn(
-          "fixed z-[60] right-0 top-10 bottom-10",
+          "fixed z-[60] top-10 bottom-10",
           "w-[480px]",
           "bg-slate-900/90 backdrop-blur-xl border border-slate-800",
           "rounded-xl shadow-2xl",
-          "flex flex-col overflow-hidden"
+          "flex flex-col overflow-hidden",
+          // CSS handles offset via body.has-right-panel-open [data-right-drawer="true"]
+          "right-0",
+          // Toggle visibility instead of unmounting
+          open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
         )}
         style={{
           height: "calc(100vh - 80px)",
           marginTop: "40px",
           marginBottom: "40px",
+          transition: "right 0.3s ease, opacity 0.3s ease",
+          // Hide off-screen when closed (but keep mounted)
+          transform: open ? "translateX(0)" : "translateX(100%)",
         }}
       >
         <header className="flex items-start justify-between px-4 py-3 border-b border-slate-800">
@@ -89,11 +115,14 @@ export function PrimeRightPanel({
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto pl-16 pr-4 py-3 space-y-4">
+        {/* ✅ IMPORTANT: no internal vertical scrolling */}
+        <div className="flex-1 min-h-0 overflow-y-visible pl-16 pr-4 py-3 space-y-4">
           {children}
         </div>
       </aside>
     </>
   );
 }
+
+
 

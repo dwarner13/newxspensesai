@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { emitBus, onBus } from '@/lib/bus';
 import { toast } from '@/lib/toast';
 import type { CommitImportResponse, ImportSummary, FixableIssues } from '@/types/smartImport';
 import ImportList from '@/components/smart-import/ImportList';
+import StatementUpload from '@/ui/components/Upload/StatementUpload';
 
 type PreviewRow = {
   posted_at: string;
@@ -24,6 +25,7 @@ const ACCEPT = {
 export default function SmartImportAI() {
   const { userId } = useAuthContext();
   const [searchParams] = useSearchParams();
+  const uploadRef = useRef<{ open: (accept?: string[]) => void }>(null);
 
   const [activeImportId, setActiveImportId] = useState<string | null>(null);
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
@@ -48,7 +50,17 @@ export default function SmartImportAI() {
   };
   const openAiTeam = () => emitBus("WATCH_ME_WORK", { enabled: true });
 
-  // Auto-open upload when navigated from "Import & Chat" (desktop only)
+  // Listen for UPLOAD_REQUESTED events and trigger file picker
+  useEffect(() => {
+    const unsubscribe = onBus("UPLOAD_REQUESTED", ({ accept }) => {
+      if (uploadRef.current) {
+        uploadRef.current.open(accept);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // Auto-open upload when navigated from dashboard CTA (desktop only)
   useEffect(() => {
     if (searchParams.get('auto') === 'upload' && !isMobile) {
       emitBus("UPLOAD_REQUESTED", { source: "prime", accept: [ACCEPT.ANY] });
@@ -496,6 +508,11 @@ export default function SmartImportAI() {
             }}
           />
         </section>
+
+        {/* Hidden StatementUpload component - handles file picker via event bus */}
+        <div className="hidden">
+          <StatementUpload ref={uploadRef} />
+        </div>
       </div>
     </div>
   );

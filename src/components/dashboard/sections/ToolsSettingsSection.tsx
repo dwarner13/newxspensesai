@@ -19,6 +19,7 @@ export const ToolsSettingsSection: React.FC<ToolsSettingsSectionProps> = ({ card
             key={card.id}
             {...card}
             icon={cardIcons[card.id] || <div />}
+            minHeight="min-h-[280px]"
           />
         ))}
       </div>

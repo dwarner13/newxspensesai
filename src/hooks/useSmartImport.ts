@@ -9,6 +9,8 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import { useUploadQueue } from './useUploadQueue';
+import { generateUploadId } from '../lib/upload/uploadQueue';
 
 export type UploadSource = 'upload' | 'chat';
 
@@ -52,7 +54,13 @@ const defaultUploadStatus: SmartImportUploadStatus = {
   error: null,
 };
 
-export function useSmartImport() {
+export function useSmartImport(userId?: string, source: UploadSource = 'upload') {
+  // Use upload queue for concurrent uploads
+  const uploadQueue = useUploadQueue({
+    userId: userId || '',
+    source,
+  });
+
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
@@ -226,138 +234,129 @@ export function useSmartImport() {
    * Note: Transaction counts are not available immediately because normalization is async.
    * The transactionCount in UploadResult may be undefined until normalization completes.
    * 
-   * Upload multiple files sequentially with progress tracking
+   * Upload multiple files with concurrency control (2 desktop, 1 mobile)
    */
-  const uploadFiles = async (
-    userId: string,
+  const uploadFiles = useCallback(async (
+    userIdParam: string,
     files: File[],
-    source: UploadSource = 'upload'
+    sourceParam: UploadSource = 'upload'
   ): Promise<UploadResult[]> => {
     if (!files || files.length === 0) return [];
+    if (!userIdParam) {
+      throw new Error('userId is required');
+    }
     
     console.log('[useSmartImport] uploadFiles called', {
       fileCount: files.length,
-      userId,
-      source,
+      userId: userIdParam,
+      source: sourceParam,
     });
-    
-    const firstFile = files[0];
-    startUpload(firstFile);
     
     setUploading(true);
     setProgress(0);
-    setUploadFileCount({ current: 1, total: files.length });
+    setUploadFileCount({ current: 0, total: files.length });
     setError(null);
     
-    console.log('[useSmartImport] update - upload started', {
-      uploading: true,
-      progress: 0,
-      uploadFileCount: { current: 1, total: files.length },
-    });
+    // Add files to queue (with dedupe prevention)
+    const uploadIds = uploadQueue.addFiles(files);
     
-    const results: UploadResult[] = [];
+    if (uploadIds.length === 0) {
+      console.warn('[useSmartImport] No files added to queue (all duplicates?)');
+      setUploading(false);
+      return [];
+    }
     
-    try {
-      // Upload sequentially to avoid rate limiting
-      for (let i = 0; i < files.length; i++) {
-        const currentFileNum = i + 1;
-        setUploadFileCount({ current: currentFileNum, total: files.length });
-        
-        // Calculate progress based on file index
-        const fileProgress = ((i + 1) / files.length) * 100;
-        const newProgress = Math.min(fileProgress, 95); // Cap at 95% until all complete
-        setProgress(newProgress);
-        
-        console.log('[useSmartImport] update during upload', {
-          fileIndex: i,
-          currentFile: currentFileNum,
-          totalFiles: files.length,
-          progress: newProgress,
-          uploadFileCount: { current: currentFileNum, total: files.length },
-        });
-        
-        const result = await uploadFile(userId, files[i], source);
-        results.push(result);
-      }
+    // Wait for all uploads to complete
+    return new Promise((resolve, reject) => {
+      const results: UploadResult[] = [];
+      const completedIds = new Set<string>();
       
-      // All files uploaded successfully
-      setProgress(100);
-      updateUploadProgress({ progress: 100, step: 'processing' });
-      
-      console.log('[useSmartImport] update - all files uploaded, setting progress to 100%');
-      
-      // Collect docIds from upload results
-      const docIds = results.map(r => r.docId).filter(Boolean);
-      
-      // If we have docIds, call smart-import-sync to fetch real transactionCount
-      let transactionCount = 0;
-      
-      if (docIds.length > 0) {
-        try {
-          console.log('[useSmartImport] Calling smart-import-sync', { docIds });
+      // Subscribe to queue events
+      const unsubscribe = uploadQueue.on((event) => {
+        if (event.type === 'item-completed' && event.item.result) {
+          completedIds.add(event.item.id);
+          results.push(event.item.result as UploadResult);
           
-          const syncRes = await fetch('/.netlify/functions/smart-import-sync', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, docIds }),
-          });
+          // Update progress
+          const completed = completedIds.size;
+          const total = uploadIds.length;
+          setUploadFileCount({ current: completed, total });
+          setProgress((completed / total) * 100);
           
-          if (syncRes.ok) {
-            const syncData = await syncRes.json() as { docIds: string[]; transactionCount: number; };
-            transactionCount = syncData.transactionCount ?? 0;
-            console.log('[useSmartImport] smart-import-sync success', { transactionCount });
-          } else {
-            const errorText = await syncRes.text();
-            console.error('[useSmartImport] smart-import-sync failed', errorText);
+          // Check if all done
+          if (completed === total) {
+            unsubscribe();
+            
+            // Collect docIds and sync transaction counts
+            const docIds = results.map(r => r.docId).filter(Boolean);
+            
+            // Sync transaction counts
+            if (docIds.length > 0 && userIdParam) {
+              fetch('/.netlify/functions/smart-import-sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId: userIdParam, docIds }),
+              })
+                .then(res => res.ok ? res.json() : null)
+                .then(syncData => {
+                  const transactionCount = syncData?.transactionCount ?? 0;
+                  const summary = {
+                    id: crypto.randomUUID(),
+                    finishedAt: new Date().toISOString(),
+                    fileCount: files.length,
+                    transactionCount: transactionCount > 0 ? transactionCount : undefined,
+                  };
+                  setLastUploadSummary(summary);
+                  completeUpload();
+                  setUploading(false);
+                  resolve(results);
+                })
+                .catch(err => {
+                  console.error('[useSmartImport] Sync error:', err);
+                  const summary = {
+                    id: crypto.randomUUID(),
+                    finishedAt: new Date().toISOString(),
+                    fileCount: files.length,
+                  };
+                  setLastUploadSummary(summary);
+                  completeUpload();
+                  setUploading(false);
+                  resolve(results);
+                });
+            } else {
+              const summary = {
+                id: crypto.randomUUID(),
+                finishedAt: new Date().toISOString(),
+                fileCount: files.length,
+              };
+              setLastUploadSummary(summary);
+              completeUpload();
+              setUploading(false);
+              resolve(results);
+            }
           }
-        } catch (err: any) {
-          console.error('[useSmartImport] smart-import-sync error', err);
+        } else if (event.type === 'item-error') {
+          setError(event.item.error || 'Upload failed');
+          // Don't reject - let other files continue
+        } else if (event.type === 'queue-progress') {
+          setProgress(event.progress.overallProgress);
+          setUploadFileCount({
+            current: event.progress.completed,
+            total: event.progress.total,
+          });
         }
-      }
-      
-      // Fallback to old behavior if transactionCount is still 0
-      if (transactionCount === 0) {
-        transactionCount = results.reduce((sum, r) => {
-          return sum + (r.transactionCount || r.normalizedTransactionCount || r.stats?.transactionCount || 0);
-        }, 0);
-        console.log('[useSmartImport] Using fallback transactionCount', { transactionCount });
-      }
-      
-      // Create upload summary for Activity Feed
-      // transactionCount should now be accurate from sync step, but may still be 0 if jobs haven't finished yet
-      const summary = {
-        id: crypto.randomUUID(),
-        finishedAt: new Date().toISOString(),
-        fileCount: files.length,
-        transactionCount: transactionCount > 0 ? transactionCount : undefined,
-      };
-      setLastUploadSummary(summary);
-      
-      // Mark upload as completed
-      completeUpload();
-      
-      console.log('[useSmartImport] update - upload complete', {
-        progress: 100,
-        uploadFileCount: { current: files.length, total: files.length },
-        lastUploadSummary: summary,
-        transactionCount,
       });
       
-      return results;
-    } catch (err: any) {
-      console.error('[useSmartImport] Upload failed', err);
-      setError(err.message);
-      failUpload(err.message);
-      throw err;
-    } finally {
-      // Keep the 100% state visible briefly so users see it
+      // Cleanup on timeout (30 seconds per file max)
       setTimeout(() => {
-        setUploading(false);
-        setProgress(0);
-        setUploadFileCount({ current: 0, total: 0 });
-      }, 800);
-    }
-  };
+        if (completedIds.size < uploadIds.length) {
+          unsubscribe();
+          setUploading(false);
+          reject(new Error('Upload timeout'));
+        }
+      }, uploadIds.length * 30000);
+    });
+  }, [uploadQueue]);
 
   /**
    * Upload file from base64 (for chat attachments)
@@ -453,6 +452,17 @@ export function useSmartImport() {
     updateUploadProgress,
     completeUpload,
     failUpload,
+    // Upload queue (for UI components)
+    uploadQueue: {
+      items: uploadQueue.items,
+      progress: uploadQueue.progress,
+      cancel: uploadQueue.cancel,
+      retry: uploadQueue.retry,
+      clearCompleted: uploadQueue.clearCompleted,
+      clear: uploadQueue.clear,
+      isUploading: uploadQueue.isUploading,
+      hasErrors: uploadQueue.hasErrors,
+    },
   };
 }
 

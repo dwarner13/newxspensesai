@@ -8,37 +8,19 @@
  * and Liberty responds with helpful information.
  */
 
-import React, { useEffect } from "react";
-import { useAuth } from "../../contexts/AuthContext";
-import { SharedChatInterface } from "../../components/chat/SharedChatInterface";
+/**
+ * LEGACY: Liberty Chat Page
+ * 
+ * This page is deprecated. Routes now redirect to unified chat via ChatPageRedirect.tsx.
+ * This file is kept for reference but should not be used.
+ * 
+ * Migration: Use UnifiedAssistantChat with employeeSlug="liberty-freedom"
+ */
+
+import React from "react";
+import { Navigate } from "react-router-dom";
 
 export default function LibertyChat() {
-  const { user } = useAuth();
-  
-  // Grade 4 explanation: Check localStorage for any payload from other pages
-  // (like when Byte gets data from Smart Import page)
-  useEffect(() => {
-    const payload = localStorage.getItem('liberty:payload');
-    if (payload) {
-      try {
-        const data = JSON.parse(payload);
-        // Payload will be handled by SharedChatInterface when user sends first message
-        // For now, just clear it
-        localStorage.removeItem('liberty:payload');
-      } catch (e) {
-        // Ignore parse errors
-      }
-    }
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <SharedChatInterface
-        employeeSlug="liberty-ai"
-        mode="page"
-        sessionId={user?.id ? `liberty-${user.id}` : undefined}
-        className="max-w-4xl mx-auto"
-      />
-    </div>
-  );
+  // Redirect to dashboard with unified chat open for Liberty
+  return <Navigate to="/dashboard?chat=liberty-freedom" replace />;
 }

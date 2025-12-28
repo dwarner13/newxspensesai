@@ -127,7 +127,7 @@ export const delegateToolDefinition = {
         },
         context: {
           type: 'string',
-          description: 'Optional additional context to help the specialist',
+          description: 'Optional additional context to help the specialist. Always include user\'s ai_fluency_level, currency, and key preferences when delegating.',
         },
       },
       required: ['targetEmployee', 'objective'],

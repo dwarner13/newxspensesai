@@ -35,7 +35,7 @@ export function DashboardPageShell({
   gridClassName,
 }: DashboardPageShellProps) {
   return (
-    <div className={cn('flex-1 min-w-0 w-full max-w-full h-full min-h-0', className)}>
+    <div className={cn('flex-1 min-w-0 w-full max-w-full', className)}>
       {/* Fixed top spacing - this is the ONLY place top spacing should exist */}
       {/* This pt-6 ensures consistent spacing under the header across all pages */}
       {/* Scroll is handled by parent main element in DashboardLayout */}
@@ -44,7 +44,8 @@ export function DashboardPageShell({
         above the grid. The only allowed top spacing is this pt-6 in DashboardPageShell.
         See DASHBOARD_LAYOUT_RULES.md for details.
       */}
-      <div className="w-full max-w-full pt-6 min-h-0">
+      {/* CRITICAL: No height constraints - part of main scroll flow */}
+      <div className="w-full max-w-full pt-6">
         <DashboardThreeColumnLayout
           className={gridClassName}
           left={left}

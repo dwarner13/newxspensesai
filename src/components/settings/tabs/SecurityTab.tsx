@@ -5,29 +5,54 @@
  */
 
 import React from 'react';
-import { Shield, CheckCircle, AlertCircle, Lock, Key, Globe, LogOut } from 'lucide-react';
+import { Shield, CheckCircle, AlertCircle, Lock, Key, Globe, LogOut, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getUserIdentity } from '../../../lib/userIdentity';
 import { useState, useEffect } from 'react';
 import { Button } from '../../ui/button';
 import { isDemoMode } from '../../../lib/demoAuth';
+import { SignOutConfirmationModal } from '../../auth/SignOutConfirmationModal';
+import { ClearDeviceConfirmationModal } from '../../auth/ClearDeviceConfirmationModal';
 
 export function SecurityTab() {
-  const { user, isDemoUser, signOut } = useAuth();
+  const { user, isDemoUser, signOut, clearDevice } = useAuth();
   const [identity, setIdentity] = useState<any>(null);
   const [signingOut, setSigningOut] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
+  const [showClearDeviceModal, setShowClearDeviceModal] = useState(false);
+  const [clearingDevice, setClearingDevice] = useState(false);
 
   useEffect(() => {
     getUserIdentity().then(setIdentity);
   }, []);
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
+    setShowSignOutModal(true);
+  };
+
+  const handleConfirmSignOut = async () => {
     try {
+      setShowSignOutModal(false);
       setSigningOut(true);
       await signOut();
     } catch (error) {
       console.error('[SecurityTab] Sign out error:', error);
       setSigningOut(false);
+    }
+  };
+
+  const handleClearDevice = () => {
+    setShowClearDeviceModal(true);
+  };
+
+  const handleConfirmClearDevice = async () => {
+    try {
+      setShowClearDeviceModal(false);
+      setClearingDevice(true);
+      await clearDevice();
+    } catch (error) {
+      console.error('[SecurityTab] Clear device error:', error);
+      setClearingDevice(false);
     }
   };
 
@@ -185,32 +210,68 @@ export function SecurityTab() {
         </div>
       </div>
 
-      {/* Sign Out Button */}
+      {/* Custodian Security */}
       <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
         <div className="space-y-3">
           <h4 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-            <LogOut className="w-4 h-4" />
-            Account Actions
+            <Shield className="w-4 h-4" />
+            Custodian Security
           </h4>
-          <Button
-            onClick={handleSignOut}
-            disabled={signingOut}
-            className="w-full bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 hover:border-red-500/50 text-red-400 hover:text-red-300 transition-colors"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            {signingOut 
-              ? 'Signing out...' 
-              : isDemoMode() && isDemoUser 
-                ? 'Exit Guest Mode' 
-                : 'Sign Out'}
-          </Button>
-          {isDemoMode() && isDemoUser && (
-            <p className="text-xs text-slate-400 text-center mt-2">
-              This will clear your guest session and return you to the login page.
-            </p>
-          )}
+          <p className="text-xs text-slate-400 mb-4">
+            Manage your device security and session management.
+          </p>
+          
+          {/* Sign Out Action */}
+          <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700/60">
+            <div className="flex items-center gap-3">
+              <LogOut className="w-5 h-5 text-slate-400" />
+              <div>
+                <p className="text-sm font-medium text-white">Sign out</p>
+                <p className="text-xs text-slate-400">Custodian will securely sign you out of this device.</p>
+              </div>
+            </div>
+            <Button
+              onClick={handleSignOut}
+              disabled={signingOut}
+              className="bg-slate-700/60 hover:bg-slate-600/60 text-white border border-slate-600/60 text-sm"
+            >
+              {signingOut ? 'Signing out...' : 'Sign out'}
+            </Button>
+          </div>
+
+          {/* Clear Device Action */}
+          <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg border border-slate-700/60">
+            <div className="flex items-center gap-3">
+              <Trash2 className="w-5 h-5 text-red-400" />
+              <div>
+                <p className="text-sm font-medium text-white">Clear this device</p>
+                <p className="text-xs text-slate-400">Sign out and remove all local data from this browser.</p>
+              </div>
+            </div>
+            <Button
+              onClick={handleClearDevice}
+              disabled={clearingDevice}
+              className="bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 hover:border-red-500/50 text-red-400 hover:text-red-300 text-sm"
+            >
+              {clearingDevice ? 'Clearing...' : 'Clear device'}
+            </Button>
+          </div>
         </div>
       </div>
+
+      {/* Sign Out Confirmation Modal */}
+      <SignOutConfirmationModal
+        isOpen={showSignOutModal}
+        onConfirm={handleConfirmSignOut}
+        onCancel={() => setShowSignOutModal(false)}
+      />
+
+      {/* Clear Device Confirmation Modal */}
+      <ClearDeviceConfirmationModal
+        isOpen={showClearDeviceModal}
+        onConfirm={handleConfirmClearDevice}
+        onCancel={() => setShowClearDeviceModal(false)}
+      />
     </div>
   );
 }

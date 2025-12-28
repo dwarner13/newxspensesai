@@ -16,6 +16,7 @@ import { Loader2 } from 'lucide-react';
 import SyncStatusPulse from '../SyncStatusPulse';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUnifiedChatLauncher } from '../../../hooks/useUnifiedChatLauncher';
+import { usePrimeState } from '../../../contexts/PrimeContext';
 import { PrimeLogoBadge } from '../../branding/PrimeLogoBadge';
 import { cn } from '../../../lib/utils';
 
@@ -43,11 +44,29 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
   className,
 }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile, firstName } = useAuth();
   const { openChat } = useUnifiedChatLauncher();
+  const primeState = usePrimeState(); // Get Prime state for suggested next action
 
-  // Use firstName from AuthContext (computed from profile.display_name)
-  const userName = firstName;
+  // Use display_name from profile, fallback to full_name, firstName, then email prefix
+  const displayName = profile?.display_name?.trim() || 
+    profile?.full_name?.trim() || 
+    firstName || 
+    (user?.email ? user.email.split('@')[0] : null) || 
+    'there';
+  
+  // Get account type and currency from profile
+  const accountType = profile?.account_type as string | undefined;
+  const currency = profile?.currency || 'CAD';
+  
+  // Format account type for display
+  const accountTypeDisplay = accountType === 'both' 
+    ? 'personal and business' 
+    : accountType === 'personal' 
+    ? 'personal' 
+    : accountType === 'business' 
+    ? 'business' 
+    : null;
 
   // Hero button styles - Equal size, smaller buttons
   const baseButton =
@@ -103,30 +122,68 @@ export const OverviewSection: React.FC<OverviewSectionProps> = ({
           {/* TEXT BLOCK */}
           <div className="max-w-2xl">
             <p className="text-sm text-slate-400 mb-2">
-              Welcome back, {userName}.
+              Welcome back, {displayName}.
             </p>
             <h1 className="text-2xl lg:text-3xl font-semibold text-white mb-2">
               I'm Prime, your AI financial CEO.
             </h1>
             <p className="text-slate-300 text-sm lg:text-base">
-              I can review your latest imports, explain your spending, and help you
-              plan debt payoff and savings goals. What would you like to focus on first?
+              {accountTypeDisplay && currency ? (
+                <>
+                  You're set up for <span className="font-medium text-white">{accountTypeDisplay}</span> expenses in <span className="font-medium text-white">{currency}</span>. 
+                  I can review your latest imports, explain your spending, and help you plan debt payoff and savings goals. What would you like to focus on first?
+                </>
+              ) : (
+                <>
+                  I can review your latest imports, explain your spending, and help you
+                  plan debt payoff and savings goals. What would you like to focus on first?
+                </>
+              )}
             </p>
           </div>
 
           {/* CTA BUTTON ROW */}
           <div className="flex flex-wrap gap-4">
-            {/* Primary: Open Prime Chat */}
-            <button
-              type="button"
-              className={getButtonClasses(true)}
-              onClick={() => openChat({ initialEmployeeSlug: 'prime-boss' })}
-            >
-              <span className={getIconCircleClasses(true)}>
-                👑
-              </span>
-              <span className="tracking-tight">Open Prime Chat</span>
-            </button>
+            {/* Primary CTA: Prime-driven suggested next action (if available) */}
+            {primeState?.suggestedNextAction ? (
+              <button
+                type="button"
+                className={getButtonClasses(true)}
+                onClick={() => navigate(primeState.suggestedNextAction!.route)}
+              >
+                <span className={getIconCircleClasses(true)}>
+                  {primeState.suggestedNextAction.icon || '🎯'}
+                </span>
+                <span className="tracking-tight">{primeState.suggestedNextAction.ctaText}</span>
+              </button>
+            ) : (
+              // Fallback: Default primary CTA (existing behavior)
+              <>
+                {/* Primary: Open Prime Chat */}
+                <button
+                  type="button"
+                  className={getButtonClasses(true)}
+                  onClick={() => openChat({ initialEmployeeSlug: 'prime-boss' })}
+                >
+                  <span className={getIconCircleClasses(true)}>
+                    👑
+                  </span>
+                  <span className="tracking-tight">Open Prime Chat</span>
+                </button>
+
+                {/* Primary: Upload Receipt/Statement */}
+                <button
+                  type="button"
+                  className={getButtonClasses(false)}
+                  onClick={() => navigate('/dashboard/smart-import-ai?auto=upload')}
+                >
+                  <span className={getIconCircleClasses(false)}>
+                    📤
+                  </span>
+                  <span className="tracking-tight">Upload Receipt/Statement</span>
+                </button>
+              </>
+            )}
 
             {/* Secondary: Review my latest imports */}
             <button

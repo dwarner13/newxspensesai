@@ -22,7 +22,34 @@ export interface Profile {
   plan_id: string | null;
   role: string | null;
   level: number | null;
+  account_type: string | null;
+  settings: Record<string, any> | null; // profiles.settings JSONB column
+  metadata: Record<string, any> | null; // profiles.metadata JSONB column
   [key: string]: any; // Allow other profile fields
+}
+
+export interface UserIdentity {
+  /** Preferred name (display_name → first_name → full_name) */
+  preferredName: string;
+  
+  /** Account type (personal/business/both/exploring) */
+  accountType: string;
+  
+  /** Primary financial goal */
+  primaryGoal: string | null;
+  
+  /** Proactivity level (insights/alerts/proactive) */
+  proactivityLevel: string | null;
+  
+  /** Whether onboarding is completed */
+  onboardingCompleted: boolean;
+  
+  /** Unified preferences (from settings or onboarding.answers) */
+  preferences: {
+    preferredName: string | null;
+    experienceLevel: string | null;
+    primaryGoal: string | null;
+  };
 }
 
 export interface ProfileContextType {
@@ -38,8 +65,11 @@ export interface ProfileContextType {
   /** Refresh profile from database */
   refreshProfile: () => Promise<void>;
   
-  /** Computed display name (prefer full_name, else first_name, else email prefix, else "Guest") */
+  /** Computed display name (display_name → first_name → full_name) */
   displayName: string;
+  
+  /** Normalized user identity object */
+  userIdentity: UserIdentity;
   
   /** Plan label (from plan_id or plan, default "free") */
   planLabel: string;
@@ -49,6 +79,13 @@ export interface ProfileContextType {
   
   /** Whether user is in guest/demo mode */
   isGuest: boolean;
+  
+  /** Unified preferences accessor (from settings or onboarding.answers) */
+  preferences: {
+    preferredName: string | null;
+    experienceLevel: string | null;
+    primaryGoal: string | null;
+  };
 }
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
@@ -85,16 +122,21 @@ async function hydrateProfile(userId: string, userEmail: string): Promise<Profil
       console.log('[ProfileContext] ⚠️ Profile missing, creating...', { userId, email: userEmail });
     }
 
-    const displayName = userEmail.split('@')[0] || 'User';
+    // Don't derive display name from email - use empty string (will be set during onboarding)
+    const displayName = '';
     
     const { data: newProfile, error: insertError } = await supabase
       .from('profiles')
       .insert({
         id: userId,
         email: userEmail,
-        display_name: displayName,
+        display_name: displayName, // Empty - will be set during onboarding
+        first_name: null,
+        last_name: null,
+        full_name: null,
         role: 'free',
         plan: 'free',
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -121,6 +163,7 @@ async function hydrateProfile(userId: string, userEmail: string): Promise<Profil
 
 /**
  * Compute display name from profile
+ * Name resolution order: display_name → first_name → full_name
  */
 function computeDisplayName(profile: Profile | null, userEmail: string | null, isGuest: boolean): string {
   if (isGuest) {
@@ -132,10 +175,11 @@ function computeDisplayName(profile: Profile | null, userEmail: string | null, i
     return userEmail?.split('@')[0] || 'User';
   }
 
+  // Name resolution order: display_name → first_name → full_name
   return (
-    profile.full_name ||
-    profile.first_name ||
     profile.display_name ||
+    profile.first_name ||
+    profile.full_name ||
     userEmail?.split('@')[0] ||
     'User'
   );
@@ -161,6 +205,72 @@ function computePlanLabel(profile: Profile | null, isGuest: boolean): string {
   if (planId === 'pro') return 'Pro';
   if (planId === 'enterprise') return 'Enterprise';
   return 'Free';
+}
+
+/**
+ * Compute normalized user identity from profile
+ */
+function computeUserIdentity(profile: Profile | null, displayName: string, isGuest: boolean): UserIdentity {
+  if (isGuest || !profile) {
+    return {
+      preferredName: displayName,
+      accountType: 'exploring',
+      primaryGoal: null,
+      proactivityLevel: null,
+      onboardingCompleted: false,
+      preferences: {
+        preferredName: null,
+        experienceLevel: null,
+        primaryGoal: null,
+      },
+    };
+  }
+
+  // Extract metadata safely (for onboarding completion check)
+  const profileMetadata = profile.metadata && typeof profile.metadata === 'object'
+    ? profile.metadata as Record<string, any>
+    : null;
+
+  // Preferred name: display_name → first_name → full_name
+  const preferredName = profile.display_name || profile.first_name || profile.full_name || displayName;
+
+  // Account type (account_type column)
+  const accountType = profile.account_type || 'exploring';
+
+  // Primary goal and proactivity level from profile.settings (NOT metadata.settings)
+  const profileSettings = profile.settings && typeof profile.settings === 'object'
+    ? profile.settings as Record<string, any>
+    : null;
+  const primaryGoal = profileSettings?.primary_goal || null;
+  const proactivityLevel = profileSettings?.proactivity_level || null;
+
+  // Onboarding completion from metadata.onboarding.completed
+  const onboardingCompleted = profileMetadata?.onboarding?.completed === true;
+
+  // Unified preferences accessor (reads from settings first, falls back to onboarding.answers)
+  const onboardingAnswers = profileMetadata?.onboarding?.answers && typeof profileMetadata.onboarding.answers === 'object'
+    ? profileMetadata.onboarding.answers as Record<string, any>
+    : null;
+  
+  // Prefer settings (durable) over onboarding answers (in-progress)
+  const preferredNameFromSettings = profileSettings?.preferred_name || onboardingAnswers?.preferredName;
+  const experienceLevelFromSettings = profileSettings?.experience_level || onboardingAnswers?.experienceLevel;
+
+  // Unified preferences (settings first, then onboarding.answers fallback)
+  const preferences = {
+    preferredName: preferredNameFromSettings || preferredName || null,
+    experienceLevel: experienceLevelFromSettings || null,
+    primaryGoal: primaryGoal || null,
+  };
+
+  return {
+    preferredName,
+    accountType,
+    primaryGoal,
+    proactivityLevel,
+    onboardingCompleted,
+    preferences,
+  };
 }
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
@@ -204,7 +314,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
       const { data: profileData, error: fetchError } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, settings')
         .eq('id', userId)
         .maybeSingle();
 
@@ -254,10 +364,14 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     await fetchProfile();
   }, [fetchProfile]);
 
-  // Fetch profile when user changes
+  // Fetch profile when user changes (NOT on route changes)
+  // Use userId/userEmail directly in dependency array to avoid unnecessary re-fetches
   useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[ProfileContext] 🔄 Effect triggered', { userId, userEmail, isGuest });
+    }
     fetchProfile();
-  }, [fetchProfile]);
+  }, [userId, userEmail, isGuest]); // Direct dependencies, not fetchProfile callback
 
   // Computed values
   const displayName = useMemo(
@@ -275,6 +389,20 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     [profile, isGuest]
   );
 
+  const userIdentity = useMemo(
+    () => computeUserIdentity(profile, displayName, isGuest),
+    [profile, displayName, isGuest]
+  );
+
+  // Extract preferences from userIdentity
+  const preferences = useMemo(() => {
+    return userIdentity.preferences || {
+      preferredName: null,
+      experienceLevel: null,
+      primaryGoal: null,
+    };
+  }, [userIdentity]);
+
   const value: ProfileContextType = {
     profile,
     loading,
@@ -284,6 +412,8 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     planLabel,
     avatarUrl,
     isGuest,
+    userIdentity,
+    preferences,
   };
 
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
@@ -299,6 +429,7 @@ export function useProfileContext(): ProfileContextType {
   }
   return context;
 }
+
 
 
 

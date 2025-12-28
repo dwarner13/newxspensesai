@@ -26,12 +26,16 @@ import { PreferencesTab } from './tabs/PreferencesTab';
 import { SecurityTab } from './tabs/SecurityTab';
 import { useAuth } from '../../contexts/AuthContext';
 import { isDemoMode } from '../../lib/demoAuth';
+import { useBodyClass } from '../../hooks/useBodyClass';
 
 export function ControlCenterDrawer() {
   const [isOpen, setIsOpen] = useAtom(controlCenterDrawerOpenAtom);
   const [activeTab, setActiveTab] = useAtom(controlCenterActiveTabAtom);
   const { isDemoUser } = useAuth();
   const showGuestBadge = isDemoMode() && isDemoUser;
+  
+  // Toggle body class for AI rail standby mode
+  useBodyClass('right-drawer-open', isOpen);
 
   // Close drawer handler
   const handleClose = () => {

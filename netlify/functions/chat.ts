@@ -1,3 +1,7 @@
+// @wiring:byte-docs
+// @area:chat/routing-and-tools
+// @purpose:Routes to employees, runs tools, and persists messages/tool calls used by audits.
+
 /**
  * 💬 Unified Chat Endpoint
  * 
@@ -65,9 +69,16 @@ import {
   extractFactsFromMessages
 } from './_shared/memory.js';
 import { ensureSession, getRecentMessages } from './_shared/session.js';
+import { ensureThread, backfillThreadId } from './_shared/ensureThread.js';
 import { buildResponseHeaders } from './_shared/headers.js';
 import { getEmployeeModelConfig } from './_shared/employeeModelConfig.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
+import { logAiActivity } from './_shared/logAiActivity.js';
+import { buildContextInjection } from './_shared/contextInjection.js';
+import { fetchAiUserContext, buildAiContextSystemMessage } from '../../src/lib/ai/userContext.js';
+import { AI_FLUENCY_GLOBAL_SYSTEM_RULE, PRIME_ORCHESTRATION_RULE } from '../../src/lib/ai/systemPrompts.js';
+// AI Fluency: Event logging
+import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
 import OpenAI from 'openai';
 // Import tool system for Tag tools
 import { toOpenAIToolDefs, pickTools, executeTool } from '../../src/agent/tools/index.js';
@@ -84,9 +95,29 @@ interface ChatRequest {
   employeeSlug?: string | null;
   message: string;
   sessionId?: string;
+  threadId?: string; // Optional thread ID (if provided, ensures that thread exists)
   stream?: boolean;
   systemPromptOverride?: string; // Custom system prompt from frontend (e.g., category/transaction context)
   documentIds?: string[]; // Document IDs from Smart Import uploads
+  prime_context?: { // Optional PrimeState snapshot (convenience overlay, verified server-side)
+    displayName: string | null;
+    timezone: string | null;
+    currency: string | null;
+    currentStage: 'novice' | 'guided' | 'power' | null;
+    financialSnapshot: {
+      hasTransactions: boolean;
+      uncategorizedCount: number;
+      monthlySpend?: number;
+      topCategories?: Array<{ name: string; amount: number }>;
+      hasDebt?: boolean;
+      hasGoals?: boolean;
+    } | null;
+    memorySummary: {
+      factsCount?: number;
+      lastUpdatedAt?: string;
+      recentFacts?: string[];
+    } | null;
+  } | null;
 }
 
 // ============================================================================
@@ -118,6 +149,208 @@ function normalizeSessionId(raw: unknown): string | null {
 }
 
 /**
+ * Get user profile from Supabase profiles table
+ * Returns user identity information for AI employees
+ * @param sb - Supabase client
+ * @param userId - User ID
+ * @returns User profile with identity fields or null
+ */
+async function getUserProfile(
+  sb: SupabaseClient,
+  userId: string
+): Promise<{
+  preferredName: string;
+  scope: string;
+  primaryGoal: string | null;
+  proactivityLevel: string | null;
+  timezone: string | null;
+  currency: string | null;
+  accountType: string | null;
+  accountName: string | null;
+  dateLocale: string | null;
+  taxIncluded: string | null;
+  taxSystem: string | null;
+  aiFluencyLevel: string | null;
+  aiFluencyScore: number | null;
+} | null> {
+  try {
+    const { data: profile, error } = await sb
+      .from('profiles')
+      .select('display_name, first_name, full_name, account_type, currency, time_zone, account_name, date_locale, metadata, ai_fluency_level, ai_fluency_score')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 = no rows found (expected if profile missing)
+      console.warn('[Chat] Error fetching user profile:', error);
+      return null;
+    }
+
+    if (!profile) {
+      return null;
+    }
+
+    // Preferred name: display_name → first_name → full_name
+    const preferredName = profile.display_name || profile.first_name || profile.full_name || 'there';
+
+    // Account type (account_type column)
+    const scope = profile.account_type || 'exploring';
+
+    // Primary goal from metadata.settings
+    const metadata = profile.metadata && typeof profile.metadata === 'object'
+      ? profile.metadata as Record<string, any>
+      : null;
+    const settings = metadata?.settings && typeof metadata.settings === 'object'
+      ? metadata.settings as Record<string, any>
+      : null;
+    const primaryGoal = settings?.primary_goal || null;
+
+    // Proactivity level from metadata.settings
+    const proactivityLevel = settings?.proactivity_level || null;
+
+    // Extract timezone from metadata or time_zone column
+    const timezone = metadata?.timezone || profile.time_zone || null;
+    
+    // Currency from currency column
+    const currency = profile.currency || null;
+    
+    // Account type from account_type column
+    const accountType = profile.account_type || null;
+    
+    // Onboarding fields
+    const accountName = profile.account_name || null;
+    const dateLocale = profile.date_locale || null;
+    // Note: tax_included and tax_system columns removed - use metadata only
+    // Extract tax fields from metadata if available, otherwise null
+    const taxIncluded = metadata?.tax_included || null;
+    const taxSystem = metadata?.tax_system || null;
+
+    // AI Fluency Level (for adaptive communication)
+    const aiFluencyLevel = profile.ai_fluency_level || 'Explorer';
+    const aiFluencyScore = profile.ai_fluency_score || 20;
+
+    // Debug log (dev only)
+    if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+      console.log('[Chat] getUserProfile:', {
+        userId,
+        preferredName,
+        source: profile.display_name ? 'display_name' : profile.first_name ? 'first_name' : profile.full_name ? 'full_name' : 'fallback',
+        scope,
+        primaryGoal,
+        proactivityLevel,
+        timezone,
+        currency,
+        accountType,
+        accountName: accountName ? '***' : null, // Log presence only, not value
+        dateLocale: dateLocale ? '***' : null,
+        taxIncluded: taxIncluded ? '***' : null,
+        taxSystem: taxSystem ? '***' : null,
+        aiFluencyLevel,
+        aiFluencyScore,
+        fieldsLoaded: {
+          accountName: !!accountName,
+          dateLocale: !!dateLocale,
+          taxIncluded: !!taxIncluded,
+          taxSystem: !!taxSystem,
+        },
+      });
+    }
+
+    return {
+      preferredName,
+      scope,
+      primaryGoal,
+      proactivityLevel,
+      timezone,
+      currency,
+      accountType,
+      accountName,
+      dateLocale,
+      taxIncluded,
+      taxSystem,
+      aiFluencyLevel,
+      aiFluencyScore,
+    };
+  } catch (error: any) {
+    console.warn('[Chat] Error in getUserProfile:', error);
+    return null;
+  }
+}
+
+/**
+ * Format user context as a string for injection into system prompts
+ * @param userProfile - User profile from getUserProfile
+ * @returns Formatted string for system prompt
+ */
+function formatUserContextForPrompt(userProfile: {
+  preferredName: string;
+  scope: string;
+  primaryGoal: string | null;
+  proactivityLevel: string | null;
+  timezone: string | null;
+  currency: string | null;
+  accountType: string | null;
+  accountName: string | null;
+  dateLocale: string | null;
+  taxIncluded: string | null;
+  taxSystem: string | null;
+  aiFluencyLevel: string | null;
+  aiFluencyScore: number | null;
+}): string {
+  const parts: string[] = [];
+  
+  parts.push(`**User Identity:**`);
+  parts.push(`- Preferred name: ${userProfile.preferredName}`);
+  
+  if (userProfile.scope && userProfile.scope !== 'exploring') {
+    parts.push(`- Account scope: ${userProfile.scope}`);
+  }
+  
+  if (userProfile.accountType) {
+    parts.push(`- Account type: ${userProfile.accountType}`);
+  }
+  
+  if (userProfile.accountName) {
+    parts.push(`- Account name: ${userProfile.accountName}`);
+  }
+  
+  if (userProfile.currency) {
+    parts.push(`- Currency: ${userProfile.currency}`);
+  }
+  
+  if (userProfile.timezone) {
+    parts.push(`- Timezone: ${userProfile.timezone}`);
+  }
+  
+  if (userProfile.dateLocale) {
+    parts.push(`- Date locale: ${userProfile.dateLocale}`);
+  }
+  
+  if (userProfile.taxIncluded) {
+    parts.push(`- Tax included: ${userProfile.taxIncluded}`);
+  }
+  
+  if (userProfile.taxSystem) {
+    parts.push(`- Tax system: ${userProfile.taxSystem}`);
+  }
+  
+  if (userProfile.primaryGoal) {
+    parts.push(`- Primary financial goal: ${userProfile.primaryGoal}`);
+  }
+  
+  if (userProfile.proactivityLevel) {
+    parts.push(`- Proactivity preference: ${userProfile.proactivityLevel}`);
+  }
+  
+  // AI Fluency Level (for adaptive communication - only include if set)
+  if (userProfile.aiFluencyLevel && userProfile.aiFluencyLevel !== 'Explorer') {
+    parts.push(`- AI fluency level: ${userProfile.aiFluencyLevel} (score: ${userProfile.aiFluencyScore || 20}/100)`);
+  }
+  
+  return parts.join('\n');
+}
+
+/**
  * Load documents and build attachment context for chat
  * @param sb - Supabase client
  * @param userId - User ID
@@ -137,7 +370,7 @@ async function buildAttachmentContext(
     // Load documents from user_documents table
     const { data: documents, error } = await sb
       .from('user_documents')
-      .select('id, original_name, mime_type, ocr_text, status, created_at')
+      .select('id, original_name, mime_type, ocr_text, status, created_at, pii_types')
       .in('id', documentIds)
       .eq('user_id', userId); // Security: only allow user to read their own documents
 
@@ -173,11 +406,24 @@ async function buildAttachmentContext(
 
       if (hasContent) {
         // Truncate OCR text to ~2000 characters to avoid token limits
+        // NOTE: ocr_text is already redacted by smart-import-ocr.ts guardrails
         const ocrText = doc.ocr_text.trim();
         const truncatedText = ocrText.length > 2000 
           ? ocrText.substring(0, 2000) + '... (truncated)'
           : ocrText;
         docContext.push(`Extracted content:\n${truncatedText}`);
+        
+        // Log OCR text usage (do NOT log raw text - ocr_text is already redacted)
+        if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+          console.log('[Chat] Document context added:', {
+            docId: doc.id,
+            docName: doc.original_name,
+            ocrTextLength: ocrText.length,
+            ocrTextPreview: ocrText.substring(0, 50) + '...', // Preview only (already redacted)
+            piiTypes: doc.pii_types || [],
+            isRedacted: !!doc.pii_types && doc.pii_types.length > 0,
+          });
+        }
       } else if (isProcessing) {
         docContext.push('Status: Still processing (OCR/parsing in progress)');
       }
@@ -345,7 +591,10 @@ Return JSON format:
         pinned: false,
         // updated_at is auto-updated by trigger, don't include it
       }, {
-        onConflict: 'user_id,conversation_id', // Matches unique constraint
+        // Use onConflict with the actual unique constraint column names
+        // The constraint is typically on (user_id, conversation_id)
+        // If the constraint name is different, Supabase will use the column names
+        onConflict: 'user_id,conversation_id',
         ignoreDuplicates: false, // Update existing rows
       });
 
@@ -404,7 +653,7 @@ export const handler: Handler = async (event, context) => {
   // CORS headers (will be enhanced with guardrail headers later)
   const baseHeaders = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization', // CRITICAL: Allow Authorization header for JWT auth
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
@@ -429,10 +678,31 @@ export const handler: Handler = async (event, context) => {
     };
   }
 
+  // CRITICAL: Request timing instrumentation
+  const requestStartTime = Date.now();
+  const timingLogs: Record<string, number> = {};
+  
   try {
     // Verify authentication from JWT token
+    // Log auth header presence for debugging
+    const authHeader = event.headers?.authorization || event.headers?.Authorization;
+    if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+      console.log('[Chat] Auth check:', {
+        hasAuthHeader: !!authHeader,
+        authHeaderPrefix: authHeader ? authHeader.substring(0, 20) + '...' : 'none',
+      });
+    }
+    
+    const authStartTime = Date.now();
     const { userId, error: authError } = await verifyAuth(event);
+    timingLogs.auth = Date.now() - authStartTime;
     if (authError || !userId) {
+      // Enhanced error logging for debugging
+      console.error('[Chat] Auth failed:', {
+        authError,
+        hasAuthHeader: !!authHeader,
+        userId: userId || 'none',
+      });
       return {
         statusCode: 401,
         headers: {
@@ -442,10 +712,15 @@ export const handler: Handler = async (event, context) => {
         body: JSON.stringify({ error: authError || 'Authentication required' }),
       };
     }
+    
+    // Log successful auth (dev only)
+    if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+      console.log('[Chat] Auth successful:', { userId });
+    }
 
     // Parse request body (userId now comes from JWT, not body)
     const body = JSON.parse(event.body || '{}') as ChatRequest;
-    const { employeeSlug, message, sessionId, stream = true, systemPromptOverride, documentIds } = body;
+    const { employeeSlug, message, sessionId, threadId: requestThreadId, stream = true, systemPromptOverride, documentIds } = body;
 
     // Validate required fields (userId already verified from JWT)
     if (!message) {
@@ -457,6 +732,19 @@ export const handler: Handler = async (event, context) => {
         },
         body: JSON.stringify({ error: 'message is required' }),
       };
+    }
+
+    // ========================================================================
+    // 0.3. FAST PATH CHECK (Speed Mode for Short Messages)
+    // ========================================================================
+    // Skip expensive context retrieval for short messages/greetings to improve response time
+    const messageTrimmed = message.trim();
+    const messageLength = messageTrimmed.length;
+    const isGreeting = /^(hi|hello|hey|thanks|thank you|thx|bye|goodbye|good night|good morning|good afternoon|sup|what's up|howdy)$/i.test(messageTrimmed);
+    const isFastPath = messageLength <= 30 || isGreeting;
+    
+    if (isFastPath && process.env.NETLIFY_DEV === 'true') {
+      console.log(`[Chat] 🚀 FAST PATH enabled: messageLength=${messageLength}, isGreeting=${isGreeting}`);
     }
 
     // ========================================================================
@@ -538,9 +826,10 @@ export const handler: Handler = async (event, context) => {
     // Get guardrail config to access preset for routing
     // Default to 'balanced' if config fetch fails
     let preset: 'strict' | 'balanced' | 'creative' = 'balanced';
+    let guardrailConfig: any = null;
     try {
-      const { getGuardrailConfig } = await import('./_shared/guardrails-unified.js');
-      const guardrailConfig = await getGuardrailConfig(userId);
+      // Use top-level import from guardrails-unified.js (no dynamic import needed)
+      guardrailConfig = await getGuardrailConfig(userId);
       preset = guardrailConfig.preset || 'balanced';
     } catch (error) {
       console.warn('[Chat] Failed to get guardrail config, using default preset:', error);
@@ -606,6 +895,52 @@ export const handler: Handler = async (event, context) => {
     });
 
     // ========================================================================
+    // BUILD GUARDRAILS STATUS OBJECT (for response metadata)
+    // ========================================================================
+    /**
+     * Build guardrails status object for chat responses
+     * This provides real-time status based on actual guardrails execution
+     */
+    function buildGuardrailsStatus(mode: 'streaming' | 'json'): {
+      enabled: boolean;
+      pii_masking: boolean;
+      moderation: boolean;
+      policy_version: string;
+      checked_at: string;
+      mode: 'streaming' | 'json';
+      reason?: string;
+    } {
+      const hasPiiMasking = guardrailConfig?.chat?.pii !== false && guardrailConfig?.ingestion?.pii !== false;
+      const hasModeration = guardrailConfig?.chat?.moderation === true || guardrailConfig?.ingestion?.moderation === true;
+      const isEnabled = guardrailResult?.ok !== false && guardrailConfig !== null;
+      
+      // Policy version: use preset as version identifier
+      const policyVersion = guardrailConfig?.preset || 'balanced';
+      
+      // If guardrails failed to load or execute, mark as disabled
+      let reason: string | undefined;
+      if (!isEnabled) {
+        if (!guardrailConfig) {
+          reason = 'config_load_failed';
+        } else if (!guardrailResult?.ok) {
+          reason = guardrailResult?.blockedReason || 'execution_failed';
+        } else {
+          reason = 'unknown';
+        }
+      }
+      
+      return {
+        enabled: isEnabled,
+        pii_masking: hasPiiMasking && isEnabled,
+        moderation: hasModeration && isEnabled,
+        policy_version: policyVersion,
+        checked_at: new Date().toISOString(),
+        mode,
+        ...(reason ? { reason } : {}),
+      };
+    }
+
+    // ========================================================================
     // 4. EMPLOYEE ROUTING
     // ========================================================================
     // Restore original routing behavior: pass employeeSlug directly to router
@@ -651,6 +986,7 @@ export const handler: Handler = async (event, context) => {
     }
     
     const originalEmployeeSlug = finalEmployeeSlug; // Track original for handoff detection
+    const explicitlyRequestedEmployee = requestedEmployeeSlug || null; // Store if employee was explicitly requested (not auto-routed)
 
     // Check for custom system prompt from frontend (e.g., from EmployeeChatPage with category context)
     // NOTE: We read systemPromptOverride from the request body, not headers, because HTTP headers
@@ -729,21 +1065,107 @@ export const handler: Handler = async (event, context) => {
     }
 
     // ========================================================================
-    // 5. SESSION MANAGEMENT
+    // 5. ENSURE THREAD EXISTS (thread_id model)
+    // ========================================================================
+    // Resolve employee_key from slug using registry
+    let employeeKey: string;
+    try {
+      const { getEmployeeKeyFromSlug } = await import('./_shared/employeeRegistryBackend.js');
+      employeeKey = await getEmployeeKeyFromSlug(sb, finalEmployeeSlug);
+    } catch (error) {
+      console.warn('[Chat] Failed to resolve employee_key from registry, using fallback:', error);
+      // Fallback: extract from slug (first part before hyphen)
+      employeeKey = finalEmployeeSlug.split('-')[0] || 'prime';
+    }
+    
+    // CRITICAL: thread_id must NEVER be null - ensure thread exists atomically
+    // If request includes threadId, upsert that thread; otherwise create/find one
+    let threadId: string;
+    try {
+      threadId = await ensureThread(sb, userId, employeeKey, requestThreadId);
+      console.log(`[Chat] ✅ Thread ID: ${threadId} for user ${userId.substring(0, 8)}... employee ${employeeKey}`);
+      
+      // Backfill existing messages with thread_id (one-time migration)
+      try {
+        const backfilledCount = await backfillThreadId(sb, userId, employeeKey, threadId);
+        if (backfilledCount > 0) {
+          console.log(`[Chat] ✅ Backfilled ${backfilledCount} messages with thread_id ${threadId}`);
+        }
+      } catch (backfillError: any) {
+        console.warn('[Chat] Backfill failed (non-fatal):', backfillError.message);
+      }
+    } catch (threadError: any) {
+      console.error('[Chat] Failed to ensure thread:', threadError);
+      // CRITICAL: If thread creation fails, return error - never use fallback UUID
+      // This ensures FK integrity: every chat_messages.thread_id references a valid chat_threads.id
+      return {
+        statusCode: 500,
+        headers: {
+          ...baseHeaders,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          error: 'Failed to create or retrieve chat thread',
+          message: threadError?.message || 'Thread creation failed',
+          details: 'Please try again. If the problem persists, contact support.',
+        }),
+      };
+    }
+    
+    // ========================================================================
+    // 5.5. SESSION MANAGEMENT (for backward compatibility)
     // ========================================================================
     let finalSessionId: string | null = null;
     let sessionEmployeeSlug: string = finalEmployeeSlug; // Track employee from session (may change after handoff)
     try {
+      const sessionStartTime = Date.now();
       const sessionResult = await ensureSession(sb, userId, sessionId, finalEmployeeSlug);
+      timingLogs.session = Date.now() - sessionStartTime;
       // ensureSession returns { sessionId: string, employee_slug: string }
       finalSessionId = sessionResult?.sessionId ?? normalizeSessionId(sessionId) ?? null;
       // Use employee_slug from session if available (handles handoff scenarios)
+      // CRITICAL: Only allow session employee to override if employee was NOT explicitly requested
+      // This prevents sticky handoff - /dashboard/prime-chat must always show Prime
       if (sessionResult?.employee_slug) {
         sessionEmployeeSlug = sessionResult.employee_slug;
-        // If session has a different employee than requested, update finalEmployeeSlug
+        // Only override if:
+        // 1. Employee was NOT explicitly requested (explicitlyRequestedEmployee is null), OR
+        // 2. Explicitly requested employee is prime-boss (route-forced, must respect)
+        const shouldRespectRequestedEmployee = explicitlyRequestedEmployee !== null;
+        const isPrimeRequested = explicitlyRequestedEmployee === 'prime-boss';
+        
         if (sessionEmployeeSlug !== finalEmployeeSlug) {
-          console.log(`[Chat] Session employee mismatch: requested ${finalEmployeeSlug}, session has ${sessionEmployeeSlug} (likely from handoff)`);
-          finalEmployeeSlug = sessionEmployeeSlug;
+          if (shouldRespectRequestedEmployee && !isPrimeRequested) {
+            // Employee was explicitly requested (not auto-routed) - respect it, don't override
+            console.log(`[Chat] Respecting explicitly requested employee ${finalEmployeeSlug} over session employee ${sessionEmployeeSlug}`);
+            // Update session to match requested employee (fixes sticky handoff)
+            try {
+              await sb
+                .from('chat_sessions')
+                .update({ employee_slug: finalEmployeeSlug })
+                .eq('id', finalSessionId);
+              console.log(`[Chat] Updated session ${finalSessionId} to match requested employee ${finalEmployeeSlug}`);
+            } catch (error: any) {
+              console.warn('[Chat] Failed to update session employee (non-fatal):', error);
+            }
+          } else if (isPrimeRequested) {
+            // Prime was explicitly requested (from /dashboard/prime-chat) - ALWAYS respect it
+            console.log(`[Chat] Prime explicitly requested - forcing prime-boss, ignoring session employee ${sessionEmployeeSlug}`);
+            // Update session to prime-boss to fix sticky handoff
+            try {
+              await sb
+                .from('chat_sessions')
+                .update({ employee_slug: 'prime-boss' })
+                .eq('id', finalSessionId);
+              console.log(`[Chat] Updated session ${finalSessionId} to prime-boss (route-forced)`);
+            } catch (error: any) {
+              console.warn('[Chat] Failed to update session to prime-boss (non-fatal):', error);
+            }
+          } else {
+            // Employee was auto-routed (not explicitly requested) - allow session employee to override
+            console.log(`[Chat] Session employee mismatch: auto-routed ${finalEmployeeSlug}, session has ${sessionEmployeeSlug} (using session employee)`);
+            finalEmployeeSlug = sessionEmployeeSlug;
+          }
         }
       }
       
@@ -786,26 +1208,30 @@ export const handler: Handler = async (event, context) => {
     let memoryFacts: Array<{ fact: string; score: number; fact_id: string }> = [];
     let memoryHitScore: number | null = null;
     
-    try {
-      // Phase 2.1: Use unified memory API for comprehensive context
-      const normalizedSessionId = normalizeSessionId(finalSessionId);
-      const memory = await getMemory({
-        userId,
-        sessionId: normalizedSessionId || '',
-        query: masked,
-        options: {
-          maxFacts: isSmartImportAI ? 8 : 5,
-          topK: 6,
-          minScore: 0.2,
-          includeTasks: true,
-          includeSummaries: false
-        }
-      });
+    // FAST PATH: Skip expensive memory retrieval for short messages
+    if (!isFastPath) {
+      try {
+        const memoryStartTime = Date.now();
+        // Phase 2.1: Use unified memory API for comprehensive context
+        const normalizedSessionId = normalizeSessionId(finalSessionId);
+        const memory = await getMemory({
+          userId,
+          sessionId: normalizedSessionId || '',
+          query: masked,
+          options: {
+            maxFacts: isSmartImportAI ? 8 : 5,
+            topK: 6,
+            minScore: 0.2,
+            includeTasks: true, // Skip tasks in fast path
+            includeSummaries: false
+          }
+        });
 
-      // Use formatted context block from unified API
-      memoryContext = memory.context || '';
-      memoryFacts = memory.facts || [];
-      memoryHitScore = memoryFacts.length > 0 ? memoryFacts[0].score : null;
+        // Use formatted context block from unified API
+        memoryContext = memory.context || '';
+        memoryFacts = memory.facts || [];
+        memoryHitScore = memoryFacts.length > 0 ? memoryFacts[0].score : null;
+        timingLogs.memory = Date.now() - memoryStartTime;
 
       // Filter Smart Import AI memories if this is a Smart Import AI conversation
       if (isSmartImportAI && memoryFacts.length > 0) {
@@ -830,59 +1256,95 @@ export const handler: Handler = async (event, context) => {
         // Add prefix for non-Smart Import AI
         memoryContext = `\n\n${memoryContext}`;
       }
-    } catch (error: any) {
-      console.warn('[Chat] Memory retrieval failed:', error);
-      // Fallback to legacy recall() for backward compatibility
-      try {
-        const normalizedSessionId = normalizeSessionId(finalSessionId);
-        memoryFacts = await recall({
-          userId,
-          query: masked,
-          k: isSmartImportAI ? 8 : 5,
-          minScore: 0.2,
-          sessionId: normalizedSessionId || undefined
-        });
-        memoryHitScore = memoryFacts.length > 0 ? memoryFacts[0].score : null;
-        memoryContext = memoryFacts.length > 0
-          ? `\n\nRelevant user context:\n${memoryFacts.map(f => `- ${f.fact}`).join('\n')}`
-          : '';
-      } catch (fallbackError: any) {
-        console.warn('[Chat] Fallback memory retrieval also failed:', fallbackError);
-        // Continue without memory if both fail
+      } catch (error: any) {
+        console.warn('[Chat] Memory retrieval failed:', error);
+        // Fallback to legacy recall() for backward compatibility
+        try {
+          const normalizedSessionId = normalizeSessionId(finalSessionId);
+          memoryFacts = await recall({
+            userId,
+            query: masked,
+            k: isSmartImportAI ? 8 : 5,
+            minScore: 0.2,
+            sessionId: normalizedSessionId || undefined
+          });
+          memoryHitScore = memoryFacts.length > 0 ? memoryFacts[0].score : null;
+          memoryContext = memoryFacts.length > 0
+            ? `\n\nRelevant user context:\n${memoryFacts.map(f => `- ${f.fact}`).join('\n')}`
+            : '';
+        } catch (fallbackError: any) {
+          console.warn('[Chat] Fallback memory retrieval also failed:', fallbackError);
+          // Continue without memory if both fail
+        }
+      }
+    } else {
+      // FAST PATH: Skip memory retrieval for short messages
+      if (process.env.NETLIFY_DEV === 'true') {
+        console.log('[Chat] 🚀 FAST PATH: Skipping memory retrieval for short message');
       }
     }
 
-    // Log memory recall summary
-    const safeSessionId =
-      typeof finalSessionId === "string"
-        ? finalSessionId
-        : String(finalSessionId || "");
-    const sessionIdForLog = safeSessionId.length > 0
-      ? safeSessionId.substring(0, 8)
-      : 'no-session';
-    console.log(`[CHAT] memory recall userId=${typeof userId === 'string' && userId.length > 8 ? userId.substring(0, 8) : userId}... sessionId=${sessionIdForLog}... employee=${finalEmployeeSlug} hasContext=${memoryContext.length > 0}`);
+    // Log memory recall summary (skip in fast path)
+    if (!isFastPath) {
+      const safeSessionId =
+        typeof finalSessionId === "string"
+          ? finalSessionId
+          : String(finalSessionId || "");
+      const sessionIdForLog = safeSessionId.length > 0
+        ? safeSessionId.substring(0, 8)
+        : 'no-session';
+      console.log(`[CHAT] memory recall userId=${typeof userId === 'string' && userId.length > 8 ? userId.substring(0, 8) : userId}... sessionId=${sessionIdForLog}... employee=${finalEmployeeSlug} hasContext=${memoryContext.length > 0}`);
+    }
 
     // ========================================================================
-    // 7. GET RECENT MESSAGES
+    // 7. GET RECENT MESSAGES (by thread_id if available, else session_id)
     // ========================================================================
+    // FAST PATH: Load fewer messages for short queries (faster response)
+    const messageLimit = isFastPath ? 10 : 50;
     let recentMessages: any[] = [];
     try {
-      const normalizedSessionIdForMessages = normalizeSessionId(finalSessionId);
-      if (normalizedSessionIdForMessages) {
-        recentMessages = await getRecentMessages(sb, normalizedSessionIdForMessages, 4000);
-      } else {
-        recentMessages = [];
+      const messagesStartTime = Date.now();
+      if (threadId) {
+        // Load by thread_id (preferred)
+        const { data: threadMessages, error: threadError } = await sb
+          .from('chat_messages')
+          .select('id, role, content, created_at')
+          .eq('thread_id', threadId)
+          .order('created_at', { ascending: true })
+          .limit(messageLimit);
+        
+        if (!threadError && threadMessages) {
+          recentMessages = threadMessages.map((m: any) => ({
+            role: m.role,
+            content: m.content,
+            id: m.id,
+          }));
+          console.log(`[Chat] ✅ Loaded ${recentMessages.length} messages from thread ${threadId.substring(0, 8)}...`);
+        } else {
+          console.warn('[Chat] Failed to load messages by thread_id, falling back to session_id');
+        }
       }
-      const normalizedSessionIdForLog = normalizeSessionId(finalSessionId) || 'no-session';
-      const safeSessionId2 =
-        typeof normalizedSessionIdForLog === "string"
-          ? normalizedSessionIdForLog
-          : String(normalizedSessionIdForLog || "");
-      if (recentMessages.length > 0) {
-        console.log(`[Chat] ✅ Loaded ${recentMessages.length} previous messages from session ${safeSessionId2.substring(0, 8)}...`);
-      } else {
-        console.log(`[Chat] ℹ️ No previous messages found for session ${safeSessionId2.substring(0, 8)}... (this is normal for new conversations)`);
+      
+        // Fallback to session_id if thread_id didn't work or wasn't available
+        if (recentMessages.length === 0) {
+          const normalizedSessionIdForMessages = normalizeSessionId(finalSessionId);
+          if (normalizedSessionIdForMessages) {
+            // FAST PATH: Use smaller token limit for short messages
+            const tokenLimit = isFastPath ? 1000 : 4000;
+            recentMessages = await getRecentMessages(sb, normalizedSessionIdForMessages, tokenLimit);
+          const normalizedSessionIdForLog = normalizeSessionId(finalSessionId) || 'no-session';
+          const safeSessionId2 =
+            typeof normalizedSessionIdForLog === "string"
+              ? normalizedSessionIdForLog
+              : String(normalizedSessionIdForLog || "");
+          if (recentMessages.length > 0) {
+            console.log(`[Chat] ✅ Loaded ${recentMessages.length} previous messages from session ${safeSessionId2.substring(0, 8)}...`);
+          } else {
+            console.log(`[Chat] ℹ️ No previous messages found for session ${safeSessionId2.substring(0, 8)}... (this is normal for new conversations)`);
+          }
+        }
       }
+      timingLogs.messages = Date.now() - messagesStartTime;
     } catch (error: any) {
       console.warn('[Chat] ⚠️ Failed to load recent messages:', error);
       // Continue without history if loading fails
@@ -939,53 +1401,203 @@ export const handler: Handler = async (event, context) => {
     }
 
     // ========================================================================
+    // 7.5. GET USER PROFILE & BUILD CONTEXT INJECTION
+    // ========================================================================
+    // Fetch AI user context for fluency adaptation
+    const profileStartTime = Date.now();
+    const ctx = await fetchAiUserContext(userId);
+    const userProfile = await getUserProfile(sb, userId);
+    timingLogs.profile = Date.now() - profileStartTime;
+    const userContextBlock = userProfile ? formatUserContextForPrompt(userProfile) : null;
+
+    // ========================================================================
     // 8. BUILD MODEL MESSAGES
     // ========================================================================
-    // Build comprehensive system message with memory context and persona
-    // Priority: handoff context > customSystemPrompt > employeeSystemPrompt (from DB) > routing-based prompts
-    const systemMessageParts: string[] = [];
+    // Build system messages array (separate messages for each rule)
+    // ORDER: Global fluency rule → Merged user context → Prime rule → Employee-specific prompts
+    const systemMessages: Array<{ role: 'system'; content: string }> = [];
     
-    // Phase 3.2: Add handoff context if available
+    // 1. Global AI Fluency Rule (ALL employees) - Single merged global rules message
+    systemMessages.push({ role: 'system', content: AI_FLUENCY_GLOBAL_SYSTEM_RULE });
+    
+    // 2. Merged User Context (fluency level + user preferences in ONE message to avoid duplication)
+    // Combine buildAiContextSystemMessage(ctx) with userContextBlock if available
+    let mergedUserContext = buildAiContextSystemMessage(ctx);
+    if (userContextBlock) {
+      // Merge: AI fluency context + detailed user preferences
+      mergedUserContext = `${mergedUserContext}\n\n---\n\n${userContextBlock}`;
+    }
+    
+    // Add user name context (CRITICAL: Never show email as name)
+    if (userProfile?.preferredName) {
+      const firstName = userProfile.preferredName.split(' ')[0] || userProfile.preferredName;
+      mergedUserContext += `\n\n**User Name Context (IMPORTANT):**
+- User display name: ${userProfile.preferredName}
+- Address the user as "${firstName}" in greetings and responses
+- NEVER show their email address as their name
+- If name is missing or unavailable, address them as "there"`;
+    } else {
+      mergedUserContext += `\n\n**User Name Context (IMPORTANT):**
+- User name is not available
+- Address the user as "there" in greetings and responses
+- NEVER show their email address as their name`;
+    }
+    
+    systemMessages.push({ role: 'system', content: mergedUserContext });
+    
+    // 3. Prime Context System Message (ONLY for Prime, if prime_context provided)
+    const isPrime = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
+    if (isPrime && body.prime_context) {
+      const pc = body.prime_context;
+      
+      // Build Prime context system message (convenience overlay, verified server-side)
+      let primeContextMessage = 'PRIME CONTEXT (User State Snapshot):\n\n';
+      
+      // User identity
+      primeContextMessage += `User: ${pc.displayName || 'User'}\n`;
+      if (pc.timezone) primeContextMessage += `Timezone: ${pc.timezone}\n`;
+      if (pc.currency) primeContextMessage += `Currency: ${pc.currency}\n`;
+      if (pc.currentStage) primeContextMessage += `Stage: ${pc.currentStage}\n`;
+      
+      // Financial snapshot
+      if (pc.financialSnapshot) {
+        const fs = pc.financialSnapshot;
+        primeContextMessage += `\nSnapshot:\n`;
+        primeContextMessage += `- hasTransactions: ${fs.hasTransactions}\n`;
+        primeContextMessage += `- uncategorizedCount: ${fs.uncategorizedCount}\n`;
+        if (fs.monthlySpend !== undefined) primeContextMessage += `- monthlySpend: ${fs.monthlySpend}\n`;
+        if (fs.topCategories && fs.topCategories.length > 0) {
+          primeContextMessage += `- topCategories: ${fs.topCategories.map(c => `${c.name} (${c.amount})`).join(', ')}\n`;
+        }
+        if (fs.hasDebt !== undefined) primeContextMessage += `- hasDebt: ${fs.hasDebt}\n`;
+        if (fs.hasGoals !== undefined) primeContextMessage += `- hasGoals: ${fs.hasGoals}\n`;
+      }
+      
+      // Memory summary
+      if (pc.memorySummary) {
+        const ms = pc.memorySummary;
+        primeContextMessage += `\nMemorySummary:\n`;
+        if (ms.factsCount !== undefined) primeContextMessage += `- factsCount: ${ms.factsCount}\n`;
+        if (ms.lastUpdatedAt) primeContextMessage += `- lastUpdatedAt: ${ms.lastUpdatedAt}\n`;
+        if (ms.recentFacts && ms.recentFacts.length > 0) {
+          primeContextMessage += `- recentFacts: ${ms.recentFacts.slice(0, 3).join(', ')}\n`;
+        }
+      }
+      
+      // Prepend Prime context BEFORE orchestration rule (so orchestration can reference context)
+      systemMessages.push({ role: 'system', content: primeContextMessage });
+      
+      // Dev logging (redacted)
+      if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+        console.log('[chat] prime_context received', {
+          hasName: !!pc.displayName,
+          stage: pc.currentStage,
+          uncategorizedCount: pc.financialSnapshot?.uncategorizedCount,
+          factsCount: pc.memorySummary?.factsCount
+        });
+      }
+    }
+    
+    // 3.5. Prime Orchestration Rule (ONLY for Prime, after context)
+    if (isPrime) {
+      systemMessages.push({ role: 'system', content: PRIME_ORCHESTRATION_RULE });
+    }
+    
+    // 3.6. Custodian Context (ONLY for Custodian, if custodian slug)
+    const isCustodian = finalEmployeeSlug === 'custodian' || finalEmployeeSlug === 'custodian-settings';
+    if (isCustodian) {
+      try {
+        // Query user security settings
+        const { data: profile } = await sb
+          .from('profiles')
+          .select('metadata, created_at, updated_at')
+          .eq('id', userId)
+          .single();
+        
+        const metadata = profile?.metadata || {};
+        const twoFactorEnabled = metadata.two_factor_enabled || false;
+        const privacyLevel = metadata.privacy_level || 'standard';
+        const accountAge = profile?.created_at ? 
+          Math.floor((Date.now() - new Date(profile.created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+        const onboardingCompleted = metadata.onboarding_completed || metadata.prime_initialized || false;
+        
+        const custodianContext = `
+CUSTODIAN CONTEXT (Account Security & Settings):
+- Account age: ${accountAge} days
+- Two-factor authentication: ${twoFactorEnabled ? 'Enabled ✅' : 'Not enabled ⚠️'}
+- Privacy level: ${privacyLevel}
+- Account security score: ${twoFactorEnabled ? '8/10 (Good)' : '5/10 (Needs improvement)'}
+- Onboarding completed: ${onboardingCompleted ? 'Yes' : 'No'}
+- Last updated: ${profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString() : 'Never'}
+`;
+        
+        systemMessages.push({ role: 'system', content: custodianContext });
+        
+        if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+          console.log('[Custodian Context] Security context injected:', {
+            accountAge,
+            twoFactorEnabled,
+            privacyLevel,
+            onboardingCompleted,
+          });
+        }
+      } catch (error: any) {
+        console.warn('[Custodian Context] Failed to load security context:', error);
+        // Continue without context if loading fails
+      }
+    }
+    
+    // 5. Handoff context if available
     if (handoffContext) {
       const handoffPreamble = `You're taking over this conversation from ${handoffContext.from_employee}.`;
-      systemMessageParts.push(handoffPreamble);
+      let handoffContent = handoffPreamble;
       
       if (handoffContext.reason) {
-        systemMessageParts.push(`Reason for handoff: ${handoffContext.reason}`);
+        handoffContent += `\nReason for handoff: ${handoffContext.reason}`;
       }
       
       if (handoffContext.context_summary) {
-        systemMessageParts.push(`Context Summary:\n${handoffContext.context_summary}`);
+        handoffContent += `\n\nContext Summary:\n${handoffContext.context_summary}`;
       }
       
       if (handoffContext.key_facts && handoffContext.key_facts.length > 0) {
-        systemMessageParts.push(`Key Facts:\n${handoffContext.key_facts.map(f => `- ${f}`).join('\n')}`);
+        handoffContent += `\n\nKey Facts:\n${handoffContext.key_facts.map(f => `- ${f}`).join('\n')}`;
       }
       
       if (handoffContext.user_intent) {
-        systemMessageParts.push(`User's Current Question: ${handoffContext.user_intent}`);
+        handoffContent += `\n\nUser's Current Question: ${handoffContext.user_intent}`;
       }
       
-      systemMessageParts.push(''); // Empty line separator
+      systemMessages.push({ role: 'system', content: handoffContent });
     }
     
+    // 6. Employee-specific system prompt (from database or routing)
     if (customSystemPrompt) {
       // Use custom system prompt (includes category context, transaction context, etc.)
-      systemMessageParts.push(customSystemPrompt);
-      if (memoryContext) systemMessageParts.push(memoryContext);
+      systemMessages.push({ role: 'system', content: customSystemPrompt });
+      if (memoryContext) {
+        systemMessages.push({ role: 'system', content: memoryContext });
+      }
     } else if (employeeSystemPrompt) {
       // Use system_prompt from employee_profiles table (includes org chart, handoff rules, etc.)
-      systemMessageParts.push(employeeSystemPrompt);
-      if (memoryContext) systemMessageParts.push(memoryContext);
+      systemMessages.push({ role: 'system', content: employeeSystemPrompt });
+      if (memoryContext) {
+        systemMessages.push({ role: 'system', content: memoryContext });
+      }
       console.log(`[Chat] Using system_prompt from database for ${finalEmployeeSlug}`);
     } else {
       // Fallback to default routing-based prompts
-      if (systemPreamble) systemMessageParts.push(systemPreamble);
-      if (memoryContext) systemMessageParts.push(memoryContext);
-      if (employeePersona) systemMessageParts.push(employeePersona);
+      if (systemPreamble) {
+        systemMessages.push({ role: 'system', content: systemPreamble });
+      }
+      if (memoryContext) {
+        systemMessages.push({ role: 'system', content: memoryContext });
+      }
+      if (employeePersona) {
+        systemMessages.push({ role: 'system', content: employeePersona });
+      }
       console.log(`[Chat] Using routing-based prompts for ${finalEmployeeSlug} (no DB system_prompt found)`);
     }
-    const systemMessage = systemMessageParts.join('\n\n').trim();
 
     // Build attachment context if documentIds provided
     let attachmentContext: string | null = null;
@@ -999,8 +1611,9 @@ export const handler: Handler = async (event, context) => {
       userMessageContent = `${masked}${attachmentContext}`;
     }
 
+    // Build final messages: system messages + chat history + current user message
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: systemMessage },
+      ...systemMessages, // Multiple system messages (fluency rule, context, Prime rule, employee prompt, etc.)
       ...recentMessages.map((m: any) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -1008,7 +1621,332 @@ export const handler: Handler = async (event, context) => {
       { role: 'user', content: userMessageContent },
     ];
 
-    console.log(`[Chat] Context: ${recentMessages.length} history messages, ${memoryFacts.length} memory facts`);
+    // ========================================================================
+    // 8.4. PRIME→BYTE HANDOFF TRIGGER (Explicit confirmation only)
+    // ========================================================================
+    // Prime-only: Only trigger handoff on explicit confirmation, not hypothetical questions
+    // Handoff should happen ONLY when:
+    // 1. User explicitly confirms ("yes, let's upload/import", "go ahead", "yes", "ok")
+    // 2. User clicks Upload button (handled by frontend)
+    // 3. Prime explicitly calls request_employee_handoff tool (handled by tool execution)
+    // REMOVED: Automatic keyword-based handoff to prevent stickiness on hypothetical questions
+    if (isPrime && finalEmployeeSlug === 'prime-boss') {
+      // Only trigger on explicit confirmation, not just keywords
+      const confirmationPattern = /\b(yes|ok|okay|go ahead|let's do it|let's upload|let's import|proceed|start|begin|ready)\b/i;
+      const uploadIntentPattern = /\b(upload|import|statement|bank statement|receipt|pdf|transactions|document|file|scan|ocr|parse)\b/i;
+      
+      // Require BOTH confirmation AND upload intent (explicit user intent)
+      const hasConfirmation = confirmationPattern.test(userMessageContent);
+      const hasUploadIntent = uploadIntentPattern.test(userMessageContent);
+      
+      if (hasConfirmation && hasUploadIntent) {
+        console.log(`[Chat] 🔄 PRIME→BYTE HANDOFF: User explicitly confirmed upload/import intent`);
+        
+        // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
+        if (!finalSessionId) {
+          console.error('[Chat] ❌ HANDOFF FAILED: No valid sessionId available.');
+        } else {
+          // Simulate handoff tool result to reuse existing handoff processing logic
+          const simulatedHandoffResult = {
+            ok: true,
+            data: {
+              requested_handoff: true,
+              target_slug: 'byte-docs',
+              reason: 'Smart Import',
+              summary_for_next_employee: 'User wants to upload a statement/receipt. Ask for the file and run OCR/parse pipeline. Summarize results and offer handback to Prime.',
+            },
+          };
+          
+          // Process handoff immediately (reuse existing logic from tool execution)
+          try {
+            const handoffData = simulatedHandoffResult.data;
+            const targetSlug = handoffData.target_slug;
+            const reason = handoffData.reason || 'Smart Import';
+            const summary = handoffData.summary_for_next_employee;
+            
+            console.log(`[Chat] ✅ AUTO-HANDOFF COMPLETE: ${originalEmployeeSlug} → ${targetSlug}`, {
+              reason,
+              summary: summary?.substring(0, 100),
+              sessionId: finalSessionId,
+            });
+            
+            // Gather handoff context
+            let handoffRecentMessages: any[] = [];
+            let keyFacts: string[] = [];
+            
+            try {
+              // Get recent messages (last 10)
+              const { data: messagesData } = await sb
+                .from('chat_messages')
+                .select('role, content, created_at')
+                .eq('session_id', finalSessionId)
+                .order('created_at', { ascending: false })
+                .limit(10);
+              
+              if (messagesData) {
+                handoffRecentMessages = messagesData.reverse(); // Oldest first
+              }
+              
+              // Extract key facts from memory
+              if (memoryFacts && memoryFacts.length > 0) {
+                keyFacts = memoryFacts.slice(0, 5).map(f => f.fact);
+              }
+            } catch (error: any) {
+              console.warn('[Chat] Failed to gather handoff context:', error);
+            }
+            
+            // Store handoff context in database
+            try {
+              await sb.from('handoffs').insert({
+                user_id: userId,
+                session_id: finalSessionId,
+                from_employee: originalEmployeeSlug,
+                to_employee: targetSlug,
+                reason: reason,
+                context_summary: summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`,
+                key_facts: keyFacts,
+                recent_messages: handoffRecentMessages,
+                user_intent: masked.substring(0, 500),
+                status: 'initiated',
+              });
+              
+              console.log(`[Chat] Stored auto-handoff context for session ${finalSessionId}`);
+            } catch (error: any) {
+              console.warn('[Chat] Failed to store auto-handoff context:', error);
+            }
+            
+            // Update session's employee_slug ONLY if this is a confirmed handoff (not hypothetical)
+            // CRITICAL: Only persist handoff if user explicitly confirmed (hasConfirmation && hasUploadIntent)
+            // This prevents session from becoming "sticky" after hypothetical questions
+            // Note: This handoff path only runs when hasConfirmation && hasUploadIntent is true (see line ~1591)
+            try {
+              await sb
+                .from('chat_sessions')
+                .update({ employee_slug: targetSlug })
+                .eq('id', finalSessionId);
+              
+              console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug} (confirmed handoff)`);
+            } catch (error: any) {
+              console.warn('[Chat] Failed to update session employee_slug:', error);
+            }
+            
+            // Insert system message about handoff
+            try {
+              const handoffMessage = summary 
+                ? `Handoff: Conversation moved to ${targetSlug}. Context: ${summary}`
+                : `Handoff: Conversation moved to ${targetSlug}.`;
+              
+              await sb.from('chat_messages').insert({
+                session_id: finalSessionId,
+                user_id: userId,
+                role: 'system',
+                content: handoffMessage,
+                tokens: estimateTokens(handoffMessage),
+                thread_id: threadId,
+              });
+              
+              console.log(`[Chat] Inserted auto-handoff system message for session ${finalSessionId}`);
+            } catch (error: any) {
+              console.warn('[Chat] Failed to insert auto-handoff system message:', error);
+            }
+            
+            // CRITICAL: Return early with silent handoff - do NOT continue processing
+            // Prime must NOT produce a full answer when handing off
+            // Return only a short handoff message, then Byte will produce the substantive answer
+            const handoffConfirmation = "Got it — handing this to Byte.";
+            const isStreaming = stream !== false;
+            
+            // Log handoff for debugging
+            console.log(`[Chat] 🔄 HANDOFF: ${originalEmployeeSlug} → ${targetSlug}`, {
+              requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+              responder: targetSlug,
+              handoffOccurred: true,
+            });
+            
+            if (isStreaming) {
+              return {
+                statusCode: 200,
+                headers: {
+                  ...baseHeaders,
+                  'Content-Type': 'text/event-stream',
+                  'Cache-Control': 'no-cache',
+                  'Connection': 'keep-alive',
+                  'X-Employee': targetSlug,
+                  'X-Handoff': `${originalEmployeeSlug}-to-${targetSlug}`,
+                },
+                body: `data: ${JSON.stringify({ role: 'assistant', content: handoffConfirmation })}\n\ndata: ${JSON.stringify({ type: 'handoff', from: originalEmployeeSlug, to: targetSlug })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
+              };
+            } else {
+              return {
+                statusCode: 200,
+                headers: {
+                  ...baseHeaders,
+                  'Content-Type': 'application/json',
+                  'X-Employee': targetSlug,
+                  'X-Handoff': `${originalEmployeeSlug}-to-${targetSlug}`,
+                },
+                body: JSON.stringify({
+                  ok: true,
+                  content: handoffConfirmation,
+                  handoff: {
+                    from: originalEmployeeSlug,
+                    to: targetSlug,
+                    reason: reason,
+                  },
+                  thread_id: threadId,
+                }),
+              };
+            }
+          } catch (error: any) {
+            console.error('[Chat] Failed to process auto-handoff:', error);
+            // Continue with normal Prime processing if handoff fails
+          }
+        }
+      }
+    }
+
+    // Log context summary (skip detailed logging in fast path)
+    if (!isFastPath) {
+      console.log(`[Chat] Context: ${recentMessages.length} history messages, ${memoryFacts.length} memory facts`);
+    } else if (process.env.NETLIFY_DEV === 'true') {
+      console.log(`[Chat] 🚀 FAST PATH: ${recentMessages.length} history messages (memory skipped)`);
+    }
+
+    // ========================================================================
+    // 8.5. RESOLVE MODEL CONFIGURATION (before dev logging and API calls)
+    // ========================================================================
+    // Get employee-specific model configuration early so it's available for logging and API calls
+    // CRITICAL: modelConfig must ALWAYS be defined - never throw ReferenceError
+    let modelConfig: { model: string; temperature: number; maxTokens: number };
+    try {
+      modelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
+      // Verify config is valid
+      if (!modelConfig || !modelConfig.model || typeof modelConfig.temperature !== 'number' || typeof modelConfig.maxTokens !== 'number') {
+        throw new Error('Invalid model config returned');
+      }
+      
+      // FAST PATH: Reduce maxTokens for short messages (faster response, lower cost)
+      if (isFastPath && modelConfig.maxTokens > 300) {
+        modelConfig.maxTokens = 300;
+        if (process.env.NETLIFY_DEV === 'true') {
+          console.log(`[Chat] 🚀 FAST PATH: Reduced maxTokens to ${modelConfig.maxTokens} for short message`);
+        }
+      }
+      
+      console.log(`[Chat] modelConfig resolved: model=${modelConfig.model}, temperature=${modelConfig.temperature}, maxTokens=${modelConfig.maxTokens}`);
+    } catch (configError: any) {
+      console.warn('[Chat] Failed to get employee model config (non-fatal, using defaults):', configError?.message || configError);
+      // Fallback to default config using env var or safe defaults
+      // Use process.env only (no import.meta for CJS compatibility)
+      const defaultModel = process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini';
+      const defaultMaxTokens = isFastPath ? 300 : 2000; // FAST PATH: Lower maxTokens
+      modelConfig = {
+        model: defaultModel,
+        temperature: 0.7,
+        maxTokens: defaultMaxTokens,
+      };
+      console.log(`[Chat] modelConfig resolved (fallback): model=${modelConfig.model}, temperature=${modelConfig.temperature}, maxTokens=${modelConfig.maxTokens}`);
+    }
+    
+    // Final safety check - ensure modelConfig is never undefined
+    if (!modelConfig || !modelConfig.model) {
+      console.error('[Chat] CRITICAL: modelConfig is still undefined after all fallbacks - using emergency defaults');
+      const emergencyMaxTokens = isFastPath ? 300 : 2000; // FAST PATH: Lower maxTokens
+      modelConfig = {
+        model: 'gpt-4o-mini',
+        temperature: 0.7,
+        maxTokens: emergencyMaxTokens,
+      };
+    }
+
+    // Track request timing (used in both streaming and non-streaming paths)
+    const requestStartTime = Date.now();
+    let firstTokenTime: number | null = null;
+
+    // DEV: Comprehensive AI request logging
+    // Use process.env only (no import.meta for CJS compatibility)
+    if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+      console.group(`🤖 [Backend AI Request] ${finalEmployeeSlug}`);
+      
+      // Log model configuration (now guaranteed to be defined)
+      console.log('⚙️ Model Config:', {
+        model: modelConfig.model,
+        temperature: modelConfig.temperature,
+        maxTokens: modelConfig.maxTokens,
+      });
+      
+      // Log system messages summary
+      const systemMessagesSummary = systemMessages.map((m, i) => ({
+        index: i,
+        role: m.role,
+        contentLength: m.content.length,
+        preview: m.content.substring(0, 100) + (m.content.length > 100 ? '...' : ''),
+        hasContextData: {
+          'prime-boss': m.content.includes('uncategorizedCount') || m.content.includes('topCategories'),
+          'byte-docs': m.content.includes('Document:') || m.content.includes('OCR Text'),
+          'tag-ai': m.content.includes('uncategorized') || m.content.includes('category'),
+          'crystal-analytics': m.content.includes('spending') || m.content.includes('budget'),
+        }[finalEmployeeSlug] || false,
+      }));
+      console.log('📋 System Messages:', systemMessagesSummary);
+      
+      // Log context summary
+      const contextSummary = {
+        systemMessagesCount: systemMessages.length,
+        historyMessagesCount: recentMessages.length,
+        memoryFactsCount: memoryFacts.length,
+        hasPrimeContext: isPrime && !!body.prime_context,
+        hasDocumentContext: !!attachmentContext,
+        hasMemoryContext: memoryContext.length > 0,
+        hasHandoffContext: !!handoffContext,
+        userMessageLength: userMessageContent.length,
+      };
+      console.log('📊 Context Summary:', contextSummary);
+      
+      // Log user message
+      console.log('💬 User Message:', userMessageContent.substring(0, 200) + (userMessageContent.length > 200 ? '...' : ''));
+      
+      // Log expected context per employee
+      const expectedContext = {
+        'prime-boss': {
+          shouldHave: ['Financial snapshot', 'Memory summary', 'User facts', 'RAG embeddings'],
+          actualHas: [
+            isPrime && body.prime_context ? 'Financial snapshot' : null,
+            isPrime && body.prime_context?.memorySummary ? 'Memory summary' : null,
+            memoryFacts.length > 0 ? 'User facts' : null,
+            memoryContext.includes('Relevant Past Conversations') ? 'RAG embeddings' : null,
+          ].filter(Boolean),
+        },
+        'byte-docs': {
+          shouldHave: ['Document context', 'User facts', 'RAG embeddings'],
+          actualHas: [
+            attachmentContext ? 'Document context' : null,
+            memoryFacts.length > 0 ? 'User facts' : null,
+            memoryContext.includes('Relevant Past Conversations') ? 'RAG embeddings' : null,
+          ].filter(Boolean),
+        },
+        'tag-ai': {
+          shouldHave: ['Uncategorized count', 'User facts', 'RAG embeddings'],
+          actualHas: [
+            memoryContext.includes('uncategorized') ? 'Uncategorized count' : null,
+            memoryFacts.length > 0 ? 'User facts' : null,
+            memoryContext.includes('Relevant Past Conversations') ? 'RAG embeddings' : null,
+          ].filter(Boolean),
+        },
+        'crystal-analytics': {
+          shouldHave: ['Analytics data', 'Budget data', 'User facts', 'RAG embeddings'],
+          actualHas: [
+            memoryContext.includes('spending') || memoryContext.includes('budget') ? 'Analytics/Budget data' : null,
+            memoryFacts.length > 0 ? 'User facts' : null,
+            memoryContext.includes('Relevant Past Conversations') ? 'RAG embeddings' : null,
+          ].filter(Boolean),
+        },
+      }[finalEmployeeSlug] || { shouldHave: ['User facts', 'RAG embeddings'], actualHas: [] };
+      
+      console.log('🎯 Expected vs Actual Context:', expectedContext);
+      
+      console.groupEnd();
+    }
 
     // ========================================================================
     // 9. CALL OPENAI (Streaming)
@@ -1026,7 +1964,7 @@ export const handler: Handler = async (event, context) => {
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
           },
-          body: `data: ${JSON.stringify({ role: 'assistant', content: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
+          body: `data: ${JSON.stringify({ role: 'assistant', content: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
         };
       }
       return {
@@ -1045,13 +1983,49 @@ export const handler: Handler = async (event, context) => {
 
     // Save user message to database (masked) - non-blocking
     try {
-      await sb.from('chat_messages').insert({
-        session_id: finalSessionId,
+      const messageData: any = {
+        session_id: finalSessionId, // Keep for backward compatibility
         user_id: userId,
         role: 'user',
         content: masked, // Store masked version
         tokens: estimateTokens(masked),
-      });
+        thread_id: threadId, // CRITICAL: thread_id is always required
+      };
+      console.log(`[Chat] Inserting user message with thread_id: ${threadId}`);
+      await sb.from('chat_messages').insert(messageData);
+      
+      // Log AI activity event (non-blocking, uses RLS with auth.uid())
+      const authToken = event.headers?.authorization || event.headers?.Authorization || '';
+      if (authToken && userId) {
+        logAiActivity(authToken.replace('Bearer ', ''), {
+          employeeId: finalEmployeeSlug,
+          eventType: 'message_sent',
+          status: 'success',
+          label: `User sent message to ${finalEmployeeSlug}`,
+          details: { message_length: masked.length, thread_id: finalSessionId },
+        }).catch(err => {
+          console.warn('[Chat] Failed to log activity event (non-fatal):', err);
+        });
+      }
+
+      // AI Fluency: Detect multi-step chat (light heuristic)
+      // If session has 3+ messages (user + assistant + user), it's a multi-step conversation
+      if (recentMessages.length >= 3) {
+        // Count user messages in recent history (excluding current one we just saved)
+        const userMessageCount = recentMessages.filter(m => m.role === 'user').length;
+        if (userMessageCount >= 1) {
+          // Log multi-step chat event (non-blocking)
+          logUserEvent({
+            userId,
+            eventType: 'multi_step_chat',
+            eventValue: userMessageCount + 1, // +1 for current message
+            meta: { sessionId: finalSessionId, employeeSlug: finalEmployeeSlug }
+          }).catch(err => {
+            console.error('[Chat] Error logging multi-step chat event:', err);
+            // Don't block - logging failures are non-fatal
+          });
+        }
+      }
     } catch (error: any) {
       console.warn('[Chat] Failed to save user message:', error);
       // Continue even if save fails
@@ -1079,22 +2053,44 @@ export const handler: Handler = async (event, context) => {
           // Continue without tools
         }
         
-        // Get employee-specific model configuration
-        let modelConfig;
-        try {
-          modelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
-        } catch (configError: any) {
-          console.warn('[Chat] Failed to get employee model config (non-fatal, using defaults):', configError);
-          // Fallback to default config
-          modelConfig = {
-            model: 'gpt-4o-mini',
-            temperature: 0.7,
-            maxTokens: 2000,
-          };
-        }
+        // Model config already resolved above - reuse it
+        // (No need to resolve again - already available in scope)
         
         // Note: Netlify Functions streaming requires returning a promise that resolves to chunks
         console.log('[Chat] OPENAI streaming call start', { employeeSlug: finalEmployeeSlug, userId });
+        
+        // DEV: Log what's being sent to OpenAI
+        if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+          console.group(`🚀 [OpenAI API Call] ${finalEmployeeSlug}`);
+          console.log('📤 Request to OpenAI:', {
+            model: modelConfig.model,
+            temperature: modelConfig.temperature,
+            maxTokens: modelConfig.maxTokens,
+            messagesCount: messages.length,
+            systemMessagesCount: messages.filter(m => m.role === 'system').length,
+            toolsCount: openaiTools?.length || 0,
+          });
+          
+          // Log system messages (first 3 for brevity)
+          const systemMsgs = messages.filter(m => m.role === 'system').slice(0, 3);
+          systemMsgs.forEach((msg, i) => {
+            console.log(`📋 System Message ${i + 1}:`, {
+              length: msg.content.length,
+              preview: msg.content.substring(0, 150) + '...',
+              hasContextData: msg.content.includes('uncategorizedCount') || 
+                             msg.content.includes('topCategories') ||
+                             msg.content.includes('Document:') ||
+                             msg.content.includes('spending') ||
+                             msg.content.includes('budget'),
+            });
+          });
+          
+          console.log('💬 User Message:', messages.find(m => m.role === 'user')?.content?.substring(0, 200));
+          console.groupEnd();
+        }
+        
+        // CRITICAL: Time OpenAI call
+        const openaiStartTime = Date.now();
         const openaiStream = await openai.chat.completions.create({
           model: modelConfig.model,
           messages,
@@ -1103,6 +2099,7 @@ export const handler: Handler = async (event, context) => {
           stream: true,
           tools: openaiTools, // Add tools if available
         });
+        timingLogs.openai_ttft = Date.now() - openaiStartTime;
         console.log('[Chat] OPENAI streaming call initiated, starting to process chunks');
 
         // Build response headers (will be updated if handoff occurs)
@@ -1119,14 +2116,27 @@ export const handler: Handler = async (event, context) => {
         // Create streaming response with tool calling support
         let assistantContent = '';
         let toolCalls: any[] = [];
-        const requestStartTime = Date.now();
-        let firstTokenTime: number | null = null;
+        // requestStartTime and firstTokenTime already declared above
         
         // Send meta event at start for debugging
         let streamBuffer = `event: meta\ndata: ${JSON.stringify({ status: 'starting' })}\n\n`;
         
+        // Send guardrails status as FIRST meta event (so UI can show "Secured" immediately)
+        const guardrailsStatus = buildGuardrailsStatus('streaming');
+        streamBuffer += `event: meta\ndata: ${JSON.stringify({ guardrails: guardrailsStatus })}\n\n`;
+        
+        // Dev-only verification log
+        if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+          console.log(`[Guardrails] enabled=${guardrailsStatus.enabled} pii_masking=${guardrailsStatus.pii_masking} moderation=${guardrailsStatus.moderation} version=${guardrailsStatus.policy_version}`);
+        }
+        
         // Send employee header first (will be updated if handoff occurs)
-        streamBuffer += `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n`;
+        const employeePayload = { type: 'employee', employee: finalEmployeeSlug };
+        streamBuffer += `data: ${JSON.stringify(employeePayload)}\n\n`;
+        // DEV: Log every SSE payload type
+        if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
+          console.log('[CHAT SSE OUT]', employeePayload.type, 'employee:', finalEmployeeSlug);
+        }
 
         // Stream tokens and collect tool calls
         for await (const chunk of openaiStream) {
@@ -1138,7 +2148,12 @@ export const handler: Handler = async (event, context) => {
           if (delta?.content) {
             assistantContent += delta.content;
             // Frontend expects type: 'text' with content property, not type: 'token' with token
-            streamBuffer += `data: ${JSON.stringify({ type: 'text', content: delta.content })}\n\n`;
+            const textPayload = { type: 'text', content: delta.content };
+            streamBuffer += `data: ${JSON.stringify(textPayload)}\n\n`;
+            // DEV: Log every SSE payload type
+            if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
+              console.log('[CHAT SSE OUT]', textPayload.type, 'content length:', delta.content.length);
+            }
           }
           // Collect tool calls from stream
           if (delta?.tool_calls) {
@@ -1279,7 +2294,6 @@ export const handler: Handler = async (event, context) => {
                         console.log(`[Chat] ✅ HANDOFF COMPLETE (streaming): ${originalEmployeeSlug} → ${targetSlug}`, {
                           reason,
                           summary: summary?.substring(0, 100),
-                          sessionId: finalSessionId.substring(0, 8) + '...',
                           sessionId: finalSessionId,
                         });
                         
@@ -1328,14 +2342,15 @@ export const handler: Handler = async (event, context) => {
                           console.warn('[Chat] Failed to store handoff context:', error);
                         }
                         
-                        // Update session's employee_slug
+                        // Update session's employee_slug (tool-based handoff - explicit action, safe to persist)
+                        // This is from Prime calling request_employee_handoff tool, which is an explicit handoff action
                         try {
                           await sb
                             .from('chat_sessions')
                             .update({ employee_slug: targetSlug })
                             .eq('id', finalSessionId);
                           
-                          console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug}`);
+                          console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug} (tool-based handoff)`);
                         } catch (error: any) {
                           console.warn('[Chat] Failed to update session employee_slug:', error);
                         }
@@ -1352,7 +2367,9 @@ export const handler: Handler = async (event, context) => {
                             role: 'system',
                             content: handoffMessage,
                             tokens: estimateTokens(handoffMessage),
+                            thread_id: threadId, // CRITICAL: thread_id is always required
                           });
+                          console.log(`[Chat] Inserting system handoff message with thread_id: ${threadId}`);
                           
                           console.log(`[Chat] Inserted handoff system message for session ${finalSessionId}`);
                         } catch (error: any) {
@@ -1496,7 +2513,12 @@ export const handler: Handler = async (event, context) => {
                   if (delta) {
                     assistantContent += delta;
                     // Frontend expects type: 'text' with content property
-                    streamBuffer += `data: ${JSON.stringify({ type: 'text', content: delta })}\n\n`;
+                    const textPayload = { type: 'text', content: delta };
+                    streamBuffer += `data: ${JSON.stringify(textPayload)}\n\n`;
+                    // DEV: Log every SSE payload type
+                    if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
+                      console.log('[CHAT SSE OUT]', textPayload.type, 'content length:', delta.length);
+                    }
                   }
                 }
               } catch (secondStreamError: any) {
@@ -1569,11 +2591,96 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Send completion signal
-      streamBuffer += `data: ${JSON.stringify({ type: 'done' })}\n\n`;
+      // Include guardrails metadata in done event
+      const guardrailsMetadata = {
+        status: guardrailResult?.ok ? 'active' : 'blocked',
+        blocked: !guardrailResult?.ok,
+        reasons: guardrailResult?.blockedReason ? [guardrailResult.blockedReason] : [],
+        pii_masked: (guardrailResult?.signals?.pii || piiFound.length > 0) ? true : false,
+        events_count: guardrailResult?.events?.length || 0,
+      };
+      
+      const donePayload = { type: 'done', guardrails: guardrailsMetadata, thread_id: threadId };
+      streamBuffer += `data: ${JSON.stringify(donePayload)}\n\n`;
+      // DEV: Log every SSE payload type
+      if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
+        console.log('[CHAT SSE OUT]', donePayload.type, 'thread_id:', threadId);
+      }
       console.log('[Chat] OPENAI streaming call completed, total content length:', assistantContent.length);
+      
+      // DEV: Verify single terminal path (prove no double emission)
+      if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+        console.log(`[Chat] ✅ SSE Response Complete:`, {
+          requestId: threadId,
+          mode: 'SSE',
+          doneEventEmitted: true,
+          contentLength: assistantContent.length,
+        });
+      }
+
+      // DEV: Comprehensive AI response logging
+      if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+        console.group(`✅ [Backend AI Response] ${finalEmployeeSlug}`);
+        
+        console.log('📥 Response Summary:', {
+          model: modelConfig.model,
+          responseLength: assistantContent.length,
+          toolCallsCount: toolCalls.length,
+          totalLatency: (Date.now() - requestStartTime) + 'ms',
+          timeToFirstToken: firstTokenTime ? (firstTokenTime - requestStartTime) + 'ms' : 'N/A',
+        });
+        
+        // Log response content
+        console.log('💬 Assistant Response:', assistantContent.substring(0, 300) + (assistantContent.length > 300 ? '...' : ''));
+        
+        // Check if response references context data
+        const hasNumbers = /\d+/.test(assistantContent);
+        const hasContextualData = 
+          (finalEmployeeSlug === 'prime-boss' && (
+            assistantContent.includes('uncategorized') || 
+            assistantContent.includes('spent') || 
+            assistantContent.includes('category') ||
+            /\$\d+/.test(assistantContent)
+          )) ||
+          (finalEmployeeSlug === 'byte-docs' && (
+            assistantContent.includes('document') || 
+            assistantContent.includes('upload') ||
+            assistantContent.includes('processed')
+          )) ||
+          (finalEmployeeSlug === 'tag-ai' && (
+            assistantContent.includes('uncategorized') || 
+            assistantContent.includes('categor') || 
+            /\d+.*transaction/i.test(assistantContent)
+          )) ||
+          (finalEmployeeSlug === 'crystal-analytics' && (
+            assistantContent.includes('spent') || 
+            assistantContent.includes('category') || 
+            assistantContent.includes('budget') ||
+            /\$\d+/.test(assistantContent)
+          ));
+        
+        console.log('🧠 Intelligence Check:', {
+          hasNumbers: hasNumbers,
+          referencesContextData: hasContextualData,
+          seemsIntelligent: hasNumbers && hasContextualData,
+          toolCallsUsed: toolCalls.length > 0,
+        });
+        
+        // Log tool calls if any
+        if (toolCalls.length > 0) {
+          console.log('🔧 Tool Calls:', toolCalls.map(tc => ({
+            name: tc.function?.name,
+            args: tc.function?.arguments ? JSON.parse(tc.function.arguments) : {},
+          })));
+        }
+        
+        console.groupEnd();
+      }
 
       // Calculate token usage (rough estimate)
-      const promptTokens = estimateTokens(systemMessage + masked + recentMessages.map((m: any) => m.content).join(''));
+      // Join all system message contents for token estimation
+      const systemMessageContent = systemMessages.map((m: any) => m.content).join('\n\n') || '';
+      const promptTokens = estimateTokens(systemMessageContent + masked + recentMessages.map((m: any) => m.content).join(''));
       const completionTokens = estimateTokens(assistantContent);
       const totalTokens = promptTokens + completionTokens;
       const durationMs = Date.now() - requestStartTime;
@@ -1581,13 +2688,44 @@ export const handler: Handler = async (event, context) => {
 
       // Save assistant message (will be redacted if needed) - non-blocking
       try {
-        await sb.from('chat_messages').insert({
-          session_id: finalSessionId,
+        const messageData: any = {
+          session_id: finalSessionId, // Keep for backward compatibility
           user_id: userId,
           role: 'assistant',
           content: assistantContent,
           tokens: completionTokens,
-        });
+          thread_id: threadId, // CRITICAL: thread_id is always required
+        };
+        console.log(`[Chat] Inserting assistant message with thread_id: ${threadId}`);
+        await sb.from('chat_messages').insert(messageData);
+        
+        // DEV: Verify single persistence (prove no double write)
+        if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+          console.log(`[Chat] ✅ Assistant Message Persisted (SSE):`, {
+            requestId: threadId,
+            contentLength: assistantContent.length,
+            persisted: true,
+          });
+        }
+        
+        // Log AI activity event (non-blocking, uses RLS with auth.uid())
+        const authToken = event.headers?.authorization || event.headers?.Authorization || '';
+        if (authToken && userId) {
+          logAiActivity(authToken.replace('Bearer ', ''), {
+            employeeId: finalEmployeeSlug,
+            eventType: 'message_received',
+            status: 'success',
+            label: `Received response from ${finalEmployeeSlug}`,
+            details: { 
+              response_length: assistantContent.length,
+              tokens: completionTokens,
+              tools_used: toolCalls.length > 0 ? toolCalls.map((tc: any) => tc.function?.name).filter(Boolean) : null,
+              thread_id: finalSessionId,
+            },
+          }).catch(err => {
+            console.warn('[Chat] Failed to log activity event (non-fatal):', err);
+          });
+        }
       } catch (error: any) {
         console.warn('[Chat] Failed to save assistant message:', error);
         // Continue even if save fails
@@ -1615,10 +2753,28 @@ export const handler: Handler = async (event, context) => {
         // Continue even if logging fails
       }
 
-      // Phase 2.3: Queue memory extraction for async processing (non-blocking)
-      // Extraction happens in background worker, doesn't block chat response
+      // CRITICAL: Log timing summary before returning
+      const totalTime = Date.now() - requestStartTime;
+      if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+        console.log('[Chat] ⏱️ Timing summary (ms):', {
+          auth: timingLogs.auth || 0,
+          session: timingLogs.session || 0,
+          memory: timingLogs.memory || 0,
+          messages: timingLogs.messages || 0,
+          profile: timingLogs.profile || 0,
+          openai_ttft: timingLogs.openai_ttft || 0,
+          insert_message: timingLogs.insert_message || 0,
+          total: totalTime,
+          openai_latency: latencyMs,
+          openai_duration: durationMs,
+        });
+      }
+
+      // Phase 2.3: Queue memory extraction for async processing (non-blocking, fire-and-forget)
+      // CRITICAL: Do NOT await - this runs after response is returned
       const normalizedSessionIdForExtraction = normalizeSessionId(finalSessionId);
       if (normalizedSessionIdForExtraction) {
+        // Fire-and-forget: don't await, don't block response
         queueMemoryExtraction({
           userId,
           sessionId: normalizedSessionIdForExtraction,
@@ -1631,54 +2787,61 @@ export const handler: Handler = async (event, context) => {
         });
       }
 
-      // Custodian: Update conversation summary (non-blocking, async)
-      // Fetch all messages for this conversation and generate summary
-      (async () => {
-        try {
-          // Get all messages for this conversation
-          const { data: allMessages } = await sb
-            .from('chat_messages')
-            .select('role, content, created_at')
-            .eq('session_id', finalSessionId)
-            .order('created_at', { ascending: true });
-
-          if (!allMessages || allMessages.length === 0) {
-            return;
-          }
-
-          // Get employees involved from session and handoffs
-          const employeesInvolved = new Set<string>();
-          employeesInvolved.add(finalEmployeeSlug);
-          
-          // Check for handoffs in this session
+      // Custodian: Update conversation summary (non-blocking, fire-and-forget)
+      // CRITICAL: Do NOT await - this runs after response is returned
+      // In dev mode, optionally skip to reduce latency
+      const skipSummaryInDev = process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development';
+      if (!skipSummaryInDev) {
+        // Fire-and-forget: don't await, don't block response
+        (async () => {
           try {
-            const { data: handoffs } = await sb
-              .from('handoffs')
-              .select('from_employee, to_employee')
-              .eq('session_id', finalSessionId);
-            
-            if (handoffs) {
-              handoffs.forEach((h: any) => {
-                if (h.from_employee) employeesInvolved.add(h.from_employee);
-                if (h.to_employee) employeesInvolved.add(h.to_employee);
-              });
-            }
-          } catch (e) {
-            // Ignore handoff lookup errors
-          }
+            // Get all messages for this conversation
+            const { data: allMessages } = await sb
+              .from('chat_messages')
+              .select('role, content, created_at')
+              .eq('session_id', finalSessionId)
+              .order('created_at', { ascending: true });
 
-          // Call summary update
-          await updateConversationSummaryForCustodian(
-            sb,
-            userId,
-            finalSessionId,
-            allMessages.map(m => ({ role: m.role, content: m.content })),
-            Array.from(employeesInvolved)
-          );
-        } catch (error: any) {
-          console.warn('[Custodian] Failed to update conversation summary:', error);
-        }
-      })();
+            if (!allMessages || allMessages.length === 0) {
+              return;
+            }
+
+            // Get employees involved from session and handoffs
+            const employeesInvolved = new Set<string>();
+            employeesInvolved.add(finalEmployeeSlug);
+            
+            // Check for handoffs in this session
+            try {
+              const { data: handoffs } = await sb
+                .from('handoffs')
+                .select('from_employee, to_employee')
+                .eq('session_id', finalSessionId);
+              
+              if (handoffs) {
+                handoffs.forEach((h: any) => {
+                  if (h.from_employee) employeesInvolved.add(h.from_employee);
+                  if (h.to_employee) employeesInvolved.add(h.to_employee);
+                });
+              }
+            } catch (e) {
+              // Ignore handoff lookup errors
+            }
+
+            // Call summary update
+            await updateConversationSummaryForCustodian(
+              sb,
+              userId,
+              finalSessionId,
+              allMessages.map(m => ({ role: m.role, content: m.content })),
+              Array.from(employeesInvolved)
+            );
+          } catch (error: any) {
+            console.warn('[Custodian] Failed to update conversation summary:', error);
+          }
+        })();
+      } else if (process.env.NETLIFY_DEV === 'true') {
+        console.log('[Chat] 🚀 DEV MODE: Skipping conversation summary update to reduce latency');
+      }
 
       return {
         statusCode: 200,
@@ -1695,18 +2858,24 @@ export const handler: Handler = async (event, context) => {
       };
     } catch (streamingError: any) {
       console.error('[Chat] Streaming OpenAI call failed:', streamingError);
-      // Return graceful error in SSE format
-      const errorMessage = "Sorry, Prime ran into a problem. Please try again.";
+      // Log the full error for debugging
+      if (streamingError?.message) {
+        console.error('[Chat] Error details:', streamingError.message);
+        console.error('[Chat] Error stack:', streamingError.stack);
+      }
+      // Return HTTP 200 with graceful error message (UI can display this)
+      const errorMessage = "Sorry — Prime is restarting. Please try again.";
+      // Build guardrails status even on error (so UI can show status)
+      const guardrailsStatus = buildGuardrailsStatus('streaming');
       return {
         statusCode: 200,
         headers: {
           ...baseHeaders,
           'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache, no-transform',
+          'Cache-Control': 'no-cache',
           'Connection': 'keep-alive',
-          'X-Chat-Backend': 'v2',
         },
-        body: `data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
+        body: `data: ${JSON.stringify({ role: 'assistant', content: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId, error: 'Streaming call failed' })}\n\n`,
       };
     }
     } else {
@@ -1719,18 +2888,8 @@ export const handler: Handler = async (event, context) => {
           console.warn('[Chat] Failed to convert tools to OpenAI format (non-fatal):', toolError);
         }
         
-        // Get employee-specific model configuration
-        let modelConfig;
-        try {
-          modelConfig = await getEmployeeModelConfig(finalEmployeeSlug);
-        } catch (configError: any) {
-          console.warn('[Chat] Failed to get employee model config (non-fatal, using defaults):', configError);
-          modelConfig = {
-            model: 'gpt-4o-mini',
-            temperature: 0.7,
-            maxTokens: 2000,
-          };
-        }
+        // Model config already resolved above - reuse it
+        // (No need to resolve again - already available in scope)
         
         let completion = await openai.chat.completions.create({
           model: modelConfig.model,
@@ -1743,6 +2902,32 @@ export const handler: Handler = async (event, context) => {
 
         let assistantContent = completion.choices[0]?.message?.content || '';
         let toolCalls = completion.choices[0]?.message?.tool_calls || [];
+
+        // DEV: Log non-streaming response
+        if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+          console.group(`✅ [Backend AI Response - Non-Streaming] ${finalEmployeeSlug}`);
+          console.log('📥 Response Summary:', {
+            model: modelConfig.model,
+            responseLength: assistantContent.length,
+            toolCallsCount: toolCalls.length,
+            usage: completion.usage,
+          });
+          console.log('💬 Assistant Response:', assistantContent.substring(0, 300) + (assistantContent.length > 300 ? '...' : ''));
+          
+          // Check intelligence
+          const hasNumbers = /\d+/.test(assistantContent);
+          const hasContextualData = 
+            (finalEmployeeSlug === 'prime-boss' && (assistantContent.includes('uncategorized') || assistantContent.includes('spent'))) ||
+            (finalEmployeeSlug === 'tag-ai' && (assistantContent.includes('uncategorized') || /\d+.*transaction/i.test(assistantContent))) ||
+            (finalEmployeeSlug === 'crystal-analytics' && (assistantContent.includes('spent') || /\$\d+/.test(assistantContent)));
+          
+          console.log('🧠 Intelligence Check:', {
+            hasNumbers,
+            referencesContextData: hasContextualData,
+            seemsIntelligent: hasNumbers && hasContextualData,
+          });
+          console.groupEnd();
+        }
 
         // Handle tool calls if any
         if (toolCalls.length > 0 && Object.keys(toolModules).length > 0) {
@@ -1836,7 +3021,6 @@ export const handler: Handler = async (event, context) => {
                   console.log(`[Chat] ✅ HANDOFF COMPLETE (non-streaming): ${originalEmployeeSlug} → ${targetSlug}`, {
                     reason,
                     summary: summary?.substring(0, 100),
-                    sessionId: finalSessionId.substring(0, 8) + '...',
                     sessionId: finalSessionId,
                   });
                   
@@ -1909,7 +3093,10 @@ export const handler: Handler = async (event, context) => {
                       role: 'system',
                       content: handoffMessage,
                       tokens: estimateTokens(handoffMessage),
+                      thread_id: threadId, // CRITICAL: thread_id is always required
                     });
+                    console.log(`[Chat] Inserting system handoff message (non-streaming) with thread_id: ${threadId}`);
+                    console.log(`[Chat] Inserting system handoff message (non-streaming) with thread_id: ${threadId}`);
                     
                     console.log(`[Chat] Inserted handoff system message for session ${finalSessionId}`);
                   } catch (error: any) {
@@ -2012,11 +3199,13 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Calculate token usage (rough estimate)
-      const promptTokens = estimateTokens(systemMessage + masked + recentMessages.map((m: any) => m.content).join(''));
+      // Join all system message contents for token estimation
+      const systemMessageContent = systemMessages.map((m: any) => m.content).join('\n\n') || '';
+      const promptTokens = estimateTokens(systemMessageContent + masked + recentMessages.map((m: any) => m.content).join(''));
       const completionTokens = estimateTokens(assistantContent);
       const totalTokens = promptTokens + completionTokens;
       const durationMs = Date.now() - requestStartTime;
-      const latencyMs = firstTokenTime - requestStartTime;
+      const latencyMs = firstTokenTime ? firstTokenTime - requestStartTime : durationMs;
 
       // Save assistant message - non-blocking
       try {
@@ -2026,7 +3215,18 @@ export const handler: Handler = async (event, context) => {
           role: 'assistant',
           content: assistantContent,
           tokens: completionTokens,
+          thread_id: threadId, // CRITICAL: thread_id is always required
         });
+        console.log(`[Chat] Inserting assistant message (non-streaming) with thread_id: ${threadId}`);
+        
+        // DEV: Verify single persistence (prove no double write)
+        if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+          console.log(`[Chat] ✅ Assistant Message Persisted (JSON):`, {
+            requestId: threadId,
+            contentLength: assistantContent.length,
+            persisted: true,
+          });
+        }
       } catch (error: any) {
         console.warn('[Chat] Failed to save assistant message:', error);
         // Continue even if save fails
@@ -2135,6 +3335,14 @@ export const handler: Handler = async (event, context) => {
         ? { from: originalEmployeeSlug, to: finalEmployeeSlug }
         : undefined;
 
+        // Include guardrails status in non-streaming response (using buildGuardrailsStatus)
+        const guardrailsStatusNonStream = buildGuardrailsStatus('json');
+        
+        // Dev-only verification log
+        if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+          console.log(`[Guardrails] enabled=${guardrailsStatusNonStream.enabled} pii_masking=${guardrailsStatusNonStream.pii_masking} moderation=${guardrailsStatusNonStream.moderation} version=${guardrailsStatusNonStream.policy_version}`);
+        }
+
         return {
           statusCode: 200,
           headers: {
@@ -2147,6 +3355,8 @@ export const handler: Handler = async (event, context) => {
             content: assistantContent,
             employee: finalEmployeeSlug,
             sessionId: finalSessionId,
+            thread_id: threadId, // CRITICAL: Return thread_id for frontend to store
+            guardrails: guardrailsStatusNonStream,
             ...(handoffMeta && { meta: { handoff: handoffMeta } }),
           }),
         };
@@ -2171,6 +3381,7 @@ export const handler: Handler = async (event, context) => {
             content: "I'm sorry, I encountered an error while generating my response. Please try again in a moment.",
             employee: finalEmployeeSlug || 'prime-boss',
             sessionId: finalSessionId,
+            thread_id: threadId, // CRITICAL: Return thread_id even on error
             message: process.env.NETLIFY_DEV === 'true' ? nonStreamingError.message : undefined,
           }),
         };
@@ -2197,11 +3408,11 @@ export const handler: Handler = async (event, context) => {
     
     // For streaming requests, send error as SSE message
     if (isStreaming) {
-      const errorMessage = "I ran into an internal error while answering. Please try again in a moment, or let Prime know something went wrong.";
+      const errorMessage = "Sorry — Prime is restarting. Please try again.";
       const errorSSE = `data: ${JSON.stringify({
-        type: 'error',
-        error: errorMessage
-      })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`;
+        role: 'assistant',
+        content: errorMessage
+      })}\n\ndata: ${JSON.stringify({ type: 'done', error: 'chat_internal_error' })}\n\n`;
       
       return {
         statusCode: 200,
@@ -2216,9 +3427,10 @@ export const handler: Handler = async (event, context) => {
       };
     }
     
-    // Non-streaming: return JSON error with proper 500 status
+    // Non-streaming: return HTTP 200 with graceful error message (UI can display this)
+    const errorMessage = "Sorry — Prime is restarting. Please try again.";
     return {
-      statusCode: 500,
+      statusCode: 200,
       headers: {
         ...baseHeaders,
         'Content-Type': 'application/json',
@@ -2226,8 +3438,12 @@ export const handler: Handler = async (event, context) => {
       body: JSON.stringify({
         ok: false,
         error: 'chat_internal_error',
-        message: error?.message ?? 'Unexpected error in chat handler',
-        details: process.env.NETLIFY_DEV === 'true' ? error.stack : undefined,
+        content: errorMessage,
+        assistant: {
+          role: 'assistant',
+          content: errorMessage,
+        },
+        details: process.env.NETLIFY_DEV === 'true' ? error?.message : undefined,
       }),
     };
   }

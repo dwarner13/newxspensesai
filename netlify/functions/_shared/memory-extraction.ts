@@ -384,17 +384,17 @@ export async function getUserFacts(
  * @param userId - User ID
  * @returns Array of tasks
  */
-export async function getUserTasks(userId: string): Promise<Array<{ description: string; due_date: string | null; status: string }>> {
+export async function getUserTasks(userId: string): Promise<Array<{ id: string; status: string }>> {
   let data: any[] = [];
   let error: any = null;
   
   try {
     const result = await supabase
       .from('user_tasks')
-      .select('id, due_date, status') // Part C: Remove 'description' column to avoid errors if missing
+      .select('id, status') // Only select columns that exist (due_date and description don't exist)
       .eq('user_id', userId)
       .in('status', ['pending', 'in_progress'])
-      .order('due_date', { ascending: true })
+      .order('id', { ascending: true })
       .limit(10);
     
     data = result.data || [];
@@ -403,34 +403,33 @@ export async function getUserTasks(userId: string): Promise<Array<{ description:
     const message = err?.message ?? '';
     // Part C: Silence optional dev features when tables/columns are missing
     if (
-      process.env.NODE_ENV !== 'production' &&
-      (message.includes('does not exist') || 
-       message.includes('schema cache') ||
-       message.includes('column') ||
-       err.code === 'PGRST205' ||
-       err.code === '42703') // Column does not exist
+      message.includes('does not exist') || 
+      message.includes('schema cache') ||
+      message.includes('column') ||
+      err.code === 'PGRST205' ||
+      err.code === '42703' // Column does not exist
     ) {
-      console.warn('[Memory Extraction] Optional feature skipped due to missing table/column (dev mode)', { message: message.substring(0, 100) });
+      console.warn('[Memory Extraction] Optional tasks context skipped:', message.substring(0, 100));
       return [];
     }
-    throw err;
+    console.warn('[Memory Extraction] Unexpected error fetching tasks (non-fatal):', err.message || err);
+    return [];
   }
 
   if (error) {
     const message = error?.message ?? '';
     // Part C: Silence optional dev features when tables/columns are missing
     if (
-      process.env.NODE_ENV !== 'production' &&
-      (message.includes('does not exist') || 
-       message.includes('schema cache') ||
-       message.includes('column') ||
-       error.code === 'PGRST205' ||
-       error.code === '42703') // Column does not exist
+      message.includes('does not exist') || 
+      message.includes('schema cache') ||
+      message.includes('column') ||
+      error.code === 'PGRST205' ||
+      error.code === '42703' // Column does not exist
     ) {
-      console.warn('[Memory Extraction] Optional feature skipped due to missing table/column (dev mode)', { message: message.substring(0, 100) });
+      console.warn('[Memory Extraction] Optional tasks context skipped:', message.substring(0, 100));
       return [];
     }
-    console.error('[Memory Extraction] Error fetching tasks:', error);
+    console.warn('[Memory Extraction] Error fetching tasks (non-fatal):', error.message || error);
     return [];
   }
 

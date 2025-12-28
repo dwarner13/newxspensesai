@@ -15,7 +15,7 @@
  * - The unified slide-out chat is rendered globally by DashboardLayout
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { ByteWorkspacePanel } from '../../components/smart-import/ByteWorkspacePanel';
 import { ByteUnifiedCard } from '../../components/smart-import/ByteUnifiedCard';
 import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
@@ -24,7 +24,64 @@ import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useSmartImport } from '../../hooks/useSmartImport';
 import { useByteQueueStats } from '../../hooks/useByteQueueStats';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
-import { MessageSquare } from 'lucide-react';
+import { RefreshCw, AlertCircle } from 'lucide-react';
+import { PageCinematicFade } from '../../components/ui/PageCinematicFade';
+
+// Error Boundary component to catch hook errors and render fallback UI
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ByteWorkspaceErrorBoundary extends Component<
+  { children: ReactNode; onRetry: () => void },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: ReactNode; onRetry: () => void }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('[SmartImportChatPage] Byte workspace error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full min-h-0 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)] flex items-center justify-center p-6">
+          <div className="text-center max-w-md">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 mb-4">
+              <AlertCircle className="w-8 h-8 text-amber-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-200 mb-2">
+              Byte stats temporarily unavailable
+            </h3>
+            <p className="text-sm text-slate-400 mb-4">
+              There was an issue loading Byte workspace statistics. The rest of the page is working normally.
+            </p>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                this.props.onRetry();
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-sm font-medium text-slate-200 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export function SmartImportChatPage() {
   // Scroll to top when page loads
@@ -37,6 +94,7 @@ export function SmartImportChatPage() {
   // UI-only helper state for Byte console status display
   const [processingLabel, setProcessingLabel] = useState<string | undefined>();
   const [lastImportSummary, setLastImportSummary] = useState<string | undefined>();
+  const [retryKey, setRetryKey] = useState(0);
   
   // Single shared Smart Import hook instance for this page
   const smartImport = useSmartImport();
@@ -50,8 +108,9 @@ export function SmartImportChatPage() {
     uploadFiles,
   } = smartImport;
 
-  // Get queue stats for health label
-  const { data: queueStats } = useByteQueueStats();
+  // Get queue stats for health label - handle error state gracefully
+  const queueStatsHook = useByteQueueStats();
+  const queueStats = queueStatsHook.data;
   
   // Update lastImportSummary when lastUploadSummary changes
   useEffect(() => {
@@ -77,10 +136,19 @@ export function SmartImportChatPage() {
   }, [isUploading, uploadFileCount]);
 
   return (
-    <>
+    <PageCinematicFade>
       {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
       <DashboardPageShell
-        left={<ByteWorkspacePanel />}
+        left={
+          <ByteWorkspaceErrorBoundary
+            key={retryKey}
+            onRetry={() => {
+              setRetryKey(prev => prev + 1);
+            }}
+          >
+            <ByteWorkspacePanel />
+          </ByteWorkspaceErrorBoundary>
+        }
         center={
           <ByteUnifiedCard 
             onExpandClick={() => {
@@ -130,6 +198,6 @@ export function SmartImportChatPage() {
           />
         }
       />
-    </>
+    </PageCinematicFade>
   );
 }

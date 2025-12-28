@@ -7,6 +7,48 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { getEmployeeDisplay } from '../utils/employeeUtils';
+import { ONBOARDING_MODE } from '../config/onboardingConfig';
+
+// Helper to check onboarding state without React hooks (for use in callbacks)
+// CRITICAL: Defaults to TRUE (blocking) during initial load to prevent race conditions
+function checkOnboardingActive(): boolean {
+  try {
+    // If legacy onboarding is disabled, never block chat
+    if (!ONBOARDING_MODE.legacyEnabled) {
+      return false; // Onboarding disabled - DO NOT BLOCK
+    }
+    
+    // Check window state set by UnifiedOnboardingFlow
+    const onboardingState = (window as any).__onboardingState;
+    const currentStep = onboardingState?.currentStep;
+    
+    // Block Prime chat if onboarding is open OR if we're in Custodian phase
+    if (onboardingState?.isOpen === true || currentStep === 'custodian') {
+      return true; // Modal is open or in Custodian phase - BLOCK
+    }
+    
+    // Check profile metadata for completion
+    const profileData = (window as any).__profileData;
+    if (profileData?.metadata && typeof profileData.metadata === 'object') {
+      const metadata = profileData.metadata as any;
+      const completed = metadata.onboarding?.completed === true;
+      return !completed; // Active if not completed - BLOCK
+    }
+    
+    // RACE CONDITION PREVENTION: If no profile data yet, assume onboarding is active
+    // This prevents auto-open during initial load before profile resolves
+    // Only allow chat if we have explicit confirmation that onboarding is complete
+    if (!profileData) {
+      return true; // No profile data = assume onboarding active - BLOCK
+    }
+    
+    // If no metadata object exists, assume incomplete (onboarding active) - BLOCK
+    return true;
+  } catch (e) {
+    // If check fails, fail closed (block chat) to prevent race conditions
+    return true; // Changed from false to true - BLOCK on error
+  }
+}
 
 export interface ChatLaunchOptions {
   initialEmployeeSlug?: string;
@@ -18,6 +60,7 @@ export interface ChatLaunchOptions {
   };
   initialQuestion?: string;
   conversationId?: string;
+  force?: boolean; // Force open even if explicitly closed (for user-initiated opens)
 }
 
 interface ChatState {
@@ -26,6 +69,7 @@ interface ChatState {
   activeEmployeeSlug?: string;
   activeEmployeeEmoji?: string;
   activeEmployeeShortName?: string;
+  activeEmployeeSlugOverride?: string | null; // PART 2: Route-aware override (UI-only)
   isWorking: boolean;
   hasCompletedResponse: boolean;
   hasNewResponse: boolean; // Alias for hasCompletedResponse for clarity
@@ -43,6 +87,7 @@ let globalChatState: ChatState = {
   activeEmployeeSlug: 'prime-boss', // Default to Prime
   activeEmployeeEmoji: '👑',
   activeEmployeeShortName: 'Prime',
+  activeEmployeeSlugOverride: null, // PART 2: Route-aware override (UI-only)
   isWorking: false,
   hasCompletedResponse: false,
   hasNewResponse: false,
@@ -54,6 +99,9 @@ let globalChatState: ChatState = {
 };
 
 const listeners = new Set<(state: ChatState) => void>();
+
+// Track if chat was explicitly closed by user (prevents auto-reopen)
+let wasExplicitlyClosedRef: { current: boolean } = { current: false };
 
 function notifyListeners() {
   listeners.forEach(listener => listener(globalChatState));
@@ -74,12 +122,35 @@ export function useUnifiedChatLauncher() {
   }, []);
 
   const openChat = useCallback((options?: ChatLaunchOptions) => {
+    // Guard: Don't auto-open if user explicitly closed chat recently
+    // This prevents route-based auto-open from reopening after user closes
+    if (wasExplicitlyClosedRef.current && !options?.force) {
+      if (import.meta.env.DEV) {
+        console.log('[useUnifiedChatLauncher] Chat was explicitly closed, skipping auto-open');
+      }
+      return;
+    }
+    
+    // HARD BLOCK: Do not open chat during onboarding
+    // This check MUST happen BEFORE any "Opening worker chat" log
+    const onboardingActive = checkOnboardingActive();
+    
+    if (onboardingActive) {
+      console.info('[CHAT_GATE] blocked useUnifiedChatLauncher during onboarding', {
+        source: 'useUnifiedChatLauncher.openChat',
+        employeeSlug: options?.initialEmployeeSlug || 'prime-boss',
+        windowState: (window as any).__onboardingState,
+        hasProfileData: !!(window as any).__profileData,
+      });
+      return; // Block opening during onboarding - EXIT BEFORE ANY LOGS
+    }
+    
     // Make initialEmployeeSlug authoritative - if provided, use it; otherwise fallback to current activeEmployeeSlug or default
     const newSlug = options?.initialEmployeeSlug || globalChatState.activeEmployeeSlug || 'prime-boss';
     // Update employee display info when opening
     const display = getEmployeeDisplay(newSlug);
     
-    // Dev log for debugging
+    // Dev log for debugging - ONLY REACHED IF ONBOARDING IS NOT ACTIVE
     if (import.meta.env.DEV) {
       console.log(`[useUnifiedChatLauncher] Opening worker chat: ${newSlug}`, {
         providedSlug: options?.initialEmployeeSlug,
@@ -109,12 +180,20 @@ export function useUnifiedChatLauncher() {
   }, []);
 
   const closeChat = useCallback(() => {
+    // Mark as explicitly closed to prevent auto-reopen
+    wasExplicitlyClosedRef.current = true;
+    
     globalChatState = {
       ...globalChatState,
       isOpen: false,
       options: {},
     };
     notifyListeners();
+    
+    // Reset flag after a short delay to allow route-based opens on new navigation
+    setTimeout(() => {
+      wasExplicitlyClosedRef.current = false;
+    }, 1000);
     
     // NOTE: Removed event dispatch to prevent infinite recursion
     // Components should use the hook directly via useUnifiedChatLauncher()
@@ -190,12 +269,25 @@ export function useUnifiedChatLauncher() {
     notifyListeners();
   }, []);
 
+  // PART 2: Set active employee override (route-aware, UI-only)
+  const setActiveEmployeeSlugOverride = useCallback((slug: string | null) => {
+    globalChatState = {
+      ...globalChatState,
+      activeEmployeeSlugOverride: slug,
+    };
+    notifyListeners();
+  }, []);
+
+  // Compute effective employee slug: override > activeEmployeeSlug > default
+  const effectiveEmployeeSlug = state.activeEmployeeSlugOverride ?? state.activeEmployeeSlug ?? 'prime-boss';
+
   return {
     isOpen: state.isOpen,
     options: state.options,
-    activeEmployeeSlug: state.activeEmployeeSlug || 'prime-boss',
+    activeEmployeeSlug: effectiveEmployeeSlug,
     activeEmployeeEmoji: state.activeEmployeeEmoji || '👑',
     activeEmployeeShortName: state.activeEmployeeShortName || 'Prime',
+    activeEmployeeSlugOverride: state.activeEmployeeSlugOverride ?? null,
     isWorking: state.isWorking || false,
     hasCompletedResponse: state.hasCompletedResponse || false,
     hasNewResponse: state.hasNewResponse || state.hasCompletedResponse || false,
@@ -211,6 +303,7 @@ export function useUnifiedChatLauncher() {
     setHasAttention,
     setHasActivity,
     setProgress,
+    setActiveEmployeeSlugOverride,
   };
 }
 

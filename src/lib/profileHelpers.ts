@@ -18,10 +18,13 @@ export interface Profile {
   plan: string | null;
   plan_id: string | null;
   level: number | null;
-  profile_completed: boolean | null;
   onboarding_completed: boolean | null;
+  onboarding_status: string | null; // 'not_started' | 'in_progress' | 'completed'
+  onboarding_step: string | null; // Current step in onboarding flow
   onboarding_completed_at: string | null;
-  account_mode: string | null;
+  account_type: string | null;
+  currency: string | null;
+  time_zone: string | null;
   metadata: Record<string, any> | null;
   [key: string]: any; // Allow other profile fields
 }
@@ -72,7 +75,7 @@ export async function getOrCreateProfile(
         console.log('[profileHelpers] ✅ Profile loaded', {
           id: existingProfile.id,
           display_name: existingProfile.display_name,
-          profile_completed: existingProfile.profile_completed,
+          onboarding_completed: existingProfile.metadata?.onboarding?.completed,
         });
       }
       return existingProfile as Profile;
@@ -83,8 +86,8 @@ export async function getOrCreateProfile(
       console.log('[profileHelpers] ⚠️ Profile missing, creating new profile', { userId, email: userEmail });
     }
 
-    // Compute display name from user metadata or email
-    const displayName = userEmail.split('@')[0] || 'User';
+    // TASK A: Never derive display name from email - use empty string
+    const displayName = '';
 
     const { data: newProfile, error: insertError } = await supabase
       .from('profiles')
@@ -94,7 +97,11 @@ export async function getOrCreateProfile(
         display_name: displayName,
         role: 'free',
         plan: 'free',
-        profile_completed: false,
+        metadata: {
+          onboarding: {
+            completed: false,
+          },
+        },
       })
       .select()
       .single();
@@ -121,6 +128,7 @@ export async function getOrCreateProfile(
     return null;
   }
 }
+
 
 
 

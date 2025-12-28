@@ -1,6 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { isPrimeEnabled } from '../../env';
-// import toast from 'react-hot-toast'; // Removed for simplification
+import React, { useState, useRef, useEffect } from "react";
+import { isPrimeEnabled } from "../../env";
 
 interface PrimeChatDrawerProps {
   isOpen: boolean;
@@ -8,14 +7,20 @@ interface PrimeChatDrawerProps {
   conversationId?: string;
 }
 
-export function PrimeChatDrawer({ isOpen, onClose, conversationId }: PrimeChatDrawerProps) {
-  const [messages, setMessages] = useState<Array<{id: string, role: 'user' | 'assistant', content: string}>>([]);
-  const [input, setInput] = useState('');
+export function PrimeChatDrawer({
+  isOpen,
+  onClose,
+  conversationId,
+}: PrimeChatDrawerProps) {
+  const [messages, setMessages] = useState<
+    Array<{ id: string; role: "user" | "assistant"; content: string }>
+  >([]);
+  const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
@@ -27,33 +32,33 @@ export function PrimeChatDrawer({ isOpen, onClose, conversationId }: PrimeChatDr
 
     const userMessage = {
       id: `user-${Date.now()}`,
-      role: 'user' as const,
+      role: "user" as const,
       content: input.trim(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
     setIsLoading(true);
 
     try {
-      // Simulate AI response for demo
+      // Demo response
       setTimeout(() => {
         const aiMessage = {
           id: `ai-${Date.now()}`,
-          role: 'assistant' as const,
+          role: "assistant" as const,
           content: `I received your message: "${userMessage.content}". This is a demo response from the Prime Agent Kernel. In production, this would connect to the AI backend with all the tools and features we've built!`,
         };
-        setMessages(prev => [...prev, aiMessage]);
+        setMessages((prev) => [...prev, aiMessage]);
         setIsLoading(false);
       }, 1000);
     } catch (error) {
-      console.error('Failed to send message');
+      console.error("Failed to send message", error);
       setIsLoading(false);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
@@ -67,47 +72,64 @@ export function PrimeChatDrawer({ isOpen, onClose, conversationId }: PrimeChatDr
     <>
       {/* Backdrop */}
       {isOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-50"
           onClick={onClose}
         />
       )}
-      
+
       {/* Drawer */}
-      <div className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
-      }`}>
+      <div
+        className={`fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-xl transform transition-transform duration-300 ease-in-out z-50 flex flex-col ${
+          isOpen ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-900">Prime Assistant</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <h2 className="text-lg font-semibold text-gray-900">
+            Prime Assistant
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* IMPORTANT: remove inner vertical scrolling so BODY owns scroll */}
+        <div className="flex-1 min-h-0 overflow-y-visible p-4 space-y-4">
           {messages.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
               <p>Welcome to Prime Assistant!</p>
-              <p className="text-sm mt-2">Ask me anything about financial management, data processing, or general assistance.</p>
+              <p className="text-sm mt-2">
+                Ask me anything about financial management, data processing, or
+                general assistance.
+              </p>
             </div>
           ) : (
             messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${
+                  message.role === "user" ? "justify-end" : "justify-start"
+                }`}
               >
                 <div
                   className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    message.role === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-900'
+                    message.role === "user"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-900"
                   }`}
                 >
                   {message.content}
@@ -115,19 +137,25 @@ export function PrimeChatDrawer({ isOpen, onClose, conversationId }: PrimeChatDr
               </div>
             ))
           )}
-          
+
           {isLoading && (
             <div className="flex justify-start">
               <div className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg">
                 <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
+                  <div
+                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                    style={{ animationDelay: "0.1s" }}
+                  />
+                  <div
+                    className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                    style={{ animationDelay: "0.2s" }}
+                  />
                 </div>
               </div>
             </div>
           )}
-          
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -135,7 +163,7 @@ export function PrimeChatDrawer({ isOpen, onClose, conversationId }: PrimeChatDr
         <div
           className="p-4 border-t"
           style={{
-            paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))',
+            paddingBottom: "calc(16px + env(safe-area-inset-bottom, 0px))",
           }}
         >
           <div className="flex space-x-2">

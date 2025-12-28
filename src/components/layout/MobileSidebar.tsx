@@ -4,13 +4,15 @@
  * Matches DesktopSidebar structure for consistency
  */
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { X, User } from 'lucide-react';
 import NAV_ITEMS from '../../navigation/nav-registry';
 import { isActivePath } from '../../navigation/is-active';
 import { EMPLOYEES } from '../../data/aiEmployees';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
+import { usePrimeState } from '../../contexts/PrimeContext';
+import { getFeatureKeyForRoute } from '../../navigation/feature-keys';
 
 interface MobileSidebarProps {
   open: boolean;
@@ -52,10 +54,49 @@ const getAIEmployeeForRoute = (route: string) => {
 
 export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
   const location = useLocation();
+  const primeState = usePrimeState();
+  const warnedKeysRef = useRef<Set<string>>(new Set());
 
-  // Group items by their group property (matches DesktopSidebar)
+  // Filter items by Prime visibility map (fail-open: show all if Prime state unavailable)
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    const featureKey = getFeatureKeyForRoute(item.to);
+    
+    // If no feature key mapping, show item (fail-open)
+    if (!featureKey) {
+      if (import.meta.env.DEV && !warnedKeysRef.current.has(item.to)) {
+        console.warn(
+          `[MobileSidebar] Nav item "${item.label}" (${item.to}) has no FeatureKey mapping. ` +
+          `Add it to ROUTE_TO_FEATURE_KEY in navigation/feature-keys.ts`
+        );
+        warnedKeysRef.current.add(item.to);
+      }
+      return true; // Fail-open: show item if no mapping
+    }
+    
+    // If Prime state unavailable, show item (fail-open)
+    if (!primeState) {
+      return true;
+    }
+    
+    // Check visibility from Prime state
+    const visibility = primeState.featureVisibilityMap[featureKey];
+    const visible = visibility?.visible ?? true; // Fail-open: default visible
+    
+    // Dev warning if Prime map missing key
+    if (import.meta.env.DEV && visibility === undefined && !warnedKeysRef.current.has(featureKey)) {
+      console.warn(
+        `[MobileSidebar] FeatureKey "${featureKey}" not found in Prime featureVisibilityMap. ` +
+        `Add it to buildFeatureVisibilityMap() in netlify/functions/prime-state.ts`
+      );
+      warnedKeysRef.current.add(featureKey);
+    }
+    
+    return visible;
+  });
+
+  // Group filtered items by their group property (matches DesktopSidebar)
   const groups = Object.entries(
-    NAV_ITEMS.reduce((acc, item) => {
+    visibleItems.reduce((acc, item) => {
       const group = item.group ?? 'GENERAL';
       if (!acc[group]) {
         acc[group] = [];
@@ -105,13 +146,31 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
                 const employeeKey = getAIEmployeeForRoute(item.to);
                 const employee = EMPLOYEES.find(emp => emp.key === employeeKey);
                 
+                // Check if item is enabled (fail-open: default enabled)
+                const featureKey = getFeatureKeyForRoute(item.to);
+                const visibility = featureKey && primeState?.featureVisibilityMap[featureKey];
+                const enabled = visibility?.enabled ?? true;
+                
                 return (
                   <li key={item.to}>
                     <NavLink 
                       to={item.to}
-                      onClick={onClose}
+                      onClick={(e) => {
+                        // Prevent navigation if disabled
+                        if (!enabled) {
+                          e.preventDefault();
+                          if (import.meta.env.DEV) {
+                            console.warn(`[MobileSidebar] Feature "${featureKey}" is disabled. Reason: ${visibility?.reason || 'Unknown'}`);
+                          }
+                          return;
+                        }
+                        // Close sidebar on mobile after navigation
+                        onClose();
+                      }}
                       className={({ isActive }) => 
-                        `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
+                        `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 ${
+                          enabled ? 'hover:bg-white/10 cursor-pointer' : 'cursor-not-allowed opacity-50'
+                        } ${
                           (isActive || active) ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
                         }`
                       }

@@ -19,6 +19,7 @@ export const PlanningAnalysisSection: React.FC<PlanningAnalysisSectionProps> = (
             key={card.id}
             {...card}
             icon={cardIcons[card.id] || <div />}
+            minHeight="min-h-[280px]"
           />
         ))}
       </div>

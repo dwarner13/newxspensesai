@@ -22,6 +22,7 @@ import {
   isDarkModeAtom
 } from '../../lib/uiStore';
 import toast from 'react-hot-toast';
+import { SignOutConfirmationModal } from '../auth/SignOutConfirmationModal';
 
 interface TopNavProps {
   toggleDarkMode?: () => void;
@@ -38,6 +39,7 @@ interface Notification {
 
 const TopNav = ({ toggleDarkMode }: TopNavProps) => {
   const { user, signOut } = useAuth();
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useAtom(isMobileMenuOpenAtom);
   const [isNotificationsOpen, setIsNotificationsOpen] = useAtom(isNotificationsOpenAtom);
   const [isUserMenuOpen, setIsUserMenuOpen] = useAtom(isUserMenuOpenAtom);
@@ -381,6 +383,13 @@ const TopNav = ({ toggleDarkMode }: TopNavProps) => {
           
         </div>
       </div>
+
+      {/* Sign Out Confirmation Modal */}
+      <SignOutConfirmationModal
+        isOpen={showSignOutConfirm}
+        onConfirm={handleConfirmSignOut}
+        onCancel={() => setShowSignOutConfirm(false)}
+      />
     </div>
   );
 };

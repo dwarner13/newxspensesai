@@ -9,6 +9,8 @@ import { admin, markDocStatus } from './_shared/upload';
 // Phase 2.2: Use unified guardrails API (single source of truth)
 import { runGuardrailsForText } from './_shared/guardrails-unified';
 import { callGoogleVisionOnImage } from './_shared/vision/googleVisionClient.js';
+// AI Fluency: Event logging
+import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
 
 const BUCKET = 'docs';
 
@@ -79,7 +81,8 @@ export const handler: Handler = async (event, context) => {
   }
   
   try {
-    const { userId, docId } = JSON.parse(event.body || '{}');
+    const body = JSON.parse(event.body || '{}');
+    const { userId, docId, expectedSize } = body;
     if (!userId || !docId) {
       return { statusCode: 400, body: JSON.stringify({ error: 'Missing userId/docId' }) };
     }
@@ -97,13 +100,77 @@ export const handler: Handler = async (event, context) => {
       return { statusCode: 404, body: JSON.stringify({ error: 'Document not found' }) };
     }
 
-    // Create signed URL for OCR service
+    // ⚡ UPLOAD COMPLETENESS CONTRACT: Verify file exists and size matches before OCR
+    
+    // Step 1: Verify file exists in bucket (HEAD request via list)
+    const storageDir = doc.storage_path.split('/').slice(0, -1).join('/');
+    const fileName = doc.storage_path.split('/').pop();
+    const { data: fileList, error: listError } = await sb.storage
+      .from(BUCKET)
+      .list(storageDir, {
+        limit: 1000,
+        search: fileName,
+      });
+    
+    if (listError || !fileList || fileList.length === 0) {
+      console.warn(`[smart-import-ocr] File not found in bucket: ${doc.storage_path}`);
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          pending: true, 
+          status: 'PENDING_UPLOAD',
+          message: 'File upload not yet complete. OCR will retry automatically.' 
+        }) 
+      };
+    }
+    
+    const storedFile = fileList.find(f => f.name === fileName);
+    if (!storedFile) {
+      console.warn(`[smart-import-ocr] File not found in bucket listing: ${doc.storage_path}`);
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          pending: true, 
+          status: 'PENDING_UPLOAD',
+          message: 'File upload not yet complete. OCR will retry automatically.' 
+        }) 
+      };
+    }
+    
+    // Step 2: Verify file size matches expected (if provided)
+    if (expectedSize !== undefined && storedFile.metadata?.size) {
+      const storedSize = parseInt(storedFile.metadata.size, 10);
+      const sizeDiff = Math.abs(storedSize - expectedSize);
+      const tolerance = 1024; // 1KB tolerance for metadata differences
+      
+      if (sizeDiff > tolerance) {
+        console.warn(`[smart-import-ocr] File size mismatch: expected ${expectedSize}, got ${storedSize}`);
+        return { 
+          statusCode: 200, 
+          body: JSON.stringify({ 
+            pending: true, 
+            status: 'PENDING_UPLOAD',
+            message: 'File upload incomplete (size mismatch). OCR will retry automatically.' 
+          }) 
+        };
+      }
+    }
+
+    // Step 3: Create signed URL for OCR service (only after completeness verified)
     const { data: signed, error: signedErr } = await sb.storage
       .from(BUCKET)
       .createSignedUrl(doc.storage_path, 600); // 10 min expiry
     
     if (signedErr || !signed) {
-      return { statusCode: 404, body: JSON.stringify({ error: 'Failed to create signed URL' }) };
+      console.warn(`[smart-import-ocr] Failed to create signed URL: ${doc.storage_path}`);
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          pending: true, 
+          status: 'PENDING_UPLOAD',
+          message: 'File upload not yet complete. OCR will retry automatically.' 
+        }) 
+      };
     }
 
     // Run OCR
@@ -183,6 +250,40 @@ export const handler: Handler = async (event, context) => {
     // Update status in background (don't wait)
     markDocStatus(docId, 'ready', null).catch((err) => {
       console.error('[smart-import-ocr] Error updating doc status:', err);
+    });
+
+    // AI Fluency: Log document processed event (non-blocking)
+    const isReceipt = doc.mime_type?.startsWith('image/') || false;
+    const isStatement = ['csv', 'ofx', 'qif'].includes((doc.original_name || '').split('.').pop()?.toLowerCase() || '');
+    
+    Promise.all([
+      logUserEvent({
+        userId,
+        eventType: 'doc_processed',
+        eventValue: 1,
+        meta: { docId, docType: doc.mime_type, isReceipt, isStatement }
+      }),
+      // Log receipt/statement upload separately for granularity
+      isReceipt && logUserEvent({
+        userId,
+        eventType: 'receipt_uploaded',
+        eventValue: 1,
+        meta: { docId }
+      }),
+      isStatement && logUserEvent({
+        userId,
+        eventType: 'statement_uploaded',
+        eventValue: 1,
+        meta: { docId }
+      })
+    ]).then(() => {
+      // Recalculate fluency after logging events (non-blocking)
+      recalcFluency(userId).catch(err => {
+        console.error('[smart-import-ocr] Error recalculating fluency:', err);
+      });
+    }).catch(err => {
+      console.error('[smart-import-ocr] Error logging events:', err);
+      // Don't block response - logging failures are non-fatal
     });
 
     // Return immediately - Byte can chat while OCR processes

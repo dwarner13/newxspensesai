@@ -1,9 +1,33 @@
 // ⚠️ DEPRECATED: Use server-side pipeline instead (smart-import-* + normalize-transactions)
 // This exposes API key in browser and bypasses guardrails
+// 
+// 🚫 HARD DEPRECATION: All functions in this file throw errors in DEV mode
+// Use src/lib/ocr/requestOcrProcessing.ts instead (canonical backend pipeline)
 const OCR_API_KEY = "K82312040988957"; // Your new OCR.space API key
+
+const DEPRECATION_MESSAGE = `DEPRECATED: Frontend OCR bypasses guardrails. Use backend smart-import-ocr pipeline.
+  
+Import and use:
+  import { requestOcrProcessing } from '@/lib/ocr/requestOcrProcessing';
+  
+This ensures:
+  ✅ Guardrails are applied (PII masking, moderation)
+  ✅ OCR text is redacted before storage
+  ✅ Consistent pipeline across all entry points
+  ✅ Idempotency support (requestId parameter)`;
+
+function throwIfDeprecated() {
+  if (process.env.NODE_ENV === 'development' || process.env.NETLIFY_DEV === 'true') {
+    throw new Error(DEPRECATION_MESSAGE);
+  }
+  // In production, log warning but don't throw (fail gracefully)
+  console.error('[DEPRECATED OCR]', DEPRECATION_MESSAGE);
+}
 
 // OpenAI Vision API fallback (like ChatGPT uses)
 export const extractTextWithOpenAIVision = async (imageFile: File): Promise<OCRResult> => {
+  throwIfDeprecated(); // 🚫 Hard deprecation - throws in DEV
+  
   try {
     console.log('🔍 Using OpenAI Vision API for text extraction...');
     
@@ -47,6 +71,8 @@ export interface OCRResult {
 }
 
 export const extractTextFromImage = async (imageUrl: string): Promise<OCRResult> => {
+  throwIfDeprecated(); // 🚫 Hard deprecation - throws in DEV
+  
   try {
     const formData = new FormData();
     formData.append("url", imageUrl);
@@ -626,6 +652,8 @@ export const convertFileToBase64 = (file: File): Promise<string> => {
 
 // Function to directly process an image file with OCR
 export const processImageWithOCR = async (imageFile: File): Promise<OCRResult> => {
+  throwIfDeprecated(); // 🚫 Hard deprecation - throws in DEV
+  
   try {
     // Check if it's a PDF file
     if (imageFile.type === 'application/pdf') {

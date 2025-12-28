@@ -33,6 +33,14 @@ export function useSlideoutResizeGuard(
 ) {
   const previousSizeRef = useRef<ResizeGuardState | null>(null);
   const isMonitoringRef = useRef(false);
+  const openTimeRef = useRef<number | null>(null);
+  
+  // CRITICAL: Minimum heights to prevent false positives
+  const MIN_SHELL_HEIGHT_DESKTOP = 420;
+  const MIN_SHELL_HEIGHT_MOBILE = 320;
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  const MIN_SHELL_HEIGHT = isMobile ? MIN_SHELL_HEIGHT_MOBILE : MIN_SHELL_HEIGHT_DESKTOP;
+  const INITIAL_QUIET_PERIOD_MS = 300; // Ignore resizes during first 300ms after open
 
   useEffect(() => {
     // Only run in development
@@ -41,6 +49,7 @@ export function useSlideoutResizeGuard(
     }
 
     const element = elementRef.current;
+    openTimeRef.current = Date.now(); // Record when guard starts monitoring
 
     // Record initial size when element becomes visible
     const recordSize = () => {
@@ -57,10 +66,30 @@ export function useSlideoutResizeGuard(
         const previous = previousSizeRef.current;
         const deltaWidth = currentSize.width - previous.width;
         const deltaHeight = currentSize.height - previous.height;
-        const timeSinceOpen = previousSizeRef.current.timestamp ? currentSize.timestamp - previousSizeRef.current.timestamp : 0;
+        const timeSinceOpen = openTimeRef.current ? currentSize.timestamp - openTimeRef.current : 0;
+        
+        // CRITICAL: Ignore resizes during initial quiet period (first 300ms)
+        if (timeSinceOpen < INITIAL_QUIET_PERIOD_MS) {
+          previousSizeRef.current = currentSize;
+          return; // Skip logging during initial period
+        }
+        
+        // CRITICAL: Ignore resizes that shrink below minimum height (likely measurement error or initial render)
+        if (currentSize.height < MIN_SHELL_HEIGHT && deltaHeight < 0) {
+          if (import.meta.env.DEV) {
+            console.log('[SlideoutResizeGuard] Ignoring resize below minimum height:', {
+              currentHeight: currentSize.height,
+              minHeight: MIN_SHELL_HEIGHT,
+              deltaHeight,
+            });
+          }
+          previousSizeRef.current = currentSize;
+          return; // Skip logging for collapses below minimum
+        }
 
-        // Only log if there's a meaningful change (> 1px threshold to avoid rounding errors)
-        if (Math.abs(deltaWidth) > 1 || Math.abs(deltaHeight) > 1) {
+        // Only log if there's a meaningful change (> 3px threshold to avoid rounding errors and minor layout shifts)
+        // Input area growth within max-height constraints should not trigger warnings
+        if (Math.abs(deltaWidth) > 3 || Math.abs(deltaHeight) > 3) {
           const event: ResizeEvent = {
             previous,
             current: currentSize,
@@ -85,6 +114,7 @@ export function useSlideoutResizeGuard(
               deltaWidth,
               deltaHeight,
               timeSinceOpen: `${timeSinceOpen}ms`,
+              minHeight: MIN_SHELL_HEIGHT,
               timestamp: new Date(currentSize.timestamp).toISOString(),
               // Log computed styles that might be causing resize
               computedHeight: window.getComputedStyle(element).height,

@@ -9,6 +9,7 @@ import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { PageCinematicFade } from '../../components/ui/PageCinematicFade';
 
 // Local Transaction type for Smart Categories page
 interface Transaction {
@@ -434,7 +435,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
   // Show loading state immediately - don't wait for data
   // This ensures the page renders instantly even while fetching transactions
   return (
-    <>
+    <PageCinematicFade>
       {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
       <DashboardPageShell
         left={<TagWorkspacePanel />}
@@ -466,7 +467,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
         }
         right={<ActivityFeedSidebar scope="smart-categories" />}
       />
-    </>
+    </PageCinematicFade>
   );
 };
 

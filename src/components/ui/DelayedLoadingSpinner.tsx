@@ -40,11 +40,14 @@ export function DelayedLoadingSpinner({
   const shouldShow = useDelayedFlag(isLoading, showDelayMs, minDisplayMs);
 
   if (!shouldShow) {
-    return null;
+    // Return a placeholder that preserves height and matches dashboard background
+    return (
+      <div className="min-h-[calc(100vh-120px)] w-full bg-slate-950" aria-hidden="true" />
+    );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col items-center justify-center">
+    <div className="min-h-[calc(100vh-120px)] bg-slate-950 flex flex-col items-center justify-center">
       {/* Prime's Crown with Glow Effect */}
       <div className="relative mb-8">
         <div className="w-32 h-32 bg-gradient-to-r from-purple-600 via-pink-600 to-orange-600 rounded-full flex items-center justify-center shadow-2xl animate-pulse">

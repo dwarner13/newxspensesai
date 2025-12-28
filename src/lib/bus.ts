@@ -17,6 +17,7 @@ type BusEventMap = {
   PRIME_HANDOFF_SENT: { handoffId: string; importId: string };
   CRYSTAL_ANALYZE_REQUESTED: { importId: string };
   CRYSTAL_ADVICE_READY: { importId: string; adviceId: string };
+  BYTE_IMPORT_COMPLETED: { importId: string; userId: string; timestamp: string };
   ERROR: { where: string; message: string; detail?: unknown };
   FAST_MODE_TOGGLED: { enabled: boolean };
   WATCH_ME_WORK: { enabled: boolean };

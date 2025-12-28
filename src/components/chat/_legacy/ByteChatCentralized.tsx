@@ -9,7 +9,9 @@
  */
 
 import React from 'react';
-import { SharedChatInterface } from './SharedChatInterface.tsx';
+// LEGACY: SharedChatInterface has been archived
+// This component is deprecated - use UnifiedAssistantChat instead
+// import { SharedChatInterface } from './SharedChatInterface.tsx';
 
 interface ByteChatCentralizedProps {
   isOpen: boolean;
@@ -20,21 +22,26 @@ export const ByteChatCentralized: React.FC<ByteChatCentralizedProps> = ({
   isOpen,
   onClose,
 }) => {
+  // LEGACY: This component is deprecated
+  // SharedChatInterface has been archived
+  // TODO: Migrate test pages to use UnifiedAssistantChat
+  console.warn('[ByteChatCentralized] This component is deprecated. Use UnifiedAssistantChat instead.');
   return (
-    <SharedChatInterface
-      employeeSlug="byte-docs"
-      isOpen={isOpen}
-      onClose={onClose}
-      mode="modal"
-      customizations={{
-        emoji: "📄",
-        title: "Byte",
-        subtitle: "Document Processing Specialist",
-        welcomeMessage: "Hello! I'm Byte 📄. I'm your document processing specialist! I love organizing data and turning chaotic documents into beautiful, structured information. What document can I help you with today?",
-        placeholder: "Ask Byte anything about your documents...",
-      }}
-    />
+    <div className="p-4 text-center text-gray-400">
+      <p>Legacy component deprecated. Use UnifiedAssistantChat with employeeSlug="byte-docs"</p>
+    </div>
   );
+  
+  // Original implementation (archived):
+  // return (
+  //   <SharedChatInterface
+  //     employeeSlug="byte-docs"
+  //     isOpen={isOpen}
+  //     onClose={onClose}
+  //     mode="modal"
+  //     customizations={{...}}
+  //   />
+  // );
 };
 
 export default ByteChatCentralized;

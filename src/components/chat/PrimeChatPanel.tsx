@@ -79,7 +79,8 @@ export function PrimeChatPanel({
   const currentEmployeeSlug = globalActiveEmployeeSlug || streamActiveEmployeeSlug || initialEmployeeSlug || 'prime-boss';
   const normalizedSlug = (currentEmployeeSlug?.toLowerCase().trim() || 'prime-boss') as keyof typeof EMPLOYEE_CHAT_CONFIG;
   const config = EMPLOYEE_CHAT_CONFIG[normalizedSlug] ?? EMPLOYEE_CHAT_CONFIG['prime-boss'];
-  const guardrailsActive = true; // Guardrails are always active for Prime
+  // Guardrails status now comes from useGuardrailsHealth hook (real-time health check)
+  // Removed hardcoded guardrailsActive - use health endpoint instead
 
   // Scroll-to-bottom helper
   const scrollToBottom = (smooth = true) => {
@@ -377,14 +378,8 @@ export function PrimeChatPanel({
                     </Button>
                     </div>
 
-                    <p
-                      className={
-                        "mt-1.5 text-center text-[11px] leading-snug " +
-                        (guardrailsActive ? "text-emerald-400" : "text-slate-400")
-                      }
-                    >
-                      Guardrails are active · Prime filters unsafe content and protects your data.
-                    </p>
+                    {/* Guardrails status removed - shown in bottom pill via UnifiedAssistantChat */}
+                    {/* This hardcoded message was replaced with real-time health check status */}
                   </form>
                 </div>
               </footer>

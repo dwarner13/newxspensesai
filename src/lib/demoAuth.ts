@@ -21,21 +21,13 @@ export interface GuestSession {
 
 /**
  * Check if demo mode is enabled
+ * 
+ * Demo mode ONLY activates when explicitly enabled via VITE_DEMO_MODE === 'true'
+ * It does NOT auto-enable on localhost - require real Supabase auth in development
  */
 export function isDemoMode(): boolean {
-  // Check explicit env flag
-  if (import.meta.env.VITE_DEMO_MODE === 'true') {
-    return true;
-  }
-  
-  // Check if running on localhost
-  if (typeof window !== 'undefined') {
-    return window.location.hostname === 'localhost' || 
-           window.location.hostname === '127.0.0.1' ||
-           window.location.hostname === '';
-  }
-  
-  return false;
+  // Only activate with explicit env flag
+  return import.meta.env.VITE_DEMO_MODE === 'true';
 }
 
 /**

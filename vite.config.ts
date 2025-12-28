@@ -18,6 +18,8 @@ export default defineConfig({
       'openai': path.resolve(__dirname, './src/mocks/openai-mock.js'),
       'openai/_shims/auto/runtime': path.resolve(__dirname, './src/mocks/openai-mock.js'),
     },
+    // TASK 2: Dedupe React to prevent multiple instances
+    dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
     exclude: ['pdfjs-dist/build/pdf.worker.entry', 'openai', 'openai/_shims/auto/runtime'],

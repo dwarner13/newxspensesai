@@ -153,11 +153,28 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
 async function downloadFile(fileId: string): Promise<Buffer> {
   const client = getSupabaseServerClient();
   
+  // NOTE: Storage bucket is 'docs' (not 'uploads')
+  // Files are stored via user_documents table with storage_path
   const { data, error } = await client.storage
-    .from('uploads')
+    .from('docs')
     .download(fileId);
   
-  if (error) throw new Error(`Failed to download file: ${error.message}`);
+  if (error) {
+    // If file not found in 'docs', try 'uploads' bucket (legacy)
+    if (error.message?.includes('not found') || error.code === '404') {
+      const { data: legacyData, error: legacyError } = await client.storage
+        .from('uploads')
+        .download(fileId);
+      
+      if (legacyError) {
+        throw new Error(`Failed to download file: ${legacyError.message}`);
+      }
+      
+      return Buffer.from(await legacyData.arrayBuffer());
+    }
+    
+    throw new Error(`Failed to download file: ${error.message}`);
+  }
   
   return Buffer.from(await data.arrayBuffer());
 }

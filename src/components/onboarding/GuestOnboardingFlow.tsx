@@ -10,12 +10,17 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getGuestProfileCompleted, setGuestProfileCompleted } from '../../lib/userIdentity';
-import { PrimeWelcomeModal } from './PrimeWelcomeModal';
+import { PrimeCustodianOnboardingModal } from './PrimeCustodianOnboardingModal';
 import { useControlCenterDrawer } from '../settings/ControlCenterDrawer';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { isDemoMode } from '../../lib/demoAuth';
+import { ONBOARDING_MODE } from '../../config/onboardingConfig';
 
 export function GuestOnboardingFlow() {
+  // Hard-block: Prevent mounting if legacy onboarding is disabled
+  if (!ONBOARDING_MODE.legacyEnabled) {
+    return null;
+  }
   const { isDemoUser, loading, initialLoad } = useAuth();
   const [showPrimeModal, setShowPrimeModal] = useState(false);
   const [hasChecked, setHasChecked] = useState(false);
@@ -99,13 +104,15 @@ export function GuestOnboardingFlow() {
 
   return (
     <>
-      <PrimeWelcomeModal
+      <PrimeCustodianOnboardingModal
         isOpen={showPrimeModal}
-        onContinue={handleContinue}
+        onComplete={handleSetupComplete}
       />
     </>
   );
 }
+
+
 
 
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   User, 
   Settings, 
@@ -26,6 +26,8 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
+import { useRightPanel } from '../../context/RightPanelContext';
+import { useBodyClass } from '../../hooks/useBodyClass';
 
 interface MobileProfileModalProps {
   isOpen: boolean;
@@ -33,6 +35,27 @@ interface MobileProfileModalProps {
 }
 
 const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose }) => {
+  const { registerPanel } = useRightPanel();
+  
+  // Register this panel with RightPanelContext (idempotent - registerPanel handles deduplication)
+  useEffect(() => {
+    registerPanel('profile', isOpen);
+    // Also add body class for CSS targeting
+    if (isOpen) {
+      document.body.classList.add('has-right-panel-open');
+    } else {
+      document.body.classList.remove('has-right-panel-open');
+    }
+    return () => {
+      document.body.classList.remove('has-right-panel-open');
+    };
+  }, [isOpen, registerPanel]);
+  
+  // Toggle body class when panel opens/closes (for CSS-based rail dimming)
+  useBodyClass('has-right-panel-open', isOpen);
+  // Also toggle right-drawer-open for AI rail standby mode
+  useBodyClass('right-drawer-open', isOpen);
+  
   const [currentView, setCurrentView] = useState<'main' | 'account' | 'security' | 'preferences' | 'data'>('main');
   const [showPassword, setShowPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -125,8 +148,14 @@ const MobileProfileModal: React.FC<MobileProfileModalProps> = ({ isOpen, onClose
           onClick={onClose}
         >
         <div
+          data-right-drawer="true"
           className="fixed inset-0 bg-[#0f172a] flex flex-col z-50"
           onClick={(e) => e.stopPropagation()}
+          style={{
+            // CSS handles offset via body.has-right-panel-open [data-right-drawer="true"]
+            // On mobile, keep full width (inset-0 handles this)
+            transition: 'right 0.3s ease',
+          }}
         >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-white/10">

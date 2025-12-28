@@ -49,7 +49,7 @@ export function ByteWorkspaceOverlay({ open, onClose, minimized = false, onMinim
       workspacePillColorClass={theme.pill}
       guardrailsText={{
         active: 'Guardrails Active · PII protection on',
-        unknown: 'Guardrails Status Unknown',
+        unknown: 'Guardrails: Offline · Protection unavailable', // Never show "Unknown"
       }}
       showMinimize={true}
       onMinimize={handleMinimize}

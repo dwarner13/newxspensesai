@@ -7,6 +7,7 @@ import TherapistModal from './components/therapist/TherapistModal';
 import AppLayout from './components/layout/AppLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import MarketingLayout from './layouts/MarketingLayout';
+import AuthLayout from './layouts/AuthLayout';
 import { ErrorBoundary } from './components/util/ErrorBoundary';
 import { DelayedLoadingSpinner } from './components/ui/DelayedLoadingSpinner';
 
@@ -17,15 +18,23 @@ import { UserProvider } from './contexts/UserContext';
 import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import { BossProvider } from './lib/agents/context';
 import { ProfileProvider } from './contexts/ProfileContext';
+import { OnboardingUIProvider } from './contexts/OnboardingUIContext';
+import { RouteTransitionProvider } from './contexts/RouteTransitionContext';
 import MobileLayoutGate from './components/layout/MobileLayoutGate';
 import MobileRevolution from './components/mobile/MobileRevolution';
 import RouteScrollReset from './components/util/RouteScrollReset';
 import OnboardingGuard from './components/auth/OnboardingGuard';
+import RouteDecisionGate from './components/auth/RouteDecisionGate';
+import { RouteTransitionOverlay } from './components/ui/RouteTransitionOverlay';
 import { isPrimeV2Enabled } from './env';
 import { DevToolsProvider } from './contexts/DevToolsContext';
 import DevPanel from './components/dev/DevPanel';
 import { JobsDrawer } from './components/system/JobsDrawer';
 import { useJobsRealtime } from './lib/realtime/useJobsRealtime';
+import { RightPanelProvider } from './context/RightPanelContext';
+import { PrimeProvider } from './contexts/PrimeContext';
+import { useMobileDetection } from './hooks/useMobileDetection';
+const SecurityCheckPage = lazy(() => import('./pages/dev/SecurityCheckPage'));
 
 // Scroll bar width calculation hook
 const useScrollbarWidth = () => {
@@ -62,6 +71,7 @@ import TestPage from './pages/dashboard/TestPage';
 const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
 const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
 const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
+const UploadSpeedTest = lazy(() => import('./pages/dev/UploadSpeedTest'));
 const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
 const TransactionsPage = lazy(() => import('./pages/dashboard/TransactionsPage'));
 const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
@@ -122,6 +132,7 @@ const NavCheck = lazy(() => import('./pages/debug/NavCheck'));
 const TaxAssistantPage = lazy(() => import('./pages/dashboard/TaxAssistantPage'));
 // const BusinessIntelligence = lazy(() => import('./pages/features/business-intelligence'));
 const BusinessIntelligencePage = lazy(() => import('./pages/dashboard/BusinessIntelligencePage'));
+const CustodianPage = lazy(() => import('./pages/dashboard/CustodianPage'));
 // const PrimeLabPage = lazy(() => import('./ui/pages/PrimeLabPage')); // Hidden - using Centralized Chat Runtime instead
 // const TeamRoom = lazy(() => import('./pages/dashboard/TeamRoom'));
 const SmartAutomation = lazy(() => import('./pages/dashboard/SmartAutomation'));
@@ -215,8 +226,39 @@ function App() {
   // Calculate scrollbar width for fixed elements
   useScrollbarWidth();
   
+  // Mobile detection - sets body[data-mobile] for CSS scoping
+  useMobileDetection();
+  
   // Initialize jobs realtime subscriptions (global, works across all pages)
   useJobsRealtime();
+
+  // Force hide all scrollbars on mount
+  useEffect(() => {
+    const hideScrollbars = () => {
+      const style = document.createElement('style');
+      style.id = 'force-hide-scrollbars';
+      style.textContent = `
+        html, body, * {
+          scrollbar-width: none !important;
+          -ms-overflow-style: none !important;
+        }
+        html::-webkit-scrollbar,
+        body::-webkit-scrollbar,
+        *::-webkit-scrollbar {
+          display: none !important;
+          width: 0 !important;
+          height: 0 !important;
+        }
+      `;
+      
+      const existing = document.getElementById('force-hide-scrollbars');
+      if (existing) existing.remove();
+      
+      document.head.appendChild(style);
+    };
+    
+    hideScrollbars();
+  }, []);
   
   return (
     <BossProvider>
@@ -225,12 +267,24 @@ function App() {
             <AIFinancialAssistantProvider>
               <UserProvider>
                 <ProfileProvider>
+                  <OnboardingUIProvider>
+                    <RouteTransitionProvider>
                 <WorkspaceProvider>
                   <DevToolsProvider>
-                    <ScrollToTop />
-                    <ErrorBoundary>
+                    <RightPanelProvider>
+                      <ScrollToTop />
+                      <RouteTransitionOverlay />
+                      <ErrorBoundary>
                       <Suspense fallback={<LoadingSpinner />}>
                         <Routes>
+                      {/* Auth routes - dedicated layout without marketing nav */}
+                      <Route element={<AuthLayout />}>
+                        <Route path="/login" element={<LoginPage />} />
+                        <Route path="/signup" element={<SignupPage />} />
+                        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+                        <Route path="/reset-password" element={<Suspense fallback={<LoadingSpinner />}><ResetPasswordPage /></Suspense>} />
+                      </Route>
+
                       {/* Marketing routes with BossBubble */}
                       <Route element={<MarketingLayout />}>
                         <Route path="/" element={<HomePage />} />
@@ -239,15 +293,9 @@ function App() {
                         <Route path="/reviews" element={<ReviewsPage />} />
                         <Route path="/pricing" element={<PricingPage />} />
                         
-                        {/* Auth routes */}
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/signup" element={<SignupPage />} />
-                        <Route path="/auth/callback" element={<AuthCallbackPage />} />
-                        <Route path="/reset-password" element={<Suspense fallback={<LoadingSpinner />}><ResetPasswordPage /></Suspense>} />
-                        
-                        {/* Onboarding routes - accessible without profile_completed check */}
-                        <Route path="/onboarding/welcome" element={<Suspense fallback={<LoadingSpinner />}><OnboardingWelcomePage /></Suspense>} />
-                        <Route path="/onboarding/setup" element={<Suspense fallback={<LoadingSpinner />}><OnboardingSetupPage /></Suspense>} />
+                        {/* Onboarding routes - redirect to dashboard (overlay handles onboarding now) */}
+                        <Route path="/onboarding/welcome" element={<OnboardingWelcomePage />} />
+                        {/* Note: /onboarding/setup moved to dashboard layout section below */}
                         
                         {/* Spotify integration routes */}
                         <Route path="/callback" element={<SpotifyCallbackPage />} />
@@ -265,6 +313,9 @@ function App() {
                         {/* <Route path="/chat/prime" element={<PrimeChatSimple />} /> */}
                         <Route path="/chat-test" element={<ChatTest />} />
                         <Route path="/simple-test" element={<SimpleTest />} />
+                        
+                        {/* Dev routes */}
+                        <Route path="/dev/security-check" element={<Suspense fallback={<LoadingSpinner />}><SecurityCheckPage /></Suspense>} />
                         
                         {/* Employee Chat Routes - Legacy routes now redirect to unified chat */}
                         <Route path="/prime" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
@@ -333,12 +384,12 @@ function App() {
                       <Route path="/ai-employees" element={<AIEmployees />} />
                     </Route>
                     
-                    {/* Dashboard routes with persistent layout - Each route shows its specific page */}
-                    <Route path="/dashboard" element={
-                      <OnboardingGuard>
-                        <MobileLayoutGate 
-                          Mobile={MobileRevolution} 
-                          Desktop={DashboardLayout}
+                    {/* Onboarding setup route - uses dashboard layout (no marketing header/footer) */}
+                    {/* FIXED: Use nested route so DashboardLayout can render <Outlet /> */}
+                    <Route path="/onboarding/setup" element={
+                      <MobileLayoutGate 
+                        Mobile={MobileRevolution} 
+                        Desktop={DashboardLayout}
                         mobileProps={{
                           currentView: 'dashboard',
                           onViewChange: (view: string) => console.log('View change:', view),
@@ -353,12 +404,51 @@ function App() {
                         }}
                         desktopProps={{}}
                       />
-                      </OnboardingGuard>
+                    }>
+                      <Route index element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <OnboardingSetupPage />
+                        </Suspense>
+                      } />
+                    </Route>
+                    
+                    {/* Dashboard routes with persistent layout - Each route shows its specific page */}
+                    <Route path="/dashboard" element={
+                      <PrimeProvider>
+                        <RouteDecisionGate>
+                          <MobileLayoutGate 
+                            Mobile={MobileRevolution} 
+                            Desktop={DashboardLayout}
+                          mobileProps={{
+                            currentView: 'dashboard',
+                            onViewChange: (view: string) => console.log('View change:', view),
+                            onUpload: () => console.log('Upload triggered'),
+                            isProcessing: false,
+                            transactionCount: 0,
+                            discoveries: [],
+                            activeEmployee: "",
+                            notifications: 0,
+                            onEmployeeSelect: (employeeId: string) => console.log('Employee selected:', employeeId),
+                            onStoryAction: (action: string, storyId: string) => console.log('Story action:', action, storyId)
+                          }}
+                          desktopProps={{}}
+                        />
+                        </RouteDecisionGate>
+                      </PrimeProvider>
                     }>
                       <Route index element={<XspensesProDashboard />} />
                       
                       {/* Test Route */}
                       <Route path="test" element={<TestPage />} />
+                      
+                      {/* Dev Routes */}
+                      {import.meta.env.DEV && (
+                        <Route path="dev/upload-speed-test" element={
+                          <Suspense fallback={<LoadingSpinner />}>
+                            <UploadSpeedTest />
+                          </Suspense>
+                        } />
+                      )}
                       
                       {/* Main Dashboard Pages */}
                       <Route path="overview" element={<OverviewPage />} />
@@ -374,7 +464,11 @@ function App() {
                       <Route path="settings/security" element={<Suspense fallback={<LoadingSpinner />}><SecurityPage /></Suspense>} />
                       
                       {/* AI Workspace Pages */}
-                      <Route path="prime-chat" element={<PrimeChatPage />} />
+                      <Route path="prime-chat" element={
+                        <ErrorBoundary>
+                          <PrimeChatPage />
+                        </ErrorBoundary>
+                      } />
                       <Route path="smart-import-ai" element={<SmartImportChatPage />} />
                       <Route path="ai-chat-assistant" element={<AIChatAssistantPage />} />
                       <Route path="ai-financial-assistant" element={<AIChatAssistantPage />} />
@@ -403,6 +497,9 @@ function App() {
                       {/* Business & Tax */}
                       <Route path="tax-assistant" element={<Suspense fallback={<LoadingSpinner />}><TaxAssistantPage /></Suspense>} />
                       <Route path="business-intelligence" element={<Suspense fallback={<LoadingSpinner />}><BusinessIntelligencePage /></Suspense>} />
+                      
+                      {/* Tools & Settings */}
+                      <Route path="custodian" element={<Suspense fallback={<LoadingSpinner />}><CustodianPage /></Suspense>} />
                       
                       {/* Missing routes: redirects for sidebar compatibility */}
                       <Route path="podcast" element={<Navigate to="/dashboard/personal-podcast" replace />} />
@@ -454,14 +551,17 @@ function App() {
                 <JobsDrawer />
 
                 {/* Prime chat mount moved into DashboardLayout */}
+                    </RightPanelProvider>
                   </DevToolsProvider>
                 </WorkspaceProvider>
+                    </RouteTransitionProvider>
+                  </OnboardingUIProvider>
                 </ProfileProvider>
               </UserProvider>
             </AIFinancialAssistantProvider>
           </PersonalPodcastProvider>
         </AudioProvider>
-    </BossProvider>
+      </BossProvider>
   );
 }
 

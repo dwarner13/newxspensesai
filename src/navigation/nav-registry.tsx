@@ -40,6 +40,7 @@ const NAV_ITEMS = [
   // TOOLS & SETTINGS
   { label: "Analytics", to: "/dashboard/analytics", icon: <LineChart className="w-5 h-5" />, group: "TOOLS & SETTINGS", description: "All your numbers & insights" },
   { label: "Settings", to: "/dashboard/settings", icon: <Settings className="w-5 h-5" />, group: "TOOLS & SETTINGS", description: "Account, security, integrations" },
+  { label: "Custodian", to: "/dashboard/custodian", icon: <Shield className="w-5 h-5" />, group: "TOOLS & SETTINGS", description: "Security & settings specialist" },
   { label: "Reports", to: "/dashboard/reports", icon: <FileText className="w-5 h-5" />, group: "TOOLS & SETTINGS", description: "Comprehensive financial reports" },
 ];
 

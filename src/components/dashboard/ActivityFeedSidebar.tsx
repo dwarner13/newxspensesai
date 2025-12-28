@@ -72,10 +72,11 @@ export function ActivityFeedSidebar({ scope, lastUploadSummary, className, varia
   }, [lastUploadSummary]);
 
   return (
-    <aside className={cn("w-full h-full flex flex-col overflow-hidden", className)}>
-      <div className="relative w-full h-full overflow-hidden">
+    <aside className={cn("w-full flex flex-col", className)}>
+      <div className="relative w-full">
         {/* Activity Feed content - no extra padding needed, parent handles spacing */}
-        <div className="h-full w-full overflow-hidden">
+        {/* CRITICAL: No height constraints - part of main scroll flow */}
+        <div className="w-full">
           <ActivityFeed 
             title="ACTIVITY FEED"
             limit={20}

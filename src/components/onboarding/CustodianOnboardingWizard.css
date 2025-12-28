@@ -1,0 +1,208 @@
+/**
+ * Custodian Onboarding Wizard - Premium AI Effects
+ * 
+ * Subtle glow, motion, and presence animations that match XspensesAI dashboard theme.
+ */
+
+/* Active AI Glow - Pulsing radial gradient */
+@keyframes aiGlowPulse {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.05);
+  }
+}
+
+.ai-glow-left {
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(
+    circle at 20% 50%,
+    rgba(139, 92, 246, 0.4) 0%,
+    rgba(59, 130, 246, 0.2) 30%,
+    transparent 60%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  animation: aiGlowPulse 8s ease-in-out infinite;
+  filter: blur(32px);
+}
+
+.ai-glow-right {
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(
+    circle at 20% 50%,
+    rgba(139, 92, 246, 0.15) 0%,
+    rgba(59, 130, 246, 0.1) 30%,
+    transparent 60%
+  );
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  animation: aiGlowPulse 10s ease-in-out infinite;
+  filter: blur(24px);
+}
+
+/* Custodian Icon Halo Ring */
+@keyframes haloPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.15);
+  }
+}
+
+.custodian-icon-halo {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid rgba(139, 92, 246, 0.4);
+  pointer-events: none;
+  animation: haloPulse 3s ease-in-out infinite;
+}
+
+/* Shimmer Sweep */
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-100%) skewX(-15deg);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateX(200%) skewX(-15deg);
+    opacity: 0;
+  }
+}
+
+.custodian-header-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: shimmerSweep 10s ease-in-out infinite;
+  animation-delay: 2s;
+}
+
+/* Message Bubble Animations */
+@keyframes bubbleInCustodian {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bubbleInUser {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.bubble-custodian-enter {
+  animation: bubbleInCustodian 220ms ease-out;
+}
+
+.bubble-user-enter {
+  animation: bubbleInUser 140ms ease-out;
+}
+
+/* Preview Update Pulse */
+@keyframes previewPulse {
+  0% {
+    border-color: rgba(139, 92, 246, 0.5);
+    background-color: rgba(139, 92, 246, 0.1);
+  }
+  50% {
+    border-color: rgba(139, 92, 246, 0.8);
+    background-color: rgba(139, 92, 246, 0.2);
+  }
+  100% {
+    border-color: rgba(71, 85, 105, 0.5);
+    background-color: rgba(30, 41, 59, 0.5);
+  }
+}
+
+.preview-row-pulse {
+  animation: previewPulse 500ms ease-out;
+}
+
+/* Sparkle Burst */
+@keyframes sparkleBurst {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.3) rotate(180deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1) rotate(360deg);
+  }
+}
+
+.sparkle-burst {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: sparkleBurst 600ms ease-out;
+}
+
+.sparkle-burst-1 {
+  top: -4px;
+  left: 50%;
+  animation-delay: 0ms;
+}
+
+.sparkle-burst-2 {
+  top: 50%;
+  right: -4px;
+  animation-delay: 100ms;
+}
+
+.sparkle-burst-3 {
+  bottom: -4px;
+  left: 50%;
+  animation-delay: 200ms;
+}
+
+.sparkle-burst-4 {
+  top: 50%;
+  left: -4px;
+  animation-delay: 300ms;
+}
+
+
+
+
+

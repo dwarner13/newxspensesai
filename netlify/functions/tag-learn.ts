@@ -8,6 +8,8 @@
 import type { Handler } from '@netlify/functions';
 import { serverSupabase } from './_shared/supabase.js';
 import { safeLog } from './_shared/safeLog.js';
+// AI Fluency: Event logging
+import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
 
 export const handler: Handler = async (event) => {
   // Only allow POST requests
@@ -88,6 +90,22 @@ export const handler: Handler = async (event) => {
       transactionId,
       oldCategory,
       newCategory,
+    });
+
+    // AI Fluency: Log category correction event (non-blocking)
+    logUserEvent({
+      userId: userIdFromHeader,
+      eventType: 'category_correction',
+      eventValue: 1,
+      meta: { transactionId, oldCategory, newCategory, merchant, description }
+    }).then(() => {
+      // Recalculate fluency after logging event (non-blocking)
+      recalcFluency(userIdFromHeader).catch(err => {
+        console.error('[tag-learn] Error recalculating fluency:', err);
+      });
+    }).catch(err => {
+      console.error('[tag-learn] Error logging event:', err);
+      // Don't block response - logging failures are non-fatal
     });
 
     // Return success response

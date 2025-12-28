@@ -7,7 +7,9 @@
 
 import React from 'react';
 import { EmployeeSuggestionChips } from './EmployeeSuggestionChips';
+import { useAuth } from '../../contexts/AuthContext';
 import { cn } from '../../lib/utils';
+import { resolveDisplayNameSync } from '../../lib/user/resolveDisplayName';
 
 interface PrimeWelcomeCardProps {
   userName?: string;
@@ -15,9 +17,11 @@ interface PrimeWelcomeCardProps {
 }
 
 export function PrimeWelcomeCard({ userName: propUserName, className }: PrimeWelcomeCardProps) {
-  // Simple fallback for now - use "there" if no userName prop provided
-  // This prevents any undefined variable errors
-  const name = propUserName || 'there';
+  const { profile, user } = useAuth();
+  
+  // Resolve display name using helper (never returns email)
+  const resolvedName = resolveDisplayNameSync(profile, user);
+  const displayName = propUserName || resolvedName.displayName || 'there';
 
   return (
     <div className={cn('flex flex-col items-center justify-center px-4 py-6 md:py-8', className)}>
@@ -34,7 +38,7 @@ export function PrimeWelcomeCard({ userName: propUserName, className }: PrimeWel
 
       {/* Welcome text */}
       <h2 className="text-xl md:text-2xl font-semibold text-slate-50 mb-2 text-center">
-        Welcome to XspensesAI, {name}
+        Welcome to XspensesAI, {displayName}
       </h2>
       
       <p className="text-sm md:text-base text-slate-300 mb-1 text-center max-w-md">

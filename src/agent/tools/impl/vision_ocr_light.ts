@@ -68,8 +68,8 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       temperature: 0.1,
     });
 
-    const text = response.choices[0]?.message?.content || '';
-    const extracted = text.length > 0;
+    const rawText = response.choices[0]?.message?.content || '';
+    const extracted = rawText.length > 0;
 
     if (!extracted) {
       return Ok({
@@ -80,11 +80,40 @@ export async function execute(input: Input, ctx: { userId: string }): Promise<Re
       });
     }
 
+    // ⚡ GUARDRAILS: Apply guardrails to OCR output BEFORE returning
+    // Tools run in backend context, so we can import backend guardrails
+    let redactedText = rawText;
+    try {
+      // Dynamic import to avoid frontend/backend coupling issues
+      const { runGuardrailsForText } = await import('../../../../netlify/functions/_shared/guardrails-unified.js');
+      const guardrailResult = await runGuardrailsForText(rawText, ctx.userId, 'ingestion_ocr');
+      
+      if (!guardrailResult.ok) {
+        return Err(new Error(`Content blocked by guardrails: ${guardrailResult.reasons?.join(', ')}`));
+      }
+      
+      redactedText = guardrailResult.text;
+      
+      // Log PII detection (do NOT log raw text)
+      if (guardrailResult.signals?.pii) {
+        console.log('[Vision OCR Light] PII detected and masked:', {
+          piiTypes: guardrailResult.signals.piiTypes,
+          originalLength: rawText.length,
+          redactedLength: redactedText.length,
+          userId: ctx.userId.substring(0, 8) + '...',
+        });
+      }
+    } catch (guardrailError: any) {
+      // Guardrails failed - log warning but fail open (don't block tool)
+      console.warn('[Vision OCR Light] Guardrails check failed (non-fatal):', guardrailError.message || guardrailError);
+      // Use original text - fail open in dev
+    }
+
     return Ok({
       ok: true,
-      text: text.substring(0, maxLength), // Ensure we respect maxLength
+      text: redactedText.substring(0, maxLength), // Return redacted text
       extracted: true,
-      message: `Extracted ${text.length} characters of text`,
+      message: `Extracted ${redactedText.length} characters of text`,
     });
   } catch (error: any) {
     console.error('[Vision OCR Light] Error:', error);

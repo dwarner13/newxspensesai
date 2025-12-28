@@ -19,11 +19,18 @@ import { useAuth } from '../contexts/AuthContext';
 import SubscriptionManager from '../components/ui/SubscriptionManager';
 import toast from 'react-hot-toast';
 import AccountSettingsSidebar from '../components/layout/AccountSettingsSidebar';
+import { SignOutConfirmationModal } from '../components/auth/SignOutConfirmationModal';
 
 interface Profile {
   id: string;
   display_name: string | null;
   avatar_url: string | null;
+  account_name: string | null;
+  time_zone: string | null;
+  date_locale: string | null;
+  currency: string | null;
+  tax_included: string | null;
+  tax_system: string | null;
   updated_at: string;
   role: 'free' | 'premium' | 'admin';
   last_login_at: string | null;
@@ -53,9 +60,16 @@ const ProfileSettingsPage = () => {
   const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     display_name: '',
-    avatar_url: ''
+    avatar_url: '',
+    account_name: '',
+    time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    date_locale: 'en-US',
+    currency: 'USD',
+    tax_included: 'excluded',
+    tax_system: 'default'
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -85,7 +99,14 @@ const ProfileSettingsPage = () => {
         setProfile(mockProfile as Profile);
         setFormData({
           display_name: mockProfile.display_name,
-          avatar_url: mockProfile.avatar_url});
+          avatar_url: mockProfile.avatar_url,
+          account_name: '',
+          time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          date_locale: 'en-US',
+          currency: 'USD',
+          tax_included: 'excluded',
+          tax_system: 'default'
+        });
         
         setLoading(false);
         return;
@@ -107,7 +128,13 @@ const ProfileSettingsPage = () => {
         setProfile(data);
         setFormData({
           display_name: data.display_name || '',
-          avatar_url: data.avatar_url || ''
+          avatar_url: data.avatar_url || '',
+          account_name: data.account_name || '',
+          time_zone: data.time_zone || Intl.DateTimeFormat().resolvedOptions().timeZone,
+          date_locale: data.date_locale || 'en-US',
+          currency: data.currency || 'USD',
+          tax_included: data.tax_included || 'excluded',
+          tax_system: data.tax_system || 'default'
         });
       } else {
         // Create initial profile if it doesn't exist
@@ -131,7 +158,14 @@ const ProfileSettingsPage = () => {
           setProfile(newProfile);
           setFormData({
             display_name: newProfile.display_name,
-            avatar_url: newProfile.avatar_url});
+            avatar_url: newProfile.avatar_url,
+            account_name: '',
+            time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            date_locale: 'en-US',
+            currency: 'USD',
+            tax_included: 'excluded',
+            tax_system: 'default'
+          });
         }
       }
     } catch (error) {
@@ -285,6 +319,12 @@ const ProfileSettingsPage = () => {
           ...prev, 
           display_name: formData.display_name.trim() || null,
           avatar_url: formData.avatar_url.trim() || null,
+          account_name: formData.account_name.trim() || null,
+          time_zone: formData.time_zone || null,
+          date_locale: formData.date_locale || null,
+          currency: formData.currency || null,
+          tax_included: formData.tax_included || null,
+          tax_system: formData.tax_system || null,
           updated_at: new Date().toISOString()
         } : null);
         
@@ -296,6 +336,12 @@ const ProfileSettingsPage = () => {
       const updates = {
         display_name: formData.display_name.trim() || null,
         avatar_url: formData.avatar_url.trim() || null,
+        account_name: formData.account_name.trim() || null,
+        time_zone: formData.time_zone || null,
+        date_locale: formData.date_locale || null,
+        currency: formData.currency || null,
+        tax_included: formData.tax_included || null,
+        tax_system: formData.tax_system || null,
         updated_at: new Date().toISOString()
       };
 
@@ -379,10 +425,16 @@ const ProfileSettingsPage = () => {
     }
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
+    // Show confirmation modal
+    setShowSignOutConfirm(true);
+  };
+
+  const handleConfirmSignOut = async () => {
     try {
+      setShowSignOutConfirm(false);
       await signOut();
-      toast.success('Signed out successfully');
+      // Note: signOut already handles navigation and state clearing
     } catch (error) {
       console.error('Logout error:', error);
       toast.error('Failed to sign out');
@@ -578,6 +630,134 @@ const ProfileSettingsPage = () => {
                         Alternative to uploading: link to your profile picture
                       </p>
                     </div>
+
+                    <div>
+                      <label htmlFor="account_name" className="block text-sm font-medium text-gray-700 mb-1">
+                        Account Name
+                      </label>
+                      <input
+                        id="account_name"
+                        type="text"
+                        className="input"
+                        placeholder="Enter account or business name"
+                        value={formData.account_name}
+                        onChange={(e) => handleInputChange('account_name', e.target.value)}
+                        maxLength={100}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Your account or business name for financial records
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="time_zone" className="block text-sm font-medium text-gray-700 mb-1">
+                        Time Zone
+                      </label>
+                      <select
+                        id="time_zone"
+                        className="input"
+                        value={formData.time_zone}
+                        onChange={(e) => handleInputChange('time_zone', e.target.value)}
+                      >
+                        <option value="America/New_York">Eastern Time (ET)</option>
+                        <option value="America/Chicago">Central Time (CT)</option>
+                        <option value="America/Denver">Mountain Time (MT)</option>
+                        <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                        <option value="America/Vancouver">Vancouver (PST/PDT)</option>
+                        <option value="Europe/London">London (GMT)</option>
+                        <option value="Europe/Paris">Paris (CET)</option>
+                        <option value="Asia/Tokyo">Tokyo (JST)</option>
+                        <option value="Australia/Sydney">Sydney (AEST)</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Used for date and time display throughout the app
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="date_locale" className="block text-sm font-medium text-gray-700 mb-1">
+                        Date Locale
+                      </label>
+                      <select
+                        id="date_locale"
+                        className="input"
+                        value={formData.date_locale}
+                        onChange={(e) => handleInputChange('date_locale', e.target.value)}
+                      >
+                        <option value="en-US">English (US) - MM/DD/YYYY</option>
+                        <option value="en-GB">English (UK) - DD/MM/YYYY</option>
+                        <option value="en-CA">English (Canada) - YYYY-MM-DD</option>
+                        <option value="fr-FR">French - DD/MM/YYYY</option>
+                        <option value="de-DE">German - DD.MM.YYYY</option>
+                        <option value="ja-JP">Japanese - YYYY/MM/DD</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Date format preference for displaying dates
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="currency" className="block text-sm font-medium text-gray-700 mb-1">
+                        Preferred Currency
+                      </label>
+                      <select
+                        id="currency"
+                        className="input"
+                        value={formData.currency}
+                        onChange={(e) => handleInputChange('currency', e.target.value)}
+                      >
+                        <option value="USD">US Dollar ($)</option>
+                        <option value="EUR">Euro (€)</option>
+                        <option value="GBP">British Pound (£)</option>
+                        <option value="CAD">Canadian Dollar (C$)</option>
+                        <option value="AUD">Australian Dollar (A$)</option>
+                        <option value="JPY">Japanese Yen (¥)</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Default currency for transactions and reports
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="tax_included" className="block text-sm font-medium text-gray-700 mb-1">
+                        Tax Calculations
+                      </label>
+                      <select
+                        id="tax_included"
+                        className="input"
+                        value={formData.tax_included}
+                        onChange={(e) => handleInputChange('tax_included', e.target.value)}
+                      >
+                        <option value="included">Tax included in amounts</option>
+                        <option value="excluded">Tax excluded from amounts</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        How tax is handled in transaction amounts
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="tax_system" className="block text-sm font-medium text-gray-700 mb-1">
+                        Tax System
+                      </label>
+                      <select
+                        id="tax_system"
+                        className="input"
+                        value={formData.tax_system}
+                        onChange={(e) => handleInputChange('tax_system', e.target.value)}
+                      >
+                        <option value="default">Default</option>
+                        <option value="us">US Tax System</option>
+                        <option value="eu">EU VAT System</option>
+                        <option value="uk">UK Tax System</option>
+                        <option value="au">Australian Tax System</option>
+                        <option value="ca">Canadian Tax System</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Tax system used for calculations and reporting
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -635,15 +815,15 @@ const ProfileSettingsPage = () => {
                   <div className="flex items-center space-x-3">
                     <LogOut size={20} className="text-gray-400" />
                     <div>
-                      <p className="font-medium text-gray-900">Sign Out</p>
-                      <p className="text-sm text-gray-500">Sign out of your account on this device</p>
+                      <p className="font-medium text-gray-900">Sign out</p>
+                      <p className="text-sm text-gray-500">Custodian will securely sign you out of this device.</p>
                     </div>
                   </div>
                   <button
                     onClick={handleLogout}
                     className="btn-outline text-sm"
                   >
-                    Sign Out
+                    Sign out
                   </button>
                 </div>
 
@@ -806,6 +986,13 @@ const ProfileSettingsPage = () => {
           </div>
         )}
       </div>
+
+      {/* Sign Out Confirmation Modal */}
+      <SignOutConfirmationModal
+        isOpen={showSignOutConfirm}
+        onConfirm={handleConfirmSignOut}
+        onCancel={() => setShowSignOutConfirm(false)}
+      />
     </div>
   );
 };

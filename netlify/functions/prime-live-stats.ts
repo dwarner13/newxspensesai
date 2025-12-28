@@ -11,6 +11,8 @@
  * returning safe defaults instead of throwing errors.
  */
 
+// ====== PRIME STATE / LIVE STATS ======
+
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';

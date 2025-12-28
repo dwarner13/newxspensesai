@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 // import { toast } from 'react-hot-toast'; // Temporarily disabled for debugging
 import { getSupabase } from '../lib/supabase';
 import { isDemoMode, getGuestSession, createGuestUser, clearGuestSession } from '../lib/demoAuth';
@@ -13,6 +13,7 @@ interface AuthContextType {
   signInWithApple: () => Promise<void>;
   signInWithOtp: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  clearDevice: () => Promise<void>;
   session: any;
   ready: boolean;
   isDemoUser: boolean;
@@ -68,6 +69,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  // Removed didRouteToOnboardingRef - RouteDecisionGate owns routing decisions
   
   // Compute firstName from profile or user metadata
   // Priority: profile.display_name > profile.full_name > user metadata > email prefix > "there"
@@ -84,17 +87,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [profile, user]);
 
   // Non-blocking profile loader - fire-and-forget, never gates auth init
-  const loadProfile = useCallback(async (uid: string, userEmail?: string) => {
+  const loadProfile = useCallback(async (uid: string, userEmail?: string, checkCustodianReady = false) => {
     setIsProfileLoading(true);
     try {
       const profile = await getOrCreateProfile(uid, userEmail || '');
       setProfile(profile ?? null);
+      
+      // PART B: Profile loaded - navigation logic moved to useEffect to prevent loops
     } catch (e) {
       console.warn('[AuthContext] Profile load failed', e);
     } finally {
       setIsProfileLoading(false);
     }
-  }, []);
+  }, [navigate]);
 
   // Refresh profile function - reloads profile from database
   const refreshProfile = useCallback(async () => {
@@ -116,6 +121,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [userId, user?.email]);
   
   console.log('AuthProvider render:', { user: !!user, userId, loading, initialLoad, ready, isDemoUser});
+
+  // CRITICAL: Custodian ready computation (NO navigation - RouteDecisionGate owns routing)
+  // AuthContext computes custodianReady and exposes it, but RouteDecisionGate makes routing decisions
+  // This ensures ONE source of truth for routing (RouteDecisionGate)
+  useEffect(() => {
+    // Only compute when auth and profile are fully loaded
+    if (!ready || !profile || isProfileLoading) {
+      return;
+    }
+
+    // Compute custodian ready status (for dev logging only - no navigation)
+    try {
+      const md = (profile.metadata && typeof profile.metadata === 'object') ? profile.metadata : {};
+      const custodianReady = (md as any).custodian_ready === true;
+      
+      // Dev log: show computed custodianReady value (NO navigation)
+      if (import.meta.env.DEV) {
+        console.log('[AuthContext] custodianReady computed:', {
+          custodianReady,
+          source: 'profile.metadata.custodian_ready',
+          metadata: md,
+          profileId: profile.id,
+          note: 'RouteDecisionGate owns routing decisions - AuthContext does NOT navigate',
+        });
+      }
+    } catch (error: any) {
+      console.warn('[AuthContext] Error computing custodian ready status (non-fatal):', error?.message || error);
+    }
+  }, [ready, profile, isProfileLoading]);
 
   useEffect(() => {
     let alive = true;
@@ -314,6 +348,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       // Fire-and-forget profile load
+      // NOTE: Custodian ready check is now handled inside loadProfile() to ensure profile is loaded first
       if (session?.user?.id) {
         void loadProfile(session.user.id, session.user.email || undefined);
       }
@@ -345,6 +380,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         safe(() => {
           setIsDemoUser(false);
         });
+        
+        // Load profile immediately on sign-in and check Custodian ready status
+        if (session?.user?.id) {
+          void loadProfile(session.user.id, session.user.email || undefined, true); // Pass checkCustodianReady=true
+        }
       }
 
       finish();
@@ -488,11 +528,107 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Clear session storage
       sessionStorage.removeItem('xspensesai-intended-path');
+      sessionStorage.removeItem('xai_welcome_back_shown');
+      // Clear any other welcome/onboarding session keys
+      const sessionKeysToRemove = [
+        'xai_welcome_back_shown',
+        'prime_welcome_back_seen', // Legacy key from PrimeWelcomeBackCard
+      ];
+      sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
       
       // Navigate to login page
       navigate('/login', { replace: true });
     } catch (error) {
       console.error('❌ AuthContext: Logout error:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Clear device data: Sign out and erase all local storage/session storage
+   * Does NOT delete Supabase account data - only clears local browser data
+   */
+  const clearDevice = async () => {
+    try {
+      console.log('🔍 AuthContext: Clearing device data...');
+
+      // 1. Sign out from Supabase
+      const supabase = getSupabase();
+      if (supabase?.auth) {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+      }
+
+      // 2. Clear ALL localStorage keys owned by the app
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (
+            key.includes('xspensesai') ||
+            key.includes('xai_') ||
+            key.includes('guest') ||
+            key.includes('demo') ||
+            key.startsWith('supabase.') ||
+            key.startsWith('sb-')
+          )) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log('✅ Cleared all app localStorage keys');
+      } catch (storageError) {
+        console.warn('⚠️ AuthContext: Failed to clear some localStorage keys:', storageError);
+      }
+
+      // 3. Clear ALL sessionStorage keys
+      try {
+        const sessionKeysToRemove: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (
+            key.includes('xspensesai') ||
+            key.includes('xai_') ||
+            key.includes('welcome') ||
+            key.includes('onboarding')
+          )) {
+            sessionKeysToRemove.push(key);
+          }
+        }
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+        console.log('✅ Cleared all app sessionStorage keys');
+      } catch (storageError) {
+        console.warn('⚠️ AuthContext: Failed to clear some sessionStorage keys:', storageError);
+      }
+
+      // 4. Clear Cache Storage (if available)
+      try {
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          const appCaches = cacheNames.filter(name => 
+            name.includes('xspensesai') || 
+            name.includes('xai') ||
+            name.includes('supabase')
+          );
+          await Promise.all(appCaches.map(name => caches.delete(name)));
+          console.log('✅ Cleared app cache storage');
+        }
+      } catch (cacheError) {
+        console.warn('⚠️ AuthContext: Failed to clear cache storage:', cacheError);
+      }
+
+      // 5. Clear user state
+      setUserId(null);
+      setUser(null);
+      setSession(null);
+      setIsDemoUser(false);
+      setProfile(null);
+      console.log('✅ Device cleared successfully');
+      
+      // 6. Navigate to login page
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error('❌ AuthContext: Clear device error:', error);
       throw error;
     }
   };
@@ -517,6 +653,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInWithApple,
     signInWithOtp,
     signOut,
+    clearDevice,
     session,
     ready,
     isDemoUser,

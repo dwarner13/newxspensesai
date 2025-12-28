@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useProfileContext } from '../../../contexts/ProfileContext';
 import { 
   getUserIdentity, 
   getGuestProfile, 
@@ -37,6 +38,7 @@ interface ProfileData {
 
 export function ProfileTab() {
   const { user, userId, isDemoUser, signOut } = useAuth();
+  const { profile: profileContextProfile, refreshProfile } = useProfileContext();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [profileComplete, setProfileComplete] = useState(false);
@@ -56,68 +58,68 @@ export function ProfileTab() {
     }
   };
 
-  // Load profile data
+  // Use ProfileContext as single source of truth - sync local state when profile loads
   useEffect(() => {
-    loadProfile();
-  }, [userId, isDemoUser]);
-
-  const loadProfile = async () => {
-    try {
-      setLoading(true);
-      const identity = await getUserIdentity();
-      const complete = await isProfileComplete();
-      setProfileComplete(complete);
-
-      if (complete) {
-        if (isDemoUser) {
-          // Load from localStorage
-          const guestProfile = getGuestProfile();
-          setProfile({
-            displayName: guestProfile?.displayName || identity.displayName,
-            email: identity.email,
-            businessName: guestProfile?.businessType,
-            currency: guestProfile?.preferences?.currency || 'CAD',
-            goal: guestProfile?.goals?.[0] || 'Personal',
-            timezone: guestProfile?.timezone,
-            primaryMode: guestProfile?.preferences?.primaryMode || 'exploring',
-            guidanceStyle: guestProfile?.preferences?.guidanceStyle || 'mix',
-            consentConfirmed: guestProfile?.consentConfirmed,
+    const syncProfile = async () => {
+      if (profileContextProfile) {
+        // Map ProfileContext profile to local ProfileData format
+        const metadata = (profileContextProfile.metadata as Record<string, any>) || {};
+        const settings = (profileContextProfile.settings as Record<string, any>) || {};
+        
+        setProfile({
+          displayName: profileContextProfile.display_name || profileContextProfile.first_name || profileContextProfile.full_name || '',
+          email: profileContextProfile.email || user?.email || '',
+          businessName: profileContextProfile.account_name || undefined,
+          currency: profileContextProfile.currency || 'USD',
+          goal: profileContextProfile.account_type || 'personal',
+          timezone: profileContextProfile.time_zone || undefined,
+          primaryMode: (profileContextProfile.account_type as any) || 'exploring',
+          guidanceStyle: settings.guidance_style || metadata.guidance_style || 'mix',
+          consentConfirmed: metadata.consent_confirmed || false,
+        });
+        
+        // Check if profile is complete (has name)
+        const complete = !!(
+          profileContextProfile.display_name || 
+          profileContextProfile.first_name || 
+          profileContextProfile.full_name
+        );
+        setProfileComplete(complete);
+        setLoading(false);
+        
+        if (import.meta.env.DEV) {
+          console.log('[ProfileTab] ✅ Profile loaded from ProfileContext', {
+            display_name: profileContextProfile.display_name,
+            first_name: profileContextProfile.first_name,
+            full_name: profileContextProfile.full_name,
+            complete,
           });
-        } else {
-          // Load from Supabase
-          const supabase = getSupabase();
-          if (supabase && userId) {
-            const { data } = await supabase
-              .from('profiles')
-              .select('display_name, email, business_name, currency, account_mode, metadata')
-              .eq('id', userId)
-              .maybeSingle();
-            
-            if (data) {
-              const metadata = data.metadata as Record<string, any> || {};
-              setProfile({
-                displayName: data.display_name || identity.displayName,
-                email: data.email || identity.email,
-                businessName: data.business_name || undefined,
-                currency: data.currency || 'CAD',
-                goal: data.account_mode || 'personal',
-                primaryMode: (data.account_mode as any) || 'exploring',
-                guidanceStyle: metadata.guidance_style || 'mix',
-                consentConfirmed: metadata.consent_confirmed || false,
-              });
-            }
-          }
         }
-      } else {
-        // Profile incomplete - show setup
-        setShowSetup(true);
+      } else if (isDemoUser) {
+        // Demo user - load from localStorage
+        const identity = await getUserIdentity();
+        const guestProfile = getGuestProfile();
+        setProfile({
+          displayName: guestProfile?.displayName || identity.displayName,
+          email: identity.email,
+          businessName: guestProfile?.businessType,
+          currency: guestProfile?.preferences?.currency || 'CAD',
+          goal: guestProfile?.goals?.[0] || 'Personal',
+          timezone: guestProfile?.timezone,
+          primaryMode: guestProfile?.preferences?.primaryMode || 'exploring',
+          guidanceStyle: guestProfile?.preferences?.guidanceStyle || 'mix',
+          consentConfirmed: guestProfile?.consentConfirmed,
+        });
+        setProfileComplete(!!guestProfile?.displayName);
+        setLoading(false);
+      } else if (!loading) {
+        // ProfileContext is still loading
+        setLoading(true);
       }
-    } catch (error) {
-      console.error('[ProfileTab] Failed to load profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+    
+    syncProfile();
+  }, [profileContextProfile, isDemoUser, user, loading]);
 
   const handleSave = async (profileData: Partial<ProfileData>) => {
     try {
@@ -151,21 +153,68 @@ export function ProfileTab() {
           throw new Error('Supabase not available');
         }
 
-        await supabase
+        // Get existing metadata
+        const { data: existingProfile } = await supabase
+          .from('profiles')
+          .select('metadata')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        const existingMetadata = existingProfile?.metadata && typeof existingProfile.metadata === 'object'
+          ? existingProfile.metadata as Record<string, any>
+          : {};
+        
+        // Update metadata with onboarding completion
+        const updatedMetadata = {
+          ...existingMetadata,
+          onboarding: {
+            completed: true,
+            version: 1,
+            completed_at: new Date().toISOString(),
+          },
+        };
+        
+        // Upsert profile with first_name, last_name, full_name, display_name
+        const firstName = profileData.displayName?.split(' ')[0] || '';
+        const lastName = profileData.displayName?.split(' ').slice(1).join(' ') || null;
+        const fullName = profileData.displayName || null;
+        
+        const { error: upsertError } = await supabase
           .from('profiles')
           .upsert({
             id: userId,
-            display_name: profileData.displayName,
-            business_name: profileData.businessName || null,
-            currency: profileData.currency || 'CAD',
-            account_mode: profileData.goal || 'personal',
-            profile_completed: true,
-            onboarding_completed_at: new Date().toISOString(),
+            email: user?.email || null,
+            first_name: firstName || null,
+            last_name: lastName,
+            full_name: fullName,
+            display_name: profileData.displayName || firstName || null,
+            account_name: profileData.businessName || null,
+            currency: profileData.currency || 'USD',
+            account_type: profileData.goal || 'personal',
+            time_zone: profileData.timezone || null,
+            metadata: updatedMetadata,
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'id'
           });
 
+        if (upsertError) {
+          throw upsertError;
+        }
+
+        if (import.meta.env.DEV) {
+          console.log('[ProfileTab] ✅ Profile saved to Supabase', {
+            display_name: profileData.displayName,
+            first_name: firstName,
+            full_name: fullName,
+          });
+        }
+
+        // Refresh ProfileContext to get updated data
+        await refreshProfile();
+        
         setProfileComplete(true);
         setShowSetup(false);
-        await loadProfile();
         
         // Dispatch completion event
         window.dispatchEvent(new CustomEvent('profileSetupComplete'));
@@ -331,20 +380,72 @@ export function ProfileTab() {
           )}
         </div>
 
-        <Button
-          onClick={() => setShowEditModal(true)}
-          className="w-full mt-6 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
-        >
-          <Sparkles className="w-4 h-4 mr-2" />
-          Ask Custodian to update profile
-        </Button>
+        {/* Onboarding & Preferences Section */}
+        <div className="mt-6 space-y-3">
+          <h4 className="text-sm font-semibold text-white mb-3">Onboarding & Preferences</h4>
+          
+          <Button
+            onClick={() => setShowEditModal(true)}
+            className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Re-run Welcome & Setup
+          </Button>
+
+          <Button
+            onClick={async () => {
+              if (confirm('Reset onboarding? This will allow you to go through setup again.')) {
+                try {
+                  const supabase = getSupabase();
+                  if (supabase && userId) {
+                    // Get existing metadata
+                    const { data: existingProfile } = await supabase
+                      .from('profiles')
+                      .select('metadata')
+                      .eq('id', userId)
+                      .maybeSingle();
+                    
+                    const existingMetadata = existingProfile?.metadata && typeof existingProfile.metadata === 'object'
+                      ? existingProfile.metadata as Record<string, any>
+                      : {};
+                    
+                    // Update metadata to mark onboarding as incomplete
+                    const updatedMetadata = {
+                      ...existingMetadata,
+                      onboarding: {
+                        completed: false,
+                        version: 1,
+                      },
+                    };
+                    
+                    await supabase
+                      .from('profiles')
+                      .update({ 
+                        metadata: updatedMetadata,
+                      })
+                      .eq('id', userId);
+                    loadProfile();
+                  }
+                } catch (error) {
+                  console.error('Failed to reset onboarding:', error);
+                }
+              }
+            }}
+            variant="secondary"
+            className="w-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+          >
+            Reset onboarding
+          </Button>
+        </div>
 
         {/* Edit Modal */}
         <PrimeCustodianOnboardingModal
           isOpen={showEditModal}
-          onComplete={() => {
+          onComplete={async () => {
             setShowEditModal(false);
-            loadProfile(); // Reload profile after edit
+            // Refresh profile from ProfileContext
+            await refreshProfile();
+            loadProfile(); // Also reload local profile state
           }}
         />
       </div>

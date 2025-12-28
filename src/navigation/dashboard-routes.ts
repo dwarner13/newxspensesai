@@ -43,6 +43,7 @@ export const DASHBOARD_ROUTES = {
   
   // Settings
   settings: '/dashboard/settings',
+  custodian: '/dashboard/custodian',
 } as const;
 
 export type DashboardRoute = typeof DASHBOARD_ROUTES[keyof typeof DASHBOARD_ROUTES];

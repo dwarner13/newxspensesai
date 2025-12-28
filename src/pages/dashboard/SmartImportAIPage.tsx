@@ -11,6 +11,8 @@ import { getSectionName } from '../../types/smartImport';
 import { DocList } from '../../components/smartImport/DocList';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSmartImport } from '../../hooks/useSmartImport';
+import { UploadQueuePanel } from '../../components/upload/UploadQueuePanel';
 
 interface ProcessingFile {
   id: string;
@@ -56,6 +58,7 @@ interface WorkerMessage {
 const SmartImportAIPage: React.FC = () => {
   const { userId } = useAuth();
   const { openChat } = useUnifiedChatLauncher();
+  const smartImport = useSmartImport(userId, 'upload');
   
   // AI Memory System Integration (for task management only, not chat UI)
   const { 
@@ -571,6 +574,19 @@ const SmartImportAIPage: React.FC = () => {
     <>
       <div className="w-full pt-4 px-4 sm:px-6 lg:px-8 min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
         {/* Page title is handled by DashboardHeader - no duplicate title here */}
+        
+        {/* Upload Queue Panel */}
+        {smartImport.uploadQueue.items.length > 0 && (
+          <div className="mb-6">
+            <UploadQueuePanel
+              items={smartImport.uploadQueue.items}
+              progress={smartImport.uploadQueue.progress}
+              onCancel={smartImport.uploadQueue.cancel}
+              onRetry={smartImport.uploadQueue.retry}
+            />
+          </div>
+        )}
+        
         <div>
           <button
             onClick={() => {

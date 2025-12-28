@@ -533,6 +533,31 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       'Export my transaction history.',
     ],
   },
+  'custodian': {
+    emoji: '🔧',
+    displayName: 'Custodian',
+    title: 'Custodian — Settings & Security',
+    subtitle: 'Account security, settings, and system diagnostics',
+    gradient: 'from-slate-500 via-slate-600 to-slate-700',
+    accentGlow: 'bg-slate-500/10',
+    accentShadow: 'shadow-[0_0_40px_rgba(100,116,139,0.7)]',
+    accentColor: 'slate-500',
+    primaryButtonGradient: 'from-slate-500 via-slate-600 to-slate-700',
+    primaryButtonShadow: 'shadow-slate-900/60',
+    stats: [
+      { value: '100%', label: 'Security Score', colorClass: 'text-green-400' },
+      { value: '24/7', label: 'Monitoring', colorClass: 'text-blue-400' },
+      { value: '0', label: 'Issues Found', colorClass: 'text-purple-400' },
+    ],
+    chatTitle: 'Custodian — Settings & Security',
+    chatSubtitle: 'Onboarding & Security Specialist',
+    chatQuickPrompts: [
+      'Review my security settings',
+      'Export my data',
+      'Update my preferences',
+      'Set up two-factor authentication',
+    ],
+  },
 };
 
 /**

@@ -42,6 +42,9 @@ export const EMPLOYEES: Employee[] = [
   { key: 'automa',  name: 'Automa',  emoji: '⚙️', route: '/dashboard/smart-automation',       short: 'Automate repetitive tasks.',                 learnMorePath: '/features/smart-automation',         tags: ['automation','workflow','rules','zap'] },
   { key: 'dash',    name: 'Dash',    emoji: '📈', route: '/dashboard/analytics',              short: 'Beautiful charts & analysis.',               learnMorePath: '/features/analytics',                tags: ['analytics','chart','visualize','kpis'] },
   { key: 'prism',   name: 'Prism',   emoji: '💎', route: '/dashboard/reports',                short: 'Crystal-clear reports on demand.',           learnMorePath: '/features/reports',                  tags: ['report','export','pdf','summary'] },
+  
+  // === Settings & Security ===
+  { key: 'custodian', name: 'Custodian', emoji: '🔧', route: '/dashboard/custodian', short: 'Account security, settings, and system diagnostics.', learnMorePath: '/features/custodian', tags: ['settings','security','privacy','account','onboarding','diagnostics','handoff'] },
 ];
 
 export function findEmployeeByIntent(query: string): Employee | null {

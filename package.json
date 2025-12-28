@@ -32,7 +32,10 @@
     "test:finley": "tsx scripts/test-finley.ts",
     "test:finley-routing": "tsx scripts/test-finley-routing.ts",
     "netlify:dev": "netlify dev --port 8888",
-    "worker:dev": "cd worker && npm run dev"
+    "worker:dev": "tsx watch worker/src/index.ts",
+    "functions:build": "tsx scripts/build-functions.ts",
+    "functions:dev": "cross-env FUNCTIONS_WATCH=true tsx watch scripts/build-functions.ts",
+    "dev:netlify": "npm run functions:build && concurrently \"npm run functions:dev\" \"netlify dev --port 8888\""
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.2",
@@ -109,9 +112,14 @@
     "@vitejs/plugin-react": "^4.3.1",
     "@vitest/ui": "^4.0.6",
     "autoprefixer": "^10.4.17",
+    "baseline-browser-mapping": "^2.9.11",
+    "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
+    "esbuild": "^0.19.12",
     "eslint": "^8.55.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "glob": "^10.5.0",
     "jsdom": "^24.0.0",
     "netlify-cli": "^23.10.0",
     "postcss": "^8.4.33",

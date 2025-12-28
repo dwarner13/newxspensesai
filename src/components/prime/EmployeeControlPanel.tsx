@@ -179,21 +179,21 @@ export const EmployeeControlPanel: React.FC<EmployeeControlPanelProps> = ({
       {/* Panel */}
       <div
         className={`
-          fixed z-[9999] bg-slate-900 border-l border-slate-800
+          fixed z-[60] bg-slate-900 border-l border-slate-800
           flex flex-col
           transition-all duration-300 ease-out
           ${isOpen ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}
           
           /* Desktop: slide from right, positioned to not overlap center chat column */
-          /* Right edge aligns with right edge of viewport, but we'll adjust if needed */
-          md:w-[420px] md:right-0 md:top-0 md:h-full md:shadow-2xl
+          /* Shift left by rail offset to avoid overlap with floating rail */
+          md:w-[420px] md:right-[var(--rail-offset,96px)] md:top-0 md:h-full md:shadow-2xl
           
           /* Mobile: slide up from bottom, full width */
           w-full h-[85vh] bottom-0 rounded-t-2xl border-t border-l-0 border-r-0 border-b-0
         `}
         style={{
           /* On desktop, ensure panel doesn't overlap center column (42% of viewport) */
-          /* Panel slides from right, so it naturally appears to the left of Activity Feed */
+          /* Panel slides from right, shifted left by rail offset */
         }}
         role="dialog"
         aria-modal="true"

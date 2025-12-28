@@ -4,10 +4,14 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Crown, Menu, X } from "lucide-react";
 import NAV_ITEMS from "@/navigation/nav-registry";
 import clsx from "clsx";
+import { usePrimeState } from "@/contexts/PrimeContext";
+import { getFeatureKeyForRoute } from "@/navigation/feature-keys";
 
 export default function MobileNavInline() {
   const [open, setOpen] = React.useState(false);
   const loc = useLocation();
+  const primeState = usePrimeState();
+  const warnedKeysRef = React.useRef<Set<string>>(new Set());
 
   // Debug
   React.useEffect(() => console.info("[MobileNavInline] open:", open), [open]);
@@ -19,8 +23,45 @@ export default function MobileNavInline() {
     return () => window.removeEventListener("__mobile_nav_toggle__", onToggle);
   }, []);
 
-  // Group items
-  const grouped = NAV_ITEMS.reduce((acc: Record<string, typeof NAV_ITEMS>, it) => {
+  // Filter items by Prime visibility map (fail-open: show all if Prime state unavailable)
+  const visibleItems = NAV_ITEMS.filter((it: any) => {
+    const featureKey = getFeatureKeyForRoute(it.to);
+    
+    // If no feature key mapping, show item (fail-open)
+    if (!featureKey) {
+      if (import.meta.env.DEV && !warnedKeysRef.current.has(it.to)) {
+        console.warn(
+          `[MobileNavInline] Nav item "${it.label}" (${it.to}) has no FeatureKey mapping. ` +
+          `Add it to ROUTE_TO_FEATURE_KEY in navigation/feature-keys.ts`
+        );
+        warnedKeysRef.current.add(it.to);
+      }
+      return true; // Fail-open: show item if no mapping
+    }
+    
+    // If Prime state unavailable, show item (fail-open)
+    if (!primeState) {
+      return true;
+    }
+    
+    // Check visibility from Prime state
+    const visibility = primeState.featureVisibilityMap[featureKey];
+    const visible = visibility?.visible ?? true; // Fail-open: default visible
+    
+    // Dev warning if Prime map missing key
+    if (import.meta.env.DEV && visibility === undefined && !warnedKeysRef.current.has(featureKey)) {
+      console.warn(
+        `[MobileNavInline] FeatureKey "${featureKey}" not found in Prime featureVisibilityMap. ` +
+        `Add it to buildFeatureVisibilityMap() in netlify/functions/prime-state.ts`
+      );
+      warnedKeysRef.current.add(featureKey);
+    }
+    
+    return visible;
+  });
+
+  // Group filtered items
+  const grouped = visibleItems.reduce((acc: Record<string, typeof NAV_ITEMS>, it) => {
     const g = it.group ?? "GENERAL";
     (acc[g] ||= []).push(it);
     return acc;
@@ -78,26 +119,42 @@ export default function MobileNavInline() {
               <div key={group} className="mb-5">
                 <div className="px-1 pb-2 text-xs uppercase tracking-wider text-zinc-500 font-semibold">{group}</div>
                 <div className="space-y-1">
-                  {items.map((item: any) => (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      onClick={() => setOpen(false)}
-                      className={clsx(
-                        "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200",
-                        "hover:bg-zinc-900/60 hover:text-white",
-                        isActive(item.to) 
-                          ? "bg-zinc-900 text-white" 
-                          : "text-zinc-300"
-                      )}
-                    >
-                      <span className="shrink-0 w-5 h-5">{item.icon}</span>
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">{item.label}</div>
-                        {item.description && <div className="truncate text-xs text-zinc-400">{item.description}</div>}
-                      </div>
-                    </Link>
-                  ))}
+                  {items.map((item: any) => {
+                    const featureKey = getFeatureKeyForRoute(item.to);
+                    const visibility = featureKey && primeState?.featureVisibilityMap[featureKey];
+                    const enabled = visibility?.enabled ?? true;
+                    
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={(e) => {
+                          // Prevent navigation if disabled
+                          if (!enabled) {
+                            e.preventDefault();
+                            if (import.meta.env.DEV) {
+                              console.warn(`[MobileNavInline] Feature "${featureKey}" is disabled. Reason: ${visibility?.reason || 'Unknown'}`);
+                            }
+                            return;
+                          }
+                          setOpen(false);
+                        }}
+                        className={clsx(
+                          "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200",
+                          enabled ? "hover:bg-zinc-900/60 hover:text-white cursor-pointer" : "cursor-not-allowed opacity-50",
+                          isActive(item.to) 
+                            ? "bg-zinc-900 text-white" 
+                            : "text-zinc-300"
+                        )}
+                      >
+                        <span className="shrink-0 w-5 h-5">{item.icon}</span>
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{item.label}</div>
+                          {item.description && <div className="truncate text-xs text-zinc-400">{item.description}</div>}
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             ))}

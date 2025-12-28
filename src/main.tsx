@@ -14,6 +14,11 @@ import './styles/mobile-menu-static.css';
 import './utils/assertSingleMobileNav';
 // Legacy PrimeChatV2 flag check removed - unified chat is always enabled
 
+// DEV-ONLY: Flag to disable React StrictMode for debugging mount/unmount behavior
+// Set to false to disable StrictMode and test if it's causing reload behavior
+// DO NOT commit this as false in production - StrictMode helps catch bugs
+const DISABLE_STRICT_MODE = import.meta.env.DEV && import.meta.env.VITE_DISABLE_STRICT_MODE === 'true';
+
 // Dev-only route classification self-check
 if (import.meta.env.DEV) {
   import('./hooks/__tests__/routeClassificationSelfCheck').then(({ runRouteClassificationSelfCheck }) => {
@@ -40,43 +45,45 @@ fontLink.rel = 'stylesheet';
 fontLink.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap';
 document.head.appendChild(fontLink);
 
+const AppWrapper = (
+  <HelmetProvider>
+    <Router
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
+      <AuthProvider>
+        <App />
+        {PRIME_CHAT_V2 ? null : null}
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+              borderRadius: '8px',
+            },
+            success: {
+              iconTheme: {
+                primary: '#22c55e',
+                secondary: 'white',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: 'white',
+              },
+            }
+          }}
+        />
+      </AuthProvider>
+    </Router>
+  </HelmetProvider>
+);
+
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <HelmetProvider>
-      <Router
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true
-        }}
-      >
-        <AuthProvider>
-          <App />
-          {PRIME_CHAT_V2 ? null : null}
-          <Toaster 
-            position="top-right"
-            toastOptions={{
-              duration: 3000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-                borderRadius: '8px',
-              },
-              success: {
-                iconTheme: {
-                  primary: '#22c55e',
-                  secondary: 'white',
-                },
-              },
-              error: {
-                iconTheme: {
-                  primary: '#ef4444',
-                  secondary: 'white',
-                },
-              }
-            }}
-          />
-        </AuthProvider>
-      </Router>
-    </HelmetProvider>
-  </StrictMode>
+  DISABLE_STRICT_MODE ? AppWrapper : <StrictMode>{AppWrapper}</StrictMode>
 );

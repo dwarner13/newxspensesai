@@ -4,7 +4,7 @@
  * Supports collapsed/expanded states with tooltips
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, NavLink } from 'react-router-dom';
 import NAV_ITEMS from '../../navigation/nav-registry';
 import { isActivePath } from '../../navigation/is-active';
@@ -26,6 +26,8 @@ import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 import clsx from 'clsx';
 import { useAccountCenterPanel } from '../settings/AccountCenterPanel';
 import { useProfile } from '../../hooks/useProfile';
+import { usePrimeState } from '../../contexts/PrimeContext';
+import { getFeatureKeyForRoute } from '../../navigation/feature-keys';
 
 interface DesktopSidebarProps {
   collapsed?: boolean;
@@ -58,6 +60,7 @@ const getAIEmployeeForRoute = (route: string) => {
     '/dashboard/business-intelligence': 'intelia',
     '/dashboard/analytics': 'dash',
     '/dashboard/settings': 'prime',
+    '/dashboard/custodian': 'custodian',
     '/dashboard/reports': 'prism'
   };
   
@@ -72,6 +75,10 @@ export default function DesktopSidebar({
   const [internalCollapsed, setInternalCollapsed] = useState(collapsed);
   const { openPanel } = useAccountCenterPanel();
   const profile = useProfile();
+  const primeState = usePrimeState();
+  
+  // Track warned feature keys to avoid spam
+  const warnedKeysRef = useRef<Set<string>>(new Set());
 
   // Use external collapsed state if provided, otherwise use internal
   const isCollapsed = onToggleCollapse ? collapsed : internalCollapsed;
@@ -96,9 +103,46 @@ export default function DesktopSidebar({
     return null;
   }
 
-  // Group items by their group property
+  // Filter items by Prime visibility map (fail-open: show all if Prime state unavailable)
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    const featureKey = getFeatureKeyForRoute(item.to);
+    
+    // If no feature key mapping, show item (fail-open)
+    if (!featureKey) {
+      if (import.meta.env.DEV && !warnedKeysRef.current.has(item.to)) {
+        console.warn(
+          `[DesktopSidebar] Nav item "${item.label}" (${item.to}) has no FeatureKey mapping. ` +
+          `Add it to ROUTE_TO_FEATURE_KEY in navigation/feature-keys.ts`
+        );
+        warnedKeysRef.current.add(item.to);
+      }
+      return true; // Fail-open: show item if no mapping
+    }
+    
+    // If Prime state unavailable, show item (fail-open)
+    if (!primeState) {
+      return true;
+    }
+    
+    // Check visibility from Prime state
+    const visibility = primeState.featureVisibilityMap[featureKey];
+    const visible = visibility?.visible ?? true; // Fail-open: default visible
+    
+    // Dev warning if Prime map missing key
+    if (import.meta.env.DEV && visibility === undefined && !warnedKeysRef.current.has(featureKey)) {
+      console.warn(
+        `[DesktopSidebar] FeatureKey "${featureKey}" not found in Prime featureVisibilityMap. ` +
+        `Add it to buildFeatureVisibilityMap() in netlify/functions/prime-state.ts`
+      );
+      warnedKeysRef.current.add(featureKey);
+    }
+    
+    return visible;
+  });
+  
+  // Group filtered items by their group property
   const groups = Object.entries(
-    NAV_ITEMS.reduce((acc, item) => {
+    visibleItems.reduce((acc, item) => {
       const group = item.group ?? 'GENERAL';
       if (!acc[group]) {
         acc[group] = [];
@@ -161,12 +205,27 @@ export default function DesktopSidebar({
                   const employeeKey = getAIEmployeeForRoute(item.to);
                   const employee = EMPLOYEES.find(emp => emp.key === employeeKey);
                   
+                  // Check if item is enabled (fail-open: default enabled)
+                  const featureKey = getFeatureKeyForRoute(item.to);
+                  const visibility = featureKey && primeState?.featureVisibilityMap[featureKey];
+                  const enabled = visibility?.enabled ?? true;
+                  
                   const NavLinkContent = (
                     <NavLink
                       key={item.to}
                       to={item.to}
+                      onClick={(e) => {
+                        // Prevent navigation if disabled
+                        if (!enabled) {
+                          e.preventDefault();
+                          if (import.meta.env.DEV) {
+                            console.warn(`[DesktopSidebar] Feature "${featureKey}" is disabled. Reason: ${visibility?.reason || 'Unknown'}`);
+                          }
+                        }
+                      }}
                       className={({ isActive }) => clsx(
-                        "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 hover:bg-zinc-900/60 active:scale-95 group relative cursor-pointer",
+                        "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 group relative",
+                        enabled ? "hover:bg-zinc-900/60 active:scale-95 cursor-pointer" : "cursor-not-allowed opacity-50",
                         (isActive || active)
                           ? "bg-zinc-900 text-white" 
                           : "text-zinc-300 hover:text-white"

@@ -23,20 +23,22 @@ export function AIWorkspaceGuardrailsChip({
   textActive,
   textUnknown,
 }: AIWorkspaceGuardrailsChipProps) {
-  // Default to active (true) if status is null/undefined - guardrails are always enabled by default
-  // Only show "Unknown" if explicitly set to false
-  const isActive = (guardrailsActive !== false && piiProtectionActive !== false);
+  // CRITICAL: Never show "Unknown" - guardrails status should come from useGuardrailsHealth hook
+  // If guardrailsActive is null/false, default to showing "Offline" instead of "Unknown"
+  // This component is legacy and should be phased out in favor of UnifiedAssistantChat's bottom pill
+  const isActive = (guardrailsActive === true && piiProtectionActive === true);
 
   // Default text based on variant
   const defaultTextActive = variant === 'header'
     ? 'Guardrails + PII Protection Active'
     : 'Guardrails Active · PII protection on';
   
-  const defaultTextUnknown = 'Guardrails Status Unknown';
+  // Never show "Unknown" - show "Offline" instead
+  const defaultTextOffline = 'Guardrails: Offline · Protection unavailable';
 
   const displayText = isActive
     ? (textActive || defaultTextActive)
-    : (textUnknown || defaultTextUnknown);
+    : (textUnknown || defaultTextOffline); // Use provided textUnknown if available, otherwise show Offline
 
   // Header variant styling
   if (variant === 'header') {

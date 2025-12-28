@@ -20,9 +20,10 @@ export const handler: Handler = async (event, context) => {
     context.callbackWaitsForEmptyEventLoop = false;
   }
   
-  try {
+    try {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
-    const { userId, docId } = JSON.parse(event.body || '{}');
+    const body = JSON.parse(event.body || '{}');
+    const { userId, docId, expectedSize } = body;
     if (!userId || !docId) return { statusCode: 400, body: 'Missing userId/docId' };
 
     const sb = admin();
@@ -30,8 +31,73 @@ export const handler: Handler = async (event, context) => {
     const { data: doc, error } = await sb.from('user_documents').select('*').eq('id', docId).single();
     if (error || !doc) return { statusCode: 404, body: 'doc not found' };
 
+    // ⚡ UPLOAD COMPLETENESS CONTRACT: Verify file exists and size matches before processing
+    
+    // Step 1: Verify file exists in bucket (HEAD request)
+    const { data: fileInfo, error: headError } = await sb.storage
+      .from(BUCKET)
+      .list(doc.storage_path.split('/').slice(0, -1).join('/'), {
+        limit: 1000,
+        search: doc.storage_path.split('/').pop(),
+      });
+    
+    if (headError || !fileInfo || fileInfo.length === 0) {
+      console.warn(`[smart-import-finalize] File not found in bucket: ${doc.storage_path}`);
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          pending: true, 
+          status: 'PENDING_UPLOAD',
+          message: 'File upload not yet complete. Please wait and retry.' 
+        }) 
+      };
+    }
+    
+    const storedFile = fileInfo.find(f => f.name === doc.storage_path.split('/').pop());
+    if (!storedFile) {
+      console.warn(`[smart-import-finalize] File not found in bucket listing: ${doc.storage_path}`);
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          pending: true, 
+          status: 'PENDING_UPLOAD',
+          message: 'File upload not yet complete. Please wait and retry.' 
+        }) 
+      };
+    }
+    
+    // Step 2: Verify file size matches expected (if provided)
+    if (expectedSize !== undefined && storedFile.metadata?.size) {
+      const storedSize = parseInt(storedFile.metadata.size, 10);
+      const sizeDiff = Math.abs(storedSize - expectedSize);
+      const tolerance = 1024; // 1KB tolerance for metadata differences
+      
+      if (sizeDiff > tolerance) {
+        console.warn(`[smart-import-finalize] File size mismatch: expected ${expectedSize}, got ${storedSize}`);
+        return { 
+          statusCode: 200, 
+          body: JSON.stringify({ 
+            pending: true, 
+            status: 'PENDING_UPLOAD',
+            message: 'File upload incomplete (size mismatch). Please wait and retry.' 
+          }) 
+        };
+      }
+    }
+
+    // Step 3: Download file for processing (only after completeness verified)
     const { data: file, error: dErr } = await sb.storage.from(BUCKET).download(doc.storage_path);
-    if (dErr || !file) return { statusCode: 404, body: 'file missing' };
+    if (dErr || !file) {
+      console.warn(`[smart-import-finalize] Failed to download file after verification: ${doc.storage_path}`);
+      return { 
+        statusCode: 200, 
+        body: JSON.stringify({ 
+          pending: true, 
+          status: 'PENDING_UPLOAD',
+          message: 'File upload not yet complete. Please wait and retry.' 
+        }) 
+      };
+    }
 
     // Route 1: Images/PDFs → OCR (guardrails run in OCR function)
     if (isImageOrPdf(doc.mime_type)) {
@@ -39,10 +105,11 @@ export const handler: Handler = async (event, context) => {
       const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
       
       // Fire and forget - don't wait for OCR to complete
+      // Pass expectedSize for completeness check in OCR handler
       fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, docId }),
+        body: JSON.stringify({ userId, docId, expectedSize }),
       }).catch((error) => {
         console.error('[smart-import-finalize] Background OCR call error:', error);
       });

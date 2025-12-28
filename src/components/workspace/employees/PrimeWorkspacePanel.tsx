@@ -7,6 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Crown, Settings, Users, RefreshCw, Brain, PlugZap } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../ui/card';
 import { usePrimeLiveStats } from '../../../hooks/usePrimeLiveStats';
 import { getEmployeeInfo } from '../../../utils/employeeUtils';
@@ -39,6 +40,8 @@ type PrimePanelId = "team" | "settings" | "memory" | "integrations" | null;
 const VISIBLE_EMPLOYEE_COUNT = 6;
 
 export function PrimeWorkspacePanel({ onEmployeeClick, className }: PrimeWorkspacePanelProps = {}) {
+  const location = useLocation();
+  const isPrimeChatPage = location.pathname === '/dashboard/prime-chat';
   const { data: liveStats, isLoading, isError, refetch: refetchStats } = usePrimeLiveStats();
   const activityFeed = useActivityFeed({ category: 'prime', pollMs: 60000 });
   
@@ -184,7 +187,7 @@ export function PrimeWorkspacePanel({ onEmployeeClick, className }: PrimeWorkspa
   const remainingCount = Math.max(aiAgents.length - VISIBLE_EMPLOYEE_COUNT, 0);
 
   return (
-    <Card className={cn("h-full w-full flex flex-col bg-slate-900 border-slate-800", className)}>
+    <Card className={cn(`${isPrimeChatPage ? '' : 'h-full'} w-full flex flex-col bg-slate-900 border-slate-800`, className)}>
       <CardHeader className="pb-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -261,7 +264,11 @@ export function PrimeWorkspacePanel({ onEmployeeClick, className }: PrimeWorkspa
         </div>
         
         {/* AI Agents List - Takes available space */}
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
+        {/* CRITICAL: On /dashboard/prime-chat, NO nested scroll container - BODY is scroll owner */}
+        {/* Remove overflow-y-auto on /dashboard/prime-chat to prevent nested scroll lock */}
+        <div 
+          className={`flex-1 min-h-0 space-y-2 ${isPrimeChatPage ? 'overflow-visible' : 'overflow-y-auto'}`}
+        >
           {isLoading && visibleEmployees.length === 0 ? (
             <div className="text-center py-4">
               <p className="text-xs text-slate-400 animate-pulse">Loading status...</p>

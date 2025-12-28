@@ -84,8 +84,8 @@ const Layout = () => {
         {/* Main Content */}
         <main className={`flex-1 overflow-y-auto ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
           <div className="pt-0 mt-0">
-            {/* Use key prop to prevent component state persistence issues */}
-            <div key={location.pathname}>
+            {/* Removed key prop to prevent remounts during navigation */}
+            <div>
               <Outlet />
             </div>
           </div>

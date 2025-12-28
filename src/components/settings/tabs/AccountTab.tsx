@@ -9,13 +9,14 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { getUserIdentity, getGuestProfile, saveGuestProfile } from '../../../lib/userIdentity';
 import { getSupabase } from '../../../lib/supabase';
-import { User, Save, Upload, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { User, Save, Upload, AlertCircle, ChevronDown, ChevronUp, LogOut } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { isDemoMode } from '../../../lib/demoAuth';
 import { useProfile } from '../../../hooks/useProfile';
+import { SignOutConfirmationModal } from '../../auth/SignOutConfirmationModal';
 
 export function AccountTab() {
-  const { user, userId, isDemoUser } = useAuth();
+  const { user, userId, isDemoUser, signOut } = useAuth();
   const profile = useProfile();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -24,6 +25,7 @@ export function AccountTab() {
   const [hasChanges, setHasChanges] = useState(false);
   const [guestModeExpanded, setGuestModeExpanded] = useState(false);
   const [profileDebugExpanded, setProfileDebugExpanded] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   useEffect(() => {
     loadAccountInfo();
@@ -233,12 +235,36 @@ export function AccountTab() {
                 <span className="text-slate-200">{profile.rawProfile?.id || 'null'}</span>
               </div>
               <div className="flex gap-2">
+                <span className="text-slate-400">first_name:</span>
+                <span className="text-slate-200">{profile.rawProfile?.first_name || 'null'}</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-slate-400">display_name:</span>
+                <span className="text-slate-200">{profile.rawProfile?.display_name || 'null'}</span>
+              </div>
+              <div className="flex gap-2">
                 <span className="text-slate-400">Name:</span>
                 <span className="text-slate-200">{profile.displayName || 'null'}</span>
               </div>
               <div className="flex gap-2">
                 <span className="text-slate-400">Email:</span>
                 <span className="text-slate-200">{profile.email || 'null'}</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-slate-400">currency:</span>
+                <span className="text-slate-200">{profile.rawProfile?.currency || 'null'}</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-slate-400">time_zone:</span>
+                <span className="text-slate-200">{profile.rawProfile?.time_zone || profile.rawProfile?.metadata?.timezone || 'null'}</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-slate-400">account_type:</span>
+                <span className="text-slate-200">{profile.rawProfile?.account_type || 'null'}</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="text-slate-400">onboarding_status:</span>
+                <span className="text-slate-200">{profile.rawProfile?.onboarding_status || 'null'}</span>
               </div>
               <div className="flex gap-2">
                 <span className="text-slate-400">Plan:</span>
@@ -248,6 +274,38 @@ export function AccountTab() {
           )}
         </div>
       )}
+
+      {/* Sign Out Section (only for authenticated users) */}
+      {!isDemoUser && (
+        <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <LogOut className="w-5 h-5 text-slate-400" />
+              <div>
+                <p className="text-sm font-medium text-white">Sign out</p>
+                <p className="text-xs text-slate-400">Custodian will securely sign you out of this device.</p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setShowSignOutConfirm(true)}
+              variant="secondary"
+              className="bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+            >
+              Sign out
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Sign Out Confirmation Modal */}
+      <SignOutConfirmationModal
+        isOpen={showSignOutConfirm}
+        onConfirm={async () => {
+          setShowSignOutConfirm(false);
+          await signOut();
+        }}
+        onCancel={() => setShowSignOutConfirm(false)}
+      />
     </div>
   );
 }

@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
 import React from "react";
-import { Outlet, useLocation } from "react-router-dom";
-import { Crown } from "lucide-react";
+import { useLocation, Outlet, useNavigate } from "react-router-dom";
+import { AnimatedOutlet } from "../components/ui/AnimatedOutlet";
 import DesktopSidebar from "../components/navigation/DesktopSidebar";
 import DashboardHeader from "../components/ui/DashboardHeader";
 import MobileSidebar from "../components/layout/MobileSidebar";
 import MobileBottomNav from "../components/layout/MobileBottomNav";
 import MobileProfileModal from "../components/layout/MobileProfileModal";
 import MobileMenuDrawer from "../components/ui/MobileMenuDrawer";
-import { PrimeIntroModal } from "../components/prime/PrimeIntroModal";
-import { usePrimeIntro } from "../hooks/usePrimeIntro";
+// Prime intro modal removed - Prime onboarding now handled in chat
+// import { PrimeIntroModal } from "../components/prime/PrimeIntroModal";
+// import { usePrimeIntro } from "../hooks/usePrimeIntro";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
 import PullToRefreshIndicator from "../components/ui/PullToRefreshIndicator";
 import UnifiedAssistantChat from "../components/chat/UnifiedAssistantChat";
@@ -23,6 +24,13 @@ import { AccountCenterPanel } from "../components/settings/AccountCenterPanel";
 import { UnifiedOnboardingFlow } from "../components/onboarding/UnifiedOnboardingFlow";
 import { PrimeToolsPanel } from "../components/prime/PrimeToolsPanel";
 import { PrimeOverlayProvider } from "../context/PrimeOverlayContext";
+// Legacy onboarding removed - UnifiedOnboardingFlow is the ONLY authority
+import { useAuth } from "../contexts/AuthContext";
+import { useOnboardingGate } from "../components/onboarding/useOnboardingGate";
+import { CinematicOnboardingOverlay } from "../components/onboarding/CinematicOnboardingOverlay";
+import { PrimeWelcomeOverlayCinematic } from "../components/onboarding/PrimeWelcomeOverlayCinematic";
+import { ChatErrorBoundary } from "../components/chat/ChatErrorBoundary";
+import { PostOnboardingChooser } from "../components/onboarding/PostOnboardingChooser";
 
 // DashboardHeaderWithBadges - Wrapper (now simplified, no custom badges)
 function DashboardHeaderWithBadges() {
@@ -85,14 +93,10 @@ function DashboardContentGrid({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  // For main dashboard, wrap with rail space reservation (desktop-only)
-  // Rail space handled at layout-pattern level, not page-level
+  // For main dashboard, return children directly (no extra rail padding wrapper)
+  // Rail space is already handled at layout level via main element padding
   if (isMainDashboard) {
-    return (
-      <div className="lg:pr-[var(--rail-space,96px)]">
-        {children}
-      </div>
-    );
+    return <>{children}</>;
   }
   
   // Determine activity scope based on route (for non-workspace pages)
@@ -124,6 +128,23 @@ function DashboardContentGrid({ children }: { children: React.ReactNode }) {
 
 export default function DashboardLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  
+  // HARD BLOCK: Do not render dashboard shell elements on onboarding routes
+  const isOnboardingRoute = location.pathname.startsWith('/onboarding');
+  
+  // If on onboarding route, render minimal layout (no sidebar, header, chat, rails)
+  if (isOnboardingRoute) {
+    return (
+      <PrimeOverlayProvider>
+        <div className="min-h-screen bg-slate-950">
+          <main className="flex-1">
+            <Outlet />
+          </main>
+        </div>
+      </PrimeOverlayProvider>
+    );
+  }
   
   // Dev mode: Setup click debug helper to identify blocking overlays
   useEffect(() => {
@@ -137,14 +158,327 @@ export default function DashboardLayout() {
       });
     }
   }, []);
+
+  // Hardening: Prevent html from scrolling, prevent body/html horizontal scrolling while dashboard is mounted
+  useEffect(() => {
+    // Store original values for cleanup
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+    const originalHtmlOverflowX = document.documentElement.style.overflowX;
+    const originalBodyOverflowX = document.body.style.overflowX;
+    const originalBodyOverscroll = document.body.style.overscrollBehavior;
+    
+    // CRITICAL: HTML must never scroll - prevent all scrolling on html
+    document.documentElement.style.overflow = 'hidden';
+    // Use 'clip' instead of 'hidden' to prevent phantom horizontal scrollbar
+    document.documentElement.style.overflowX = 'clip';
+    // Prevent horizontal scrolling on body - use 'clip' to prevent phantom scrollbar
+    document.body.style.overflowX = 'clip';
+    document.body.style.overscrollBehavior = 'none';
+    
+    return () => {
+      // Restore original values on unmount
+      document.documentElement.style.overflow = originalHtmlOverflow;
+      document.documentElement.style.overflowX = originalHtmlOverflowX;
+      document.body.style.overflowX = originalBodyOverflowX;
+      document.body.style.overscrollBehavior = originalBodyOverscroll;
+    };
+  }, []);
+
+  // Dev-only: Debug helper to find horizontal overflow elements (30-second check)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && import.meta.env.DEV) {
+      const checkOverflow = () => {
+        const scrollWidth = document.documentElement.scrollWidth;
+        const innerWidth = window.innerWidth;
+        const hasOverflow = scrollWidth > innerWidth + 1;
+        
+        if (hasOverflow) {
+          console.warn('[DashboardLayout] ⚠️ Horizontal overflow detected:', {
+            scrollWidth,
+            innerWidth,
+            overflow: scrollWidth - innerWidth,
+          });
+          
+          // Find offending elements
+          const allElements = document.querySelectorAll('*');
+          const offenders: Array<{ element: string; right: number; width: number }> = [];
+          
+          allElements.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            if (rect.right > innerWidth + 1) {
+              const tagName = el.tagName.toLowerCase();
+              const id = el.id ? `#${el.id}` : '';
+              const cls = typeof el.className === 'string' ? el.className : (el.className?.baseVal ?? '');
+              const classes = cls ? `.${cls.split(' ')[0]}` : '';
+              offenders.push({
+                element: `${tagName}${id}${classes}`,
+                right: Math.round(rect.right),
+                width: Math.round(rect.width),
+              });
+            }
+          });
+          
+          if (offenders.length > 0) {
+            console.warn('[DashboardLayout] Offending elements:', offenders.slice(0, 10));
+          }
+        }
+      };
+      
+      // Run check after a short delay to ensure DOM is ready
+      const timeoutId = setTimeout(checkOverflow, 1000);
+      
+      // Also check on resize
+      window.addEventListener('resize', checkOverflow);
+      
+      // Auto-remove after 30 seconds
+      const removeTimeoutId = setTimeout(() => {
+        window.removeEventListener('resize', checkOverflow);
+      }, 30000);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        clearTimeout(removeTimeoutId);
+        window.removeEventListener('resize', checkOverflow);
+      };
+    }
+  }, [location.pathname]);
+
+  // DEV-only: Rail visibility + clipping detection
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      const diagnoseRail = () => {
+        const rail = document.querySelector('[data-floating-rail]') as HTMLElement;
+        if (!rail) {
+          console.warn('[RailDiagnostics] Rail not found in DOM');
+          return;
+        }
+
+        // 1. Prove rail portal location
+        const parentChain: string[] = [];
+        let current: HTMLElement | null = rail.parentElement;
+        while (current && current !== document.body) {
+          const cls = typeof current.className === 'string' ? current.className : (current.className?.baseVal ?? '');
+          parentChain.push(`${current.tagName}${current.id ? `#${current.id}` : ''}${cls ? `.${cls.split(' ')[0]}` : ''}`);
+          current = current.parentElement;
+        }
+        const isPortalToBody = rail.parentElement === document.body || rail.parentElement?.id === 'portal-root';
+
+        // 2. Log computed styles + bounding rect
+        const styles = window.getComputedStyle(rail);
+        const rect = rail.getBoundingClientRect();
+        const viewport = { width: window.innerWidth, height: window.innerHeight };
+
+        // 3. Detect clipping ancestors
+        const clippingAncestors: Array<{ element: string; property: string; value: string; file?: string }> = [];
+        current = rail.parentElement;
+        while (current && current !== document.body) {
+          const ancestorStyles = window.getComputedStyle(current);
+          const cls = typeof current.className === 'string' ? current.className : (current.className?.baseVal ?? '');
+          const clsPrefix = cls ? `.${cls.split(' ')[0]}` : '';
+          if (ancestorStyles.overflow !== 'visible' && ancestorStyles.overflow !== 'auto') {
+            clippingAncestors.push({
+              element: `${current.tagName}${current.id ? `#${current.id}` : ''}${clsPrefix}`,
+              property: 'overflow',
+              value: ancestorStyles.overflow,
+            });
+          }
+          if (ancestorStyles.transform !== 'none' && ancestorStyles.transform !== 'matrix(1, 0, 0, 1, 0, 0)') {
+            clippingAncestors.push({
+              element: `${current.tagName}${current.id ? `#${current.id}` : ''}${clsPrefix}`,
+              property: 'transform',
+              value: ancestorStyles.transform,
+            });
+          }
+          if (ancestorStyles.filter !== 'none') {
+            clippingAncestors.push({
+              element: `${current.tagName}${current.id ? `#${current.id}` : ''}${clsPrefix}`,
+              property: 'filter',
+              value: ancestorStyles.filter,
+            });
+          }
+          if (ancestorStyles.backdropFilter !== 'none') {
+            clippingAncestors.push({
+              element: `${current.tagName}${current.id ? `#${current.id}` : ''}${clsPrefix}`,
+              property: 'backdrop-filter',
+              value: ancestorStyles.backdropFilter,
+            });
+          }
+          if (ancestorStyles.contain !== 'none') {
+            clippingAncestors.push({
+              element: `${current.tagName}${current.id ? `#${current.id}` : ''}${clsPrefix}`,
+              property: 'contain',
+              value: ancestorStyles.contain,
+            });
+          }
+          if (ancestorStyles.willChange.includes('transform')) {
+            clippingAncestors.push({
+              element: `${current.tagName}${current.id ? `#${current.id}` : ''}${clsPrefix}`,
+              property: 'will-change',
+              value: ancestorStyles.willChange,
+            });
+          }
+          current = current.parentElement;
+        }
+
+        // 4. Detect "something on top" using elementsFromPoint
+        const railCenterX = rect.left + rect.width / 2;
+        const railCenterY = rect.top + rect.height / 2;
+        const rightEdgeX = window.innerWidth - 10;
+        const viewportCenterY = window.innerHeight / 2;
+        
+        const elementsAtRailCenter = document.elementsFromPoint(railCenterX, railCenterY);
+        const elementsAtRightEdge = document.elementsFromPoint(rightEdgeX, viewportCenterY);
+        
+        const topElementAtRail = elementsAtRailCenter[0];
+        const topElementAtRightEdge = elementsAtRightEdge[0];
+        const railIsOnTop = topElementAtRail === rail || rail.contains(topElementAtRail as Node);
+        const railIsOnTopAtEdge = topElementAtRightEdge === rail || rail.contains(topElementAtRightEdge as Node);
+
+        console.debug('[RailDiagnostics]', {
+          portal: {
+            isPortalToBody,
+            parentElement: rail.parentElement?.tagName + (rail.parentElement?.id ? `#${rail.parentElement.id}` : ''),
+            parentChain,
+          },
+          computedStyles: {
+            display: styles.display,
+            visibility: styles.visibility,
+            opacity: styles.opacity,
+            position: styles.position,
+            zIndex: styles.zIndex,
+            pointerEvents: styles.pointerEvents,
+          },
+          boundingRect: {
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            top: Math.round(rect.top),
+            bottom: Math.round(rect.bottom),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          },
+          viewport,
+          clippingAncestors: clippingAncestors.length > 0 ? clippingAncestors : null,
+          elementsOnTop: {
+            atRailCenter: railIsOnTop ? 'rail' : (() => {
+              const cls = topElementAtRail ? (typeof topElementAtRail.className === 'string' ? topElementAtRail.className : (topElementAtRail.className?.baseVal ?? '')) : '';
+              return `${topElementAtRail?.tagName}${topElementAtRail?.id ? `#${topElementAtRail.id}` : ''}${cls ? `.${cls.split(' ')[0]}` : ''}`;
+            })(),
+            atRightEdge: railIsOnTopAtEdge ? 'rail' : (() => {
+              const cls = topElementAtRightEdge ? (typeof topElementAtRightEdge.className === 'string' ? topElementAtRightEdge.className : (topElementAtRightEdge.className?.baseVal ?? '')) : '';
+              return `${topElementAtRightEdge?.tagName}${topElementAtRightEdge?.id ? `#${topElementAtRightEdge.id}` : ''}${cls ? `.${cls.split(' ')[0]}` : ''}`;
+            })(),
+          },
+        });
+
+        if (clippingAncestors.length > 0) {
+          console.warn('[RailDiagnostics] ⚠️ CLIPPING ANCESTORS DETECTED:', clippingAncestors);
+        }
+        if (!railIsOnTop || !railIsOnTopAtEdge) {
+          console.warn('[RailDiagnostics] ⚠️ RAIL COVERED BY:', {
+            atRailCenter: topElementAtRail,
+            atRightEdge: topElementAtRightEdge,
+          });
+        }
+      };
+
+      // Also diagnose header overlap
+      const diagnoseHeader = () => {
+        const header = document.getElementById('dashboard-header');
+        if (!header) return;
+
+        const gridContainer = header.querySelector('.grid');
+        if (!gridContainer) {
+          console.warn('[HeaderDiagnostics] Grid container not found');
+          return;
+        }
+
+        const gridChildren = Array.from(gridContainer.children);
+        const titleEl = gridChildren[0]?.querySelector('h1') as HTMLElement;
+        const searchEl = gridChildren[1]?.querySelector('input[type="text"]') as HTMLElement;
+        const iconsEl = gridChildren[2] as HTMLElement;
+
+        if (titleEl && searchEl) {
+          const titleRect = titleEl.getBoundingClientRect();
+          const searchRect = searchEl.getBoundingClientRect();
+          const overlap = titleRect.right > searchRect.left;
+
+          console.debug('[HeaderDiagnostics]', {
+            gridStructure: {
+              childrenCount: gridChildren.length,
+              children: gridChildren.map((el, i) => ({
+                index: i,
+                tag: el.tagName,
+                classes: el.className,
+                isDirectChild: el.parentElement === gridContainer,
+              })),
+            },
+            title: {
+              text: titleEl.textContent?.substring(0, 30),
+              rect: {
+                left: Math.round(titleRect.left),
+                right: Math.round(titleRect.right),
+                width: Math.round(titleRect.width),
+              },
+              computedStyles: {
+                display: window.getComputedStyle(titleEl).display,
+                whiteSpace: window.getComputedStyle(titleEl).whiteSpace,
+                overflow: window.getComputedStyle(titleEl).overflow,
+                textOverflow: window.getComputedStyle(titleEl).textOverflow,
+              },
+            },
+            search: {
+              rect: {
+                left: Math.round(searchRect.left),
+                right: Math.round(searchRect.right),
+                width: Math.round(searchRect.width),
+              },
+              computedStyles: {
+                display: window.getComputedStyle(searchEl.parentElement?.parentElement as HTMLElement).display,
+                position: window.getComputedStyle(searchEl.parentElement?.parentElement as HTMLElement).position,
+              },
+            },
+            overlap: overlap ? {
+              detected: true,
+              overlapPx: Math.round(titleRect.right - searchRect.left),
+            } : false,
+          });
+
+          if (overlap) {
+            console.warn('[HeaderDiagnostics] ⚠️ OVERLAP DETECTED:', {
+              titleRight: Math.round(titleRect.right),
+              searchLeft: Math.round(searchRect.left),
+              overlapPx: Math.round(titleRect.right - searchRect.left),
+            });
+          }
+        }
+      };
+
+      const runDiagnostics = () => {
+        diagnoseRail();
+        diagnoseHeader();
+      };
+
+      runDiagnostics();
+      const timeoutId = setTimeout(runDiagnostics, 1000);
+      window.addEventListener('resize', runDiagnostics);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        window.removeEventListener('resize', runDiagnostics);
+      };
+    }
+  }, [location.pathname]);
   
   // Hide Prime Floating Button on Prime Chat page (PrimeChatPage has its own Prime Tools button)
   const isPrimeChatPage = location.pathname.includes('/prime-chat');
+  
+  // CRITICAL: ALL /dashboard/* routes use BODY scroll ownership
+  const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const [isMobile, setIsMobile] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const { isOpen: isChatOpen, options: chatOptions, activeEmployeeSlug, closeChat } = useUnifiedChatLauncher();
+  const { isOpen: isChatOpen, options: chatOptions, activeEmployeeSlug, closeChat, openChat } = useUnifiedChatLauncher();
   
   // Debug: Log when chat state changes
   useEffect(() => {
@@ -155,6 +489,141 @@ export default function DashboardLayout() {
     });
   }, [isChatOpen, activeEmployeeSlug, chatOptions.initialEmployeeSlug]);
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
+  const { ready, userId, profile, refreshProfile, isProfileLoading } = useAuth();
+  
+  // Post-onboarding chooser: show only immediately after onboarding completion (session-based)
+  const [showPostOnboardingChooser, setShowPostOnboardingChooser] = useState(false);
+  
+  useEffect(() => {
+    // Check for sessionStorage flag and custodian_ready status on mount
+    // GUARD: Only check on /dashboard routes (not on /onboarding routes)
+    if (!ready || !profile || !userId || !location.pathname.startsWith('/dashboard')) return;
+    
+    try {
+      const justCompleted = typeof window !== 'undefined' && window.sessionStorage
+        ? sessionStorage.getItem('just_completed_onboarding') === 'true'
+        : false;
+      
+      if (justCompleted) {
+        // Check custodian_ready from metadata
+        const md = (profile.metadata && typeof profile.metadata === 'object') ? profile.metadata : {};
+        const custodianReady = (md as any).custodian_ready === true;
+        
+        if (custodianReady) {
+          // Show chooser and immediately consume flag (so refresh doesn't re-show)
+          setShowPostOnboardingChooser(true);
+          sessionStorage.removeItem('just_completed_onboarding');
+          
+          if (import.meta.env.DEV) {
+            console.log('[DashboardLayout] Post-onboarding chooser: showing (flag consumed)');
+          }
+        } else {
+          // Flag exists but custodian not ready - clean up flag
+          sessionStorage.removeItem('just_completed_onboarding');
+        }
+      }
+    } catch (error: any) {
+      // Non-fatal: sessionStorage may not be available
+      if (import.meta.env.DEV) {
+        console.warn('[DashboardLayout] Failed to check post-onboarding chooser flag:', error?.message || error);
+      }
+    }
+  }, [ready, profile, userId, location.pathname]);
+  
+  const handleChooserOption = (destination: 'dashboard' | 'prime' | 'settings') => {
+    // Defensive: ensure flag is cleared
+    try {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        sessionStorage.removeItem('just_completed_onboarding');
+      }
+    } catch (e) {
+      // Ignore
+    }
+    
+    setShowPostOnboardingChooser(false);
+    
+    // Navigate to destination
+    if (destination === 'dashboard') {
+      navigate('/dashboard', { replace: true });
+    } else if (destination === 'prime') {
+      navigate('/dashboard/prime-chat', { replace: true });
+    } else if (destination === 'settings') {
+      navigate('/dashboard/settings', { replace: true });
+    }
+    
+    if (import.meta.env.DEV) {
+      console.log('[DashboardLayout] Post-onboarding chooser: navigating to', destination);
+    }
+  };
+  
+  // TASK D: Make dashboard resilient - ensure profile exists
+  useEffect(() => {
+    if (ready && userId && !profile && !isProfileLoading) {
+      // Profile is missing, try to load/create it
+      const loadProfile = async () => {
+        try {
+          const { getOrCreateProfile } = await import('../lib/profileHelpers');
+          await getOrCreateProfile(userId, '');
+          await refreshProfile?.();
+        } catch (error) {
+          console.error('[DashboardLayout] Failed to load/create profile:', error);
+        }
+      };
+      loadProfile();
+    }
+  }, [ready, userId, profile, isProfileLoading, refreshProfile]);
+  
+  // Onboarding gate: determines first-time setup vs welcome back
+  const { showFirstTimeSetup, showWelcomeBack, missingFields } = useOnboardingGate();
+  const [firstTimeSetupCompleted, setFirstTimeSetupCompleted] = useState(false);
+  
+  // Legacy onboarding overlay logic REMOVED
+  // UnifiedOnboardingFlow is the ONLY authority for onboarding UI
+  
+  // DISABLED: Auto-open Prime chat on dashboard load
+  // Prime chat must ONLY open when explicitly triggered by user action:
+  // - Floating Rail Prime button click
+  // - Sidebar "Prime Chat" click
+  // - Explicit button press (e.g., "Open Prime Chat")
+  // 
+  // Feature flag to re-enable auto-open if needed in future:
+  // const ENABLE_PRIME_AUTO_OPEN = false;
+  // 
+  // Previous auto-open logic preserved below (commented out):
+  /*
+  React.useEffect(() => {
+    if (!ready || !userId || !profile || isChatOpen) return;
+    
+    // Check if onboarding is completed FIRST
+    const isOnboardingComplete = (() => {
+      if (profile.metadata && typeof profile.metadata === 'object') {
+        const metadata = profile.metadata as any;
+        return metadata.onboarding?.completed === true;
+      }
+      return false; // If no metadata, onboarding is incomplete - DO NOT auto-open
+    })();
+    
+    // Only auto-open if onboarding is complete AND Prime not initialized
+    if (isOnboardingComplete) {
+      const shouldShowPrimeOnboarding = (() => {
+        if (profile.metadata && typeof profile.metadata === 'object') {
+          const metadata = profile.metadata as any;
+          return metadata.prime_initialized !== true;
+        }
+        return false; // Don't auto-open if no metadata
+      })();
+      
+      if (shouldShowPrimeOnboarding) {
+        // Small delay to ensure dashboard is fully loaded
+        const timeoutId = setTimeout(() => {
+          openChat({ initialEmployeeSlug: 'prime-boss' });
+        }, 500);
+        
+        return () => clearTimeout(timeoutId);
+      }
+    }
+  }, [ready, userId, profile, isChatOpen, openChat]);
+  */
 
   // Open chat history
   const handleOpenChatHistory = () => {
@@ -177,8 +646,8 @@ export default function DashboardLayout() {
     setIsChatHistoryOpen(false);
   };
 
-  // Prime intro hook
-  const { showIntro, complete } = usePrimeIntro();
+  // Prime intro hook - REMOVED: Prime onboarding now handled in chat
+  // const { showIntro, complete } = usePrimeIntro();
 
   // Pull-to-refresh functionality for mobile
   const handleRefresh = async () => {
@@ -282,6 +751,248 @@ export default function DashboardLayout() {
     }
   }, [location.pathname]);
 
+  // Dev-only: Diagnostic helper to log scroll containers and overflow elements on ALL /dashboard/* routes
+  // CRITICAL: This verifies the LOCKED INVARIANT - BODY is the ONLY scroll owner
+  useEffect(() => {
+    if (import.meta.env.DEV && isDashboardRoute) {
+      const logScrollDiagnostics = () => {
+        // 1. Verify documentElement does NOT scroll (LOCKED INVARIANT)
+        const docEl = document.documentElement;
+        const htmlHeightDiff = docEl.scrollHeight - docEl.clientHeight;
+        const bodyHeightDiff = document.body.scrollHeight - document.body.clientHeight;
+        const viewportHeight = window.innerHeight;
+        
+        // 2. Verify BODY is scroll owner
+        const bodyOverflowY = window.getComputedStyle(document.body).overflowY;
+        const htmlOverflow = window.getComputedStyle(document.documentElement).overflow;
+        
+        console.log(`[ScrollDiagnostics] 🔒 ${location.pathname} - LOCKED INVARIANT verification:`, {
+          htmlScrollHeight: docEl.scrollHeight,
+          htmlClientHeight: docEl.clientHeight,
+          htmlHeightDiff,
+          htmlOverflow,
+          htmlShouldNotScroll: htmlHeightDiff === 0 || htmlOverflow === 'hidden',
+          bodyScrollHeight: document.body.scrollHeight,
+          bodyClientHeight: document.body.clientHeight,
+          bodyHeightDiff,
+          bodyOverflowY,
+          bodyIsScrollOwner: bodyOverflowY === 'auto',
+          viewportHeight,
+          hasScrollbar: bodyHeightDiff > 1,
+        });
+        
+        // 3. Find elements extending beyond viewport bottom
+        const overflowElements: Array<{
+          element: string;
+          bottom: number;
+          viewportHeight: number;
+          overflow: number;
+        }> = [];
+        
+        document.querySelectorAll('*').forEach((el) => {
+          const rect = el.getBoundingClientRect();
+          const bottom = rect.bottom;
+          
+          if (bottom > viewportHeight + 1) {
+            const tagName = el.tagName.toLowerCase();
+            const id = el.id ? `#${el.id}` : '';
+            const cls = typeof el.className === 'string' ? el.className : (el.className?.baseVal ?? '');
+            const className = cls ? `.${cls.split(' ').slice(0, 2).join('.')}` : '';
+            
+            overflowElements.push({
+              element: `${tagName}${id}${className}`,
+              bottom: Math.round(bottom),
+              viewportHeight,
+              overflow: Math.round(bottom - viewportHeight),
+            });
+          }
+        });
+        
+        // Sort by overflow amount (largest first) and take top 10
+        overflowElements.sort((a, b) => b.overflow - a.overflow);
+        const topOverflowElements = overflowElements.slice(0, 10);
+        
+        if (topOverflowElements.length > 0) {
+          console.log(`[ScrollDiagnostics] ${location.pathname} - Top 10 elements extending beyond viewport:`, topOverflowElements);
+        }
+
+        // 4. Log scroll containers AND overscroll behavior offenders
+        const scrollContainers: Array<{
+          element: string;
+          overflowY: string;
+          overflowX: string;
+          scrollbarGutter: string;
+          overscrollBehaviorY: string;
+          overscrollBehaviorX: string;
+          scrollHeight: number;
+          clientHeight: number;
+          scrollWidth: number;
+          clientWidth: number;
+          hasVerticalScrollbar: boolean;
+          hasHorizontalScrollbar: boolean;
+          blocksScrollChaining: boolean;
+        }> = [];
+
+        document.querySelectorAll('*').forEach((el) => {
+          const styles = window.getComputedStyle(el);
+          const overflowY = styles.overflowY;
+          const overflowX = styles.overflowX;
+          const scrollbarGutter = styles.scrollbarGutter;
+          const overscrollBehaviorY = styles.overscrollBehaviorY;
+          const overscrollBehaviorX = styles.overscrollBehaviorX;
+          
+          const hasVerticalScroll = (overflowY === 'auto' || overflowY === 'scroll') && 
+            (el.scrollHeight > el.clientHeight + 2);
+          const hasHorizontalScroll = (overflowX === 'auto' || overflowX === 'scroll') && 
+            (el.scrollWidth > el.clientWidth + 2);
+          
+          // Check if element blocks scroll chaining
+          const blocksScrollChaining = overscrollBehaviorY === 'contain' || 
+            overscrollBehaviorY === 'none' ||
+            overscrollBehaviorX === 'contain' ||
+            overscrollBehaviorX === 'none';
+          
+          // Log if: has scroll OR blocks scroll chaining OR has stable gutter
+          if (hasVerticalScroll || hasHorizontalScroll || blocksScrollChaining || scrollbarGutter === 'stable') {
+            const tagName = el.tagName.toLowerCase();
+            const id = el.id ? `#${el.id}` : '';
+            const cls = typeof el.className === 'string' ? el.className : (el.className?.baseVal ?? '');
+            const className = cls ? `.${cls.split(' ').slice(0, 2).join('.')}` : '';
+            
+            scrollContainers.push({
+              element: `${tagName}${id}${className}`,
+              overflowY,
+              overflowX,
+              scrollbarGutter,
+              overscrollBehaviorY,
+              overscrollBehaviorX,
+              scrollHeight: el.scrollHeight,
+              clientHeight: el.clientHeight,
+              scrollWidth: el.scrollWidth,
+              clientWidth: el.clientWidth,
+              hasVerticalScrollbar: hasVerticalScroll,
+              hasHorizontalScrollbar: hasHorizontalScroll,
+              blocksScrollChaining,
+            });
+          }
+        });
+
+        // Sort by priority: blocks scroll chaining first, then scroll containers
+        scrollContainers.sort((a, b) => {
+          if (a.blocksScrollChaining && !b.blocksScrollChaining) return -1;
+          if (!a.blocksScrollChaining && b.blocksScrollChaining) return 1;
+          if (a.hasVerticalScrollbar && !b.hasVerticalScrollbar) return -1;
+          if (!a.hasVerticalScrollbar && b.hasVerticalScrollbar) return 1;
+          return 0;
+        });
+
+        if (scrollContainers.length > 0) {
+          console.log(`[ScrollDiagnostics] ${location.pathname} - Scroll containers & overscroll offenders:`, scrollContainers);
+          
+          // Highlight top 5 offenders visually
+          const topOffenders = scrollContainers.slice(0, 5);
+          topOffenders.forEach((offender, idx) => {
+            const el = document.querySelector(offender.element.split(' ')[0]);
+            if (el) {
+              (el as HTMLElement).style.outline = `3px solid ${idx === 0 ? 'red' : idx === 1 ? 'orange' : 'yellow'}`;
+              (el as HTMLElement).style.outlineOffset = '2px';
+            }
+          });
+          
+          console.log(`[ScrollDiagnostics] ${location.pathname} - Top 5 offenders highlighted with colored outlines`);
+        } else {
+          console.log(`[ScrollDiagnostics] ${location.pathname} - ✅ No scroll containers or overscroll offenders found (BODY is scroll owner)`);
+        }
+      };
+
+      // Run after a short delay to ensure DOM is ready
+      const timeoutId = setTimeout(logScrollDiagnostics, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [location.pathname, isDashboardRoute]);
+
+  // Dev-only: Wheel event diagnostics for /dashboard/prime-chat to identify scroll capture
+  useEffect(() => {
+    if (import.meta.env.DEV && location.pathname === '/dashboard/prime-chat') {
+      const handleWheel = (e: WheelEvent) => {
+        const target = e.target as HTMLElement;
+        
+        // Check if target or any ancestor is a scroll container
+        const scrollContainers: Array<{
+          element: string;
+          overflowY: string;
+          scrollHeight: number;
+          clientHeight: number;
+          scrollTop: number;
+          canScroll: boolean;
+          isAtBoundary: boolean;
+        }> = [];
+        
+        let current: HTMLElement | null = target;
+        while (current && current !== document.body) {
+          const currentStyles = window.getComputedStyle(current);
+          const currentOverflowY = currentStyles.overflowY;
+          const currentScrollHeight = current.scrollHeight;
+          const currentClientHeight = current.clientHeight;
+          const currentScrollTop = current.scrollTop;
+          
+          if (currentOverflowY === 'auto' || currentOverflowY === 'scroll') {
+            const canScroll = currentScrollHeight > currentClientHeight + 2;
+            const isAtTop = currentScrollTop <= 1;
+            const isAtBottom = currentScrollTop >= currentScrollHeight - currentClientHeight - 1;
+            const isAtBoundary = (isAtTop && e.deltaY < 0) || (isAtBottom && e.deltaY > 0);
+            
+            const cls = typeof current.className === 'string' ? current.className : (current.className?.baseVal ?? '');
+            scrollContainers.push({
+              element: `${current.tagName.toLowerCase()}${current.id ? `#${current.id}` : ''}${cls ? `.${cls.split(' ').slice(0, 2).join('.')}` : ''}`,
+              overflowY: currentOverflowY,
+              scrollHeight: currentScrollHeight,
+              clientHeight: currentClientHeight,
+              scrollTop: currentScrollTop,
+              canScroll,
+              isAtBoundary,
+            });
+          }
+          
+          current = current.parentElement;
+        }
+        
+        // Log body/documentElement scroll state
+        const bodyScrollTop = document.body.scrollTop || document.documentElement.scrollTop;
+        const bodyScrollHeight = document.body.scrollHeight;
+        const bodyClientHeight = window.innerHeight;
+        const bodyCanScroll = bodyScrollHeight > bodyClientHeight + 2;
+        const bodyIsAtBottom = bodyScrollTop >= bodyScrollHeight - bodyClientHeight - 1;
+        
+        if (scrollContainers.length > 0) {
+          const targetCls = typeof target.className === 'string' ? target.className : (target.className?.baseVal ?? '');
+          console.log(`[WheelDiagnostics] ${location.pathname} - Wheel event captured:`, {
+            target: `${target.tagName.toLowerCase()}${target.id ? `#${target.id}` : ''}${targetCls ? `.${targetCls.split(' ').slice(0, 2).join('.')}` : ''}`,
+            deltaY: e.deltaY,
+            scrollContainers,
+            bodyScroll: {
+              scrollTop: bodyScrollTop,
+              scrollHeight: bodyScrollHeight,
+              clientHeight: bodyClientHeight,
+              canScroll: bodyCanScroll,
+              isAtBottom: bodyIsAtBottom,
+            },
+            warning: scrollContainers.some(c => c.isAtBoundary && c.canScroll) 
+              ? '⚠️ Wheel may be blocked by nested scroll container at boundary' 
+              : '✅ No blocking detected',
+          });
+        }
+      };
+      
+      // Use capture phase to catch wheel events before they're handled
+      document.addEventListener('wheel', handleWheel, { capture: true, passive: true });
+      
+      return () => {
+        document.removeEventListener('wheel', handleWheel, { capture: true });
+      };
+    }
+  }, [location.pathname]);
+
   if (isMobile) {
     return (
       <div className="flex flex-col h-screen bg-[#0b1220]">
@@ -340,13 +1051,10 @@ export default function DashboardLayout() {
           <MobileSidebar open={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
         </MobileMenuDrawer>
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto pt-16 pb-16">
-          <div className="px-1 py-0 min-h-screen">
-            <div
-              key={location.pathname}
-              className="h-full"
-            >
+        {/* Main Content - flex-1 min-h-0 allows proper scrolling */}
+        <main className="flex-1 min-h-0 overflow-y-auto pt-16 pb-16 scrollbar-hide">
+          <div className="px-1 py-0">
+            <div className="h-full">
               <Outlet />
             </div>
           </div>
@@ -361,8 +1069,8 @@ export default function DashboardLayout() {
           onClose={() => setIsProfileModalOpen(false)} 
         />
         
-        {/* Prime Intro Modal */}
-        <PrimeIntroModal open={showIntro} onComplete={complete} />
+        {/* Prime Intro Modal - REMOVED: Prime onboarding now handled in chat */}
+        {/* <PrimeIntroModal open={showIntro} onComplete={complete} /> */}
         
       </div>
     );
@@ -383,11 +1091,71 @@ export default function DashboardLayout() {
   // - UnifiedAssistantChat: Slide-out panel from right, overlays ActivityPanel correctly
   //
   // SCROLL BEHAVIOR:
-  // - No nested scroll containers - browser window handles scrolling
+  // - For ALL /dashboard/* routes: Main element is scroll container (internal scrolling only, body locked)
+  // - For other routes: Internal scrolling via main element (h-screen overflow-hidden)
   // - Header is sticky, content scrolls beneath it
+  // CRITICAL: Body should never scroll - only internal components scroll within their containers
+  const useBodyScroll = isDashboardRoute;
+  
+  // Prevent body scrolling for ALL /dashboard/* routes - lock page height
+  // CRITICAL: This prevents page-level scrolling - only internal components scroll within their containers
+  useEffect(() => {
+    if (useBodyScroll) {
+      // Save original values
+      const originalBodyOverflowY = document.body.style.overflowY;
+      const originalBodyOverflowX = document.body.style.overflowX;
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      
+      // Lock BODY - prevent page-level scrolling, only allow internal component scrolling
+      // CRITICAL: HTML must NEVER scroll - set overflow: hidden to prevent any scrolling
+      // BODY should not scroll - internal components handle their own scrolling
+      document.documentElement.style.overflow = 'hidden';
+      // Use 'clip' instead of 'hidden' to prevent phantom horizontal scrollbar
+      document.documentElement.style.overflowX = 'clip';
+      // Lock body dimensions strictly - prevent content from forcing expansion
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100vh';
+      document.body.style.maxHeight = '100vh';
+      document.body.style.minHeight = '100vh';
+      // Use 'clip' instead of 'hidden' to prevent phantom horizontal scrollbar
+      document.body.style.overflowX = 'clip';
+      
+      // CRITICAL: hide-scrollbar is ONLY for mobile overlays, NOT for desktop body scrolling
+      // Desktop body scrollbar must remain visible for proper scroll behavior
+      // Mobile overlays (modals, slideouts) can hide scrollbar via their own scoped CSS
+      // Do NOT apply hide-scrollbar to body on desktop - it breaks scroll diagnosis
+      
+      // Dev-only: Verify scroll ownership
+      if (import.meta.env.DEV) {
+        const mainElement = document.querySelector('main[data-dashboard-content]');
+        const mainClassName = mainElement?.className || 'not found';
+        const mainOverflow = mainClassName.split(' ').filter(c => c.includes('overflow')).join(' ') || 'none';
+        console.log('[DashboardLayout] 🔒 BODY scroll locked:', {
+          pathname: location.pathname,
+          useBodyScroll,
+          bodyOverflowY: document.body.style.overflowY,
+          htmlOverflow: document.documentElement.style.overflow,
+          mainOverflow,
+        });
+      }
+      
+      // Cleanup: Restore original values
+      return () => {
+        document.body.style.overflow = '';
+        document.body.style.height = '';
+        document.body.style.maxHeight = '';
+        document.body.style.minHeight = '';
+        document.body.style.overflowY = originalBodyOverflowY;
+        document.body.style.overflowX = originalBodyOverflowX;
+        // CRITICAL: Restore html overflow to original value (should be 'hidden' from CSS)
+        document.documentElement.style.overflow = originalHtmlOverflow || 'hidden';
+      };
+    }
+  }, [useBodyScroll, location.pathname]);
+  
   return (
     <PrimeOverlayProvider>
-      <div className="flex min-h-screen bg-slate-950">
+      <div className="flex h-screen overflow-hidden overflow-x-hidden bg-slate-950">
       {/* LEFT COLUMN - Desktop Sidebar */}
       {/* High z-index ensures sidebar is above chat overlays (z-50) and other content */}
       <div className="fixed left-0 top-0 h-full z-[100]" style={{ pointerEvents: 'auto' }}>
@@ -398,34 +1166,61 @@ export default function DashboardLayout() {
       </div>
       
       {/* MAIN + ACTIVITY COLUMNS */}
-      <div className={`flex-1 flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-56'}`}>
+      {/* pr-4 on mobile only - rail is portaled to body, fixed to viewport right, so no space reservation needed */}
+      {/* Rail is position:fixed right-4, so it's independent of this container's padding */}
+      {/* CRITICAL: min-h-0 is MANDATORY for flex children to prevent overflow forcing body height */}
+      {/* CRITICAL: For body scroll routes (ALL /dashboard/*), allow normal flow */}
+      {/* For internal scroll routes, overflow-hidden prevents wrapper from creating page scrollbar */}
+      <div className={`flex-1 flex flex-col min-h-0 transition-all duration-300 ${isSidebarCollapsed ? 'ml-16' : 'ml-56'} pr-4 ${useBodyScroll ? '' : 'overflow-hidden'}`}>
         <DashboardHeaderWithBadges />
         
-        {/* Main content: no nested overflow scroll */}
-        {/* px-8 provides symmetric horizontal padding */}
-        {/* pb-10 provides bottom padding */}
-        {/* Removed pr-24 md:pr-28 - rail space is handled by right column's lg:mr-[var(--rail-space)] */}
-        {/* Task B: Ensure sidebar dashboard pages can expand fully - flex-1 min-w-0 w-full max-w-full */}
-        <main className="flex-1 min-w-0 w-full max-w-full px-8 pb-10" data-dashboard-content>
+        {/* Main content */}
+        {/* pl-8 = left padding (2rem), pr-[calc(2rem+104px)] = right padding (2rem base + 104px rail width) */}
+        {/* pb-6 md:pb-8 provides responsive bottom padding - reduced to prevent phantom scrollbar */}
+        {/* CRITICAL: h-full ensures main fills available viewport height, flex-1 makes it grow to fill space */}
+        {/* SCROLL OWNERSHIP (LOCKED INVARIANT):
+            - For ALL /dashboard/* routes: Main element is scroll container (internal scrolling only)
+            - For other routes: Main element is scroll container (overflow-y-auto with scrollbar-hide) */}
+        <main 
+          className="flex-1 min-w-0 w-full max-w-full h-full overflow-y-auto scrollbar-hide overflow-x-hidden pl-8 pr-[calc(2rem+104px)] pb-6 md:pb-8"
+          data-dashboard-content
+        >
           <DashboardContentGrid>
-            <Outlet />
+            <AnimatedOutlet />
           </DashboardContentGrid>
         </main>
       </div>
       
-      {/* Prime Intro Modal */}
-      <PrimeIntroModal open={showIntro} onComplete={complete} />
+      {/* Prime Intro Modal - REMOVED: Prime onboarding now handled in chat */}
+      {/* <PrimeIntroModal open={showIntro} onComplete={complete} /> */}
+
+      {/* Post-Onboarding Chooser - Shows once after onboarding completion */}
+      {profile && (() => {
+        const metadata = profile?.metadata && typeof profile.metadata === 'object' ? profile.metadata : {};
+        const custodianReady = (metadata as any)?.custodian_ready === true;
+        return <PostOnboardingChooser custodianReady={custodianReady} />;
+      })()}
 
       {/* Unified Assistant Chat - Slide-out panel (z-999, overlays ActivityFeed) */}
-      <UnifiedAssistantChat
-        isOpen={isChatOpen}
-        onClose={closeChat}
-        initialEmployeeSlug={activeEmployeeSlug || chatOptions.initialEmployeeSlug}
-        conversationId={chatOptions.conversationId}
-        context={chatOptions.context}
-        initialQuestion={chatOptions.initialQuestion}
-        renderMode="slideout"
-      />
+      {/* CRITICAL: Do NOT render on /dashboard/prime-chat route - PrimeChatPage uses slideout via launcher */}
+      {/* CRITICAL: Do NOT render on /dashboard/custodian route - CustodianPage renders its own fullscreen chat */}
+      {/* Always render to prevent unmount/remount (preserves greeting state) */}
+      {/* Wrapped in ChatErrorBoundary to prevent chat crashes from affecting dashboard */}
+      {/* CRITICAL: Guard prevents double mount - only ONE UnifiedAssistantChat instance allowed */}
+      {/* Use startsWith to catch any sub-routes (e.g., /dashboard/prime-chat/...) */}
+      {!location.pathname.startsWith('/dashboard/prime-chat') && !location.pathname.startsWith('/dashboard/custodian') && (
+        <ChatErrorBoundary>
+          <UnifiedAssistantChat
+            isOpen={isChatOpen}
+            onClose={closeChat}
+            initialEmployeeSlug={activeEmployeeSlug || chatOptions.initialEmployeeSlug}
+            conversationId={chatOptions.conversationId}
+            context={chatOptions.context}
+            initialQuestion={chatOptions.initialQuestion}
+            renderMode="slideout"
+          />
+        </ChatErrorBoundary>
+      )}
       
 
       {/* Chat History Sidebar */}
@@ -434,22 +1229,21 @@ export default function DashboardLayout() {
         onClose={handleCloseChatHistory}
       />
 
-      {/* Desktop Side Chat Tab - Right-edge vertical tab (z-998) */}
+      {/* Desktop Side Chat Tab - Right-edge vertical tab (z-[999]) */}
       {/* All buttons (Prime, Byte, Tag, Crystal) open UnifiedAssistantChat */}
-      {/* Hide global rail when unified chat slideout is open (chat has its own attached rail) */}
-      {/* Also hide on Prime Chat page - PrimeChatPage uses UnifiedAssistantChat with attached rail */}
-      {!isChatOpen && !isPrimeChatPage && (
-        <DesktopChatSideBar 
-          onHistoryClick={handleOpenChatHistory}
-        />
-      )}
+      {/* Rail always mounts on desktop (md+) but visually dims when chat is open */}
+      {/* CRITICAL: Always render rail on all dashboard routes (including /dashboard/prime-chat) */}
+      <DesktopChatSideBar 
+        onHistoryClick={handleOpenChatHistory}
+      />
 
       {/* Prime Floating Action Button - Bottom-right (z-30, below header z-40) */}
       {/* Opens unified chat slideout with Prime when clicked */}
       {/* Hide on Prime Chat page - PrimeChatPage has its own Prime Tools button */}
-      <PrimeFloatingButton 
+      {/* DISABLED: Legacy Prime bubble removed - use unified chat system only */}
+      {/* <PrimeFloatingButton 
         hidden={location.pathname.includes('/prime-chat')} 
-      />
+      /> */}
 
       {/* Control Center Drawer - Profile/Preferences/Security */}
       <ControlCenterDrawer />
@@ -461,7 +1255,68 @@ export default function DashboardLayout() {
       <PrimeToolsPanel />
 
       {/* Unified Onboarding Flow - Prime → Custodian Modal (Guest + Auth) */}
-      <UnifiedOnboardingFlow />
+      {/* UnifiedOnboardingFlow disabled when CinematicOnboardingOverlay is active */}
+      {/* CinematicOnboardingOverlay is the SINGLE SOURCE OF TRUTH for onboarding UI */}
+      {!(showFirstTimeSetup && !firstTimeSetupCompleted) && (
+        <UnifiedOnboardingFlow />
+      )}
+      
+      {/* First-Time Setup Overlay - Blocking overlay for new users */}
+      {/* SINGLE SOURCE OF TRUTH: Only show if onboarding_completed !== true */}
+      {showFirstTimeSetup && !firstTimeSetupCompleted && (
+        <CinematicOnboardingOverlay
+          missingFields={missingFields}
+          onComplete={() => {
+            setFirstTimeSetupCompleted(true);
+            refreshProfile?.();
+          }}
+        />
+      )}
+
+      {/* Welcome Back Overlay - Premium cinematic overlay for returning users */}
+      {/* GUARD: Only show on /dashboard routes, never on /onboarding routes */}
+      {showWelcomeBack && !showFirstTimeSetup && !location.pathname.startsWith('/onboarding') && (
+        <PrimeWelcomeOverlayCinematic />
+      )}
+      
+      {/* Post-Onboarding Chooser - Show only immediately after onboarding completion */}
+      {showPostOnboardingChooser && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <h2 className="text-2xl font-semibold text-white mb-2">Where would you like to go?</h2>
+            <p className="text-slate-400 text-sm mb-6">Choose your next destination</p>
+            
+            <div className="flex flex-col gap-3">
+              {/* Dashboard Option */}
+              <button
+                onClick={() => handleChooserOption('dashboard')}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-white font-medium transition-all hover:-translate-y-[1px] active:translate-y-0"
+              >
+                <LayoutDashboard className="w-5 h-5" />
+                <span>Dashboard</span>
+              </button>
+              
+              {/* Prime Option */}
+              <button
+                onClick={() => handleChooserOption('prime')}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-white font-medium transition-all hover:-translate-y-[1px] active:translate-y-0"
+              >
+                <Crown className="w-5 h-5" />
+                <span>Prime</span>
+              </button>
+              
+              {/* Settings Option */}
+              <button
+                onClick={() => handleChooserOption('settings')}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-white font-medium transition-all hover:-translate-y-[1px] active:translate-y-0"
+              >
+                <Settings className="w-5 h-5" />
+                <span>Settings</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       </div>
     </PrimeOverlayProvider>

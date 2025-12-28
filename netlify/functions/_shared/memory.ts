@@ -579,8 +579,7 @@ export interface UnifiedMemoryContext {
   }>;
   /** Pending tasks (if includeTasks=true) */
   tasks?: Array<{
-    description: string;
-    due_date: string | null;
+    id: string;
     priority?: string;
   }>;
   /** Session summaries (if includeSummaries=true) */
@@ -702,10 +701,7 @@ export async function getMemory(params: {
   // Add tasks section (if requested)
   if (includeTasks && retrieved.tasks.length > 0) {
     const taskLines = retrieved.tasks
-      .map(t => {
-        const dueStr = t.due_date ? ` (due ${new Date(t.due_date).toLocaleDateString()})` : '';
-        return `- ${t.description}${dueStr}`;
-      })
+      .map(() => '- Task') // due_date and description columns don't exist, use default text
       .join('\n');
     contextParts.push(`## Pending Tasks\n${taskLines}`);
   }

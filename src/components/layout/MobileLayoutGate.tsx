@@ -60,6 +60,8 @@ export default function MobileLayoutGate({ Mobile, Desktop, mobileProps, desktop
           <Desktop {...desktopProps} />
         </div>
       )}
+      {/* Render children if provided (for non-nested routes) OR Outlet (for nested routes) */}
+      {children ? children : <Outlet />}
     </>
   );
 }

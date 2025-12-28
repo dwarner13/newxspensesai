@@ -56,7 +56,7 @@ export function TagWorkspace({
       sendButtonColorClass={`bg-gradient-to-br ${theme.sendGradient} ${theme.sendShadow}`}
       guardrailsText={{
         active: 'Guardrails Active · PII protection on',
-        unknown: 'Guardrails Status Unknown',
+        unknown: 'Guardrails: Offline · Protection unavailable', // Never show "Unknown"
       }}
       showMinimize={true}
       onMinimize={handleMinimize}

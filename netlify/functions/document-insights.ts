@@ -13,6 +13,7 @@
 
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
+import { buildContextInjection, injectContextIntoMessages } from './_shared/contextInjection.js';
 import OpenAI from 'openai';
 
 // ============================================================================
@@ -470,13 +471,23 @@ Generate only the answer text. Write naturally, like you're explaining to a frie
       }
     }
 
+    // BACKEND CONTEXT INJECTION: Inject user fluency level and preferences
+    // This ensures Prime adapts communication style automatically
+    const contextInjection = await buildContextInjection(undefined, userId);
+    const messages = [
+      { role: 'system', content: systemMessage },
+      { role: 'user', content: prompt },
+    ];
+    
+    // Inject context into system message
+    const messagesWithContext = contextInjection
+      ? injectContextIntoMessages(messages, contextInjection.systemMessageBlock)
+      : messages;
+
     // Call OpenAI
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemMessage },
-        { role: 'user', content: prompt },
-      ],
+      messages: messagesWithContext as any,
       temperature: 0.3,
       max_tokens: insightMode === 'period_summary' ? 300 : 400,
     });

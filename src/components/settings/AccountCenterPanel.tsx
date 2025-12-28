@@ -34,11 +34,15 @@ import { motion } from 'framer-motion';
 // Account Center Panel Tabs
 import { useAuth } from '../../contexts/AuthContext';
 import { isDemoMode } from '../../lib/demoAuth';
+import { useBodyClass } from '../../hooks/useBodyClass';
 
 export function AccountCenterPanel() {
   const [isOpen, setIsOpen] = useAtom(accountCenterPanelOpenAtom);
   const [activeTab, setActiveTab] = useAtom(accountCenterActiveTabAtom);
   const { isDemoUser } = useAuth();
+  
+  // Toggle body class for AI rail standby mode
+  useBodyClass('right-drawer-open', isOpen);
 
   // Lock shell height to match chatbot slide-out behavior
   // Uses same frozen height mechanism as PrimeSlideoutShell

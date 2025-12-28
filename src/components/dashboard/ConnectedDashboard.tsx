@@ -47,7 +47,7 @@ interface ConnectedDashboardProps {
 }
 
 export function ConnectedDashboard({ className = '', isSidebarCollapsed = false }: ConnectedDashboardProps) {
-  const { user, userId, isDemoUser, loading } = useAuth();
+  const { user, userId, isDemoUser, loading, ready } = useAuth();
   const navigate = useNavigate();
   
   const [isProcessing, setIsProcessing] = useState(false);
@@ -65,11 +65,13 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   });
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
-  // Debug logging
-  console.log('ConnectedDashboard render:', { user: !!user, userId, isDemoUser, loading });
+  // Verification logging: Confirm ConnectedDashboard only renders after onboarding decision
+  useEffect(() => {
+    console.log('[ConnectedDashboard] Render (should only appear AFTER onboarding decision)');
+  }, []);
 
   // Show loading state while auth is initializing
-  if (loading) {
+  if (loading || !ready) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-900">
         <div className="text-white text-xl">Loading...</div>
@@ -77,12 +79,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     );
   }
 
-  // Debug auth state
-  if (isDemoUser) {
-    console.log('Using demo user:', userId);
-  } else {
-    console.log('Using real user:', userId);
-  }
+  // Don't show demo user debug logs - demo mode is disabled by default
 
   useEffect(() => {
     if (showNotification) {
@@ -105,7 +102,8 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   // Fetch dashboard stats
   useEffect(() => {
     const fetchDashboardStats = async () => {
-      if (!userId) {
+      // Only fetch when auth is ready AND userId exists AND is NOT a demo user
+      if (!ready || !userId || isDemoUser) {
         setIsLoadingStats(false);
         return;
       }
@@ -177,7 +175,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
     };
 
     fetchDashboardStats();
-  }, [userId]);
+  }, [ready, userId, isDemoUser]);
 
   // Listen for stats refresh events
   useEffect(() => {
@@ -343,7 +341,7 @@ export function ConnectedDashboard({ className = '', isSidebarCollapsed = false 
   const toolsSettingsCards = getToolsSettingsCards(cardHelpers);
 
   return (
-    <div className={`flex flex-col gap-6 ${className}`}>
+    <div className={`min-w-0 w-full max-w-full flex flex-col gap-6 pr-6 lg:pr-8 ${className}`}>
       {/* Hero Row: Prime Welcome Card + Activity Feed (2-column layout) */}
       <DashboardHeroRow
         hero={

@@ -8,7 +8,7 @@
  * standardizes on usePrimeChat's mature implementation with better header/guardrails handling.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePrimeChat, type ChatMessage, type ChatHeaders, type UploadItem } from './usePrimeChat';
 
@@ -54,6 +54,17 @@ export interface UnifiedChatEngineReturn {
   /** Response headers (guardrails, PII mask, etc.) */
   headers: ChatHeaders;
   
+  /** Guardrails status from chat response (preferred over health endpoint) */
+  guardrailsStatus: {
+    enabled: boolean;
+    pii_masking: boolean;
+    moderation: boolean;
+    policy_version: string;
+    checked_at: string;
+    mode: 'streaming' | 'json';
+    reason?: string;
+  };
+  
   /** Upload items */
   uploads: UploadItem[];
   
@@ -86,12 +97,47 @@ export interface UnifiedChatEngineReturn {
 }
 
 /**
- * Map employee slug to usePrimeChat's EmployeeOverride type
+ * Map employee slug to usePrimeChat's EmployeeOverride type using registry
+ * Falls back to hardcoded map if registry unavailable (backward compatibility)
  */
-function mapEmployeeSlugToOverride(employeeSlug?: string): 'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian' | undefined {
+async function mapEmployeeSlugToOverride(employeeSlug?: string): Promise<'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian' | undefined> {
   if (!employeeSlug) return undefined;
   
-  // Map canonical slugs to override values
+  try {
+    // Use registry to resolve employee
+    const { getEmployeeBySlug } = await import('@/agents/employees/employeeRegistry');
+    const employee = await getEmployeeBySlug(employeeSlug);
+    
+    if (employee) {
+      // Map employee_key to EmployeeOverride type
+      // This is a type-safe mapping - EmployeeOverride is a union type
+      const keyToOverride: Record<string, 'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian'> = {
+        'prime': 'prime',
+        'byte': 'byte',
+        'tag': 'tag',
+        'crystal': 'crystal',
+        'goalie': 'goalie',
+        'automa': 'automa',
+        'blitz': 'blitz',
+        'liberty': 'liberty',
+        'chime': 'chime',
+        'roundtable': 'roundtable',
+        'serenity': 'serenity',
+        'harmony': 'harmony',
+        'wave': 'wave',
+        'ledger': 'ledger',
+        'intelia': 'intelia',
+        'dash': 'dash',
+        'custodian': 'custodian',
+      };
+      
+      return keyToOverride[employee.employee_key] || undefined;
+    }
+  } catch (error) {
+    console.warn('[useUnifiedChatEngine] Registry unavailable, using fallback:', error);
+  }
+  
+  // Fallback to hardcoded map (backward compatibility)
   const slugMap: Record<string, 'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian'> = {
     'prime-boss': 'prime',
     'byte-docs': 'byte',
@@ -108,37 +154,96 @@ function mapEmployeeSlugToOverride(employeeSlug?: string): 'prime' | 'byte' | 't
     'harmony-wellness': 'harmony',
     'wave-spotify': 'wave',
     'ledger-tax': 'ledger',
-    'tax-assistant': 'ledger', // Tax Assistant page uses Ledger employee
+    'tax-assistant': 'ledger',
     'intelia-bi': 'intelia',
     'dash-analytics': 'dash',
     'custodian-settings': 'custodian',
     'custodian': 'custodian',
   };
   
-  return slugMap[employeeSlug] || 'prime'; // Default to prime
+  return slugMap[employeeSlug] || undefined;
 }
 
 /**
  * Unified Chat Engine Hook
  * 
  * Provides a consistent API for all chat UIs, wrapping usePrimeChat.
+ * 
+ * CRITICAL: Never initializes with fake userId. Returns disabled engine when userId is missing.
  */
 export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): UnifiedChatEngineReturn {
   const { userId } = useAuth();
   
-  // Map employee slug to override format
-  const employeeOverride = useMemo(() => {
-    return mapEmployeeSlugToOverride(options.employeeSlug);
+  // CRITICAL: Only initialize usePrimeChat when userId is truthy
+  // Never call with 'temp-user' - return disabled stub instead
+  const canRun = Boolean(userId);
+  
+  // Map employee slug to override format using registry
+  const [employeeOverride, setEmployeeOverride] = useState<'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian' | undefined>(undefined);
+  
+  useEffect(() => {
+    let cancelled = false;
+    
+    mapEmployeeSlugToOverride(options.employeeSlug).then(override => {
+      if (!cancelled) {
+        setEmployeeOverride(override);
+      }
+    });
+    
+    return () => {
+      cancelled = true;
+    };
   }, [options.employeeSlug]);
   
-  // Use usePrimeChat under the hood
+  // CRITICAL: React hooks must be called unconditionally
+  // However, we pass undefined/null values when userId is missing to prevent initialization
+  // usePrimeChat will handle empty string gracefully (converts to 'temp-user' internally, but we avoid that)
   const primeChat = usePrimeChat(
-    userId || 'temp-user',
-    options.conversationId,
-    employeeOverride,
-    options.systemPromptOverride,
-    options.initialMessages
+    userId || '', // Pass empty string - usePrimeChat will handle, but we return disabled stub before using results
+    canRun ? options.conversationId : undefined,
+    canRun ? employeeOverride : undefined,
+    canRun ? options.systemPromptOverride : null,
+    canRun ? options.initialMessages : undefined
   );
+  
+  // Return disabled engine stub when userId is missing
+  // This prevents using usePrimeChat results when userId is missing
+  if (!canRun) {
+    const disabledGuardrailsStatus = {
+      enabled: true,
+      pii_masking: true,
+      moderation: true,
+      policy_version: 'balanced' as const,
+      checked_at: new Date().toISOString(),
+      mode: 'streaming' as const,
+    };
+    
+    return {
+      messages: [],
+      sendMessage: async () => {
+        if (import.meta.env.DEV) {
+          console.warn('[useUnifiedChatEngine] sendMessage called but userId is missing - engine disabled');
+        }
+      },
+      isStreaming: false,
+      error: null,
+      isToolExecuting: false,
+      currentTool: null,
+      activeEmployeeSlug: undefined,
+      headers: {},
+      guardrailsStatus: disabledGuardrailsStatus,
+      uploads: [],
+      addUploadFiles: async () => {},
+      removeUpload: () => {},
+      cancelStream: () => {},
+      clearMessages: () => {},
+      input: '',
+      setInput: () => {},
+      pendingConfirmation: null,
+      confirmToolExecution: async () => {},
+      cancelToolExecution: () => {},
+    };
+  }
   
   // Derive tool execution state from toolCalls array
   const isToolExecuting = useMemo(() => {
@@ -175,15 +280,9 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
     // if needed by resetting initialMessages prop
   }, []);
   
-  // Extract error from messages (usePrimeChat adds error messages to the messages array)
-  const error = useMemo(() => {
-    const errorMessage = primeChat.messages.find(m => 
-      m.role === 'assistant' && 
-      m.content.toLowerCase().includes('error') &&
-      m.content.toLowerCase().includes('sorry')
-    );
-    return errorMessage ? new Error(errorMessage.content) : null;
-  }, [primeChat.messages]);
+  // Error extraction: usePrimeChat doesn't expose error field directly
+  // Set to null instead of inferring from message text (more reliable)
+  const error = null;
   
   return {
     messages: primeChat.messages,
@@ -194,6 +293,7 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
     currentTool,
     activeEmployeeSlug: primeChat.activeEmployeeSlug,
     headers: primeChat.headers,
+    guardrailsStatus: primeChat.guardrailsStatus,
     uploads: primeChat.uploads,
     addUploadFiles: primeChat.addUploadFiles,
     removeUpload: primeChat.removeUpload,

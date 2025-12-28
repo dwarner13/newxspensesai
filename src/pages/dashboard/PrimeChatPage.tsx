@@ -28,10 +28,18 @@ import { usePrimeLiveStats } from '../../hooks/usePrimeLiveStats';
 import { useActivityFeed } from '../../hooks/useActivityFeed';
 import { PrimeTeamStatusPanel, type PrimeStatusView } from '../../components/prime/panels/PrimeTeamStatusPanel';
 import { PrimeUnifiedCard } from '../../components/workspace/employees/PrimeUnifiedCard';
+import { PageCinematicFade } from '../../components/ui/PageCinematicFade';
 
 export function PrimeChatPage() {
   // Scroll to top when page loads
   useScrollToTop();
+  
+  // Debug: Log component mount
+  React.useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('[PrimeChatPage] Component mounted', window.location.pathname);
+    }
+  }, []);
   
   // Panel state - controls which slide-in panel is open (Team, Tasks, or Chat)
   const [primePanel, setPrimePanel] = useState<'none' | 'team' | 'tasks' | 'chat'>('none'); // Default to none (chat now opens via unified launcher)
@@ -101,37 +109,39 @@ export function PrimeChatPage() {
   return (
     <PrimeOverlayProvider>
       {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-      <DashboardPageShell
-        left={
-          <PrimeWorkspacePanel 
-            onEmployeeClick={(employee) => {
-              setSelectedEmployee(employee);
-              setIsEmployeePanelOpen(true);
-            }}
-            className="min-w-0 w-full h-full"
-          />
-        }
-        center={
-          <PrimeUnifiedCard 
-            onChatInputClick={() => {
-              openChat({
-                initialEmployeeSlug: 'prime-boss',
-                context: {
-                  page: 'prime-chat',
-                  data: {
-                    source: 'prime-chat-page',
+      <PageCinematicFade>
+        <DashboardPageShell
+          left={
+            <PrimeWorkspacePanel 
+              onEmployeeClick={(employee) => {
+                setSelectedEmployee(employee);
+                setIsEmployeePanelOpen(true);
+              }}
+              className="min-w-0 w-full"
+            />
+          }
+          center={
+            <PrimeUnifiedCard 
+              onChatInputClick={() => {
+                openChat({
+                  initialEmployeeSlug: 'prime-boss',
+                  context: {
+                    page: 'prime-chat',
+                    data: {
+                      source: 'prime-chat-page',
+                    },
                   },
-                },
-              });
-            }}
-            primePanel={primePanel}
-            onPrimePanelChange={setPrimePanel}
-          />
-        }
-        right={
-          <ActivityFeedSidebar scope="prime" className="min-w-0 w-full h-full" />
-        }
-      />
+                });
+              }}
+              primePanel={primePanel}
+              onPrimePanelChange={setPrimePanel}
+            />
+          }
+          right={
+            <ActivityFeedSidebar scope="prime" className="min-w-0 w-full" />
+          }
+        />
+      </PageCinematicFade>
 
       {/* Floating Action Rail - Right edge (same as main dashboard) */}
       {!isChatOpen && (
