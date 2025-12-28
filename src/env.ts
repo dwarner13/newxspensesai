@@ -16,11 +16,15 @@ export function isPrimeEnabled(): boolean {
 
 // Safe env reader: prefers process.env (Node/Netlify Functions), falls back to import.meta.env (Vite client)
 // Never crashes if import.meta is unavailable (CJS/Node runtime)
+// Server-side code paths skip import.meta to avoid CJS bundling warnings
 const readEnv = (key: string, fallbackKey?: string): string => {
   // Server-side (Node.js / Netlify Functions) - prefer process.env
-  if (typeof process !== 'undefined' && process.env) {
+  // Skip import.meta entirely in server contexts to avoid CJS bundling warnings
+  const isServer = typeof process !== 'undefined' && process.env;
+  if (isServer) {
     if (process.env[key]) return process.env[key] as string;
     if (fallbackKey && process.env[fallbackKey]) return process.env[fallbackKey] as string;
+    return ''; // Return early for server-side - don't check import.meta
   }
   // Client-side (Vite browser) - use import.meta.env
   // Safe check: typeof import.meta !== 'undefined' prevents CJS crashes
