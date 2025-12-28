@@ -1,8 +1,9 @@
 /**
  * Server-safe DEV detection helper
  * 
- * Use this instead of import.meta.env in Netlify Functions/server code.
+ * Use this for DEV detection in Netlify Functions/server code.
  * Works in CJS and ESM environments.
+ * Reads from process.env only (server-safe).
  * 
  * Returns true if:
  * - process.env.NETLIFY_DEV === 'true' (Netlify Dev local environment)

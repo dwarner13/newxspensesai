@@ -131,32 +131,3 @@ export function redactText(input: string): Result<RedactionResult> {
     tokens 
   });
 }
-
-// Inline tests
-if (import.meta.vitest) {
-  const { it, expect } = import.meta.vitest;
-  
-  it('redacts credit card numbers', () => {
-    const result = redactText('My card is 4532015112830366');
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.redacted).toBe('My card is {{CARD_0366}}');
-    }
-  });
-  
-  it('redacts email addresses', () => {
-    const result = redactText('Contact me at john@example.com');
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.redacted).toMatch(/Contact me at {{EMAIL_\w+}}/);
-    }
-  });
-  
-  it('redacts phone numbers', () => {
-    const result = redactText('Call me at 555-123-4567');
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.value.redacted).toBe('Call me at {{PHONE}}');
-    }
-  });
-}

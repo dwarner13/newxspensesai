@@ -4,7 +4,11 @@
  * Returns activity events for the authenticated user.
  * Reads from ai_activity_events table and converts to ActivityEvent format.
  * 
- * GET /.netlify/functions/activity-feed?userId=...&limit=30&category=prime&unreadOnly=false
+ * GET /.netlify/functions/activity-feed?limit=30&category=prime&unreadOnly=false
+ * Headers: Authorization: Bearer <access_token>
+ * 
+ * userId is extracted from the JWT token (no longer required as query parameter).
+ * If userId query param is provided, it must match the authenticated user (403 if mismatch).
  * 
  * Response: { events: ActivityEvent[], ok: true }
  */
@@ -12,6 +16,7 @@
 import type { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 import { admin } from './_shared/supabase';
+import { verifyAuth } from './_shared/verifyAuth';
 
 function getSupabaseClient(authToken: string) {
   const url = process.env.SUPABASE_URL!;
@@ -54,22 +59,35 @@ export const handler: Handler = async (event, context) => {
   }
 
   try {
-    const { userId, limit = '30', category, unreadOnly } = event.queryStringParameters || {};
+    const { userId: queryUserId, limit = '30', category, unreadOnly } = event.queryStringParameters || {};
     
-    if (!userId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ ok: false, error: 'Missing userId parameter' }),
-      };
-    }
-
-    const authToken = event.headers.authorization || event.headers['x-authorization'] || '';
-    if (!authToken) {
+    // Require Authorization header with Bearer token
+    const authToken = event.headers.authorization || event.headers.Authorization || '';
+    if (!authToken || !authToken.startsWith('Bearer ')) {
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ ok: false, error: 'Missing authorization token' }),
+        body: JSON.stringify({ ok: false, error: 'Missing or invalid authorization token. Expected: Bearer <token>' }),
+      };
+    }
+
+    // Extract userId from token
+    const { userId, error: authError } = await verifyAuth(event);
+    
+    if (authError || !userId) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ ok: false, error: authError || 'Invalid or expired token' }),
+      };
+    }
+
+    // Backward compatibility: If query param userId is provided, verify it matches token user
+    if (queryUserId && queryUserId !== userId) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ ok: false, error: 'userId mismatch: query parameter does not match authenticated user' }),
       };
     }
 
