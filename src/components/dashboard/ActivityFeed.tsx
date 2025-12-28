@@ -1,6 +1,7 @@
 import React from 'react';
 import { useActivityFeed, type ActivityEvent } from '../../hooks/useActivityFeed';
 import { cn } from '../../lib/utils';
+import { ByteActivityItem } from '../prime/ByteActivityItem';
 
 type LocalEvent = {
   id: string;
@@ -51,6 +52,7 @@ function getActorIcon(actorSlug: string): string {
     'tag-ai': '🏷️',
     'tag': '🏷️',
     'crystal-ai': '📊',
+    'crystal-analytics': '📊',
     'crystal': '📊',
     'liberty-ai': '🗽',
     'liberty': '🗽',
@@ -139,7 +141,8 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
       </div>
 
       {/* Body - Tighter vertical spacing */}
-      <div className={cn("flex-1 min-h-0 overflow-y-auto space-y-2 no-scrollbar", isEmbedded && "px-4 pb-4")}>
+      {/* CRITICAL: No nested scrolling - Activity Feed is part of main scroll flow */}
+      <div className={cn("flex-1 min-h-0 space-y-2", isEmbedded && "px-4 pb-4")}>
         {isLoading ? (
           // Loading skeleton
           <>
@@ -178,43 +181,110 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
           </div>
         ) : (
           // Events list - Compact styling
-          mergedEvents.map((event) => (
-            <div
-              key={event.id}
-              className="flex items-start gap-2.5 rounded-xl px-2.5 py-1.5 hover:bg-slate-800/60 transition-colors"
-            >
-              {/* Actor icon - Slightly smaller */}
-              <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center shrink-0 text-base">
-                {getActorIcon(event.actorSlug)}
-              </div>
+          mergedEvents.map((event) => {
+            // Special handling for Byte import completion events
+            if (event.eventType === 'byte.import.completed' || (event.actorSlug === 'byte-docs' && event.title.includes('finished importing'))) {
+              return (
+                <ByteActivityItem
+                  key={event.id}
+                  event={event}
+                  onViewResults={() => {
+                    // Navigate to Smart Import page
+                    window.location.href = '/dashboard/smart-import-ai';
+                  }}
+                />
+              );
+            }
 
-              {/* Content - Tighter spacing */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2 mb-0.5">
-                  <p className="text-xs font-medium text-slate-200 leading-snug break-words">
-                    {event.title}
-                  </p>
-                  {event.severity && event.severity !== 'info' && (
-                    <span
-                      className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${getSeverityStyles(
-                        event.severity
-                      )}`}
-                    >
-                      {event.severity}
-                    </span>
-                  )}
+            // Special handling for Crystal analytics completion events
+            if (event.eventType === 'crystal.analytics.completed' || event.actorSlug === 'crystal-analytics') {
+              const metrics = event.metadata?.metrics_preview || {};
+              const flags = event.metadata?.flags_preview || {};
+              const preview = [
+                metrics.total_transactions && `${metrics.total_transactions} transactions`,
+                metrics.total_amount && `$${metrics.total_amount?.toFixed(2)}`,
+                flags.uncategorized_count > 0 && `${flags.uncategorized_count} uncategorized`,
+                flags.anomalies_detected > 0 && `${flags.anomalies_detected} anomalies`,
+              ].filter(Boolean).join(' • ');
+
+              return (
+                <div
+                  key={event.id}
+                  className="flex items-start gap-2.5 rounded-xl px-2.5 py-1.5 hover:bg-slate-800/60 transition-colors"
+                >
+                  {/* Actor icon */}
+                  <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center shrink-0 text-base">
+                    {getActorIcon(event.actorSlug)}
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-0.5">
+                      <p className="text-xs font-medium text-slate-200 leading-snug break-words">
+                        {event.title}
+                      </p>
+                      {event.severity && event.severity !== 'info' && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${getSeverityStyles(
+                            event.severity
+                          )}`}
+                        >
+                          {event.severity}
+                        </span>
+                      )}
+                    </div>
+                    {preview && (
+                      <p className="text-[11px] text-slate-400 leading-snug mb-0.5 break-words">
+                        {preview}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-slate-600">
+                      {formatTimeAgo(event.createdAt)}
+                    </p>
+                  </div>
                 </div>
-                {event.description && (
-                  <p className="text-[11px] text-slate-400 leading-snug mb-0.5 break-words">
-                    {event.description}
+              );
+            }
+
+            // Default event rendering
+            return (
+              <div
+                key={event.id}
+                className="flex items-start gap-2.5 rounded-xl px-2.5 py-1.5 hover:bg-slate-800/60 transition-colors"
+              >
+                {/* Actor icon - Slightly smaller */}
+                <div className="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center shrink-0 text-base">
+                  {getActorIcon(event.actorSlug)}
+                </div>
+
+                {/* Content - Tighter spacing */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-0.5">
+                    <p className="text-xs font-medium text-slate-200 leading-snug break-words">
+                      {event.title}
+                    </p>
+                    {event.severity && event.severity !== 'info' && (
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 ${getSeverityStyles(
+                          event.severity
+                        )}`}
+                      >
+                        {event.severity}
+                      </span>
+                    )}
+                  </div>
+                  {event.description && (
+                    <p className="text-[11px] text-slate-400 leading-snug mb-0.5 break-words">
+                      {event.description}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-slate-600">
+                    {formatTimeAgo(event.createdAt)}
                   </p>
-                )}
-                <p className="text-[10px] text-slate-600">
-                  {formatTimeAgo(event.createdAt)}
-                </p>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

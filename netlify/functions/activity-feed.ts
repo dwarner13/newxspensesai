@@ -2,7 +2,7 @@
  * Activity Feed Function
  * 
  * Returns activity events for the authenticated user.
- * Used by the Prime dashboard and workspace layouts to show recent AI employee activity.
+ * Reads from ai_activity_events table and converts to ActivityEvent format.
  * 
  * GET /.netlify/functions/activity-feed?userId=...&limit=30&category=prime&unreadOnly=false
  * 
@@ -10,14 +10,27 @@
  */
 
 import type { Handler } from '@netlify/functions';
-import { admin } from './_shared/supabase.js';
-import { verifyAuth } from './_shared/verifyAuth.js';
+import { admin } from './_shared/supabase';
+
+function getSupabaseClient(authToken: string) {
+  const { createClient } = require('@supabase/supabase-js');
+  const url = process.env.SUPABASE_URL!;
+  const key = process.env.SUPABASE_ANON_KEY!;
+  
+  return createClient(url, key, {
+    global: {
+      headers: {
+        Authorization: authToken,
+      },
+    },
+  });
+}
 
 export const handler: Handler = async (event, context) => {
   // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Content-Type': 'application/json',
   };
@@ -41,91 +54,132 @@ export const handler: Handler = async (event, context) => {
   }
 
   try {
-    // Verify authentication from JWT token
-    const { userId, error: authError } = await verifyAuth(event);
-    if (authError || !userId) {
+    const { userId, limit = '30', category, unreadOnly } = event.queryStringParameters || {};
+    
+    if (!userId) {
       return {
-        statusCode: 401,
+        statusCode: 400,
         headers,
-        body: JSON.stringify({ ok: false, error: authError || 'Authentication required' }),
+        body: JSON.stringify({ ok: false, error: 'Missing userId parameter' }),
       };
     }
 
-    const sb = admin();
-    const params = event.queryStringParameters || {};
-    const limit = parseInt(params.limit || '30', 10);
-    const category = params.category;
-    const unreadOnly = params.unreadOnly === 'true';
-
-    // Build query for activity_events table
-    let query = sb
-      .from('activity_events')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-
-    // Filter by category if provided
-    if (category) {
-      query = query.eq('category', category);
+    const authToken = event.headers.authorization || event.headers['x-authorization'] || '';
+    if (!authToken) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ ok: false, error: 'Missing authorization token' }),
+      };
     }
 
-    // Filter unread only if requested
-    if (unreadOnly) {
+    const sb = getSupabaseClient(authToken);
+
+    // Build query
+    let query = sb
+      .from('ai_activity_events')
+      .select('id, employee_id, event_type, status, label, details, created_at')
+      .eq('user_id', userId) // RLS should enforce this, but explicit for clarity
+      .order('created_at', { ascending: false })
+      .limit(parseInt(limit, 10));
+
+    // Filter by category if provided (map to employee_id or event_type)
+    if (category) {
+      if (category === 'prime') {
+        // Prime-related events (all employees)
+        query = query.in('employee_id', ['prime-boss', 'byte-docs', 'tag-ai', 'crystal-ai', 'finley-ai']);
+      } else if (category === 'smart-import') {
+        // Smart Import events (Byte)
+        query = query.eq('employee_id', 'byte-docs').eq('event_type', 'byte.import.completed');
+      }
+    }
+
+    // Filter unread if requested
+    if (unreadOnly === 'true') {
       query = query.is('read_at', null);
     }
 
     const { data: events, error } = await query;
 
     if (error) {
-      // If table doesn't exist yet, return empty array (non-fatal)
-      if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
-        console.warn('[ActivityFeed] activity_events table not found, returning empty array');
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ ok: true, events: [] }),
-        };
-      }
-
-      console.error('[ActivityFeed] Error fetching events:', error);
+      console.error('[activity-feed] Error fetching events:', error);
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ ok: false, error: 'Failed to fetch activity events' }),
+        body: JSON.stringify({ ok: false, error: 'Failed to fetch events' }),
       };
     }
 
-    // Transform to match ActivityEvent type expected by frontend
-    const transformedEvents = (events || []).map((event: any) => ({
-      id: event.id || event.event_id,
-      createdAt: event.created_at,
-      actorSlug: event.actor_slug || event.employee_slug || 'unknown',
-      actorLabel: event.actor_label || event.employee_name || 'Unknown',
-      title: event.title || event.action || 'Activity',
-      description: event.description || event.details,
-      category: event.category || 'general',
-      severity: event.severity || 'info',
-      metadata: event.metadata || {},
-      readAt: event.read_at || null,
-    }));
+    // Convert ai_activity_events to ActivityEvent format
+    const activityEvents = (events || []).map((e: any) => {
+      // Map employee_id to actor slug/label
+      const actorMap: Record<string, { slug: string; label: string }> = {
+        'byte-docs': { slug: 'byte-docs', label: 'Byte' },
+        'byte-ai': { slug: 'byte-docs', label: 'Byte' },
+        'prime-boss': { slug: 'prime-boss', label: 'Prime' },
+        'tag-ai': { slug: 'tag-ai', label: 'Tag' },
+        'crystal-ai': { slug: 'crystal-ai', label: 'Crystal' },
+        'crystal-analytics': { slug: 'crystal-analytics', label: 'Crystal' },
+        'finley-ai': { slug: 'finley-ai', label: 'Finley' },
+      };
+
+      const actor = actorMap[e.employee_id] || { slug: e.employee_id, label: e.employee_id };
+
+      // Map status to severity
+      const severityMap: Record<string, 'info' | 'success' | 'warning' | 'error'> = {
+        'success': 'success',
+        'completed': 'success',
+        'error': 'error',
+        'warning': 'warning',
+        'info': 'info',
+        'pending': 'info',
+        'started': 'info',
+      };
+
+      const severity = severityMap[e.status] || 'info';
+
+      // Determine category from event_type or employee
+      let eventCategory = 'system';
+      if (e.event_type === 'byte.import.completed') {
+        eventCategory = 'smart-import';
+      } else if (e.event_type === 'crystal.analytics.completed') {
+        eventCategory = 'analytics';
+      } else if (e.employee_id.includes('prime')) {
+        eventCategory = 'prime';
+      }
+
+      return {
+        id: e.id,
+        createdAt: e.created_at,
+        actorSlug: actor.slug,
+        actorLabel: actor.label,
+        title: e.label || 'Activity',
+        description: e.details?.description || undefined,
+        category: eventCategory,
+        severity,
+        metadata: e.details || {},
+        eventType: e.event_type,
+        readAt: e.read_at || null,
+      };
+    });
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         ok: true,
-        events: transformedEvents,
+        events: activityEvents,
       }),
     };
   } catch (error: any) {
-    console.error('[ActivityFeed] Unexpected error:', error);
+    console.error('[activity-feed] Unexpected error:', error);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
         ok: false,
-        error: error.message || 'Internal server error',
+        error: 'Internal server error',
+        message: error.message,
       }),
     };
   }

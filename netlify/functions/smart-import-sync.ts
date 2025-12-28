@@ -305,6 +305,105 @@ export const handler: Handler = async (event) => {
     
     console.log('[smart-import-sync] Sync complete', { docIds, transactionCount: totalTransactionCount });
 
+    // ⚡ BYTE ACTIVITY EVENT: Emit completion event for Prime/Custodian visibility
+    // Only emit once per import run (idempotency via importRunId)
+    try {
+      const { logByteImportCompleted, generateImportRunId } = await import('./_shared/byteActivityEvents');
+      const authToken = event.headers.authorization || event.headers['x-authorization'] || '';
+      
+      // Generate import run ID from first docId (or use requestId if available)
+      const requestId = body.requestId;
+      const importRunId = generateImportRunId(requestId, docIds);
+      
+      // Calculate duration (approximate - from first doc creation to sync completion)
+      const { data: firstDoc } = await sb
+        .from('user_documents')
+        .select('created_at')
+        .eq('id', docIds[0])
+        .single();
+      
+      const durationMs = firstDoc?.created_at
+        ? Date.now() - new Date(firstDoc.created_at).getTime()
+        : 0;
+
+      // Get document metadata for pages estimate
+      const { data: docs } = await sb
+        .from('user_documents')
+        .select('id, mime_type, status')
+        .in('id', docIds);
+      
+      const pages = docs?.filter(d => d.mime_type === 'application/pdf').length || 0;
+      
+      // Check for warnings (rejected docs, etc.)
+      const warnings: string[] = [];
+      const rejectedDocs = docs?.filter(d => d.status === 'rejected');
+      if (rejectedDocs && rejectedDocs.length > 0) {
+        warnings.push(`${rejectedDocs.length} document(s) rejected`);
+      }
+
+      await logByteImportCompleted(authToken, {
+        userId,
+        importRunId,
+        docIds,
+        docCount: docIds.length,
+        pages,
+        txnCount: totalTransactionCount,
+        warnings: warnings.length > 0 ? warnings : undefined,
+        durationMs,
+      });
+
+      // ⚡ CUSTODIAN INTEGRITY CHECK: Verify upload completeness and processing integrity
+      // ⚡ CUSTODIAN SILENCE ON SUCCESS: Only stores integrity payload, no chat messages
+      try {
+        const { checkByteImportIntegrity, updateActivityEventWithIntegrity } = await import('./_shared/custodianIntegrityCheck');
+        const integrityResult = await checkByteImportIntegrity(userId, docIds, importRunId);
+        
+        // Update event with integrity result (silent - no chat messages)
+        await updateActivityEventWithIntegrity(userId, importRunId, integrityResult);
+        
+        // ⚡ EXCEPTION-ONLY: Only create warning event if verified=false
+        if (!integrityResult.verified) {
+          // Create warning event for Prime (not a chat message, but an activity event)
+          try {
+            const { logAiActivity } = await import('./_shared/logAiActivity.js');
+            await logAiActivity(authToken, {
+              employeeId: 'custodian',
+              eventType: 'byte.import.integrity_warning',
+              status: 'warning',
+              label: `Integrity check failed for Byte import: ${integrityResult.reason}`,
+              details: {
+                import_run_id: importRunId,
+                doc_ids: docIds,
+                integrity_verified: false,
+                integrity_reason: integrityResult.reason,
+                integrity_warnings: integrityResult.warnings,
+              },
+            });
+          } catch (warningError: any) {
+            console.error('[smart-import-sync] Error creating integrity warning event:', warningError);
+            // Don't fail sync if warning event creation fails
+          }
+        } else {
+          // ⚡ CRYSTAL ANALYTICS: Trigger Crystal analytics after successful Custodian verification
+          // Runs exactly once per import_run_id (idempotent via DB constraint)
+          try {
+            const { triggerCrystalAnalytics } = await import('./_shared/crystalAnalytics.js');
+            await triggerCrystalAnalytics(userId, importRunId);
+            // Silent on success - Crystal failures don't affect Custodian flow
+          } catch (crystalError: any) {
+            console.error('[smart-import-sync] Error triggering Crystal analytics:', crystalError);
+            // Don't fail sync if Crystal analytics fails - it's a downstream consumer
+          }
+        }
+      } catch (error: any) {
+        console.error('[smart-import-sync] Error performing integrity check:', error);
+        // Don't fail sync if integrity check fails
+      }
+    } catch (error: any) {
+      console.error('[smart-import-sync] Error logging Byte completion event:', error);
+      // Don't fail sync if event logging fails
+    }
+
     const result: SmartImportSyncResult = {
       docIds,
       transactionCount: totalTransactionCount,
