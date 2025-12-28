@@ -1,35 +1,62 @@
 /**
- * 🛡️ Comprehensive Guardrails System for XspensesAI
+ * ⚠️ DEPRECATED: Legacy Guardrails Implementation
  * 
- * Provides:
- * - PII Detection & Redaction (40+ types, global compliance)
- * - Moderation (OpenAI omni-moderation-latest)
- * - Jailbreak Detection (prompt injection prevention)
- * - Hallucination Prevention (for financial claims)
+ * Phase 2.2: Consolidated November 20, 2025
  * 
- * Usage:
- * - Ingestion (strict): PII + moderation, block on fail
- * - Chat (balanced): PII + moderation + jailbreak, sanitize
- * - Admin presets: Strict, Balanced, Creative
+ * This file is deprecated. Use `guardrails-unified.ts` instead.
+ * 
+ * CANONICAL API: `netlify/functions/_shared/guardrails-unified.ts`
+ * 
+ * Migration Guide:
+ * - Replace `import { applyGuardrails } from './guardrails'`
+ *   with `import { runGuardrailsForText, runInputGuardrails } from './guardrails-unified'`
+ * - For single strings: Use `runGuardrailsForText()`
+ * - For message arrays: Use `runInputGuardrails()`
+ * 
+ * This file will be removed in a future cleanup.
  */
 
-import { OpenAI } from 'openai'
-import { supabaseAdmin } from '../supabase'
+import OpenAI from 'openai';
+import crypto from 'crypto';
+import { supabaseAdmin as supabaseAdmin } from './supabase'
 import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { safeLog } from "./safeLog";
+import { maskPII } from './pii'; // Use canonical maskPII instead of inline redactPII
 
-// Wrap a handler to add try/catch logging and a safe 500 response.
+/**
+ * Wrap a handler to add guardrails, error handling, and response headers
+ * Automatically adds X-Guardrails and X-PII-Mask headers to all responses
+ * 
+ * @deprecated Use guardrails-unified.ts instead
+ */
 export function withGuardrails(handler: Handler): Handler {
   return async (event: HandlerEvent, context: HandlerContext) => {
     try {
       const res = await handler(event, context);
-      return res ?? { statusCode: 200, body: "" };
+      
+      // Ensure guardrail headers are present
+      const headers = {
+        ...res?.headers,
+        'X-Guardrails': 'active',
+        'X-PII-Mask': 'enabled'
+      }
+      
+      return {
+        ...res,
+        headers,
+        statusCode: res?.statusCode ?? 200,
+        body: res?.body ?? ""
+      };
     } catch (err: any) {
       safeLog("Function error:", err?.stack ?? err);
       return {
         statusCode: 500,
         body: JSON.stringify({ error: "Internal server error" }),
-        headers: { "content-type": "application/json" }
+        headers: { 
+          "content-type": "application/json",
+          'X-Guardrails': 'active',
+          'X-PII-Mask': 'enabled'
+        }
       };
     }
   };
@@ -41,6 +68,12 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 // TYPES
 // ============================================================================
 
+/**
+ * Guardrail Presets:
+ * - balanced: Default moderation (warn + redact PII)
+ * - strict: Block immediately on violation (high security)
+ * - creative: Lighter filtering for ideation flows (allow more creative content)
+ */
 export type GuardrailPreset = 'strict' | 'balanced' | 'creative'
 
 export type GuardrailSignals = {
@@ -56,6 +89,7 @@ export type GuardrailOutcome = {
   redacted?: string        // sanitized text
   reasons?: string[]       // why blocked/flagged
   signals?: GuardrailSignals
+  headers?: Record<string, string>  // Response headers to add
 }
 
 export type GuardrailOptions = {
@@ -65,65 +99,34 @@ export type GuardrailOptions = {
   jailbreak?: boolean
   hallucination?: boolean
   strict?: boolean         // if true, block on any failure
+  stage?: 'ingestion' | 'chat' | 'ocr'  // Where guardrails are applied
+  log?: boolean            // Whether to log to Supabase (default: true)
 }
 
 // ============================================================================
-// PII PATTERNS (40+ types, global compliance)
+// PII PATTERNS (deprecated - now using pii-patterns.ts via maskPII)
 // ============================================================================
+// Note: PII_PATTERNS, maskLastFour, and maskAll are kept for backward compatibility
+// but are no longer used. All PII masking now goes through maskPII() from './pii'
 
 const PII_PATTERNS: Record<string, RegExp> = {
-  // === Common (Global) ===
+  // Legacy patterns kept for reference only
   email: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi,
   phone: /\+?\d[\d\s().-]{7,}\d/g,
-  url: /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
-  ip_address: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
-
-  // === Credit Cards (multiple formats) ===
-  credit_card: /\b(?:\d[ -]*?){13,19}\b/g,  // Visa, MC, Amex, Discover
-  
-  // === Bank & Finance ===
-  bank_account: /\b\d{7,17}\b/g,  // Most bank account numbers
-  routing_number: /\b\d{9}\b/g,   // US routing numbers
-  iban: /\b[A-Z]{2}\d{2}[A-Z0-9]{1,30}\b/gi,
-  swift: /\b[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?\b/g,
-  
-  // === USA ===
+  credit_card: /\b(?:\d[ -]*?){13,19}\b/g,
   ssn: /\b\d{3}-\d{2}-\d{4}\b/g,
   ssn_no_dash: /\b\d{9}\b/g,
-  itin: /\b9\d{2}-[7-8]\d-\d{4}\b/g,
-  ein: /\b\d{2}-\d{7}\b/g,
+  bank_account: /\b\d{7,17}\b/g,
+  routing_number: /\b\d{9}\b/g,
+  iban: /\b[A-Z]{2}\d{2}[A-Z0-9]{1,30}\b/gi,
+  url: /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
+  ip_address: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
   us_passport: /\b[A-Z]\d{8}\b/g,
-  us_drivers_license: /\b[A-Z]{1,2}\d{5,8}\b/g,
-  
-  // === Canada ===
   sin: /\b\d{3}-\d{3}-\d{3}\b/g,
-  
-  // === UK ===
   uk_nino: /\b[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D]\b/gi,
-  uk_nhs: /\b\d{3}\s?\d{3}\s?\d{4}\b/g,
-  
-  // === EU ===
-  spain_nif: /\b[0-9XYZ]\d{7}[A-Z]\b/gi,
-  spain_nie: /\b[XYZ]\d{7}[A-Z]\b/gi,
-  italy_fiscal: /\b[A-Z]{6}\d{2}[A-Z]\d{2}[A-Z]\d{3}[A-Z]\b/gi,
-  poland_pesel: /\b\d{11}\b/g,
-  finnish_id: /\b\d{6}[-+A]\d{3}[0-9A-FHJ-NPR-Y]\b/g,
-  
-  // === Asia-Pacific ===
-  singapore_nric: /\b[STFGM]\d{7}[A-Z]\b/gi,
-  australia_tfn: /\b\d{3}\s?\d{3}\s?\d{3}\b/g,
-  australia_abn: /\b\d{2}\s?\d{3}\s?\d{3}\s?\d{3}\b/g,
   india_aadhaar: /\b\d{4}\s?\d{4}\s?\d{4}\b/g,
-  india_pan: /\b[A-Z]{5}\d{4}[A-Z]\b/gi,
-  
-  // === Addresses (heuristic) ===
-  postal_code: /\b[A-Z\d]{3,10}\b/g, // Very loose, context-dependent
   street_address: /\b\d+\s+[A-Z][a-z]+\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Way|Place|Pl)\b/gi,
 }
-
-// ============================================================================
-// REDACTION STRATEGIES
-// ============================================================================
 
 function maskLastFour(text: string): string {
   // Keep last 4 chars visible for UX (credit cards, bank accounts)
@@ -136,124 +139,25 @@ function maskAll(text: string, type: string): string {
 }
 
 /**
- * Redact PII using regex patterns
+ * Redact PII using canonical maskPII() from pii.ts
  * Returns redacted text + list of found PII types
+ * @deprecated Use maskPII() directly from './pii' for new code
  */
 export function redactPII(text: string, options: { keepLastFour?: boolean } = {}): {
   redacted: string
   piiTypes: string[]
 } {
-  let redacted = text
-  const piiTypes: string[] = []
+  // Use canonical maskPII() instead of inline patterns
+  const strategy = options.keepLastFour ? 'last4' : 'full';
+  const result = maskPII(text, strategy);
   
-  // Credit cards - keep last 4 for UX
-  if (PII_PATTERNS.credit_card.test(text)) {
-    piiTypes.push('credit_card')
-    redacted = redacted.replace(PII_PATTERNS.credit_card, (match) => {
-      // Remove spaces/dashes, check if likely a card
-      const digits = match.replace(/[^0-9]/g, '')
-      if (digits.length >= 13 && digits.length <= 19) {
-        return options.keepLastFour ? maskLastFour(match) : maskAll(match, 'CC')
-      }
-      return match
-    })
-  }
-  
-  // Bank accounts - keep last 4
-  if (PII_PATTERNS.bank_account.test(text)) {
-    piiTypes.push('bank_account')
-    redacted = redacted.replace(PII_PATTERNS.bank_account, (match) => {
-      const digits = match.replace(/[^0-9]/g, '')
-      if (digits.length >= 7 && digits.length <= 17) {
-        return options.keepLastFour ? maskLastFour(match) : maskAll(match, 'BANK')
-      }
-      return match
-    })
-  }
-  
-  // Email
-  if (PII_PATTERNS.email.test(text)) {
-    piiTypes.push('email')
-    redacted = redacted.replace(PII_PATTERNS.email, (match) => maskAll(match, 'EMAIL'))
-  }
-  
-  // Phone
-  if (PII_PATTERNS.phone.test(text)) {
-    piiTypes.push('phone')
-    redacted = redacted.replace(PII_PATTERNS.phone, (match) => maskAll(match, 'PHONE'))
-  }
-  
-  // SSN
-  if (PII_PATTERNS.ssn.test(text) || PII_PATTERNS.ssn_no_dash.test(text)) {
-    piiTypes.push('ssn')
-    redacted = redacted.replace(PII_PATTERNS.ssn, (match) => maskAll(match, 'SSN'))
-    redacted = redacted.replace(PII_PATTERNS.ssn_no_dash, (match) => {
-      // Only mask if looks like SSN (not other 9-digit numbers)
-      if (/^[0-8]\d{8}$/.test(match)) {
-        return maskAll(match, 'SSN')
-      }
-      return match
-    })
-  }
-  
-  // IBAN
-  if (PII_PATTERNS.iban.test(text)) {
-    piiTypes.push('iban')
-    redacted = redacted.replace(PII_PATTERNS.iban, (match) => maskAll(match, 'IBAN'))
-  }
-  
-  // Routing numbers
-  if (PII_PATTERNS.routing_number.test(text)) {
-    piiTypes.push('routing')
-    redacted = redacted.replace(PII_PATTERNS.routing_number, (match) => maskAll(match, 'ROUTING'))
-  }
-  
-  // URLs (may contain sensitive params)
-  if (PII_PATTERNS.url.test(text)) {
-    piiTypes.push('url')
-    redacted = redacted.replace(PII_PATTERNS.url, (match) => '[REDACTED:URL]')
-  }
-  
-  // IP addresses
-  if (PII_PATTERNS.ip_address.test(text)) {
-    piiTypes.push('ip')
-    redacted = redacted.replace(PII_PATTERNS.ip_address, (match) => '[REDACTED:IP]')
-  }
-  
-  // Passports (US)
-  if (PII_PATTERNS.us_passport.test(text)) {
-    piiTypes.push('passport')
-    redacted = redacted.replace(PII_PATTERNS.us_passport, (match) => maskAll(match, 'PASSPORT'))
-  }
-  
-  // Canadian SIN
-  if (PII_PATTERNS.sin.test(text)) {
-    piiTypes.push('sin')
-    redacted = redacted.replace(PII_PATTERNS.sin, (match) => maskAll(match, 'SIN'))
-  }
-  
-  // UK National Insurance
-  if (PII_PATTERNS.uk_nino.test(text)) {
-    piiTypes.push('uk_nino')
-    redacted = redacted.replace(PII_PATTERNS.uk_nino, (match) => maskAll(match, 'NINO'))
-  }
-  
-  // India Aadhaar
-  if (PII_PATTERNS.india_aadhaar.test(text)) {
-    piiTypes.push('aadhaar')
-    redacted = redacted.replace(PII_PATTERNS.india_aadhaar, (match) => maskAll(match, 'AADHAAR'))
-  }
-  
-  // Street addresses (heuristic)
-  if (PII_PATTERNS.street_address.test(text)) {
-    piiTypes.push('address')
-    redacted = redacted.replace(PII_PATTERNS.street_address, (match) => '[REDACTED:ADDRESS]')
-  }
+  // Extract unique PII types from found instances
+  const piiTypes = [...new Set(result.found.map(f => f.type))];
   
   return {
-    redacted,
-    piiTypes: [...new Set(piiTypes)]  // dedupe
-  }
+    redacted: result.masked,
+    piiTypes,
+  };
 }
 
 // ============================================================================
@@ -369,6 +273,31 @@ async function checkHallucination(text: string, userId: string): Promise<{
 // MAIN GUARDRAILS FUNCTION
 // ============================================================================
 
+/**
+ * Apply guardrails to input text with unified API
+ * 
+ * Features:
+ * - PII detection and masking (always on)
+ * - Content moderation (configurable)
+ * - Jailbreak detection (configurable)
+ * - Supabase logging (automatic)
+ * - Response headers (X-Guardrails, X-PII-Mask)
+ * 
+ * GUARDRAILS COMPLIANCE FOR CHIME NOTIFICATIONS:
+ * - All text produced by the Chime notification tool (chime_generate_notification) is
+ *   considered user-visible output and must be passed through the same PII masking +
+ *   moderation pipeline as regular chat responses.
+ * - The chime_generate_notification tool applies PII masking internally, but all
+ *   outbound notification text (from notifications_queue) will also pass through this
+ *   guardrails function when being rendered/sent to users.
+ * - No code path should allow notification text to bypass guardrails.
+ * - chime-ai employee is subject to the same guardrail rules as Prime/Liberty/Finley/Crystal.
+ * 
+ * @param input - Raw user input text
+ * @param options - Guardrail configuration options
+ * @param userId - User ID for logging (required if logging enabled)
+ * @returns GuardrailOutcome with ok flag, redacted text, reasons, and headers
+ */
 export async function applyGuardrails(
   input: string, 
   options: GuardrailOptions = {},
@@ -379,6 +308,8 @@ export async function applyGuardrails(
   
   // Apply preset defaults
   const preset = options.preset || 'balanced'
+  const stage = options.stage || 'chat'
+  const shouldLog = options.log !== false  // Default to true
   const config = {
     pii: options.pii ?? true,
     moderation: options.moderation ?? (preset === 'strict'),
@@ -388,6 +319,10 @@ export async function applyGuardrails(
   }
   
   let text = input
+  const headers: Record<string, string> = {
+    'X-Guardrails': 'active',
+    'X-PII-Mask': 'enabled'
+  }
   
   // -------------------------------------------------------------------------
   // 1. PII DETECTION & REDACTION (always on for compliance)
@@ -418,11 +353,31 @@ export async function applyGuardrails(
       
       if (config.strict) {
         // BLOCK in strict mode (ingestion)
-        return {
+        const blockedOutcome: GuardrailOutcome = {
           ok: false,
           reasons: ['moderation_block', ...modResult.categories],
-          signals
+          signals,
+          headers
         }
+        
+        // Log blocking event
+        if (shouldLog && userId) {
+          const inputHash = crypto
+            .createHash('sha256')
+            .update(input.slice(0, 256))
+            .digest('hex')
+            .slice(0, 24)
+          
+          logGuardrailEvent({
+            user_id: userId,
+            stage: stage as 'ingestion' | 'chat' | 'ocr',
+            preset,
+            outcome: blockedOutcome,
+            input_hash: inputHash
+          }).catch(err => console.error('Guardrail logging failed:', err))
+        }
+        
+        return blockedOutcome
       } else {
         // FLAG in balanced mode (chat) - sanitize but continue
         reasons.push('moderation_flag')
@@ -442,11 +397,31 @@ export async function applyGuardrails(
       
       if (config.strict) {
         // BLOCK in strict mode
-        return {
+        const blockedOutcome: GuardrailOutcome = {
           ok: false,
           reasons: ['jailbreak_block'],
-          signals
+          signals,
+          headers
         }
+        
+        // Log blocking event
+        if (shouldLog && userId) {
+          const inputHash = crypto
+            .createHash('sha256')
+            .update(input.slice(0, 256))
+            .digest('hex')
+            .slice(0, 24)
+          
+          logGuardrailEvent({
+            user_id: userId,
+            stage: stage as 'ingestion' | 'chat' | 'ocr',
+            preset,
+            outcome: blockedOutcome,
+            input_hash: inputHash
+          }).catch(err => console.error('Guardrail logging failed:', err))
+        }
+        
+        return blockedOutcome
       } else {
         // FLAG in balanced mode - rephrase intent
         reasons.push('jailbreak_flag')
@@ -471,27 +446,62 @@ export async function applyGuardrails(
   // -------------------------------------------------------------------------
   // RESULT
   // -------------------------------------------------------------------------
-  return {
+  const outcome: GuardrailOutcome = {
     ok: true,
     redacted: text,
     reasons: reasons.length > 0 ? reasons : undefined,
-    signals
+    signals,
+    headers
   }
+  
+  // -------------------------------------------------------------------------
+  // LOGGING (async, non-blocking)
+  // -------------------------------------------------------------------------
+  if (shouldLog && userId) {
+    // Generate input hash (SHA256 of first 256 chars for privacy)
+    const inputHash = crypto
+      .createHash('sha256')
+      .update(input.slice(0, 256))
+      .digest('hex')
+      .slice(0, 24)  // Store first 24 chars of hash
+    
+    // Log asynchronously (don't await - logging failure shouldn't block)
+    logGuardrailEvent({
+      user_id: userId,
+      stage: stage as 'ingestion' | 'chat' | 'ocr',
+      preset,
+      outcome,
+      input_hash: inputHash
+    }).catch(err => {
+      console.error('Guardrail logging failed (non-blocking):', err)
+    })
+  }
+  
+  return outcome
 }
 
 // ============================================================================
 // AUDIT LOGGING
 // ============================================================================
 
+/**
+ * Log guardrail event to Supabase guardrail_events table
+ * Stores hashes only (never raw content) for compliance
+ */
 export async function logGuardrailEvent(event: {
   user_id: string
   stage: 'ingestion' | 'chat' | 'ocr'
   preset: GuardrailPreset
   outcome: GuardrailOutcome
-  input_hash: string  // SHA256 of input (not the actual input)
-}) {
+  input_hash: string  // SHA256 hash (first 24 chars) of input
+}): Promise<void> {
   try {
-    await supabaseAdmin.from('guardrail_events').insert({
+    if (!supabaseAdmin) {
+      console.warn('Supabase admin not available, skipping guardrail logging')
+      return
+    }
+    
+    const result = await supabaseAdmin.from('guardrail_events').insert({
       user_id: event.user_id,
       stage: event.stage,
       preset: event.preset,
@@ -504,6 +514,10 @@ export async function logGuardrailEvent(event: {
       input_hash: event.input_hash,
       created_at: new Date().toISOString()
     })
+    
+    if (result.error) {
+      console.error('Supabase guardrail logging error:', result.error)
+    }
   } catch (error) {
     console.error('Failed to log guardrail event:', error)
     // Don't throw - logging failure shouldn't block the request

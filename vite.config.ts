@@ -18,6 +18,8 @@ export default defineConfig({
       'openai': path.resolve(__dirname, './src/mocks/openai-mock.js'),
       'openai/_shims/auto/runtime': path.resolve(__dirname, './src/mocks/openai-mock.js'),
     },
+    // TASK 2: Dedupe React to prevent multiple instances
+    dedupe: ['react', 'react-dom'],
   },
   optimizeDeps: {
     exclude: ['pdfjs-dist/build/pdf.worker.entry', 'openai', 'openai/_shims/auto/runtime'],
@@ -82,9 +84,9 @@ export default defineConfig({
     format: 'es'
   },
   server: {
-    port: 5173,
+    port: 8888,
     open: false, // Disable auto-open to prevent hanging
-    host: '0.0.0.0', // Listen on all interfaces
+    host: true, // Listen on all interfaces (equivalent to '0.0.0.0')
     hmr: {
       overlay: false, // Disable error overlay
     },

@@ -8,12 +8,13 @@ import {
 const NAV_ITEMS = [
   // MAIN
   { label: "Main Dashboard", to: "/dashboard", icon: <Home className="w-5 h-5" />, group: "MAIN", description: "Overview of your financial dashboard" },
-  { label: "👑 Prime Chat", to: "/chat/prime", icon: <Crown className="w-5 h-5" />, group: "MAIN", description: "Chat directly with Prime, your AI CEO" },
+  { label: "👑 Prime Chat", to: "/dashboard/prime-chat", icon: <Crown className="w-5 h-5" />, group: "MAIN", description: "Chat directly with Prime, your AI CEO" },
 
   // AI WORKSPACE
   { label: "Smart Import AI", to: "/dashboard/smart-import-ai", icon: <Upload className="w-5 h-5" />, group: "AI WORKSPACE", description: "Upload and process receipts with AI" },
-  { label: "AI Chat Assistant", to: "/dashboard/ai-assistant", icon: <Bot className="w-5 h-5" />, group: "AI WORKSPACE", description: "Chat with your AI financial assistant" },
+  { label: "AI Chat Assistant", to: "/dashboard/ai-chat-assistant", icon: <Bot className="w-5 h-5" />, group: "AI WORKSPACE", description: "Chat with your AI financial assistant" },
   { label: "Smart Categories", to: "/dashboard/smart-categories", icon: <Tags className="w-5 h-5" />, group: "AI WORKSPACE", description: "AI-powered expense categorization" },
+  { label: "Analytics AI", to: "/dashboard/analytics-ai", icon: <LineChart className="w-5 h-5" />, group: "AI WORKSPACE", description: "Advanced analytics and insights with Dash" },
 
   // PLANNING & ANALYSIS
   { label: "Transactions", to: "/dashboard/transactions", icon: <Receipt className="w-5 h-5" />, group: "PLANNING & ANALYSIS", description: "Track all your transactions" },
@@ -39,6 +40,7 @@ const NAV_ITEMS = [
   // TOOLS & SETTINGS
   { label: "Analytics", to: "/dashboard/analytics", icon: <LineChart className="w-5 h-5" />, group: "TOOLS & SETTINGS", description: "All your numbers & insights" },
   { label: "Settings", to: "/dashboard/settings", icon: <Settings className="w-5 h-5" />, group: "TOOLS & SETTINGS", description: "Account, security, integrations" },
+  { label: "Custodian", to: "/dashboard/custodian", icon: <Shield className="w-5 h-5" />, group: "TOOLS & SETTINGS", description: "Security & settings specialist" },
   { label: "Reports", to: "/dashboard/reports", icon: <FileText className="w-5 h-5" />, group: "TOOLS & SETTINGS", description: "Comprehensive financial reports" },
 ];
 

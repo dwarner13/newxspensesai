@@ -1,0 +1,48 @@
+name: Build Check
+
+on:
+  push:
+    branches: [ main, master, develop, 'feature/**' ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+      
+      - name: Enable Corepack
+        run: corepack enable
+      
+      - name: Install pnpm
+        run: corepack prepare pnpm@latest --activate
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build project
+        run: pnpm build:ci
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

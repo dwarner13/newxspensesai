@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home, Upload, Mic, Bot, Settings, Bell, MessageCircle } from 'lucide-react';
 import { EMPLOYEES } from '../../data/aiEmployees';
-import MobileChatbotModal from './MobileChatbotModal';
-import { ByteDocumentChat } from '../chat/_legacy/ByteDocumentChat';
+// Legacy ByteDocumentChat removed - now using unified chat
+// import { ByteDocumentChat } from '../chat/_legacy/ByteDocumentChat';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 
 interface MobileBottomNavProps {
   activeEmployee?: string;
@@ -51,12 +52,28 @@ export default function MobileBottomNav({
   onViewChange 
 }: MobileBottomNavProps) {
   const location = useLocation();
-  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
-  const [isByteChatOpen, setIsByteChatOpen] = useState(false);
+  // Legacy Byte chat state removed - now using unified chat
+  // const [isByteChatOpen, setIsByteChatOpen] = useState(false);
+  const { openChat, isOpen: isChatOpen } = useUnifiedChatLauncher();
   
   // Get current AI employee based on route
   const currentEmployeeKey = getAIEmployeeForRoute(location.pathname);
   const currentEmployee = EMPLOYEES.find(emp => emp.key === currentEmployeeKey);
+  
+  // Map employee key to slug
+  const employeeKeyToSlug: Record<string, string> = {
+    'prime': 'prime-boss',
+    'byte': 'byte-docs',
+    'tag': 'tag-ai',
+    'crystal': 'crystal-ai',
+    'blitz': 'blitz-debt',
+    'liberty': 'liberty-freedom',
+    'goalie': 'goalie-ai',
+    'finley': 'finley-financial',
+    'ledger': 'ledger-tax',
+    'chime': 'chime-reminders',
+  };
+  const currentEmployeeSlug = employeeKeyToSlug[currentEmployeeKey] || 'prime-boss';
 
   const navItems = [
     { icon: Home, label: "Dashboard", to: "/dashboard" },
@@ -65,7 +82,7 @@ export default function MobileBottomNav({
     { 
       icon: MessageCircle, 
       label: currentEmployee ? currentEmployee.name : "AI Chat", 
-      to: "/dashboard/ai-financial-assistant",
+      to: "/dashboard/prime-chat",
       employee: currentEmployee,
       isChatbot: true
     },
@@ -73,7 +90,7 @@ export default function MobileBottomNav({
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-[#0f172a] border-t border-white/10">
+    <div data-mobile-bottom-nav className="fixed bottom-0 left-0 right-0 z-50 bg-[#0b1220] border-t border-white/10" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="flex items-center justify-between px-2 py-2">
         {navItems.map((item) => {
           const isActive = location.pathname === item.to;
@@ -81,10 +98,17 @@ export default function MobileBottomNav({
           const handleClick = (e: React.MouseEvent) => {
             if (item.isChatbot) {
               e.preventDefault();
-              setIsChatbotOpen(true);
+              openChat({ 
+                initialEmployeeSlug: currentEmployeeSlug,
+                context: { page: location.pathname }
+              });
             } else if (item.isByteChat) {
               e.preventDefault();
-              setIsByteChatOpen(true);
+              // Legacy Byte chat removed - now using unified chat
+              openChat({ 
+                initialEmployeeSlug: 'byte-docs',
+                context: { page: location.pathname }
+              });
             }
           };
           
@@ -94,7 +118,7 @@ export default function MobileBottomNav({
               to={item.to}
               onClick={handleClick}
               className={`flex flex-col items-center gap-1 px-1 py-1 rounded-lg transition-all duration-200 relative min-w-0 flex-1 ${
-                isActive 
+                (isActive || (item.isChatbot && isChatOpen))
                   ? 'bg-purple-500/20 text-purple-400' 
                   : 'text-white/60 hover:text-white/80 hover:bg-white/5'
               }`}
@@ -136,18 +160,7 @@ export default function MobileBottomNav({
         })}
       </div>
       
-      {/* Chatbot Modal */}
-      <MobileChatbotModal 
-        isOpen={isChatbotOpen}
-        onClose={() => setIsChatbotOpen(false)}
-        employeeKey={currentEmployeeKey}
-      />
-
-      {/* Byte Document Chat Modal */}
-      <ByteDocumentChat
-        isOpen={isByteChatOpen}
-        onClose={() => setIsByteChatOpen(false)}
-      />
+      {/* Legacy Byte Document Chat Modal removed - now using unified chat from DashboardLayout */}
     </div>
   );
 }

@@ -168,14 +168,24 @@ export async function deleteUserData(userId: string): Promise<Result<void>> {
     }
     
     // Delete from storage
-    const { data: files } = await client
-      .storage
-      .from('uploads')
-      .list(`${userId}/`);
-    
-    if (files && files.length > 0) {
-      const filePaths = files.map(f => `${userId}/${f.name}`);
-      await client.storage.from('uploads').remove(filePaths);
+    // NOTE: Storage bucket is 'docs' (not 'uploads')
+    // Files are stored in user_documents table with storage_path
+    try {
+      // Try to delete from 'docs' bucket (actual storage bucket)
+      const { data: files } = await client
+        .storage
+        .from('docs')
+        .list(`${userId}/`);
+      
+      if (files && files.length > 0) {
+        const filePaths = files.map(f => `${userId}/${f.name}`);
+        await client.storage.from('docs').remove(filePaths);
+      }
+    } catch (storageError) {
+      // Silently ignore storage errors - files may not exist or bucket may not exist
+      if (import.meta.env.DEV) {
+        console.warn('[deleteUserData] Storage deletion error (non-critical):', storageError);
+      }
     }
     
     // Finally delete profile

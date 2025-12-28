@@ -1,11 +1,13 @@
 // Chat endpoint configuration and utilities
+// CANONICAL ENDPOINT: /.netlify/functions/chat
+
+const devDefault = '/.netlify/functions/chat';
+const prodDefault = '/.netlify/functions/chat'; // Single canonical endpoint
 
 export const CHAT_ENDPOINT =
-  import.meta.env.VITE_CHAT_ENDPOINT || "/.netlify/functions/chat";
+  import.meta.env.VITE_CHAT_ENDPOINT ?? (import.meta.env.PROD ? prodDefault : devDefault);
 
-if (typeof window !== 'undefined') {
-  console.log('🔗 Chat Endpoint:', CHAT_ENDPOINT);
-}
+console.info(`🔗 Chat Endpoint: ${CHAT_ENDPOINT}`);
 
 // Verify chat backend version from response headers
 export function verifyChatBackend(resp: Response) {
@@ -21,8 +23,8 @@ export async function chatRequest(body: {
   userId: string;
   message: string;
   sessionId?: string;
-  mode?: 'strict' | 'balanced' | 'creative';
-  versionFlag?: string;
+  employeeSlug?: string;
+  stream?: boolean;
 }) {
   const response = await fetch(CHAT_ENDPOINT, {
     method: 'POST',

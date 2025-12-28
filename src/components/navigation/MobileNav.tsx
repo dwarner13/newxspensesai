@@ -5,6 +5,8 @@ import { X, Crown } from "lucide-react";
 import { Sheet, SheetContent, SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import NAV_ITEMS from "@/navigation/nav-registry"; // your single source of truth
+import { usePrimeState } from "@/contexts/PrimeContext";
+import { getFeatureKeyForRoute } from "@/navigation/feature-keys";
 
 type MobileNavProps = {
   open?: boolean;
@@ -17,6 +19,8 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
   const [internalOpen, setInternalOpen] = React.useState(false);
   const location = useLocation();
   const isOpen = open ?? internalOpen;
+  const primeState = usePrimeState();
+  const warnedKeysRef = React.useRef<Set<string>>(new Set());
 
   const setOpen = (v: boolean | ((prev: boolean) => boolean)) => {
     if (typeof v === 'function') {
@@ -43,8 +47,45 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
-  // Group items by section label
-  const grouped = NAV_ITEMS.reduce<Record<string, typeof NAV_ITEMS>>((acc: Record<string, typeof NAV_ITEMS>, item: any) => {
+  // Filter items by Prime visibility map (fail-open: show all if Prime state unavailable)
+  const visibleItems = NAV_ITEMS.filter((item: any) => {
+    const featureKey = getFeatureKeyForRoute(item.to);
+    
+    // If no feature key mapping, show item (fail-open)
+    if (!featureKey) {
+      if (import.meta.env.DEV && !warnedKeysRef.current.has(item.to)) {
+        console.warn(
+          `[MobileNav] Nav item "${item.label}" (${item.to}) has no FeatureKey mapping. ` +
+          `Add it to ROUTE_TO_FEATURE_KEY in navigation/feature-keys.ts`
+        );
+        warnedKeysRef.current.add(item.to);
+      }
+      return true; // Fail-open: show item if no mapping
+    }
+    
+    // If Prime state unavailable, show item (fail-open)
+    if (!primeState) {
+      return true;
+    }
+    
+    // Check visibility from Prime state
+    const visibility = primeState.featureVisibilityMap[featureKey];
+    const visible = visibility?.visible ?? true; // Fail-open: default visible
+    
+    // Dev warning if Prime map missing key
+    if (import.meta.env.DEV && visibility === undefined && !warnedKeysRef.current.has(featureKey)) {
+      console.warn(
+        `[MobileNav] FeatureKey "${featureKey}" not found in Prime featureVisibilityMap. ` +
+        `Add it to buildFeatureVisibilityMap() in netlify/functions/prime-state.ts`
+      );
+      warnedKeysRef.current.add(featureKey);
+    }
+    
+    return visible;
+  });
+
+  // Group filtered items by section label
+  const grouped = visibleItems.reduce<Record<string, typeof NAV_ITEMS>>((acc: Record<string, typeof NAV_ITEMS>, item: any) => {
     const g = item.group ?? "OTHER";
     (acc[g] = acc[g] || []).push(item);
     return acc;
@@ -87,14 +128,28 @@ export default function MobileNav({ open, onOpenChange }: MobileNavProps) {
                 {(items as any[]).map((item: any) => {
                   const active = location.pathname === item.to ||
                                  location.pathname.startsWith(item.to);
+                  const featureKey = getFeatureKeyForRoute(item.to);
+                  const visibility = featureKey && primeState?.featureVisibilityMap[featureKey];
+                  const enabled = visibility?.enabled ?? true;
+                  
                   return (
                     <Link
                       key={item.to}
                       to={item.to}
-                      onClick={() => setOpen(false)}
+                      onClick={(e) => {
+                        // Prevent navigation if disabled
+                        if (!enabled) {
+                          e.preventDefault();
+                          if (import.meta.env.DEV) {
+                            console.warn(`[MobileNav] Feature "${featureKey}" is disabled. Reason: ${visibility?.reason || 'Unknown'}`);
+                          }
+                          return;
+                        }
+                        setOpen(false);
+                      }}
                       className={cn(
                         "flex items-center gap-3 rounded-xl px-4 py-3",
-                        "bg-transparent hover:bg-white/10 transition-colors duration-150",
+                        enabled ? "bg-transparent hover:bg-white/10 transition-colors duration-150 cursor-pointer" : "cursor-not-allowed opacity-50",
                         active && "bg-white/10 ring-1 ring-white/10"
                       )}
                     >

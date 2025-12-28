@@ -4,7 +4,8 @@
 
 export const WORKER_CONFIG = {
   // Worker backend URL - can be overridden by environment variables
-  BASE_URL: process.env.REACT_APP_WORKER_URL || 'http://localhost:8080',
+  // Vite requires VITE_ prefix for env vars exposed to client
+  BASE_URL: import.meta.env.VITE_WORKER_URL || 'http://localhost:8080',
   
   // Polling interval for job status (in milliseconds)
   POLLING_INTERVAL: 2000,

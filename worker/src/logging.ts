@@ -1,5 +1,59 @@
 import pino from 'pino';
 import { config } from './config.js';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { dirname, resolve, join } from 'path';
+import { existsSync } from 'fs';
+
+// Get current file directory for ESM-compatible path resolution
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Resolve path to shared PII module relative to project root
+// worker/src/logging.ts -> worker/src/ -> worker/ -> project-root/ -> netlify/functions/_shared/pii.ts
+const projectRoot = resolve(__dirname, '../..');
+const piiModulePath = join(projectRoot, 'netlify', 'functions', '_shared', 'pii.js');
+const piiModulePathTs = join(projectRoot, 'netlify', 'functions', '_shared', 'pii.ts');
+
+// Lazy-loaded PII masker with fallback
+let maskPIIModule: { maskPII: (text: string, strategy?: 'last4' | 'full' | 'domain') => { masked: string; found: any[] } } | null = null;
+let piiModuleLoaded = false;
+let piiLoadPromise: Promise<void> | null = null;
+
+/**
+ * Lazy-load PII masking module with fallback
+ */
+async function loadPIIModule(): Promise<void> {
+  if (piiLoadPromise) return piiLoadPromise;
+
+  piiLoadPromise = (async () => {
+    try {
+      let modulePath: string | null = null;
+
+      // Check if .js file exists first (compiled output)
+      if (existsSync(piiModulePath)) {
+        modulePath = piiModulePath;
+      } 
+      // Try .ts extension as fallback (source file)
+      else if (existsSync(piiModulePathTs)) {
+        modulePath = piiModulePathTs;
+      } else {
+        throw new Error(`PII module not found at ${piiModulePath} or ${piiModulePathTs}`);
+      }
+
+      // Convert to file:// URL for ESM dynamic import
+      const moduleUrl = pathToFileURL(modulePath).href;
+      maskPIIModule = await import(moduleUrl);
+      piiModuleLoaded = true;
+    } catch (error) {
+      // Fallback to no-op implementation
+      console.warn(`⚠️  Could not load PII masking module from ${piiModulePath}: ${error instanceof Error ? error.message : String(error)}`);
+      console.warn('⚠️  PII masking will be disabled in logs. Logs may contain sensitive data.');
+      piiModuleLoaded = false;
+    }
+  })();
+
+  return piiLoadPromise;
+}
 
 // Create logger instance
 export const logger = pino({
@@ -14,24 +68,28 @@ export const logger = pino({
   },
 });
 
-// PII redaction patterns
-const PII_PATTERNS = [
-  /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, // Credit card numbers
-  /\b\d{3}-\d{2}-\d{4}\b/g, // SSN
-  /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, // Email
-  /\b(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}\b/g, // Phone
-  /\b\d{9,19}\b/g, // Account numbers
-];
-
-// Redact PII from strings
+/**
+ * Redact PII from strings using canonical maskPII() from pii.ts
+ * Uses canonical PII masking from netlify/functions/_shared/pii.ts (30+ detector types)
+ * For logging, we use full masking for security
+ * Falls back to no-op if PII module cannot be loaded
+ */
 export function redactPII(text: string): string {
-  let redacted = text;
-  
-  PII_PATTERNS.forEach(pattern => {
-    redacted = redacted.replace(pattern, '[REDACTED]');
-  });
-  
-  return redacted;
+  // Trigger lazy load if not already attempted
+  if (!piiLoadPromise) {
+    loadPIIModule().catch(err => {
+      console.error('Failed to load PII module:', err);
+    });
+  }
+
+  // Use PII masker if loaded, otherwise return text as-is (fallback)
+  if (piiModuleLoaded && maskPIIModule) {
+    const result = maskPIIModule.maskPII(text, 'full');
+    return result.masked;
+  }
+
+  // Fallback: return text unchanged (no masking)
+  return text;
 }
 
 // Redact PII from objects recursively

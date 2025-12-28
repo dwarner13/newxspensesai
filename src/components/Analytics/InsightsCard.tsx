@@ -13,7 +13,7 @@ type Insights = {
 
 const EMPLOYEE_ICONS: Record<string, string> = {
   'prime-boss': '👑',
-  'crystal-analytics': '🔮',
+  'crystal-ai': '🔮',
   'ledger-tax': '📊',
   'byte-docs': '📄',
   'tag-categorize': '🏷️',

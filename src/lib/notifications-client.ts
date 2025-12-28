@@ -38,7 +38,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export type NotificationPriority = "success" | "info" | "warning" | "critical";
 export type EmployeeKey =
   | "prime-boss"
-  | "crystal-analytics"
+  | "crystal-ai"
   | "byte-docs"
   | "tag-categorizer"
   | "ledger-tax"
@@ -448,6 +448,7 @@ export function useActionableNotifications(
   const { notifications } = useNotifications(options);
   return notifications.filter((n) => n.priority === "critical" || n.priority === "warning");
 }
+
 
 
 

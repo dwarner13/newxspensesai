@@ -1,10 +1,13 @@
 // AI Backend Service - Connect React to Worker Backend
 import { workerService } from './WorkerService';
 
+// Demo user UUID for consistent use across the application
+const DEMO_USER_ID = '00000000-0000-4000-8000-000000000001';
+
 export class AIService {
     
     // Upload bank statement to Worker Backend
-    static async uploadDocument(file, userId = 'default-user', docType = 'bank_statement', redact = true) {
+    static async uploadDocument(file, userId = DEMO_USER_ID, docType = 'bank_statement', redact = true) {
         try {
             console.log('Uploading document to worker backend:', file.name);
             
@@ -26,12 +29,12 @@ export class AIService {
     // Get categorized transactions from worker result
     static async getTransactions(documentId) {
         try {
-            // For now, return mock data since we need to integrate with Supabase
-            // In a real implementation, you'd fetch from your database
-            console.log('Getting transactions for document:', documentId);
+            const DEMO_MODE = import.meta.env.VITE_SMART_IMPORT_DEMO === 'true';
             
-            // Mock transaction data - replace with actual database call
-            return [
+            console.log('Getting transactions for document:', documentId, 'DEMO_MODE:', DEMO_MODE);
+            
+            // Mock transaction data - only used in demo mode
+            const mockTransactions = [
                 {
                     id: '1',
                     date: '2024-01-15',
@@ -51,6 +54,17 @@ export class AIService {
                     direction: 'debit'
                 }
             ];
+            
+            // In demo mode, return mock transactions if no real data is available
+            // In non-demo mode, return empty array (real transactions should come from worker result)
+            if (DEMO_MODE) {
+                console.log('[AIService] Demo mode enabled, returning mock transactions');
+                return mockTransactions;
+            }
+            
+            // Non-demo mode: return empty array (real transactions should be passed from worker result)
+            console.log('[AIService] Demo mode disabled, returning empty array. Real transactions should come from worker result.');
+            return [];
         } catch (error) {
             console.error('Get transactions error:', error);
             throw error;
@@ -143,7 +157,7 @@ export class AIService {
     }
     
     // Process Receipt Image (now uses worker service)
-    static async processReceipt(imageFile, userId = 'default-user') {
+    static async processReceipt(imageFile, userId = DEMO_USER_ID) {
         try {
             console.log('Processing receipt with worker service:', imageFile.name);
             

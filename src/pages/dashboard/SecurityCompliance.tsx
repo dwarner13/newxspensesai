@@ -144,7 +144,7 @@ export default function SecurityCompliance() {
   const [messages, setMessages] = useState<CustodianMessage[]>([
     {
       role: 'custodian',
-      content: "Hello! I'm 🛡️ Custodian, your Security & Compliance AI! I help you ensure financial security, maintain compliance with regulations, protect sensitive data, and implement best practices for financial safety. I can help you secure your accounts, protect your data, prevent fraud, maintain compliance, and build a robust security framework. What security or compliance concern would you like to address today?",
+      content: "I'm Custodian, your security and integrity authority. I ensure your account security, maintain data integrity, and manage your preferences and configurations so Prime and the team can deliver trustworthy insights. How can I help secure your account today?",
       timestamp: new Date().toISOString()
     }
   ]);
@@ -760,18 +760,70 @@ What's really on your mind when it comes to security? Are we talking about fraud
   return (
     <div className="max-w-7xl mx-auto p-6 mt-6 md:mt-8">
         {/* Custodian Header */}
-        <div
-          className="text-center mb-8"
-        >
-          <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-md rounded-2xl px-6 py-4 border border-white/20">
-            <div className="text-3xl">🛡️</div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Custodian</h1>
-              <p className="text-white/70 text-sm">Security & Compliance AI</p>
+        <div className="mb-8">
+          <div className="bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95 backdrop-blur-xl border border-emerald-500/20 rounded-2xl p-8 shadow-2xl">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0">
+                <Shield className="w-8 h-8 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-3xl font-semibold text-white">Custodian</h1>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                    <span className="text-emerald-400 text-sm font-medium">Active</span>
+                  </div>
+                </div>
+                <p className="text-lg text-slate-300 leading-relaxed mb-4">
+                  Security & Integrity Authority
+                </p>
+                <p className="text-base text-slate-400 leading-relaxed max-w-3xl">
+                  Custodian ensures account security, maintains data integrity, and manages your preferences and configurations. By securing your account and maintaining accurate defaults, Custodian enables Prime and the team to deliver trustworthy insights and reports you can rely on.
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2 ml-4">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400 text-sm">AI Active</span>
+
+            {/* Why Custodian Matters Section */}
+            <div className="mt-6 pt-6 border-t border-slate-700/50">
+              <h2 className="text-lg font-semibold text-white mb-4">Why Custodian matters</h2>
+              <p className="text-sm text-slate-300 leading-relaxed max-w-3xl mb-4">
+                Security and accuracy are foundational. When your account is properly secured and your preferences are correctly configured, Prime can orchestrate the team with confidence. Dash can generate accurate analytics. Byte can process documents with precision. Every insight depends on the integrity Custodian maintains.
+              </p>
+            </div>
+
+            {/* Trust Signals */}
+            <div className="mt-6 pt-6 border-t border-slate-700/50">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-start gap-3 p-4 bg-slate-800/40 border border-slate-700/30 rounded-lg">
+                  <Shield className="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-1">Bank-level security</h3>
+                    <p className="text-xs text-slate-400">Enterprise-grade encryption and access controls</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-4 bg-slate-800/40 border border-slate-700/30 rounded-lg">
+                  <Eye className="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-1">Privacy-first</h3>
+                    <p className="text-xs text-slate-400">Your data remains yours, always</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-4 bg-slate-800/40 border border-slate-700/30 rounded-lg">
+                  <Settings className="w-5 h-5 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-white mb-1">User control</h3>
+                    <p className="text-xs text-slate-400">You decide what's shared and how</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Background Role Indicator */}
+            <div className="mt-6 pt-6 border-t border-slate-700/50">
+              <div className="flex items-center gap-2 text-sm text-slate-400">
+                <Clock className="w-4 h-4" />
+                <span>Works quietly in the background to maintain security and integrity</span>
+              </div>
             </div>
           </div>
         </div>
@@ -785,10 +837,12 @@ What's really on your mind when it comes to security? Are we talking about fraud
               {/* Chat Header */}
               <div className="bg-white/10 px-6 py-4 border-b border-white/10">
                 <div className="flex items-center gap-3">
-                  <div className="text-xl">🛡️</div>
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 flex items-center justify-center">
+                    <Shield className="w-5 h-5 text-emerald-400" />
+                  </div>
                   <div>
                     <h2 className="font-semibold text-white">Chat with Custodian</h2>
-                    <p className="text-white/60 text-sm">Security & Compliance Specialist</p>
+                    <p className="text-white/60 text-sm">Security & Integrity Authority</p>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,7 @@
 import { OpenAI } from 'openai';
 import { createHash } from 'crypto';
 import { getSupabaseServerClient } from '../db';
+import { containsPII } from '../../../netlify/functions/_shared/pii';
 
 export interface ProcessingOptions {
   chunkSize?: number;
@@ -280,9 +281,8 @@ export class DocumentProcessor {
     const client = getSupabaseServerClient();
     const verifications = [];
     
-    // PII scan
-    const piiPattern = /\b\d{3}-\d{2}-\d{4}\b|\b\d{9}\b/g;
-    const hasPII = piiPattern.test(content);
+    // PII scan (using canonical containsPII() from pii.ts for comprehensive detection)
+    const hasPII = containsPII(content);
     
     verifications.push({
       source_id: documentId,

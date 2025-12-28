@@ -3,10 +3,17 @@
  * 
  * Uses rule-based matching with AI fallback
  * Called by normalize-transactions.ts
+ * 
+ * Strategy:
+ * 1. Check learned patterns from user corrections (tag_category_feedback)
+ * 2. Check rule-based matching (fast, deterministic)
+ * 3. AI fallback for unknown vendors
  */
 
 import { OpenAI } from 'openai';
 import { admin } from './upload';
+import { getLearnedCategoryForTransaction } from './tag-learning';
+import { serverSupabase } from './supabase';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -28,20 +35,61 @@ export type CategorizationResult = {
   category: string | null;
   subcategory?: string | null;
   confidence: number;  // 0-1
-  source: 'rule' | 'ai' | 'memory' | 'none';
+  source: 'learned' | 'rule' | 'ai' | 'memory' | 'none';
+};
+
+/**
+ * Simple result type for categorizeTransactionWithLearning wrapper
+ */
+export type LearningCategorizationResult = {
+  category: string;
+  confidence: number;
+  source: 'learned' | 'ai';
 };
 
 /**
  * Categorize a transaction (server-side, simple and fast)
+ * 
+ * @param description - Transaction description
+ * @param merchant - Merchant name
+ * @param amount - Transaction amount
+ * @param userId - Optional user ID for learned patterns
  */
 export async function categorizeTransaction(
   description: string,
   merchant: string | null,
-  amount: number
+  amount: number,
+  userId?: string
 ): Promise<CategorizationResult> {
   const text = `${description} ${merchant || ''}`.toLowerCase();
   
-  // Step 1: Rule-based matching (fast, deterministic)
+  // Step 1: Check learned patterns from user corrections (if userId provided)
+  if (userId) {
+    try {
+      const supabase = serverSupabase();
+      const learned = await getLearnedCategoryForTransaction(
+        supabase,
+        userId,
+        merchant,
+        description
+      );
+
+      // If we found a learned category with at least 2 corrections, use it
+      if (learned && learned.count >= 2) {
+        // Use the learned category! User corrected this merchant before.
+        return {
+          category: learned.category,
+          confidence: 0.95, // High confidence for learned patterns
+          source: 'learned'
+        };
+      }
+    } catch (error) {
+      // Fail silently - log and continue to other methods
+      console.error('[Categorize] Learned pattern check failed:', error);
+    }
+  }
+  
+  // Step 2: Rule-based matching (fast, deterministic)
   for (const [category, pattern] of Object.entries(CATEGORY_RULES)) {
     if (pattern.test(text)) {
       return {
@@ -52,10 +100,10 @@ export async function categorizeTransaction(
     }
   }
   
-  // Step 2: Check user's vendor memory (optional, skip for now)
+  // Step 3: Check user's vendor memory (optional, skip for now)
   // TODO: Query categorization_rules table for user-specific patterns
   
-  // Step 3: AI fallback for unknown vendors (only if needed)
+  // Step 4: AI fallback for unknown vendors (only if needed)
   if (Math.abs(amount) > 10) {  // Only use AI for amounts > $10
     try {
       const response = await openai.chat.completions.create({
@@ -90,6 +138,63 @@ export async function categorizeTransaction(
     category: null,
     confidence: 0,
     source: 'none'
+  };
+}
+
+/**
+ * Categorize transaction with learning - Simple wrapper
+ * 
+ * This is the main function to use when you want Tag to categorize a transaction.
+ * It first checks if Tag has learned from the user's past corrections, then
+ * falls back to AI if needed.
+ * 
+ * @param input - Transaction details
+ * @returns Category with confidence and source ('learned' or 'ai')
+ */
+export async function categorizeTransactionWithLearning(input: {
+  userId: string;
+  description?: string;
+  merchant?: string | null;
+  amount?: number;
+}): Promise<LearningCategorizationResult> {
+  // Step 1: Check if Tag has learned from user corrections
+  try {
+    const supabase = serverSupabase();
+    const learned = await getLearnedCategoryForTransaction(
+      supabase,
+      input.userId,
+      input.merchant,
+      input.description
+    );
+
+    // Step 2: If we found a learned category AND user corrected it at least 2 times
+    if (learned && learned.count >= 2) {
+      // Use the learned category! Tag remembers what the user wants.
+      return {
+        category: learned.category,
+        confidence: 0.99, // Very high confidence - user told us this before
+        source: 'learned'
+      };
+    }
+  } catch (error) {
+    // If anything goes wrong checking learned patterns, just continue to AI
+    console.error('[Tag] Error checking learned patterns:', error);
+  }
+
+  // Step 3: No learned pattern found, use AI to guess the category
+  // Call the existing categorizeTransaction function (which handles rules + AI)
+  const aiResult = await categorizeTransaction(
+    input.description || '',
+    input.merchant || null,
+    input.amount || 0,
+    input.userId
+  );
+
+  // Step 4: Return result with source 'ai'
+  return {
+    category: aiResult.category || 'Other',
+    confidence: aiResult.confidence || 0.8,
+    source: 'ai'
   };
 }
 

@@ -36,6 +36,21 @@ export interface Database {
         Insert: Omit<Receipt, 'id' | 'created_at'>;
         Update: Partial<Omit<Receipt, 'id' | 'created_at'>>;
       };
+      recurring_obligations: {
+        Row: RecurringObligation;
+        Insert: Omit<RecurringObligation, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<RecurringObligation, 'id' | 'user_id' | 'created_at'>>;
+      };
+      user_tasks: {
+        Row: UserTask;
+        Insert: Omit<UserTask, 'id' | 'created_at' | 'updated_at' | 'completed_at'>;
+        Update: Partial<Omit<UserTask, 'id' | 'user_id' | 'created_at'>>;
+      };
+      tool_executions: {
+        Row: ToolExecutionRecord;
+        Insert: Omit<ToolExecutionRecord, 'id' | 'created_at'>;
+        Update: Partial<Omit<ToolExecutionRecord, 'id' | 'user_id' | 'created_at'>>;
+      };
     };
     Views: {
       [key: string]: {
@@ -65,6 +80,7 @@ export interface Transaction {
   hash_id: string;
   categorization_source?: 'memory' | 'ai' | 'default' | 'manual';
   receipt_url?: string | null; // New field for linking to receipt images/PDFs
+  notes?: string | null; // User-added notes for the transaction
 }
 
 export interface CategorizationRule {
@@ -157,8 +173,38 @@ export interface TransactionFilter {
   sourceFile?: string;
 }
 
+// Re-export RecurringObligation from finance types
+export type { RecurringObligation } from '../types/finance/recurringObligations';
+
+export interface UserTask {
+  id: string;
+  user_id: string;
+  description: string;
+  due_date: string | null;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  priority: number; // 1-5, where 1 is highest priority
+  created_from_session: string | null; // UUID reference to chat_sessions
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ParsedFileData {
   transactions: Transaction[];
   fileName: string;
   fileType: 'csv' | 'pdf';
+}
+
+export interface ToolExecutionRecord {
+  id: string;
+  user_id: string;
+  employee_slug: string;
+  tool_id: string;
+  mode: 'explain-only' | 'propose-confirm' | 'auto-pilot';
+  autonomy_level: number; // 0-3 as defined in AI_TOOLS_AUTONOMY_AUDIT_v1
+  input_summary: string | null;
+  affected_count: number | null;
+  status: 'success' | 'error' | 'skipped' | 'cancelled';
+  error_message: string | null;
+  created_at: string;
 }

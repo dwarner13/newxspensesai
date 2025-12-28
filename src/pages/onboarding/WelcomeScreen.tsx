@@ -1,11 +1,19 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRouteTransition } from '../../contexts/RouteTransitionContext';
 import ProgressBar from '../../components/onboarding/ProgressBar';
 
 const WelcomeScreen = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { endTransition } = useRouteTransition();
+
+  // End route transition when page mounts
+  useEffect(() => {
+    endTransition();
+  }, [endTransition]);
   
   const handleContinue = () => {
     navigate('/onboarding/document-types');

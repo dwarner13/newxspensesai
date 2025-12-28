@@ -17,18 +17,69 @@
 import crypto from 'crypto';
 import { OpenAI } from 'openai';
 import { createClient } from '@supabase/supabase-js';
-import { PII_DETECTORS, getDetector, getCriticalDetectors, type MaskStrategy } from './pii-patterns';
+import { PII_DETECTORS, getDetector, getCriticalDetectors, type MaskStrategy } from './pii';
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL!;
+// Server-side only: use process.env (VITE_ vars not available in Netlify Functions)
+const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const MAX_INPUT_LENGTH = 100_000; // 100k chars max
 const HASH_SAMPLE_LENGTH = 256; // Hash first 256 chars only
+
+// ============================================================================
+// PII TYPE CLASSIFICATION
+// ============================================================================
+
+/**
+ * PII types that should be MASKED but NOT BLOCKED
+ * These are less sensitive identifiers that can be safely masked and processed
+ */
+const MASK_ONLY_PII_TYPES = [
+  'phone_intl',
+  'phone_na', 
+  'email',
+  'ip_address',
+  'postal_code',
+  'street_address',
+  'city',
+  'state',
+  'country',
+  'username',
+  'url',
+];
+
+/**
+ * PII types that should BLOCK the message
+ * These are highly sensitive financial/government identifiers that should never be processed
+ */
+const BLOCK_PII_TYPES = [
+  'bank_account_us',
+  'bank_account',
+  'ca_bank_account',
+  'uk_bank_account',
+  'pan_generic', // Credit card numbers
+  'credit_card',
+  'ssn_us',
+  'ssn_us_no_dash',
+  'sin_ca',
+  'itin_us',
+  'ein_us',
+  'uk_nino',
+  'uk_nhs',
+  'routing_us',
+  'iban',
+  'swift_bic',
+  'us_passport',
+  'ca_passport',
+  'us_drivers_license',
+  'ca_drivers_license',
+  'crypto_wallet',
+];
 
 // ============================================================================
 // TYPES (Keep Your API)
@@ -278,12 +329,43 @@ export async function runGuardrails(
       text = masked;  // Use redacted text for all subsequent steps
       reasons.push(`pii_masked:${foundTypes.join(',')}`);
       
+      // Check if any BLOCK_PII_TYPES are present
+      const hasBlockTypes = foundTypes.some(type => BLOCK_PII_TYPES.includes(type));
+      const hasOnlyMaskTypes = foundTypes.every(type => MASK_ONLY_PII_TYPES.includes(type));
+      
       // Log PII detection (with hash only)
-      await logGuardrailEvent(userId, stage, 'pii', 'masked', 1, input, { 
+      await logGuardrailEvent(userId, stage, 'pii', hasBlockTypes ? 'blocked' : 'masked', 1, input, { 
         types: foundTypes,
         strategy: maskStrategy,
-        count: foundTypes.length
+        count: foundTypes.length,
+        hasBlockTypes,
+        hasOnlyMaskTypes
       });
+      
+      // BLOCK if any BLOCK_PII_TYPES are detected
+      if (hasBlockTypes) {
+        // Determine user-friendly block message based on detected types
+        let blockMessage = "I noticed some very sensitive financial information in your last message, so I didn't process it to keep you safe. Please avoid sending bank or card numbers. How else can I help you with your finances?";
+        
+        if (foundTypes.some(t => t.includes('ssn') || t.includes('sin') || t.includes('passport'))) {
+          blockMessage = "I noticed government ID numbers in your message. For your security, I can't process that type of sensitive information. Please avoid sharing SSN, passport, or similar IDs. How else can I help?";
+        } else if (foundTypes.some(t => t.includes('bank') || t.includes('routing'))) {
+          blockMessage = "I noticed bank account information in your message. For your security, I can't process bank account or routing numbers. How else can I help you with your finances?";
+        } else if (foundTypes.some(t => t.includes('card') || t.includes('pan'))) {
+          blockMessage = "I noticed credit card information in your message. For your security, I can't process credit card numbers. How else can I help you with your finances?";
+        }
+        
+        return {
+          ok: false,
+          text: '', // Don't send raw PII to model
+          reasons: [`pii_blocked:${foundTypes.filter(t => BLOCK_PII_TYPES.includes(t)).join(',')}`],
+          block_message: blockMessage,
+          signals: { pii, piiTypes: foundTypes }
+        };
+      }
+      
+      // If only MASK_ONLY types, continue processing with masked text
+      // (no blocking, just masking)
     }
   }
 

@@ -1,7 +1,9 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 // import { toast } from 'react-hot-toast'; // Temporarily disabled for debugging
 import { getSupabase } from '../lib/supabase';
+import { isDemoMode, getGuestSession, createGuestUser, clearGuestSession } from '../lib/demoAuth';
+import { getOrCreateProfile, type Profile } from '../lib/profileHelpers';
 
 interface AuthContextType {
   user: any;
@@ -11,15 +13,51 @@ interface AuthContextType {
   signInWithApple: () => Promise<void>;
   signInWithOtp: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  clearDevice: () => Promise<void>;
   session: any;
   ready: boolean;
   isDemoUser: boolean;
+  firstName: string; // User's first name for personalization
+  profile: Profile | null; // Full profile data
+  isProfileLoading: boolean; // Separate from auth loading
+  refreshProfile: () => Promise<void>; // Refresh profile from DB
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Check if demo mode is allowed
+ * Demo mode is ONLY allowed in:
+ * 1. Local development (import.meta.env.DEV === true)
+ * 2. When explicitly forced (VITE_FORCE_DEMO === 'true')
+ * 
+ * In staging/production, demo mode is DISABLED - users must use real auth
+ */
+function isDemoAllowed(): boolean {
+  // Allow demo in dev mode
+  if (import.meta.env.DEV === true) {
+    return true;
+  }
+  // Allow demo if explicitly forced (for testing)
+  if (import.meta.env.VITE_FORCE_DEMO === 'true') {
+    return true;
+  }
+  // Disable demo in staging/production
+  return false;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const DEMO_USER_ID = import.meta.env.VITE_DEMO_USER_ID || "00000000-0000-4000-8000-000000000001";
+  const demoAllowed = isDemoAllowed();
+  
+  // Dev-only logging
+  if (import.meta.env.DEV) {
+    console.log('[AuthContext] Environment:', {
+      mode: import.meta.env.DEV ? 'dev' : 'production',
+      demoEnabled: demoAllowed,
+      forceDemo: import.meta.env.VITE_FORCE_DEMO === 'true',
+    });
+  }
   
   const [user, setUser] = useState<any>(null);
   const [userId, setUserId] = useState<string | null>(null);
@@ -28,143 +66,335 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<any>(null);
   const [ready, setReady] = useState(false);
   const [isDemoUser, setIsDemoUser] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  // Removed didRouteToOnboardingRef - RouteDecisionGate owns routing decisions
+  
+  // Compute firstName from profile or user metadata
+  // Priority: profile.display_name > profile.full_name > user metadata > email prefix > "there"
+  const firstName = useMemo(() => {
+    const raw =
+      profile?.display_name ||
+      profile?.full_name ||
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
+      user?.email?.split('@')[0];
+    
+    if (!raw) return 'there';
+    return raw.split(' ')[0];
+  }, [profile, user]);
+
+  // Non-blocking profile loader - fire-and-forget, never gates auth init
+  const loadProfile = useCallback(async (uid: string, userEmail?: string, checkCustodianReady = false) => {
+    setIsProfileLoading(true);
+    try {
+      const profile = await getOrCreateProfile(uid, userEmail || '');
+      setProfile(profile ?? null);
+      
+      // PART B: Profile loaded - navigation logic moved to useEffect to prevent loops
+    } catch (e) {
+      console.warn('[AuthContext] Profile load failed', e);
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [navigate]);
+
+  // Refresh profile function - reloads profile from database
+  const refreshProfile = useCallback(async () => {
+    if (!userId || !user?.email) {
+      return;
+    }
+
+    setIsProfileLoading(true);
+    try {
+      const refreshedProfile = await getOrCreateProfile(userId, user.email);
+      setProfile(refreshedProfile);
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error('[AuthContext] Error refreshing profile:', error);
+      }
+    } finally {
+      setIsProfileLoading(false);
+    }
+  }, [userId, user?.email]);
   
   console.log('AuthProvider render:', { user: !!user, userId, loading, initialLoad, ready, isDemoUser});
 
+  // CRITICAL: Custodian ready computation (NO navigation - RouteDecisionGate owns routing)
+  // AuthContext computes custodianReady and exposes it, but RouteDecisionGate makes routing decisions
+  // This ensures ONE source of truth for routing (RouteDecisionGate)
   useEffect(() => {
-    console.log('🔍 AuthContext: Checking Supabase session...');
-    
-    const checkSession = async () => {
-      try {
-        const supabase = getSupabase();
-        
-        if (!supabase) {
-          // No Supabase - use demo user
-          console.log('🔍 AuthContext: No Supabase configured - using demo user', DEMO_USER_ID);
-          setUserId(DEMO_USER_ID);
-          setUser(null);
-          setSession(null);
-          setIsDemoUser(true);
-          setLoading(false);
-          setInitialLoad(false);
-          setReady(true);
-          return;
-        }
-        
-        // Check for existing session
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        
-        if (currentSession?.user?.id) {
-          // Real user logged in
-          console.log('🔍 AuthContext: Logged in as', currentSession.user.email);
-          setUserId(currentSession.user.id);
-          setUser(currentSession.user);
-          setSession(currentSession);
-          setIsDemoUser(false);
-        } else {
-          // No session - use demo user
-          console.log('🔍 AuthContext: No session - using demo user', DEMO_USER_ID);
-          setUserId(DEMO_USER_ID);
-          setUser(null);
-          setSession(null);
-          setIsDemoUser(true);
-        }
-      } catch (error) {
-        console.error('❌ AuthContext: Error checking session:', error);
-        // On error, use demo user
-        setUserId(DEMO_USER_ID);
-        setUser(null);
-        setSession(null);
-        setIsDemoUser(true);
-      } finally {
+    // Only compute when auth and profile are fully loaded
+    if (!ready || !profile || isProfileLoading) {
+      return;
+    }
+
+    // Compute custodian ready status (for dev logging only - no navigation)
+    try {
+      const md = (profile.metadata && typeof profile.metadata === 'object') ? profile.metadata : {};
+      const custodianReady = (md as any).custodian_ready === true;
+      
+      // Dev log: show computed custodianReady value (NO navigation)
+      if (import.meta.env.DEV) {
+        console.log('[AuthContext] custodianReady computed:', {
+          custodianReady,
+          source: 'profile.metadata.custodian_ready',
+          metadata: md,
+          profileId: profile.id,
+          note: 'RouteDecisionGate owns routing decisions - AuthContext does NOT navigate',
+        });
+      }
+    } catch (error: any) {
+      console.warn('[AuthContext] Error computing custodian ready status (non-fatal):', error?.message || error);
+    }
+  }, [ready, profile, isProfileLoading]);
+
+  useEffect(() => {
+    let alive = true;
+    const safe = (fn: () => void) => alive && fn();
+
+    const finish = () =>
+      safe(() => {
         setLoading(false);
         setInitialLoad(false);
         setReady(true);
-      }
-    };
+      });
 
-    checkSession();
+    (async () => {
+      const timeout = setTimeout(() => {
+        console.warn('[AuthContext] Safety timeout triggered');
+        finish();
+      }, 8000);
 
-    // Set up auth state change listener
-    let subscription: any = null;
-    
-    try {
-      const supabase = getSupabase();
-      if (!supabase) {
-        console.log('🔍 AuthContext: Supabase not available for auth listener');
-        return;
-      }
-      const { data } = supabase.auth.onAuthStateChange(
-        async (event: string, authSession: any) => {
-          console.log('🔍 AuthContext: Auth state change:', event, authSession?.user?.email);
-          
-          switch (event) {
-            case 'SIGNED_IN':
-              console.log('🔍 AuthContext: User signed in');
-              if (authSession?.user?.id) {
-                setUserId(authSession.user.id);
-                setUser(authSession.user);
-                setSession(authSession);
-                setIsDemoUser(false);
-              }
-              setLoading(false);
-              setInitialLoad(false);
-              setReady(true);
-              break;
-              
-            case 'SIGNED_OUT':
-              console.log('🔍 AuthContext: User signed out - switching to demo user');
+      try {
+        // ========================================================================
+        // STEP 1: Check for guest session (demo mode only)
+        // ========================================================================
+        if (isDemoMode()) {
+          const guestSession = getGuestSession();
+          if (guestSession) {
+            const guestUser = createGuestUser();
+            console.log('🔍 AuthContext: Guest session found - using guest user', guestSession.demo_user_id);
+            safe(() => {
+              setUserId(guestSession.demo_user_id);
+              setUser(guestUser);
+              setSession(null); // No Supabase session for guest
+              setIsDemoUser(true);
+              setProfile(null);
+            });
+            clearTimeout(timeout);
+            finish();
+            return;
+          }
+        }
+
+        console.log('[AuthContext] Checking Supabase session...');
+        const supabase = getSupabase();
+        
+        if (!supabase) {
+          // No Supabase configured
+          if (demoAllowed) {
+            // Dev mode - use demo user
+            console.log('🔍 AuthContext: No Supabase configured - using demo user (dev mode)', DEMO_USER_ID);
+            safe(() => {
               setUserId(DEMO_USER_ID);
               setUser(null);
               setSession(null);
               setIsDemoUser(true);
-              setLoading(false);
-              setInitialLoad(false);
-              setReady(true);
-              break;
-              
-            case 'TOKEN_REFRESHED':
-              console.log('🔍 AuthContext: Token refreshed');
-              if (authSession?.user?.id) {
-                setUserId(authSession.user.id);
-                setUser(authSession.user);
-                setSession(authSession);
-              }
-              break;
-              
-            case 'USER_UPDATED':
-              console.log('🔍 AuthContext: User updated');
-              if (authSession?.user?.id) {
-                setUserId(authSession.user.id);
-                setUser(authSession.user);
-                setSession(authSession);
-              }
-              break;
-              
-            case 'INITIAL_SESSION':
-              console.log('🔍 AuthContext: Initial session event');
-              // Handle initial session - don't change state, just log
-              break;
-              
-            default:
-              console.log('🔍 AuthContext: Unhandled auth event:', event);
+              setProfile(null);
+            });
+          } else {
+            // Staging/prod - require real auth, no demo fallback
+            console.log('🔍 AuthContext: No Supabase configured - requiring real auth (no demo fallback)');
+            safe(() => {
+              setUserId(null);
+              setUser(null);
+              setSession(null);
+              setIsDemoUser(false);
+              setProfile(null);
+            });
+          }
+          clearTimeout(timeout);
+          finish();
+          return;
+        }
+
+        const { data, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.warn('[AuthContext] getSession error', error);
+        }
+
+        const currentSession = data?.session;
+        
+        if (currentSession?.user?.id) {
+          // Real user logged in
+          const userId = currentSession.user.id;
+          if (import.meta.env.DEV) {
+            console.log('[AuthContext] User ID source: real auth', {
+              userId,
+              email: currentSession.user.email,
+              mode: import.meta.env.DEV ? 'dev' : 'production',
+            });
+          }
+          console.log('🔍 AuthContext: Logged in as', currentSession.user.email);
+          safe(() => {
+            setUserId(userId);
+            setUser(currentSession.user);
+            setSession(currentSession);
+            setIsDemoUser(false);
+          });
+
+          // Fire-and-forget profile load
+          void loadProfile(userId, currentSession.user.email || undefined);
+        } else {
+          // No session found
+          if (demoAllowed) {
+            // Dev mode - use demo user
+            if (import.meta.env.DEV) {
+              console.log('[AuthContext] User ID source: demo user (dev mode)', {
+                userId: DEMO_USER_ID,
+                mode: 'dev',
+                demoEnabled: true,
+              });
+            }
+            console.log('🔍 AuthContext: No session - using demo user (dev mode)', DEMO_USER_ID);
+            safe(() => {
+              setUserId(DEMO_USER_ID);
+              setUser(null);
+              setSession(null);
+              setIsDemoUser(true);
+              setProfile(null);
+            });
+          } else {
+            // Staging/prod - no session means user must log in (no demo fallback)
+            if (import.meta.env.DEV) {
+              console.log('[AuthContext] User ID source: null (staging/prod, no demo)', {
+                userId: null,
+                mode: 'production',
+                demoEnabled: false,
+              });
+            }
+            console.log('🔍 AuthContext: No session - user must log in (no demo fallback)');
+            safe(() => {
+              setUserId(null);
+              setUser(null);
+              setSession(null);
+              setIsDemoUser(false);
+              setProfile(null);
+            });
           }
         }
-      );
-      subscription = data.subscription;
-    } catch (error) {
-      console.error('❌ AuthContext: Failed to set up auth listener:', error);
+
+      } catch (e) {
+        console.warn('[AuthContext] bootstrap threw', e);
+        // On error, only use demo user if allowed
+        if (demoAllowed) {
+          safe(() => {
+            setUserId(DEMO_USER_ID);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(true);
+            setProfile(null);
+          });
+        } else {
+          // Staging/prod - on error, require login (no demo fallback)
+          safe(() => {
+            setUserId(null);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(false);
+            setProfile(null);
+          });
+        }
+      } finally {
+        clearTimeout(timeout);
+        finish();
+      }
+    })();
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      if (demoAllowed) {
+        // Dev mode - use demo user
+        safe(() => {
+          setUser({ id: DEMO_USER_ID, email: "demo@xspensesai.local" });
+          setUserId(DEMO_USER_ID);
+          setIsDemoUser(true);
+        });
+      } else {
+        // Staging/prod - require real auth
+        safe(() => {
+          setUser(null);
+          setUserId(null);
+          setIsDemoUser(false);
+        });
+      }
+      finish();
+      return () => {
+        alive = false;
+      };
     }
 
-    // Cleanup function
-    return () => {
-      console.log('🔍 AuthContext: Cleaning up auth context...');
-      if (subscription) {
-        subscription.unsubscribe();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('[AuthContext] Auth state change:', _event);
+
+      safe(() => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setUserId(session?.user?.id ?? null);
+      });
+
+      // Fire-and-forget profile load
+      // NOTE: Custodian ready check is now handled inside loadProfile() to ensure profile is loaded first
+      if (session?.user?.id) {
+        void loadProfile(session.user.id, session.user.email || undefined);
       }
+
+      // Handle demo mode logic for SIGNED_OUT
+      if (_event === 'SIGNED_OUT') {
+        console.log('🔍 AuthContext: User signed out');
+        if (demoAllowed) {
+          // Dev mode - switch to demo user
+          safe(() => {
+            setUserId(DEMO_USER_ID);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(true);
+            setProfile(null);
+          });
+        } else {
+          // Staging/prod - clear user, require login (no demo fallback)
+          safe(() => {
+            setUserId(null);
+            setUser(null);
+            setSession(null);
+            setIsDemoUser(false);
+            setProfile(null);
+          });
+        }
+      } else if (_event === 'SIGNED_IN') {
+        console.log('🔍 AuthContext: User signed in');
+        safe(() => {
+          setIsDemoUser(false);
+        });
+        
+        // Load profile immediately on sign-in and check Custodian ready status
+        if (session?.user?.id) {
+          void loadProfile(session.user.id, session.user.email || undefined, true); // Pass checkCustodianReady=true
+        }
+      }
+
+      finish();
+    });
+
+    return () => {
+      alive = false;
+      sub?.subscription?.unsubscribe?.();
     };
-  }, [navigate]);
+  }, [navigate, demoAllowed, DEMO_USER_ID, loadProfile]);
 
   const signInWithGoogle = async () => {
     try {
@@ -259,24 +489,146 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔍 AuthContext: Signing out user...');
 
+      // Clear Supabase session if exists
       const supabase = getSupabase();
       if (supabase?.auth) {
         const { error } = await supabase.auth.signOut();
         if (error) throw error;
       }
 
-      // Switch to demo user after sign out
-      setUserId(DEMO_USER_ID);
+      // Clear ALL guest/demo localStorage keys
+      try {
+        // Guest session
+        localStorage.removeItem('xspensesai_guest_session');
+        // Guest profile
+        localStorage.removeItem('xai_profile_guest');
+        // Guest preferences
+        localStorage.removeItem('xai_prefs_guest');
+        // Any other demo-related keys
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes('guest') || key.includes('demo') || key.includes('xai_'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log('✅ Cleared all guest/demo localStorage keys');
+      } catch (storageError) {
+        console.warn('⚠️ AuthContext: Failed to clear some localStorage keys:', storageError);
+      }
+
+      // Clear user state
+      setUserId(null);
       setUser(null);
       setSession(null);
-      setIsDemoUser(true);
-      sessionStorage.removeItem('xspensesai-intended-path');
-      console.log('✅ Signed out successfully - switched to demo user');
+      setIsDemoUser(false);
+      setProfile(null);
+      console.log('✅ Signed out successfully');
       
-      // Stay on current page (demo mode) instead of navigating to login
-      // If you want to force login page: navigate('/login', { replace: true });
+      // Clear session storage
+      sessionStorage.removeItem('xspensesai-intended-path');
+      sessionStorage.removeItem('xai_welcome_back_shown');
+      // Clear any other welcome/onboarding session keys
+      const sessionKeysToRemove = [
+        'xai_welcome_back_shown',
+        'prime_welcome_back_seen', // Legacy key from PrimeWelcomeBackCard
+      ];
+      sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+      
+      // Navigate to login page
+      navigate('/login', { replace: true });
     } catch (error) {
       console.error('❌ AuthContext: Logout error:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Clear device data: Sign out and erase all local storage/session storage
+   * Does NOT delete Supabase account data - only clears local browser data
+   */
+  const clearDevice = async () => {
+    try {
+      console.log('🔍 AuthContext: Clearing device data...');
+
+      // 1. Sign out from Supabase
+      const supabase = getSupabase();
+      if (supabase?.auth) {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+      }
+
+      // 2. Clear ALL localStorage keys owned by the app
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (
+            key.includes('xspensesai') ||
+            key.includes('xai_') ||
+            key.includes('guest') ||
+            key.includes('demo') ||
+            key.startsWith('supabase.') ||
+            key.startsWith('sb-')
+          )) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+        console.log('✅ Cleared all app localStorage keys');
+      } catch (storageError) {
+        console.warn('⚠️ AuthContext: Failed to clear some localStorage keys:', storageError);
+      }
+
+      // 3. Clear ALL sessionStorage keys
+      try {
+        const sessionKeysToRemove: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (
+            key.includes('xspensesai') ||
+            key.includes('xai_') ||
+            key.includes('welcome') ||
+            key.includes('onboarding')
+          )) {
+            sessionKeysToRemove.push(key);
+          }
+        }
+        sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+        console.log('✅ Cleared all app sessionStorage keys');
+      } catch (storageError) {
+        console.warn('⚠️ AuthContext: Failed to clear some sessionStorage keys:', storageError);
+      }
+
+      // 4. Clear Cache Storage (if available)
+      try {
+        if ('caches' in window) {
+          const cacheNames = await caches.keys();
+          const appCaches = cacheNames.filter(name => 
+            name.includes('xspensesai') || 
+            name.includes('xai') ||
+            name.includes('supabase')
+          );
+          await Promise.all(appCaches.map(name => caches.delete(name)));
+          console.log('✅ Cleared app cache storage');
+        }
+      } catch (cacheError) {
+        console.warn('⚠️ AuthContext: Failed to clear cache storage:', cacheError);
+      }
+
+      // 5. Clear user state
+      setUserId(null);
+      setUser(null);
+      setSession(null);
+      setIsDemoUser(false);
+      setProfile(null);
+      console.log('✅ Device cleared successfully');
+      
+      // 6. Navigate to login page
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error('❌ AuthContext: Clear device error:', error);
       throw error;
     }
   };
@@ -301,9 +653,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signInWithApple,
     signInWithOtp,
     signOut,
+    clearDevice,
     session,
     ready,
-    isDemoUser
+    isDemoUser,
+    firstName,
+    profile,
+    isProfileLoading,
+    refreshProfile,
   };
 
   return (

@@ -133,6 +133,35 @@ XspensesAI is the world's first **FinTech Entertainment Platform** that transfor
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:5000
 
+## 🔑 **Local OpenAI Setup**
+
+1. **Create `.env` in repo root:**
+   ```bash
+   OPENAI_API_KEY=sk-...your-key...
+   OPENAI_CHAT_MODEL=gpt-4o-mini
+   ```
+
+2. **Run:**
+   ```bash
+   # Terminal A (backend)
+   pnpm --package=netlify-cli dlx netlify dev --port 8888
+   
+   # Terminal B (frontend)
+   pnpm vite --force --port 5173
+   ```
+
+3. **Health check:**
+   ```
+   http://localhost:8888/.netlify/functions/diag  → { ok: true, openai: "configured" }
+   ```
+
+4. **Prime test:**
+   - Open http://localhost:5173/prime
+   - Say: "My weekly GFS is $1600. Remember."
+   - Then: "What's my weekly GFS?"
+
+**Security**: Never use `VITE_OPENAI_API_KEY`; key must stay server-side.
+
 ## 🎮 **Demo Features**
 
 ### **Smart Import AI**
@@ -203,6 +232,29 @@ VITE_SUPABASE_ANON_KEY=your_supabase_key
 - **Offline Support**: Works without internet connection
 - **Progressive Web App**: Install as native app
 
+## 🧪 **Testing & Guardrails**
+
+### **Running Tests**
+```powershell
+# Run all tests
+npx vitest run
+
+# Run tests in watch mode
+npx vitest
+
+# Run tests with UI
+npx vitest --ui
+```
+
+### **PII Detection Single Source of Truth**
+All PII detection patterns are unified in `netlify/functions/_shared/pii-patterns.ts` (32+ detectors). Import PII functions from `netlify/functions/_shared/pii.ts` - never import directly from `pii-patterns.ts`.
+
+### **Adding New PII Detectors**
+1. Add detector to the appropriate category array in `pii-patterns.ts` (FINANCIAL_DETECTORS, GOVERNMENT_DETECTORS, etc.)
+2. Run tests: `npx vitest run netlify/functions/_shared/__tests__/pii-patterns.test.ts`
+3. Ensure `PII_DETECTORS` export includes your new detector
+4. All application code automatically uses the new detector via `pii.ts` wrapper
+
 ## 🤝 **Contributing**
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
@@ -251,6 +303,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Made with ❤️ by the XspensesAI Team**
 
-*Transforming finance through entertainment, one transaction at a time.*#   T e s t   d e p l o y m e n t  
- #   B u i l d   t r i g g e r  
+*Transforming finance through entertainment, one transaction at a time.*#   T e s t   d e p l o y m e n t 
+ 
+ #   B u i l d   t r i g g e r 
+ 
  

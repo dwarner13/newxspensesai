@@ -363,7 +363,7 @@ export async function routeToEmployee(
     
                // Define routing rules
            const routingRules = [
-             { keywords: ['import', 'upload', 'receipt', 'document'], employee: 'byte-doc' },
+             { keywords: ['import', 'upload', 'receipt', 'document'], employee: 'byte-docs' },
              { keywords: ['budget', 'budgeting', 'spending', 'expense'], employee: 'finley' },
              { keywords: ['invest', 'investment', 'portfolio', 'stock'], employee: 'finley' },
              { keywords: ['debt', 'credit', 'loan', 'pay off'], employee: 'finley' },
@@ -371,7 +371,7 @@ export async function routeToEmployee(
              { keywords: ['retirement', '401k', 'rrsp', 'pension'], employee: 'finley' },
              { keywords: ['advice', 'help', 'question', 'assistant', 'financial'], employee: 'finley' },
             { keywords: ['goal', 'target', 'save', 'milestone'], employee: 'goalie-coach' },
-            { keywords: ['predict', 'forecast', 'trend', 'future'], employee: 'crystal-analytics' },
+            { keywords: ['predict', 'forecast', 'trend', 'future'], employee: 'crystal-ai' },
             { keywords: ['categorize', 'organize', 'tag', 'label'], employee: 'tag-ai' },
              { keywords: ['freedom', 'independence', 'fire', 'wealth'], employee: 'liberty' },
              { keywords: ['bill', 'payment', 'reminder', 'due'], employee: 'chime' },

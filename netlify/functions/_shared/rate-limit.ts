@@ -5,13 +5,15 @@
  * No external dependencies, works with service role key.
  * 
  * Database table required:
- *   CREATE TABLE public.rate_limits (
+ *   CREATE TABLE public.chat_rate_limits (
  *     user_id text PRIMARY KEY,
  *     window_start timestamptz NOT NULL,
  *     count int NOT NULL
  *   );
  * 
  * Keep RLS disabled - accessed with service role only.
+ * 
+ * NOTE: Updated from rate_limits to chat_rate_limits to match actual table name.
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -22,24 +24,60 @@ const supabase = createClient(
 );
 
 /**
+ * Check if a string is a valid UUID format
+ */
+function isValidUuid(value: string | null | undefined): boolean {
+  if (!value) return false;
+  // UUID format: 8-4-4-4-12 hex digits with hyphens
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+}
+
+/**
  * Assert that user is within rate limit
  * @param userId - User ID to check
  * @param maxPerMinute - Maximum requests per minute (default: 20)
  * @throws Error with statusCode 429 if rate limit exceeded
  */
 export async function assertWithinRateLimit(userId: string, maxPerMinute = 20) {
+  // Skip rate limiting for non-UUID users (anon users) to avoid UUID type errors
+  if (!isValidUuid(userId)) {
+    console.warn('[Rate Limit] Skipping DB rate limit for non-uuid user', userId.substring(0, 20));
+    return; // Fail open - allow request to proceed
+  }
+
   const now = new Date();
   const windowMs = 60_000; // 1 minute in milliseconds
 
   try {
     // Fetch current rate limit state for user
-    const { data, error: fetchError } = await supabase
-      .from('rate_limits')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+    // Use chat_rate_limits table (updated from rate_limits)
+    let data: any = null;
+    let fetchError: any = null;
+    
+    try {
+      const result = await supabase
+        .from('chat_rate_limits')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      data = result.data;
+      fetchError = result.error;
+    } catch (err: any) {
+      // If table doesn't exist (PGRST205), log warning and skip rate limiting
+      if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
+        console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+        return; // Fail open - allow request to proceed
+      }
+      throw err;
+    }
 
     if (fetchError) {
+      // PGRST205 = table not found
+      if (fetchError.code === 'PGRST205' || fetchError.message?.includes('table') || fetchError.message?.includes('not found')) {
+        console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+        return; // Fail open - allow request to proceed
+      }
       console.error('[Rate Limit] Fetch error:', fetchError);
       // Fail open - don't block user if rate limit check fails
       return;
@@ -47,17 +85,29 @@ export async function assertWithinRateLimit(userId: string, maxPerMinute = 20) {
 
     // First request from this user - create new window
     if (!data) {
-      const { error: insertError } = await supabase
-        .from('rate_limits')
-        .insert({ 
-          user_id: userId, 
-          window_start: now.toISOString(), 
-          count: 1 
-        });
+      try {
+        const { error: insertError } = await supabase
+          .from('chat_rate_limits')
+          .insert({ 
+            user_id: userId, 
+            window_start: now.toISOString(), 
+            count: 1 
+          });
 
-      if (insertError) {
-        console.error('[Rate Limit] Insert error:', insertError);
-        // Fail open
+        if (insertError) {
+          if (insertError.code === 'PGRST205' || insertError.message?.includes('table') || insertError.message?.includes('not found')) {
+            console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+            return;
+          }
+          console.error('[Rate Limit] Insert error:', insertError);
+          // Fail open
+        }
+      } catch (err: any) {
+        if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
+          console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+          return;
+        }
+        throw err;
       }
       return;
     }
@@ -68,17 +118,29 @@ export async function assertWithinRateLimit(userId: string, maxPerMinute = 20) {
 
     // Window expired - reset with new window
     if (elapsed > windowMs) {
-      const { error: resetError } = await supabase
-        .from('rate_limits')
-        .update({ 
-          window_start: now.toISOString(), 
-          count: 1 
-        })
-        .eq('user_id', userId);
+      try {
+        const { error: resetError } = await supabase
+          .from('chat_rate_limits')
+          .update({ 
+            window_start: now.toISOString(), 
+            count: 1 
+          })
+          .eq('user_id', userId);
 
-      if (resetError) {
-        console.error('[Rate Limit] Reset error:', resetError);
-        // Fail open
+        if (resetError) {
+          if (resetError.code === 'PGRST205' || resetError.message?.includes('table') || resetError.message?.includes('not found')) {
+            console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+            return;
+          }
+          console.error('[Rate Limit] Reset error:', resetError);
+          // Fail open
+        }
+      } catch (err: any) {
+        if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
+          console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+          return;
+        }
+        throw err;
       }
       return;
     }
@@ -95,14 +157,26 @@ export async function assertWithinRateLimit(userId: string, maxPerMinute = 20) {
     }
 
     // Increment counter
-    const { error: updateError } = await supabase
-      .from('rate_limits')
-      .update({ count: data.count + 1 })
-      .eq('user_id', userId);
+    try {
+      const { error: updateError } = await supabase
+        .from('chat_rate_limits')
+        .update({ count: data.count + 1 })
+        .eq('user_id', userId);
 
-    if (updateError) {
-      console.error('[Rate Limit] Update error:', updateError);
-      // Fail open
+      if (updateError) {
+        if (updateError.code === 'PGRST205' || updateError.message?.includes('table') || updateError.message?.includes('not found')) {
+          console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+          return;
+        }
+        console.error('[Rate Limit] Update error:', updateError);
+        // Fail open
+      }
+    } catch (err: any) {
+      if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
+        console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+        return;
+      }
+      throw err;
     }
   } catch (err: any) {
     // Re-throw rate limit errors
@@ -121,12 +195,33 @@ export async function assertWithinRateLimit(userId: string, maxPerMinute = 20) {
  * @returns Rate limit info or null if no record exists
  */
 export async function getRateLimitStatus(userId: string) {
-  const { data, error } = await supabase
-    .from('rate_limits')
-    .select('*')
-    .eq('user_id', userId)
-    .maybeSingle();
+  let data: any = null;
+  let error: any = null;
+  
+  try {
+    const result = await supabase
+      .from('chat_rate_limits')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    data = result.data;
+    error = result.error;
+  } catch (err: any) {
+    if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
+      console.warn('[Rate Limit] chat_rate_limits table not found, returning null');
+      return null;
+    }
+    throw err;
+  }
 
+  if (error) {
+    if (error.code === 'PGRST205' || error.message?.includes('table') || error.message?.includes('not found')) {
+      console.warn('[Rate Limit] chat_rate_limits table not found, returning null');
+      return null;
+    }
+  }
+  
   if (error || !data) return null;
 
   const now = new Date();

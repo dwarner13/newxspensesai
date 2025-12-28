@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 /** Match your normalized employee slugs */
-type Employee = "prime-boss" | "byte-docs" | "crystal-analytics" | "tag-ai" | "ledger-tax" | "goalie-agent";
+type Employee = "prime-boss" | "byte-docs" | "crystal-ai" | "tag-ai" | "ledger-tax" | "goalie-agent";
 
 type Priority = "critical" | "action" | "info" | "success";
 
@@ -39,7 +39,7 @@ const priorityDot: Record<Priority, string> = {
 
 const employeeLabel: Record<Employee, string> = {
   "byte-docs": "Byte",
-  "crystal-analytics": "Crystal",
+  "crystal-ai": "Crystal",
   "tag-ai": "Tag",
   "prime-boss": "Prime",
   "ledger-tax": "Ledger",
@@ -48,7 +48,7 @@ const employeeLabel: Record<Employee, string> = {
 
 const employeeChip: Record<Employee, string> = {
   "byte-docs": "bg-sky-900/40 text-sky-200 border border-sky-700/40",
-  "crystal-analytics": "bg-fuchsia-900/40 text-fuchsia-200 border border-fuchsia-700/40",
+  "crystal-ai": "bg-fuchsia-900/40 text-fuchsia-200 border border-fuchsia-700/40",
   "tag-ai": "bg-emerald-900/40 text-emerald-200 border border-emerald-700/40",
   "prime-boss": "bg-amber-900/40 text-amber-200 border border-amber-700/40",
   "ledger-tax": "bg-purple-900/40 text-purple-200 border border-purple-700/40",
@@ -296,6 +296,7 @@ function Section({
     </div>
   );
 }
+
 
 
 

@@ -1,0 +1,185 @@
+diff --git a/netlify/functions/chat-v3-production.ts b/netlify/functions/chat-v3-production.ts
+index 1234567..abcdefg 100644
+--- a/netlify/functions/chat-v3-production.ts
++++ b/netlify/functions/chat-v3-production.ts
+@@ -17,6 +17,11 @@ import { assertWithinRateLimit } from "./_shared/rate-limit";
+ // IMPORTS
+ // ============================================================================
+ 
++// ---- PII Masking (from v2)
++import { maskPII } from "./_shared/pii";
++
++// ---- Guardrails (from v2)
++import { runGuardrails } from "./_shared/guardrails-production";
++import { makeGuardrailLogger } from "./_shared/guardrail-log";
++
++// ---- Memory helpers (from v2)
++import { fetchUserFacts, recallSimilarMemory } from "./_shared/memory";
++
++// ---- Routing (from v2)
++import { routeToEmployee } from "./_shared/router";
++
+ // --- shared headers & helpers ---
+ const BASE_HEADERS: Record<string,string> = {
+   'Content-Type': 'application/json',
+@@ -97,17 +102,6 @@ function validateAttachments(attachments: any[]): { ok: boolean; error?: string 
+   return { ok: true };
+ }
+ 
+-function redactPII(input: string): { redacted: string; found: Array<{ type: string; value: string }> } {
+-  let text = String(input || '');
+-  const found: Array<{ type: string; value: string }> = [];
+-
+-  // Emails
+-  text = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, (m) => { found.push({ type: 'email', value: m }); return '[email]'; });
+-  // Credit cards (very loose)
+-  text = text.replace(/\b(?:\d[ -]*?){13,19}\b/g, (m) => { found.push({ type: 'card', value: m }); return '[card]'; });
+-  // SSN
+-  text = text.replace(/\b\d{3}-?\d{2}-?\d{4}\b/g, (m) => { found.push({ type: 'ssn', value: m }); return '[ssn]'; });
+-  // Phones (basic)
+-  text = text.replace(/(?<!\d)(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?){1}\d{3}[-.\s]?\d{4}(?!\d)/g, (m) => { found.push({ type: 'phone', value: m }); return '[phone]'; });
+-
+-  return { redacted: text, found };
+-}
+-
+ // ============================================================================
+ // PRIME PERSONA (New)
+@@ -714,12 +708,6 @@ function routeToEmployeeLite(input: string): { slug: string; persona?: string 
+   return { slug: 'prime-boss', persona: 'You are Prime, the user\'s AI financial cofounder and orchestrator.' };
+ }
+ 
+-// --- Fetch memory facts for Prime ---
+-async function dbGetMemoryFacts(userId: string, limit = 20): Promise<string> {
+-  // ... existing implementation ...
+-  return '';
+-}
+-
+ // ============================================================================
+ // DELEGATE TOOL DEFINITION (New)
+ // ============================================================================
+@@ -1565,7 +1553,7 @@ export default async (req: Request) => {
+     // ========================================================================
+     
+     // 5.1) PII Masking (simple fallback)
+-    const { redacted: masked, found } = redactPII(String(message || ''));
++    const { masked, found } = maskPII(String(message || ''), 'last4');
+     
+     console.log(`[Chat] PII masked: ${found.length > 0}`, {
+       original: message.slice(0, 40),
+@@ -1599,7 +1587,15 @@ export default async (req: Request) => {
+     }
+ 
+     // 5.2) Guardrails (simple fallback - always pass)
+-    const gr = { ok: true };
++    const guardrailConfig = {
++      preset: 'strict' as const,
++      jailbreakThreshold: 70,
++      moderationBlock: true,
++      piiEntities: [],
++      ingestion: { pii: true, moderation: true },
++      chat: { pii: true, moderation: true, jailbreak: true }
++    };
++    const gr = await runGuardrails(masked, userId, 'chat', guardrailConfig);
++    if (!gr.ok) {
++      return json(200, { ok: false, blocked: true, text: gr.block_message || "I'm sorry — I can't help with that request." });
++    }
+ 
+     // 5.3) OpenAI Moderation (double-check)
+     // ... existing code ...
+@@ -1678,7 +1674,11 @@ export default async (req: Request) => {
+     // ========================================================================
+     
+     // 7.1) Fetch comprehensive context (Prime gets more than specialists)
+-    const { contextBlock } = await dbFetchContext({ userId, sessionId, redactedUserText: masked, employeeSlug: employeeSlug });
++    // Use v2's memory helpers instead of inline dbGetMemoryFacts
++    const facts = await fetchUserFacts(sb, userId);
++    const recall = await recallSimilarMemory(sb, userId, masked);
++    const memoryForRouter = recall.map(r => ({ text: r.fact }));
++    const { contextBlock } = await dbFetchContext({ userId, sessionId, redactedUserText: masked, employeeSlug: employeeSlug });
+     
+     // 7.2) Employee routing (simplified) + allow client to pin employee
+     let route = {
+@@ -1689,6 +1689,12 @@ export default async (req: Request) => {
+     };
+ 
++    // Use v2's routing instead of routeToEmployeeLite
++    if (!employeeSlug || typeof employeeSlug !== 'string') {
++      const routeResult = routeToEmployee(null, [{ role: 'user', content: masked }], memoryForRouter);
++      route.slug = routeResult.slug;
++      route.systemPrompt = routeResult.systemPrompt || route.systemPrompt;
++    }
++
+     // 7.3) Auto-handoff: If currently Prime but the request is finance-focused → Crystal
+     // ... existing code ...
+     
+@@ -2036,6 +2042,22 @@ export default async (req: Request) => {
+     const transform = new TransformStream({
+       transform(chunk, controller) {
+         const str = typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
++        // ADD ON-THE-FLY PII MASKING (from v2)
++        let assistantRaw = '';
++        let lastSentLen = 0;
++        
++        // Accumulate tokens
++        assistantRaw += str;
++        
++        // Mask everything so far, then send only the new delta
++        const { masked: maskedSoFar } = maskPII(assistantRaw, 'last4');
++        const delta = maskedSoFar.slice(lastSentLen);
++        
++        if (delta) {
++          controller.enqueue(encoder.encode(delta));
++          lastSentLen = maskedSoFar.length;
++        }
++        
++        // Remove old logic that forwards as-is
+         buffer += str;
+         // Split by SSE event boundaries
+         const parts = buffer.split('\n\n');
+         buffer = parts.pop()!; // last partial stays in buffer
+         for (const part of parts) {
+-          // Forward upstream SSE to client as-is
+-          controller.enqueue(encoder.encode(part + '\n\n'));
++          // Forward masked SSE to client
++          const maskedPart = maskPII(part, 'last4').masked;
++          controller.enqueue(encoder.encode(maskedPart + '\n\n'));
+           // Parse to accumulate content
+           const line = part.split('\n').find(l => l.startsWith('data: '));
+           if (!line) continue;
+           const payload = line.slice(6).trim();
+           if (payload === '[DONE]') continue;
+           try {
+             const delta = JSON.parse(payload);
+             const frag = delta?.choices?.[0]?.delta?.content ?? '';
+             if (frag) finalText += frag;
+           } catch { /* ignore parse errors; still streaming */ }
+         }
+       },
+       async flush(controller) {
+         if (buffer) controller.enqueue(encoder.encode(buffer));
++        // Final PII check on accumulated text
++        const { masked: finalMasked } = maskPII(finalText, 'last4');
+         // Persist assistant message at end
+-        if (finalText.trim()) {
++        if (finalMasked.trim()) {
+           try {
+             await dbSaveChatMessage({
+               userId,
+               sessionId,
+               role: 'assistant',
+-              content_redacted: finalText,
++              content_redacted: finalMasked,
+               employeeKey
+             });
+           } catch (e) {
+             console.warn('[chat-v3] Failed to persist assistant (stream) message:', e);
+           }
+         }
+       }
+     });
+
+---
+NOTE: This is a preview patch only. Do not apply.
+The actual merge will require careful integration of streaming logic.
+
+

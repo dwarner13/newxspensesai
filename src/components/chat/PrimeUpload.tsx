@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-import { maskPII } from "../../lib/pii";
+import { maskPII } from "../../../netlify/functions/_shared/pii";
 
 /**
  * ✅ ACCEPT LIST: Vetted safe file types only
@@ -190,6 +190,7 @@ export function PrimeUpload({ afterUpload }: { afterUpload?: (msg: string) => vo
     </div>
   );
 }
+
 
 
 

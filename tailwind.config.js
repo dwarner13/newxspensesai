@@ -91,7 +91,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Montserrat', 'Inter', 'sans-serif'],
+        sans: ['"Inter"', '"system-ui"', 'sans-serif'],
+        display: ['"Poppins"', '"system-ui"', 'sans-serif'],
         montserrat: ['Montserrat', 'sans-serif'],
       },
       fontWeight: {
@@ -107,6 +108,7 @@ export default {
         'fade-in': 'fadeIn 0.3s ease-in-out',
         'slide-up': 'slideUp 0.3s ease-out',
         'bounce-light': 'bounceLight 2s infinite',
+        'byte-pulse': 'bytePulse 1.8s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -127,6 +129,11 @@ export default {
             animationTimingFunction: 'cubic-bezier(0, 0, 0.2, 1)',
           },
         },
+        bytePulse: {
+          '0%': { transform: 'translateX(-30%)', opacity: 0.4 },
+          '50%': { transform: 'translateX(0%)', opacity: 1 },
+          '100%': { transform: 'translateX(30%)', opacity: 0.4 },
+        },
       },
       spacing: {
         '18': '4.5rem',
@@ -140,5 +147,17 @@ export default {
       }
     },
   },
-  plugins: [],
+  plugins: [
+    function({ addUtilities }) {
+      addUtilities({
+        '.scrollbar-hide': {
+          '-ms-overflow-style': 'none',
+          'scrollbar-width': 'none',
+          '&::-webkit-scrollbar': {
+            display: 'none'
+          }
+        }
+      })
+    }
+  ],
 };

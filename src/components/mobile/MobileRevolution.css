@@ -41,7 +41,9 @@
 }
 
 /* Only apply these styles on mobile devices */
-/* @media only screen and (max-width: 768px) { */
+/* CRITICAL: This media query MUST NEVER be commented out - it prevents mobile CSS from leaking to desktop */
+/* Additional safeguard: body[data-mobile="false"] disables mobile styles even if media query breaks */
+@media only screen and (max-width: 768px) {
   
   /* ================================================================================
      MOBILE REVOLUTION CONTAINER
@@ -1107,7 +1109,19 @@
       font-size: 18px; /* Readable icon size */
     }
   }
-/* } */
+}
+
+/* CRITICAL SAFEGUARD: Disable mobile styles on desktop even if media query is broken */
+/* This ensures mobile CSS never leaks to desktop */
+body[data-mobile="false"] .mobile-revolution-container,
+body[data-mobile="false"] .mobile-dashboard-title,
+body[data-mobile="false"] .mobile-dashboard-content,
+body[data-mobile="false"] .mobile-content,
+body[data-mobile="false"] .mobile-dashboard,
+body[data-mobile="false"] .mobile-page-wrapper {
+  display: none !important;
+  visibility: hidden !important;
+}
 
 /* ================================================================================
    DESKTOP HIDDEN - CRITICAL SAFETY

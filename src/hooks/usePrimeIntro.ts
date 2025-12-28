@@ -7,14 +7,15 @@ interface PrimeIntroState {
 }
 
 export function usePrimeIntro() {
-  const { user } = useAuth();
+  const { user, isDemoUser, ready } = useAuth();
   const [showIntro, setShowIntro] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Fetch intro state on mount and when user changes
   useEffect(() => {
     const fetchIntroState = async () => {
-      if (!user?.id) {
+      // Only fetch when auth is ready AND user exists AND is NOT a demo user
+      if (!ready || !user?.id || isDemoUser) {
         setLoading(false);
         return;
       }
@@ -23,27 +24,44 @@ export function usePrimeIntro() {
         const res = await fetch("/.netlify/functions/prime-intro", {
           headers: { "x-user-id": user.id },
         });
+        
+        // Handle 404 gracefully (endpoint may not exist)
+        if (res.status === 404) {
+          console.warn("[usePrimeIntro] Endpoint not found (404) - skipping intro check");
+          setShowIntro(false);
+          return;
+        }
+        
+        if (!res.ok) {
+          throw new Error(`Failed to fetch intro state: ${res.status} ${res.statusText}`);
+        }
+        
         const state: PrimeIntroState = await res.json();
         setShowIntro(!state?.has_seen_intro);
       } catch (err) {
-        console.error("[usePrimeIntro] Failed to fetch intro state:", err);
+        // Silently fail - don't spam console with errors for missing endpoints
+        if (import.meta.env.DEV) {
+          console.warn("[usePrimeIntro] Failed to fetch intro state (endpoint may not exist):", err);
+        }
+        setShowIntro(false);
       } finally {
         setLoading(false);
       }
     };
 
     fetchIntroState();
-  }, [user?.id]);
+  }, [ready, user?.id, isDemoUser]);
 
   // Mark intro as complete
   const complete = async () => {
-    if (!user?.id) {
+    // Only mark complete when auth is ready AND user exists AND is NOT a demo user
+    if (!ready || !user?.id || isDemoUser) {
       setShowIntro(false);
       return;
     }
 
     try {
-      await fetch("/.netlify/functions/prime-intro", {
+      const res = await fetch("/.netlify/functions/prime-intro", {
         method: "PATCH",
         headers: { 
           "x-user-id": user.id,
@@ -54,8 +72,23 @@ export function usePrimeIntro() {
           intro_step: 2 
         }),
       });
+      
+      // Handle 404 gracefully (endpoint may not exist)
+      if (res.status === 404) {
+        if (import.meta.env.DEV) {
+          console.warn("[usePrimeIntro] Endpoint not found (404) - skipping intro completion");
+        }
+        return;
+      }
+      
+      if (!res.ok) {
+        throw new Error(`Failed to mark intro complete: ${res.status} ${res.statusText}`);
+      }
     } catch (err) {
-      console.error("[usePrimeIntro] Failed to mark intro complete:", err);
+      // Silently fail - don't spam console with errors for missing endpoints
+      if (import.meta.env.DEV) {
+        console.warn("[usePrimeIntro] Failed to mark intro complete (endpoint may not exist):", err);
+      }
     } finally {
       setShowIntro(false);
     }
@@ -63,6 +96,7 @@ export function usePrimeIntro() {
 
   return { showIntro, complete, loading };
 }
+
 
 
 

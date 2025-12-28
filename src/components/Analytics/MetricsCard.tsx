@@ -103,7 +103,7 @@ export default function MetricsCard() {
                     <div className="flex items-center gap-2">
                       <span className="text-lg">
                         {r.employee_slug === 'prime-boss' && '👑'}
-                        {r.employee_slug === 'crystal-analytics' && '🔮'}
+                        {r.employee_slug === 'crystal-ai' && '🔮'}
                         {r.employee_slug === 'ledger-tax' && '📊'}
                         {r.employee_slug === 'byte-docs' && '📄'}
                         {r.employee_slug === 'tag-categorize' && '🏷️'}

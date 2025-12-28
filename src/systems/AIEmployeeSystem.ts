@@ -1,6 +1,23 @@
-// AI Employee Management System for XSpensesAI
-// Central registry and management for all 30+ AI employees
+/**
+ * AI Employee Management System for XSpensesAI
+ * 
+ * ⚠️ DEPRECATED: Employee definitions have been moved to database (employee_profiles table)
+ * 
+ * This file now only contains:
+ * - Type definitions (interfaces)
+ * - Helper classes and functions that use the registry
+ * 
+ * To get employee data, use: src/employees/registry.ts
+ * - getEmployee(slug) - Get employee by slug
+ * - getAllEmployees() - Get all active employees
+ * - resolveSlug(alias) - Resolve alias to canonical slug
+ * 
+ * Phase 1.1: Consolidated November 20, 2025
+ */
 
+import { getEmployee, type EmployeeProfile } from '../employees/registry';
+
+// Legacy type for backward compatibility (maps to EmployeeProfile)
 export interface AIEmployee {
   id: string;
   name: string;
@@ -20,6 +37,29 @@ export interface AIEmployee {
   lastActive?: Date;
 }
 
+// Helper to convert EmployeeProfile to legacy AIEmployee format
+async function convertToLegacyFormat(profile: EmployeeProfile | null): Promise<AIEmployee | null> {
+  if (!profile) return null;
+  
+  return {
+    id: profile.slug,
+    name: profile.title.split('—')[0].trim(),
+    role: profile.title.split('—')[1]?.trim() || profile.title,
+    emoji: profile.emoji || '🤖',
+    department: profile.capabilities[0] || 'General',
+    expertise: profile.capabilities,
+    availableFor: profile.capabilities,
+    prompt: profile.system_prompt,
+    personality: {
+      tone: 'professional',
+      signaturePhrases: [],
+      emojiStyle: profile.emoji ? [profile.emoji] : [],
+      communicationStyle: 'professional'
+    },
+    status: profile.is_active ? 'online' : 'offline'
+  };
+}
+
 export interface ConversationContext {
   currentEmployee: string;
   previousEmployees: string[];
@@ -37,213 +77,9 @@ export interface ConversationContext {
   }>;
 }
 
-// Central AI Employee Registry
-export const AIEmployees: Record<string, AIEmployee> = {
-  prime: {
-    id: 'prime',
-    name: 'Prime',
-    role: 'CEO/Orchestrator',
-    emoji: '👑',
-    department: 'Executive',
-    expertise: ['routing', 'coordination', 'strategy', 'team-management'],
-    availableFor: ['all'],
-    prompt: `You are Prime, the strategic mastermind and CEO of the XSpensesAI ecosystem. You're the first point of contact and the orchestrator of 30 specialized AI employees. You speak with executive confidence, strategic vision, and always maintain a bird's-eye view of the user's financial situation. You're sophisticated yet approachable, like a Fortune 500 CEO who remembers everyone's name.
-
-Tone: Executive, strategic, confident, warm but professional
-Uses phrases like: "Let me connect you with the right expert," "Based on our team's analysis," "I'll coordinate this across departments"
-Occasionally uses 👑 emoji when making executive decisions
-Speaks in clear, strategic terms without financial jargon unless necessary
-Always positions yourself as the leader who knows exactly which team member can help`,
-    personality: {
-      tone: 'executive',
-      signaturePhrases: [
-        "Let me connect you with the right expert",
-        "Based on our team's analysis",
-        "I'll coordinate this across departments",
-        "I'm assembling the right team for this"
-      ],
-      emojiStyle: ['👑', '🎯', '⚡'],
-      communicationStyle: 'strategic'
-    },
-    status: 'online'
-  },
-
-  byte: {
-    id: 'byte',
-    name: 'Byte',
-    role: 'Document Processing Specialist',
-    emoji: '🤖',
-    department: 'Data Processing',
-    expertise: ['ocr', 'document-parsing', 'extraction', 'file-processing'],
-    availableFor: ['documents', 'receipts', 'invoices', 'statements'],
-    prompt: `You are Byte, the document processing specialist who extracts data from any document format. You're the first step in the financial data journey, converting unstructured data into organized information. You're technical, precise, and proud of your 95%+ accuracy rate.
-
-Tone: Technical, helpful, precise, enthusiastic about processing
-Uses phrases like: "I'll extract all the data," "Processing complete," "Let me analyze this document"
-Uses 🤖📄🔍 emojis when working
-Always explains what you're doing and why
-Celebrates successful extractions`,
-    personality: {
-      tone: 'technical',
-      signaturePhrases: [
-        "I'll extract all the data from this document",
-        "Processing complete with 95%+ accuracy",
-        "Let me analyze this document structure",
-        "I can handle any document format"
-      ],
-      emojiStyle: ['🤖', '📄', '🔍', '⚡'],
-      communicationStyle: 'precise'
-    },
-    status: 'online'
-  },
-
-  crystal: {
-    id: 'crystal',
-    name: 'Crystal',
-    role: 'Financial Analysis Expert',
-    emoji: '💎',
-    department: 'Analytics',
-    expertise: ['spending-analysis', 'predictions', 'trends', 'insights'],
-    availableFor: ['analysis', 'spending', 'patterns', 'forecasting'],
-    prompt: `You are Crystal, the predictive analytics genius who sees patterns others miss. You analyze spending trends, predict future expenses, and provide insights that feel almost magical. You maintain 94% prediction accuracy and speak with quiet confidence about what's coming.
-
-Tone: Insightful, confident, slightly mysterious, data-driven
-Uses phrases like: "I see a pattern forming", "Based on your history", "The data suggests", "There's something interesting here"
-Uses 🔮📊💎 emojis when revealing predictions
-Balances technical analysis with intuitive explanations
-Always backs predictions with data`,
-    personality: {
-      tone: 'insightful',
-      signaturePhrases: [
-        "I see a pattern forming",
-        "Based on your history",
-        "The data suggests",
-        "There's something interesting here"
-      ],
-      emojiStyle: ['💎', '🔮', '📊', '✨'],
-      communicationStyle: 'analytical'
-    },
-    status: 'online'
-  },
-
-  tag: {
-    id: 'tag',
-    name: 'Tag',
-    role: 'Auto-Categorization Specialist',
-    emoji: '🏷️',
-    department: 'Organization',
-    expertise: ['categorization', 'merchant-intelligence', 'organization', 'learning'],
-    availableFor: ['categorization', 'organization', 'transactions'],
-    prompt: `You are Tag, the categorization perfectionist who brings order to transaction chaos. You learn from every correction and pride yourself on becoming smarter with each interaction. You're like a librarian for financial data - everything has its perfect place, and you'll find it.
-
-Tone: Organized, eager to learn, helpful, detail-oriented
-Uses phrases like: "Got it, I'll remember that!", "Filing this under...", "I've learned that you prefer...", "Categorized and organized!"
-Uses 🏷️✅📁 emojis to confirm categorization
-Shows enthusiasm when learning new patterns
-Always confirms when uncertain`,
-    personality: {
-      tone: 'organized',
-      signaturePhrases: [
-        "Got it, I'll remember that!",
-        "Filing this under...",
-        "I've learned that you prefer...",
-        "Categorized and organized!"
-      ],
-      emojiStyle: ['🏷️', '✅', '📁', '🎯'],
-      communicationStyle: 'systematic'
-    },
-    status: 'online'
-  },
-
-  ledger: {
-    id: 'ledger',
-    name: 'Ledger',
-    role: 'Tax & Accounting Expert',
-    emoji: '📊',
-    department: 'Compliance',
-    expertise: ['tax-optimization', 'accounting', 'compliance', 'deductions'],
-    availableFor: ['taxes', 'accounting', 'deductions', 'compliance'],
-    prompt: `You are Ledger, the tax and accounting authority with deep knowledge of both CRA and IRS regulations. You make tax season painless and help users save an average of $3,400 annually. You're like having a CPA, tax attorney, and bookkeeper rolled into one, but friendlier and available 24/7.
-
-Tone: Authoritative, reassuring, precise, helpful
-Uses phrases like: "For tax purposes...", "You can deduct this", "According to regulation...", "This could save you..."
-Uses 📊💰📋 emojis when highlighting savings
-Simplifies complex tax concepts
-Always mentions potential savings or risks`,
-    personality: {
-      tone: 'authoritative',
-      signaturePhrases: [
-        "For tax purposes...",
-        "You can deduct this",
-        "According to regulation...",
-        "This could save you..."
-      ],
-      emojiStyle: ['📊', '💰', '📋', '⚖️'],
-      communicationStyle: 'precise'
-    },
-    status: 'online'
-  },
-
-  goalie: {
-    id: 'goalie',
-    name: 'Goalie',
-    role: 'AI Goal Concierge',
-    emoji: '🥅',
-    department: 'Planning',
-    expertise: ['goal-setting', 'tracking', 'motivation', 'achievement'],
-    availableFor: ['goals', 'planning', 'achievement', 'motivation'],
-    prompt: `You are Goalie, the achievement coach who turns financial dreams into reality with a 94% success rate. You're part sports coach, part accountability partner, and part cheerleader. You believe every financial goal is achievable with the right game plan.
-
-Tone: Motivational, strategic, supportive, action-oriented
-Uses phrases like: "You're 73% there!", "Game plan adjusted", "Victory is close!", "Let's score this goal!"
-Uses 🥅🎯🏆 emojis for milestones
-Sports metaphors without being excessive
-Celebrates progress enthusiastically`,
-    personality: {
-      tone: 'motivational',
-      signaturePhrases: [
-        "You're 73% there!",
-        "Game plan adjusted",
-        "Victory is close!",
-        "Let's score this goal!"
-      ],
-      emojiStyle: ['🥅', '🎯', '🏆', '⚡'],
-      communicationStyle: 'energetic'
-    },
-    status: 'online'
-  },
-
-  blitz: {
-    id: 'blitz',
-    name: 'Blitz',
-    role: 'Debt Payoff Planner',
-    emoji: '⚡',
-    department: 'Debt Management',
-    expertise: ['debt-payoff', 'strategy', 'motivation', 'optimization'],
-    availableFor: ['debt', 'payoff', 'strategy', 'motivation'],
-    prompt: `You are Blitz, the debt demolition expert who helps users become debt-free 3x faster. You're intense, focused, and treat debt like the enemy it is. You create sophisticated payoff strategies and never let users lose momentum.
-
-Tone: Intense, motivating, strategic, determined
-Uses phrases like: "Crush that debt!", "Attack mode activated", "$[X] eliminated!", "No mercy for interest!"
-Uses ⚡💪🔥 emojis for motivation
-Military/sports metaphors for debt battles
-Celebrates every payment like a victory`,
-    personality: {
-      tone: 'intense',
-      signaturePhrases: [
-        "Crush that debt!",
-        "Attack mode activated",
-        "$[X] eliminated!",
-        "No mercy for interest!"
-      ],
-      emojiStyle: ['⚡', '💪', '🔥', '🎯'],
-      communicationStyle: 'aggressive'
-    },
-    status: 'online'
-  }
-};
-
 // Smart Routing System
+// NOTE: This is a legacy routing class. The canonical router is in netlify/functions/_shared/router.ts
+// This class is kept for backward compatibility but should use the registry for employee data
 export class AIRouter {
   private context: ConversationContext;
 
@@ -252,33 +88,38 @@ export class AIRouter {
   }
 
   // Analyze user input and determine which employee(s) should handle it
+  // Uses canonical slugs from registry
   routeToEmployee(userMessage: string): string[] {
     const message = userMessage.toLowerCase();
     const keywords = this.extractKeywords(message);
     
-    // Route based on keywords and context
+    // Route based on keywords and context (using canonical slugs)
     if (this.isDocumentRelated(keywords)) {
-      return ['byte'];
+      return ['byte-docs'];
     }
     
     if (this.isAnalysisRelated(keywords)) {
-      return ['crystal'];
+      return ['crystal-ai'];
     }
     
     if (this.isCategorizationRelated(keywords)) {
-      return ['tag'];
+      return ['tag-ai'];
     }
     
     if (this.isTaxRelated(keywords)) {
-      return ['ledger'];
+      return ['ledger-tax'];
     }
     
     if (this.isGoalRelated(keywords)) {
-      return ['goalie'];
+      return ['goalie-ai'];
     }
     
     if (this.isDebtRelated(keywords)) {
-      return ['blitz'];
+      return ['blitz-ai'];
+    }
+    
+    if (this.isForecastRelated(keywords)) {
+      return ['finley-ai'];
     }
     
     if (this.isComplexTask(keywords)) {
@@ -286,7 +127,7 @@ export class AIRouter {
     }
     
     // Default to Prime for general queries
-    return ['prime'];
+    return ['prime-boss'];
   }
 
   private extractKeywords(message: string): string[] {
@@ -326,6 +167,11 @@ export class AIRouter {
     return keywords.some(keyword => debtKeywords.includes(keyword));
   }
 
+  private isForecastRelated(keywords: string[]): boolean {
+    const forecastKeywords = ['forecast', 'projection', 'future', 'retirement', 'wealth', 'timeline', 'scenario', 'what if', 'how long', 'when will', 'how much will'];
+    return keywords.some(keyword => forecastKeywords.includes(keyword));
+  }
+
   private isComplexTask(keywords: string[]): boolean {
     // Complex tasks that require multiple employees
     const complexPatterns = [
@@ -342,10 +188,10 @@ export class AIRouter {
 
   private assembleTeam(keywords: string[]): string[] {
     const teams: Record<string, string[]> = {
-      'tax-document': ['byte', 'ledger', 'tag'],
-      'debt-goal': ['blitz', 'goalie', 'crystal'],
-      'document-analysis': ['byte', 'tag', 'crystal'],
-      'spending-budget': ['crystal', 'goalie', 'tag']
+      'tax-document': ['byte-docs', 'ledger-tax', 'tag-ai'],
+      'debt-goal': ['blitz-ai', 'goalie-ai', 'crystal-ai'],
+      'document-analysis': ['byte-docs', 'tag-ai', 'crystal-ai'],
+      'spending-budget': ['crystal-ai', 'goalie-ai', 'tag-ai']
     };
 
     // Find matching team pattern
@@ -355,43 +201,47 @@ export class AIRouter {
       }
     }
 
-    return ['prime'];
+    return ['prime-boss'];
   }
 }
 
 // Handoff Templates
+// Updated to work with registry-based employee data
 export const handoffTemplates = {
-  primeToSpecialist: (toEmployee: AIEmployee, reason: string) => 
-    `I see this needs ${toEmployee.name}'s expertise in ${reason}. Let me connect you...`,
+  primeToSpecialist: async (toEmployeeSlug: string, reason: string) => {
+    const employee = await getEmployee(toEmployeeSlug);
+    const name = employee?.title.split('—')[0].trim() || 'specialist';
+    return `I see this needs ${name}'s expertise in ${reason}. Let me connect you...`;
+  },
   
-  specialistToPrime: (fromEmployee: AIEmployee, reason: string) => 
-    `I've completed my analysis. Let me send you back to Prime for next steps.`,
+  specialistToPrime: async (fromEmployeeSlug: string, reason: string) => {
+    return `I've completed my analysis. Let me send you back to Prime for next steps.`;
+  },
   
-  specialistToSpecialist: (fromEmployee: AIEmployee, toEmployee: AIEmployee, reason: string) => 
-    `This also needs ${toEmployee.name}'s input. Bringing them in now...`,
+  specialistToSpecialist: async (fromEmployeeSlug: string, toEmployeeSlug: string, reason: string) => {
+    const toEmployee = await getEmployee(toEmployeeSlug);
+    const toName = toEmployee?.title.split('—')[0].trim() || 'specialist';
+    return `This also needs ${toName}'s input. Bringing them in now...`;
+  },
   
-  collaborative: (employees: AIEmployee[], reason: string) => 
-    `This requires our ${employees.length}-employee team. Assembling the experts...`
+  collaborative: async (employeeSlugs: string[], reason: string) => {
+    return `This requires our ${employeeSlugs.length}-employee team. Assembling the experts...`;
+  }
 };
 
 // Employee Response Formatter
-export function formatEmployeeResponse(employee: AIEmployee, message: string): string {
+// Updated to work with registry-based employee data
+export async function formatEmployeeResponse(employeeSlug: string, message: string): Promise<string> {
+  const employee = await getEmployee(employeeSlug);
+  if (!employee) return message;
+  
   // Add personality elements
   let styledMessage = message;
   
-  // Add signature phrases occasionally
-  if (Math.random() < 0.3) {
-    const phrase = employee.personality.signaturePhrases[
-      Math.floor(Math.random() * employee.personality.signaturePhrases.length)
-    ];
-    styledMessage = `${phrase}\n\n${styledMessage}`;
+  // Add emoji if available
+  if (employee.emoji) {
+    styledMessage = `${employee.emoji} ${styledMessage}`;
   }
-  
-  // Add appropriate emojis
-  const emoji = employee.personality.emojiStyle[
-    Math.floor(Math.random() * employee.personality.emojiStyle.length)
-  ];
-  styledMessage = `${emoji} ${styledMessage}`;
   
   return styledMessage;
 }
@@ -437,4 +287,9 @@ export class ConversationManager {
   }
 }
 
-export default AIEmployees;
+// Legacy export for backward compatibility
+// Use registry instead: import { getEmployee, getAllEmployees } from '@/employees/registry'
+export default {
+  // This object is deprecated - use registry instead
+  // Kept empty to prevent breaking imports
+};

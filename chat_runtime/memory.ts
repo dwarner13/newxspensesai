@@ -1,9 +1,28 @@
 /**
+ * ⚠️ DEPRECATED: Legacy Memory Manager Class
+ * 
+ * Phase 2.1: Consolidated November 20, 2025
+ * 
+ * This file is deprecated. Use `netlify/functions/_shared/memory.ts` instead.
+ * 
+ * CANONICAL API: `netlify/functions/_shared/memory.ts`
+ * 
+ * Migration Guide:
+ * - Replace `MemoryManager` class with unified API functions:
+ *   - `getMemory()` - Unified retrieval
+ *   - `queueMemoryExtraction()` - Async extraction
+ *   - `recall()`, `upsertFact()` - Core functions
+ * 
+ * This file will be removed in a future cleanup.
+ * 
+ * ---
+ * 
  * Centralized Chat Runtime - Memory Management
  * =============================================
  * Handles sessions, messages, facts, and embeddings
  * 
  * @module chat_runtime/memory
+ * @deprecated Use netlify/functions/_shared/memory.ts instead
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';

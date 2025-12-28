@@ -1,56 +1,47 @@
-import React from 'react';
+/**
+ * Mobile Sidebar Component
+ * Uses NAV_ITEMS from nav-registry.tsx as single source of truth
+ * Matches DesktopSidebar structure for consistency
+ */
+
+import React, { useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
-  X,
-  BarChart3, 
-  Upload, 
-  Brain, 
-  Heart, 
-  Target, 
-  TrendingUp, 
-  Mic, 
-  Music, 
-  Briefcase, 
-  Calculator, 
-  Zap, 
-  FileText, 
-  Settings, 
-  User, 
-  Bot,
-  Bell,
-  CreditCard,
-  Award,
-  Building2,
-  BookOpen,
-  Users,
-  Crown
-} from 'lucide-react';
+import { X, User } from 'lucide-react';
+import NAV_ITEMS from '../../navigation/nav-registry';
+import { isActivePath } from '../../navigation/is-active';
 import { EMPLOYEES } from '../../data/aiEmployees';
+import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
+import { usePrimeState } from '../../contexts/PrimeContext';
+import { getFeatureKeyForRoute } from '../../navigation/feature-keys';
 
 interface MobileSidebarProps {
   open: boolean;
   onClose: () => void;
 }
 
-// Map routes to AI employees
+// Map routes to AI employees (matches DesktopSidebar)
 const getAIEmployeeForRoute = (route: string) => {
   const routeToEmployee: Record<string, string> = {
     '/dashboard': 'prime',
+    '/dashboard/prime-chat': 'prime',
     '/dashboard/smart-import-ai': 'byte',
+    '/dashboard/ai-chat-assistant': 'finley',
     '/dashboard/ai-financial-assistant': 'finley',
     '/dashboard/smart-categories': 'tag',
+    '/dashboard/analytics-ai': 'dash',
     '/dashboard/transactions': 'byte',
+    '/dashboard/bank-accounts': 'byte',
     '/dashboard/goal-concierge': 'goalie',
     '/dashboard/smart-automation': 'automa',
     '/dashboard/spending-predictions': 'crystal',
     '/dashboard/debt-payoff-planner': 'liberty',
     '/dashboard/ai-financial-freedom': 'liberty',
     '/dashboard/bill-reminders': 'chime',
-    '/dashboard/podcast': 'roundtable',
+    '/dashboard/personal-podcast': 'roundtable',
     '/dashboard/financial-story': 'roundtable',
     '/dashboard/financial-therapist': 'harmony',
     '/dashboard/wellness-studio': 'harmony',
-    '/dashboard/spotify-integration': 'wave',
+    '/dashboard/spotify': 'wave',
     '/dashboard/tax-assistant': 'ledger',
     '/dashboard/business-intelligence': 'intelia',
     '/dashboard/analytics': 'dash',
@@ -63,6 +54,57 @@ const getAIEmployeeForRoute = (route: string) => {
 
 export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
   const location = useLocation();
+  const primeState = usePrimeState();
+  const warnedKeysRef = useRef<Set<string>>(new Set());
+
+  // Filter items by Prime visibility map (fail-open: show all if Prime state unavailable)
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    const featureKey = getFeatureKeyForRoute(item.to);
+    
+    // If no feature key mapping, show item (fail-open)
+    if (!featureKey) {
+      if (import.meta.env.DEV && !warnedKeysRef.current.has(item.to)) {
+        console.warn(
+          `[MobileSidebar] Nav item "${item.label}" (${item.to}) has no FeatureKey mapping. ` +
+          `Add it to ROUTE_TO_FEATURE_KEY in navigation/feature-keys.ts`
+        );
+        warnedKeysRef.current.add(item.to);
+      }
+      return true; // Fail-open: show item if no mapping
+    }
+    
+    // If Prime state unavailable, show item (fail-open)
+    if (!primeState) {
+      return true;
+    }
+    
+    // Check visibility from Prime state
+    const visibility = primeState.featureVisibilityMap[featureKey];
+    const visible = visibility?.visible ?? true; // Fail-open: default visible
+    
+    // Dev warning if Prime map missing key
+    if (import.meta.env.DEV && visibility === undefined && !warnedKeysRef.current.has(featureKey)) {
+      console.warn(
+        `[MobileSidebar] FeatureKey "${featureKey}" not found in Prime featureVisibilityMap. ` +
+        `Add it to buildFeatureVisibilityMap() in netlify/functions/prime-state.ts`
+      );
+      warnedKeysRef.current.add(featureKey);
+    }
+    
+    return visible;
+  });
+
+  // Group filtered items by their group property (matches DesktopSidebar)
+  const groups = Object.entries(
+    visibleItems.reduce((acc, item) => {
+      const group = item.group ?? 'GENERAL';
+      if (!acc[group]) {
+        acc[group] = [];
+      }
+      acc[group].push(item);
+      return acc;
+    }, {} as Record<string, typeof NAV_ITEMS>)
+  );
 
   return (
     <div
@@ -77,9 +119,7 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center">
-            <Crown size={20} className="text-white font-bold" />
-          </div>
+          <PrimeLogoBadge size={32} showGlow={true} />
           <span className="font-black text-xl text-white">XspensesAI</span>
         </div>
         <button
@@ -92,352 +132,66 @@ export default function MobileSidebar({ open, onClose }: MobileSidebarProps) {
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto px-4 py-4 pb-2">
-        {/* Main Dashboard */}
-        <ul className="space-y-1 mb-4">
-          <li>
-            <NavLink 
-              to="/dashboard" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <BarChart3 size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Main Dashboard</span>
-            </NavLink>
-          </li>
-        </ul>
-
-        {/* AI WORKSPACE */}
-        <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-          AI Workspace
-        </div>
-        <ul className="space-y-1 mb-4">
-          <li>
-            <NavLink 
-              to="/dashboard/smart-import-ai" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Upload size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Smart Import AI</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/ai-financial-assistant" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Bot size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">AI Chat Assistant</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/team-room" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Users size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Team Room</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/ai-categorization" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Brain size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Smart Categories</span>
-            </NavLink>
-          </li>
-        </ul>
-
-        {/* PLANNING & ANALYSIS */}
-        <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-          Planning & Analysis
-        </div>
-        <ul className="space-y-1 mb-4">
-          <li>
-            <NavLink 
-              to="/dashboard/transactions" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <FileText size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Transactions</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/goal-concierge" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Target size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">AI Goal Concierge</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/smart-automation" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Zap size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Smart Automation</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/spending-predictions" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <TrendingUp size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Spending Predictions</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/debt-payoff-planner" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <CreditCard size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Debt Payoff Planner</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/ai-financial-freedom" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Award size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">AI Financial Freedom</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/bill-reminders" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Bell size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Bill Reminder System</span>
-            </NavLink>
-          </li>
-        </ul>
-
-        {/* ENTERTAINMENT & WELLNESS */}
-        <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-          Entertainment & Wellness
-        </div>
-        <ul className="space-y-1 mb-4">
-          <li>
-            <NavLink 
-              to="/dashboard/podcast" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Mic size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Personal Podcast</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/financial-story" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <BookOpen size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Financial Story</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/financial-therapist" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Heart size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">AI Financial Therapist</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/wellness-studio" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Heart size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Wellness Studio</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/spotify-integration" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Music size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Spotify Integration</span>
-            </NavLink>
-          </li>
-        </ul>
-
-        {/* BUSINESS & TAX */}
-        <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-          Business & Tax
-        </div>
-        <ul className="space-y-1 mb-4">
-          <li>
-            <NavLink 
-              to="/dashboard/tax-assistant" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Calculator size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Tax Assistant</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/business-intelligence" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Building2 size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Business Intelligence</span>
-            </NavLink>
-          </li>
-        </ul>
-
-        {/* TOOLS & SETTINGS */}
-        <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
-          Tools & Settings
-        </div>
-        <ul className="space-y-1 mb-4">
-          <li>
-            <NavLink 
-              to="/dashboard/analytics" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <BarChart3 size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Analytics</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/settings" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <Settings size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Settings</span>
-            </NavLink>
-          </li>
-          <li>
-            <NavLink 
-              to="/dashboard/reports" 
-              onClick={onClose}
-              className={({ isActive }) => 
-                `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 hover:bg-white/10 ${
-                  isActive ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
-                }`
-              }
-            >
-              <FileText size={20} className="flex-shrink-0 text-white/90" />
-              <span className="font-medium text-white/90">Reports</span>
-            </NavLink>
-          </li>
-        </ul>
+        {groups.map(([groupName, groupItems], groupIndex) => (
+          <div key={groupName}>
+            {/* Group Header */}
+            <div className="text-xs uppercase tracking-wider text-white/50 mt-4 mb-2 font-bold px-3">
+              {groupName}
+            </div>
+            
+            {/* Group Items */}
+            <ul className="space-y-1 mb-4">
+              {groupItems.map((item) => {
+                const active = isActivePath(location.pathname, item.to);
+                const employeeKey = getAIEmployeeForRoute(item.to);
+                const employee = EMPLOYEES.find(emp => emp.key === employeeKey);
+                
+                // Check if item is enabled (fail-open: default enabled)
+                const featureKey = getFeatureKeyForRoute(item.to);
+                const visibility = featureKey && primeState?.featureVisibilityMap[featureKey];
+                const enabled = visibility?.enabled ?? true;
+                
+                return (
+                  <li key={item.to}>
+                    <NavLink 
+                      to={item.to}
+                      onClick={(e) => {
+                        // Prevent navigation if disabled
+                        if (!enabled) {
+                          e.preventDefault();
+                          if (import.meta.env.DEV) {
+                            console.warn(`[MobileSidebar] Feature "${featureKey}" is disabled. Reason: ${visibility?.reason || 'Unknown'}`);
+                          }
+                          return;
+                        }
+                        // Close sidebar on mobile after navigation
+                        onClose();
+                      }}
+                      className={({ isActive }) => 
+                        `flex items-center gap-3 py-3 px-3 rounded-xl transition-colors duration-150 ${
+                          enabled ? 'hover:bg-white/10 cursor-pointer' : 'cursor-not-allowed opacity-50'
+                        } ${
+                          (isActive || active) ? 'bg-purple-500/20 border-l-4 border-purple-400' : ''
+                        }`
+                      }
+                    >
+                      <span className="w-5 h-5 shrink-0 relative">
+                        {item.icon}
+                        {/* AI Employee Badge */}
+                        {employee && (
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xs opacity-80">
+                            {employee.emoji}
+                          </div>
+                        )}
+                      </span>
+                      <span className="font-medium text-white/90">{item.label}</span>
+                    </NavLink>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </div>
 
       {/* Footer */}

@@ -34,6 +34,39 @@ interface MobileDebugData {
   currentView?: string;
 }
 
+/**
+ * Pure function to classify route view based on pathname.
+ * 
+ * CRITICAL: All /dashboard/* routes MUST return 'dashboard' view.
+ * This ensures desktop routes always show the correct page component.
+ * 
+ * @param pathname - The current route pathname
+ * @returns The view type for the route
+ */
+export function classifyRouteView(pathname: string): MobileRevolutionState['currentView'] {
+  // Dashboard routes - explicit mappings first
+  if (pathname === '/dashboard') return 'dashboard';
+  if (pathname === '/dashboard/upload') return 'upload';
+  if (pathname === '/dashboard/processing') return 'processing';
+  if (pathname === '/dashboard/live') return 'live';
+  if (pathname === '/dashboard/chat') return 'chat';
+  
+  // ✅ CRITICAL: All other dashboard routes default to 'dashboard' view
+  // This prevents routes from incorrectly showing 'stories' view
+  if (pathname.startsWith('/dashboard')) {
+    return 'dashboard';
+  }
+  
+  // Stories routes (if they exist)
+  if (pathname.startsWith('/stories')) {
+    return 'stories';
+  }
+  
+  // Safe default: dashboard (NOT stories)
+  // This ensures unknown routes don't accidentally show stories view
+  return 'dashboard';
+}
+
 export const useMobileRevolution = () => {
   const navigate = useNavigate();
   
@@ -81,10 +114,6 @@ export const useMobileRevolution = () => {
   
   // Determine initial view based on current route
   const getInitialView = (): MobileRevolutionState['currentView'] => {
-    if (import.meta.env.DEV) {
-      console.log('Getting initial view for path:', pathname);
-    }
-    
     if (isExcludedRoute && !forceMobile) {
       if (import.meta.env.DEV) {
         console.log('Path excluded from MobileRevolution:', pathname);
@@ -92,14 +121,15 @@ export const useMobileRevolution = () => {
       return 'dashboard'; // Default view for excluded routes
     }
     
-    // Map routes to views
-    if (pathname === '/dashboard') return 'dashboard';
-    if (pathname === '/dashboard/upload') return 'upload';
-    if (pathname === '/dashboard/processing') return 'processing';
-    if (pathname === '/dashboard/live') return 'live';
-    if (pathname === '/dashboard/chat') return 'chat';
+    // Use pure function for route classification
+    const view = classifyRouteView(pathname);
     
-    return 'stories'; // Default to stories view
+    // ✅ Dev-only guard: Detect if dashboard route incorrectly classified as stories
+    if (import.meta.env.DEV && pathname.startsWith('/dashboard') && view !== 'dashboard') {
+      console.error('[MobileRevolution] BUG: dashboard route classified as', view, pathname);
+    }
+    
+    return view;
   };
 
   const [currentView, setCurrentView] = useState<MobileRevolutionState['currentView']>(getInitialView);
@@ -112,9 +142,16 @@ export const useMobileRevolution = () => {
   // Listen for route changes
   useEffect(() => {
     const handleRouteChange = () => {
-      const newView = getInitialView();
+      const currentPathname = window.location.pathname;
+      const newView = classifyRouteView(currentPathname);
+      
+      // ✅ Dev-only guard: Detect if dashboard route incorrectly classified as stories
+      if (import.meta.env.DEV && currentPathname.startsWith('/dashboard') && newView !== 'dashboard') {
+        console.error('[MobileRevolution] BUG: dashboard route classified as', newView, currentPathname);
+      }
+      
       if (import.meta.env.DEV) {
-        console.log('Route changed, updating view to:', newView);
+        console.log('Route changed, updating view to:', newView, 'for path:', currentPathname);
       }
       setCurrentView(newView);
     };

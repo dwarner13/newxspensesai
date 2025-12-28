@@ -4,8 +4,8 @@
  * Supports collapsed/expanded states with tooltips
  */
 
-import React, { useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef } from 'react';
+import { useLocation, NavLink } from 'react-router-dom';
 import NAV_ITEMS from '../../navigation/nav-registry';
 import { isActivePath } from '../../navigation/is-active';
 import { EMPLOYEES } from '../../data/aiEmployees';
@@ -22,7 +22,12 @@ import { Separator } from '../ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Logo from '../common/Logo';
+import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 import clsx from 'clsx';
+import { useAccountCenterPanel } from '../settings/AccountCenterPanel';
+import { useProfile } from '../../hooks/useProfile';
+import { usePrimeState } from '../../contexts/PrimeContext';
+import { getFeatureKeyForRoute } from '../../navigation/feature-keys';
 
 interface DesktopSidebarProps {
   collapsed?: boolean;
@@ -33,9 +38,12 @@ interface DesktopSidebarProps {
 const getAIEmployeeForRoute = (route: string) => {
   const routeToEmployee: Record<string, string> = {
     '/dashboard': 'prime',
+    '/dashboard/prime-chat': 'prime',
     '/dashboard/smart-import-ai': 'byte',
-    '/dashboard/ai-assistant': 'finley',
+    '/dashboard/ai-chat-assistant': 'finley',
+    '/dashboard/ai-financial-assistant': 'finley',
     '/dashboard/smart-categories': 'tag',
+    '/dashboard/analytics-ai': 'dash',
     '/dashboard/transactions': 'byte',
     '/dashboard/goal-concierge': 'goalie',
     '/dashboard/smart-automation': 'automa',
@@ -52,6 +60,7 @@ const getAIEmployeeForRoute = (route: string) => {
     '/dashboard/business-intelligence': 'intelia',
     '/dashboard/analytics': 'dash',
     '/dashboard/settings': 'prime',
+    '/dashboard/custodian': 'custodian',
     '/dashboard/reports': 'prism'
   };
   
@@ -63,8 +72,13 @@ export default function DesktopSidebar({
   onToggleCollapse 
 }: DesktopSidebarProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const [internalCollapsed, setInternalCollapsed] = useState(collapsed);
+  const { openPanel } = useAccountCenterPanel();
+  const profile = useProfile();
+  const primeState = usePrimeState();
+  
+  // Track warned feature keys to avoid spam
+  const warnedKeysRef = useRef<Set<string>>(new Set());
 
   // Use external collapsed state if provided, otherwise use internal
   const isCollapsed = onToggleCollapse ? collapsed : internalCollapsed;
@@ -89,9 +103,46 @@ export default function DesktopSidebar({
     return null;
   }
 
-  // Group items by their group property
+  // Filter items by Prime visibility map (fail-open: show all if Prime state unavailable)
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    const featureKey = getFeatureKeyForRoute(item.to);
+    
+    // If no feature key mapping, show item (fail-open)
+    if (!featureKey) {
+      if (import.meta.env.DEV && !warnedKeysRef.current.has(item.to)) {
+        console.warn(
+          `[DesktopSidebar] Nav item "${item.label}" (${item.to}) has no FeatureKey mapping. ` +
+          `Add it to ROUTE_TO_FEATURE_KEY in navigation/feature-keys.ts`
+        );
+        warnedKeysRef.current.add(item.to);
+      }
+      return true; // Fail-open: show item if no mapping
+    }
+    
+    // If Prime state unavailable, show item (fail-open)
+    if (!primeState) {
+      return true;
+    }
+    
+    // Check visibility from Prime state
+    const visibility = primeState.featureVisibilityMap[featureKey];
+    const visible = visibility?.visible ?? true; // Fail-open: default visible
+    
+    // Dev warning if Prime map missing key
+    if (import.meta.env.DEV && visibility === undefined && !warnedKeysRef.current.has(featureKey)) {
+      console.warn(
+        `[DesktopSidebar] FeatureKey "${featureKey}" not found in Prime featureVisibilityMap. ` +
+        `Add it to buildFeatureVisibilityMap() in netlify/functions/prime-state.ts`
+      );
+      warnedKeysRef.current.add(featureKey);
+    }
+    
+    return visible;
+  });
+  
+  // Group filtered items by their group property
   const groups = Object.entries(
-    NAV_ITEMS.reduce((acc, item) => {
+    visibleItems.reduce((acc, item) => {
       const group = item.group ?? 'GENERAL';
       if (!acc[group]) {
         acc[group] = [];
@@ -106,32 +157,27 @@ export default function DesktopSidebar({
     setCollapsed(newCollapsed);
   };
 
-  const handleNavigation = (to: string) => {
-    navigate(to);
-    // Optional: Track navigation event for analytics
-    if (import.meta.env.DEV) {
-      console.log('[DesktopSidebar] Navigation:', to);
-    }
-  };
-
   return (
     <aside
       data-testid="desktop-sidebar"
       className={clsx(
-        "hidden md:flex flex-col border-r border-zinc-800 bg-zinc-950/40 backdrop-blur transition-all duration-300 h-screen",
+        "hidden md:flex flex-col border-r border-zinc-800 bg-zinc-950/40 backdrop-blur transition-all duration-300 h-screen relative z-[100]",
         isCollapsed ? "w-[68px]" : "w-56"
       )}
+      style={{ pointerEvents: 'auto', position: 'relative' }}
     >
       {/* Header with Logo and Toggle Button */}
       <div className="h-14 flex items-center justify-between px-3 border-b border-zinc-800">
         {isCollapsed ? (
           <div className="flex items-center justify-center flex-1">
-            <Logo size="sm" showText={false} />
+            <PrimeLogoBadge size={32} showGlow={true} />
           </div>
         ) : (
-          <div className="flex items-center gap-3 flex-1">
-            <Logo size="sm" showText={false} />
-            <span className="text-base text-white font-black">XspensesAI</span>
+          <div className="flex items-center gap-2 px-4 pt-4 pb-3 flex-1">
+            <PrimeLogoBadge size={32} showGlow={true} />
+            <span className="font-bold tracking-wide text-sm text-slate-50">
+              XspensesAI
+            </span>
           </div>
         )}
         
@@ -144,8 +190,8 @@ export default function DesktopSidebar({
         </button>
       </div>
 
-      <ScrollArea className="flex-1 overflow-y-auto">
-        <div className="py-2">
+      <ScrollArea className="flex-1 overflow-y-auto" style={{ pointerEvents: 'auto' }}>
+        <div className="py-2" style={{ pointerEvents: 'auto' }}>
           {groups.map(([groupName, groupItems], groupIndex) => (
             <div key={groupName}>
               {!isCollapsed && (
@@ -159,37 +205,53 @@ export default function DesktopSidebar({
                   const employeeKey = getAIEmployeeForRoute(item.to);
                   const employee = EMPLOYEES.find(emp => emp.key === employeeKey);
                   
-                  const Item = (
-                    <button
+                  // Check if item is enabled (fail-open: default enabled)
+                  const featureKey = getFeatureKeyForRoute(item.to);
+                  const visibility = featureKey && primeState?.featureVisibilityMap[featureKey];
+                  const enabled = visibility?.enabled ?? true;
+                  
+                  const NavLinkContent = (
+                    <NavLink
                       key={item.to}
-                      onClick={() => handleNavigation(item.to)}
-                      className={clsx(
-                        "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 hover:bg-zinc-900/60 active:scale-95 group relative",
-                        active 
+                      to={item.to}
+                      onClick={(e) => {
+                        // Prevent navigation if disabled
+                        if (!enabled) {
+                          e.preventDefault();
+                          if (import.meta.env.DEV) {
+                            console.warn(`[DesktopSidebar] Feature "${featureKey}" is disabled. Reason: ${visibility?.reason || 'Unknown'}`);
+                          }
+                        }
+                      }}
+                      className={({ isActive }) => clsx(
+                        "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 group relative",
+                        enabled ? "hover:bg-zinc-900/60 active:scale-95 cursor-pointer" : "cursor-not-allowed opacity-50",
+                        (isActive || active)
                           ? "bg-zinc-900 text-white" 
                           : "text-zinc-300 hover:text-white"
                       )}
+                      style={{ pointerEvents: 'auto', position: 'relative', zIndex: 101 }}
                     >
-                      <span className="w-5 h-5 shrink-0 relative">
+                      <span className="w-5 h-5 shrink-0 relative pointer-events-none">
                         {item.icon}
                         {/* AI Employee Badge */}
                         {employee && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xs opacity-80 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xs opacity-80 group-hover:opacity-100 transition-opacity pointer-events-none">
                             {employee.emoji}
                           </div>
                         )}
                       </span>
                       {!isCollapsed && (
-                        <span className="truncate font-medium">{item.label}</span>
+                        <span className="truncate font-medium pointer-events-none">{item.label}</span>
                       )}
-                    </button>
+                    </NavLink>
                   );
 
                   return isCollapsed ? (
                     <TooltipProvider key={item.to}>
                       <Tooltip delayDuration={150}>
                         <TooltipTrigger asChild>
-                          {Item}
+                          {NavLinkContent}
                         </TooltipTrigger>
                         <TooltipContent side="right" className="text-xs">
                           {item.label}
@@ -197,7 +259,7 @@ export default function DesktopSidebar({
                       </Tooltip>
                     </TooltipProvider>
                   ) : (
-                    <div key={item.to}>{Item}</div>
+                    NavLinkContent
                   );
                 })}
               </div>
@@ -211,31 +273,60 @@ export default function DesktopSidebar({
         </div>
       </ScrollArea>
 
-      {/* Footer with user info */}
+      {/* Footer with Identity Card */}
       <div className="border-t border-zinc-800 p-3">
         {isCollapsed ? (
-          <div className="flex justify-center">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-              <span className="text-white text-xs font-bold">DW</span>
+          <button
+            onClick={() => openPanel('account')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openPanel('account');
+              }
+            }}
+            className="flex justify-center w-full p-2 rounded-lg hover:bg-zinc-800/50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+            aria-label="Open Account Center"
+          >
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center ring-2 ring-white/10">
+              <span className="text-white text-xs font-bold">{profile.avatarInitials}</span>
             </div>
-          </div>
+          </button>
         ) : (
-          <div className="p-3 bg-gradient-to-br from-purple-600 to-cyan-500 rounded-xl border border-purple-500/30">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-xs font-bold">DW</span>
+          <button
+            onClick={() => openPanel('account')}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openPanel('account');
+              }
+            }}
+            className="w-full p-3 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 via-white/3 to-transparent backdrop-blur-sm hover:from-white/10 hover:via-white/5 hover:border-white/20 transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 group"
+            aria-label="Open Account Center"
+          >
+              <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center ring-2 ring-white/10 group-hover:ring-white/20 transition-all">
+                {profile.avatarUrl ? (
+                  <img src={profile.avatarUrl} alt={profile.displayName} className="w-full h-full rounded-full object-cover" />
+                ) : (
+                  <span className="text-white text-sm font-bold">{profile.avatarInitials}</span>
+                )}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-white text-sm truncate">Darrell Warner</div>
-                <div className="text-xs text-white/80 truncate">Premium Member</div>
+              <div className="flex-1 min-w-0 text-left">
+                <div className="font-semibold text-white text-sm truncate">{profile.fullName}</div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    {profile.plan}
+                  </span>
+                  <span className="text-xs text-zinc-400 truncate">Level {profile.level}</span>
+                </div>
               </div>
             </div>
-            <div className="mt-2 flex justify-center">
-              <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 text-white px-2 py-1 rounded text-xs font-medium backdrop-blur-sm text-center">
-                Level 8 Money Master
+            <div className="flex justify-center mt-2">
+              <div className="bg-white/10 text-white px-2 py-0.5 rounded-md text-[10px] font-medium backdrop-blur-sm border border-white/10">
+                {profile.levelTitle}
               </div>
             </div>
-          </div>
+          </button>
         )}
       </div>
     </aside>

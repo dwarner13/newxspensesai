@@ -9,56 +9,182 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
 /**
+ * Check if a string is a valid UUID format
+ */
+function isValidUuid(value: string | null | undefined): boolean {
+  if (!value) return false;
+  // UUID format: 8-4-4-4-12 hex digits with hyphens
+  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
+}
+
+/**
+ * Check if user_id column expects UUID or TEXT
+ * For anonymous users, we'll use TEXT to avoid foreign key constraints
+ */
+function shouldUseTextUserId(userId: string): boolean {
+  // If it's an anonymous user ID, use TEXT (no foreign key constraint)
+  // If it's a UUID format, assume it needs to match users table
+  return userId.startsWith('anon-');
+}
+
+/**
+ * Get a safe database user ID for UUID columns
+ * Returns the userId if it's a valid UUID, otherwise returns a demo user UUID
+ */
+function getDbUserIdForUuidColumn(userId: string): string {
+  if (isValidUuid(userId)) {
+    return userId;
+  }
+  // Return a demo user UUID for anonymous users to avoid UUID type errors
+  return '00000000-0000-4000-8000-000000000001';
+}
+
+/**
  * Ensure a session exists, creating one if needed
  * @param sb - Supabase client (with service role)
- * @param userId - User ID
+ * @param userId - User ID (can be UUID or anonymous string)
  * @param sessionId - Optional existing session ID
- * @param employeeSlug - Employee handling this session
- * @returns Session ID (existing or newly created)
+ * @param employeeSlug - Employee handling this session (used only for new sessions)
+ * @returns Object with sessionId and employee_slug (from session, or provided slug for new sessions)
  */
 export async function ensureSession(
   sb: SupabaseClient,
   userId: string,
   sessionId?: string,
   employeeSlug: string = 'prime-boss'
-): Promise<string> {
+): Promise<{ sessionId: string; employee_slug: string }> {
+  // For anonymous users, check if user_id column is UUID type
+  // If it's UUID type, use a demo UUID to avoid type errors
+  // If it's TEXT type, use the original string
+  const dbUserId = shouldUseTextUserId(userId) 
+    ? (isValidUuid(userId) ? userId : getDbUserIdForUuidColumn(userId))
+    : userId;
+  
   // If session ID provided, verify it exists
   if (sessionId) {
     const { data, error } = await sb
       .from('chat_sessions')
-      .select('id')
+      .select('id, employee_slug')
       .eq('id', sessionId)
-      .eq('user_id', userId)
+      .eq('user_id', dbUserId)
       .maybeSingle();
 
     if (!error && data) {
-      return sessionId;
+      // Session exists - return it WITH its employee_slug (this is the canonical value after handoff)
+      // For shared sessions, we preserve the original employee_slug to avoid conflicts 
+      // when multiple employees share the same sessionId
+      const effectiveSlug = data.employee_slug || employeeSlug;
+      console.log(`[Session] ✅ Found existing session ${sessionId} for user ${dbUserId} (employee: ${effectiveSlug})`);
+      return { sessionId, employee_slug: effectiveSlug };
     }
 
-    // Session not found or error - fall through to create new one
-    console.warn(`[Session] Session ${sessionId} not found, creating new one`);
+    // Session not found - create new one WITH the provided sessionId
+    if (error) {
+      console.warn(`[Session] ⚠️ Session lookup error for ${sessionId}:`, error.message);
+    } else {
+      console.log(`[Session] 📝 Session ${sessionId} not found for user ${dbUserId}, creating new session with provided ID`);
+    }
   }
 
-  // Create new session
-  const { data, error } = await sb
+  // Create new session (use provided sessionId if available, otherwise generate new)
+  // Try with token_count first, fall back without it if column doesn't exist
+  const newSessionId = sessionId || crypto.randomUUID();
+  let insertData: any = {
+    id: newSessionId, // Use provided sessionId or generated UUID
+    user_id: dbUserId,
+    employee_slug: employeeSlug,
+    title: 'New Chat',
+    context: {},
+    message_count: 0,
+  };
+
+  let { data, error } = await sb
     .from('chat_sessions')
     .insert({
-      user_id: userId,
-      employee_slug: employeeSlug,
-      title: 'New Chat',
-      context: {},
-      message_count: 0,
-      token_count: 0
+      ...insertData,
+      token_count: 0,
     })
     .select('id')
     .single();
+
+  // If token_count column doesn't exist, retry without it
+  if (error && error.code === 'PGRST204' && error.message?.includes('token_count')) {
+    console.warn('[Session] token_count column not found, creating session without it');
+    const retryResult = await sb
+      .from('chat_sessions')
+      .insert(insertData)
+      .select('id')
+      .single();
+    
+    if (retryResult.error) {
+      // If foreign key constraint error, try casting user_id to TEXT
+      if (retryResult.error.code === '23503' && shouldUseTextUserId(userId)) {
+        console.warn('[Session] Foreign key constraint error, user_id may need to be TEXT type');
+        // If the column is UUID type but we're passing TEXT, we need to handle this differently
+        // For now, return the sessionId we tried to use (don't generate new one)
+        console.warn(`[Session] Using fallback session ID: ${newSessionId}`);
+        return { sessionId: newSessionId, employee_slug: employeeSlug };
+      }
+      // If duplicate key error (session already exists), return the existing sessionId
+      if (retryResult.error.code === '23505' && sessionId) {
+        console.log(`[Session] Session ${sessionId} already exists (race condition), returning it`);
+        // Try to fetch the existing session's employee_slug
+        const { data: existingSession } = await sb
+          .from('chat_sessions')
+          .select('employee_slug')
+          .eq('id', sessionId)
+          .maybeSingle();
+        return { sessionId, employee_slug: existingSession?.employee_slug || employeeSlug };
+      }
+      console.error('[Session] Error creating session:', retryResult.error);
+      throw new Error('Failed to create chat session');
+    }
+    
+    return retryResult.data!.id || newSessionId;
+  }
+
+  // Handle foreign key constraint error for anonymous users
+  if (error && error.code === '23503' && shouldUseTextUserId(userId)) {
+    console.warn('[Session] Foreign key constraint error for anonymous user, using fallback session');
+    console.warn(`[Session] Using fallback session ID: ${newSessionId}`);
+    return { sessionId: newSessionId, employee_slug: employeeSlug };
+  }
+
+  // Handle duplicate key error (session already exists - race condition)
+  if (error && error.code === '23505' && sessionId) {
+    console.log(`[Session] Session ${sessionId} already exists (race condition), returning it`);
+    // Try to fetch the existing session's employee_slug
+    const { data: existingSession } = await sb
+      .from('chat_sessions')
+      .select('employee_slug')
+      .eq('id', sessionId)
+      .maybeSingle();
+    return { sessionId, employee_slug: existingSession?.employee_slug || employeeSlug };
+  }
 
   if (error) {
     console.error('[Session] Error creating session:', error);
     throw new Error('Failed to create chat session');
   }
 
-  return data.id;
+  if (!data) {
+    // If no data returned but we have a sessionId, return it anyway
+    if (sessionId) {
+      console.warn(`[Session] ⚠️ No data returned from insert but sessionId provided, returning ${sessionId} (session may exist from race condition)`);
+      // Try to fetch the existing session's employee_slug
+      const { data: existingSession } = await sb
+        .from('chat_sessions')
+        .select('employee_slug')
+        .eq('id', sessionId)
+        .maybeSingle();
+      return { sessionId, employee_slug: existingSession?.employee_slug || employeeSlug };
+    }
+    throw new Error('Failed to create chat session: no data returned');
+  }
+
+  const returnedSessionId = data.id || newSessionId;
+  console.log(`[Session] ✅ Created/found session ${returnedSessionId} for user ${dbUserId}, employee ${employeeSlug}`);
+  return { sessionId: returnedSessionId, employee_slug: employeeSlug };
 }
 
 /**
@@ -71,14 +197,15 @@ export async function ensureSession(
 export async function getRecentMessages(
   sb: SupabaseClient,
   sessionId: string,
-  maxTokens: number = 4000
+  maxTokens: number = 4000,
+  maxMessages: number = 50  // Byte v2: Allow caller to specify max messages (Byte gets 100)
 ) {
   const { data, error } = await sb
     .from('chat_messages')
     .select('role, content, tokens, created_at')
     .eq('session_id', sessionId)
     .order('created_at', { ascending: false })
-    .limit(50); // Get last 50 messages max
+    .limit(maxMessages); // Byte v2: Configurable message limit (Byte gets 100, others get 50)
 
   if (error) {
     console.error('[Session] Error fetching messages:', error);
@@ -93,7 +220,7 @@ export async function getRecentMessages(
   const messages = data.reverse();
 
   // Apply token budget (simple estimation if no token count)
-  const result = [];
+  const result: Array<{ role: string; content: string }> = [];
   let tokenSum = 0;
 
   for (const msg of messages) {
@@ -148,7 +275,7 @@ export async function saveChatMessage(
     .insert({
       id: messageId,
       session_id: params.sessionId,
-      user_id: params.userId,
+      user_id: shouldUseTextUserId(params.userId) ? params.userId : params.userId,
       role: params.role,
       content: params.content,
       redacted_content: params.redactedContent || params.content,
@@ -215,6 +342,11 @@ export async function getSessionSummary(
 
   return data.summary;
 }
+
+
+
+
+
 
 
 

@@ -265,7 +265,7 @@ Return ONLY the JSON object, no commentary.
   // ========================================================================
   for (const task of tasks) {
     try {
-      await supabase
+      const { error } = await supabase
         .from('user_tasks')
         .insert({
           user_id: userId,
@@ -275,7 +275,21 @@ Return ONLY the JSON object, no commentary.
           created_from_session: sessionId,
           created_at: new Date().toISOString()
         });
-    } catch (err) {
+      
+      if (error) {
+        // PGRST205 = table not found
+        if (error.code === 'PGRST205' || error.message?.includes('table') || error.message?.includes('not found')) {
+          console.warn('[Memory Extraction] user_tasks table not found, skipping task save (dev mode)');
+          continue; // Skip this task, continue with others
+        }
+        throw error;
+      }
+    } catch (err: any) {
+      // Catch any other errors (network, etc.)
+      if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
+        console.warn('[Memory Extraction] user_tasks table not found, skipping task save (dev mode)');
+        continue;
+      }
       console.error('[Memory Extraction] Failed to save task:', err);
     }
   }
@@ -370,17 +384,52 @@ export async function getUserFacts(
  * @param userId - User ID
  * @returns Array of tasks
  */
-export async function getUserTasks(userId: string): Promise<Array<{ description: string; due_date: string | null; status: string }>> {
-  const { data, error } = await supabase
-    .from('user_tasks')
-    .select('description, due_date, status')
-    .eq('user_id', userId)
-    .in('status', ['pending', 'in_progress'])
-    .order('due_date', { ascending: true })
-    .limit(10);
+export async function getUserTasks(userId: string): Promise<Array<{ id: string; status: string }>> {
+  let data: any[] = [];
+  let error: any = null;
+  
+  try {
+    const result = await supabase
+      .from('user_tasks')
+      .select('id, status') // Only select columns that exist (due_date and description don't exist)
+      .eq('user_id', userId)
+      .in('status', ['pending', 'in_progress'])
+      .order('id', { ascending: true })
+      .limit(10);
+    
+    data = result.data || [];
+    error = result.error;
+  } catch (err: any) {
+    const message = err?.message ?? '';
+    // Part C: Silence optional dev features when tables/columns are missing
+    if (
+      message.includes('does not exist') || 
+      message.includes('schema cache') ||
+      message.includes('column') ||
+      err.code === 'PGRST205' ||
+      err.code === '42703' // Column does not exist
+    ) {
+      console.warn('[Memory Extraction] Optional tasks context skipped:', message.substring(0, 100));
+      return [];
+    }
+    console.warn('[Memory Extraction] Unexpected error fetching tasks (non-fatal):', err.message || err);
+    return [];
+  }
 
   if (error) {
-    console.error('[Memory Extraction] Error fetching tasks:', error);
+    const message = error?.message ?? '';
+    // Part C: Silence optional dev features when tables/columns are missing
+    if (
+      message.includes('does not exist') || 
+      message.includes('schema cache') ||
+      message.includes('column') ||
+      error.code === 'PGRST205' ||
+      error.code === '42703' // Column does not exist
+    ) {
+      console.warn('[Memory Extraction] Optional tasks context skipped:', message.substring(0, 100));
+      return [];
+    }
+    console.warn('[Memory Extraction] Error fetching tasks (non-fatal):', error.message || error);
     return [];
   }
 

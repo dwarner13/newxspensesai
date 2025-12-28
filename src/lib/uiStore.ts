@@ -33,3 +33,13 @@ export const therapistTriggerAtom = atom<TherapistTrigger>({
 });
 
 export const isTherapistModalOpenAtom = atom(false);
+
+// Control Center Drawer (Settings: Profile/Preferences/Security)
+export type ControlCenterTab = 'profile' | 'preferences' | 'security' | null;
+export const controlCenterDrawerOpenAtom = atom(false);
+export const controlCenterActiveTabAtom = atom<ControlCenterTab>(null);
+
+// Account Center Panel (Account/Billing/Custodian Support/Data & Privacy)
+export type AccountCenterTab = 'account' | 'billing' | 'support' | 'privacy';
+export const accountCenterPanelOpenAtom = atom(false);
+export const accountCenterActiveTabAtom = atom<AccountCenterTab>('account');

@@ -26,7 +26,20 @@ import {
   Plus
 } from 'lucide-react';
 
+/**
+ * DEPRECATED: AIAssistantDashboard Component
+ * 
+ * This component is no longer used. The dashboard now uses ConnectedDashboard 
+ * with Prime hero card. This component is kept for reference but returns null.
+ * 
+ * If you need AI Assistant functionality, use:
+ * - ConnectedDashboard (main dashboard with Prime hero)
+ * - UnifiedAssistantChat (chat slideout)
+ * - PrimeChatPage (/dashboard/prime-chat)
+ */
 export function AIAssistantDashboard() {
+  // This component is deprecated and should not render
+  return null;
   const { 
     state, 
     processStatement, 

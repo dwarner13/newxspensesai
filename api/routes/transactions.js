@@ -114,7 +114,8 @@ router.post('/', async (req, res) => {
       type,
       category_id,
       reference,
-      metadata
+      metadata,
+      notes
     } = req.body;
 
     // Validate required fields
@@ -151,7 +152,8 @@ router.post('/', async (req, res) => {
         date,
         type,
         reference,
-        metadata: metadata || {}
+        metadata: metadata || {},
+        notes: notes || null
       })
       .select(`
         *,
@@ -281,7 +283,8 @@ router.post('/bulk', async (req, res) => {
         type,
         category_id,
         reference,
-        metadata
+        metadata,
+        notes
       } = transaction;
 
       // Auto-categorize if no category provided
@@ -309,7 +312,8 @@ router.post('/bulk', async (req, res) => {
         date,
         type,
         reference,
-        metadata: metadata || {}
+        metadata: metadata || {},
+        notes: notes || null
       });
     }
 

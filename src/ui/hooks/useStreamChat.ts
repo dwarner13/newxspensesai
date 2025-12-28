@@ -19,6 +19,7 @@ interface Message {
 interface UseStreamChatOptions {
   onError?: (error: Error) => void;
   conversationId?: string;
+  employeeSlug?: string; // Phase 3.3: Allow specifying initial employee
 }
 
 export function useStreamChat(options: UseStreamChatOptions = {}) {
@@ -27,6 +28,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
   const [error, setError] = useState<Error | null>(null);
   const [isToolExecuting, setIsToolExecuting] = useState(false);
   const [currentTool, setCurrentTool] = useState<string | null>(null);
+  const [activeEmployeeSlug, setActiveEmployeeSlug] = useState<string>(options.employeeSlug || 'prime-boss');
   const abortControllerRef = useRef<AbortController | null>(null);
   
   const sendMessage = useCallback(async (content: string) => {
@@ -56,6 +58,24 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
     setMessages(prev => [...prev, assistantMessage]);
     
     try {
+      // Check if guest mode - return mock response
+      // Use dynamic import to avoid circular dependencies
+      const demoAuthModule = await import('../../lib/demoAuth');
+      if (demoAuthModule.isDemoMode() && demoAuthModule.isGuestSession()) {
+        console.log('[useStreamChat] Guest mode detected - returning mock response');
+        setIsStreaming(false);
+        setIsToolExecuting(false);
+        setCurrentTool(null);
+        
+        // Update assistant message with mock response
+        setMessages(prev => prev.map((msg, idx) => 
+          idx === prev.length - 1 && msg.role === 'assistant'
+            ? { ...msg, content: 'Guest mode is enabled. Connect Supabase/Netlify to use full AI features.', isStreaming: false }
+            : msg
+        ));
+        return;
+      }
+      
       // Create abort controller for cancellation
       abortControllerRef.current = new AbortController();
       
@@ -68,7 +88,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
         },
         body: JSON.stringify({
           userId: localStorage.getItem('anonymous_user_id') || `anon-${Date.now()}`,
-          employeeSlug: 'prime-boss',
+          employeeSlug: activeEmployeeSlug, // Phase 3.3: Use active employee (may change after handoff)
           message: content,
           sessionId: options.conversationId,
           stream: true,
@@ -80,7 +100,28 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       verifyChatBackend(response);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Clear streaming state immediately on error
+        setIsStreaming(false);
+        setIsToolExecuting(false);
+        setCurrentTool(null);
+        
+        // Try to get error message from response body
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (e) {
+          // If response isn't JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        
+        const error = new Error(errorMessage);
+        setError(error);
+        options.onError?.(error);
+        
+        // Remove assistant message placeholder if error
+        setMessages(prev => prev.slice(0, -1));
+        return;
       }
       
       const reader = response.body?.getReader();
@@ -91,101 +132,190 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       }
       
       let buffer = '';
+      let firstChunk = true;
       
       while (true) {
         const { done, value } = await reader.read();
         
-        if (done) break;
+        if (done) {
+          console.log('[useStreamChat] Stream completed');
+          break;
+        }
         
-        buffer += decoder.decode(value, { stream: true});
+        const chunkString = decoder.decode(value, { stream: true });
+        if (firstChunk) {
+          console.debug('[useStreamChat] first chunk', chunkString.slice(0, 200));
+          firstChunk = false;
+        }
         
-        // Process complete SSE events
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        buffer += chunkString;
         
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              const event = data as StreamEvent;
+        // Process complete SSE events (separated by \n\n)
+        let eventEndIndex;
+        while ((eventEndIndex = buffer.indexOf('\n\n')) !== -1) {
+          const eventText = buffer.slice(0, eventEndIndex);
+          buffer = buffer.slice(eventEndIndex + 2);
+          
+          // Find the data: line in this event
+          const lines = eventText.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                const event = data as StreamEvent;
               
-              switch (event.type) {
-                case 'text':
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      lastMessage.content += event.content;
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'tool_call':
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      lastMessage.toolCalls = lastMessage.toolCalls || [];
-                      lastMessage.toolCalls.push({
-                        id: event.tool.id,
-                        name: event.tool.name,
-                        status: 'pending',
-                      });
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'tool_executing':
-                  setIsToolExecuting(true);
-                  setCurrentTool(event.tool);
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
-                      if (toolCall) {
-                        toolCall.status = 'executing';
-                      }
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'confirmation_required':
-                  setMessages(prev => {
-                    const newMessages = [...prev];
-                    const lastMessage = newMessages[newMessages.length - 1];
-                    if (lastMessage && lastMessage.role === 'assistant') {
-                      lastMessage.content += `\n\n⚠️ **Confirmation Required**\n${event.summary}\n\nPlease confirm by saying "yes" or "confirm" to proceed.`;
-                    }
-                    return newMessages;
-                  });
-                  break;
-                  
-                case 'error':
-                  throw new Error(event.error);
-                  
-                case 'done':
-                  setIsStreaming(false);
-                  setIsToolExecuting(false);
-                  setCurrentTool(null);
-                  
-                  if (event.processingTime) {
+                switch (event.type) {
+                  case 'text':
                     setMessages(prev => {
                       const newMessages = [...prev];
                       const lastMessage = newMessages[newMessages.length - 1];
                       if (lastMessage && lastMessage.role === 'assistant') {
-                        lastMessage.processingTime = event.processingTime;
+                        lastMessage.content += event.content;
                       }
                       return newMessages;
                     });
-                  }
-                  break;
+                    break;
+                    
+                  case 'tool_call':
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        lastMessage.toolCalls = lastMessage.toolCalls || [];
+                        lastMessage.toolCalls.push({
+                          id: event.tool.id,
+                          name: event.tool.name,
+                          status: 'pending',
+                        });
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'tool_executing':
+                    setIsToolExecuting(true);
+                    setCurrentTool(event.tool);
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
+                        if (toolCall) {
+                          toolCall.status = 'executing';
+                        }
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'tool_result':
+                    // Phase 3.1: Handle tool result event
+                    setIsToolExecuting(false);
+                    setCurrentTool(null);
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
+                        if (toolCall) {
+                          toolCall.status = 'completed';
+                          toolCall.result = event.result;
+                        }
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'tool_error':
+                    // Phase 3.1: Handle tool error event
+                    setIsToolExecuting(false);
+                    setCurrentTool(null);
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        const toolCall = lastMessage.toolCalls?.find(tc => tc.name === event.tool);
+                        if (toolCall) {
+                          toolCall.status = 'error';
+                          toolCall.error = event.error;
+                        }
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'confirmation_required':
+                    setMessages(prev => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+                      if (lastMessage && lastMessage.role === 'assistant') {
+                        lastMessage.content += `\n\n⚠️ **Confirmation Required**\n${event.summary}\n\nPlease confirm by saying "yes" or "confirm" to proceed.`;
+                      }
+                      return newMessages;
+                    });
+                    break;
+                    
+                  case 'handoff':
+                    // Phase 3.2: Handle employee handoff with context
+                    console.log(`[useStreamChat] 🔄 Handoff detected: ${event.from} → ${event.to}`, {
+                      reason: event.reason,
+                      summary: event.summary,
+                    });
+                    
+                    // Update active employee
+                    setActiveEmployeeSlug(event.to);
+                    
+                    // Phase 3.2: Add rich handoff notification message with context
+                    setMessages(prev => {
+                      let handoffContent = `🔄 **Handoff**: ${event.from} has transferred you to ${event.to}`;
+                      
+                      if (event.reason) {
+                        handoffContent += `\n\n**Reason**: ${event.reason}`;
+                      }
+                      
+                      if (event.summary) {
+                        handoffContent += `\n\n**Context**: ${event.summary}`;
+                      }
+                      
+                      const handoffMessage: Message = {
+                        id: `handoff-${Date.now()}`,
+                        role: 'assistant',
+                        content: handoffContent,
+                        timestamp: new Date(),
+                      };
+                      return [...prev, handoffMessage];
+                    });
+                    break;
+                    
+                  case 'employee':
+                    // Update active employee from backend
+                    console.log(`[useStreamChat] Employee update: ${event.employee}`);
+                    setActiveEmployeeSlug(event.employee);
+                    break;
+                    
+                  case 'error':
+                    throw new Error(event.error);
+                    
+                  case 'done':
+                    setIsStreaming(false);
+                    setIsToolExecuting(false);
+                    setCurrentTool(null);
+                    
+                    if (event.processingTime) {
+                      setMessages(prev => {
+                        const newMessages = [...prev];
+                        const lastMessage = newMessages[newMessages.length - 1];
+                        if (lastMessage && lastMessage.role === 'assistant') {
+                          lastMessage.processingTime = event.processingTime;
+                        }
+                        return newMessages;
+                      });
+                    }
+                    break;
+                }
+              } catch (e) {
+                console.error('Failed to parse SSE event:', e, 'Raw line:', line);
               }
-            } catch (e) {
-              console.error('Failed to parse SSE event:', e);
             }
           }
         }
@@ -193,22 +323,29 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
     } catch (err) {
       const error = err as Error;
       
+      // Always clear streaming state on error
+      setIsStreaming(false);
+      setIsToolExecuting(false);
+      setCurrentTool(null);
+      
       if (error.name === 'AbortError') {
-        console.log('Stream aborted');
+        console.log('[useStreamChat] Stream aborted');
       } else {
+        console.error('[useStreamChat] Stream error:', {
+          error: error.message,
+          name: error.name,
+          stack: error.stack,
+        });
         setError(error);
         options.onError?.(error);
         
         // Remove assistant message if error
         setMessages(prev => prev.slice(0, -1));
       }
-    } finally {
-      setIsStreaming(false);
-      setIsToolExecuting(false);
-      setCurrentTool(null);
+      
       abortControllerRef.current = null;
     }
-  }, [options]);
+  }, [options, activeEmployeeSlug]);
   
   const cancelStream = useCallback(() => {
     if (abortControllerRef.current) {
@@ -227,6 +364,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
     error,
     isToolExecuting,
     currentTool,
+    activeEmployeeSlug, // Expose active employee (may change after handoff)
     sendMessage,
     cancelStream,
     clearMessages,

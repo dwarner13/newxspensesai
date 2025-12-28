@@ -206,15 +206,54 @@ async function checkTokenBucketDb(
     const { supabase } = serverSupabase();
 
     // Try to fetch or create rate limit entry
-    const { data, error } = await supabase
-      .from("rate_limits")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("endpoint", endpointKey)
-      .maybeSingle();
+    // Use chat_rate_limits table (updated from rate_limits)
+    let data: any = null;
+    let error: any = null;
+    
+    try {
+      const result = await supabase
+        .from("chat_rate_limits")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("endpoint", endpointKey)
+        .maybeSingle();
+      
+      data = result.data;
+      error = result.error;
+    } catch (err: any) {
+      const message = err?.message ?? '';
+      // Part C: Silence optional dev features when tables/columns are missing
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        (message.includes('does not exist') || 
+         message.includes('schema cache') ||
+         message.includes('column') ||
+         err.code === 'PGRST205' ||
+         err.code === '42703') // Column does not exist
+      ) {
+        console.warn('[Rate Limit] Optional feature skipped due to missing table/column (dev mode)', { message: message.substring(0, 100) });
+        return null; // Fail open - allow request to proceed
+      }
+      throw err;
+    }
 
-    if (error && error.code !== "PGRST116") {
-      throw error;
+    if (error) {
+      const message = error?.message ?? '';
+      // Part C: Silence optional dev features when tables/columns are missing
+      if (
+        process.env.NODE_ENV !== 'production' &&
+        (message.includes('does not exist') || 
+         message.includes('schema cache') ||
+         message.includes('column') ||
+         error.code === 'PGRST205' ||
+         error.code === '42703') // Column does not exist
+      ) {
+        console.warn('[Rate Limit] Optional feature skipped due to missing table/column (dev mode)', { message: message.substring(0, 100) });
+        return null; // Fail open - allow request to proceed
+      }
+      if (error.code !== "PGRST116") {
+        throw error;
+      }
     }
 
     const windowStart = new Date(now - 60000); // 1 minute window
@@ -222,15 +261,23 @@ async function checkTokenBucketDb(
 
     if (isNewWindow) {
       // New window, reset counter
-      await supabase.from("rate_limits").upsert(
-        {
-          user_id: userId,
-          endpoint: endpointKey,
-          window_start: new Date(now).toISOString(),
-          count: 1,
-        },
-        { onConflict: "user_id,endpoint" }
-      );
+      try {
+        await supabase.from("chat_rate_limits").upsert(
+          {
+            user_id: userId,
+            endpoint: endpointKey,
+            window_start: new Date(now).toISOString(),
+            count: 1,
+          },
+          { onConflict: "user_id,endpoint" }
+        );
+      } catch (err: any) {
+        if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
+          console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+          return null;
+        }
+        throw err;
+      }
       return [true, 0];
     }
 
@@ -238,11 +285,19 @@ async function checkTokenBucketDb(
     const isAllowed = count <= options.limitPerMinute;
 
     // Update counter
-    await supabase
-      .from("rate_limits")
-      .update({ count })
-      .eq("user_id", userId)
-      .eq("endpoint", endpointKey);
+    try {
+      await supabase
+        .from("chat_rate_limits")
+        .update({ count })
+        .eq("user_id", userId)
+        .eq("endpoint", endpointKey);
+    } catch (err: any) {
+      if (err.code === 'PGRST205' || err.message?.includes('table') || err.message?.includes('not found')) {
+        console.warn('[Rate Limit] chat_rate_limits table not found, skipping rate limiting in dev');
+        return null;
+      }
+      throw err;
+    }
 
     const retryAfter = isAllowed
       ? 0
@@ -504,6 +559,7 @@ export function getPresetOptions(
 ): Pick<RateLimitOptions, "limitPerMinute" | "burst"> {
   return RateLimitPresets[preset];
 }
+
 
 
 

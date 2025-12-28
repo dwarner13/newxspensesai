@@ -36,11 +36,11 @@ import {
   Banknote,
   Star,
   Sparkles,
-  Crown,
   BookOpen,
   Users
 } from 'lucide-react';
 import Logo from '../common/Logo';
+import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 import { useUser } from "../../contexts/UserContext";
 
 export default function Sidebar({ 
@@ -168,11 +168,9 @@ export default function Sidebar({
               </div>
             </div>
           ) : (
-            // Collapsed state - Same crown as logo
+            // Collapsed state - Prime logo badge
             <div className="flex items-center justify-center flex-1">
-              <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-                <Crown size={28} className="text-white font-bold" />
-              </div>
+              <PrimeLogoBadge size={40} showGlow={true} />
             </div>
           )}
           
@@ -583,12 +581,12 @@ export default function Sidebar({
                 <User size={20} className="text-white" />
               </div>
               <div className="flex-1">
-                <div className="font-semibold text-white text-sm">{user?.name || 'John Doe'}</div>
-                <div className="text-xs text-white/80">{user?.plan || 'Premium Plan'}</div>
+                <div className="font-semibold text-white text-sm">{profile.fullName}</div>
+                <div className="text-xs text-white/80">{profile.planDisplay}</div>
               </div>
             </div>
             <div className="bg-white/20 text-white px-2 py-1 rounded-md text-xs font-medium backdrop-blur-sm">
-              Level 8 Money Master
+              Level {profile.level} {profile.levelTitle}
             </div>
           </div>
         )}

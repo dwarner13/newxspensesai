@@ -2,6 +2,16 @@
    XSPENSESAI DESIGN SYSTEM - MAIN ENTRY
    ======================================== */
 
+/* Hide all scrollbars globally while preserving scroll functionality */
+* {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE/Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none !important; /* Chrome/Safari/Opera */
+}
+
 /* Layout Guards */
 :root[data-layout="mobile"] .desktop-only { display: none !important; }
 :root[data-layout="desktop"] .mobile-only { display: none !important; }
@@ -39,10 +49,34 @@
 }
 
 html, body {
+  height: 100vh;
+  max-height: 100vh;
+}
+
+html {
+  overflow-x: clip !important;
+}
+
+body {
+  overflow-x: clip !important;
+  overflow-y: auto;
+}
+
+html, body {
   margin: 0;
   padding: 0;
-  height: 100%;
   font-family: 'Inter', 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  background-color: #020617; /* slate-950 */
+}
+
+/* Root container must be full height and not scroll */
+#root {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
 }
 
 /* ========================================
@@ -582,9 +616,40 @@ body::after {
   animation: stroke 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
 }
 
+/* Chat pop-up animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 @keyframes stroke {
   100% {
     stroke-dashoffset: 0;
+  }
+}
+
+/* Gentle pulse animation for send button */
+@keyframes gentle-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
   }
 }
 
@@ -634,6 +699,50 @@ body::after {
   scrollbar-color: rgba(139, 92, 246, 0.5) rgba(139, 92, 246, 0.1);
 }
 
+/* No scrollbar utility class - hide scrollbar but keep scrolling */
+/* CRITICAL: Also remove scrollbar-gutter to prevent phantom scrollbar space */
+.scrollbar-hide::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar,
+body.hide-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.scrollbar-hide::-webkit-scrollbar-track,
+.no-scrollbar::-webkit-scrollbar-track,
+.scrollbar-none::-webkit-scrollbar-track,
+.hide-scrollbar::-webkit-scrollbar-track,
+body.hide-scrollbar::-webkit-scrollbar-track {
+  display: none !important;
+}
+
+.scrollbar-hide,
+.no-scrollbar,
+.scrollbar-none,
+.hide-scrollbar,
+body.hide-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+  scrollbar-gutter: auto !important; /* Remove reserved scrollbar gutter space */
+}
+
+/* CRITICAL: hide-scrollbar utility - ONLY for mobile overlays/modals, NOT for desktop body */
+/* Desktop body scrollbar must remain visible for proper scroll behavior and diagnosis */
+/* Mobile overlays (modals, slideouts) can use this class on their own containers */
+body.hide-scrollbar {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE/Edge */
+}
+
+body.hide-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome/Safari/Edge */
+  width: 0 !important;
+  height: 0 !important;
+}
+
 /* Chat container specific scrollbar */
 .chat-messages::-webkit-scrollbar {
   width: 6px;
@@ -651,4 +760,122 @@ body::after {
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
   background: rgba(139, 92, 246, 0.6);
+}
+
+/* Account Center Panel scrollbar - premium, thin, low contrast */
+.account-center-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.account-center-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.account-center-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.account-center-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* Firefox scrollbar for Account Center */
+.account-center-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+}
+
+/* Custodian Messages scrollbar - matches Account Center styling */
+.custodian-messages-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custodian-messages-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.custodian-messages-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.custodian-messages-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* Firefox scrollbar for Custodian Messages */
+.custodian-messages-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.2) transparent;
+}
+
+/* Prime Tools fadeInUp animation */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes flash-green {
+  0% { border-left-color: transparent; }
+  50% { border-left-color: rgb(16, 185, 129); box-shadow: 0 0 20px rgba(16, 185, 129, 0.5); }
+  100% { border-left-color: rgb(16, 185, 129); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* ========================================
+   SCROLL CHAINING FIX FOR /dashboard AND /dashboard/prime-chat
+   ======================================== */
+/* CRITICAL: Force scroll chaining on body scroll routes to prevent "stops early" behavior */
+/* This ensures wheel/trackpad events over Prime workspace scroll the page to the bottom */
+/* Route-scoped to ONLY affect /dashboard and /dashboard/prime-chat */
+/* Must be very targeted - does NOT affect modals/overlays elsewhere */
+
+/* Force scroll chaining within dashboard content on body scroll routes */
+main[data-dashboard-content] * {
+  overscroll-behavior-y: auto !important;
+  overscroll-behavior-x: auto !important;
+}
+
+/* Prohibit overscroll containment on body scroll routes */
+main[data-dashboard-content] * {
+  overscroll-behavior: auto !important;
+}
+
+/* Prohibit scrollbar-gutter: stable on body scroll routes */
+main[data-dashboard-content] * {
+  scrollbar-gutter: auto !important;
+}
+
+/* Ensure no nested scroll containers block scroll chaining */
+main[data-dashboard-content] [data-scroll-container="true"] {
+  overscroll-behavior: auto !important;
+}
+
+/* CRITICAL: Disable ScrollArea Viewport scrolling on /dashboard/prime-chat */
+/* ScrollArea creates a Viewport with h-full w-full rounded-[inherit] that captures scroll events */
+/* On /dashboard/prime-chat, BODY is the scroll owner - no nested scroll containers allowed */
+/* Target ScrollArea Viewport by data attribute - only affects ScrollAreas inside main content (not fixed sidebar) */
+main[data-dashboard-content] [data-scroll-area-viewport="true"] {
+  overflow-y: visible !important;
+  overflow-x: visible !important;
+  overscroll-behavior: auto !important;
 } 
