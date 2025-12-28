@@ -77,20 +77,33 @@ export function useUploadQueue(options: UseUploadQueueOptions): UseUploadQueueRe
 
     queueRef.current = queue;
 
-    // Subscribe to queue events
-    const unsubscribe = queue.on((event: UploadQueueEvent) => {
-      const state = queue.getState();
-      setItems(state.items);
-      setProgress(state.progress);
+    // Subscribe to queue events (only if queue is initialized)
+    if (queue && typeof queue.on === 'function') {
+      const unsubscribe = queue.on((event: UploadQueueEvent) => {
+        const state = queue.getState();
+        setItems(state.items);
+        setProgress(state.progress);
 
-      if (event.type === 'item-completed') {
-        setResults(prev => {
-          const next = new Map(prev);
-          next.set(event.item.id, event.item.result);
-          return next;
-        });
+        if (event.type === 'item-completed') {
+          setResults(prev => {
+            const next = new Map(prev);
+            next.set(event.item.id, event.item.result);
+            return next;
+          });
+        }
+      });
+
+      return () => {
+        unsubscribe();
+        queue.clear();
+      };
+    }
+
+    return () => {
+      if (queueRef.current) {
+        queueRef.current.clear();
       }
-    });
+    };
 
     return () => {
       unsubscribe();

@@ -31,12 +31,12 @@ export type AiUserContext = {
  * 
  * NOTE: This file is server-only (used by Netlify functions), so admin() is always available
  */
-function getServiceSupabase() {
+async function getServiceSupabase() {
   // Use admin() from shared supabase module (server-only)
-  // Dynamic import to avoid circular dependencies
+  // Dynamic import to avoid circular dependencies and ES module compatibility
   try {
     // Try relative path from src/lib/ai/ to netlify/functions/_shared/
-    const { admin } = require('../../../netlify/functions/_shared/supabase.js');
+    const { admin } = await import('../../../netlify/functions/_shared/supabase.js');
     return admin();
   } catch (e) {
     // Fallback if admin() not available (shouldn't happen in server context)
@@ -53,7 +53,7 @@ function getServiceSupabase() {
  * @returns AI user context with safe defaults if profile doesn't exist
  */
 export async function fetchAiUserContext(userId: string): Promise<AiUserContext> {
-  const supabase = getServiceSupabase();
+  const supabase = await getServiceSupabase();
 
   const { data, error } = await supabase
     .from("profiles")

@@ -21,22 +21,28 @@ let getSupabaseClient: () => any;
 // Determine environment and set up appropriate client
 if (typeof window === 'undefined') {
   // Backend (Netlify Functions) - use admin client
-  try {
-    const supabaseModule = require('../../netlify/functions/_shared/supabase.js');
-    getSupabaseClient = () => supabaseModule.admin();
-  } catch (error) {
-    console.warn('[EmployeeRegistry] Failed to load backend Supabase client:', error);
-    getSupabaseClient = () => null;
-  }
+  // Use dynamic import for ES modules compatibility
+  getSupabaseClient = async () => {
+    try {
+      const supabaseModule = await import('../../netlify/functions/_shared/supabase.js');
+      return supabaseModule.admin();
+    } catch (error) {
+      console.warn('[EmployeeRegistry] Failed to load backend Supabase client:', error);
+      return null;
+    }
+  };
 } else {
   // Frontend - use regular client
-  try {
-    const { getSupabase } = require('@/lib/supabase');
-    getSupabaseClient = () => getSupabase();
-  } catch (error) {
-    console.warn('[EmployeeRegistry] Failed to load frontend Supabase client:', error);
-    getSupabaseClient = () => null;
-  }
+  // Use dynamic import for ES modules compatibility
+  getSupabaseClient = async () => {
+    try {
+      const { getSupabase } = await import('@/lib/supabase');
+      return getSupabase();
+    } catch (error) {
+      console.warn('[EmployeeRegistry] Failed to load frontend Supabase client:', error);
+      return null;
+    }
+  };
 }
 
 // ============================================================================
@@ -89,7 +95,7 @@ async function loadEmployees(): Promise<Map<string, EmployeeProfile>> {
   }
   
   try {
-    const sb = getSupabaseClient();
+    const sb = await getSupabaseClient();
     if (!sb) {
       console.error('[EmployeeRegistry] Supabase client not available');
       return new Map();
@@ -142,7 +148,7 @@ export async function resolveSlug(inputSlug: string): Promise<string> {
   
   // Check aliases via database function
   try {
-    const sb = getSupabaseClient();
+    const sb = await getSupabaseClient();
     if (!sb) {
       // Fallback to manual alias map (same as main fallback)
       const aliasMap: Record<string, string> = {

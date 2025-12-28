@@ -11,16 +11,16 @@
  * 
  * NOTE: This file is server-only (Netlify functions), so admin() is always available
  */
-function getServiceSupabase() {
+async function getServiceSupabase() {
   // Use admin() from shared supabase module (server-only)
-  // Dynamic import to avoid circular dependencies
+  // Dynamic import to avoid circular dependencies and ES module compatibility
   try {
     // Try relative path from src/lib/ai/ to netlify/functions/_shared/
-    const { admin } = require('../../../netlify/functions/_shared/supabase.js');
+    const { admin } = await import('../../../netlify/functions/_shared/supabase.js');
     return admin();
   } catch (e) {
     // Fallback if admin() not available (shouldn't happen in server context)
-    const { createClient } = require("@supabase/supabase-js");
+    const { createClient } = await import("@supabase/supabase-js");
     const url = process.env.SUPABASE_URL!;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     return createClient(url, key, { auth: { persistSession: false } });
@@ -51,7 +51,7 @@ export interface LogUserEventParams {
  * @param params - Event parameters
  */
 export async function logUserEvent(params: LogUserEventParams) {
-  const supabase = getServiceSupabase();
+  const supabase = await getServiceSupabase();
   
   try {
     const { error } = await supabase.from("user_activity_events").insert({
@@ -79,7 +79,7 @@ export async function logUserEvent(params: LogUserEventParams) {
  * @param userId - User ID
  */
 export async function recalcFluency(userId: string) {
-  const supabase = getServiceSupabase();
+  const supabase = await getServiceSupabase();
   
   try {
     const { error } = await supabase.rpc("recalculate_ai_fluency", { 

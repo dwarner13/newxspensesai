@@ -10,10 +10,10 @@
  */
 
 import type { Handler } from '@netlify/functions';
+import { createClient } from '@supabase/supabase-js';
 import { admin } from './_shared/supabase';
 
 function getSupabaseClient(authToken: string) {
-  const { createClient } = require('@supabase/supabase-js');
   const url = process.env.SUPABASE_URL!;
   const key = process.env.SUPABASE_ANON_KEY!;
   

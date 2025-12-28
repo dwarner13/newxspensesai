@@ -27,10 +27,14 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Try to use ProfileContext (will throw if not wrapped)
+    // Note: This is a no-op - UserContext is legacy, components should use useProfile() directly
     try {
-      const { useProfileContext } = require('./ProfileContext');
-      // This won't work in a provider - we need to check if ProfileProvider is parent
-      // For now, use defaults and let components use useProfile() directly
+      // Dynamic import check (safe in useEffect)
+      const ProfileContextModule = require('./ProfileContext');
+      if (ProfileContextModule && ProfileContextModule.useProfileContext) {
+        // ProfileContext available but we can't use hooks in useEffect
+        // Components should use useProfile() hook directly instead
+      }
     } catch {
       // ProfileContext not available - use defaults
     }

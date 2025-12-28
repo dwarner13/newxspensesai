@@ -271,7 +271,12 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       const results: UploadResult[] = [];
       const completedIds = new Set<string>();
       
-      // Subscribe to queue events
+      // Subscribe to queue events (only if queue is initialized and has .on method)
+      if (!uploadQueue || typeof uploadQueue.on !== 'function') {
+        reject(new Error('Upload queue not initialized'));
+        return;
+      }
+      
       const unsubscribe = uploadQueue.on((event) => {
         if (event.type === 'item-completed' && event.item.result) {
           completedIds.add(event.item.id);

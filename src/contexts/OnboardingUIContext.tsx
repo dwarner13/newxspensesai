@@ -39,21 +39,24 @@ export function useOnboardingUI(): OnboardingUIContextType {
  * This is the single source of truth for blocking other UI during onboarding
  */
 export function useOnboardingActive() {
-  // Import ProfileContext dynamically to avoid circular dependencies
-  let profile: any = null;
+  // Try to use ProfileContext if available (must be called unconditionally)
   let onboardingCompleted = false;
   
   try {
-    const { useProfileContext } = require('./ProfileContext');
-    const profileContext = useProfileContext();
-    profile = profileContext.profile;
-    
-    // Check if onboarding is completed from profile metadata
-    onboardingCompleted = profile?.metadata && typeof profile.metadata === 'object'
-      ? (profile.metadata as any)?.onboarding?.completed === true
-      : false;
+    // Use dynamic import to avoid circular dependencies
+    // Note: This is safe because hooks are called at render time
+    const ProfileContextModule = require('./ProfileContext');
+    if (ProfileContextModule && ProfileContextModule.useProfileContext) {
+      const profileContext = ProfileContextModule.useProfileContext();
+      const profile = profileContext?.profile;
+      
+      // Check if onboarding is completed from profile metadata
+      onboardingCompleted = profile?.metadata && typeof profile.metadata === 'object'
+        ? (profile.metadata as any)?.onboarding?.completed === true
+        : false;
+    }
   } catch (e) {
-    // ProfileContext not available, assume incomplete
+    // ProfileContext not available or not wrapped, assume incomplete
     onboardingCompleted = false;
   }
   
