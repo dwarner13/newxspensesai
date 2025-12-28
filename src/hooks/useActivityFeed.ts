@@ -153,9 +153,8 @@ export function useActivityFeed(
         return;
       }
 
-      // Build query parameters
+      // Build query parameters (userId no longer required - extracted from token)
       const params = new URLSearchParams({
-        userId,
         limit: limit.toString(),
       });
 

@@ -329,7 +329,7 @@ function buildWarnings(
 
 export const handler: Handler = async (event) => {
   // Health check log
-  // Use process.env for server-safe DEV detection (no import.meta in CJS)
+  // Use process.env for server-safe DEV detection (CJS compatible)
   if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV !== 'production') {
     console.log('[prime-state] ✅ Handler called', { method: event.httpMethod, path: event.path });
   }

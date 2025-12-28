@@ -1837,7 +1837,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
     } catch (configError: any) {
       console.warn('[Chat] Failed to get employee model config (non-fatal, using defaults):', configError?.message || configError);
       // Fallback to default config using env var or safe defaults
-      // Use process.env only (no import.meta for CJS compatibility)
+      // Use process.env only (server-safe, CJS compatible)
       const defaultModel = process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini';
       const defaultMaxTokens = isFastPath ? 300 : 2000; // FAST PATH: Lower maxTokens
       modelConfig = {
@@ -1864,7 +1864,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
     let firstTokenTime: number | null = null;
 
     // DEV: Comprehensive AI request logging
-    // Use process.env only (no import.meta for CJS compatibility)
+    // Use process.env only (server-safe, CJS compatible)
     if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
       console.group(`🤖 [Backend AI Request] ${finalEmployeeSlug}`);
       
