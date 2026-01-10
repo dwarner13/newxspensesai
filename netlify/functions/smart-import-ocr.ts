@@ -255,14 +255,17 @@ export const handler: Handler = async (event, context) => {
     // Auto-announce OCR completion to Byte chat
     fetch(`${netlifyUrl}/.netlify/functions/chat`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({
         userId,
         employeeSlug: 'byte-docs',
-        message: `I've finished processing ${doc.original_name}. Extracted ${guardrailResult.text.length.toLocaleString()} characters of text data. The document is ready for transaction parsing whenever you're ready.`,
-        stream: false
+        message: `I've finished processing ${doc.original_name}. Extracted ${guardrailResult.text.length.toLocaleString()} characters. Ready for transaction parsing.`,
+        stream: false,
+        sessionId: undefined
       })
-    }).catch(err => console.error('[OCR] Chat announce:', err));
+    }).catch(err => console.error('[OCR] Auto-announce error:', err));
 
     // AI Fluency: Log document processed event (non-blocking)
     const isReceipt = doc.mime_type?.startsWith('image/') || false;
