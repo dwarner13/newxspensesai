@@ -56,7 +56,7 @@ export function useDocumentStats() {
     };
 
     fetchStats();
-    const interval = setInterval(fetchStats, 10000);
+    const interval = setInterval(fetchStats, 30000);
     return () => { mounted = false; clearInterval(interval); };
   }, [user?.id]);
 
