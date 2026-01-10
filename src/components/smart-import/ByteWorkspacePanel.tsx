@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { FileText, Clock, CheckCircle, BarChart3, Loader2, TrendingUp, AlertTriangle } from 'lucide-react';
-import { useByteQueueStats } from '../../hooks/useByteQueueStats';
+import { useDocumentStats } from '../../hooks/useDocumentStats';
 import { useSmartImport } from '../../hooks/useSmartImport';
 import { useSmartImportUploadState } from '../../hooks/useSmartImportUploadState';
 
@@ -105,7 +105,7 @@ export function ByteWorkspacePanel({
   uploadProgress: legacyProgress,
   uploadFileCount: legacyFileCount
 }: ByteWorkspacePanelProps) {
-  const { data: stats, isLoading: statsLoading, isError: statsError } = useByteQueueStats();
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useDocumentStats();
   
   // Use shared upload status from Smart Import hook
   const { uploadStatus, uploadFileCount } = useSmartImport();
