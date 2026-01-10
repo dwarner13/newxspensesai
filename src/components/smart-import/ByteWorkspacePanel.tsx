@@ -5,11 +5,13 @@
  * Single source of truth for Smart Import workspace
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FileText, Clock, CheckCircle, BarChart3, Loader2, TrendingUp, AlertTriangle } from 'lucide-react';
 import { useDocumentStats } from '../../hooks/useDocumentStats';
 import { useSmartImport } from '../../hooks/useSmartImport';
 import { useSmartImportUploadState } from '../../hooks/useSmartImportUploadState';
+import { supabase } from '../../lib/supabase';
+import { DocumentViewerModal } from '../ui/DocumentViewerModal';
 
 interface StatusCard {
   id: string;
@@ -106,7 +108,21 @@ export function ByteWorkspacePanel({
   uploadFileCount: legacyFileCount
 }: ByteWorkspacePanelProps) {
   const { data: stats, isLoading: statsLoading, isError: statsError } = useDocumentStats();
-  
+
+  const [recentExtractions, setRecentExtractions] = useState<Array<{id: string; name: string; text: string; date: string}>>([]);
+  const [selectedDoc, setSelectedDoc] = useState<any>(null);
+
+  useEffect(() => {
+    if (!stats || statsLoading) return;
+    supabase.from('user_documents').select('id, original_name, ocr_text, ocr_completed_at')
+      .not('ocr_text', 'is', null).order('ocr_completed_at', {ascending: false}).limit(3)
+      .then(({data}) => {
+        if (data) setRecentExtractions(data.map(d => ({
+          id: d.id, name: d.original_name, text: d.ocr_text || '', date: d.ocr_completed_at || ''
+        })));
+      });
+  }, [stats, statsLoading]);
+
   // Use shared upload status from Smart Import hook
   const { uploadStatus, uploadFileCount } = useSmartImport();
   
@@ -254,6 +270,30 @@ export function ByteWorkspacePanel({
         )}
       </div>
 
+      {/* Recent Extractions */}
+      <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-medium text-white">Recent Extractions</h4>
+          <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">OCR</span>
+        </div>
+        {recentExtractions.length === 0 ? (
+          <p className="text-sm text-slate-400">No extractions yet</p>
+        ) : (
+          <div className="space-y-2">
+            {recentExtractions.map(doc => (
+              <div
+                key={doc.id}
+                className="text-xs cursor-pointer hover:bg-slate-700/50 rounded p-2 transition-colors"
+                onClick={() => setSelectedDoc(doc)}
+              >
+                <div className="text-slate-300 font-medium">📄 {doc.name}</div>
+                <div className="text-slate-500">{doc.text.substring(0, 80)}...</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Import Health */}
       <div className="bg-slate-800/50 rounded-lg p-4">
         <div className="flex items-center justify-between mb-2">
@@ -274,6 +314,18 @@ export function ByteWorkspacePanel({
       </div>
 
       <div className="flex-1" />
+
+      <DocumentViewerModal
+        isOpen={!!selectedDoc}
+        onClose={() => setSelectedDoc(null)}
+        documentData={selectedDoc ? {
+          id: selectedDoc.id,
+          originalFilename: selectedDoc.name,
+          ocrText: selectedDoc.text,
+          createdAt: selectedDoc.date,
+          processingStatus: 'completed'
+        } : null}
+      />
     </div>
   );
 }
