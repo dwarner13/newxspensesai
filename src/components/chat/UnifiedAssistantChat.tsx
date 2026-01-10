@@ -56,6 +56,8 @@ import { onBus, emitBus } from '../../lib/bus';
 import { usePostImportHandoff } from '../../hooks/usePostImportHandoff';
 import { PrimeSummaryReadyStrip } from './PrimeSummaryReadyStrip';
 import { useByteImportCompletion } from '../../hooks/useByteImportCompletion';
+import { log, debug, warn, error } from '../../lib/logger';
+import { isPostImportTriggersDisabled } from '../../lib/featureFlags';
 
 // Quick prompts are now defined in EMPLOYEE_DISPLAY_CONFIG
 // Access via: displayConfig.chatQuickPrompts
@@ -118,7 +120,7 @@ export default function UnifiedAssistantChat({
   // ============================================================================
   if (import.meta.env.DEV) {
     // Log render for debugging hook order issues
-    console.log('[UnifiedAssistantChat] 🔄 Render', {
+    log('[UnifiedAssistantChat] 🔄 Render', {
       pathname: typeof window !== 'undefined' ? window.location.pathname : 'SSR',
       isOpen,
       initialEmployeeSlug,
@@ -135,7 +137,7 @@ export default function UnifiedAssistantChat({
   const navigate = useNavigate();
   
   // Hook 2: Auth hooks - called unconditionally
-  const { ready, userId, profile, isProfileLoading, firstName, user, refreshProfile } = useAuth();
+  const { ready, userId, profile, isProfileLoading, firstName, user, refreshProfile, session } = useAuth();
   
   // Hook 3: Profile context - called unconditionally
   const { displayName } = useProfileContext();
@@ -181,7 +183,6 @@ export default function UnifiedAssistantChat({
   const [injectedMessages, setInjectedMessages] = useState<ChatMessage[]>([]);
   const userJustSentRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const byteUploadPanelRef = useRef<HTMLDivElement | null>(null);
   const [showUploadCard, setShowUploadCard] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<StatusType | null>(null);
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
@@ -206,6 +207,14 @@ export default function UnifiedAssistantChat({
   // effectiveEmployeeSlug: use state value (will be updated when engineActiveEmployeeSlug changes)
   // CRITICAL: Must be declared BEFORE any useEffect that uses it
   const effectiveEmployeeSlug = effectiveEmployeeSlugState;
+
+  // Auto-greeting for Byte when chat opens
+  useEffect(() => {
+    if (isOpen && effectiveEmployeeSlug === 'byte-docs' && messages.length === 0) {
+      // Auto-greeting for Byte
+      setTimeout(() => sendMessage("Hey! Ready to process documents? Upload a statement and I'll extract transactions."), 500);
+    }
+  }, [isOpen, effectiveEmployeeSlug]);
 
   // Load chat history when chat opens and employee/session changes
   const [loadedHistoryMessages, setLoadedHistoryMessages] = useState<ChatMessage[]>([]);
@@ -277,7 +286,7 @@ export default function UnifiedAssistantChat({
     const sessionLoadKey = `prime_session_loaded::${userId}::${stableKey}`;
     if (typeof window !== 'undefined' && sessionStorage.getItem(sessionLoadKey) === '1') {
       if (import.meta.env.DEV) {
-        console.log(`[UnifiedAssistantChat] ✅ Skipping history load - already loaded (key: ${stableKey.substring(0, 20)}...)`);
+        log(`[UnifiedAssistantChat] ✅ Skipping history load - already loaded (key: ${stableKey.substring(0, 20)}...)`);
       }
       return;
     }
@@ -332,7 +341,7 @@ export default function UnifiedAssistantChat({
             setResolvedThreadId(storedThreadId); // Update state for identity key
           }
         } catch (e) {
-          console.warn('[UnifiedAssistantChat] Failed to read thread_id from localStorage:', e);
+          warn('[UnifiedAssistantChat] Failed to read thread_id from localStorage:', e);
         }
         
         // Fallback: get or create thread from database
@@ -386,7 +395,7 @@ export default function UnifiedAssistantChat({
               }
             }
           } catch (threadErr: any) {
-            console.warn('[UnifiedAssistantChat] Failed to get/create thread:', threadErr);
+            warn('[UnifiedAssistantChat] Failed to get/create thread:', threadErr);
           }
         }
         
@@ -404,13 +413,13 @@ export default function UnifiedAssistantChat({
           // Primary: Query by thread_id (most reliable)
           query = query.eq('thread_id', threadId);
           if (import.meta.env.DEV) {
-            console.log(`[UnifiedAssistantChat] 📥 Loading history by thread_id: ${threadId.substring(0, 8)}...`);
+            log(`[UnifiedAssistantChat] 📥 Loading history by thread_id: ${threadId.substring(0, 8)}...`);
           }
         } else if (sessionId) {
           // Fallback 1: Query by session_id (if no thread_id)
           query = query.eq('session_id', sessionId);
           if (import.meta.env.DEV) {
-            console.log(`[UnifiedAssistantChat] 📥 Loading history by session_id: ${sessionId.substring(0, 8)}...`);
+            log(`[UnifiedAssistantChat] 📥 Loading history by session_id: ${sessionId.substring(0, 8)}...`);
           }
         } else {
           // Fallback 2: Query by userId + employeeSlug for legacy messages with NULL thread_id
@@ -429,18 +438,18 @@ export default function UnifiedAssistantChat({
               // CRITICAL: Exclude messages with thread_id to prevent overlap with thread-based queries
               query = query.in('session_id', sessionIds).is('thread_id', null);
               if (import.meta.env.DEV) {
-                console.log(`[UnifiedAssistantChat] 📥 Fallback: loading messages from ${sessionIds.length} sessions (excluding thread_id messages)`);
+                log(`[UnifiedAssistantChat] 📥 Fallback: loading messages from ${sessionIds.length} sessions (excluding thread_id messages)`);
               }
             } else {
               // Last resort: get recent messages by userId only (may include other employees)
               // CRITICAL: Exclude messages with thread_id to prevent overlap
               query = query.is('thread_id', null);
               if (import.meta.env.DEV) {
-                console.log('[UnifiedAssistantChat] 📥 Fallback: loading recent messages by userId only (excluding thread_id messages)');
+                log('[UnifiedAssistantChat] 📥 Fallback: loading recent messages by userId only (excluding thread_id messages)');
               }
             }
           } catch (fallbackErr: any) {
-            console.warn('[UnifiedAssistantChat] Fallback query failed:', fallbackErr);
+                warn('[UnifiedAssistantChat] Fallback query failed:', fallbackErr);
             // Continue with userId-only query (excluding thread_id)
             query = query.is('thread_id', null);
           }
@@ -449,7 +458,7 @@ export default function UnifiedAssistantChat({
         const { data, error } = await query;
         
         if (error) {
-          console.warn('[UnifiedAssistantChat] Failed to load message history:', error);
+          warn('[UnifiedAssistantChat] Failed to load message history:', error);
           setIsLoadingHistory(false);
           return;
         }
@@ -507,7 +516,7 @@ export default function UnifiedAssistantChat({
           }
           
           if (import.meta.env.DEV) {
-            console.log(`[UnifiedAssistantChat] ✅ Loaded ${deduplicatedMessages.length} messages from history (${historyMessages.length - deduplicatedMessages.length} duplicates removed, key: ${stableKey.substring(0, 20)}...)`);
+            log(`[UnifiedAssistantChat] ✅ Loaded ${deduplicatedMessages.length} messages from history (${historyMessages.length - deduplicatedMessages.length} duplicates removed, key: ${stableKey.substring(0, 20)}...)`);
           }
         } else {
           setLoadedHistoryMessages([]);
@@ -519,7 +528,7 @@ export default function UnifiedAssistantChat({
           }
         }
       } catch (err: any) {
-        console.error('[UnifiedAssistantChat] Error loading chat history:', err);
+        error('[UnifiedAssistantChat] Error loading chat history:', err);
         setLoadedHistoryMessages([]);
       } finally {
         setIsLoadingHistory(false);
@@ -579,7 +588,7 @@ export default function UnifiedAssistantChat({
       setEngineReadyLatched(false);
       lastIdentityKeyRef.current = chatIdentityKey;
       if (import.meta.env.DEV) {
-        console.log('[EngineReadyLatch] 🔄 Reset latch (identity changed)', {
+        log('[EngineReadyLatch] 🔄 Reset latch (identity changed)', {
           from: oldKey,
           to: chatIdentityKey,
         });
@@ -591,7 +600,7 @@ export default function UnifiedAssistantChat({
   useEffect(() => {
     setEngineReadyLatched(false);
     if (import.meta.env.DEV) {
-      console.log('[EngineReadyLatch] 🔄 Reset latch (runtime mode changed)', {
+      log('[EngineReadyLatch] 🔄 Reset latch (runtime mode changed)', {
         disableRuntime,
       });
     }
@@ -693,7 +702,7 @@ export default function UnifiedAssistantChat({
     isToolExecuting: false,
     currentTool: null,
     sendMessage: async () => {
-      if (import.meta.env.DEV) console.warn('[UnifiedAssistantChat] sendMessage called but runtime is disabled');
+      if (import.meta.env.DEV) warn('[UnifiedAssistantChat] sendMessage called but runtime is disabled');
     },
     headers: {},
     guardrailsStatus: {
@@ -789,7 +798,7 @@ export default function UnifiedAssistantChat({
         // Trigger greeting regeneration by resetting the ref
         // The greeting useEffect will pick this up and regenerate
         if (import.meta.env.DEV) {
-          console.log('[UnifiedAssistantChat] Regenerating greeting after onboarding completion');
+          log('[UnifiedAssistantChat] Regenerating greeting after onboarding completion');
         }
       }, 300);
       
@@ -822,12 +831,22 @@ export default function UnifiedAssistantChat({
   }, [userId, profile, currentEmployeeSlug, hasShownTrustMessage, messages]);
   
   // Sync engineActiveEmployeeSlug to global launcher when handoff occurs (only when runtime enabled)
+  // QUIET MODE GATE: VITE_DISABLE_AUTO_HANDOFFS prevents automatic employee handoffs
+  // Purpose: Suppress handoff storms during OCR/Smart Import debugging
+  // This is NOT a bug - manual employee switching still works, only auto-handoffs are gated
+  // Re-enable: Remove VITE_DISABLE_AUTO_HANDOFFS from .env.local or set to false
+  const DISABLE_HANDOFFS = import.meta.env.VITE_DISABLE_AUTO_HANDOFFS === 'true';
   useEffect(() => {
+    if (DISABLE_HANDOFFS) {
+      // Quiet mode: ignore auto-handoff to prevent storms
+      warn('[UnifiedAssistantChat] 🚫 Auto-handoff disabled by env flag. Ignoring handoff to:', engineActiveEmployeeSlug);
+      return;
+    }
     if (!disableRuntime && engineActiveEmployeeSlug && engineActiveEmployeeSlug !== globalActiveEmployeeSlug) {
-      console.log(`[UnifiedAssistantChat] 🔄 Handoff detected: updating global activeEmployeeSlug from ${globalActiveEmployeeSlug} to ${engineActiveEmployeeSlug}`);
+      log(`[UnifiedAssistantChat] 🔄 Handoff detected: updating global activeEmployeeSlug from ${globalActiveEmployeeSlug} to ${engineActiveEmployeeSlug}`);
       setActiveEmployeeGlobal(engineActiveEmployeeSlug);
     }
-  }, [engineActiveEmployeeSlug, globalActiveEmployeeSlug, setActiveEmployeeGlobal, disableRuntime]);
+  }, [engineActiveEmployeeSlug, globalActiveEmployeeSlug, setActiveEmployeeGlobal, disableRuntime, DISABLE_HANDOFFS]);
   
   // currentEmployeeSlug is now defined above (before useMemo hooks that reference it)
 
@@ -866,8 +885,21 @@ export default function UnifiedAssistantChat({
   // Hook: Compute chat config (needed for other hooks)
   const chatConfig = EMPLOYEE_CHAT_CONFIG[normalizedSlug as keyof typeof EMPLOYEE_CHAT_CONFIG] ?? EMPLOYEE_CHAT_CONFIG['prime-boss'];
   
-  // Hook: Check if Byte is active (needed for useByteInlineUpload)
-  const isByte = normalizedSlug === 'byte-docs';
+  // Map page routes to employee IDs
+  let employeeId = normalizedSlug;
+  if (normalizedSlug === '/dashboard/smart-import-ai' || normalizedSlug === 'smart-import-ai') {
+    employeeId = 'byte-docs';
+  }
+
+  const isByte = employeeId === 'byte-docs';
+
+  // DEBUG: Log the slug mapping
+  log('[UnifiedAssistantChat] Slug Debug:', {
+    normalizedSlug,
+    employeeId,
+    isByte,
+    currentEmployeeSlug
+  });
   
   // Hook: Check if Tag is active
   const isTag = normalizedSlug === 'tag-ai';
@@ -912,12 +944,12 @@ export default function UnifiedAssistantChat({
         mode,
         renderMode
       };
-      console.log('[MOUNT] UnifiedAssistantChat', mountInfo);
+      log('[MOUNT] UnifiedAssistantChat', mountInfo);
       
       // Verify single instance - check DOM for other UnifiedAssistantChat mounts
       const allChatMounts = document.querySelectorAll('[data-unified-chat-mount]');
       if (allChatMounts.length > 1) {
-        console.error('[UnifiedAssistantChat] ⚠️ MULTIPLE MOUNTS DETECTED:', {
+        error('[UnifiedAssistantChat] ⚠️ MULTIPLE MOUNTS DETECTED:', {
           count: allChatMounts.length,
           currentMount: mountIdRef.current,
           pathname: mountInfo.pathname,
@@ -927,7 +959,7 @@ export default function UnifiedAssistantChat({
       }
       
       return () => {
-        console.log('[UnifiedAssistantChat] 🔴 Unmounted', { 
+        log('[UnifiedAssistantChat] 🔴 Unmounted', { 
           mountId: mountIdRef.current,
           initialEmployeeSlug,
           pathname,
@@ -944,7 +976,7 @@ export default function UnifiedAssistantChat({
       if (isOpen && !openTimeRef.current) {
         // Slideout opening
         openTimeRef.current = Date.now();
-        console.log('[UnifiedAssistantChat] 🚀 OPEN event', { 
+        log('[UnifiedAssistantChat] 🚀 OPEN event', { 
           mountId: mountIdRef.current,
           employeeSlug: currentEmployeeSlug,
           conversationId,
@@ -953,7 +985,7 @@ export default function UnifiedAssistantChat({
       } else if (!isOpen && openTimeRef.current) {
         // Slideout closing
         const duration = Date.now() - openTimeRef.current;
-        console.log('[UnifiedAssistantChat] 🔒 CLOSE event', { 
+        log('[UnifiedAssistantChat] 🔒 CLOSE event', { 
           mountId: mountIdRef.current,
           duration: `${duration}ms`,
           timestamp: new Date().toISOString()
@@ -961,7 +993,7 @@ export default function UnifiedAssistantChat({
         openTimeRef.current = null;
       }
       
-      console.log('[UnifiedAssistantChat] 📊 isOpen changed', { 
+      log('[UnifiedAssistantChat] 📊 isOpen changed', { 
         mountId: mountIdRef.current,
         isOpen,
         previousEmployeeSlug: previousEmployeeSlugRef.current,
@@ -980,7 +1012,7 @@ export default function UnifiedAssistantChat({
         requestAnimationFrame(() => {
           setChatReady(true);
           if (import.meta.env.DEV) {
-            console.log('[UnifiedAssistantChat] ✅ Chat ready', { 
+            log('[UnifiedAssistantChat] ✅ Chat ready', { 
               mountId: mountIdRef.current,
               employeeSlug: currentEmployeeSlug,
               timeSinceOpen: openTimeRef.current ? `${Date.now() - openTimeRef.current}ms` : 'unknown'
@@ -997,7 +1029,7 @@ export default function UnifiedAssistantChat({
   useEffect(() => {
     if (import.meta.env.DEV) {
       if (isOpen) {
-        console.log('[UnifiedAssistantChat] 🎨 Render', {
+        debug('[UnifiedAssistantChat] 🎨 Render', {
           globalActiveEmployeeSlug,
           engineActiveEmployeeSlug,
           initialEmployeeSlug,
@@ -1180,16 +1212,6 @@ export default function UnifiedAssistantChat({
     }
   }, [currentEmployeeSlug, isOpen, scrollToBottom]);
   
-  // Scroll ByteUploadPanel into view when Byte slideout opens
-  useEffect(() => {
-    if (isOpen && isByte && byteUploadPanelRef.current) {
-      // Delay to ensure panel is rendered
-      const timeoutId = setTimeout(() => {
-        byteUploadPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 300);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isOpen, isByte]);
 
   // Sync unified chat engine's activeEmployeeSlug with global state when it changes
   // This ensures frontend handoffs work correctly
@@ -1200,27 +1222,122 @@ export default function UnifiedAssistantChat({
     // Note: useUnifiedChatEngine (via usePrimeChat) handles employee handoffs internally
   }, [globalActiveEmployeeSlug]);
 
+  // Helper function to upload files directly to Netlify functions
+  const uploadFilesDirect = async (files: File[]) => {
+    if (!session?.access_token || !session?.user?.id) {
+      throw new Error('Authentication required. Please sign in again.');
+    }
+
+    const userId = session.user.id;
+    const results: { fileName: string; docId: string }[] = [];
+    const errors: string[] = [];
+
+    debug('[uploadFilesDirect] ⬆️ Upload starting', { fileCount: files.length });
+
+    for (const file of files) {
+      try {
+        // Step 1: Initialize upload
+        const initResponse = await fetch('/.netlify/functions/smart-import-init', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            userId,
+            fileName: file.name,
+            fileSize: file.size,
+            mimeType: file.type
+          })
+        });
+
+        if (!initResponse.ok) {
+          const errorText = await initResponse.text();
+          throw new Error(`Init failed (${initResponse.status}): ${errorText}`);
+        }
+
+        const { docId, uploadUrl } = await initResponse.json();
+
+        // Step 2: Upload file to Supabase Storage
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type
+          }
+        });
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          throw new Error(`Upload failed (${uploadResponse.status}): ${errorText}`);
+        }
+
+        // Step 3: Finalize upload
+        const finalizeResponse = await fetch('/.netlify/functions/smart-import-finalize', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            docId,
+            userId
+          })
+        });
+
+        if (!finalizeResponse.ok) {
+          const errorText = await finalizeResponse.text();
+          throw new Error(`Finalize failed (${finalizeResponse.status}): ${errorText}`);
+        }
+
+        debug('[uploadFilesDirect] ✅ Upload complete', { fileName: file.name, docId });
+        results.push({ fileName: file.name, docId });
+      } catch (error: any) {
+        console.error('[uploadFilesDirect] Upload failed for', file.name, ':', error);
+        errors.push(`${file.name}: ${error.message}`);
+      }
+    }
+
+    // Throw if all files failed, otherwise return successful uploads
+    if (errors.length === files.length) {
+      throw new Error(`All uploads failed: ${errors.join('; ')}`);
+    }
+
+    if (errors.length > 0) {
+      // Some files failed - log but still return successful ones
+      console.warn('[uploadFilesDirect] Partial success:', { successful: results.length, failed: errors.length, errors });
+    }
+
+    return results;
+  };
+
   // Handle file attachments from ChatInputBar (for Byte, upload immediately via Smart Import)
   const handleAttachmentSelect = async (files: File[]) => {
     if (!isByte || !userId || files.length === 0) return;
     
+    debug('[handleAttachmentSelect] 🚀 Starting upload', { 
+      fileCount: files.length, 
+      files: files.map(f => f.name) 
+    });
+
+    // Show upload starting message
+    const uploadingMessage = files.length === 1 
+      ? `📄 Uploading ${files[0].name}...`
+      : `📄 Uploading ${files.length} files...`;
+    
+    await sendMessage(uploadingMessage);
+
     try {
-      const uploadResults = await smartImport.uploadFiles(userId, files, 'chat');
-      const successfulCount = uploadResults.filter(r => !r.rejected).length;
-      const rejected = uploadResults.filter(r => r.rejected);
+      const uploadResults = await uploadFilesDirect(files);
       
-      if (rejected.length > 0) {
-        rejected.forEach((r: any) => {
-          console.error('[UnifiedAssistantChat] File rejected:', r.reason);
-        });
+      // Show success message and navigate if uploads succeeded
+      if (uploadResults.length > 0 && isByte) {
+        await sendMessage("✅ Upload complete. Opening Smart Import so you can review your documents.");
+        navigate('/dashboard/smart-import-ai');
       }
-      
-      if (successfulCount > 0) {
-        // Files uploaded successfully - Smart Import will process them
-        // No need to send a message, Byte will handle it via the upload pipeline
-      }
-    } catch (err: any) {
-      console.error('[UnifiedAssistantChat] Attachment upload error:', err);
+    } catch (error: any) {
+      console.error('[handleAttachmentSelect] Upload failed:', error);
+      alert(`Upload failed: ${error.message}`);
     }
   };
 
@@ -1263,28 +1380,29 @@ export default function UnifiedAssistantChat({
       
       // Upload attachments first via Smart Import, then send message with documentIds
       let documentIds: string[] = [];
+      let didUpload = false;
       if (hasAttachments && options.attachments && userId) {
         setIsUploadingAttachments(true);
         setUploadError(null);
         
         try {
-          const uploadResults = await smartImport.uploadFiles(userId, options.attachments, 'chat');
-          const successfulUploads = uploadResults.filter(r => !r.rejected && r.docId);
-          const rejected = uploadResults.filter(r => r.rejected);
+          const uploadResults = await uploadFilesDirect(options.attachments);
+          documentIds = uploadResults.map(r => r.docId).filter(Boolean) as string[];
           
-          if (rejected.length > 0) {
-            rejected.forEach((r: any) => {
-              console.error('[UnifiedAssistantChat] File rejected:', r.reason);
-            });
-            setUploadError(`${rejected.length} file(s) were rejected. Please try again.`);
+          if (uploadResults.length < options.attachments.length) {
+            const rejectedCount = options.attachments.length - uploadResults.length;
+            setUploadError(`${rejectedCount} file(s) were rejected. Please try again.`);
           }
           
-          if (successfulUploads.length > 0) {
-            documentIds = successfulUploads.map(r => r.docId).filter(Boolean) as string[];
-          } else if (rejected.length === uploadResults.length) {
+          if (uploadResults.length === 0) {
             // All files rejected - don't send message
             setIsUploadingAttachments(false);
             return;
+          }
+          
+          // Mark that upload succeeded (for navigation after message send)
+          if (uploadResults.length > 0) {
+            didUpload = true;
           }
         } catch (err: any) {
           console.error('[UnifiedAssistantChat] Attachment upload error:', err);
@@ -1317,6 +1435,12 @@ export default function UnifiedAssistantChat({
       // the user will see the UI update and can send to the new employee.
       // NOTE: Hook creates placeholder BEFORE fetch, so typing indicator logic checks placeholder existence
       await sendMessage(finalMessage, { documentIds: documentIds.length > 0 ? documentIds : undefined });
+      
+      // Navigate to Smart Import page after successful upload (Byte only)
+      if (didUpload && isByte && documentIds.length > 0) {
+        // Small delay so the user sees the success bubble
+        setTimeout(() => navigate('/dashboard/smart-import-ai'), 400);
+      }
       // Typing indicator is handled by hook state (isStreaming + placeholder existence)
       // Refresh chat history after sending a message so it appears in history sidebar
       // Use a small delay to allow backend to update chat_convo_summaries
@@ -1359,7 +1483,7 @@ export default function UnifiedAssistantChat({
       // Note: This would need to be integrated with the chat engine
       // For now, we'll show it as a toast and log it
       if (import.meta.env.DEV) {
-        console.log('[UnifiedAssistantChat] Security message received:', { message, uploadId, timestamp });
+        debug('[UnifiedAssistantChat] Security message received:', { message, uploadId, timestamp });
       }
       
       // TODO: Integrate with chat engine to show message in chat feed
@@ -1491,6 +1615,15 @@ export default function UnifiedAssistantChat({
     if (disableRuntime || !userId) return;
 
     const handleByteImportCompleted = (payload: { importId: string; userId: string; timestamp: string }) => {
+      // QUIET MODE GATE: Skip post-import triggers if disabled
+      const disabled = isPostImportTriggersDisabled();
+      if (disabled) {
+        // skip silently
+        return;
+      }
+      
+      log('[handleByteImportCompleted] 🎉 EVENT RECEIVED!', payload);
+      
       // Only handle if Byte is currently active
       if (!isByte || currentEmployeeSlug !== 'byte-docs') return;
       
@@ -1499,7 +1632,7 @@ export default function UnifiedAssistantChat({
       if (byteImportCloseoutSentRef.current.has(key)) {
         // Dev-only debug log
         if (import.meta.env.DEV) {
-          console.log('[UnifiedAssistantChat] Byte closeout skipped (already sent)', { importId: payload.importId, key });
+          log('[UnifiedAssistantChat] Byte closeout skipped (already sent)', { importId: payload.importId, key });
         }
         return;
       }
@@ -1529,12 +1662,12 @@ export default function UnifiedAssistantChat({
         // Guard: Don't add if already exists (check by stable ID or meta flag)
         if (prev.some(m => m.id === stableId || (m.meta?.isCloseout && m.meta?.importId === payload.importId))) {
           if (import.meta.env.DEV) {
-            console.log('[UnifiedAssistantChat] Byte closeout skipped (duplicate in injectedMessages)', { importId: payload.importId, stableId });
+            log('[UnifiedAssistantChat] Byte closeout skipped (duplicate in injectedMessages)', { importId: payload.importId, stableId });
           }
           return prev;
         }
         if (import.meta.env.DEV) {
-          console.log('[UnifiedAssistantChat] Byte closeout injected', { importId: payload.importId, stableId });
+          log('[UnifiedAssistantChat] Byte closeout injected', { importId: payload.importId, stableId });
         }
         return [...prev, closeoutChatMessage];
       });
@@ -1923,7 +2056,7 @@ export default function UnifiedAssistantChat({
     if (currentEngineReady) {
       setEngineReadyLatched(true);
       if (import.meta.env.DEV) {
-        console.log('[EngineReadyLatch] Latched to true', { 
+        debug('[EngineReadyLatch] Latched to true', { 
           currentEngineReady, 
           engineReadyLatched: true,
           messagesLen: messages.length,
@@ -1938,7 +2071,7 @@ export default function UnifiedAssistantChat({
   // DEV: Log latch state for debugging
   if (import.meta.env.DEV) {
     if (currentEngineReady !== engineReadyLatched) {
-      console.log('[EngineReadyLatch] State', { 
+      debug('[EngineReadyLatch] State', { 
         currentEngineReady, 
         engineReadyLatched, 
         messagesLen: messages.length, 
@@ -2026,7 +2159,7 @@ export default function UnifiedAssistantChat({
         
         // Dev log: dropped optimistic message due to DB echo
         if (import.meta.env.DEV && msg.meta?.client_message_id && !existing.meta?.client_message_id) {
-          console.log(`[UnifiedAssistantChat] ✅ Dropped optimistic message (client_message_id: ${msg.meta.client_message_id}) - DB echo matched`);
+          debug(`[UnifiedAssistantChat] ✅ Dropped optimistic message (client_message_id: ${msg.meta.client_message_id}) - DB echo matched`);
         }
       } else {
         // Outside safe window - keep both (legit repeat)
@@ -2040,7 +2173,7 @@ export default function UnifiedAssistantChat({
   
   // Dev log: dedupe stats
   if (import.meta.env.DEV && (dedupeStats.dropped > 0 || allMessages.length !== displayMessages.length)) {
-    console.log(`[UnifiedAssistantChat] 🔍 Dedupe stats:`, {
+    debug(`[UnifiedAssistantChat] 🔍 Dedupe stats:`, {
       totalBefore: allMessages.length,
       totalAfter: displayMessages.length,
       dropped: dedupeStats.dropped,
@@ -2063,7 +2196,7 @@ export default function UnifiedAssistantChat({
       .slice(0, 5);
     
     if (duplicates.length > 0 || allMessages.length !== dedupeMap.size) {
-      console.log(`[UnifiedAssistantChat] Dedupe stats:`, {
+      debug(`[UnifiedAssistantChat] Dedupe stats:`, {
         totalMessages: allMessages.length,
         uniqueHardKeys: dedupeMap.size,
         duplicatesRemoved: allMessages.length - dedupeMap.size,
@@ -2074,7 +2207,7 @@ export default function UnifiedAssistantChat({
   
   // Dev log: Confirm chat render reached after dedupe merge
   if (import.meta.env.DEV && displayMessages.length > 0) {
-    console.log(`[UnifiedAssistantChat] ✅ Chat render complete after dedupe (${displayMessages.length} messages)`);
+    debug(`[UnifiedAssistantChat] ✅ Chat render complete after dedupe (${displayMessages.length} messages)`);
   }
   
   // Get the last message ID for streaming detection
@@ -2227,7 +2360,7 @@ export default function UnifiedAssistantChat({
             
             // Dev debug logging (only for returning users with contextual greeting)
             if (import.meta.env.DEV) {
-              console.log('[UnifiedAssistantChat] Prime contextual greeting generated:', {
+              debug('[UnifiedAssistantChat] Prime contextual greeting generated:', {
                 expense_mode: expenseMode,
                 currency: currency,
                 isFirstTimeUser,
@@ -2274,7 +2407,7 @@ export default function UnifiedAssistantChat({
         
         // Debug log (dev only)
         if (import.meta.env.DEV) {
-          console.log('[UnifiedAssistantChat] Using resolved name for employee greeting:', userName, {
+          debug('[UnifiedAssistantChat] Using resolved name for employee greeting:', userName, {
             employee: normalizedSlug,
             resolvedName,
             source: 'resolveDisplayNameSync',
@@ -2487,7 +2620,7 @@ export default function UnifiedAssistantChat({
   // Hook: Debug logging - Log mount decision once when conditions change
   useEffect(() => {
     if (import.meta.env.DEV && shouldMount && canMount) {
-      console.log('[UnifiedAssistantChat] ✅ Chat mount allowed', {
+      debug('[UnifiedAssistantChat] ✅ Chat mount allowed', {
         routeReady,
         onboardingCompleted,
         hasProfile: !!profile,
@@ -2615,7 +2748,7 @@ export default function UnifiedAssistantChat({
 
   // BYTE UPLOAD PANEL REGION - Compact header only (dropzone is now overlay)
   const byteUploadRegion = isByte ? (
-    <div className="px-4 pt-3 pb-2 shrink-0" ref={byteUploadPanelRef}>
+    <div className="px-4 pt-3 pb-2 shrink-0">
       <ByteUploadPanel
         onUploadCompleted={() => {
           // Optional: could trigger a refresh or show a toast
@@ -2928,7 +3061,7 @@ export default function UnifiedAssistantChat({
                         const summary = getPrimeSummary(primeSummaryReady);
                         if (!summary) {
                           if (import.meta.env.DEV) {
-                            console.log('[UnifiedAssistantChat] Prime recap skipped (no summary)', { importId: primeSummaryReady });
+                            debug('[UnifiedAssistantChat] Prime recap skipped (no summary)', { importId: primeSummaryReady });
                           }
                           return;
                         }
@@ -2936,7 +3069,7 @@ export default function UnifiedAssistantChat({
                         // Guard: Check if already consumed (prevents double-click, refresh duplicates)
                         if (summary.consumed) {
                           if (import.meta.env.DEV) {
-                            console.log('[UnifiedAssistantChat] Prime recap skipped (already consumed)', { importId: primeSummaryReady });
+                            debug('[UnifiedAssistantChat] Prime recap skipped (already consumed)', { importId: primeSummaryReady });
                           }
                           return;
                         }
@@ -2948,7 +3081,7 @@ export default function UnifiedAssistantChat({
                         );
                         if (recapAlreadyExists) {
                           if (import.meta.env.DEV) {
-                            console.log('[UnifiedAssistantChat] Prime recap skipped (already injected)', { importId: primeSummaryReady, stableRecapId });
+                            debug('[UnifiedAssistantChat] Prime recap skipped (already injected)', { importId: primeSummaryReady, stableRecapId });
                           }
                           return;
                         }
@@ -2991,7 +3124,7 @@ export default function UnifiedAssistantChat({
                             return prev;
                           }
                           if (import.meta.env.DEV) {
-                            console.log('[UnifiedAssistantChat] Prime recap injected', { importId: primeSummaryReady, stableRecapId });
+                            debug('[UnifiedAssistantChat] Prime recap injected', { importId: primeSummaryReady, stableRecapId });
                           }
                           return [...prev, primeRecapMessage];
                         });
