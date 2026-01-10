@@ -110,7 +110,7 @@ export function ByteWorkspacePanel({
   const { data: stats, isLoading: statsLoading, isError: statsError } = useDocumentStats();
 
   const [recentExtractions, setRecentExtractions] = useState<Array<{id: string; name: string; text: string; date: string}>>([]);
-  const [selectedDoc, setSelectedDoc] = useState<any>(null);
+  const [selectedDoc, setSelectedDoc] = useState<{id: string; name: string; text: string; date: string} | null>(null);
 
   useEffect(() => {
     if (!stats || statsLoading) return;
@@ -286,8 +286,8 @@ export function ByteWorkspacePanel({
                 className="text-xs cursor-pointer hover:bg-slate-700/50 rounded p-2 transition-colors"
                 onClick={() => setSelectedDoc(doc)}
               >
-                <div className="text-slate-300 font-medium">📄 {doc.name}</div>
-                <div className="text-slate-500">{doc.text.substring(0, 80)}...</div>
+                <div className="text-slate-300 font-medium truncate">📄 {doc.name}</div>
+                <div className="text-slate-500 truncate">{doc.text.substring(0, 80)}...</div>
               </div>
             ))}
           </div>

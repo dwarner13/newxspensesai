@@ -252,6 +252,18 @@ export const handler: Handler = async (event, context) => {
       console.error('[smart-import-ocr] Error updating doc status:', err);
     });
 
+    // Auto-announce OCR completion to Byte chat
+    fetch(`${netlifyUrl}/.netlify/functions/chat`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        userId,
+        employeeSlug: 'byte-docs',
+        message: `I've finished processing ${doc.original_name}. Extracted ${guardrailResult.text.length.toLocaleString()} characters of text data. The document is ready for transaction parsing whenever you're ready.`,
+        stream: false
+      })
+    }).catch(err => console.error('[OCR] Chat announce:', err));
+
     // AI Fluency: Log document processed event (non-blocking)
     const isReceipt = doc.mime_type?.startsWith('image/') || false;
     const isStatement = ['csv', 'ofx', 'qif'].includes((doc.original_name || '').split('.').pop()?.toLowerCase() || '');
