@@ -51,6 +51,16 @@ export function ByteUnifiedCard({
   // Handler to open unified chat with Byte
   const handleChatClick = useCallback(() => {
     console.log('[ByteUnifiedCard] Opening chat with Byte...');
+
+    // ALWAYS clear old Byte thread so we start fresh
+    try {
+      const threadKey = `chat_thread_938a2e17-0e49-45ff-bb98-810db46e5e65_byte-docs`;
+      localStorage.removeItem(threadKey);
+      console.log('[ByteUnifiedCard] Cleared old Byte thread from localStorage');
+    } catch (e) {
+      console.error('[ByteUnifiedCard] Failed to clear localStorage:', e);
+    }
+
     openChat({
       initialEmployeeSlug: 'byte-docs',
       context: {
