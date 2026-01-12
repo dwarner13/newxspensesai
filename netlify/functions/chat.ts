@@ -694,8 +694,19 @@ export const handler: Handler = async (event, context) => {
     }
     
     const authStartTime = Date.now();
-    const { userId, error: authError } = await verifyAuth(event);
+    let { userId, error: authError } = await verifyAuth(event);
     timingLogs.auth = Date.now() - authStartTime;
+
+    // Allow internal service-to-service calls with service role key
+    if (authError && authHeader?.includes(process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-key')) {
+      console.log('[Chat] 🔧 Internal service call detected, extracting userId from body');
+      const bodyUserId = body.userId;
+      if (bodyUserId) {
+        userId = bodyUserId;
+        authError = null;
+      }
+    }
+
     if (authError || !userId) {
       // Enhanced error logging for debugging
       console.error('[Chat] Auth failed:', {
