@@ -700,7 +700,8 @@ export const handler: Handler = async (event, context) => {
     // Allow internal service-to-service calls with service role key
     if (authError && authHeader?.includes(process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-key')) {
       console.log('[Chat] 🔧 Internal service call detected, extracting userId from body');
-      const bodyUserId = body.userId;
+      const requestBody = JSON.parse(event.body || '{}');  // Parse it HERE
+      const bodyUserId = requestBody.userId;
       if (bodyUserId) {
         userId = bodyUserId;
         authError = null;
