@@ -252,21 +252,6 @@ export const handler: Handler = async (event, context) => {
       console.error('[smart-import-ocr] Error updating doc status:', err);
     });
 
-    // Auto-announce OCR completion to Byte chat
-    fetch(`${netlifyUrl}/.netlify/functions/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        userId,
-        employeeSlug: 'byte-docs',
-        message: `I've finished processing ${doc.original_name}. Extracted ${guardrailResult.text.length.toLocaleString()} characters. Ready for transaction parsing.`,
-        stream: false,
-        sessionId: undefined
-      })
-    }).catch(err => console.error('[OCR] Auto-announce error:', err));
-
     // AI Fluency: Log document processed event (non-blocking)
     const isReceipt = doc.mime_type?.startsWith('image/') || false;
     const isStatement = ['csv', 'ofx', 'qif'].includes((doc.original_name || '').split('.').pop()?.toLowerCase() || '');
@@ -300,6 +285,20 @@ export const handler: Handler = async (event, context) => {
       console.error('[smart-import-ocr] Error logging events:', err);
       // Don't block response - logging failures are non-fatal
     });
+
+    // Auto-announce OCR completion to Byte chat
+    fetch(`${netlifyUrl}/.netlify/functions/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`
+      },
+      body: JSON.stringify({
+        message: `✅ OCR complete for "${doc.original_name}"!\n\nExtracted ${guardrailResult.text.length.toLocaleString()} characters. ${guardrailResult.signals?.pii ? '🔒 PII detected and redacted. ' : ''}Ready to review?`,
+        employeeSlug: 'byte-docs',
+        userId: userId
+      })
+    }).catch(err => console.error('[OCR] Failed to announce to Byte:', err));
 
     // Return immediately - Byte can chat while OCR processes
     return { 
