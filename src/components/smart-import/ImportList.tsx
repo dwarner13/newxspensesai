@@ -17,7 +17,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
-import { CheckCircle, Clock, AlertCircle, FileText, Calendar, DollarSign, ArrowRight } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, FileText, Calendar, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { CommitImportResponse } from '@/types/smartImport';
 
@@ -27,8 +27,8 @@ interface ImportRecord {
   file_type: string;
   status: 'pending' | 'parsing' | 'parsed' | 'committed' | 'failed';
   created_at: string;
-  committed_at: string | null;
-  committed_count: number | null;
+  updated_at: string;
+  document_id: string | null;
   error: string | null;
 }
 
@@ -59,7 +59,7 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
       setLoading(true);
       const { data, error } = await supabase
         .from('imports')
-        .select('id, file_url, file_type, status, created_at, committed_at, committed_count, error')
+        .select('id, file_url, file_type, status, created_at, updated_at, error, document_id')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(50); // Limit to 50 most recent imports
@@ -208,12 +208,6 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
                   <Calendar size={14} />
                   {formatDate(importRecord.created_at)}
                 </div>
-                {importRecord.committed_count !== null && (
-                  <div className="flex items-center gap-1">
-                    <DollarSign size={14} />
-                    {importRecord.committed_count} transaction{importRecord.committed_count !== 1 ? 's' : ''}
-                  </div>
-                )}
               </div>
             </div>
             <StatusChip status={importRecord.status} />

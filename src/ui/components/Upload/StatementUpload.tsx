@@ -1,12 +1,16 @@
 // src/ui/components/Upload/StatementUpload.tsx
 import React, { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { emitBus } from "@/lib/bus";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { getSupabase } from "@/lib/supabase";
+import { requestOcrProcessing } from "@/lib/ocr/requestOcrProcessing";
 
 type Exposed = { open: (accept?: string[]) => void };
 
 const StatementUpload = forwardRef<Exposed>((_, ref) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const { userId } = useAuthContext();
 
   useImperativeHandle(ref, () => ({
     open: (accept) => {
@@ -22,39 +26,31 @@ const StatementUpload = forwardRef<Exposed>((_, ref) => {
     if (!file) return;
     setBusy(true);
     try {
-      // 1) Get signed URL from Netlify (server)
-      const r1 = await fetch("/.netlify/functions/get-upload-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename: file.name, mime: file.type, bytes: file.size }),
-      });
-      if (!r1.ok) throw new Error("get-upload-url failed");
-      const { uploadUrl, fileKey } = await r1.json();
+      if (!userId) throw new Error("Missing userId");
 
-      // 2) Upload direct to storage
-      const put = await fetch(uploadUrl, { method: "PUT", body: file });
-      if (!put.ok) throw new Error("PUT upload failed");
-      emitBus("UPLOAD_COMPLETED", { fileKey, mime: file.type, bytes: file.size });
+      emitBus("PARSE_REQUESTED", { fileName: file.name, bytes: file.size });
 
-      // 3) Kick off ingest (creates import, returns importId)
-      const r2 = await fetch("/.netlify/functions/ingest-statement", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey, mime: file.type, bytes: file.size }),
-      });
-      if (!r2.ok) throw new Error("ingest-statement failed");
-      const { importId } = await r2.json();
+      const requestId = `statement_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const ocrResult = await requestOcrProcessing({ file, userId, requestId });
 
-      // 4) Parse via Byte (OCR/CSV/PDF)
-      emitBus("PARSE_REQUESTED", { fileKey });
-      const r3 = await fetch("/.netlify/functions/byte-ocr-parse", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ importId }),
+      if (!ocrResult.ok || !ocrResult.documentId) {
+        throw new Error(ocrResult.error || "OCR request failed");
+      }
+
+      const sb = getSupabase();
+      if (!sb) throw new Error("Supabase client not available");
+
+      const importId = await waitForImportId(sb, ocrResult.documentId, userId);
+      if (!importId) {
+        throw new Error("Import not ready yet");
+      }
+
+      emitBus("PARSE_COMPLETED", { 
+        importId, 
+        previewCount: 0,
+        importRunId: ocrResult.importRunId,
+        documentId: ocrResult.documentId,
       });
-      if (!r3.ok) throw new Error("byte-ocr-parse failed");
-      const { previewCount } = await r3.json();
-      emitBus("PARSE_COMPLETED", { importId, previewCount });
     } catch (err: any) {
       emitBus("ERROR", { where: "StatementUpload", message: err?.message ?? "upload error", detail: err });
     } finally {
@@ -80,6 +76,31 @@ const StatementUpload = forwardRef<Exposed>((_, ref) => {
 
 StatementUpload.displayName = "StatementUpload";
 export default StatementUpload;
+
+async function waitForImportId(
+  sb: NonNullable<ReturnType<typeof getSupabase>>,
+  documentId: string,
+  userId: string,
+  maxAttempts: number = 20,
+  intervalMs: number = 1500
+): Promise<string | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { data: importRecord } = await sb
+      .from("imports")
+      .select("id")
+      .eq("document_id", documentId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (importRecord?.id) {
+      return importRecord.id;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  return null;
+}
 
 
 

@@ -1,9 +1,10 @@
 // src/client/pdf/extractText.ts
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
 
-// Configure worker properly
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+// Configure worker properly for Vite
+// Use CDN worker (pdfjs-dist/build/pdf.worker.entry doesn't resolve correctly in Vite)
+// Matches installed version: pdfjs-dist@4.4.168
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.js';
 
 // Safe extraction with proper error handling
 export async function extractPdfTextSafe(file: File): Promise<string> {

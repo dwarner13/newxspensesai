@@ -21,6 +21,7 @@
  */
 
 import type { Handler } from '@netlify/functions';
+import { randomUUID } from 'crypto';
 import { admin } from './_shared/supabase.js';
 import { safeLog } from './_shared/safeLog.js';
 import { categorizeTransactionWithLearning } from './_shared/categorize.js';
@@ -54,6 +55,7 @@ export const handler: Handler = async (event, context) => {
     // SECURITY: Get userId from header, not from client body
     // This prevents users from importing other users' staging data
     const userId = event.headers['x-user-id'] || event.headers['X-User-Id'];
+    const userIdText = String(userId || '');
     
     if (!importId) {
       return {
@@ -73,14 +75,14 @@ export const handler: Handler = async (event, context) => {
 
     const sb = admin();
 
-    console.log('[CommitImport] Starting commit process', { importId, userId: userId?.substring(0, 8) + '...' });
+    console.log('[CommitImport] Starting commit process', { importId, userId: userIdText.substring(0, 8) + '...' });
 
     // 1. Get import record and verify it exists and is ready to commit
     const { data: importRecord, error: importError } = await sb
       .from('imports')
       .select('id, user_id, document_id, file_url, file_type, status, created_at')
       .eq('id', importId)
-      .eq('user_id', userId)
+      .eq('user_id', userIdText)
       .maybeSingle();
     
     console.log('[CommitImport] Import record fetched', { 
@@ -152,7 +154,7 @@ export const handler: Handler = async (event, context) => {
       const { data: existingDoc } = await sb
         .from('user_documents')
         .select('id')
-        .eq('user_id', userId)
+        .eq('user_id', userIdText)
         .eq('storage_path', importRecord.file_url)
         .maybeSingle();
 
@@ -168,7 +170,7 @@ export const handler: Handler = async (event, context) => {
         const { data: newDoc, error: docError } = await sb
           .from('user_documents')
           .insert({
-            user_id: userId,
+            user_id: userIdText,
             source: 'upload',
             original_name: importRecord.file_url.split('/').pop() || 'Document',
             mime_type: importRecord.file_type || 'application/pdf',
@@ -196,18 +198,29 @@ export const handler: Handler = async (event, context) => {
     console.log('[CommitImport] Fetching staged transactions', { importId });
     const { data: stagedRows, error: stagingError } = await sb
       .from('transactions_staging')
-      .select('*')
+      .select('id, user_id, import_id, data_json, hash, parsed_at')
       .eq('import_id', importId)
-      .eq('user_id', userId) // Critical: Use userId from auth header, not from client
+      .eq('user_id', userIdText) // Critical: Use userId from auth header, not from client
       .order('parsed_at', { ascending: true });
     
     console.log('[CommitImport] Staged transactions fetched', { 
       count: stagedRows?.length || 0,
       hasError: !!stagingError 
     });
+    safeLog('commit-import.staging_found', {
+      userId: userIdText,
+      importId,
+      stagedCount: stagedRows?.length || 0,
+      sampleStageIds: (stagedRows || []).slice(0, 5).map((row: any) => row.id),
+    });
 
     if (stagingError) {
       console.error('[CommitImport] Error fetching staged transactions:', stagingError);
+      safeLog('commit-import.error', {
+        importId,
+        userId: userIdText,
+        error: stagingError?.message || 'staging_fetch_failed',
+      });
       return {
         statusCode: 500,
         headers,
@@ -255,7 +268,7 @@ export const handler: Handler = async (event, context) => {
         if (!category || category === 'Uncategorized') {
           try {
             const categorizationResult = await categorizeTransactionWithLearning({
-              userId: userId,
+              userId: userIdText,
               merchant: tx.merchant || tx.vendor || tx.vendor_normalized || null,
               description: tx.description || tx.memo || tx.merchant || tx.vendor || 'Transaction',
               amount: Math.abs(amount)
@@ -273,23 +286,14 @@ export const handler: Handler = async (event, context) => {
         }
         
         return {
-          user_id: userId,
-          document_id: documentId || null,
-          import_id: importId,
+          id: randomUUID(),
+          user_id: userIdText,
           date: tx.date || tx.posted_at || tx.occurred_at || new Date().toISOString().split('T')[0],
-          posted_at: tx.posted_at || tx.occurred_at || tx.date || new Date().toISOString(),
-          amount: Math.abs(amount),
-          type: isIncome ? 'income' : 'expense',
           merchant: tx.merchant || tx.vendor || tx.vendor_normalized || null,
-          description: tx.description || tx.memo || tx.merchant || tx.vendor || 'Transaction',
+          amount: Math.abs(amount),
           category: category || 'Uncategorized',
-          confidence: confidence || null,
-          category_source: categorySource,
           source_type: 'smart_import', // Use 'smart_import' to distinguish from manual entries
           source: 'bank_statement', // Legacy field for compatibility
-          receipt_url: null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
         };
       })
     );
@@ -297,16 +301,36 @@ export const handler: Handler = async (event, context) => {
     // 5. Bulk insert transactions (with conflict handling)
     // Use insert instead of upsert to prevent duplicates on double-click
     // The unique constraint on transactions table will prevent duplicates
-    console.log('[CommitImport] Inserting transactions into final table', { count: transactionsToInsert.length });
+    console.log('[CommitImport] Inserting transactions into final table', { 
+      count: transactionsToInsert.length,
+      user_id: userIdText,
+      import_id: importId,
+    });
     const { data: insertedTransactions, error: insertError } = await sb
       .from('transactions')
       .insert(transactionsToInsert)
       .select('id');
+
+    const { count: userTransactionCount } = await sb
+      .from('transactions')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userIdText);
+    
+    console.log('[CommitImport] User transaction count after insert', {
+      user_id: userIdText,
+      count: userTransactionCount ?? 0,
+    });
     
     console.log('[CommitImport] Transactions inserted', { 
       insertedCount: insertedTransactions?.length || 0,
       hasError: !!insertError,
       errorCode: insertError?.code 
+    });
+    safeLog('commit-import.insert_ok', {
+      userId: userIdText,
+      importId,
+      insertedCount: insertedTransactions?.length || 0,
+      sampleInsertedIds: (insertedTransactions || []).slice(0, 5).map((row: any) => row.id),
     });
 
     if (insertError) {
@@ -323,7 +347,7 @@ export const handler: Handler = async (event, context) => {
           .from('imports')
           .select('status, committed_count')
           .eq('id', importId)
-          .eq('user_id', userId)
+          .eq('user_id', userIdText)
           .maybeSingle();
         
         if (checkImport?.status === 'committed') {
@@ -347,6 +371,11 @@ export const handler: Handler = async (event, context) => {
         // Some transactions may have been inserted before the duplicate error
       } else {
         console.error('[CommitImport] Error inserting transactions:', insertError);
+        safeLog('commit-import.error', {
+          importId,
+          userId: userIdText,
+          error: insertError?.message || 'insert_failed',
+        });
         return {
           statusCode: 500,
           headers,
@@ -379,7 +408,7 @@ export const handler: Handler = async (event, context) => {
         committed_count: committedCount,
       })
       .eq('id', importId)
-      .eq('user_id', userId); // SECURITY: Always filter by user_id from auth
+      .eq('user_id', userIdText); // SECURITY: Always filter by user_id from auth
     
     if (updateError) {
       console.error('[CommitImport] Error updating import status:', updateError);
@@ -395,7 +424,7 @@ export const handler: Handler = async (event, context) => {
 
     safeLog('commit-import.success', { 
       importId, 
-      userId, 
+      userId: userIdText, 
       documentId, 
       transactionCount: committedCount 
     });
@@ -408,7 +437,7 @@ export const handler: Handler = async (event, context) => {
         .from('transactions')
         .select('id, date, posted_at, amount, merchant, description, category, type')
         .eq('import_id', importId)
-        .eq('user_id', userId)
+        .eq('user_id', userIdText)
         .eq('type', 'expense') // Only expenses can be recurring obligations
         .order('date', { ascending: true });
 
@@ -445,7 +474,7 @@ export const handler: Handler = async (event, context) => {
         const obligationsUpdated = detectionResults.filter(r => !r.isNew).length;
 
         safeLog('[Chime] Recurring detection complete', {
-          userId: userId.substring(0, 8) + '...',
+          userId: userIdText.substring(0, 8) + '...',
           importId: importId.substring(0, 8) + '...',
           candidatesAnalyzed: candidates.length,
           obligationsCreated,
@@ -459,7 +488,7 @@ export const handler: Handler = async (event, context) => {
         }).catch(err => {
           // Silently fail - notification queuing is not critical
           safeLog('[Chime] Failed to queue notifications', {
-            userId: userId.substring(0, 8) + '...',
+            userId: userIdText.substring(0, 8) + '...',
             error: err?.message || String(err),
           });
         });
@@ -467,7 +496,7 @@ export const handler: Handler = async (event, context) => {
     } catch (err: any) {
       // Silently fail - detection is not critical for import success
       safeLog('[Chime] Error in recurring detection', {
-        userId: userId.substring(0, 8) + '...',
+        userId: userIdText.substring(0, 8) + '...',
         error: err?.message || String(err),
       });
     }
@@ -477,7 +506,7 @@ export const handler: Handler = async (event, context) => {
       .from('transactions')
       .select('id, date, posted_at, amount, type, merchant, description, category')
       .eq('import_id', importId)
-      .eq('user_id', userId)
+      .eq('user_id', userIdText)
       .order('posted_at', { ascending: true });
 
     let summary: any = null;
@@ -666,6 +695,7 @@ export const handler: Handler = async (event, context) => {
         documentId: documentId || null,
         transactions: insertedTransactions?.map(t => ({ id: t.id })) || [],
         message: `Successfully committed ${committedCount} transaction${committedCount !== 1 ? 's' : ''}`,
+        userTransactionCount: userTransactionCount ?? null,
         summary: summary || undefined,
         issues: issues || undefined,
       }),

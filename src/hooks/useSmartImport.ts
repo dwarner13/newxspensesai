@@ -11,6 +11,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useUploadQueue } from './useUploadQueue';
 import { generateUploadId } from '../lib/upload/uploadQueue';
+import { debug } from '../lib/logger';
 
 export type UploadSource = 'upload' | 'chat';
 
@@ -156,15 +157,13 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       }
 
       const init = await initRes.json();
-      
-      // Step 2: Upload file to signed URL
+
+      // Step 2: Upload file to signed URL (auth is embedded in the URL)
       setProgress(40);
       updateUploadProgress({ progress: 40, step: 'uploading' });
-      const uploadRes = await fetch(init.url, {
+      const uploadRes = await fetch(init.uploadUrl, {
         method: 'PUT',
         headers: {
-          'x-upsert': 'true',
-          'authorization': `Bearer ${init.token}`,
           'content-type': file.type
         },
         body: file
@@ -246,7 +245,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       throw new Error('userId is required');
     }
     
-    console.log('[useSmartImport] uploadFiles called', {
+    debug('[useSmartImport] uploadFiles called', {
       fileCount: files.length,
       userId: userIdParam,
       source: sourceParam,
@@ -389,16 +388,12 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       if (!initRes.ok) throw new Error('Init failed');
       const init = await initRes.json();
 
-      // Step 2: Upload base64 data
+      // Step 2: Upload base64 data (auth is embedded in the URL)
       setProgress(40);
       const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-      
-      const uploadRes = await fetch(init.url, {
+
+      const uploadRes = await fetch(init.uploadUrl, {
         method: 'PUT',
-        headers: {
-          'x-upsert': 'true',
-          'authorization': `Bearer ${init.token}`
-        },
         body: buffer
       });
 
@@ -428,7 +423,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
 
   // Log hook instance creation and state changes
   useEffect(() => {
-    console.log('[useSmartImport] hook instance - state changed', {
+    debug('[useSmartImport] hook instance - state changed', {
       uploading,
       progress,
       uploadFileCount,

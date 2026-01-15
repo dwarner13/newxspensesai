@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useHeadersDebug } from './useHeadersDebug';
 import { useEventTap } from './useEventTap';
 import { CHAT_ENDPOINT } from '../lib/chatEndpoint';
-import { usePrimeState } from '../contexts/PrimeContext';
+import { usePrimeState } from '../contexts/usePrimeState';
 import { log, warn } from '../lib/logger';
 
 type ChatRole = 'user' | 'assistant' | 'system';

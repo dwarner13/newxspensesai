@@ -50,6 +50,7 @@ export async function uploadWithProgress(
   const init = await initRes.json();
 
   // Step 2: Upload file to signed URL with progress tracking (10-90%)
+  // Note: Supabase's createSignedUploadUrl returns a URL with auth already embedded
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
@@ -107,10 +108,8 @@ export async function uploadWithProgress(
       reject(new Error('Upload cancelled'));
     });
 
-    // Start upload
-    xhr.open('PUT', init.url);
-    xhr.setRequestHeader('x-upsert', 'true');
-    xhr.setRequestHeader('authorization', `Bearer ${init.token}`);
+    // Start upload - use signed URL directly (auth is embedded in the URL)
+    xhr.open('PUT', init.uploadUrl);
     xhr.setRequestHeader('content-type', file.type);
     xhr.send(file);
   });

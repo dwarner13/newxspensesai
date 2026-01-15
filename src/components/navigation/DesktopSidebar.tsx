@@ -26,7 +26,7 @@ import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 import clsx from 'clsx';
 import { useAccountCenterPanel } from '../settings/AccountCenterPanel';
 import { useProfile } from '../../hooks/useProfile';
-import { usePrimeState } from '../../contexts/PrimeContext';
+import { usePrimeState } from '../../contexts/usePrimeState';
 import { getFeatureKeyForRoute } from '../../navigation/feature-keys';
 
 interface DesktopSidebarProps {

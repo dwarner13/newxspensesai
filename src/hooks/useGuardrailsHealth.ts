@@ -7,7 +7,7 @@ console.log("GUARDRAILS_HEALTH_BUILD_MARKER=2025-12-27_STACK_ON");
  * Updates every 30-60 seconds while chat is open.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 export interface GuardrailsHealthStatus {
   status: 'active' | 'degraded' | 'offline';
@@ -28,8 +28,12 @@ export function useGuardrailsHealth(isOpen: boolean, pollIntervalMs: number = 30
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastCheckRef = useRef<number>(0);
   const lastGoodHealthRef = useRef<GuardrailsHealthStatus | null>(null);
+  const effectivePollMs = Math.max(pollIntervalMs, 60000);
 
-  const checkHealth = async () => {
+  const checkHealth = useCallback(async () => {
+    if (document.hidden) {
+      return;
+    }
     // Throttle: Don't check more than once per 5 seconds
     const now = Date.now();
     if (now - lastCheckRef.current < 5000) {
@@ -133,7 +137,7 @@ export function useGuardrailsHealth(isOpen: boolean, pollIntervalMs: number = 30
         });
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) {
@@ -145,16 +149,17 @@ export function useGuardrailsHealth(isOpen: boolean, pollIntervalMs: number = 30
       return;
     }
 
-    // Initial check immediately (unless paused)
-    if (!pausePolling) {
+    // Initial check immediately (unless paused or hidden)
+    if (!pausePolling && !document.hidden) {
       checkHealth();
     }
 
     // Set up polling (pause during streaming to reduce load)
     if (!pausePolling) {
       pollIntervalRef.current = setInterval(() => {
+        if (document.hidden) return;
         checkHealth();
-      }, pollIntervalMs);
+      }, effectivePollMs);
     } else {
       // Clear interval if paused
       if (pollIntervalRef.current) {
@@ -163,14 +168,22 @@ export function useGuardrailsHealth(isOpen: boolean, pollIntervalMs: number = 30
       }
     }
 
+    const handleVisibility = () => {
+      if (!document.hidden && !pausePolling) {
+        checkHealth();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     // Cleanup on unmount or when isOpen/pausePolling changes
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
     };
-  }, [isOpen, pollIntervalMs, pausePolling, checkHealth]);
+  }, [isOpen, effectivePollMs, pausePolling, checkHealth]);
 
   return {
     health,

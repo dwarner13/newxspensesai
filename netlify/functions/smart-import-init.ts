@@ -1,151 +1,91 @@
 import { Handler } from '@netlify/functions';
-import { admin, createUserDocumentRow, storagePathFor, createSignedUploadUrl } from './_shared/upload';
-import { isDemoUser } from './_shared/demo-user';
+import { admin } from './_shared/upload';
 
 export const handler: Handler = async (event) => {
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method Not Allowed' };
+  }
+
   try {
-    if (event.httpMethod !== 'POST') {
-      return { 
-        statusCode: 405, 
-        body: JSON.stringify({ error: 'Method Not Allowed' }) 
-      };
-    }
+    const { userId, fileName, fileSize, mimeType } = JSON.parse(event.body || '{}');
     
-    const { userId, filename, mime, source = 'upload' } = JSON.parse(event.body || '{}');
-    if (!userId || !filename || !mime) {
+    if (!userId || !fileName) {
+      console.error('[smart-import-init] Missing required fields:', { userId: !!userId, fileName: !!fileName });
       return { 
         statusCode: 400, 
-        body: JSON.stringify({ error: 'Missing userId/filename/mime' }) 
+        body: JSON.stringify({ error: 'Missing userId or fileName' }) 
       };
     }
 
-    const ext = (filename.split('.').pop() || '').toLowerCase();
-    
-    // Create user_documents row (this may fail if table doesn't exist)
-    let result;
-    try {
-      result = await createUserDocumentRow(userId, source === 'chat' ? 'chat' : 'upload', filename, mime);
-    } catch (e: any) {
-      console.error('[smart-import-init] Error creating user_documents row:', e);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          error: e.message || 'Failed to create document record',
-          code: e.code || 'UNKNOWN',
-          details: e.details || null,
-          hint: e.hint || null,
-          source: 'user_documents-insert',
-        }),
-      };
-    }
-    
-    // Handle duplicate documents
-    if (result.isDuplicate && result.existingDocumentId) {
-      return { 
-        statusCode: 200, 
-        body: JSON.stringify({ 
-          docId: result.existingDocumentId, 
-          isDuplicate: true,
-          message: 'This document appears to be a duplicate of one you already uploaded.'
-        }) 
-      };
-    }
-    
-    const doc = result.document;
-    const path = storagePathFor(doc.id, ext);
-    
-    // Persist storage_path so downstream knows where file lives
     const sb = admin();
-    const { error: updateError } = await sb.from('user_documents').update({ storage_path: path }).eq('id', doc.id);
+    // Generate proper UUID for database
+    const { data: docData, error: uuidError } = await sb
+      .from('user_documents')
+      .insert({ user_id: userId })
+      .select('id')
+      .single();
     
-    if (updateError) {
-      console.error('[smart-import-init] Supabase error updating user_documents:', updateError);
+    if (uuidError || !docData) {
+      console.error('[smart-import-init] Failed to generate UUID:', uuidError);
       return {
         statusCode: 500,
-        body: JSON.stringify({
-          error: updateError.message || 'Failed to update document storage path',
-          code: updateError.code || 'UNKNOWN',
-          details: updateError.details || null,
-          hint: updateError.hint || null,
-          source: 'user_documents-update',
-        }),
-      };
-    }
-
-    // Create imports record linked to user_documents
-    // Skip for demo users since they may not exist in auth.users (foreign key constraint)
-    let importRecord = null;
-    if (isDemoUser(userId)) {
-      console.log('[smart-import-init] Skipping imports insert for demo user');
-    } else {
-      const { data: importData, error: importError } = await sb
-        .from('imports')
-        .insert({
-          user_id: userId,
-          document_id: doc.id,
-          file_url: path,
-          file_type: mime,
-          status: 'pending',
-        })
-        .select('id')
-        .single();
-
-      if (importError) {
-        console.error('[smart-import-init] Supabase error inserting into imports:', importError);
-        return {
-          statusCode: 500,
-          body: JSON.stringify({
-            error: importError.message || 'Failed to create import record',
-            code: importError.code || 'UNKNOWN',
-            details: importError.details || null,
-            hint: importError.hint || null,
-            source: 'imports-insert',
-          }),
-        };
-      }
-      importRecord = importData;
-    }
-
-    // Create signed upload URL for Storage bucket
-    let url: string;
-    let token: string;
-    try {
-      const signedUrlResult = await createSignedUploadUrl(path);
-      url = signedUrlResult.url;
-      token = signedUrlResult.token;
-    } catch (e: any) {
-      console.error('[smart-import-init] Storage error (bucket might not exist):', e);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          error: e.message || 'Failed to create signed upload URL',
-          code: e.code || 'UNKNOWN',
-          details: e.details || null,
-          hint: e.hint || 'The storage bucket "docs" may not exist. Create it in Supabase → Storage → Buckets.',
-          source: 'storage-bucket',
-          bucket: 'docs',
-        }),
+        body: JSON.stringify({ error: 'Failed to initialize document' })
       };
     }
     
-    return { 
-      statusCode: 200, 
-      body: JSON.stringify({ 
-        docId: doc.id, 
-        importId: importRecord?.id || null,
-        path, 
-        url, 
-        token 
-      }) 
+    const docId = docData.id;
+    const storagePath = `${userId}/${docId}/${fileName}`;
+
+    console.log('[smart-import-init] Creating document:', { docId, fileName, userId });
+
+    // Update the document record with file details
+    const { error } = await sb
+      .from('user_documents')
+      .update({
+        original_name: fileName,
+        storage_path: storagePath,
+        mime_type: mimeType,
+        file_size: fileSize,
+        status: 'uploading'
+      })
+      .eq('id', docId);
+
+    if (error) {
+      console.error('[smart-import-init] Database error:', error);
+      return { 
+        statusCode: 500, 
+        body: JSON.stringify({ error: 'Failed to create document' }) 
+      };
+    }
+
+    // Generate signed upload URL
+    const { data: uploadData, error: urlError } = await sb.storage
+      .from('docs')
+      .createSignedUploadUrl(storagePath);
+
+    if (urlError) {
+      console.error('[smart-import-init] Upload URL error:', urlError);
+      return { 
+        statusCode: 500, 
+        body: JSON.stringify({ error: 'Failed to generate upload URL' }) 
+      };
+    }
+
+    console.log('[smart-import-init] ✅ Upload initialized:', { docId, storagePath });
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        docId,
+        uploadUrl: uploadData.signedUrl,
+        storagePath
+      })
     };
   } catch (e: any) {
-    console.error('[smart-import-init] Unexpected error:', e);
+    console.error('[smart-import-init] Error:', e);
     return { 
       statusCode: 500, 
-      body: JSON.stringify({ 
-        error: e.message || 'Internal server error',
-        source: 'unexpected-error'
-      }) 
+      body: JSON.stringify({ error: e.message }) 
     };
   }
 };

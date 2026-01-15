@@ -694,20 +694,8 @@ export const handler: Handler = async (event, context) => {
     }
     
     const authStartTime = Date.now();
-    let { userId, error: authError } = await verifyAuth(event);
+    const { userId, error: authError } = await verifyAuth(event);
     timingLogs.auth = Date.now() - authStartTime;
-
-    // Allow internal service-to-service calls with service role key
-    if (authError && authHeader?.includes(process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-key')) {
-      console.log('[Chat] 🔧 Internal service call detected, extracting userId from body');
-      const requestBody = JSON.parse(event.body || '{}');  // Parse it HERE
-      const bodyUserId = requestBody.userId;
-      if (bodyUserId) {
-        userId = bodyUserId;
-        authError = null;
-      }
-    }
-
     if (authError || !userId) {
       // Enhanced error logging for debugging
       console.error('[Chat] Auth failed:', {
@@ -746,31 +734,11 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    const messageTrimmed = message.trim();
-    const statusPrefixes = [
-      '📄 Uploading',
-      '✅ Upload complete',
-      '✅ OCR complete',
-      'OCR completed',
-      "I've uploaded",
-    ];
-    if (statusPrefixes.some(prefix => messageTrimmed.startsWith(prefix))) {
-      console.warn('[Chat] blocked auto-status message');
-      console.debug('[Chat] ignored status message', { message: messageTrimmed });
-      return {
-        statusCode: 200,
-        headers: {
-          ...baseHeaders,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ignored: true, reason: 'status_message' }),
-      };
-    }
-
     // ========================================================================
     // 0.3. FAST PATH CHECK (Speed Mode for Short Messages)
     // ========================================================================
     // Skip expensive context retrieval for short messages/greetings to improve response time
+    const messageTrimmed = message.trim();
     const messageLength = messageTrimmed.length;
     const isGreeting = /^(hi|hello|hey|thanks|thank you|thx|bye|goodbye|good night|good morning|good afternoon|sup|what's up|howdy)$/i.test(messageTrimmed);
     const isFastPath = messageLength <= 30 || isGreeting;

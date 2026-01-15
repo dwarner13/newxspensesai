@@ -11,7 +11,7 @@ import NAV_ITEMS from '../../navigation/nav-registry';
 import { isActivePath } from '../../navigation/is-active';
 import { EMPLOYEES } from '../../data/aiEmployees';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
-import { usePrimeState } from '../../contexts/PrimeContext';
+import { usePrimeState } from '../../contexts/usePrimeState';
 import { getFeatureKeyForRoute } from '../../navigation/feature-keys';
 
 interface MobileSidebarProps {

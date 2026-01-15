@@ -9,7 +9,6 @@
 // ====== CHAT SEND / RECEIVE ======
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { cn } from '../../lib/utils';
 import { Paperclip, X, File, Plus, Camera, Image, FileText } from 'lucide-react';
 import { CHAT_INPUT_MAX_HEIGHT_PX } from '../../lib/chatSlideoutConstants';
@@ -95,7 +94,6 @@ export function ChatInputBar({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   
   const MAX_ATTACHMENTS = 5;
 
@@ -187,20 +185,14 @@ export function ChatInputBar({
   }, [onAttachmentsChange]);
 
   const handleAttachClick = useCallback(() => {
-    console.log('[ChatInputBar] ✅ Attach button clicked!', { showPlusIcon, isMenuOpen });
-    
     if (showPlusIcon) {
       // Toggle menu for "+" icon
-      setIsMenuOpen(prev => {
-        const next = !prev;
-        console.log('[ChatInputBar] 📋 Menu toggled:', { from: prev, to: next });
-        return next;
-      });
+      setIsMenuOpen(prev => !prev);
     } else {
       // Direct file picker for paperclip icon
       fileInputRef.current?.click();
     }
-  }, [showPlusIcon, isMenuOpen]);
+  }, [showPlusIcon]);
 
   // Close menu on Escape key
   useEffect(() => {
@@ -234,35 +226,6 @@ export function ChatInputBar({
       return () => document.removeEventListener('mousedown', handleClickOutside, true);
     }
   }, [isMenuOpen]);
-
-  // Calculate menu position when it opens (for portal rendering)
-  const updateMenuPosition = useCallback(() => {
-    if (buttonRef.current) {
-      const buttonRect = buttonRef.current.getBoundingClientRect();
-      // Menu height is approximately 144px (3 buttons × 48px each)
-      const menuHeight = 144;
-      const spacing = 8; // mb-2 = 8px
-      setMenuPosition({
-        top: buttonRect.top - menuHeight - spacing,
-        left: buttonRect.left,
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isMenuOpen) {
-      updateMenuPosition();
-      // Update position on scroll/resize
-      window.addEventListener('scroll', updateMenuPosition, true);
-      window.addEventListener('resize', updateMenuPosition);
-      return () => {
-        window.removeEventListener('scroll', updateMenuPosition, true);
-        window.removeEventListener('resize', updateMenuPosition);
-      };
-    } else {
-      setMenuPosition(null);
-    }
-  }, [isMenuOpen, updateMenuPosition]);
 
   const handleMenuSelect = useCallback((inputRef: React.RefObject<HTMLInputElement>) => {
     setIsMenuOpen(false);
@@ -334,17 +297,12 @@ export function ChatInputBar({
             )}
           </button>
 
-          {/* Attachment menu (Concur-style) - rendered in portal to escape parent constraints */}
-          {showPlusIcon && isMenuOpen && menuPosition && typeof document !== 'undefined' && createPortal(
+          {/* Attachment menu (Concur-style) - shown when showPlusIcon is true */}
+          {showPlusIcon && isMenuOpen && (
             <div
               ref={menuRef}
-              className="fixed w-48 rounded-xl bg-black/90 backdrop-blur-md border border-white/20 shadow-xl overflow-hidden"
-              style={{ 
-                top: `${menuPosition.top}px`,
-                left: `${menuPosition.left}px`,
-                zIndex: 999999,
-                animation: 'fadeIn 0.15s ease-out'
-              }}
+              className="absolute bottom-full left-0 mb-2 w-48 rounded-xl bg-black/90 backdrop-blur-md border border-white/20 shadow-xl z-50 overflow-hidden"
+              style={{ animation: 'fadeIn 0.15s ease-out' }}
             >
               <button
                 type="button"
@@ -370,8 +328,7 @@ export function ChatInputBar({
                 <FileText className="w-4 h-4 text-white/70 shrink-0" />
                 <span>Upload statement</span>
               </button>
-            </div>,
-            document.body
+            </div>
           )}
 
           {/* Hidden file inputs - three separate inputs for different purposes */}

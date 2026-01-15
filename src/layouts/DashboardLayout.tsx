@@ -28,6 +28,7 @@ import { PrimeOverlayProvider } from "../context/PrimeOverlayContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useOnboardingGate } from "../components/onboarding/useOnboardingGate";
 import { CinematicOnboardingOverlay } from "../components/onboarding/CinematicOnboardingOverlay";
+import { log, warn } from "../lib/logger";
 import { PrimeWelcomeOverlayCinematic } from "../components/onboarding/PrimeWelcomeOverlayCinematic";
 import { ChatErrorBoundary } from "../components/chat/ChatErrorBoundary";
 import { PostOnboardingChooser } from "../components/onboarding/PostOnboardingChooser";
@@ -193,7 +194,7 @@ export default function DashboardLayout() {
         const hasOverflow = scrollWidth > innerWidth + 1;
         
         if (hasOverflow) {
-          console.warn('[DashboardLayout] ⚠️ Horizontal overflow detected:', {
+          warn('[DashboardLayout] ⚠️ Horizontal overflow detected:', {
             scrollWidth,
             innerWidth,
             overflow: scrollWidth - innerWidth,
@@ -219,7 +220,7 @@ export default function DashboardLayout() {
           });
           
           if (offenders.length > 0) {
-            console.warn('[DashboardLayout] Offending elements:', offenders.slice(0, 10));
+            warn('[DashboardLayout] Offending elements:', offenders.slice(0, 10));
           }
         }
       };
@@ -249,7 +250,7 @@ export default function DashboardLayout() {
       const diagnoseRail = () => {
         const rail = document.querySelector('[data-floating-rail]') as HTMLElement;
         if (!rail) {
-          console.warn('[RailDiagnostics] Rail not found in DOM');
+          warn('[RailDiagnostics] Rail not found in DOM');
           return;
         }
 
@@ -371,10 +372,10 @@ export default function DashboardLayout() {
         });
 
         if (clippingAncestors.length > 0) {
-          console.warn('[RailDiagnostics] ⚠️ CLIPPING ANCESTORS DETECTED:', clippingAncestors);
+          warn('[RailDiagnostics] ⚠️ CLIPPING ANCESTORS DETECTED:', clippingAncestors);
         }
         if (!railIsOnTop || !railIsOnTopAtEdge) {
-          console.warn('[RailDiagnostics] ⚠️ RAIL COVERED BY:', {
+          warn('[RailDiagnostics] ⚠️ RAIL COVERED BY:', {
             atRailCenter: topElementAtRail,
             atRightEdge: topElementAtRightEdge,
           });
@@ -388,7 +389,7 @@ export default function DashboardLayout() {
 
         const gridContainer = header.querySelector('.grid');
         if (!gridContainer) {
-          console.warn('[HeaderDiagnostics] Grid container not found');
+          warn('[HeaderDiagnostics] Grid container not found');
           return;
         }
 
@@ -444,7 +445,7 @@ export default function DashboardLayout() {
           });
 
           if (overlap) {
-            console.warn('[HeaderDiagnostics] ⚠️ OVERLAP DETECTED:', {
+            warn('[HeaderDiagnostics] ⚠️ OVERLAP DETECTED:', {
               titleRight: Math.round(titleRect.right),
               searchLeft: Math.round(searchRect.left),
               overlapPx: Math.round(titleRect.right - searchRect.left),
@@ -482,7 +483,7 @@ export default function DashboardLayout() {
   
   // Debug: Log when chat state changes
   useEffect(() => {
-    console.log('[DashboardLayout] Chat state changed:', { 
+    log('[DashboardLayout] Chat state changed:', { 
       isChatOpen, 
       activeEmployeeSlug,
       optionsEmployeeSlug: chatOptions.initialEmployeeSlug 
@@ -515,7 +516,7 @@ export default function DashboardLayout() {
           sessionStorage.removeItem('just_completed_onboarding');
           
           if (import.meta.env.DEV) {
-            console.log('[DashboardLayout] Post-onboarding chooser: showing (flag consumed)');
+            log('[DashboardLayout] Post-onboarding chooser: showing (flag consumed)');
           }
         } else {
           // Flag exists but custodian not ready - clean up flag
@@ -525,7 +526,7 @@ export default function DashboardLayout() {
     } catch (error: any) {
       // Non-fatal: sessionStorage may not be available
       if (import.meta.env.DEV) {
-        console.warn('[DashboardLayout] Failed to check post-onboarding chooser flag:', error?.message || error);
+        warn('[DashboardLayout] Failed to check post-onboarding chooser flag:', error?.message || error);
       }
     }
   }, [ready, profile, userId, location.pathname]);
@@ -552,7 +553,7 @@ export default function DashboardLayout() {
     }
     
     if (import.meta.env.DEV) {
-      console.log('[DashboardLayout] Post-onboarding chooser: navigating to', destination);
+      log('[DashboardLayout] Post-onboarding chooser: navigating to', destination);
     }
   };
   
@@ -687,12 +688,12 @@ export default function DashboardLayout() {
 
   // Debug mobile detection
   useEffect(() => {
-    console.log('Mobile detection:', { isMobile, windowWidth: window.innerWidth});
+    log('Mobile detection:', { isMobile, windowWidth: window.innerWidth});
   }, [isMobile]);
 
   // Debug mobile menu state
   useEffect(() => {
-    console.log('Mobile menu state changed:', { isMobileMenuOpen, isMobile});
+    log('Mobile menu state changed:', { isMobileMenuOpen, isMobile});
   }, [isMobileMenuOpen, isMobile]);
 
   // Add pull-to-refresh touch event listeners for mobile
@@ -737,7 +738,7 @@ export default function DashboardLayout() {
 
   // Reset scroll position when route changes
   useEffect(() => {
-    console.log('[DashboardLayout] Route changed to:', location.pathname);
+    log('[DashboardLayout] Route changed to:', location.pathname);
     // Scroll window to top
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     
@@ -766,7 +767,7 @@ export default function DashboardLayout() {
         const bodyOverflowY = window.getComputedStyle(document.body).overflowY;
         const htmlOverflow = window.getComputedStyle(document.documentElement).overflow;
         
-        console.log(`[ScrollDiagnostics] 🔒 ${location.pathname} - LOCKED INVARIANT verification:`, {
+        log(`[ScrollDiagnostics] 🔒 ${location.pathname} - LOCKED INVARIANT verification:`, {
           htmlScrollHeight: docEl.scrollHeight,
           htmlClientHeight: docEl.clientHeight,
           htmlHeightDiff,
@@ -813,7 +814,7 @@ export default function DashboardLayout() {
         const topOverflowElements = overflowElements.slice(0, 10);
         
         if (topOverflowElements.length > 0) {
-          console.log(`[ScrollDiagnostics] ${location.pathname} - Top 10 elements extending beyond viewport:`, topOverflowElements);
+          log(`[ScrollDiagnostics] ${location.pathname} - Top 10 elements extending beyond viewport:`, topOverflowElements);
         }
 
         // 4. Log scroll containers AND overscroll behavior offenders
@@ -887,7 +888,7 @@ export default function DashboardLayout() {
         });
 
         if (scrollContainers.length > 0) {
-          console.log(`[ScrollDiagnostics] ${location.pathname} - Scroll containers & overscroll offenders:`, scrollContainers);
+          log(`[ScrollDiagnostics] ${location.pathname} - Scroll containers & overscroll offenders:`, scrollContainers);
           
           // Highlight top 5 offenders visually
           const topOffenders = scrollContainers.slice(0, 5);
@@ -899,9 +900,9 @@ export default function DashboardLayout() {
             }
           });
           
-          console.log(`[ScrollDiagnostics] ${location.pathname} - Top 5 offenders highlighted with colored outlines`);
+          log(`[ScrollDiagnostics] ${location.pathname} - Top 5 offenders highlighted with colored outlines`);
         } else {
-          console.log(`[ScrollDiagnostics] ${location.pathname} - ✅ No scroll containers or overscroll offenders found (BODY is scroll owner)`);
+          log(`[ScrollDiagnostics] ${location.pathname} - ✅ No scroll containers or overscroll offenders found (BODY is scroll owner)`);
         }
       };
 
@@ -966,7 +967,7 @@ export default function DashboardLayout() {
         
         if (scrollContainers.length > 0) {
           const targetCls = typeof target.className === 'string' ? target.className : (target.className?.baseVal ?? '');
-          console.log(`[WheelDiagnostics] ${location.pathname} - Wheel event captured:`, {
+          log(`[WheelDiagnostics] ${location.pathname} - Wheel event captured:`, {
             target: `${target.tagName.toLowerCase()}${target.id ? `#${target.id}` : ''}${targetCls ? `.${targetCls.split(' ').slice(0, 2).join('.')}` : ''}`,
             deltaY: e.deltaY,
             scrollContainers,
@@ -1009,7 +1010,7 @@ export default function DashboardLayout() {
           <div className="flex items-center justify-between px-3 py-2">
             <button
               onClick={() => {
-                console.log('Mobile menu button clicked, setting isMobileMenuOpen to true');
+                log('Mobile menu button clicked, setting isMobileMenuOpen to true');
                 setIsMobileMenuOpen(true);
               }}
               className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-300"
@@ -1130,7 +1131,7 @@ export default function DashboardLayout() {
         const mainElement = document.querySelector('main[data-dashboard-content]');
         const mainClassName = mainElement?.className || 'not found';
         const mainOverflow = mainClassName.split(' ').filter(c => c.includes('overflow')).join(' ') || 'none';
-        console.log('[DashboardLayout] 🔒 BODY scroll locked:', {
+        log('[DashboardLayout] 🔒 BODY scroll locked:', {
           pathname: location.pathname,
           useBodyScroll,
           bodyOverflowY: document.body.style.overflowY,

@@ -15,6 +15,7 @@
 
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
+import { log, warn } from './_shared/log.js';
 
 interface HealthCheckResult {
   ok: boolean;
@@ -83,7 +84,7 @@ export const handler: Handler = async (event) => {
             enabled = true; // Config loaded successfully
           }
         } catch (configError: any) {
-          console.warn('[guardrails-health] Config check failed:', configError.message);
+          warn('[guardrails-health] Config check failed:', configError.message);
           // If config fails but modules exist, mark as degraded
           enabled = false;
           error = `Config load failed: ${configError.message.substring(0, 100)}`;
@@ -115,11 +116,11 @@ export const handler: Handler = async (event) => {
       // If we can query (even if empty), connection is good
       // Error code PGRST116 means "no rows" which is fine - connection works
       if (dbError && dbError.code !== 'PGRST116') {
-        console.warn('[guardrails-health] Supabase check failed:', dbError);
+        warn('[guardrails-health] Supabase check failed:', dbError);
         // Don't fail health check if DB is down - guardrails can still work
       }
     } catch (dbError: any) {
-      console.warn('[guardrails-health] Supabase connection check failed:', dbError.message);
+      warn('[guardrails-health] Supabase connection check failed:', dbError.message);
       // Don't fail health check if DB is down
     }
 
@@ -141,7 +142,7 @@ export const handler: Handler = async (event) => {
     // Log health check result (dev only) - ensure no undefined variables
     if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
       try {
-        console.log('[guardrails-health] Health check completed:', {
+        log('[guardrails-health] Health check completed:', {
           ok: Boolean(result?.ok),
           enabled: Boolean(result?.enabled),
           pii_masking: Boolean(result?.pii_masking),
@@ -150,7 +151,7 @@ export const handler: Handler = async (event) => {
         });
       } catch (logErr: any) {
         // Ignore logging errors - don't break the response
-        console.warn('[guardrails-health] Logging failed:', logErr?.message);
+        warn('[guardrails-health] Logging failed:', logErr?.message);
       }
     }
 

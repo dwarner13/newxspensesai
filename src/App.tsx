@@ -306,6 +306,8 @@ function App() {
                         <Route path="/reports" element={<Navigate to="/dashboard/reports" replace />} />
                         
                         {/* OCR Tester routes */}
+                        <Route path="/test/ocr" element={<Navigate to="/ocr-tester" replace />} />
+                        <Route path="/ocr-test" element={<Navigate to="/ocr-tester" replace />} />
                         <Route path="/ocr-tester" element={<OCRTesterPage />} />
                         <Route path="/local-ocr-test" element={<LocalOCRTester />} />
                         <Route path="/byte-test" element={<ByteChatTest />} />
@@ -322,6 +324,7 @@ function App() {
                         <Route path="/chat/prime" element={<ChatPageRedirect employeeSlug="prime-boss" />} />
                         <Route path="/chat/tag" element={<ChatPageRedirect employeeSlug="tag-ai" />} />
                         <Route path="/smart-import" element={<ByteChat />} />
+                        <Route path="/smart-import-ocr" element={<Navigate to="/dashboard/smart-import-ai" replace />} />
                         <Route path="/predict" element={<CrystalChat />} />
                         <Route path="/goals" element={<ChatPageRedirect employeeSlug="goalie-ai" />} />
                         <Route path="/automation" element={<ChatPageRedirect employeeSlug="prime-boss" />} />

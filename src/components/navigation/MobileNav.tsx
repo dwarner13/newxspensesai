@@ -5,7 +5,7 @@ import { X, Crown } from "lucide-react";
 import { Sheet, SheetContent, SheetClose } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import NAV_ITEMS from "@/navigation/nav-registry"; // your single source of truth
-import { usePrimeState } from "@/contexts/PrimeContext";
+import { usePrimeState } from "@/contexts/usePrimeState";
 import { getFeatureKeyForRoute } from "@/navigation/feature-keys";
 
 type MobileNavProps = {

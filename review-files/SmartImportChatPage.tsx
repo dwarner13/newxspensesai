@@ -22,7 +22,7 @@ import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useSmartImport } from '../../hooks/useSmartImport';
-// P0 FIX: Removed duplicate useByteQueueStats import - ByteWorkspacePanel already uses it
+import { useByteQueueStats } from '../../hooks/useByteQueueStats';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import { PageCinematicFade } from '../../components/ui/PageCinematicFade';
@@ -98,14 +98,7 @@ export function SmartImportChatPage() {
   
   // Single shared Smart Import hook instance for this page
   const smartImport = useSmartImport();
-
-  // Initialize upload queue when page mounts
-  useEffect(() => {
-    if (smartImport && !smartImport.isInitialized) {
-      smartImport.initializeQueue?.();
-    }
-  }, [smartImport]);
-
+  
   // Destructure what we need from the shared hook instance
   const {
     uploading: isUploading,
@@ -115,11 +108,10 @@ export function SmartImportChatPage() {
     uploadFiles,
   } = smartImport;
 
-  // P0 FIX: Removed duplicate useByteQueueStats hook
-  // ByteWorkspacePanel already calls useByteQueueStats and manages the poller
-  // Having two instances creates 2+ pollers that all run simultaneously
-  // This reduces noise from 6+ pollers down to 1
-
+  // Get queue stats for health label - handle error state gracefully
+  const queueStatsHook = useByteQueueStats();
+  const queueStats = queueStatsHook.data;
+  
   // Update lastImportSummary when lastUploadSummary changes
   useEffect(() => {
     if (lastUploadSummary?.transactionCount) {
@@ -158,7 +150,7 @@ export function SmartImportChatPage() {
           </ByteWorkspaceErrorBoundary>
         }
         center={
-          <ByteUnifiedCard
+          <ByteUnifiedCard 
             onExpandClick={() => {
               openChat({
                 initialEmployeeSlug: 'byte-docs',
@@ -182,9 +174,16 @@ export function SmartImportChatPage() {
               });
             }}
             onUploadStart={() => {
-              // P0 FIX: DISABLE automatic chat opening on upload
-              // Simple flow: Upload → OCR → Display results (NO chat involvement)
-              // User can manually open chat if needed via Expand or Chat Input buttons
+              // Open chat when upload starts
+              openChat({
+                initialEmployeeSlug: 'byte-docs',
+                context: {
+                  page: 'smart-import',
+                  data: {
+                    source: 'smart-import-upload',
+                  },
+                },
+              });
             }}
             onUploadFiles={uploadFiles}
             uploadFileCount={uploadFileCount}

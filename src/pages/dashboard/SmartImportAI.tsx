@@ -6,6 +6,8 @@ import { toast } from '@/lib/toast';
 import type { CommitImportResponse, ImportSummary, FixableIssues } from '@/types/smartImport';
 import ImportList from '@/components/smart-import/ImportList';
 import StatementUpload from '@/ui/components/Upload/StatementUpload';
+import { isPostImportTriggersDisabled } from '@/lib/featureFlags';
+import { getSupabase } from '@/lib/supabase';
 
 type PreviewRow = {
   posted_at: string;
@@ -69,23 +71,25 @@ export default function SmartImportAI() {
 
   // When a new import is created by the hidden global uploader:
   useEffect(() => {
-    const off = onBus('PARSE_COMPLETED', async ({ importId, previewCount }) => {
+    const off = onBus('PARSE_COMPLETED', async ({ importId, previewCount, preview }) => {
       setActiveImportId(importId);
       setAdvisory(null);
-      toast.success(`Preview ready — ${previewCount} rows`);
-      
-      // Fetch actual preview rows for table display
+
+      if (Array.isArray(preview) && preview.length > 0) {
+        setPreviewRows(preview);
+        toast.success(`Preview ready — ${preview.length} rows`);
+        return;
+      }
+
+      // Fetch preview rows from staging (canonical pipeline)
       try {
-        const res = await fetch('/.netlify/functions/byte-ocr-parse', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(fastMode ? { 'x-fast-mode': '1' } : {}),
-          },
-          body: JSON.stringify({ userId, importId, preview: true }),
-        }).then(r => r.json()).catch(() => ({} as any));
-        setPreviewRows(res?.preview || []);
+        const sb = getSupabase();
+        if (!sb) throw new Error('Supabase client not available');
+        const mapped = await fetchPreviewRows(sb, importId);
+        setPreviewRows(mapped);
+        toast.success(`Preview ready — ${previewCount ?? mapped.length} rows`);
       } catch (e: any) {
+        setPreviewRows([]);
         emitBus("ERROR", { where: "PREVIEW_FETCH", message: "Failed to fetch preview", detail: e });
       }
     });
@@ -181,6 +185,12 @@ export default function SmartImportAI() {
       window.dispatchEvent(new CustomEvent('transactionsImported', { 
         detail: { count: commit.committed || 0, documentId: commit.documentId } 
       }));
+
+      // QUIET MODE GATE: Skip post-import triggers if disabled
+      if (isPostImportTriggersDisabled()) {
+        // skip silently
+        return;
+      }
 
       // 1.5) Categorize via Tag (rule-based + normalization)
       emitBus("CATEGORIZATION_REQUESTED", { importId: activeImportId });
@@ -557,4 +567,34 @@ function Th({ children, className = '' }: any) {
 }
 function Td({ children, className = '' }: any) {
   return <td className={`px-3 sm:px-4 py-2 align-middle ${className}`}>{children}</td>;
+}
+
+async function fetchPreviewRows(
+  sb: NonNullable<ReturnType<typeof getSupabase>>,
+  importId: string,
+  maxAttempts: number = 10,
+  intervalMs: number = 1200
+): Promise<PreviewRow[]> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { data: rows, error } = await sb
+      .from('transactions_staging')
+      .select('data_json')
+      .eq('import_id', importId)
+      .limit(200);
+    if (error) {
+      throw error;
+    }
+    if (rows && rows.length > 0) {
+      return rows.map((row: any) => ({
+        posted_at: row.data_json?.posted_at || row.data_json?.date || '',
+        merchant: row.data_json?.merchant || row.data_json?.description || 'Unknown',
+        category: row.data_json?.category ?? null,
+        category_confidence: row.data_json?.confidence ?? null,
+        amount: row.data_json?.amount ?? 0,
+      }));
+    }
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+
+  return [];
 }

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { StreamEvent } from '../../types/ai';
 import { CHAT_ENDPOINT, verifyChatBackend } from '../../lib/chatEndpoint';
+import { log, warn } from '../../lib/logger';
 
 interface Message {
   id: string;
@@ -62,7 +63,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       // Use dynamic import to avoid circular dependencies
       const demoAuthModule = await import('../../lib/demoAuth');
       if (demoAuthModule.isDemoMode() && demoAuthModule.isGuestSession()) {
-        console.log('[useStreamChat] Guest mode detected - returning mock response');
+        log('[useStreamChat] Guest mode detected - returning mock response');
         setIsStreaming(false);
         setIsToolExecuting(false);
         setCurrentTool(null);
@@ -79,7 +80,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       // Create abort controller for cancellation
       abortControllerRef.current = new AbortController();
       
-      console.log('[useStreamChat] using endpoint:', CHAT_ENDPOINT);
+      log('[useStreamChat] using endpoint:', CHAT_ENDPOINT);
       const response = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -138,7 +139,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
         const { done, value } = await reader.read();
         
         if (done) {
-          console.log('[useStreamChat] Stream completed');
+          log('[useStreamChat] Stream completed');
           break;
         }
         
@@ -257,7 +258,17 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
                     
                   case 'handoff':
                     // Phase 3.2: Handle employee handoff with context
-                    console.log(`[useStreamChat] 🔄 Handoff detected: ${event.from} → ${event.to}`, {
+                    // QUIET MODE GATE: VITE_DISABLE_AUTO_HANDOFFS prevents automatic employee handoffs
+                    // Purpose: Suppress handoff storms during OCR/Smart Import debugging
+                    // This is NOT a bug - manual employee switching still works, only auto-handoffs are gated
+                    // Re-enable: Remove VITE_DISABLE_AUTO_HANDOFFS from .env.local or set to false
+                    const DISABLE_HANDOFFS = import.meta.env.VITE_DISABLE_AUTO_HANDOFFS === 'true';
+                    if (DISABLE_HANDOFFS) {
+                      // Quiet mode: ignore auto-handoff to prevent storms
+                      warn(`[useStreamChat] 🚫 Auto-handoff disabled by env flag. Ignoring handoff event: ${event.from} → ${event.to}`);
+                      break;
+                    }
+                    log(`[useStreamChat] 🔄 Handoff detected: ${event.from} → ${event.to}`, {
                       reason: event.reason,
                       summary: event.summary,
                     });
@@ -289,7 +300,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
                     
                   case 'employee':
                     // Update active employee from backend
-                    console.log(`[useStreamChat] Employee update: ${event.employee}`);
+                    log(`[useStreamChat] Employee update: ${event.employee}`);
                     setActiveEmployeeSlug(event.employee);
                     break;
                     
@@ -329,7 +340,7 @@ export function useStreamChat(options: UseStreamChatOptions = {}) {
       setCurrentTool(null);
       
       if (error.name === 'AbortError') {
-        console.log('[useStreamChat] Stream aborted');
+        log('[useStreamChat] Stream aborted');
       } else {
         console.error('[useStreamChat] Stream error:', {
           error: error.message,

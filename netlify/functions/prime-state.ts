@@ -11,6 +11,7 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { buildFinancialSnapshot } from './_shared/financial-snapshot.js';
+import { log, warn } from './_shared/log.js';
 // Type imports (TypeScript types, no runtime import needed)
 // Using inline type definitions to avoid ES module path issues
 type PrimeState = import('../../src/types/prime-state').PrimeState;
@@ -36,7 +37,7 @@ async function getUserProfileSummary(
       .maybeSingle();
 
     if (error && error.code !== 'PGRST116') {
-      console.warn('[prime-state] Error fetching profile:', error);
+      warn('[prime-state] Error fetching profile:', error);
       return null;
     }
 
@@ -50,7 +51,7 @@ async function getUserProfileSummary(
       const { data: { user } } = await supabase.auth.admin.getUserById(userId);
       email = user?.email || null;
     } catch (error: any) {
-      console.warn('[prime-state] Could not fetch email from auth:', error.message);
+      warn('[prime-state] Could not fetch email from auth:', error.message);
     }
 
     return {
@@ -144,7 +145,7 @@ async function buildMemorySummary(
     } catch (error: any) {
       // Table doesn't exist or column missing - gracefully handle
       if (error.code !== '42P01' && error.code !== '42703') {
-        console.warn('[prime-state] Error fetching tasks:', error);
+        warn('[prime-state] Error fetching tasks:', error);
       }
     }
 
@@ -330,7 +331,7 @@ function buildWarnings(
 export const handler: Handler = async (event) => {
   // Health check log
   if (import.meta.env?.DEV || process.env.NETLIFY_DEV === 'true') {
-    console.log('[prime-state] ✅ Handler called', { method: event.httpMethod, path: event.path });
+    log('[prime-state] ✅ Handler called', { method: event.httpMethod, path: event.path });
   }
   // CORS headers
   const headers = {
@@ -401,7 +402,7 @@ export const handler: Handler = async (event) => {
 
     // Dev logging
     if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
-      console.log('[prime-state] PrimeState built:', {
+      log('[prime-state] PrimeState built:', {
         userId,
         currentStage,
         hasTransactions: financialSnapshot.hasTransactions,
