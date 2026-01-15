@@ -4,7 +4,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Crown, Menu, X } from "lucide-react";
 import NAV_ITEMS from "@/navigation/nav-registry";
 import clsx from "clsx";
-import { usePrimeState } from "@/contexts/PrimeContext";
+import { usePrimeState } from "@/contexts/usePrimeState";
 import { getFeatureKeyForRoute } from "@/navigation/feature-keys";
 
 export default function MobileNavInline() {

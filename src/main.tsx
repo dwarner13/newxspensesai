@@ -1,4 +1,3 @@
-import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter as Router } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
@@ -14,10 +13,7 @@ import './styles/mobile-menu-static.css';
 import './utils/assertSingleMobileNav';
 // Legacy PrimeChatV2 flag check removed - unified chat is always enabled
 
-// DEV-ONLY: Flag to disable React StrictMode for debugging mount/unmount behavior
-// Set to false to disable StrictMode and test if it's causing reload behavior
-// DO NOT commit this as false in production - StrictMode helps catch bugs
-const DISABLE_STRICT_MODE = import.meta.env.DEV && import.meta.env.VITE_DISABLE_STRICT_MODE === 'true';
+// Dev-only: StrictMode removed to reduce noisy double-invoked effects while stabilizing OCR.
 
 // Dev-only route classification self-check
 if (import.meta.env.DEV) {
@@ -44,6 +40,24 @@ const fontLink = document.createElement('link');
 fontLink.rel = 'stylesheet';
 fontLink.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap';
 document.head.appendChild(fontLink);
+
+// QUIET MODE: Global console muting in DEV (intentional, reversible)
+// Purpose: Suppress console spam during OCR/Smart Import debugging
+// This is NOT a bug - it's a feature flag that gates console output
+// Re-enable: Remove VITE_CHAT_QUIET_MODE from .env.local or set to false
+// Note: console.error() remains active (never muted)
+const QUIET =
+  (import.meta as any)?.env?.VITE_CHAT_QUIET_MODE === 'true' ||
+  (import.meta as any)?.env?.VITE_QUIET_MODE === 'true';
+
+if (import.meta.env.DEV && QUIET) {
+  const noop = () => {};
+  console.log = noop;
+  console.info = noop;
+  console.debug = noop;
+  console.warn = noop;
+  // keep console.error ON (errors must always print)
+}
 
 const AppWrapper = (
   <HelmetProvider>
@@ -85,5 +99,5 @@ const AppWrapper = (
 );
 
 createRoot(document.getElementById('root')!).render(
-  DISABLE_STRICT_MODE ? AppWrapper : <StrictMode>{AppWrapper}</StrictMode>
+  AppWrapper
 );

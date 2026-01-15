@@ -19,7 +19,8 @@ interface RecentImport {
   file_type: string;
   status: 'pending' | 'parsing' | 'parsed' | 'committed' | 'failed';
   created_at: string;
-  committed_count: number | null;
+  document_id: string | null;
+  error: string | null;
 }
 
 interface SmartImportCardProps {
@@ -43,9 +44,10 @@ export const SmartImportCard: React.FC<SmartImportCardProps> = ({ className }) =
     
     try {
       setLoading(true);
+      // Query only existing columns from imports table
       const { data, error } = await supabase
         .from('imports')
-        .select('id, file_url, file_type, status, created_at, committed_count')
+        .select('id, file_url, file_type, status, created_at, document_id, error')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(3);
@@ -162,11 +164,6 @@ export const SmartImportCard: React.FC<SmartImportCardProps> = ({ className }) =
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {getStatusBadge(importItem.status)}
-                  {importItem.committed_count !== null && (
-                    <span className="text-xs text-slate-400">
-                      {importItem.committed_count} transactions
-                    </span>
-                  )}
                   <span className="text-xs text-slate-500">
                     {formatDate(importItem.created_at)}
                   </span>

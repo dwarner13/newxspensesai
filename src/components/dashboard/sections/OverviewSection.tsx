@@ -16,7 +16,7 @@ import { Loader2 } from 'lucide-react';
 import SyncStatusPulse from '../SyncStatusPulse';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useUnifiedChatLauncher } from '../../../hooks/useUnifiedChatLauncher';
-import { usePrimeState } from '../../../contexts/PrimeContext';
+import { usePrimeState } from '../../../contexts/usePrimeState';
 import { PrimeLogoBadge } from '../../branding/PrimeLogoBadge';
 import { cn } from '../../../lib/utils';
 

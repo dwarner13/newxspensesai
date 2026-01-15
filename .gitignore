@@ -321,3 +321,8 @@ site/
 !worker/package-lock.json
 !yarn.lock
 nul
+# Never keep exports/snippets inside Netlify functions
+netlify/functions/*.csv
+netlify/functions/*.crdownload
+netlify/functions/*.tmp
+netlify/functions/*.part

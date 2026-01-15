@@ -8,6 +8,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { onBus } from '../lib/bus';
 import { getSupabase } from '../lib/supabase';
+import { log, error } from '../lib/logger';
+import { isPostImportTriggersDisabled } from '../lib/featureFlags';
 
 interface PrimeSummary {
   importId: string;
@@ -35,7 +37,14 @@ export function usePostImportHandoff(userId: string | undefined) {
       }
       processingImportsRef.current.add(payload.importId);
 
-      console.log('[usePostImportHandoff] BYTE_IMPORT_COMPLETED received', payload);
+      // QUIET MODE GATE: Skip post-import triggers if disabled
+      if (isPostImportTriggersDisabled()) {
+        // Skip silently to avoid console spam during OCR debugging
+        processingImportsRef.current.delete(payload.importId);
+        return;
+      }
+
+      log('[usePostImportHandoff] BYTE_IMPORT_COMPLETED received', payload);
 
       try {
         // STEP 3: Run Tag + Crystal silently (no chat messages, no UI changes)
@@ -46,7 +55,7 @@ export function usePostImportHandoff(userId: string | undefined) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ importId: payload.importId }),
           }).catch((err) => {
-            console.error('[usePostImportHandoff] Tag categorization failed (silent):', err);
+            error('[usePostImportHandoff] Tag categorization failed (silent):', err);
             // Continue even if Tag fails
           }),
 
@@ -63,7 +72,7 @@ export function usePostImportHandoff(userId: string | undefined) {
               });
             } catch (err) {
               // Crystal failure should not prevent summary preparation
-              console.error('[usePostImportHandoff] Crystal analysis failed (silent):', err);
+              error('[usePostImportHandoff] Crystal analysis failed (silent):', err);
             }
           })(),
         ]);
@@ -73,8 +82,8 @@ export function usePostImportHandoff(userId: string | undefined) {
         let summaryContent: string;
         try {
           summaryContent = await preparePrimeSummary(payload.importId, payload.userId);
-        } catch (error) {
-          console.error('[usePostImportHandoff] Error preparing summary, using fallback:', error);
+        } catch (err: any) {
+          error('[usePostImportHandoff] Error preparing summary, using fallback:', err);
           summaryContent = "Your categorized results and insights are available.";
         }
 
@@ -85,8 +94,8 @@ export function usePostImportHandoff(userId: string | undefined) {
         const existingSummary = primeSummaryStore.get(stableKey);
         if (existingSummary && !existingSummary.consumed) {
           // Summary already exists and not consumed - keep it
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[usePostImportHandoff] Summary already exists, skipping re-preparation', { importId: payload.importId });
+          if (import.meta.env.DEV) {
+            log('[usePostImportHandoff] Summary already exists, skipping re-preparation', { importId: payload.importId });
           }
           // Still show strip if not already shown
           if (!primeSummaryReady) {
@@ -106,8 +115,8 @@ export function usePostImportHandoff(userId: string | undefined) {
 
         // STEP 5: Show "Prime Summary Ready" strip
         setPrimeSummaryReady(payload.importId);
-      } catch (error) {
-        console.error('[usePostImportHandoff] Error processing import completion:', error);
+      } catch (err: any) {
+        error('[usePostImportHandoff] Error processing import completion:', err);
         // Remove from processing set on error so it can retry
         processingImportsRef.current.delete(payload.importId);
       }
@@ -133,16 +142,16 @@ export function usePostImportHandoff(userId: string | undefined) {
     if (summary) {
       if (summary.consumed) {
         // Already consumed - idempotent guard
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[usePostImportHandoff] Summary already consumed, skipping', { importId });
+        if (import.meta.env.DEV) {
+          log('[usePostImportHandoff] Summary already consumed, skipping', { importId });
         }
         return;
       }
       summary.consumed = true;
       primeSummaryStore.set(importId, summary);
       setPrimeSummaryReady(null);
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[usePostImportHandoff] Summary consumed', { importId });
+      if (import.meta.env.DEV) {
+        log('[usePostImportHandoff] Summary consumed', { importId });
       }
     }
   };
@@ -245,8 +254,8 @@ async function preparePrimeSummary(importId: string, userId: string): Promise<st
     recapParts.push(`Everything is categorized and ready for review.`);
 
     return recapParts.join(' ');
-  } catch (error) {
-    console.error('[preparePrimeSummary] Error:', error);
+  } catch (err: any) {
+    error('[preparePrimeSummary] Error:', err);
     return "Your categorized results and insights are available.";
   }
 }

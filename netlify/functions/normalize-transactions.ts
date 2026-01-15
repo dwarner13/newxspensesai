@@ -18,8 +18,13 @@ import { visionStatementParser } from './_shared/visionStatementParser.js';
  * Byte Speed Mode v2: Background normalization processing
  * Processes transactions asynchronously without blocking the response
  */
-async function processNormalizationInBackground(userId: string, documentId: string) {
+async function processNormalizationInBackground(
+  userId: string,
+  documentId: string,
+  importRunId?: string
+) {
   const sb = admin();
+  const userIdText = String(userId);
 
   if (!userId || !documentId) {
     console.error('[normalize-transactions] Missing userId or documentId');
@@ -58,7 +63,7 @@ async function processNormalizationInBackground(userId: string, documentId: stri
       const { data: newImport, error: importError } = await sb
         .from('imports')
         .insert({
-          user_id: userId,
+          user_id: userIdText,
           document_id: documentId,
           file_url: doc.storage_path || '',
           file_type: doc.mime_type || 'application/pdf',
@@ -84,7 +89,7 @@ async function processNormalizationInBackground(userId: string, documentId: stri
 
     // Try OCR text parsing first (if OCR text exists)
     if (hasOcrText) {
-      normalizedTransactions = await normalizeOcrResult(doc.ocr_text, userId, openaiClient);
+      normalizedTransactions = await normalizeOcrResult(doc.ocr_text, userIdText, openaiClient);
     }
 
     // If OCR parsing found 0 transactions AND this is an image, try Vision parser as fallback
@@ -101,7 +106,7 @@ async function processNormalizationInBackground(userId: string, documentId: stri
 
         if (!urlError && publicUrlData) {
           const visionResult = await visionStatementParser(
-            userId,
+            userIdText,
             documentId,
             publicUrlData.signedUrl,
             doc.mime_type || 'image/png'
@@ -109,7 +114,7 @@ async function processNormalizationInBackground(userId: string, documentId: stri
 
           if (visionResult.parsed.transactions && visionResult.parsed.transactions.length > 0) {
             normalizedTransactions = visionResult.parsed.transactions.map(tx => ({
-              userId,
+              userId: userIdText,
               kind: 'bank' as const,
               date: tx.transaction_date || tx.posting_date || undefined,
               merchant: tx.merchant_guess || undefined,
@@ -127,6 +132,8 @@ async function processNormalizationInBackground(userId: string, documentId: stri
         console.error('[normalize-transactions] Vision parser failed:', visionError);
       }
     }
+
+    const resolvedImportRunId = importRunId || importRecord.id;
 
     if (!normalizedTransactions || normalizedTransactions.length === 0) {
       await sb
@@ -148,7 +155,7 @@ async function processNormalizationInBackground(userId: string, documentId: stri
 
       return {
         import_id: importRecord.id,
-        user_id: userId,
+        user_id: userIdText,
         data_json: {
           date: tx.date,
           posted_at: tx.date ? new Date(tx.date).toISOString() : new Date().toISOString(),
@@ -160,6 +167,8 @@ async function processNormalizationInBackground(userId: string, documentId: stri
           category: null,
           confidence: null,
           category_source: null,
+          importRunId: resolvedImportRunId,
+          documentId,
         },
         hash,
       };
@@ -222,7 +231,7 @@ export const handler: Handler = async (event, context) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { userId, documentId } = body;
+    const { userId, documentId, importRunId } = body;
 
     if (!userId || !documentId) {
       return {
@@ -234,7 +243,7 @@ export const handler: Handler = async (event, context) => {
 
     // Byte Speed Mode v2: Return immediately, process in background
     // Fire normalization asynchronously - don't wait for completion
-    processNormalizationInBackground(userId, documentId).catch((error) => {
+    processNormalizationInBackground(userId, documentId, importRunId).catch((error) => {
       console.error('[normalize-transactions] Background processing error:', error);
     });
     

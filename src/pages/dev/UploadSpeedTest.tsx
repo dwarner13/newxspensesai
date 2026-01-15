@@ -90,13 +90,11 @@ export default function UploadSpeedTest() {
     const init = await initRes.json();
     const initLatency = Date.now() - initStart;
 
-    // Step 2: Upload file with timing
+    // Step 2: Upload file with timing (auth is embedded in the URL)
     const uploadStart = Date.now();
-    const uploadRes = await fetch(init.url, {
+    const uploadRes = await fetch(init.uploadUrl, {
       method: 'PUT',
       headers: {
-        'x-upsert': 'true',
-        'authorization': `Bearer ${init.token}`,
         'content-type': 'application/octet-stream',
       },
       body: testFile,

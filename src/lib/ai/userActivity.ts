@@ -55,7 +55,7 @@ export async function logUserEvent(params: LogUserEventParams) {
   
   try {
     const { error } = await supabase.from("user_activity_events").insert({
-      user_id: params.userId,
+      user_id: String(params.userId),
       event_type: params.eventType,
       event_value: params.eventValue ?? 1,
       meta: params.meta ?? {},
@@ -80,10 +80,11 @@ export async function logUserEvent(params: LogUserEventParams) {
  */
 export async function recalcFluency(userId: string) {
   const supabase = await getServiceSupabase();
+  const userIdText = String(userId);
   
   try {
     const { error } = await supabase.rpc("recalculate_ai_fluency", { 
-      p_user_id: userId 
+      p_user_id: userIdText 
     });
 
     if (error) {

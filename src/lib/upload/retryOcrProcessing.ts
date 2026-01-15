@@ -44,13 +44,13 @@ export async function retryOcrProcessing(
   }
 
   // Step 2: If status is pending, check for PENDING_UPLOAD and retry
-  if (result.status === 'pending') {
+  if (result.status === 'pending' && result.documentId) {
     onStatusChange?.('finalizing');
     
         // Check if finalize returned PENDING_UPLOAD
         // We need to poll the document status and retry finalize if needed
         const { userId } = request;
-        const docId = result.docId;
+        const docId = result.documentId;
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const delay = initialDelay * Math.pow(2, attempt); // Exponential backoff: 500ms, 1s, 2s, 4s, 8s
@@ -62,15 +62,15 @@ export async function retryOcrProcessing(
 
       // Retry finalize to check if upload is complete
       try {
-        const retryRes = await fetch('/.netlify/functions/smart-import-finalize', {
+        const formData = new FormData();
+        formData.append('userId', userId);
+        formData.append('docId', docId);
+        formData.append('expectedSize', String(request.file.size));
+        if (request.requestId) formData.append('requestId', request.requestId);
+
+        const retryRes = await fetch('/.netlify/functions/smart-import-ocr', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId,
-            docId: result.docId,
-            expectedSize: request.file.size,
-            requestId: request.requestId, // Reuse requestId for idempotency
-          }),
+          body: formData,
         });
 
         if (!retryRes.ok) {
@@ -98,23 +98,23 @@ export async function retryOcrProcessing(
         const { data: doc } = await sb
           .from('user_documents')
           .select('id, status, ocr_text, pii_types')
-          .eq('id', result.docId)
+          .eq('id', result.documentId)
           .single();
 
         if (doc?.status === 'ready' && doc.ocr_text) {
           onStatusChange?.('ready');
           return {
-            docId: doc.id,
+            ok: true,
+            documentId: doc.id,
             status: 'ready',
-            ocrText: doc.ocr_text,
-            piiTypes: doc.pii_types || [],
           };
         }
 
         if (doc?.status === 'rejected') {
           onStatusChange?.('failed');
           return {
-            docId: doc.id,
+            ok: false,
+            documentId: doc.id,
             status: 'rejected',
             error: 'Document processing was rejected',
           };
@@ -135,7 +135,8 @@ export async function retryOcrProcessing(
     // Max attempts reached - return pending status
     onStatusChange?.('failed');
     return {
-      docId: result.docId,
+      ok: false,
+      documentId: result.documentId,
       status: 'pending',
       error: 'Upload completion timeout - file may still be uploading',
     };

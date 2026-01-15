@@ -1,16 +1,16 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-// import { toast } from 'react-hot-toast'; // Temporarily disabled for debugging
+import { toast } from 'react-hot-toast';
 import { getSupabase } from '../lib/supabase';
 import { isDemoMode, getGuestSession, createGuestUser, clearGuestSession } from '../lib/demoAuth';
 import { getOrCreateProfile, type Profile } from '../lib/profileHelpers';
+import { log, warn, error } from '../lib/logger';
 
 interface AuthContextType {
   user: any;
   userId: string | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
   signInWithOtp: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   clearDevice: () => Promise<void>;
@@ -27,23 +27,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 /**
  * Check if demo mode is allowed
- * Demo mode is ONLY allowed in:
- * 1. Local development (import.meta.env.DEV === true)
- * 2. When explicitly forced (VITE_FORCE_DEMO === 'true')
- * 
- * In staging/production, demo mode is DISABLED - users must use real auth
+ * Demo mode is ONLY allowed when explicitly enabled via VITE_ALLOW_DEMO_FALLBACK=true
+ * Default: OFF (no demo fallback, require real auth)
  */
 function isDemoAllowed(): boolean {
-  // Allow demo in dev mode
-  if (import.meta.env.DEV === true) {
-    return true;
-  }
-  // Allow demo if explicitly forced (for testing)
-  if (import.meta.env.VITE_FORCE_DEMO === 'true') {
-    return true;
-  }
-  // Disable demo in staging/production
-  return false;
+  // Only allow demo if explicitly enabled via env flag
+  return import.meta.env.VITE_ALLOW_DEMO_FALLBACK === 'true';
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -52,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   
   // Dev-only logging
   if (import.meta.env.DEV) {
-    console.log('[AuthContext] Environment:', {
+    log('[AuthContext] Environment:', {
       mode: import.meta.env.DEV ? 'dev' : 'production',
       demoEnabled: demoAllowed,
       forceDemo: import.meta.env.VITE_FORCE_DEMO === 'true',
@@ -72,12 +61,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   // Removed didRouteToOnboardingRef - RouteDecisionGate owns routing decisions
   
+  // Track last auth event for greeting toast
+  const lastAuthEventRef = useRef<'SIGNED_IN' | 'SIGNED_UP' | null>(null);
+  const didShowToastRef = useRef<{ signedIn?: string; signedUp?: string }>({});
+  
   // Compute firstName from profile or user metadata
-  // Priority: profile.display_name > profile.full_name > user metadata > email prefix > "there"
+  // Priority: profile.metadata.display_name > profile.metadata.first_name > profile.display_name > profile.full_name > user.user_metadata.display_name > user.user_metadata.first_name > user.user_metadata.full_name > user.user_metadata.name > email prefix > "there"
   const firstName = useMemo(() => {
     const raw =
+      profile?.metadata?.display_name ||
+      profile?.metadata?.first_name ||
       profile?.display_name ||
       profile?.full_name ||
+      user?.user_metadata?.display_name ||
+      user?.user_metadata?.first_name ||
       user?.user_metadata?.full_name ||
       user?.user_metadata?.name ||
       user?.email?.split('@')[0];
@@ -86,6 +83,81 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return raw.split(' ')[0];
   }, [profile, user]);
 
+  // Helper to get time-of-day greeting based on timezone
+  const getTimeGreeting = useCallback((timezone?: string | null): string => {
+    try {
+      const now = timezone 
+        ? new Date(new Date().toLocaleString('en-US', { timeZone: timezone }))
+        : new Date();
+      const hour = now.getHours();
+      
+      if (hour >= 5 && hour < 12) return 'Good morning';
+      if (hour >= 12 && hour < 17) return 'Good afternoon';
+      if (hour >= 17 && hour < 22) return 'Good evening';
+      return 'Good night';
+    } catch (e) {
+      // Fallback to local time if timezone invalid
+      const hour = new Date().getHours();
+      if (hour >= 5 && hour < 12) return 'Good morning';
+      if (hour >= 12 && hour < 17) return 'Good afternoon';
+      if (hour >= 17 && hour < 22) return 'Good evening';
+      return 'Good night';
+    }
+  }, []);
+
+  // Show greeting toast after profile loads
+  // CRITICAL: Only triggers for SIGNED_IN and SIGNED_UP events (from lastAuthEventRef)
+  // No heuristic detection - uses authEvent passed in
+  const showGreetingToast = useCallback(
+    (authEvent: 'SIGNED_IN' | 'SIGNED_UP', profile: Profile | null, userName: string) => {
+      if (!userId) return;
+
+      // Check sessionStorage to prevent duplicate toasts (once per session per user)
+      const storageKey = `auth_greeted_${userId}`;
+      const alreadyShown = sessionStorage.getItem(storageKey);
+
+      if (alreadyShown) {
+        if (import.meta.env.DEV) {
+          log(
+            `[AuthContext] Greeting toast already shown for ${userId.substring(0, 8)}... (skipping)`
+          );
+        }
+        return;
+      }
+
+      // StrictMode guard (prevents double-run)
+      const refKey = authEvent === 'SIGNED_IN' ? 'signedIn' : 'signedUp';
+      const today = new Date().toISOString().split('T')[0]; // yyyy-mm-dd
+      if (didShowToastRef.current[refKey] === today) return;
+
+      // Get timezone from profile
+      const timezone = (profile as any)?.time_zone || null;
+      const timeGreeting = getTimeGreeting(timezone);
+
+      if (authEvent === 'SIGNED_IN') {
+        toast.success(`${timeGreeting} — Prime is ready.`, {
+          duration: 4000,
+          position: 'top-right',
+        });
+      } else {
+        toast.success(`Welcome, ${userName}`, {
+          duration: 4000,
+          position: 'top-right',
+          icon: '👋',
+        });
+        toast('Your AI team is ready when you are.', {
+          duration: 3000,
+          position: 'top-right',
+        });
+      }
+
+      // Mark as shown (persists for session)
+      sessionStorage.setItem(storageKey, '1');
+      didShowToastRef.current[refKey] = today;
+    },
+    [userId, getTimeGreeting]
+  );
+
   // Non-blocking profile loader - fire-and-forget, never gates auth init
   const loadProfile = useCallback(async (uid: string, userEmail?: string, checkCustodianReady = false) => {
     setIsProfileLoading(true);
@@ -93,13 +165,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profile = await getOrCreateProfile(uid, userEmail || '');
       setProfile(profile ?? null);
       
+      // Show greeting toast after profile loads (only for SIGNED_IN or SIGNED_UP events)
+      // CRITICAL: Only triggers if lastAuthEventRef is 'SIGNED_IN' or 'SIGNED_UP'
+      // Other events (INITIAL_SESSION, TOKEN_REFRESHED, USER_UPDATED, SIGNED_OUT) are ignored
+      if (lastAuthEventRef.current === 'SIGNED_IN' || lastAuthEventRef.current === 'SIGNED_UP') {
+        if (profile) {
+          const userName = profile.display_name || profile.first_name || profile.full_name || userEmail?.split('@')[0] || 'there';
+          
+          // Debug log (dev only)
+          if (import.meta.env.DEV) {
+            log(`[AuthContext] Showing greeting toast: ${lastAuthEventRef.current} for ${uid.substring(0, 8)}...`);
+          }
+          
+          showGreetingToast(lastAuthEventRef.current, profile, userName);
+          lastAuthEventRef.current = null; // Clear after showing (prevents duplicate)
+        }
+      }
+      
       // PART B: Profile loaded - navigation logic moved to useEffect to prevent loops
     } catch (e) {
-      console.warn('[AuthContext] Profile load failed', e);
+      warn('[AuthContext] Profile load failed', e);
     } finally {
       setIsProfileLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, showGreetingToast]);
 
   // Refresh profile function - reloads profile from database
   const refreshProfile = useCallback(async () => {
@@ -120,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [userId, user?.email]);
   
-  console.log('AuthProvider render:', { user: !!user, userId, loading, initialLoad, ready, isDemoUser});
+  log('AuthProvider render:', { user: !!user, userId, loading, initialLoad, ready, isDemoUser});
 
   // CRITICAL: Custodian ready computation (NO navigation - RouteDecisionGate owns routing)
   // AuthContext computes custodianReady and exposes it, but RouteDecisionGate makes routing decisions
@@ -138,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Dev log: show computed custodianReady value (NO navigation)
       if (import.meta.env.DEV) {
-        console.log('[AuthContext] custodianReady computed:', {
+        log('[AuthContext] custodianReady computed:', {
           custodianReady,
           source: 'profile.metadata.custodian_ready',
           metadata: md,
@@ -147,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       }
     } catch (error: any) {
-      console.warn('[AuthContext] Error computing custodian ready status (non-fatal):', error?.message || error);
+      warn('[AuthContext] Error computing custodian ready status (non-fatal):', error?.message || error);
     }
   }, [ready, profile, isProfileLoading]);
 
@@ -164,7 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       const timeout = setTimeout(() => {
-        console.warn('[AuthContext] Safety timeout triggered');
+        warn('[AuthContext] Safety timeout triggered');
         finish();
       }, 8000);
 
@@ -176,7 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const guestSession = getGuestSession();
           if (guestSession) {
             const guestUser = createGuestUser();
-            console.log('🔍 AuthContext: Guest session found - using guest user', guestSession.demo_user_id);
+            log('🔍 AuthContext: Guest session found - using guest user', guestSession.demo_user_id);
             safe(() => {
               setUserId(guestSession.demo_user_id);
               setUser(guestUser);
@@ -190,14 +279,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        console.log('[AuthContext] Checking Supabase session...');
+        log('[AuthContext] Checking Supabase session...');
         const supabase = getSupabase();
         
         if (!supabase) {
           // No Supabase configured
           if (demoAllowed) {
             // Dev mode - use demo user
-            console.log('🔍 AuthContext: No Supabase configured - using demo user (dev mode)', DEMO_USER_ID);
+            log('🔍 AuthContext: No Supabase configured - using demo user (dev mode)', DEMO_USER_ID);
             safe(() => {
               setUserId(DEMO_USER_ID);
               setUser(null);
@@ -207,7 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
           } else {
             // Staging/prod - require real auth, no demo fallback
-            console.log('🔍 AuthContext: No Supabase configured - requiring real auth (no demo fallback)');
+            log('🔍 AuthContext: No Supabase configured - requiring real auth (no demo fallback)');
             safe(() => {
               setUserId(null);
               setUser(null);
@@ -223,8 +312,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const { data, error } = await supabase.auth.getSession();
 
+        // DEV-only debug logging
+        if (import.meta.env.DEV) {
+          log('[AuthContext] Session check:', {
+            hasSession: !!data?.session,
+            hasUser: !!data?.session?.user,
+            userId: data?.session?.user?.id || null,
+            error: error?.message || null,
+          });
+        }
+
         if (error) {
-          console.warn('[AuthContext] getSession error', error);
+          warn('[AuthContext] getSession error', error);
         }
 
         const currentSession = data?.session;
@@ -233,13 +332,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Real user logged in
           const userId = currentSession.user.id;
           if (import.meta.env.DEV) {
-            console.log('[AuthContext] User ID source: real auth', {
+            log('[AuthContext] User ID source: real auth', {
               userId,
               email: currentSession.user.email,
               mode: import.meta.env.DEV ? 'dev' : 'production',
             });
           }
-          console.log('🔍 AuthContext: Logged in as', currentSession.user.email);
+          log('🔍 AuthContext: Logged in as', currentSession.user.email);
           safe(() => {
             setUserId(userId);
             setUser(currentSession.user);
@@ -250,17 +349,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Fire-and-forget profile load
           void loadProfile(userId, currentSession.user.email || undefined);
         } else {
-          // No session found
+          // No session found - require login (no demo fallback unless explicitly enabled)
           if (demoAllowed) {
-            // Dev mode - use demo user
+            // Demo fallback enabled via VITE_ALLOW_DEMO_FALLBACK=true
             if (import.meta.env.DEV) {
-              console.log('[AuthContext] User ID source: demo user (dev mode)', {
+              log('[AuthContext] User ID source: demo user (demo fallback enabled)', {
                 userId: DEMO_USER_ID,
                 mode: 'dev',
                 demoEnabled: true,
               });
             }
-            console.log('🔍 AuthContext: No session - using demo user (dev mode)', DEMO_USER_ID);
+            log('🔍 AuthContext: No session - using demo user (demo fallback enabled)', DEMO_USER_ID);
             safe(() => {
               setUserId(DEMO_USER_ID);
               setUser(null);
@@ -269,15 +368,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setProfile(null);
             });
           } else {
-            // Staging/prod - no session means user must log in (no demo fallback)
+            // No demo fallback - user must log in
             if (import.meta.env.DEV) {
-              console.log('[AuthContext] User ID source: null (staging/prod, no demo)', {
+              log('[AuthContext] No session - redirecting to login (demo fallback disabled)', {
                 userId: null,
-                mode: 'production',
                 demoEnabled: false,
               });
             }
-            console.log('🔍 AuthContext: No session - user must log in (no demo fallback)');
+            log('🔍 AuthContext: No session - user must log in (demo fallback disabled)');
             safe(() => {
               setUserId(null);
               setUser(null);
@@ -285,11 +383,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setIsDemoUser(false);
               setProfile(null);
             });
+            
+            // Redirect to login ONLY for protected routes (dashboard/app routes)
+            // Marketing routes are public and should NOT redirect
+            const isProtectedRoute = location.pathname.startsWith('/dashboard') || 
+                                     location.pathname.startsWith('/onboarding');
+            if (isProtectedRoute) {
+              const nextPath = encodeURIComponent(location.pathname + location.search);
+              navigate(`/login?next=${nextPath}`, { replace: true });
+            }
           }
         }
 
       } catch (e) {
-        console.warn('[AuthContext] bootstrap threw', e);
+        warn('[AuthContext] bootstrap threw', e);
         // On error, only use demo user if allowed
         if (demoAllowed) {
           safe(() => {
@@ -339,7 +446,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('[AuthContext] Auth state change:', _event);
+      log('[AuthContext] Auth state change:', _event);
 
       safe(() => {
         setSession(session);
@@ -347,7 +454,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUserId(session?.user?.id ?? null);
       });
 
-      // Fire-and-forget profile load
+      // Fire-and-forget profile load (for all events, but toast only shows if lastAuthEventRef is set)
       // NOTE: Custodian ready check is now handled inside loadProfile() to ensure profile is loaded first
       if (session?.user?.id) {
         void loadProfile(session.user.id, session.user.email || undefined);
@@ -355,7 +462,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Handle demo mode logic for SIGNED_OUT
       if (_event === 'SIGNED_OUT') {
-        console.log('🔍 AuthContext: User signed out');
+        log('🔍 AuthContext: User signed out');
+        // Clear lastAuthEventRef on sign out
+        lastAuthEventRef.current = null;
+        // Clear greeting toast dedupe key for all users (cleanup)
+        if (typeof window !== 'undefined') {
+          // Clear all auth_greeted keys (in case userId changed)
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key && key.startsWith('auth_greeted_')) {
+              keysToRemove.push(key);
+            }
+          }
+          keysToRemove.forEach(key => sessionStorage.removeItem(key));
+          if (import.meta.env.DEV && keysToRemove.length > 0) {
+            log(`[AuthContext] Cleared ${keysToRemove.length} greeting toast dedupe key(s) on sign out`);
+          }
+        }
         if (demoAllowed) {
           // Dev mode - switch to demo user
           safe(() => {
@@ -376,16 +500,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         }
       } else if (_event === 'SIGNED_IN') {
-        console.log('🔍 AuthContext: User signed in');
+        log('🔍 AuthContext: User signed in');
         safe(() => {
           setIsDemoUser(false);
         });
+        
+        // Track auth event for greeting toast (will show after profile loads)
+        // CRITICAL: This is the ONLY place SIGNED_IN sets lastAuthEventRef
+        // Do NOT clear on INITIAL_SESSION, TOKEN_REFRESHED, USER_UPDATED, etc.
+        // Those events may fire after SIGNED_IN but before profile loads
+        lastAuthEventRef.current = 'SIGNED_IN';
+        
+        // Set flag to prevent auto-opening chat after login
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('just_signed_in', '1');
+          sessionStorage.setItem('first_prime_open_after_login', '1');
+        }
         
         // Load profile immediately on sign-in and check Custodian ready status
         if (session?.user?.id) {
           void loadProfile(session.user.id, session.user.email || undefined, true); // Pass checkCustodianReady=true
         }
+      } else if (_event === 'SIGNED_UP') {
+        log('🔍 AuthContext: User signed up');
+        safe(() => {
+          setIsDemoUser(false);
+        });
+        
+        // Track auth event for greeting toast (will show after profile loads)
+        // CRITICAL: This is the ONLY place SIGNED_UP sets lastAuthEventRef
+        // Do NOT clear on INITIAL_SESSION, TOKEN_REFRESHED, USER_UPDATED, etc.
+        lastAuthEventRef.current = 'SIGNED_UP';
+        
+        // Set flag to prevent auto-opening chat after signup
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('just_signed_in', '1');
+        }
+        
+        // Load profile immediately on sign-up
+        if (session?.user?.id) {
+          void loadProfile(session.user.id, session.user.email || undefined, false);
+        }
       }
+      // All other events (_event === 'INITIAL_SESSION' | 'TOKEN_REFRESHED' | 'USER_UPDATED' | etc.)
+      // Do NOT modify lastAuthEventRef - preserve SIGNED_IN/SIGNED_UP until toast is shown
 
       finish();
     });
@@ -398,87 +556,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     try {
-      console.log('🔍 AuthContext: Signing in with Google...');
+      // DEV-only debug logging
+      if (import.meta.env.DEV) {
+        log('[AuthContext] Google OAuth:', {
+          origin: window.location.origin,
+          redirectTo: `${window.location.origin}/auth/callback`,
+          hasSupabase: !!getSupabase(),
+        });
+      }
       
       const supabase = getSupabase();
       if (!supabase || !supabase.auth) {
-        console.log('⚡ Dev mode: Google sign-in skipped');
-        console.log('Development mode - sign-in simulated');
-        return;
+        if (import.meta.env.DEV) {
+          log('[AuthContext] Google sign-in skipped - Supabase not configured');
+        }
+        throw new Error('Supabase not configured');
       }
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
+        options: { redirectTo: `${window.location.origin}/auth/callback` }
       });
 
       if (error) {
-        console.error('❌ AuthContext: Google sign-in error:', error);
-        console.error('Failed to sign in with Google. Please try again.');
+        console.error('[AuthContext] Google sign-in error:', error);
         throw error;
       }
     } catch (error) {
-      console.error('❌ AuthContext: Unexpected error during Google sign-in:', error);
-      console.error('An unexpected error occurred. Please try again.');
+      console.error('[AuthContext] Google sign-in failed:', error);
       throw error;
     }
   };
 
-  const signInWithApple = async () => {
-    try {
-      console.log('🔍 AuthContext: Signing in with Apple...');
-      
-      const supabase = getSupabase();
-      if (!supabase || !supabase.auth) {
-        console.log('⚡ Dev mode: Apple sign-in skipped');
-        console.log('Development mode - sign-in simulated');
-        return;
-      }
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'apple',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
-      });
-
-      if (error) {
-        console.error('❌ AuthContext: Apple sign-in error:', error);
-        console.error('Failed to sign in with Apple. Please try again.');
-        throw error;
-      }
-    } catch (error) {
-      console.error('❌ AuthContext: Unexpected error during Apple sign-in:', error);
-      console.error('An unexpected error occurred. Please try again.');
-      throw error;
-    }
-  };
 
   const signInWithOtp = async (email: string) => {
     try {
-      console.log('🔍 AuthContext: Sending magic link to:', email);
+      const emailRedirectTo = `${window.location.origin}/auth/callback`;
+      
+      // DEV-only debug logging
+      if (import.meta.env.DEV) {
+        log('[AuthContext] Magic link OTP:', {
+          email,
+          origin: window.location.origin,
+          emailRedirectTo,
+          hasSupabase: !!getSupabase(),
+        });
+      }
       
       const supabase = getSupabase();
       if (!supabase || !supabase.auth) {
-        console.log('⚡ Dev mode: Magic link skipped');
+        if (import.meta.env.DEV) {
+          log('[AuthContext] Magic link skipped - Supabase not configured');
+        }
         throw new Error('Supabase not configured');
       }
 
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
+          emailRedirectTo
         }
       });
 
       if (error) {
-        console.error('❌ AuthContext: Magic link error:', error);
+        console.error('[AuthContext] Magic link error:', error);
         throw error;
       }
       
-      console.log('✅ AuthContext: Magic link sent successfully');
+      log('✅ AuthContext: Magic link sent successfully');
     } catch (error) {
       console.error('❌ AuthContext: Unexpected error sending magic link:', error);
       throw error;
@@ -487,7 +632,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
-      console.log('🔍 AuthContext: Signing out user...');
+      log('🔍 AuthContext: Signing out user...');
+
+      // Capture userId before clearing state
+      const currentUserId = userId;
 
       // Clear Supabase session if exists
       const supabase = getSupabase();
@@ -513,10 +661,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         keysToRemove.forEach(key => localStorage.removeItem(key));
-        console.log('✅ Cleared all guest/demo localStorage keys');
+        log('✅ Cleared all guest/demo localStorage keys');
       } catch (storageError) {
-        console.warn('⚠️ AuthContext: Failed to clear some localStorage keys:', storageError);
+        warn('⚠️ AuthContext: Failed to clear some localStorage keys:', storageError);
       }
+
+      // Clear greeting toast dedupe key before clearing user state
+      if (currentUserId) {
+        sessionStorage.removeItem(`auth_greeted_${currentUserId}`);
+      }
+      // Also clear any remaining auth_greeted keys (cleanup)
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('auth_greeted_')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => sessionStorage.removeItem(key));
 
       // Clear user state
       setUserId(null);
@@ -524,7 +686,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null);
       setIsDemoUser(false);
       setProfile(null);
-      console.log('✅ Signed out successfully');
+      log('✅ Signed out successfully');
       
       // Clear session storage
       sessionStorage.removeItem('xspensesai-intended-path');
@@ -550,7 +712,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const clearDevice = async () => {
     try {
-      console.log('🔍 AuthContext: Clearing device data...');
+      log('🔍 AuthContext: Clearing device data...');
 
       // 1. Sign out from Supabase
       const supabase = getSupabase();
@@ -576,9 +738,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         keysToRemove.forEach(key => localStorage.removeItem(key));
-        console.log('✅ Cleared all app localStorage keys');
+        log('✅ Cleared all app localStorage keys');
       } catch (storageError) {
-        console.warn('⚠️ AuthContext: Failed to clear some localStorage keys:', storageError);
+        warn('⚠️ AuthContext: Failed to clear some localStorage keys:', storageError);
       }
 
       // 3. Clear ALL sessionStorage keys
@@ -596,9 +758,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         sessionKeysToRemove.forEach(key => sessionStorage.removeItem(key));
-        console.log('✅ Cleared all app sessionStorage keys');
+        log('✅ Cleared all app sessionStorage keys');
       } catch (storageError) {
-        console.warn('⚠️ AuthContext: Failed to clear some sessionStorage keys:', storageError);
+        warn('⚠️ AuthContext: Failed to clear some sessionStorage keys:', storageError);
       }
 
       // 4. Clear Cache Storage (if available)
@@ -611,10 +773,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             name.includes('supabase')
           );
           await Promise.all(appCaches.map(name => caches.delete(name)));
-          console.log('✅ Cleared app cache storage');
+          log('✅ Cleared app cache storage');
         }
       } catch (cacheError) {
-        console.warn('⚠️ AuthContext: Failed to clear cache storage:', cacheError);
+        warn('⚠️ AuthContext: Failed to clear cache storage:', cacheError);
       }
 
       // 5. Clear user state
@@ -623,7 +785,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null);
       setIsDemoUser(false);
       setProfile(null);
-      console.log('✅ Device cleared successfully');
+      log('✅ Device cleared successfully');
       
       // 6. Navigate to login page
       navigate('/login', { replace: true });
@@ -650,7 +812,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     userId,
     loading,
     signInWithGoogle,
-    signInWithApple,
     signInWithOtp,
     signOut,
     clearDevice,
@@ -683,23 +844,23 @@ export function AppWithAuth({ children }: { children: ReactNode }) {
   const [authInitialized, setAuthInitialized] = useState(false);
 
   useEffect(() => {
-    console.log('🔍 AppWithAuth: Starting auth initialization...');
+    log('🔍 AppWithAuth: Starting auth initialization...');
 
     // Check if Supabase is available
     const supabase = getSupabase();
     if (supabase) {
-      console.log('🔍 AppWithAuth: Supabase available, checking auth status...');
+      log('🔍 AppWithAuth: Supabase available, checking auth status...');
       
       // Check if auth is already initialized
       const checkAuth = async () => {
         try {
-          console.log('🔍 AppWithAuth: Checking Supabase auth status...');
+          log('🔍 AppWithAuth: Checking Supabase auth status...');
           const { data: { session }, error } = await supabase.auth.getSession();
 
           if (error) {
             console.error('❌ AppWithAuth: Error checking auth status:', error);
           } else {
-            console.log('🔍 AppWithAuth: Auth status check result:', {
+            log('🔍 AppWithAuth: Auth status check result:', {
               hasSession: !!session,
               userEmail: session?.user?.email || 'No user'
             });
@@ -715,13 +876,13 @@ export function AppWithAuth({ children }: { children: ReactNode }) {
       checkAuth();
     } else {
       // Development mode - no Supabase
-      console.log('⚡ Dev mode: AppWithAuth skipping Supabase auth check');
+      log('⚡ Dev mode: AppWithAuth skipping Supabase auth check');
       setAuthInitialized(true);
     }
 
     // Cleanup function
     return () => {
-      console.log('🔍 AppWithAuth: Cleaning up...');
+      log('🔍 AppWithAuth: Cleaning up...');
     };
   }, []);
 

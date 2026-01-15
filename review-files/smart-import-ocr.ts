@@ -52,10 +52,7 @@ async function runOCR(signedUrl: string, mimeType: string): Promise<string> {
     try {
       const formData = new FormData();
       formData.append('url', signedUrl);
-      const ocrSpaceKey = process.env.OCR_SPACE_API_KEY;
-      if (ocrSpaceKey) {
-        formData.append('apikey', ocrSpaceKey);
-      }
+      formData.append('apikey', process.env.OCR_SPACE_API_KEY);
       formData.append('language', 'eng');
 
       const response = await fetch('https://api.ocr.space/parse/image', {
@@ -84,29 +81,10 @@ export const handler: Handler = async (event, context) => {
   }
   
   try {
-    const contentType = event.headers['content-type'] || event.headers['Content-Type'] || '';
-    let body: any = {};
-    if (contentType.includes('multipart/form-data')) {
-      const rawBody = event.isBase64Encoded
-        ? Buffer.from(event.body || '', 'base64')
-        : event.body || '';
-      const formData = await new Response(rawBody, { headers: { 'content-type': contentType } }).formData();
-      body = Object.fromEntries(formData.entries());
-    } else {
-      body = JSON.parse(event.body || '{}');
-    }
-
-    const traceIdHeader = event.headers['x-trace-id'] || event.headers['X-Trace-Id'];
-    const traceId = body.traceId || traceIdHeader || 'no-trace';
-    const { userId, docId, threadId } = body;
-    const expectedSize = body.expectedSize ? Number(body.expectedSize) : undefined;
-    const importRunId = body.importRunId || body.requestId;
-    const logPrefix = `[OCR][${traceId}]`;
-
-    console.log(`${logPrefix} START`, { docId, importRunId });
+    const body = JSON.parse(event.body || '{}');
+    const { userId, docId, expectedSize } = body;
     if (!userId || !docId) {
-      console.error(`${logPrefix} ERROR`, { error: 'Missing userId/docId' });
-      return { statusCode: 400, body: JSON.stringify({ error: 'Missing userId/docId', traceId, importRunId }) };
+      return { statusCode: 400, body: JSON.stringify({ error: 'Missing userId/docId' }) };
     }
 
     const sb = admin();
@@ -135,28 +113,26 @@ export const handler: Handler = async (event, context) => {
       });
     
     if (listError || !fileList || fileList.length === 0) {
-      console.warn(`${logPrefix} ERROR`, { error: 'File not found in bucket', storagePath: doc.storage_path });
+      console.warn(`[smart-import-ocr] File not found in bucket: ${doc.storage_path}`);
       return { 
         statusCode: 200, 
         body: JSON.stringify({ 
           pending: true, 
           status: 'PENDING_UPLOAD',
-          traceId,
-          importRunId,
+          message: 'File upload not yet complete. OCR will retry automatically.' 
         }) 
       };
     }
     
     const storedFile = fileList.find(f => f.name === fileName);
     if (!storedFile) {
-      console.warn(`${logPrefix} ERROR`, { error: 'File not found in bucket listing', storagePath: doc.storage_path });
+      console.warn(`[smart-import-ocr] File not found in bucket listing: ${doc.storage_path}`);
       return { 
         statusCode: 200, 
         body: JSON.stringify({ 
           pending: true, 
           status: 'PENDING_UPLOAD',
-          traceId,
-          importRunId,
+          message: 'File upload not yet complete. OCR will retry automatically.' 
         }) 
       };
     }
@@ -168,14 +144,13 @@ export const handler: Handler = async (event, context) => {
       const tolerance = 1024; // 1KB tolerance for metadata differences
       
       if (sizeDiff > tolerance) {
-        console.warn(`${logPrefix} ERROR`, { error: 'File size mismatch', expectedSize, storedSize });
+        console.warn(`[smart-import-ocr] File size mismatch: expected ${expectedSize}, got ${storedSize}`);
         return { 
           statusCode: 200, 
           body: JSON.stringify({ 
             pending: true, 
             status: 'PENDING_UPLOAD',
-            traceId,
-            importRunId,
+            message: 'File upload incomplete (size mismatch). OCR will retry automatically.' 
           }) 
         };
       }
@@ -187,14 +162,13 @@ export const handler: Handler = async (event, context) => {
       .createSignedUrl(doc.storage_path, 600); // 10 min expiry
     
     if (signedErr || !signed) {
-      console.warn(`${logPrefix} ERROR`, { error: 'Failed to create signed URL', storagePath: doc.storage_path });
+      console.warn(`[smart-import-ocr] Failed to create signed URL: ${doc.storage_path}`);
       return { 
         statusCode: 200, 
         body: JSON.stringify({ 
           pending: true, 
           status: 'PENDING_UPLOAD',
-          traceId,
-          importRunId,
+          message: 'File upload not yet complete. OCR will retry automatically.' 
         }) 
       };
     }
@@ -204,20 +178,16 @@ export const handler: Handler = async (event, context) => {
     try {
       ocrText = await runOCR(signed.signedUrl, doc.mime_type || 'application/pdf');
     } catch (ocrError: any) {
-      console.error(`${logPrefix} ERROR`, { error: ocrError?.message || ocrError });
+      console.error('[OCR Error]', ocrError);
       await markDocStatus(docId, 'rejected', `OCR failed: ${ocrError.message}`);
       return { 
         statusCode: 200, 
         body: JSON.stringify({ 
           rejected: true, 
-          reason: 'ocr_failed',
-          traceId,
-          importRunId,
+          reason: 'ocr_failed' 
         }) 
       };
     }
-
-    console.log(`${logPrefix} EXTRACTED`, { docId, textLength: ocrText.length });
 
     // ⚡ GUARDRAILS: Apply STRICT rules to OCR output
     // ✅ Phase 2.2: Use unified guardrails API (includes config loading)
@@ -229,16 +199,14 @@ export const handler: Handler = async (event, context) => {
     
     // Check if blocked
     if (!guardrailResult.ok) {
-      console.warn(`${logPrefix} ERROR`, { error: 'Content blocked by guardrails', docId, reasons: guardrailResult.reasons });
+      console.warn(`[OCR] Content blocked by guardrails: ${docId}`, guardrailResult.reasons);
       await markDocStatus(docId, 'rejected', `Blocked: ${guardrailResult.reasons.join(', ')}`);
       
       return { 
         statusCode: 200, 
         body: JSON.stringify({ 
           rejected: true, 
-          reasons: guardrailResult.reasons,
-          traceId,
-          importRunId,
+          reasons: guardrailResult.reasons 
         }) 
       };
     }
@@ -267,8 +235,6 @@ export const handler: Handler = async (event, context) => {
       pii_types: guardrailResult.signals?.piiTypes || [],
       updated_at: new Date().toISOString()
     }).eq('id', docId);
-
-    console.log(`${logPrefix} SAVED`, { docId, textLength: guardrailResult.text.length });
 
     // Byte Speed Mode v2: Return immediately, queue normalization in background
     // Fire normalization asynchronously - don't wait
@@ -320,44 +286,23 @@ export const handler: Handler = async (event, context) => {
       // Don't block response - logging failures are non-fatal
     });
 
-    // 🚫 Do NOT auto-send chat messages for upload status.
-    const AUTO_CHAT_ON_UPLOAD_COMPLETE = false;
-    if (AUTO_CHAT_ON_UPLOAD_COMPLETE) {
-      fetch(`${netlifyUrl}/.netlify/functions/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-        },
-        body: JSON.stringify({
-          message: `✅ OCR complete for "${doc.original_name}"!\n\nExtracted ${guardrailResult.text.length.toLocaleString()} characters. ${guardrailResult.signals?.pii ? '🔒 PII detected and redacted. ' : ''}Ready to review?`,
-          employeeSlug: 'byte-docs',
-          userId: userId,
-          threadId: threadId || null  // Use Prime's thread if available
-        })
-      }).catch(err => console.error('[OCR] Failed to announce to Byte:', err));
-    }
-
     // Return immediately - Byte can chat while OCR processes
     return { 
       statusCode: 200, 
       body: JSON.stringify({ 
+        started: true,
         ok: true,
-        docId,
-        importRunId,
-        textLength: guardrailResult.text.length,
-        piiDetected: guardrailResult.signals?.pii || false,
-        traceId,
+        pii_redacted: guardrailResult.signals?.pii || false,
+        pii_types: guardrailResult.signals?.piiTypes || [],
+        text_length: guardrailResult.text.length
       }) 
     };
     
   } catch (e: any) {
-    const traceIdHeader = event.headers['x-trace-id'] || event.headers['X-Trace-Id'];
-    const traceId = traceIdHeader || 'no-trace';
-    console.error(`[OCR][${traceId}] ERROR`, e);
+    console.error('[Smart Import OCR Error]', e);
     return { 
       statusCode: 500, 
-      body: JSON.stringify({ error: e.message, traceId }) 
+      body: JSON.stringify({ error: e.message }) 
     };
   }
 };

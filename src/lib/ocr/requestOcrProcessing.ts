@@ -14,13 +14,14 @@ export interface OCRProcessingRequest {
   file: File;
   userId: string;
   requestId?: string; // Optional idempotency key
+  threadId?: string;
 }
 
 export interface OCRProcessingResult {
-  docId: string;
-  status: 'pending' | 'ready' | 'rejected';
-  ocrText?: string; // Only available when status is 'ready'
-  piiTypes?: string[];
+  ok: boolean;
+  importRunId?: string;
+  documentId?: string;
+  status?: 'pending' | 'ready' | 'rejected' | 'error';
   error?: string;
 }
 
@@ -42,7 +43,14 @@ export interface OCRProcessingResult {
 export async function requestOcrProcessing(
   request: OCRProcessingRequest
 ): Promise<OCRProcessingResult> {
-  const { file, userId, requestId } = request;
+  const { file, userId, requestId, threadId } = request;
+  const traceId = `ocr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const importRunId = requestId || `import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const shouldTrace = import.meta.env.VITE_OCR_TRACE === '1';
+
+  if (shouldTrace) {
+    console.log(`[OCR][${traceId}] start`, { importRunId });
+  }
 
   try {
     // Step 1: Initialize upload (get signed URL)
@@ -51,10 +59,14 @@ export async function requestOcrProcessing(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type,
         filename: file.name,
         mime: file.type,
         source: 'ocr_request',
-        requestId, // Pass idempotency key if provided
+        requestId,
+        importRunId,
       }),
     });
 
@@ -65,12 +77,10 @@ export async function requestOcrProcessing(
 
     const init = await initRes.json();
 
-    // Step 2: Upload file to signed URL
-    const uploadRes = await fetch(init.url, {
+    // Step 2: Upload file to signed URL (auth is embedded in the URL)
+    const uploadRes = await fetch(init.uploadUrl, {
       method: 'PUT',
       headers: {
-        'x-upsert': 'true',
-        'authorization': `Bearer ${init.token}`,
         'content-type': file.type,
       },
       body: file,
@@ -80,79 +90,72 @@ export async function requestOcrProcessing(
       throw new Error(`Upload failed: ${uploadRes.statusText}`);
     }
 
-    // Step 3: Finalize (triggers guardrails + processing)
-    const finalizeRes = await fetch('/.netlify/functions/smart-import-finalize', {
+    // Step 3: Trigger OCR processing (canonical backend pipeline)
+    const formData = new FormData();
+    formData.append('userId', userId);
+    formData.append('docId', init.docId);
+    formData.append('expectedSize', String(file.size));
+    formData.append('importRunId', importRunId);
+    if (requestId) formData.append('requestId', requestId);
+    if (threadId) formData.append('threadId', threadId);
+
+    const ocrRes = await fetch('/.netlify/functions/smart-import-ocr', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        docId: init.docId,
-        requestId, // Pass idempotency key if provided
-        expectedSize: file.size, // Pass expected size for completeness check
-      }),
+      headers: { 'x-trace-id': traceId },
+      body: formData,
     });
 
-    if (!finalizeRes.ok) {
-      const err = await finalizeRes.text();
-      throw new Error(`Finalize failed: ${err}`);
-    }
+    const ocrBody = await ocrRes.json().catch(() => ({} as any));
 
-    const result = await finalizeRes.json();
-
-    // ⚡ Check for PENDING_UPLOAD status
-    if (result.pending && result.status === 'PENDING_UPLOAD') {
+    if (!ocrRes.ok) {
+      const err = ocrBody?.error || 'OCR request failed';
       return {
-        docId: init.docId,
-        status: 'pending',
-        error: 'PENDING_UPLOAD', // Special error code for retry logic
+        ok: false,
+        importRunId,
+        documentId: init.docId,
+        status: 'error',
+        error: err,
       };
     }
 
-    // Check if rejected by guardrails
-    if (result.rejected) {
+    if (ocrBody?.rejected) {
       return {
-        docId: init.docId,
+        ok: false,
+        importRunId: ocrBody.importRunId || importRunId,
+        documentId: init.docId,
         status: 'rejected',
-        error: result.reasons?.join(', ') || 'Content blocked by guardrails',
-        piiTypes: result.reasons?.filter((r: string) => r.startsWith('pii_')) || [],
+        error: ocrBody?.reasons?.join(', ') || ocrBody?.error || 'Content blocked by guardrails',
       };
     }
 
-    // For images/PDFs, OCR is async - return pending status
-    if (result.queued && result.via === 'ocr') {
+    if (ocrBody?.pending && ocrBody?.status === 'PENDING_UPLOAD') {
       return {
-        docId: init.docId,
+        ok: true,
+        importRunId: ocrBody.importRunId || importRunId,
+        documentId: init.docId,
         status: 'pending',
       };
     }
 
-    // For CSV/OFX/QIF, parsing is async - return pending status
-    if (result.queued && result.via === 'statement-parse') {
-      return {
-        docId: init.docId,
-        status: 'pending',
-      };
-    }
-
-    // If OCR text is already available (shouldn't happen, but handle it)
-    if (result.ocr_text) {
-      return {
-        docId: init.docId,
-        status: 'ready',
-        ocrText: result.ocr_text,
-        piiTypes: result.pii_types || [],
-      };
-    }
-
-    // Default: pending
     return {
-      docId: init.docId,
-      status: 'pending',
+      ok: true,
+      importRunId: ocrBody.importRunId || importRunId,
+      documentId: ocrBody.docId || init.docId,
+      status: 'ready',
     };
 
   } catch (error: any) {
     console.error('[requestOcrProcessing] Error:', error);
-    throw error;
+    return {
+      ok: false,
+      importRunId,
+      status: 'error',
+      error: error?.message || 'OCR request failed',
+    };
+  } finally {
+    if (shouldTrace) {
+      console.log(`[OCR][${traceId}] end`, { importRunId });
+    }
   }
 }
 
@@ -172,6 +175,9 @@ export async function pollOcrCompletion(
   intervalMs: number = 2000
 ): Promise<OCRProcessingResult> {
   const sb = getSupabase();
+  if (!sb) {
+    throw new Error('Supabase client not available');
+  }
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const { data: doc, error } = await sb
@@ -187,16 +193,16 @@ export async function pollOcrCompletion(
 
     if (doc.status === 'ready' && doc.ocr_text) {
       return {
-        docId: doc.id,
+        ok: true,
+        documentId: doc.id,
         status: 'ready',
-        ocrText: doc.ocr_text,
-        piiTypes: doc.pii_types || [],
       };
     }
 
     if (doc.status === 'rejected') {
       return {
-        docId: doc.id,
+        ok: false,
+        documentId: doc.id,
         status: 'rejected',
         error: 'Document processing was rejected',
       };
@@ -208,7 +214,8 @@ export async function pollOcrCompletion(
 
   // Timeout
   return {
-    docId,
+    ok: false,
+    documentId: docId,
     status: 'pending',
     error: 'OCR processing timeout - document is still being processed',
   };
