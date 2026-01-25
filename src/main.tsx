@@ -1,5 +1,10 @@
+
+import { CHAT_CONTRACT_VERSION } from "./chat/chatContract";
+
+
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter as Router } from 'react-router-dom';
+
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from 'react-hot-toast';
 import App from './App';
@@ -11,6 +16,8 @@ import { PRIME_CHAT_V2 } from './lib/flags';
 import './styles.css';
 import './styles/mobile-menu-static.css';
 import './utils/assertSingleMobileNav';
+console.info("[ChatContract]", CHAT_CONTRACT_VERSION);
+
 // Legacy PrimeChatV2 flag check removed - unified chat is always enabled
 
 // Dev-only: StrictMode removed to reduce noisy double-invoked effects while stabilizing OCR.
