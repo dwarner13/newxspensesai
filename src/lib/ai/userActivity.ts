@@ -81,6 +81,11 @@ export async function logUserEvent(params: LogUserEventParams) {
 export async function recalcFluency(userId: string) {
   const supabase = await getServiceSupabase();
   const userIdText = String(userId);
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userIdText);
+  if (!isUuid) {
+    console.warn('[UserActivity] Skipping fluency recalculation due to invalid userId:', userIdText);
+    return;
+  }
   
   try {
     const { error } = await supabase.rpc("recalculate_ai_fluency", { 

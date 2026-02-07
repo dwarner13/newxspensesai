@@ -38,6 +38,8 @@ const sheetVariants = cva(
         left: "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
         right:
           "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+        center:
+          "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
       },
     },
     defaultVariants: {
@@ -51,14 +53,16 @@ interface SheetContentProps
     VariantProps<typeof sheetVariants> {
   /** Whether to show the default close button. Defaults to true for backward compatibility. */
   showCloseButton?: boolean;
+  /** Optional overlay className to override default backdrop */
+  overlayClassName?: string;
 }
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, showCloseButton = true, ...props }, ref) => (
+>(({ side = "right", className, children, showCloseButton = true, overlayClassName, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
+    <SheetOverlay className={overlayClassName} />
     <SheetPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}

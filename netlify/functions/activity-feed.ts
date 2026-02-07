@@ -11,7 +11,7 @@
 
 import type { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
-import { admin } from './_shared/supabase';
+import { admin } from './_shared/supabase.js';
 
 function getSupabaseClient(authToken: string) {
   const url = process.env.SUPABASE_URL!;

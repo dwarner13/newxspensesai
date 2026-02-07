@@ -7,11 +7,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { FileText, Clock, CheckCircle, BarChart3, Loader2, TrendingUp, AlertTriangle } from 'lucide-react';
-import { useDocumentStats } from '../../hooks/useDocumentStats';
-import { useSmartImport } from '../../hooks/useSmartImport';
-import { useSmartImportUploadState } from '../../hooks/useSmartImportUploadState';
-import { supabase } from '../../lib/supabase';
+import { getSupabase } from '../../lib/supabase';
+import { useAuth } from '../../contexts/AuthContext';
 import { DocumentViewerModal } from '../ui/DocumentViewerModal';
+import type { DocumentStats } from '../../hooks/useDocumentStats';
 
 interface StatusCard {
   id: string;
@@ -100,38 +99,68 @@ interface ByteWorkspacePanelProps {
   isUploading?: boolean;
   uploadProgress?: number;
   uploadFileCount?: { current: number; total: number };
+  stats?: DocumentStats | null;
+  statsLoading?: boolean;
+  statsError?: boolean;
 }
 
 export function ByteWorkspacePanel({ 
   isUploading: legacyIsUploading,
   uploadProgress: legacyProgress,
-  uploadFileCount: legacyFileCount
+  uploadFileCount: legacyFileCount,
+  stats,
+  statsLoading = false,
+  statsError = false,
 }: ByteWorkspacePanelProps) {
-  const { data: stats, isLoading: statsLoading, isError: statsError } = useDocumentStats();
+  const { user } = useAuth();
 
-  const [recentExtractions, setRecentExtractions] = useState<Array<{id: string; name: string; text: string; date: string}>>([]);
-  const [selectedDoc, setSelectedDoc] = useState<{id: string; name: string; text: string; date: string} | null>(null);
+  const [recentDocuments, setRecentDocuments] = useState<Array<{id: string; name: string; text: string; date: string; status?: string}>>([]);
+  const [viewerDoc, setViewerDoc] = useState<{
+    id: string;
+    imageUrl?: string;
+    originalFilename?: string;
+    extractedData?: any;
+    processingStatus?: string;
+    createdAt?: string;
+    ocrText?: string;
+    redactedText?: string;
+    redactionSummary?: string;
+    ocrEngine?: string;
+    ocrConfidence?: number;
+  } | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
 
   useEffect(() => {
-    if (!stats || statsLoading) return;
-    supabase.from('user_documents').select('id, original_name, ocr_text, ocr_completed_at')
-      .not('ocr_text', 'is', null).order('ocr_completed_at', {ascending: false}).limit(3)
-      .then(({data}) => {
-        if (data) setRecentExtractions(data.map(d => ({
-          id: d.id, name: d.original_name, text: d.ocr_text || '', date: d.ocr_completed_at || ''
-        })));
+    if (statsLoading) return;
+    if (!user?.id) {
+      setRecentDocuments([]);
+      return;
+    }
+    const supabase = getSupabase();
+    if (!supabase) {
+      return;
+    }
+    supabase
+      .from('user_documents')
+      .select('id, original_name, ocr_text, ocr_completed_at, created_at, status')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(3)
+      .then(({ data }) => {
+        if (data) {
+          setRecentDocuments(
+            data.map(d => ({
+              id: d.id,
+              name: d.original_name,
+              text: d.ocr_text || '',
+              date: d.ocr_completed_at || d.created_at || '',
+              status: d.status,
+            }))
+          );
+        }
       });
-  }, [stats, statsLoading]);
+  }, [statsLoading, user?.id]);
 
-  // Use shared upload status from Smart Import hook
-  const { uploadStatus, uploadFileCount } = useSmartImport();
-  
-  // Task C: Shared upload state for synchronized status display
-  const { uploads: sharedUploads } = useSmartImportUploadState();
-  const activeUploads = sharedUploads.filter(u => u.status !== 'completed' && u.status !== 'failed');
-  
-  // Show live upload strip when not idle and not error
-  const showLiveUpload = uploadStatus.step !== 'idle' && uploadStatus.step !== 'error';
   
   
   return (
@@ -145,103 +174,6 @@ export function ByteWorkspacePanel({
           <h3 className="text-lg font-semibold text-white">BYTE WORKSPACE</h3>
           <p className="text-sm text-slate-400">Document processing status</p>
         </div>
-      </div>
-
-      {/* Processing Queue Status */}
-      <div className="bg-slate-800/50 rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-medium text-white">Processing Queue Status</h4>
-          <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
-            Processing
-          </span>
-        </div>
-        {statsError ? (
-          <p className="text-sm text-red-400">Unable to load stats</p>
-        ) : statsLoading ? (
-          <p className="text-sm text-slate-500 animate-pulse">Loading stats...</p>
-        ) : (
-          <>
-            <p className="text-sm text-slate-400">
-              {((stats?.queue.pending || 0) + (stats?.queue.processing || 0)) || 0} items in progress
-            </p>
-            {(stats?.queue.completed || 0) > 0 && (
-              <p className="text-xs text-green-400 mt-1">
-                ✓ {stats.queue.completed} completed
-              </p>
-            )}
-          </>
-        )}
-        
-        {/* Live Upload Progress Strip - Shows when file is uploading or processing */}
-        {showLiveUpload && (
-          <div className="mt-4 rounded-2xl border border-sky-500/40 bg-slate-950/70 px-4 py-3 shadow-[0_0_20px_rgba(56,189,248,0.25)]">
-            <div className="flex items-center justify-between gap-3">
-              {/* Left: animated Byte icon + text */}
-              <div className="flex items-center gap-3">
-                <div className="relative flex h-9 w-9 items-center justify-center rounded-full bg-slate-900/80">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-500/40" />
-                  <div className="relative flex h-7 w-7 items-center justify-center rounded-full bg-sky-500/80">
-                    <FileText className="h-4 w-4 text-slate-950" />
-                  </div>
-                </div>
-
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-semibold uppercase tracking-wide text-sky-300">
-                    {uploadStatus.step === 'completed' ? 'Completed' : 'In progress'}
-                  </span>
-                  <span className="text-sm text-slate-100">
-                    {uploadStatus.fileName ?? 'Document'} •{' '}
-                    {uploadStatus.step === 'processing'
-                      ? 'Processing & normalizing…'
-                      : 'Uploading to Smart Import…'}
-                  </span>
-                </div>
-              </div>
-
-              {/* Right: percentage */}
-              <div className="flex flex-col items-end">
-                <span className="text-[11px] text-slate-400">Progress</span>
-                <span className="text-lg font-semibold text-sky-300 tabular-nums">
-                  {Math.max(5, uploadStatus.progress).toFixed(0)}%
-                </span>
-              </div>
-            </div>
-
-            {/* Progress bar */}
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-800">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-sky-400 via-emerald-400 to-sky-400 transition-[width] duration-300 ease-out"
-                style={{ width: `${Math.max(5, uploadStatus.progress)}%` }}
-              />
-            </div>
-
-            {/* Helper text */}
-            <p className="mt-2 text-[11px] text-slate-400">
-              {uploadStatus.step === 'processing'
-                ? 'Reading, cleaning and organizing your transactions…'
-                : 'Byte is scanning, cleaning, and preparing your transactions for Smart Categories.'}
-            </p>
-          </div>
-        )}
-
-        {/* Task C: Live imports strip from shared upload state */}
-        {activeUploads.length > 0 && (
-          <div className="mt-3 rounded-2xl bg-slate-900/80 border border-slate-800 px-3 py-2 text-xs text-slate-300">
-            <p className="mb-1 text-[11px] uppercase tracking-wide text-slate-500">
-              Live imports
-            </p>
-            {activeUploads.map(upload => (
-              <div key={upload.id} className="flex items-center justify-between py-0.5">
-                <span className="truncate max-w-[65%]">{upload.fileName}</span>
-                <span className="text-[11px] text-slate-400">
-                  {upload.status === 'uploading' && 'Uploading…'}
-                  {upload.status === 'processing' && 'Processing…'}
-                  {upload.status === 'failed' && 'Failed'}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Monthly Statistics */}
@@ -276,18 +208,33 @@ export function ByteWorkspacePanel({
           <h4 className="text-sm font-medium text-white">Recent Extractions</h4>
           <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">OCR</span>
         </div>
-        {recentExtractions.length === 0 ? (
-          <p className="text-sm text-slate-400">No extractions yet</p>
+        {recentDocuments.length === 0 ? (
+          <p className="text-sm text-slate-400">No uploads yet</p>
         ) : (
           <div className="space-y-2">
-            {recentExtractions.map(doc => (
+            {recentDocuments.map(doc => (
               <div
                 key={doc.id}
                 className="text-xs cursor-pointer hover:bg-slate-700/50 rounded p-2 transition-colors"
-                onClick={() => setSelectedDoc(doc)}
+                onClick={() => {
+                  setViewerDoc({
+                    id: doc.id,
+                    originalFilename: doc.name,
+                    ocrText: doc.text,
+                    createdAt: doc.date,
+                    processingStatus: doc.status || 'completed',
+                  });
+                  setViewerOpen(true);
+                }}
               >
                 <div className="text-slate-300 font-medium truncate">📄 {doc.name}</div>
-                <div className="text-slate-500 truncate">{doc.text.substring(0, 80)}...</div>
+                {doc.text ? (
+                  <div className="text-slate-500 truncate">{doc.text.substring(0, 80)}...</div>
+                ) : (
+                  <div className="text-slate-500 truncate">
+                    {doc.status ? `${doc.status}…` : 'Processing…'}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -316,15 +263,9 @@ export function ByteWorkspacePanel({
       <div className="flex-1" />
 
       <DocumentViewerModal
-        isOpen={!!selectedDoc}
-        onClose={() => setSelectedDoc(null)}
-        documentData={selectedDoc ? {
-          id: selectedDoc.id,
-          originalFilename: selectedDoc.name,
-          ocrText: selectedDoc.text,
-          createdAt: selectedDoc.date,
-          processingStatus: 'completed'
-        } : null}
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        documentData={viewerDoc}
       />
     </div>
   );

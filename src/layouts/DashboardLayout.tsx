@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { useLocation, Outlet, useNavigate } from "react-router-dom";
 import { AnimatedOutlet } from "../components/ui/AnimatedOutlet";
@@ -80,6 +80,7 @@ function DashboardContentGrid({ children }: { children: React.ReactNode }) {
     '/dashboard/entertainment',
     '/dashboard/reports',
     '/dashboard/analytics',
+    '/dashboard/chat-history',
   ];
   
   const isWorkspacePage = workspacePrefixes.some((p) =>
@@ -244,9 +245,11 @@ export default function DashboardLayout() {
     }
   }, [location.pathname]);
 
+  const enableScrollDiagnostics = import.meta.env.DEV && import.meta.env.VITE_DEBUG_SCROLL_DIAGNOSTICS === 'true';
+
   // DEV-only: Rail visibility + clipping detection
   useEffect(() => {
-    if (import.meta.env.DEV) {
+    if (enableScrollDiagnostics) {
       const diagnoseRail = () => {
         const rail = document.querySelector('[data-floating-rail]') as HTMLElement;
         if (!rail) {
@@ -468,7 +471,7 @@ export default function DashboardLayout() {
         window.removeEventListener('resize', runDiagnostics);
       };
     }
-  }, [location.pathname]);
+  }, [location.pathname, enableScrollDiagnostics]);
   
   // Hide Prime Floating Button on Prime Chat page (PrimeChatPage has its own Prime Tools button)
   const isPrimeChatPage = location.pathname.includes('/prime-chat');
@@ -480,6 +483,7 @@ export default function DashboardLayout() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { isOpen: isChatOpen, options: chatOptions, activeEmployeeSlug, closeChat, openChat } = useUnifiedChatLauncher();
+  const didAutoOpenChatRef = useRef(false);
   
   // Debug: Log when chat state changes
   useEffect(() => {
@@ -581,16 +585,7 @@ export default function DashboardLayout() {
   // Legacy onboarding overlay logic REMOVED
   // UnifiedOnboardingFlow is the ONLY authority for onboarding UI
   
-  // DISABLED: Auto-open Prime chat on dashboard load
-  // Prime chat must ONLY open when explicitly triggered by user action:
-  // - Floating Rail Prime button click
-  // - Sidebar "Prime Chat" click
-  // - Explicit button press (e.g., "Open Prime Chat")
-  // 
-  // Feature flag to re-enable auto-open if needed in future:
-  // const ENABLE_PRIME_AUTO_OPEN = false;
-  // 
-  // Previous auto-open logic preserved below (commented out):
+  // Auto-open Prime chat at most once on boot
   /*
   React.useEffect(() => {
     if (!ready || !userId || !profile || isChatOpen) return;
@@ -625,6 +620,14 @@ export default function DashboardLayout() {
     }
   }, [ready, userId, profile, isChatOpen, openChat]);
   */
+  useEffect(() => {
+    if (!ready || !userId || !profile) return;
+    if (isChatOpen) return;
+    if (didAutoOpenChatRef.current) return;
+
+    didAutoOpenChatRef.current = true;
+    openChat({ initialEmployeeSlug: 'prime-boss' });
+  }, [ready, userId, profile, isChatOpen, openChat]);
 
   // Open chat history
   const handleOpenChatHistory = () => {
@@ -755,7 +758,7 @@ export default function DashboardLayout() {
   // Dev-only: Diagnostic helper to log scroll containers and overflow elements on ALL /dashboard/* routes
   // CRITICAL: This verifies the LOCKED INVARIANT - BODY is the ONLY scroll owner
   useEffect(() => {
-    if (import.meta.env.DEV && isDashboardRoute) {
+    if (enableScrollDiagnostics && isDashboardRoute) {
       const logScrollDiagnostics = () => {
         // 1. Verify documentElement does NOT scroll (LOCKED INVARIANT)
         const docEl = document.documentElement;
@@ -910,7 +913,7 @@ export default function DashboardLayout() {
       const timeoutId = setTimeout(logScrollDiagnostics, 500);
       return () => clearTimeout(timeoutId);
     }
-  }, [location.pathname, isDashboardRoute]);
+  }, [location.pathname, isDashboardRoute, enableScrollDiagnostics]);
 
   // Dev-only: Wheel event diagnostics for /dashboard/prime-chat to identify scroll capture
   useEffect(() => {
@@ -1106,6 +1109,7 @@ export default function DashboardLayout() {
       const originalBodyOverflowY = document.body.style.overflowY;
       const originalBodyOverflowX = document.body.style.overflowX;
       const originalHtmlOverflow = document.documentElement.style.overflow;
+      const originalHtmlOverflowX = document.documentElement.style.overflowX;
       
       // Lock BODY - prevent page-level scrolling, only allow internal component scrolling
       // CRITICAL: HTML must NEVER scroll - set overflow: hidden to prevent any scrolling
@@ -1149,7 +1153,8 @@ export default function DashboardLayout() {
         document.body.style.overflowY = originalBodyOverflowY;
         document.body.style.overflowX = originalBodyOverflowX;
         // CRITICAL: Restore html overflow to original value (should be 'hidden' from CSS)
-        document.documentElement.style.overflow = originalHtmlOverflow || 'hidden';
+        document.documentElement.style.overflow = originalHtmlOverflow;
+        document.documentElement.style.overflowX = originalHtmlOverflowX;
       };
     }
   }, [useBodyScroll, location.pathname]);
@@ -1203,21 +1208,22 @@ export default function DashboardLayout() {
       })()}
 
       {/* Unified Assistant Chat - Slide-out panel (z-999, overlays ActivityFeed) */}
-      {/* CRITICAL: Do NOT render on /dashboard/prime-chat route - PrimeChatPage uses slideout via launcher */}
-      {/* CRITICAL: Do NOT render on /dashboard/custodian route - CustodianPage renders its own fullscreen chat */}
+      {/* CRITICAL: Do NOT render on /dashboard/custodian route - CustodianPage renders its own slideout */}
       {/* Always render to prevent unmount/remount (preserves greeting state) */}
       {/* Wrapped in ChatErrorBoundary to prevent chat crashes from affecting dashboard */}
       {/* CRITICAL: Guard prevents double mount - only ONE UnifiedAssistantChat instance allowed */}
-      {/* Use startsWith to catch any sub-routes (e.g., /dashboard/prime-chat/...) */}
-      {!location.pathname.startsWith('/dashboard/prime-chat') && !location.pathname.startsWith('/dashboard/custodian') && (
+      {/* Use startsWith to catch any sub-routes (e.g., /dashboard/custodian/...) */}
+      {!location.pathname.startsWith('/dashboard/custodian') && (
         <ChatErrorBoundary>
           <UnifiedAssistantChat
             isOpen={isChatOpen}
             onClose={closeChat}
-            initialEmployeeSlug={activeEmployeeSlug || chatOptions.initialEmployeeSlug}
+            initialEmployeeSlug={chatOptions.initialEmployeeSlug || activeEmployeeSlug}
             conversationId={chatOptions.conversationId}
             context={chatOptions.context}
             initialQuestion={chatOptions.initialQuestion}
+            handoff={chatOptions.handoff}
+            forceOpen={chatOptions.force === true}
             renderMode="slideout"
           />
         </ChatErrorBoundary>

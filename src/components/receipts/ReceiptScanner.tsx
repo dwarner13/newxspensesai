@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Camera, Upload, X, Check, AlertTriangle, Brain, FileImage, Eye } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { extractTextFromImage, parseReceiptText, ParsedReceiptData } from '../../utils/ocrService';
+import { parseReceiptText, ParsedReceiptData } from '../../utils/ocrService';
 import { parseReceiptWithAI } from '../../utils/parseReceiptWithAI';
 import { redactDocument, generateAIEmployeeNotification, validateRedaction } from '../../utils/documentRedaction';
 import { processImageWithSmartOCR, SmartOCRResult } from '../../utils/smartOCRManager';
@@ -201,11 +201,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
         }
 
         // Update processing message based on engine used
-        const engineMessage = smartResult.engine === 'google-vision' 
-          ? '🔍 Google Vision API extracted text successfully!'
-          : smartResult.engine === 'ocr-space'
-          ? '🔍 OCR.space extracted text successfully!'
-          : '🔍 Fallback OCR extracted text successfully!';
+        const engineMessage = '🔍 Secure backend OCR extracted text successfully!';
         
         toast.success(engineMessage, { id: ocrToast});
         
@@ -554,10 +550,10 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
               <div className="flex items-start space-x-3">
                 <Brain size={20} className="text-primary-600 mt-0.5" />
                 <div>
-                  <h4 className="font-medium text-gray-900 mb-1">OCR.space Powered Processing</h4>
+                  <h4 className="font-medium text-gray-900 mb-1">Secure Server-Side OCR</h4>
                   <p className="text-sm text-gray-600">
-                    Using OCR.space's advanced text recognition to extract vendor, date, amount, and automatically categorize your purchase. 
-                    Free and reliable OCR processing.
+                    Using the backend OCR pipeline with guardrails to extract vendor, date, amount, and categorize your purchase. 
+                    PII is redacted before storage.
                   </p>
                 </div>
               </div>
@@ -603,7 +599,7 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                   <div className="text-xs text-gray-500 bg-primary-50 p-3 rounded-lg">
                     <div className="flex items-center space-x-2">
                       <FileImage size={14} className="text-primary-600" />
-                      <span>Using OCR.space API to extract text from your receipt image...</span>
+                    <span>Using secure server-side OCR to extract text from your receipt image...</span>
                     </div>
                   </div>
                 )}
@@ -740,10 +736,9 @@ const ReceiptScanner = ({ onReceiptProcessed, onClose }: ReceiptScannerProps) =>
                     </div>
                     <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded text-xs">
                       <div className="flex justify-between items-center mb-1">
-                        <span className="font-medium text-purple-800">
-                          {smartOCRResult.engine === 'google-vision' ? 'Google Vision API' : 
-                           smartOCRResult.engine === 'ocr-space' ? 'OCR.space API' : 'Fallback OCR'}
-                        </span>
+                      <span className="font-medium text-purple-800">
+                        {smartOCRResult.engine === 'backend' ? 'Server-side OCR' : 'OCR'}
+                      </span>
                         <span className="text-purple-600">
                           {(smartOCRResult.confidence * 100).toFixed(0)}% confidence
                         </span>

@@ -75,8 +75,10 @@ import { getEmployeeModelConfig } from './_shared/employeeModelConfig.js';
 import { verifyAuth } from './_shared/verifyAuth.js';
 import { logAiActivity } from './_shared/logAiActivity.js';
 import { buildContextInjection } from './_shared/contextInjection.js';
+import { buildEmployeeJobContextSystemMessage } from './_shared/employeeJobContext.js';
 import { fetchAiUserContext, buildAiContextSystemMessage } from '../../src/lib/ai/userContext.js';
 import { AI_FLUENCY_GLOBAL_SYSTEM_RULE, PRIME_ORCHESTRATION_RULE } from '../../src/lib/ai/systemPrompts.js';
+import { buildEmployeeBrainSystemPrompt } from '../../src/lib/ai/brains/registry.js';
 // AI Fluency: Event logging
 import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
 import OpenAI from 'openai';
@@ -96,6 +98,8 @@ interface ChatRequest {
   message: string;
   sessionId?: string;
   threadId?: string; // Optional thread ID (if provided, ensures that thread exists)
+  client_message_id?: string; // Optional client-generated ID for user message dedupe
+  request_id?: string; // Optional client-generated request ID for assistant dedupe
   stream?: boolean;
   systemPromptOverride?: string; // Custom system prompt from frontend (e.g., category/transaction context)
   documentIds?: string[]; // Document IDs from Smart Import uploads
@@ -187,11 +191,53 @@ async function getUserProfile(
     }
 
     if (!profile) {
-      return null;
+      // Fallback: try auth user metadata/email for a name
+      try {
+        const { data: authUser } = await sb.auth.admin.getUserById(userId);
+        const metaName = authUser?.user?.user_metadata?.full_name
+          || authUser?.user?.user_metadata?.name
+          || null;
+        const emailName = authUser?.user?.email?.split('@')[0] || null;
+        const fallbackName = metaName || emailName || 'there';
+        return {
+          preferredName: fallbackName,
+          scope: 'exploring',
+          primaryGoal: null,
+          proactivityLevel: null,
+          timezone: null,
+          currency: null,
+          accountType: null,
+          accountName: null,
+          dateLocale: null,
+          taxIncluded: null,
+          taxSystem: null,
+          aiFluencyLevel: 'Explorer',
+          aiFluencyScore: 20,
+        };
+      } catch (fallbackError: any) {
+        if (process.env.NETLIFY_DEV === 'true') {
+          console.warn('[Chat] getUserProfile fallback failed:', fallbackError?.message || fallbackError);
+        }
+        return null;
+      }
     }
 
-    // Preferred name: display_name → first_name → full_name
-    const preferredName = profile.display_name || profile.first_name || profile.full_name || 'there';
+    // Preferred name: display_name → first_name → full_name → auth metadata/email
+    let preferredName = profile.display_name || profile.first_name || profile.full_name || 'there';
+    if (preferredName === 'there') {
+      try {
+        const { data: authUser } = await sb.auth.admin.getUserById(userId);
+        const metaName = authUser?.user?.user_metadata?.full_name
+          || authUser?.user?.user_metadata?.name
+          || null;
+        const emailName = authUser?.user?.email?.split('@')[0] || null;
+        preferredName = metaName || emailName || preferredName;
+      } catch (fallbackError: any) {
+        if (process.env.NETLIFY_DEV === 'true') {
+          console.warn('[Chat] getUserProfile name fallback failed:', fallbackError?.message || fallbackError);
+        }
+      }
+    }
 
     // Account type (account_type column)
     const scope = profile.account_type || 'exploring';
@@ -621,6 +667,12 @@ Return JSON format:
 // ============================================================================
 
 export const handler: Handler = async (event, context) => {
+  let body: any = null;
+  let employeeSlugForLog: string | null = null;
+  let requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const streamEncoder = new TextEncoder();
+  let streamController: any = null;
+  let streamStarted = false;
   // Environment variable diagnostics (safe - never logs secrets)
   const envCheck = {
     hasOpenAI: !!process.env.OPENAI_API_KEY,
@@ -683,6 +735,11 @@ export const handler: Handler = async (event, context) => {
   const timingLogs: Record<string, number> = {};
   
   try {
+    if (!body) {
+      body = event.body ? JSON.parse(event.body || '{}') : {};
+      requestId = body?.requestId || requestId;
+      employeeSlugForLog = body?.employeeSlug || null;
+    }
     // Verify authentication from JWT token
     // Log auth header presence for debugging
     const authHeader = event.headers?.authorization || event.headers?.Authorization;
@@ -731,8 +788,15 @@ export const handler: Handler = async (event, context) => {
     }
 
     // Parse request body (userId now comes from JWT, not body)
-    const body = JSON.parse(event.body || '{}') as ChatRequest;
-    const { employeeSlug, message, sessionId, threadId: requestThreadId, stream = true, systemPromptOverride, documentIds } = body;
+    const requestBody = (body || JSON.parse(event.body || '{}')) as ChatRequest;
+    let { employeeSlug, message, sessionId, threadId: requestThreadId, stream = true, systemPromptOverride, documentIds, client_message_id, request_id } = requestBody;
+    employeeSlugForLog = employeeSlug || null;
+    const userForcedEmployee = !!body.employeeSlug;
+    const isNetlifyDev = process.env.NETLIFY_DEV === 'true';
+    if (isNetlifyDev && stream === true) {
+      console.log('[Chat] DEV MODE: Forcing non-streaming (SSE disabled) to keep Netlify CLI stable');
+      stream = false;
+    }
 
     // Validate required fields (userId already verified from JWT)
     if (!message) {
@@ -766,6 +830,8 @@ export const handler: Handler = async (event, context) => {
         body: JSON.stringify({ ignored: true, reason: 'status_message' }),
       };
     }
+
+    
 
     // ========================================================================
     // 0.3. FAST PATH CHECK (Speed Mode for Short Messages)
@@ -848,6 +914,34 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
+    if (client_message_id) {
+      try {
+        let query = sb
+          .from('chat_messages')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('role', 'user')
+          .contains('metadata', { client_message_id })
+          .limit(1);
+        if (sessionId) {
+          query = query.eq('session_id', sessionId);
+        }
+        const { data: existing } = await query.maybeSingle();
+        if (existing) {
+          return {
+            statusCode: 200,
+            headers: {
+              ...baseHeaders,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ok: true, deduped: true, type: 'noop' }),
+          };
+        }
+      } catch (dedupeError: any) {
+        console.warn('[Chat] client_message_id dedupe check failed (non-fatal):', dedupeError?.message || dedupeError);
+      }
+    }
+
     // ========================================================================
     // 1. UNIFIED GUARDRAILS (Policy Enforcement + PII Masking)
     // ========================================================================
@@ -868,9 +962,25 @@ export const handler: Handler = async (event, context) => {
       preset = 'balanced';
     }
     
-    let masked = message;
+    const userText = message;
+    const GREETING_ALLOWLIST = [
+      /^hi\b/i,
+      /^hello\b/i,
+      /^hey\b/i,
+      /^good (morning|afternoon|evening)\b/i,
+      /^how are you\b/i,
+    ];
+    const isGreetingAllowlisted = GREETING_ALLOWLIST.some(r => r.test(userText.trim()));
+    if (process.env.NETLIFY_DEV === 'true') {
+      console.log('[Guardrails] Scanning text (user-only):', userText);
+    }
+    if (isGreetingAllowlisted) {
+      console.log('[Guardrails] Allowlisted greeting — skipping jailbreak detection');
+    }
+
+    let masked = userText;
     let piiFound: string[] = [];
-    let guardrailResult: any = { ok: true, signals: {}, maskedMessages: [{ role: 'user', content: message }] };
+    let guardrailResult: any = { ok: true, signals: {}, maskedMessages: [{ role: 'user', content: userText }] };
     
     try {
       const guardrailContext: GuardrailContext = {
@@ -880,9 +990,11 @@ export const handler: Handler = async (event, context) => {
         source: 'chat',
       };
 
-      guardrailResult = await runInputGuardrails(guardrailContext, {
-        messages: [{ role: 'user', content: message }],
-      });
+      if (!isGreetingAllowlisted) {
+        guardrailResult = await runInputGuardrails(guardrailContext, {
+          messages: [{ role: 'user', content: userText }],
+        }, guardrailConfig || undefined);
+      }
 
       if (!guardrailResult.ok) {
         const headers = buildResponseHeaders({
@@ -908,22 +1020,34 @@ export const handler: Handler = async (event, context) => {
       }
 
       // Use the masked text from guardrails result
-      masked = guardrailResult.maskedMessages?.[0]?.content || message;
+      masked = guardrailResult.maskedMessages?.[0]?.content || userText;
       piiFound = guardrailResult.signals?.piiTypes || [];
     } catch (guardrailError: any) {
       // Guardrails failed - log but don't crash, use original message
       console.warn('[Chat] Guardrails check failed (non-fatal, using original message):', guardrailError.message || guardrailError);
-      masked = message;
+      masked = userText;
       piiFound = [];
       // Continue with original message - fail open in dev
     }
 
+    const guardrailEvents = guardrailResult?.events;
+    if (process.env.NETLIFY_DEV === 'true') {
+      console.log(
+        '[Chat][DEBUG 966] typeof target=',
+        typeof guardrailEvents,
+        'isArray=',
+        Array.isArray(guardrailEvents),
+        'keys=',
+        guardrailEvents && typeof guardrailEvents === 'object' ? Object.keys(guardrailEvents) : null
+      );
+    }
+    const guardrailEventsCount = Array.isArray(guardrailEvents) ? guardrailEvents.length : 0;
     console.log(`[Chat] Guardrails passed, PII masked: ${piiFound.length > 0}`, {
       original: message.slice(0, 40),
       masked: masked.slice(0, 40),
       foundTypes: piiFound,
       employeeSlug: employeeSlug || 'prime-boss',
-      eventsCount: guardrailResult.events.length,
+      eventsCount: guardrailEventsCount,
     });
 
     // ========================================================================
@@ -984,38 +1108,48 @@ export const handler: Handler = async (event, context) => {
       : null; // null means router will auto-route based on message content
     
     let routing: any;
-    let finalEmployeeSlug = 'prime-boss'; // Default fallback
+    let finalEmployeeSlug: string | null = userForcedEmployee ? requestedEmployeeSlug : null;
     let systemPreamble: string | null = null;
     let employeePersona: string | null = null;
     
-    try {
-      routing = await routeToEmployee({
-        userText: masked,
-        requestedEmployee: requestedEmployeeSlug, // Pass normalized slug or null
-        mode: preset, // Use guardrail preset (strict/balanced/creative)
-      });
+    if (!userForcedEmployee) {
+      try {
+        routing = await routeToEmployee({
+          userText: masked,
+          requestedEmployee: requestedEmployeeSlug, // Pass normalized slug or null
+          mode: preset, // Use guardrail preset (strict/balanced/creative)
+        });
 
-      const { employee, systemPreamble: routingPreamble, employeePersona: routingPersona } = routing;
-      
-      // Router already normalizes via resolveSlug(), so use its result directly
-      // Only normalize again if router returned something unexpected
-      if (employee) {
-        finalEmployeeSlug = employee; // Router's resolveSlug already normalized it
-      } else if (requestedEmployeeSlug) {
-        finalEmployeeSlug = requestedEmployeeSlug; // Fallback to requested if router returned null
-      } else {
-        finalEmployeeSlug = 'prime-boss'; // Ultimate fallback
+        const { employee, systemPreamble: routingPreamble, employeePersona: routingPersona } = routing;
+        
+        // Router already normalizes via resolveSlug(), so use its result directly
+        // Only normalize again if router returned something unexpected
+        if (employee) {
+          finalEmployeeSlug = employee; // Router's resolveSlug already normalized it
+        } else if (requestedEmployeeSlug) {
+          finalEmployeeSlug = requestedEmployeeSlug; // Fallback to requested if router returned null
+        }
+        
+        systemPreamble = routingPreamble || null;
+        employeePersona = routingPersona || null;
+      } catch (routingError: any) {
+        // Routing failed - use requested employee or fallback to Prime
+        console.warn('[Chat] Employee routing failed (non-fatal, using requested employee):', routingError.message || routingError);
+        finalEmployeeSlug = requestedEmployeeSlug || null;
+        systemPreamble = null;
+        employeePersona = null;
       }
-      
-      systemPreamble = routingPreamble || null;
-      employeePersona = routingPersona || null;
-    } catch (routingError: any) {
-      // Routing failed - use requested employee or fallback to Prime
-      console.warn('[Chat] Employee routing failed (non-fatal, using requested employee):', routingError.message || routingError);
-      finalEmployeeSlug = requestedEmployeeSlug || 'prime-boss';
-      systemPreamble = null;
-      employeePersona = null;
     }
+
+    if (!finalEmployeeSlug) {
+      finalEmployeeSlug = 'prime-boss';
+    }
+
+    console.log('[chat] employee lock', {
+      userForcedEmployee,
+      requested: body.employeeSlug,
+      resolved: finalEmployeeSlug,
+    });
     
     const originalEmployeeSlug = finalEmployeeSlug; // Track original for handoff detection
     const explicitlyRequestedEmployee = requestedEmployeeSlug || null; // Store if employee was explicitly requested (not auto-routed)
@@ -1476,6 +1610,46 @@ export const handler: Handler = async (event, context) => {
     }
     
     systemMessages.push({ role: 'system', content: mergedUserContext });
+
+    // 2.5 Employee Brain Pack (ALL employees, per employee_key)
+    // This is the employee’s unique identity + workflow + tone layer.
+    const employeeBrainPrompt = buildEmployeeBrainSystemPrompt({
+      employee_key: employeeKey, // resolved earlier from slug/registry
+      ai_fluency_level: (ctx as any)?.ai_fluency_level ?? null,
+      preferredName: userProfile?.preferredName ?? null,
+      currency: (ctx as any)?.currency ?? null,
+    });
+
+    systemMessages.push({ role: 'system', content: employeeBrainPrompt });
+
+    // Dev log (small + safe)
+    if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+      console.log('[chat] brain injected', {
+        employeeKey,
+        brainHead: employeeBrainPrompt.slice(0, 40),
+      });
+    }
+
+    // 2.6 Employee Job Context (per-employee “what’s happening right now” snapshot)
+    try {
+      const jobCtx = await buildEmployeeJobContextSystemMessage(sb, {
+        employeeKey,
+        finalEmployeeSlug,
+        userId,
+        threadId: threadId || null,
+        documentIds: documentIds || null,
+      });
+
+      if (jobCtx) {
+        systemMessages.push({ role: 'system', content: jobCtx });
+      }
+
+      if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
+        console.log('[chat] job context injected', { employeeKey, hasJobCtx: !!jobCtx });
+      }
+    } catch (e: any) {
+      console.warn('[chat] job context inject failed', { employeeKey, error: e?.message });
+    }
     
     // 3. Prime Context System Message (ONLY for Prime, if prime_context provided)
     const isPrime = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
@@ -1662,7 +1836,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
     // 2. User clicks Upload button (handled by frontend)
     // 3. Prime explicitly calls request_employee_handoff tool (handled by tool execution)
     // REMOVED: Automatic keyword-based handoff to prevent stickiness on hypothetical questions
-    if (isPrime && finalEmployeeSlug === 'prime-boss') {
+    if (!userForcedEmployee && isPrime && finalEmployeeSlug === 'prime-boss') {
       // Only trigger on explicit confirmation, not just keywords
       const confirmationPattern = /\b(yes|ok|okay|go ahead|let's do it|let's upload|let's import|proceed|start|begin|ready)\b/i;
       const uploadIntentPattern = /\b(upload|import|statement|bank statement|receipt|pdf|transactions|document|file|scan|ocr|parse)\b/i;
@@ -2022,6 +2196,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         content: masked, // Store masked version
         tokens: estimateTokens(masked),
         thread_id: threadId, // CRITICAL: thread_id is always required
+        metadata: client_message_id ? { client_message_id } : undefined,
       };
       console.log(`[Chat] Inserting user message with thread_id: ${threadId}`);
       await sb.from('chat_messages').insert(messageData);
@@ -2072,9 +2247,57 @@ CUSTODIAN CONTEXT (Account Security & Settings):
       
       // Declare toolResults at function scope to ensure it's accessible throughout the streaming block
       const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-      
-      try {
-        // Send meta event at start for debugging (will be added to streamBuffer)
+
+      // Build response headers (cannot change after stream starts)
+      const headers = buildResponseHeaders({
+        guardrailsActive: true,
+        piiMaskEnabled: (guardrailResult.signals.piiTypes || []).length > 0,
+        memoryHitTopScore: memoryHitScore,
+        memoryHitCount: memoryFacts.length,
+        employee: finalEmployeeSlug,
+        routeConfidence: 0.8,
+        sessionId: finalSessionId || undefined, // Include sessionId in headers for frontend
+      });
+
+      const responseHeaders = {
+        ...baseHeaders,
+        ...headers,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        // important for the frontend check in chatEndpoint.ts
+        'X-Chat-Backend': 'v2',
+      };
+
+      const encoder = new TextEncoder();
+      let controller: any = null;
+      const stream = new TransformStream({
+        start(ctrl) {
+          controller = ctrl as any;
+          streamController = controller;
+          streamStarted = true;
+        },
+      });
+      const writeRaw = (text: string) => {
+        if (!controller) return;
+        controller.enqueue(encoder.encode(text));
+      };
+      const writeSSE = (payload: any, event?: string) => {
+        const prefix = event ? `event: ${event}\n` : '';
+        writeRaw(`${prefix}data: ${JSON.stringify(payload)}\n\n`);
+      };
+
+      (async () => {
+        try {
+        // Send meta event at start for debugging
+        writeRaw(`data: {"type":"meta","status":"stream_started"}\n\n`);
+        const guardrailsStatus = buildGuardrailsStatus('streaming');
+        writeSSE({ status: 'starting' }, 'meta');
+        writeSSE({ guardrails: guardrailsStatus }, 'meta');
+
+        // Send employee header first (will be updated if handoff occurs)
+        const employeePayload = { type: 'employee', employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug };
+        writeSSE(employeePayload);
         
         // Convert tools to OpenAI format if available
         let openaiTools: any = undefined;
@@ -2134,37 +2357,15 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         timingLogs.openai_ttft = Date.now() - openaiStartTime;
         console.log('[Chat] OPENAI streaming call initiated, starting to process chunks');
 
-        // Build response headers (will be updated if handoff occurs)
-        let headers = buildResponseHeaders({
-          guardrailsActive: true,
-          piiMaskEnabled: (guardrailResult.signals.piiTypes || []).length > 0,
-          memoryHitTopScore: memoryHitScore,
-          memoryHitCount: memoryFacts.length,
-          employee: finalEmployeeSlug,
-          routeConfidence: 0.8,
-          sessionId: finalSessionId || undefined, // Include sessionId in headers for frontend
-        });
-
         // Create streaming response with tool calling support
         let assistantContent = '';
         let toolCalls: any[] = [];
         // requestStartTime and firstTokenTime already declared above
-        
-        // Send meta event at start for debugging
-        let streamBuffer = `event: meta\ndata: ${JSON.stringify({ status: 'starting' })}\n\n`;
-        
-        // Send guardrails status as FIRST meta event (so UI can show "Secured" immediately)
-        const guardrailsStatus = buildGuardrailsStatus('streaming');
-        streamBuffer += `event: meta\ndata: ${JSON.stringify({ guardrails: guardrailsStatus })}\n\n`;
-        
+
         // Dev-only verification log
         if (process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development') {
           console.log(`[Guardrails] enabled=${guardrailsStatus.enabled} pii_masking=${guardrailsStatus.pii_masking} moderation=${guardrailsStatus.moderation} version=${guardrailsStatus.policy_version}`);
         }
-        
-        // Send employee header first (will be updated if handoff occurs)
-        const employeePayload = { type: 'employee', employee: finalEmployeeSlug };
-        streamBuffer += `data: ${JSON.stringify(employeePayload)}\n\n`;
         // DEV: Log every SSE payload type
         if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
           console.log('[CHAT SSE OUT]', employeePayload.type, 'employee:', finalEmployeeSlug);
@@ -2181,7 +2382,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
             assistantContent += delta.content;
             // Frontend expects type: 'text' with content property, not type: 'token' with token
             const textPayload = { type: 'text', content: delta.content };
-            streamBuffer += `data: ${JSON.stringify(textPayload)}\n\n`;
+            writeSSE(textPayload);
             // DEV: Log every SSE payload type
             if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
               console.log('[CHAT SSE OUT]', textPayload.type, 'content length:', delta.content.length);
@@ -2200,14 +2401,14 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                 
                 // Phase 3.1: Send tool_calling event when tool call detected
                 if (toolCall.function?.name) {
-                  streamBuffer += `data: ${JSON.stringify({
+                  writeSSE({
                     type: 'tool_call',
                     tool: {
                       id: toolCall.id,
                       name: toolCall.function.name,
                       arguments: {}
                     }
-                  })}\n\n`;
+                  });
                 }
               }
               if (toolCall.function?.name) {
@@ -2284,10 +2485,10 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                   }
                   
                   // Phase 3.1: Send tool_executing event before execution
-                  streamBuffer += `data: ${JSON.stringify({
+                  writeSSE({
                     type: 'tool_executing',
                     tool: toolName
-                  })}\n\n`;
+                  });
                   
                   const result = await executeTool(toolModule, args, toolContext, {
                     employeeSlug: finalEmployeeSlug,
@@ -2309,7 +2510,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                   } else {
                     // Special handling for employee handoff (streaming)
                     // Check for new schema: data.requested_handoff === true
-                    if (toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
+                    if (!userForcedEmployee && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
                       const handoffData = (result as any).data;
                       if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
                         // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
@@ -2436,7 +2637,8 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                           reason,
                           summary
                         };
-                        streamBuffer += `data: ${JSON.stringify(handoffEvent)}\n\n`;
+                        writeSSE(handoffEvent);
+                        writeSSE({ type: 'employee', employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug });
                         
                         // Enhanced logging for debugging (guarded by env flag)
                         if (process.env.NETLIFY_DEV === 'true' || process.env.DEBUG_HANDOFF === 'true') {
@@ -2464,11 +2666,11 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                       }
                     }
                     
-                    streamBuffer += `data: ${JSON.stringify({
+                    writeSSE({
                       type: 'tool_result',
                       tool: toolName,
                       result: displayResult
-                    })}\n\n`;
+                    });
                     
                     toolResults.push({
                       role: 'tool',
@@ -2546,7 +2748,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                     assistantContent += delta;
                     // Frontend expects type: 'text' with content property
                     const textPayload = { type: 'text', content: delta };
-                    streamBuffer += `data: ${JSON.stringify(textPayload)}\n\n`;
+                    writeSSE(textPayload);
                     // DEV: Log every SSE payload type
                     if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
                       console.log('[CHAT SSE OUT]', textPayload.type, 'content length:', delta.length);
@@ -2558,13 +2760,8 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                 // Add error message to stream
                 const errorMsg = "I had trouble processing the tool results. Let me try a different approach.";
                 assistantContent = errorMsg;
-                streamBuffer += `data: ${JSON.stringify({ type: 'text', content: errorMsg })}\n\n`;
+                writeSSE({ type: 'text', content: errorMsg });
               }
-      }
-
-      // Update employee header if handoff occurred
-      if (finalEmployeeSlug !== originalEmployeeSlug) {
-        streamBuffer = `data: ${JSON.stringify({ type: 'employee', employee: finalEmployeeSlug })}\n\n` + streamBuffer;
       }
 
       // ========================================================================
@@ -2612,7 +2809,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
           // Only append summary if we detected a resolution/handoff pattern
           if (summaryParts.length > 0) {
             const summaryText = summaryParts.join('\n');
-            streamBuffer += `data: ${JSON.stringify({ type: 'text', content: summaryText })}\n\n`;
+            writeSSE({ type: 'text', content: summaryText });
             // Also append to assistantContent for database storage
             assistantContent += summaryText;
           }
@@ -2633,7 +2830,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
       };
       
       const donePayload = { type: 'done', guardrails: guardrailsMetadata, thread_id: threadId };
-      streamBuffer += `data: ${JSON.stringify(donePayload)}\n\n`;
+      writeSSE(donePayload);
       // DEV: Log every SSE payload type
       if (process.env.NETLIFY_DEV || process.env.NODE_ENV === 'development') {
         console.log('[CHAT SSE OUT]', donePayload.type, 'thread_id:', threadId);
@@ -2727,6 +2924,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
           content: assistantContent,
           tokens: completionTokens,
           thread_id: threadId, // CRITICAL: thread_id is always required
+          metadata: request_id ? { request_id } : undefined,
         };
         console.log(`[Chat] Inserting assistant message with thread_id: ${threadId}`);
         await sb.from('chat_messages').insert(messageData);
@@ -2875,19 +3073,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         console.log('[Chat] 🚀 DEV MODE: Skipping conversation summary update to reduce latency');
       }
 
-      return {
-        statusCode: 200,
-        headers: {
-          ...baseHeaders,
-          ...headers,
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache, no-transform',
-          'Connection': 'keep-alive',
-          // important for the frontend check in chatEndpoint.ts
-          'X-Chat-Backend': 'v2',
-        },
-        body: streamBuffer,
-      };
+      return;
     } catch (streamingError: any) {
       console.error('[Chat] Streaming OpenAI call failed:', streamingError);
       // Log the full error for debugging
@@ -2899,17 +3085,22 @@ CUSTODIAN CONTEXT (Account Security & Settings):
       const errorMessage = "Sorry — Prime is restarting. Please try again.";
       // Build guardrails status even on error (so UI can show status)
       const guardrailsStatus = buildGuardrailsStatus('streaming');
-      return {
-        statusCode: 200,
-        headers: {
-          ...baseHeaders,
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-        },
-        body: `data: ${JSON.stringify({ role: 'assistant', content: errorMessage })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId, error: 'Streaming call failed' })}\n\n`,
-      };
+      writeRaw(`data: ${JSON.stringify({ role: 'assistant', content: errorMessage })}\n\n`);
+      writeRaw(`data: ${JSON.stringify({ type: 'done', thread_id: threadId, error: 'Streaming call failed' })}\n\n`);
+      return;
+    } finally {
+      try {
+        const anyController: any = controller as any;
+        if (anyController && typeof anyController.close === 'function') {
+          anyController.close();
+        }
+      } catch {
+        // ignore
+      }
     }
+      })();
+
+      return new Response(stream.readable, { headers: responseHeaders }) as any;
     } else {
       // Non-streaming response with tool calling support
       try {
@@ -3036,7 +3227,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
             } else {
               // Special handling for employee handoff (non-streaming)
               // Check for new schema: data.requested_handoff === true
-              if (toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
+              if (!userForcedEmployee && toolName === 'request_employee_handoff' && result && typeof result === 'object' && 'data' in result) {
                 const handoffData = (result as any).data;
                 if (handoffData && handoffData.requested_handoff === true && handoffData.target_slug) {
                   // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
@@ -3248,6 +3439,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
           content: assistantContent,
           tokens: completionTokens,
           thread_id: threadId, // CRITICAL: thread_id is always required
+          metadata: request_id ? { request_id } : undefined,
         });
         console.log(`[Chat] Inserting assistant message (non-streaming) with thread_id: ${threadId}`);
         
@@ -3386,6 +3578,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
             ok: true,
             content: assistantContent,
             employee: finalEmployeeSlug,
+            employeeSlug: finalEmployeeSlug,
             sessionId: finalSessionId,
             thread_id: threadId, // CRITICAL: Return thread_id for frontend to store
             guardrails: guardrailsStatusNonStream,
@@ -3412,6 +3605,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
             error: 'OpenAI API error',
             content: "I'm sorry, I encountered an error while generating my response. Please try again in a moment.",
             employee: finalEmployeeSlug || 'prime-boss',
+            employeeSlug: finalEmployeeSlug || 'prime-boss',
             sessionId: finalSessionId,
             thread_id: threadId, // CRITICAL: Return thread_id even on error
             message: process.env.NETLIFY_DEV === 'true' ? nonStreamingError.message : undefined,
@@ -3419,63 +3613,35 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         };
       }
     }
-  } catch (error: any) {
-    console.error('[Chat] Unhandled error in handler', {
-      message: error?.message,
-      name: error?.name,
-      code: error?.code,
-      stack: error?.stack,
-      userId: (event.body ? JSON.parse(event.body || '{}') : {}).userId,
+  } catch (err: any) {
+    console.error('[chat] FATAL', {
+      requestId,
+      employeeSlug: employeeSlugForLog,
+      errName: err?.name,
+      errMessage: err?.message,
+      errStack: err?.stack,
+      errCause: err?.cause,
     });
-    
-    // Determine if this was a streaming request
-    let isStreaming = true;
-    try {
-      const body = event.body ? JSON.parse(event.body || '{}') as ChatRequest : {};
-      isStreaming = body.stream !== false;
-    } catch (parseError) {
-      // Default to streaming if we can't parse
-      isStreaming = true;
+
+    if (streamStarted && streamController) {
+      try {
+        streamController.enqueue(streamEncoder.encode(`data: ${JSON.stringify({ type: 'error', requestId, message: 'internal_error' })}\n\n`));
+        streamController.close();
+      } catch {}
     }
-    
-    // For streaming requests, send error as SSE message
-    if (isStreaming) {
-      const errorMessage = "Sorry — Prime is restarting. Please try again.";
-      const errorSSE = `data: ${JSON.stringify({
-        role: 'assistant',
-        content: errorMessage
-      })}\n\ndata: ${JSON.stringify({ type: 'done', error: 'chat_internal_error' })}\n\n`;
-      
-      return {
-        statusCode: 200,
-        headers: {
-          ...baseHeaders,
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'X-Chat-Backend': 'v2',
-        },
-        body: errorSSE,
-      };
-    }
-    
-    // Non-streaming: return HTTP 200 with graceful error message (UI can display this)
-    const errorMessage = "Sorry — Prime is restarting. Please try again.";
+
     return {
-      statusCode: 200,
+      statusCode: 500,
       headers: {
         ...baseHeaders,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         ok: false,
-        error: 'chat_internal_error',
-        content: errorMessage,
-        assistant: {
-          role: 'assistant',
-          content: errorMessage,
-        },
-        details: process.env.NETLIFY_DEV === 'true' ? error?.message : undefined,
+        status: 'error',
+        errorId: requestId,
+        requestId,
+        error: 'internal_error',
       }),
     };
   }

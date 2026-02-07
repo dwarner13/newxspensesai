@@ -10,8 +10,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useUploadQueue } from './useUploadQueue';
-import { generateUploadId } from '../lib/upload/uploadQueue';
 import { debug } from '../lib/logger';
+import { useAuth } from '../contexts/AuthContext';
 
 export type UploadSource = 'upload' | 'chat';
 
@@ -45,6 +45,9 @@ export type SmartImportUploadSummary = {
   finishedAt: string; // ISO string
   fileCount: number;
   transactionCount?: number;
+  docIds?: string[];
+  importId?: string;
+  importIds?: string[];
 };
 
 const defaultUploadStatus: SmartImportUploadStatus = {
@@ -56,9 +59,11 @@ const defaultUploadStatus: SmartImportUploadStatus = {
 };
 
 export function useSmartImport(userId?: string, source: UploadSource = 'upload') {
+  const { session } = useAuth();
   // Use upload queue for concurrent uploads
+  const [queueUserId, setQueueUserId] = useState(userId || '');
   const uploadQueue = useUploadQueue({
-    userId: userId || '',
+    userId: queueUserId,
     source,
   });
 
@@ -128,10 +133,13 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
    * @returns Upload result with processing status
    */
   const uploadFile = async (
-    userId: string,
+    userIdParam: string,
     file: File,
     source: UploadSource = 'upload'
   ): Promise<UploadResult> => {
+    if (!userIdParam) {
+      throw new Error('Smart Import: missing userId (auth not ready)');
+    }
     try {
       setUploading(true);
       setProgress(0);
@@ -144,16 +152,27 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
-          filename: file.name,
+          userId: userIdParam,
+          fileName: file.name,
           mime: file.type,
           source
         })
       });
 
       if (!initRes.ok) {
-        const err = await initRes.text();
-        throw new Error(`Init failed: ${err}`);
+        const errText = await initRes.text();
+        let message = errText;
+        try {
+          const parsed = JSON.parse(errText);
+          const missing = parsed?.missing;
+          message = parsed?.error || errText;
+          if (missing) {
+            message = `${message} (missing: userId=${missing.userId}, fileName=${missing.fileName})`;
+          }
+        } catch {
+          // Keep plain text error
+        }
+        throw new Error(`Init failed: ${message}`);
       }
 
       const init = await initRes.json();
@@ -180,7 +199,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: userId,
+          userId: userIdParam,
           docId: init.docId
         })
       });
@@ -242,7 +261,13 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
   ): Promise<UploadResult[]> => {
     if (!files || files.length === 0) return [];
     if (!userIdParam) {
-      throw new Error('userId is required');
+      throw new Error('Smart Import: missing userId (auth not ready)');
+    }
+
+    console.log('[useSmartImport] queueUserId=', queueUserId, 'userIdParam=', userIdParam);
+    if (userIdParam && userIdParam !== queueUserId) {
+      setQueueUserId(userIdParam);
+      await Promise.resolve();
     }
     
     debug('[useSmartImport] uploadFiles called', {
@@ -271,7 +296,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       const completedIds = new Set<string>();
       
       // Subscribe to queue events (only if queue is initialized and has .on method)
-      if (!uploadQueue || typeof uploadQueue.on !== 'function') {
+    if (!uploadQueue || !uploadQueue.isReady || typeof uploadQueue.on !== 'function') {
         reject(new Error('Upload queue not initialized'));
         return;
       }
@@ -298,17 +323,25 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
             if (docIds.length > 0 && userIdParam) {
               fetch('/.netlify/functions/smart-import-sync', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+                },
                 body: JSON.stringify({ userId: userIdParam, docIds }),
               })
                 .then(res => res.ok ? res.json() : null)
                 .then(syncData => {
                   const transactionCount = syncData?.transactionCount ?? 0;
-                  const summary = {
+                  const importIds = Array.isArray(syncData?.importIds) ? syncData.importIds : [];
+                  const importId = importIds[0];
+                const summary = {
                     id: crypto.randomUUID(),
                     finishedAt: new Date().toISOString(),
                     fileCount: files.length,
                     transactionCount: transactionCount > 0 ? transactionCount : undefined,
+                  docIds,
+                  importId,
+                  importIds,
                   };
                   setLastUploadSummary(summary);
                   completeUpload();
@@ -321,6 +354,9 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
                     id: crypto.randomUUID(),
                     finishedAt: new Date().toISOString(),
                     fileCount: files.length,
+                    docIds,
+                    importId: undefined,
+                    importIds: [],
                   };
                   setLastUploadSummary(summary);
                   completeUpload();
@@ -332,6 +368,9 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
                 id: crypto.randomUUID(),
                 finishedAt: new Date().toISOString(),
                 fileCount: files.length,
+                docIds,
+                importId: undefined,
+                importIds: [],
               };
               setLastUploadSummary(summary);
               completeUpload();
@@ -360,18 +399,21 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
         }
       }, uploadIds.length * 30000);
     });
-  }, [uploadQueue]);
+  }, [queueUserId, uploadQueue]);
 
   /**
    * Upload file from base64 (for chat attachments)
    */
   const uploadBase64 = async (
-    userId: string,
+    userIdParam: string,
     filename: string,
     mime: string,
     base64: string,
     source: UploadSource = 'chat'
   ): Promise<UploadResult> => {
+    if (!userIdParam) {
+      throw new Error('Smart Import: missing userId (auth not ready)');
+    }
     try {
       setUploading(true);
       setProgress(0);
@@ -382,10 +424,24 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       const initRes = await fetch('/.netlify/functions/smart-import-init', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, filename, mime, source })
+        body: JSON.stringify({ userId: userIdParam, fileName: filename, mime, source })
       });
 
-      if (!initRes.ok) throw new Error('Init failed');
+      if (!initRes.ok) {
+        const errText = await initRes.text();
+        let message = errText;
+        try {
+          const parsed = JSON.parse(errText);
+          const missing = parsed?.missing;
+          message = parsed?.error || errText;
+          if (missing) {
+            message = `${message} (missing: userId=${missing.userId}, fileName=${missing.fileName})`;
+          }
+        } catch {
+          // Keep plain text error
+        }
+        throw new Error(`Init failed: ${message}`);
+      }
       const init = await initRes.json();
 
       // Step 2: Upload base64 data (auth is embedded in the URL)
@@ -404,7 +460,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       const finalizeRes = await fetch('/.netlify/functions/smart-import-finalize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, docId: init.docId })
+        body: JSON.stringify({ userId: userIdParam, docId: init.docId })
       });
 
       if (!finalizeRes.ok) throw new Error('Finalize failed');

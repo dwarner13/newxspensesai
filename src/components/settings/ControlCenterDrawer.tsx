@@ -88,11 +88,13 @@ export function ControlCenterDrawer() {
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetContent 
-        side="right" 
+        side="center" 
         showCloseButton={false}
+        overlayClassName="bg-slate-950/70 backdrop-blur-md"
         className={cn(
-          "w-full sm:w-[520px] p-0 bg-slate-950/95 backdrop-blur-xl",
-          "border-l border-slate-800/80",
+          "w-[min(560px,calc(100vw-2rem))] max-h-[90vh] p-0",
+          "bg-slate-950/95 backdrop-blur-xl",
+          "border border-slate-800/80 rounded-3xl shadow-2xl",
           "overflow-hidden flex flex-col"
         )}
         onInteractOutside={(e) => {
@@ -152,8 +154,8 @@ export function ControlCenterDrawer() {
         </SheetHeader>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-6 py-6">
+        <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+          <div className="px-6 py-6 pb-16">
             {activeTab === 'profile' && <ProfileTab />}
             {activeTab === 'preferences' && <PreferencesTab />}
             {activeTab === 'security' && <SecurityTab />}

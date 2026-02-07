@@ -7,7 +7,7 @@
 
 import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { useUnifiedChatLauncher, hasChatUserInitiated } from '../../hooks/useUnifiedChatLauncher';
 
 interface ChatPageRedirectProps {
   employeeSlug: string;
@@ -22,13 +22,15 @@ export default function ChatPageRedirect({
   const { openChat } = useUnifiedChatLauncher();
 
   useEffect(() => {
-    // Open unified chat with the specified employee
-    openChat({ 
-      initialEmployeeSlug: employeeSlug,
-      context: { page: 'chat-redirect' }
-    });
-    
-    // Redirect to dashboard
+    if (hasChatUserInitiated()) {
+      // Open unified chat with the specified employee
+      openChat({ 
+        initialEmployeeSlug: employeeSlug,
+        context: { page: 'chat-redirect' }
+      });
+    }
+
+    // Redirect to dashboard (always)
     navigate(redirectTo, { replace: true });
   }, [employeeSlug, redirectTo, navigate, openChat]);
 

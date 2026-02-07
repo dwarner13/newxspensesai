@@ -6,6 +6,7 @@ import { EMPLOYEES } from '../../data/aiEmployees';
 // Legacy ByteDocumentChat removed - now using unified chat
 // import { ByteDocumentChat } from '../chat/_legacy/ByteDocumentChat';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
 
 interface MobileBottomNavProps {
   activeEmployee?: string;
@@ -63,7 +64,7 @@ export default function MobileBottomNav({
   // Map employee key to slug
   const employeeKeyToSlug: Record<string, string> = {
     'prime': 'prime-boss',
-    'byte': 'byte-docs',
+    'byte': EMPLOYEE_SLUGS.BYTE,
     'tag': 'tag-ai',
     'crystal': 'crystal-ai',
     'blitz': 'blitz-debt',
@@ -106,7 +107,7 @@ export default function MobileBottomNav({
               e.preventDefault();
               // Legacy Byte chat removed - now using unified chat
               openChat({ 
-                initialEmployeeSlug: 'byte-docs',
+                initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
                 context: { page: location.pathname }
               });
             }

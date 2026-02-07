@@ -32,6 +32,7 @@ export interface UploadItem {
 interface SendOptions {
   files?: UploadItem[];
   documentIds?: string[]; // Document IDs from Smart Import uploads
+  employeeSlug?: string;
 }
 
 export interface ChatHeaders {
@@ -152,6 +153,42 @@ export function usePrimeChat(
     }
     return undefined;
   });
+  const [threadByEmployee, setThreadByEmployee] = useState<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    if (safeUserId && employeeOverride) {
+      try {
+        const employeeSlugMap: Record<EmployeeOverride, string> = {
+          prime: 'prime-boss',
+          tag: 'tag-ai',
+          byte: 'byte-docs',
+          crystal: 'crystal-ai',
+          goalie: 'goalie-agent',
+          automa: 'automa-automation',
+          blitz: 'blitz-debt',
+          liberty: 'liberty-freedom',
+          chime: 'chime-bills',
+          roundtable: 'roundtable-podcast',
+          serenity: 'serenity-therapist',
+          harmony: 'harmony-wellness',
+          wave: 'wave-spotify',
+          ledger: 'ledger-tax',
+          intelia: 'intelia-bi',
+          dash: 'dash-analytics',
+          custodian: 'custodian-settings'
+        };
+        const employeeSlug = employeeOverride ? employeeSlugMap[employeeOverride] || 'prime-boss' : 'prime-boss';
+        const threadStorageKey = `chat_thread_${safeUserId}_${employeeSlug}`;
+        const storedThreadId = localStorage.getItem(threadStorageKey);
+        if (storedThreadId) {
+          map[employeeSlug] = storedThreadId;
+        }
+      } catch (e) {
+        warn('[usePrimeChat] Failed to seed thread_by_employee from localStorage:', e);
+      }
+    }
+    return map;
+  });
+  const requestEmployeeSlugRef = useRef<Map<string, string>>(new Map());
   
   // Ensure systemPrompt is a string or null (defensive check)
   let safeSystemPrompt: string | null | undefined = systemPrompt;
@@ -219,6 +256,23 @@ export function usePrimeChat(
   
   // CRITICAL: Streaming assistant ID guard - prevents duplicate assistant placeholder creation
   const streamingIdRef = useRef<string | null>(null);
+  
+  // Allows exactly ONE handoff when the user explicitly requests it,
+  // even if VITE_DISABLE_AUTO_HANDOFFS is enabled (quiet mode).
+  const allowNextHandoffRef = useRef(false);
+  const allowNextHandoffTimeoutRef = useRef<number | null>(null);
+
+  function armManualHandoffWindow() {
+    allowNextHandoffRef.current = true;
+    if (allowNextHandoffTimeoutRef.current) {
+      window.clearTimeout(allowNextHandoffTimeoutRef.current);
+    }
+    // safety: only allow for a short window, prevents storms
+    allowNextHandoffTimeoutRef.current = window.setTimeout(() => {
+      allowNextHandoffRef.current = false;
+      allowNextHandoffTimeoutRef.current = null;
+    }, 12_000);
+  }
   
   // PART A: Hard dedupe key (no time component)
   const normalizeText = (s: string) => {
@@ -436,10 +490,9 @@ export function usePrimeChat(
     // Check if we're on /dashboard/prime-chat route
     const isPrimeChatPage = typeof window !== 'undefined' && window.location.pathname === '/dashboard/prime-chat';
     
-    // If employeeOverride is provided and NOT on Prime Chat page, respect it (route-forced employee takes precedence)
-    // On /dashboard/prime-chat, we allow handoffs to override the initial Prime default
-    if (employeeOverride && employeeOverride !== 'prime' && !isPrimeChatPage) {
-      // Only load from session if employeeOverride is not prime (allows other routes to use session)
+    // If employeeOverride is provided and NOT Prime, respect it everywhere (lock user selection)
+    // This prevents session employee from overriding explicit user choice
+    if (employeeOverride && employeeOverride !== 'prime') {
       return;
     }
 
@@ -530,10 +583,19 @@ export function usePrimeChat(
           // Re-enable: Remove VITE_DISABLE_AUTO_HANDOFFS from .env.local or set to false
           if (j.type === 'handoff' && j.from && j.to) {
             const DISABLE_HANDOFFS = import.meta.env.VITE_DISABLE_AUTO_HANDOFFS === 'true';
-            if (DISABLE_HANDOFFS) {
-              // Quiet mode: ignore auto-handoff to prevent storms
-              warn(`[usePrimeChat] 🚫 Auto-handoff disabled by env flag. Ignoring handoff event: ${j.from} → ${j.to}`);
+            if (DISABLE_HANDOFFS && !allowNextHandoffRef.current) {
+              // Quiet mode: ignore auto-handoff storms, but allow explicit user-requested handoffs
+              warn(`[usePrimeChat] 🚫 Auto-handoff disabled. Ignoring handoff event: ${j.from} → ${j.to}`);
               return { aiText, hasContent };
+            }
+
+            // Consume the manual handoff window once it succeeds
+            if (allowNextHandoffRef.current) {
+              allowNextHandoffRef.current = false;
+              if (allowNextHandoffTimeoutRef.current) {
+                window.clearTimeout(allowNextHandoffTimeoutRef.current);
+                allowNextHandoffTimeoutRef.current = null;
+              }
             }
             log(`[usePrimeChat] 🔄 Handoff event: ${j.from} → ${j.to}`, j.message || '');
             
@@ -575,9 +637,31 @@ export function usePrimeChat(
           
           // Handle employee header updates
           if (j.type === 'employee' && j.employee) {
-            setActiveEmployeeSlug(j.employee);
-            if (import.meta.env.DEV) {
-              log(`[usePrimeChat] Active employee updated: ${j.employee}`);
+            const employeeSlugMap: Record<EmployeeOverride, string> = {
+              prime: 'prime-boss',
+              tag: 'tag-ai',
+              byte: 'byte-docs',
+              crystal: 'crystal-ai',
+              goalie: 'goalie-agent',
+              automa: 'automa-automation',
+              blitz: 'blitz-debt',
+              liberty: 'liberty-freedom',
+              chime: 'chime-bills',
+              roundtable: 'roundtable-podcast',
+              serenity: 'serenity-therapist',
+              harmony: 'harmony-wellness',
+              wave: 'wave-spotify',
+              ledger: 'ledger-tax',
+              intelia: 'intelia-bi',
+              dash: 'dash-analytics',
+              custodian: 'custodian-settings'
+            };
+            const expectedSlug = employeeOverride ? employeeSlugMap[employeeOverride] : null;
+            if (!employeeOverride || employeeOverride === 'prime' || j.employee === expectedSlug) {
+              setActiveEmployeeSlug(j.employee);
+              if (import.meta.env.DEV) {
+                log(`[usePrimeChat] Active employee updated: ${j.employee}`);
+              }
             }
           }
           
@@ -603,9 +687,9 @@ export function usePrimeChat(
           // Re-enable: Remove VITE_DISABLE_AUTO_HANDOFFS from .env.local or set to false
           if (j.type === 'tool_executing' && j.tool) {
             const DISABLE_HANDOFFS = import.meta.env.VITE_DISABLE_AUTO_HANDOFFS === 'true';
-            if (DISABLE_HANDOFFS && j.tool === 'request_employee_handoff') {
+            if (DISABLE_HANDOFFS && j.tool === 'request_employee_handoff' && !allowNextHandoffRef.current) {
               // Quiet mode: ignore auto-handoff tool execution to prevent storms
-              warn(`[usePrimeChat] 🚫 Auto-handoff tool execution disabled by env flag. Ignoring tool: ${j.tool}`);
+              warn(`[usePrimeChat] 🚫 Auto-handoff tool disabled. Ignoring tool: ${j.tool}`);
               return { aiText, hasContent };
             }
             if (import.meta.env.DEV) {
@@ -629,36 +713,20 @@ export function usePrimeChat(
             // Extract thread_id if present
             if (j.thread_id) {
               const receivedThreadId = String(j.thread_id);
+              const slugForRequest = requestId ? requestEmployeeSlugRef.current.get(requestId) : null;
               // Update effectiveThreadId state
               setEffectiveThreadId(receivedThreadId);
+              if (slugForRequest) {
+                setThreadByEmployee(prev => ({ ...prev, [slugForRequest]: receivedThreadId }));
+              }
               // Store thread_id in localStorage
-              if (safeUserId && employeeOverride) {
+              if (safeUserId && slugForRequest) {
                 try {
-                  const employeeSlugMap: Record<EmployeeOverride, string> = {
-                    prime: 'prime-boss',
-                    tag: 'tag-ai',
-                    byte: 'byte-docs',
-                    crystal: 'crystal-ai',
-                    goalie: 'goalie-agent',
-                    automa: 'automa-automation',
-                    blitz: 'blitz-debt',
-                    liberty: 'liberty-freedom',
-                    chime: 'chime-bills',
-                    roundtable: 'roundtable-podcast',
-                    serenity: 'serenity-therapist',
-                    harmony: 'harmony-wellness',
-                    wave: 'wave-spotify',
-                    ledger: 'ledger-tax',
-                    intelia: 'intelia-bi',
-                    dash: 'dash-analytics',
-                    custodian: 'custodian-settings'
-                  };
-                  const employeeSlug = employeeOverride ? employeeSlugMap[employeeOverride] || 'prime-boss' : 'prime-boss';
                   // CRITICAL: Store thread_id keyed by employeeSlug so each employee has its own thread
-                  const threadStorageKey = `chat_thread_${safeUserId}_${employeeSlug}`;
+                  const threadStorageKey = `chat_thread_${safeUserId}_${slugForRequest}`;
                   localStorage.setItem(threadStorageKey, receivedThreadId);
                   if (import.meta.env.DEV) {
-                    log(`[ChatUI] Received thread_id=${receivedThreadId} for employeeSlug=${employeeSlug}`);
+                    log(`[ChatUI] Received thread_id=${receivedThreadId} for employeeSlug=${slugForRequest}`);
                   }
                 } catch (e) {
                   warn('[usePrimeChat] Failed to store thread_id in localStorage:', e);
@@ -769,7 +837,7 @@ export function usePrimeChat(
     }
     
     return { aiText, hasContent };
-  }, [eventTap]);
+  }, [eventTap, safeUserId]);
 
   const send = useCallback(async (text?: string | Promise<string>, opts?: SendOptions) => {
     // CRITICAL: In-flight guard - prevent duplicate sends
@@ -795,6 +863,25 @@ export function usePrimeChat(
       if (!content && !(opts?.files?.length || uploads.length)) {
         inFlightRef.current = false;
         return;
+      }
+
+      const lower = (content || '').toLowerCase();
+      
+      // Detect explicit user intent to hand off
+      const looksLikeManualHandoff =
+        lower.includes('handoff') ||
+        lower.includes('hand off') ||
+        lower.includes('transfer') ||
+        lower.includes('switch me to') ||
+        lower.includes('send me to') ||
+        lower.includes('talk to byte') ||
+        lower.includes('talk to tag') ||
+        lower.includes('talk to crystal') ||
+        (lower.includes('byte') && lower.includes('import')) ||
+        (lower.includes('byte') && lower.includes('upload'));
+
+      if (looksLikeManualHandoff) {
+        armManualHandoffWindow();
       }
 
     // PART 3: Fix optimistic send echo - add client_message_id for deduplication
@@ -832,7 +919,7 @@ export function usePrimeChat(
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
     activeRequestIdRef.current = requestId;
     
-    // Define finalEmployeeSlug ONCE at the top of send() to avoid ReferenceError
+    // Define employeeSlugToSend ONCE at the top of send() to avoid ReferenceError
     const employeeSlugMap: Record<EmployeeOverride, string> = {
       prime: 'prime-boss',
       tag: 'tag-ai',
@@ -853,7 +940,13 @@ export function usePrimeChat(
       custodian: 'custodian-settings'
     };
     const initialEmployeeSlug = employeeOverride ? employeeSlugMap[employeeOverride] : 'prime-boss';
-    const finalEmployeeSlug = activeEmployeeSlug || initialEmployeeSlug;
+    const employeeSlugToSend =
+      opts?.employeeSlug ||
+      activeEmployeeSlug ||
+      initialEmployeeSlug ||
+      'prime-boss';
+    const threadIdForRequest = threadByEmployee[employeeSlugToSend] || null;
+    requestEmployeeSlugRef.current.set(requestId, employeeSlugToSend);
     
     // PART A: Create assistant placeholder BEFORE consuming SSE (idempotent)
     // Check if we already have a streaming message for this requestId
@@ -884,7 +977,7 @@ export function usePrimeChat(
         role: 'assistant',
         content: '',
         meta: {
-          employee_key: finalEmployeeSlug,
+          employee_key: employeeSlugToSend,
           is_streaming: true,
           request_id: requestId,
         },
@@ -901,7 +994,7 @@ export function usePrimeChat(
         
         // Dev log: streaming message created BEFORE fetch
         if (import.meta.env.DEV) {
-          log(`[usePrimeChat] ✅ Created streaming assistant message BEFORE fetch (id: ${aiId}, employee: ${finalEmployeeSlug}, requestId: ${requestId})`);
+          log(`[usePrimeChat] ✅ Created streaming assistant message BEFORE fetch (id: ${aiId}, employee: ${employeeSlugToSend}, requestId: ${requestId})`);
         }
         
         return [...prev, assistantPlaceholder];
@@ -923,11 +1016,20 @@ export function usePrimeChat(
       try {
         // Map outgoing employee slug back to employeeOverride format for header (only if Prime)
         // employeeOverride header should only be 'prime' when the active employee is actually Prime
-        const outgoingEmployeeOverride = finalEmployeeSlug === 'prime-boss' ? 'prime' : undefined;
+        const outgoingEmployeeOverride = employeeSlugToSend === 'prime-boss' ? 'prime' : undefined;
 
         // Debug log endpoint before fetch in development (guarded by flag)
         if (DEBUG_PRIME_CHAT && import.meta.env.DEV && !isRetry) {
           log('[usePrimeChat] calling chat endpoint:', endpoint);
+        }
+        if (import.meta.env.DEV) {
+          log('[CHAT SEND]', {
+            client_message_id: clientMessageId,
+            request_id: requestId,
+            employeeSlug: employeeSlugToSend,
+            stream: true,
+            endpoint,
+          });
         }
 
         // Ensure endpoint is valid before fetch
@@ -941,7 +1043,7 @@ export function usePrimeChat(
 
         // Build prime_context snapshot (minimal, safe fields only)
         let primeContext: any = null;
-        if (primeState && finalEmployeeSlug === 'prime-boss') {
+        if (primeState && employeeSlugToSend === 'prime-boss') {
           // Extract safe fields from PrimeState
           const displayName = primeState.userProfileSummary?.displayName || null;
           const firstName = displayName ? displayName.split(' ')[0] : null;
@@ -984,7 +1086,7 @@ export function usePrimeChat(
         // Context Injection Verification Logging
         if (import.meta.env.DEV && !isRetry) {
           log('[Context Injection] 🧠 Employee Context Data', {
-            employeeSlug: finalEmployeeSlug,
+            employeeSlug: employeeSlugToSend,
             employeeOverride: outgoingEmployeeOverride,
             activeEmployeeSlug,
             hasPrimeContext: !!primeContext,
@@ -1008,7 +1110,7 @@ export function usePrimeChat(
               'byte-docs': 'Document upload context (via documentIds)',
               'tag-ai': 'Categorization context (facts, recent transactions)',
               'crystal-analytics': 'Analytics + budgets context (spending data, budgets)',
-            }[finalEmployeeSlug] || 'Standard context (facts, history)',
+            }[employeeSlugToSend] || 'Standard context (facts, history)',
           });
         }
 
@@ -1037,9 +1139,12 @@ export function usePrimeChat(
         const requestBody = {
           userId: safeUserId, // Use safe userId (always a string)
           sessionId: effectiveSessionId || sessionId, // Use effectiveSessionId (from localStorage or prop)
-          threadId: effectiveThreadId, // Include thread_id if available
+          threadId: threadIdForRequest, // Include thread_id if available
           message: content,
-          employeeSlug: finalEmployeeSlug, // CRITICAL: Always send employeeSlug so backend routes correctly
+          employeeSlug: employeeSlugToSend, // CRITICAL: Always send employeeSlug so backend routes correctly
+          client_message_id: clientMessageId,
+          request_id: requestId,
+          stream: true,
           ...(safeSystemPrompt ? { systemPromptOverride: safeSystemPrompt } : {}), // Use safe systemPrompt
           ...(opts?.documentIds && opts.documentIds.length > 0 ? { documentIds: opts.documentIds } : {}), // Include document IDs if provided
           ...(primeContext ? { prime_context: primeContext } : {}), // Include PrimeState snapshot for Prime only
@@ -1047,7 +1152,7 @@ export function usePrimeChat(
         
         // Dev logging: Log employee routing once per request
         if (import.meta.env.DEV && !isRetry) {
-          log(`[ChatUI] Sending to employeeSlug=${finalEmployeeSlug} thread_id=${effectiveThreadId || 'none'} employeeOverride=${outgoingEmployeeOverride || 'none'} activeEmployeeSlug=${activeEmployeeSlug || 'none'}`);
+          log(`[ChatUI] Sending to employeeSlug=${employeeSlugToSend} thread_id=${threadIdForRequest || 'none'} employeeOverride=${outgoingEmployeeOverride || 'none'} activeEmployeeSlug=${activeEmployeeSlug || 'none'}`);
         }
 
         // DEBUG MODE: Log request/response details (DEV only)
@@ -1055,17 +1160,17 @@ export function usePrimeChat(
         
         // Log complete request payload for context verification
         if (DEBUG_MODE && !isRetry) {
-          console.group(`🤖 [AI Request] ${finalEmployeeSlug}`);
+          console.group(`🤖 [AI Request] ${employeeSlugToSend}`);
           log('📤 Request sent:', {
             endpoint,
             method: 'POST',
-            employeeSlug: finalEmployeeSlug,
+            employeeSlug: employeeSlugToSend,
             messageLength: content.length,
-            hasThreadId: !!effectiveThreadId,
+            hasThreadId: !!threadIdForRequest,
             hasSessionId: !!effectiveSessionId,
           });
           log('📤 Request Payload:', {
-            employeeSlug: finalEmployeeSlug,
+            employeeSlug: employeeSlugToSend,
             requestBodyKeys: Object.keys(requestBody),
             hasPrimeContext: !!requestBody.prime_context,
             hasSystemPrompt: !!requestBody.systemPromptOverride,
@@ -1078,7 +1183,7 @@ export function usePrimeChat(
               'byte-docs': 'Document context + Facts + History',
               'tag-ai': 'Categorization context + Facts + History + Recent transactions',
               'crystal-analytics': 'Analytics (90d spending) + Budgets + Facts + History',
-            }[finalEmployeeSlug] || 'Facts + History (standard)',
+            }[employeeSlugToSend] || 'Facts + History (standard)',
           });
           
           // Log detailed context data
@@ -1187,6 +1292,47 @@ export function usePrimeChat(
           headersDebug(res.headers);
         }
 
+        // Get the messageId for this requestId (should already exist from PART A)
+        const messageId = streamingMsgByRequestRef.current.get(requestId);
+        if (!messageId) {
+          console.error(`[usePrimeChat] ⚠️ No messageId found for requestId ${requestId} - placeholder should have been created before fetch`);
+          setIsStreaming(false);
+          inFlightRef.current = false;
+          return;
+        }
+
+        const contentType = res.headers.get('content-type')?.toLowerCase() || '';
+        if (!contentType.includes('text/event-stream')) {
+          const payload = await res.json().catch(() => null);
+          if (payload?.type === 'noop' || payload?.deduped === true) {
+            setIsStreaming(false);
+            streamingIdRef.current = null;
+            inFlightRef.current = false;
+            finalizedRequestIdsRef.current.add(requestId);
+            return;
+          }
+          if (payload?.guardrails) {
+            setGuardrailsStatus(payload.guardrails);
+          }
+          const contentText = typeof payload?.content === 'string' ? payload.content : '';
+          if (contentText) {
+            textByRequestRef.current.set(requestId, contentText);
+            committedAssistantIdsRef.current.add(messageId);
+            setMessages(prev => prev.map(msg => (
+              msg.id === messageId
+                ? { ...msg, content: contentText, meta: { ...msg.meta, is_streaming: false } }
+                : msg
+            )));
+          }
+          setIsStreaming(false);
+          streamingIdRef.current = null;
+          inFlightRef.current = false;
+          finalizedRequestIdsRef.current.add(requestId);
+          streamingMsgByRequestRef.current.delete(requestId);
+          textByRequestRef.current.delete(requestId);
+          return;
+        }
+
         if (!res.body) {
           setIsStreaming(false);
           streamingIdRef.current = null; // Clear streaming ID guard
@@ -1196,15 +1342,6 @@ export function usePrimeChat(
 
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        
-        // Get the messageId for this requestId (should already exist from PART A)
-        const messageId = streamingMsgByRequestRef.current.get(requestId);
-        if (!messageId) {
-          console.error(`[usePrimeChat] ⚠️ No messageId found for requestId ${requestId} - placeholder should have been created before fetch`);
-          setIsStreaming(false);
-          inFlightRef.current = false;
-          return;
-        }
         
         // CRITICAL: Check if this requestId has already been finalized (prevents late chunks)
         if (finalizedRequestIdsRef.current.has(requestId)) {
@@ -1220,9 +1357,11 @@ export function usePrimeChat(
         const fallbackRequestBody = {
           userId: safeUserId,
           sessionId: effectiveSessionId || sessionId,
-          threadId: effectiveThreadId,
+          threadId: threadIdForRequest,
           message: content,
-          employeeSlug: finalEmployeeSlug,
+          employeeSlug: employeeSlugToSend,
+          client_message_id: clientMessageId,
+          request_id: requestId,
           stream: false,
           ...(safeSystemPrompt ? { systemPromptOverride: safeSystemPrompt } : {}),
           ...(opts?.documentIds && opts.documentIds.length > 0 ? { documentIds: opts.documentIds } : {}),
@@ -1377,7 +1516,7 @@ export function usePrimeChat(
           if (DEBUG_MODE && !isRetry) {
             const finalText = textByRequestRef.current.get(requestId) ?? '';
             if (finalText) {
-              console.group(`✅ [AI Response] ${finalEmployeeSlug}`);
+              console.group(`✅ [AI Response] ${employeeSlugToSend}`);
               log('📥 Response Headers:', {
                 employee: extractedHeaders.employee,
                 memoryHit: extractedHeaders.memoryHit,
@@ -1393,10 +1532,10 @@ export function usePrimeChat(
               // Check if response references context data
               const hasNumbers = /\d+/.test(finalText);
               const hasContextualData = 
-                (finalEmployeeSlug === 'prime-boss' && (finalText.includes('uncategorized') || finalText.includes('spent') || finalText.includes('category'))) ||
-                (finalEmployeeSlug === 'byte-docs' && (finalText.includes('document') || finalText.includes('upload'))) ||
-                (finalEmployeeSlug === 'tag-ai' && (finalText.includes('uncategorized') || finalText.includes('categor') || /\d+.*transaction/i.test(finalText))) ||
-                (finalEmployeeSlug === 'crystal-analytics' && (finalText.includes('spent') || finalText.includes('category') || finalText.includes('budget')));
+                (employeeSlugToSend === 'prime-boss' && (finalText.includes('uncategorized') || finalText.includes('spent') || finalText.includes('category'))) ||
+                (employeeSlugToSend === 'byte-docs' && (finalText.includes('document') || finalText.includes('upload'))) ||
+                (employeeSlugToSend === 'tag-ai' && (finalText.includes('uncategorized') || finalText.includes('categor') || /\d+.*transaction/i.test(finalText))) ||
+                (employeeSlugToSend === 'crystal-analytics' && (finalText.includes('spent') || finalText.includes('category') || finalText.includes('budget')));
               
               log('🧠 Intelligence Check:', {
                 hasNumbers: hasNumbers,
@@ -1527,7 +1666,7 @@ export function usePrimeChat(
                       content: String(assistantContent),
                       createdAt: new Date().toISOString(),
                       meta: {
-                        employee_key: finalEmployeeSlug,
+                        employee_key: employeeSlugToSend,
                         is_streaming: false, // Already complete from fallback
                         request_id: requestId,
                       },
@@ -1539,30 +1678,15 @@ export function usePrimeChat(
                 });
                 
                 // Store thread_id if received
-                if (responseThreadId && safeUserId && employeeOverride) {
+                if (responseThreadId && safeUserId) {
                   try {
-                    const employeeSlugMap: Record<EmployeeOverride, string> = {
-                      prime: 'prime-boss',
-                      tag: 'tag-ai',
-                      byte: 'byte-docs',
-                      crystal: 'crystal-ai',
-                      goalie: 'goalie-agent',
-                      automa: 'automa-automation',
-                      blitz: 'blitz-debt',
-                      liberty: 'liberty-freedom',
-                      chime: 'chime-bills',
-                      roundtable: 'roundtable-podcast',
-                      serenity: 'serenity-therapist',
-                      harmony: 'harmony-wellness',
-                      wave: 'wave-spotify',
-                      ledger: 'ledger-tax',
-                      intelia: 'intelia-bi',
-                      dash: 'dash-analytics',
-                      custodian: 'custodian-settings'
-                    };
-                    const employeeSlug = employeeOverride ? employeeSlugMap[employeeOverride] || 'prime-boss' : 'prime-boss';
-                    const threadStorageKey = `chat_thread_${safeUserId}_${employeeSlug}`;
+                    const threadStorageKey = `chat_thread_${safeUserId}_${employeeSlugToSend}`;
                     localStorage.setItem(threadStorageKey, String(responseThreadId));
+                    setThreadByEmployee(prev => ({
+                      ...prev,
+                      [employeeSlugToSend]: String(responseThreadId),
+                    }));
+                    setEffectiveThreadId(String(responseThreadId));
                   } catch (e) {
                     warn('[usePrimeChat] Failed to store thread_id from fallback:', e);
                   }
@@ -1695,7 +1819,19 @@ export function usePrimeChat(
       inFlightRef.current = false;
       streamingIdRef.current = null; // Clear streaming ID guard
     }
-  }, [endpoint, input, uploads, safeUserId, sessionId, safeSystemPrompt, employeeOverride, effectiveThreadId, parseSSEEvent]);
+  }, [
+    endpoint,
+    input,
+    uploads,
+    safeUserId,
+    sessionId,
+    safeSystemPrompt,
+    employeeOverride,
+    effectiveThreadId,
+    activeEmployeeSlug,
+    threadByEmployee,
+    parseSSEEvent
+  ]);
 
   const stop = useCallback(() => {
     resetStream();

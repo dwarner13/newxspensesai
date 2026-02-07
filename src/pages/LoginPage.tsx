@@ -141,7 +141,7 @@ export default function LoginPage() {
         if (error) throw error;
         
         if (data.user) {
-          toast.success('Signed in successfully!');
+          // toast.success('Signed in successfully!');
           // Redirect will happen via the useEffect above
         }
       }

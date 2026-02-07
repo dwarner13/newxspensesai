@@ -18,6 +18,7 @@ import { EMPLOYEE_CHAT_CONFIG } from '../../config/employeeChatConfig';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
+import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
 import { useChatSessions } from '../../hooks/useChatSessions';
 import { PrimeSlideoutShell } from '../prime/PrimeSlideoutShell';
 import { GuardrailNotice } from './GuardrailNotice';
@@ -48,9 +49,6 @@ export function PrimeChatPanel({
 }: PrimeChatPanelProps) {
   const [inputMessage, setInputMessage] = useState('');
   const [isRailHidden, setIsRailHidden] = useState(false);
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const userJustSentRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const navigate = useNavigate();
   const { setPrimeToolsOpen } = usePrimeOverlaySafe();
@@ -82,51 +80,6 @@ export function PrimeChatPanel({
   // Guardrails status now comes from useGuardrailsHealth hook (real-time health check)
   // Removed hardcoded guardrailsActive - use health endpoint instead
 
-  // Scroll-to-bottom helper
-  const scrollToBottom = (smooth = true) => {
-    const container = scrollContainerRef.current;
-    const end = messagesEndRef.current;
-
-    if (!container || !end) return;
-
-    const behavior: ScrollBehavior = smooth ? 'smooth' : 'auto';
-
-    requestAnimationFrame(() => {
-      end.scrollIntoView({ behavior, block: 'end' });
-    });
-  };
-
-  // Auto-scroll effect when messages change
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const threshold = 80;
-    const distanceFromBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight;
-
-    const shouldStickToBottom =
-      userJustSentRef.current || distanceFromBottom < threshold;
-
-    if (shouldStickToBottom) {
-      scrollToBottom(true);
-    }
-
-    if (userJustSentRef.current) {
-      userJustSentRef.current = false;
-    }
-  }, [messages.length, isStreaming]);
-
-  // Scroll to bottom when panel opens
-  useEffect(() => {
-    if (isOpen) {
-      const timeoutId = setTimeout(() => {
-        scrollToBottom(false);
-      }, 200);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [isOpen]);
-
   // Handle Escape key to close
   useEffect(() => {
     if (!isOpen) return;
@@ -149,8 +102,6 @@ export function PrimeChatPanel({
     if (!trimmedMessage || isStreaming) return;
 
     setInputMessage('');
-    userJustSentRef.current = true;
-    scrollToBottom(false);
 
     try {
       await sendMessage(trimmedMessage);
@@ -233,7 +184,7 @@ export function PrimeChatPanel({
                 type="button"
                 onClick={() => {
                   openChat({
-                    initialEmployeeSlug: 'byte-docs',
+                    initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
                     context: {
                       source: 'rail-byte',
                     },
@@ -387,10 +338,7 @@ export function PrimeChatPanel({
           >
             {/* Messages area */}
             <div className="flex h-full flex-col">
-              <div
-                ref={scrollContainerRef}
-                className="flex-1 overflow-y-auto px-4 pt-3 pb-32 space-y-3 hide-scrollbar"
-              >
+              <div className="flex-1 overflow-y-auto px-4 pt-3 pb-32 space-y-3 hide-scrollbar">
                 {/* Messages list */}
                 <div className="space-y-3">
                   {displayMessages.map((message) => {
@@ -470,7 +418,6 @@ export function PrimeChatPanel({
                     </div>
                   )}
 
-                  <div ref={messagesEndRef} />
                 </div>
               </div>
             </div>

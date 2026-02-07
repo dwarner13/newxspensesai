@@ -30,9 +30,13 @@ export interface UseUploadQueueReturn {
   // Status
   isUploading: boolean;
   hasErrors: boolean;
+  isReady: boolean;
   
   // Results
   results: Map<string, UploadResult>;
+
+  // Events
+  on: (handler: (event: UploadQueueEvent) => void) => () => void;
 }
 
 export function useUploadQueue(options: UseUploadQueueOptions): UseUploadQueueReturn {
@@ -78,8 +82,9 @@ export function useUploadQueue(options: UseUploadQueueOptions): UseUploadQueueRe
     queueRef.current = queue;
 
     // Subscribe to queue events (only if queue is initialized)
+    let unsubscribe: (() => void) | null = null;
     if (queue && typeof queue.on === 'function') {
-      const unsubscribe = queue.on((event: UploadQueueEvent) => {
+      unsubscribe = queue.on((event: UploadQueueEvent) => {
         const state = queue.getState();
         setItems(state.items);
         setProgress(state.progress);
@@ -92,21 +97,12 @@ export function useUploadQueue(options: UseUploadQueueOptions): UseUploadQueueRe
           });
         }
       });
-
-      return () => {
-        unsubscribe();
-        queue.clear();
-      };
     }
 
     return () => {
-      if (queueRef.current) {
-        queueRef.current.clear();
+      if (unsubscribe) {
+        unsubscribe();
       }
-    };
-
-    return () => {
-      unsubscribe();
       queue.clear();
     };
   }, [userId, source, concurrency]);
@@ -134,8 +130,16 @@ export function useUploadQueue(options: UseUploadQueueOptions): UseUploadQueueRe
     setResults(new Map());
   }, []);
 
+  const on = useCallback((handler: (event: UploadQueueEvent) => void) => {
+    if (!queueRef.current || typeof queueRef.current.on !== 'function') {
+      return () => {};
+    }
+    return queueRef.current.on(handler);
+  }, []);
+
   const isUploading = progress.uploading > 0 || progress.pending > 0;
   const hasErrors = progress.failed > 0;
+  const isReady = !!queueRef.current;
 
   return {
     items,
@@ -147,7 +151,9 @@ export function useUploadQueue(options: UseUploadQueueOptions): UseUploadQueueRe
     clear,
     isUploading,
     hasErrors,
+    isReady,
     results,
+    on,
   };
 }
 

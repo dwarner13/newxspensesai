@@ -9,7 +9,7 @@
  * - Desktop-only (hidden on mobile)
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -17,6 +17,7 @@ import { Crown, Upload, Tags, LineChart, LayoutDashboard, History, Grid3X3, Acti
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { usePrimeOverlaySafe } from '../../context/PrimeOverlayContext';
 import { cn } from '../../lib/utils';
+import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
 import { MiniWorkspacePanel, type MiniWorkspaceId, type MiniWorkspaceConfig } from './MiniWorkspacePanel';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 import { useJobsSystemStore } from '../../state/jobsSystemStore';
@@ -124,10 +125,6 @@ export default function DesktopChatSideBar({
     return () => observer.disconnect();
   }, []);
 
-  const handleOpenMiniWorkspace = (id: MiniWorkspaceId) => {
-    setActiveMiniWorkspace(id);
-  };
-
   const handleCloseMiniWorkspace = () => {
     setActiveMiniWorkspace(null);
   };
@@ -164,8 +161,9 @@ export default function DesktopChatSideBar({
       onClick: () => {
         openChat({
           initialEmployeeSlug: 'prime-boss',
+          force: true,
           context: {
-            source: 'rail-prime',
+            data: { source: 'rail-prime' },
           },
         });
       },
@@ -173,14 +171,18 @@ export default function DesktopChatSideBar({
     {
       id: 'byte' as MiniWorkspaceId,
       label: 'Smart Import',
-      slug: 'byte-docs',
+      slug: EMPLOYEE_SLUGS.BYTE,
       Icon: Upload,
       accent: 'from-sky-400 via-cyan-400 to-emerald-400',
       onClick: () => {
+        navigate('/dashboard/smart-import-ai');
+        setActiveMiniWorkspace(null);
+        setActiveId('byte');
         openChat({
-          initialEmployeeSlug: 'byte-docs',
+          initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
+          force: true,
           context: {
-            source: 'rail-byte',
+            data: { source: 'rail-byte' },
           },
         });
       },
@@ -192,10 +194,12 @@ export default function DesktopChatSideBar({
       Icon: Tags,
       accent: 'from-yellow-300 via-amber-400 to-orange-500',
       onClick: () => {
+        navigate('/dashboard/smart-categories');
         openChat({
           initialEmployeeSlug: 'tag-ai',
+          force: true,
           context: {
-            source: 'rail-tag',
+            data: { source: 'rail-tag' },
           },
         });
       },
@@ -209,8 +213,9 @@ export default function DesktopChatSideBar({
       onClick: () => {
         openChat({
           initialEmployeeSlug: 'crystal-analytics',
+          force: true,
           context: {
-            source: 'rail-analytics',
+            data: { source: 'rail-analytics' },
           },
         });
       },
@@ -342,17 +347,18 @@ export default function DesktopChatSideBar({
         data-floating-rail="true"
         data-ai-rail="true"
         className={cn(
-          'pointer-events-auto fixed top-1/2 -translate-y-1/2 z-[60] hidden sm:flex flex-col',
+          'pointer-events-auto fixed -translate-y-1/2 z-[999] hidden sm:flex flex-col',
           // Portal renders to document.body/#portal-root, immune to overflow-hidden and stacking contexts
           // right position uses CSS variable for rail gap
           // z-[60] ensures rail is above main content but below Prime Chat panel (z-[80])
           // data-floating-rail provides stable selector for debugging/verification
           // Changed from md:flex to sm:flex so rail shows when DevTools is docked (>=640px)
-          // Visual dimming when chat is open, mini workspace is active, or right panel is open
-          // When Prime Chat is open: fade out and disable clicks (smooth transition)
-          (isChatOpen || activeMiniWorkspace) && 'opacity-0 pointer-events-none translate-x-2 transition-all duration-250',
-          // When right panel is open: tuck behind drawer (lower z-index, non-interactive, de-emphasized)
-          isAnyPanelOpen && !isChatOpen && !activeMiniWorkspace && 'z-[20] opacity-30 pointer-events-none translate-x-3',
+          // Hide rail when chat is open to prevent overlap
+          isChatOpen && 'opacity-0 pointer-events-none translate-x-4',
+          // Visual dimming when mini workspace is active
+          activeMiniWorkspace && !isChatOpen && 'opacity-50 pointer-events-auto translate-x-0 transition-all duration-250',
+          // When right panel is open: de-emphasize but keep clickable
+          isAnyPanelOpen && !isChatOpen && !activeMiniWorkspace && 'opacity-30 pointer-events-auto translate-x-0',
           // Default state: fully visible and interactive
           !isChatOpen && !activeMiniWorkspace && !isAnyPanelOpen && 'opacity-100 pointer-events-auto translate-x-0 transition-all duration-250',
           className
@@ -360,8 +366,9 @@ export default function DesktopChatSideBar({
         style={{
           position: 'fixed',
           right: 'var(--rail-gap, 24px)',
+          top: 'calc(50% + 48px)',
           pointerEvents: 'auto',
-          contain: 'layout paint', // CRITICAL: Prevents floating rail from contributing to body scroll height
+          // Allow tooltip/glow to render outside the rail bounds.
           // Transition handled by CSS classes above
         }}
       >
@@ -370,7 +377,7 @@ export default function DesktopChatSideBar({
           animate={{ opacity: 1, x: 0 }}
           transition={{ type: 'spring', stiffness: 260, damping: 22 }}
           className="
-            flex flex-col items-center gap-2
+            flex flex-col items-center gap-2 overflow-visible
             rounded-3xl border border-slate-800/80 bg-slate-950/90
             px-2.5 py-3
             shadow-xl shadow-black/40
@@ -411,6 +418,7 @@ export default function DesktopChatSideBar({
                   "transition-all duration-200",
                   "hover:-translate-y-[2px] hover:border-slate-500",
                   "hover:bg-slate-900 hover:shadow-lg hover:shadow-amber-500/20",
+                  "hover:ring-2 hover:ring-amber-300/60",
                   isActive && "border-transparent bg-slate-900 ring-2 ring-amber-400/50",
                   // Amber highlight when needs user
                   isAiPulse && hasNeedsUser && "ring-2 ring-amber-500/60 ring-offset-1 ring-offset-slate-900"
@@ -446,11 +454,11 @@ export default function DesktopChatSideBar({
                   </div>
                 ) : (
                   <span className={cn(
-                    "relative flex h-8 w-8 items-center justify-center rounded-2xl bg-slate-950/80 text-slate-50 z-10",
+                    "relative flex h-8 w-8 items-center justify-center rounded-2xl bg-slate-950/80 text-slate-50 z-10 transition-colors",
                     // Color changes for AI Pulse based on state
                     isAiPulse && hasActiveWork && "text-sky-400",
                     isAiPulse && hasNeedsUser && "text-amber-400",
-                    !isAiPulse && "text-slate-50"
+                    !isAiPulse && "text-slate-50 group-hover:text-amber-200"
                   )}>
                     <Icon className="w-5 h-5" />
                   </span>
@@ -474,8 +482,8 @@ export default function DesktopChatSideBar({
                     text-[10px] font-medium text-slate-100 opacity-0
                     shadow-[0_12px_30px_rgba(15,23,42,0.9)]
                     ring-1 ring-slate-700/80
-                    transition-opacity duration-150
-                    group-hover:opacity-100
+                    transition-all duration-150
+                    group-hover:opacity-100 group-hover:text-amber-200 group-hover:ring-amber-400/60
                   "
                 >
                   {action.label}

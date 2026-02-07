@@ -1,7 +1,7 @@
 import { Handler } from '@netlify/functions';
-import { admin, markDocStatus } from './_shared/upload';
+import { admin, markDocStatus } from './_shared/upload.js';
 // Phase 2.2: Use unified guardrails API (single source of truth)
-import { runGuardrailsForText } from './_shared/guardrails-unified';
+import { runGuardrailsForText } from './_shared/guardrails-unified.js';
 
 const BUCKET = 'docs';
 
@@ -99,21 +99,24 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
+    // Trigger OCR processing after successful upload
+    const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
+    fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        docId: docId,
+        userId: userId
+      })
+    }).catch(err => {
+      console.error('[smart-import-finalize] Failed to trigger OCR:', err);
+      // Don't fail the upload if OCR trigger fails - it can be retried
+    });
+
     // Route 1: Images/PDFs → OCR (guardrails run in OCR function)
     if (isImageOrPdf(doc.mime_type)) {
-      // Byte Speed Mode v2: Return immediately, process in background
-      const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
-      
-      // Fire and forget - don't wait for OCR to complete
-      // Pass expectedSize for completeness check in OCR handler
-      fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, docId, expectedSize }),
-      }).catch((error) => {
-        console.error('[smart-import-finalize] Background OCR call error:', error);
-      });
-      
       // Return immediately - Byte can chat while OCR processes
       return { statusCode: 200, body: JSON.stringify({ started: true, queued: true, via: 'ocr' }) };
     }

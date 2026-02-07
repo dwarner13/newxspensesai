@@ -21,6 +21,7 @@ interface DashboardThreeColumnLayoutProps {
   className?: string;
   left: React.ReactNode;
   center: React.ReactNode;
+  between?: React.ReactNode;
   right: React.ReactNode;
 }
 
@@ -62,12 +63,14 @@ export function DashboardThreeColumnLayout({
   className,
   left,
   center,
+  between,
   right,
 }: DashboardThreeColumnLayoutProps) {
   const location = useLocation();
   const isPrimeChatPage = location.pathname === '/dashboard/prime-chat';
   const hasLeftContent = hasRenderableContent(left);
   const hasRightContent = hasRenderableContent(right);
+  const hasBetweenContent = hasRenderableContent(between);
   
   // Track breakpoint for desktop detection
   const [isDesktop, setIsDesktop] = React.useState(() => 
@@ -145,6 +148,13 @@ export function DashboardThreeColumnLayout({
               {center}
             </div>
           </div>
+
+          {/* Between Section - Optional content between center and activity feed */}
+          {hasBetweenContent && (
+            <div className="min-w-0 shrink-0">
+              {between}
+            </div>
+          )}
 
           {/* Activity Feed - Pinned to bottom with max height */}
           {/* CRITICAL: No nested scrolling - Activity Feed is part of main scroll flow */}

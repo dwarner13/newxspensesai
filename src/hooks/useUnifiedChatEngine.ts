@@ -8,7 +8,7 @@
  * standardizes on usePrimeChat's mature implementation with better header/guardrails handling.
  */
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { usePrimeChat, type ChatMessage, type ChatHeaders, type UploadItem } from './usePrimeChat';
 
@@ -34,7 +34,7 @@ export interface UnifiedChatEngineReturn {
   messages: ChatMessage[];
   
   /** Send message function */
-  sendMessage: (content: string, options?: { documentIds?: string[] }) => Promise<void>;
+  sendMessage: (content: string, options?: { documentIds?: string[]; employeeSlug?: string }) => Promise<void>;
   
   /** Whether streaming is in progress */
   isStreaming: boolean;
@@ -96,11 +96,59 @@ export interface UnifiedChatEngineReturn {
   cancelToolExecution: () => void;
 }
 
+type EmployeeOverride =
+  | 'prime'
+  | 'byte'
+  | 'tag'
+  | 'crystal'
+  | 'goalie'
+  | 'automa'
+  | 'blitz'
+  | 'liberty'
+  | 'chime'
+  | 'roundtable'
+  | 'serenity'
+  | 'harmony'
+  | 'wave'
+  | 'ledger'
+  | 'intelia'
+  | 'dash'
+  | 'custodian'
+  | undefined;
+
+const SLUG_TO_OVERRIDE_MAP: Record<string, Exclude<EmployeeOverride, undefined>> = {
+  'prime-boss': 'prime',
+  'byte-docs': 'byte',
+  'tag-ai': 'tag',
+  'crystal-analytics': 'crystal',
+  'crystal-ai': 'crystal',
+  'goalie-ai': 'goalie',
+  'automa-automation': 'automa',
+  'blitz-debt': 'blitz',
+  'liberty-freedom': 'liberty',
+  'chime-bills': 'chime',
+  'roundtable-podcast': 'roundtable',
+  'serenity-therapist': 'serenity',
+  'harmony-wellness': 'harmony',
+  'wave-spotify': 'wave',
+  'ledger-tax': 'ledger',
+  'tax-assistant': 'ledger',
+  'intelia-bi': 'intelia',
+  'dash-analytics': 'dash',
+  'custodian-settings': 'custodian',
+  'custodian': 'custodian',
+};
+
+function mapEmployeeSlugToOverrideSync(employeeSlug?: string): EmployeeOverride {
+  if (!employeeSlug) return undefined;
+  return SLUG_TO_OVERRIDE_MAP[employeeSlug] || undefined;
+}
+
 /**
  * Map employee slug to usePrimeChat's EmployeeOverride type using registry
  * Falls back to hardcoded map if registry unavailable (backward compatibility)
  */
-async function mapEmployeeSlugToOverride(employeeSlug?: string): Promise<'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian' | undefined> {
+async function mapEmployeeSlugToOverride(employeeSlug?: string): Promise<EmployeeOverride> {
   if (!employeeSlug) return undefined;
   
   try {
@@ -111,7 +159,7 @@ async function mapEmployeeSlugToOverride(employeeSlug?: string): Promise<'prime'
     if (employee) {
       // Map employee_key to EmployeeOverride type
       // This is a type-safe mapping - EmployeeOverride is a union type
-      const keyToOverride: Record<string, 'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian'> = {
+      const keyToOverride: Record<string, Exclude<EmployeeOverride, undefined>> = {
         'prime': 'prime',
         'byte': 'byte',
         'tag': 'tag',
@@ -138,30 +186,7 @@ async function mapEmployeeSlugToOverride(employeeSlug?: string): Promise<'prime'
   }
   
   // Fallback to hardcoded map (backward compatibility)
-  const slugMap: Record<string, 'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian'> = {
-    'prime-boss': 'prime',
-    'byte-docs': 'byte',
-    'tag-ai': 'tag',
-    'crystal-analytics': 'crystal',
-    'crystal-ai': 'crystal',
-    'goalie-ai': 'goalie',
-    'automa-automation': 'automa',
-    'blitz-debt': 'blitz',
-    'liberty-freedom': 'liberty',
-    'chime-bills': 'chime',
-    'roundtable-podcast': 'roundtable',
-    'serenity-therapist': 'serenity',
-    'harmony-wellness': 'harmony',
-    'wave-spotify': 'wave',
-    'ledger-tax': 'ledger',
-    'tax-assistant': 'ledger',
-    'intelia-bi': 'intelia',
-    'dash-analytics': 'dash',
-    'custodian-settings': 'custodian',
-    'custodian': 'custodian',
-  };
-  
-  return slugMap[employeeSlug] || undefined;
+  return mapEmployeeSlugToOverrideSync(employeeSlug);
 }
 
 /**
@@ -173,17 +198,21 @@ async function mapEmployeeSlugToOverride(employeeSlug?: string): Promise<'prime'
  */
 export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): UnifiedChatEngineReturn {
   const { userId } = useAuth();
+  const inFlightRef = useRef(false);
   
   // CRITICAL: Only initialize usePrimeChat when userId is truthy
   // Never call with 'temp-user' - return disabled stub instead
   const canRun = Boolean(userId);
   
   // Map employee slug to override format using registry
-  const [employeeOverride, setEmployeeOverride] = useState<'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian' | undefined>(undefined);
+  const [employeeOverride, setEmployeeOverride] = useState<EmployeeOverride>(
+    mapEmployeeSlugToOverrideSync(options.employeeSlug)
+  );
   
   useEffect(() => {
     let cancelled = false;
     
+    setEmployeeOverride(mapEmployeeSlugToOverrideSync(options.employeeSlug));
     mapEmployeeSlugToOverride(options.employeeSlug).then(override => {
       if (!cancelled) {
         setEmployeeOverride(override);
@@ -257,13 +286,25 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
   }, [primeChat.toolCalls]);
   
   // Wrap send to match useStreamChat's API (sendMessage takes just content string)
-  const sendMessage = useCallback(async (content: string, sendOptions?: { documentIds?: string[] }) => {
+  const sendMessage = useCallback(async (content: string, sendOptions?: { documentIds?: string[]; employeeSlug?: string }) => {
+    if (inFlightRef.current) {
+      if (import.meta.env.DEV) {
+        console.warn('[useUnifiedChatEngine] sendMessage blocked (inFlight)');
+      }
+      return;
+    }
+    inFlightRef.current = true;
     try {
-      await primeChat.send(content, { documentIds: sendOptions?.documentIds });
+      await primeChat.send(content, {
+        documentIds: sendOptions?.documentIds,
+        employeeSlug: sendOptions?.employeeSlug,
+      });
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       options.onError?.(error);
       throw error;
+    } finally {
+      inFlightRef.current = false;
     }
   }, [primeChat.send, options.onError]);
   

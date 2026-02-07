@@ -66,6 +66,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inFlightRef = useRef(false);
   const orchestrator = useRef(new AIEmployeeOrchestrator());
 
   // Auto-scroll to bottom
@@ -791,10 +792,11 @@ Would you like me to categorize this transaction or extract any specific informa
   };
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim()) {
+    if (!inputMessage.trim() || inFlightRef.current) {
       console.log('Message blocked: No message content');
       return;
     }
+    inFlightRef.current = true;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -851,6 +853,8 @@ Would you like me to categorize this transaction or extract any specific informa
       const messageId = (Date.now() + 1).toString();
       await typewriterResponse(fallbackResponse, messageId);
       setIsProcessing(false);
+    } finally {
+      inFlightRef.current = false;
     }
   };
 
@@ -1608,6 +1612,8 @@ When analyzing documents, you:
 
 Be conversational yet professional, insightful yet accessible. You're not just analyzing data - you're helping someone make better financial decisions. Use the user's actual data and document content to provide personalized, actionable insights.`;
 
+      const clientMessageId = `c_${crypto.randomUUID()}`;
+      console.log('[CHAT SEND]', { client_message_id: clientMessageId, endpoint: '/.netlify/functions/chat' });
       const response = await fetch('/.netlify/functions/chat', {
         method: 'POST',
         headers: {
@@ -1621,7 +1627,8 @@ Be conversational yet professional, insightful yet accessible. You're not just a
           ],
           model: 'gpt-4',
           temperature: 0.7,
-          max_tokens: 500
+          max_tokens: 500,
+          client_message_id: clientMessageId
         })
       });
 

@@ -15,17 +15,21 @@
  * - The unified slide-out chat is rendered globally by DashboardLayout
  */
 
-import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
+import { useEffect, useState, Component, ErrorInfo, ReactNode } from 'react';
 import { ByteWorkspacePanel } from '../../components/smart-import/ByteWorkspacePanel';
 import { ByteUnifiedCard } from '../../components/smart-import/ByteUnifiedCard';
 import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useSmartImport } from '../../hooks/useSmartImport';
+import { useAuth } from '../../contexts/AuthContext';
+import { useDocumentStats } from '../../hooks/useDocumentStats';
 // P0 FIX: Removed duplicate useByteQueueStats import - ByteWorkspacePanel already uses it
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 import { PageCinematicFade } from '../../components/ui/PageCinematicFade';
+import { SmartImportUploadStatusPanel } from '../../components/smart-import/SmartImportUploadStatusPanel';
 
 // Error Boundary component to catch hook errors and render fallback UI
 interface ErrorBoundaryState {
@@ -90,21 +94,14 @@ export function SmartImportChatPage() {
     console.log("[route-mount]", "/dashboard/smart-import-ai", "SmartImportChatPage");
   }, []);
   const { openChat } = useUnifiedChatLauncher();
+  const { userId } = useAuth();
+  const safeUserId = userId || undefined;
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useDocumentStats();
   
-  // UI-only helper state for Byte console status display
-  const [processingLabel, setProcessingLabel] = useState<string | undefined>();
-  const [lastImportSummary, setLastImportSummary] = useState<string | undefined>();
   const [retryKey, setRetryKey] = useState(0);
   
   // Single shared Smart Import hook instance for this page
-  const smartImport = useSmartImport();
-
-  // Initialize upload queue when page mounts
-  useEffect(() => {
-    if (smartImport && !smartImport.isInitialized) {
-      smartImport.initializeQueue?.();
-    }
-  }, [smartImport]);
+  const smartImport = useSmartImport(safeUserId, 'upload');
 
   // Destructure what we need from the shared hook instance
   const {
@@ -120,28 +117,10 @@ export function SmartImportChatPage() {
   // Having two instances creates 2+ pollers that all run simultaneously
   // This reduces noise from 6+ pollers down to 1
 
-  // Update lastImportSummary when lastUploadSummary changes
-  useEffect(() => {
-    if (lastUploadSummary?.transactionCount) {
-      setLastImportSummary(
-        `Last import: ${lastUploadSummary.transactionCount} transaction${lastUploadSummary.transactionCount !== 1 ? 's' : ''} from ${lastUploadSummary.fileCount} file${lastUploadSummary.fileCount !== 1 ? 's' : ''}`
-      );
-    } else if (lastUploadSummary?.fileCount) {
-      setLastImportSummary(
-        `Last import: ${lastUploadSummary.fileCount} file${lastUploadSummary.fileCount !== 1 ? 's' : ''}`
-      );
-    }
-  }, [lastUploadSummary]);
+  // Removed UI-only labels that are no longer rendered
 
-  // Update processingLabel based on uploading state
-  useEffect(() => {
-    if (isUploading) {
-      setProcessingLabel(`Byte is processing your document${uploadFileCount?.total && uploadFileCount.total > 1 ? 's' : ''}…`);
-    } else {
-      // Clear processing label when upload completes
-      setProcessingLabel(undefined);
-    }
-  }, [isUploading, uploadFileCount]);
+  // NOTE: Removed auto-open on upload completion.
+  // Chat should only open via explicit user actions.
 
   return (
     <PageCinematicFade>
@@ -151,17 +130,22 @@ export function SmartImportChatPage() {
           <ByteWorkspaceErrorBoundary
             key={retryKey}
             onRetry={() => {
-              setRetryKey(prev => prev + 1);
+              setRetryKey((prev: number) => prev + 1);
             }}
           >
-            <ByteWorkspacePanel />
+            <ByteWorkspacePanel
+              stats={stats}
+              statsLoading={statsLoading}
+              statsError={statsError}
+            />
           </ByteWorkspaceErrorBoundary>
         }
         center={
           <ByteUnifiedCard
             onExpandClick={() => {
               openChat({
-                initialEmployeeSlug: 'byte-docs',
+                initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
+                force: true,
                 context: {
                   page: 'smart-import',
                   data: {
@@ -172,7 +156,8 @@ export function SmartImportChatPage() {
             }}
             onChatInputClick={() => {
               openChat({
-                initialEmployeeSlug: 'byte-docs',
+                initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
+                force: true,
                 context: {
                   page: 'smart-import',
                   data: {
@@ -192,10 +177,23 @@ export function SmartImportChatPage() {
             isUploading={isUploading}
           />
         }
+        between={
+          <SmartImportUploadStatusPanel
+            stats={stats}
+            statsLoading={statsLoading}
+            statsError={statsError}
+            userId={safeUserId}
+            uploadQueue={smartImport.uploadQueue}
+          />
+        }
         right={
           <ActivityFeedSidebar 
             scope="smart-import"
             lastUploadSummary={lastUploadSummary}
+            limit={30}
+            maxHeight={240}
+            scrollable
+            hideScrollbar
           />
         }
       />

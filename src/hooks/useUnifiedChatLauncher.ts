@@ -6,8 +6,10 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { getEmployeeDisplay } from '../utils/employeeUtils';
 import { ONBOARDING_MODE } from '../config/onboardingConfig';
+import type { ChatHandoffPayload } from '../types/chatHandoff';
 
 // Helper to check onboarding state without React hooks (for use in callbacks)
 // CRITICAL: Defaults to TRUE (blocking) during initial load to prevent race conditions
@@ -59,8 +61,22 @@ export interface ChatLaunchOptions {
     data?: any;
   };
   initialQuestion?: string;
+  handoff?: ChatHandoffPayload;
   conversationId?: string;
   force?: boolean; // Force open even if explicitly closed (for user-initiated opens)
+}
+
+const CHAT_ALLOWED_PREFIXES = [
+  '/dashboard/prime-chat',
+  '/dashboard/team-room',
+  '/dashboard/employee-chat',
+  '/dashboard/chat',
+  '/dashboard/smart-import-ai',
+  '/dashboard/smart-categories',
+];
+
+function isChatAllowedPath(pathname: string) {
+  return CHAT_ALLOWED_PREFIXES.some(p => pathname.startsWith(p));
 }
 
 interface ChatState {
@@ -103,12 +119,47 @@ const listeners = new Set<(state: ChatState) => void>();
 // Track if chat was explicitly closed by user (prevents auto-reopen)
 let wasExplicitlyClosedRef: { current: boolean } = { current: false };
 
+let __userInitiatedThisSession = false;
+let __userOpenedChatThisSession = false;
+
+export function markChatUserInitiated() {
+  __userInitiatedThisSession = true;
+  __userOpenedChatThisSession = true;
+}
+
+export function resetChatUserInitiated() {
+  __userInitiatedThisSession = false;
+  __userOpenedChatThisSession = false;
+}
+
+export function hasChatUserInitiated() {
+  return __userInitiatedThisSession;
+}
+
+export function getUnifiedChatUserInitiatedFlag() {
+  return __userInitiatedThisSession;
+}
+
+export function markUserOpenedChatThisSession() {
+  markChatUserInitiated();
+}
+
+export function resetUserOpenedChatThisSession() {
+  resetChatUserInitiated();
+}
+
+export function hasUserOpenedChatThisSession() {
+  return __userOpenedChatThisSession;
+}
+
 function notifyListeners() {
   listeners.forEach(listener => listener(globalChatState));
 }
 
 export function useUnifiedChatLauncher() {
   const [state, setState] = useState<ChatState>(globalChatState);
+  const location = useLocation();
+  const navigate = useNavigate();
 
   // Subscribe to global state changes
   useEffect(() => {
@@ -121,7 +172,7 @@ export function useUnifiedChatLauncher() {
     };
   }, []);
 
-  const openChat = useCallback((options?: ChatLaunchOptions) => {
+  const openChatInternal = useCallback((options?: ChatLaunchOptions) => {
     // Guard: Don't auto-open if user explicitly closed chat recently
     // This prevents route-based auto-open from reopening after user closes
     if (wasExplicitlyClosedRef.current && !options?.force) {
@@ -131,11 +182,11 @@ export function useUnifiedChatLauncher() {
       return;
     }
     
-    // HARD BLOCK: Do not open chat during onboarding
+    // HARD BLOCK: Do not open chat during onboarding (unless user explicitly forces open)
     // This check MUST happen BEFORE any "Opening worker chat" log
     const onboardingActive = checkOnboardingActive();
     
-    if (onboardingActive) {
+    if (onboardingActive && !options?.force) {
       console.info('[CHAT_GATE] blocked useUnifiedChatLauncher during onboarding', {
         source: 'useUnifiedChatLauncher.openChat',
         employeeSlug: options?.initialEmployeeSlug || 'prime-boss',
@@ -179,6 +230,47 @@ export function useUnifiedChatLauncher() {
     // React's state system handles reactivity automatically
   }, []);
 
+  const setActiveEmployee = useCallback((employeeSlug: string) => {
+    // Update employee display info when employee changes
+    const display = getEmployeeDisplay(employeeSlug);
+    
+    globalChatState = {
+      ...globalChatState,
+      activeEmployeeSlug: employeeSlug,
+      activeEmployeeEmoji: display.emoji,
+      activeEmployeeShortName: display.shortName,
+    };
+    notifyListeners();
+  }, []);
+
+  // PART 2: Set active employee override (route-aware, UI-only)
+  const setActiveEmployeeSlugOverride = useCallback((slug: string | null) => {
+    globalChatState = {
+      ...globalChatState,
+      activeEmployeeSlugOverride: slug,
+    };
+    notifyListeners();
+  }, []);
+
+  const openChat = useCallback((options?: ChatLaunchOptions) => {
+    markChatUserInitiated();
+    const resolvedOptions: ChatLaunchOptions | undefined = options
+      ? (options.force === undefined ? { ...options, force: true } : options)
+      : { force: true };
+    const slug = resolvedOptions?.initialEmployeeSlug;
+
+    if (slug) {
+      // CRITICAL: force the session override so computed slug is correct
+      setActiveEmployeeSlugOverride(slug);
+      setActiveEmployee(slug);
+    }
+
+    if (!isChatAllowedPath(location.pathname)) {
+      navigate('/dashboard/prime-chat');
+    }
+    openChatInternal(resolvedOptions);
+  }, [location.pathname, navigate, openChatInternal, setActiveEmployee, setActiveEmployeeSlugOverride]);
+
   const closeChat = useCallback(() => {
     // Mark as explicitly closed to prevent auto-reopen
     wasExplicitlyClosedRef.current = true;
@@ -210,15 +302,26 @@ export function useUnifiedChatLauncher() {
     notifyListeners();
   }, []);
 
-  const setActiveEmployee = useCallback((employeeSlug: string) => {
-    // Update employee display info when employee changes
-    const display = getEmployeeDisplay(employeeSlug);
-    
+  const clearInitialQuestion = useCallback(() => {
+    if (!globalChatState.options?.initialQuestion) return;
     globalChatState = {
       ...globalChatState,
-      activeEmployeeSlug: employeeSlug,
-      activeEmployeeEmoji: display.emoji,
-      activeEmployeeShortName: display.shortName,
+      options: {
+        ...globalChatState.options,
+        initialQuestion: undefined,
+      },
+    };
+    notifyListeners();
+  }, []);
+
+  const clearHandoff = useCallback(() => {
+    if (!globalChatState.options?.handoff) return;
+    globalChatState = {
+      ...globalChatState,
+      options: {
+        ...globalChatState.options,
+        handoff: undefined,
+      },
     };
     notifyListeners();
   }, []);
@@ -269,17 +372,25 @@ export function useUnifiedChatLauncher() {
     notifyListeners();
   }, []);
 
-  // PART 2: Set active employee override (route-aware, UI-only)
-  const setActiveEmployeeSlugOverride = useCallback((slug: string | null) => {
-    globalChatState = {
-      ...globalChatState,
-      activeEmployeeSlugOverride: slug,
-    };
-    notifyListeners();
-  }, []);
-
   // Compute effective employee slug: override > activeEmployeeSlug > default
   const effectiveEmployeeSlug = state.activeEmployeeSlugOverride ?? state.activeEmployeeSlug ?? 'prime-boss';
+
+  useEffect(() => {
+    if (globalChatState.isOpen && !isChatAllowedPath(location.pathname)) {
+      if (import.meta.env.DEV) {
+        console.log('[useUnifiedChatLauncher] Auto-closing chat (route not allowed)', {
+          pathname: location.pathname,
+        });
+      }
+      globalChatState = {
+        ...globalChatState,
+        isOpen: false,
+        options: {},
+        activeEmployeeSlugOverride: null,
+      };
+      notifyListeners();
+    }
+  }, [location.pathname]);
 
   return {
     isOpen: state.isOpen,
@@ -297,6 +408,8 @@ export function useUnifiedChatLauncher() {
     openChat,
     closeChat,
     setChatContext,
+    clearInitialQuestion,
+    clearHandoff,
     setActiveEmployee,
     setIsWorking,
     setHasCompletedResponse,
@@ -309,6 +422,7 @@ export function useUnifiedChatLauncher() {
 
 // Export global functions for use outside React components
 export function openUnifiedChat(options?: ChatLaunchOptions) {
+  markChatUserInitiated();
   const newSlug = options?.initialEmployeeSlug || globalChatState.activeEmployeeSlug || 'prime-boss';
   const display = getEmployeeDisplay(newSlug);
   

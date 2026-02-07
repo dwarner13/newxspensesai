@@ -107,6 +107,7 @@ export default function DashboardPrimeChat({ isOpen, onClose, initialGreeting, i
   const [greetingData, setGreetingData] = useState<{ greeting: string; suggestions: any[] } | null>(null);
   const [showGreeting, setShowGreeting] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inFlightRef = useRef(false);
   const [convoId] = useState(() => {
     const stored = localStorage.getItem('prime_convo_id');
     if (stored) return stored;
@@ -147,7 +148,8 @@ export default function DashboardPrimeChat({ isOpen, onClose, initialGreeting, i
 
   // Send message with streaming
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isLoading || !userId) return;
+    if (!inputMessage.trim() || isLoading || inFlightRef.current || !userId) return;
+    inFlightRef.current = true;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -180,9 +182,10 @@ export default function DashboardPrimeChat({ isOpen, onClose, initialGreeting, i
         sessionId: convoId ?? undefined,
         employeeSlug: 'prime-boss', // Use canonical employee slug
         stream: true, // Enable streaming
+        client_message_id: `c_${crypto.randomUUID()}`,
       };
       
-      console.log('[PrimeChat] sending', payload);
+      console.log('[CHAT SEND]', payload);
       
       const response = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
@@ -232,6 +235,11 @@ export default function DashboardPrimeChat({ isOpen, onClose, initialGreeting, i
       // --- JSON FALLBACK PATH ---
       const data = await response.json();
       console.log('[PrimeChat] JSON data', data);
+
+      if (data?.deduped === true || data?.type === 'noop') {
+        setIsLoading(false);
+        return;
+      }
       
       const assistantText =
         (typeof data.reply === 'string' && data.reply) ||
@@ -264,6 +272,8 @@ export default function DashboardPrimeChat({ isOpen, onClose, initialGreeting, i
       );
       setInputMessage('');
       setIsLoading(false);
+    } finally {
+      inFlightRef.current = false;
     }
   };
 

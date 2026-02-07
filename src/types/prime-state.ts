@@ -143,6 +143,7 @@ export type FeatureKey =
   // Main
   | 'main_dashboard'
   | 'prime_chat'
+  | 'chat_history'
   // AI Workspace
   | 'smart_import_ai'
   | 'ai_chat_assistant'

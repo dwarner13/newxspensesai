@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Result, Ok, Err, wrapAsync } from '../types/result';
-import { getSupabaseUrl, getSupabaseServiceRole } from '../env';
+import { getSupabaseUrl, getSupabaseServiceRole } from './env';
 import crypto from 'crypto';
 
 let supabaseAdmin: SupabaseClient | null = null;
@@ -183,9 +183,9 @@ export async function deleteUserData(userId: string): Promise<Result<void>> {
       }
     } catch (storageError) {
       // Silently ignore storage errors - files may not exist or bucket may not exist
-      if (import.meta.env.DEV) {
-        console.warn('[deleteUserData] Storage deletion error (non-critical):', storageError);
-      }
+    if (process.env.NETLIFY_DEV === 'true') {
+      console.warn('[deleteUserData] Storage deletion error (non-critical):', storageError);
+    }
     }
     
     // Finally delete profile

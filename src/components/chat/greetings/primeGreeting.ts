@@ -114,30 +114,30 @@ function buildCEOGreeting(options: PrimeGreetingOptions): PrimeGreetingData {
   const timeGreeting = timeOfDay === 'morning' ? 'Good morning' : 
                        timeOfDay === 'afternoon' ? 'Good afternoon' : 
                        timeOfDay === 'evening' ? 'Good evening' : 
-                       'Welcome back';
+                       'Good evening';
 
   let titleLine = '';
   let subLine = '';
   
   // NEW USER (never initialized or no name)
   if (!onboardingCompleted || displayName === 'there') {
-    titleLine = `Hey! I'm Prime, your AI financial CEO.`;
-    subLine = `Ready to get your finances organized?`;
+    titleLine = `I'm Prime. Your AI financial CEO.`;
+    subLine = `Want a fast, automated setup?`;
   }
   // RETURNING USER - No transactions yet
   else if (!hasTransactions || transactionCount === 0) {
-    titleLine = `${timeGreeting}, ${displayName}!`;
-    subLine = `Upload a receipt or bank statement and I'll extract everything automatically.`;
+    titleLine = `${timeGreeting}, ${displayName}. Prime is online.`;
+    subLine = `Drop in a receipt and I'll build the first snapshot.`;
   }
   // RETURNING USER - Has uncategorized transactions
   else if (uncategorizedCount > 0) {
-    titleLine = `${timeGreeting}, ${displayName}!`;
-    subLine = `You've got ${uncategorizedCount} uncategorized transaction${uncategorizedCount === 1 ? '' : 's'}. Want me to handle ${uncategorizedCount === 1 ? 'it' : 'them'}?`;
+    titleLine = `${timeGreeting}, ${displayName}. Prime is locked in.`;
+    subLine = `${uncategorizedCount} transaction${uncategorizedCount === 1 ? '' : 's'} need labels. Want me to handle ${uncategorizedCount === 1 ? 'it' : 'them'}?`;
   }
   // RETURNING USER - Normal state
   else {
-    titleLine = `${timeGreeting}, ${displayName}!`;
-    subLine = `What do you want to work on today?`;
+    titleLine = `${timeGreeting}, ${displayName}. Prime is locked in.`;
+    subLine = `Quick snapshot or deep dive?`;
   }
 
   // Vibe tag

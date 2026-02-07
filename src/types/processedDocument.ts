@@ -32,6 +32,8 @@ export interface ProcessedDocumentContext {
   uploadedAt: string;                   // ISO string
   transactions: NormalizedTransaction[]; // categories already populated
   analysis: DocumentAnalysis;           // totals, by-category, top vendors, period
+  ocrText?: string;                     // redacted OCR text (if available)
+  piiTypes?: string[];                  // PII types detected during guardrails
 }
 
 /**

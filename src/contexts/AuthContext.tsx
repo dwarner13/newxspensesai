@@ -2,9 +2,11 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode, useM
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { getSupabase } from '../lib/supabase';
-import { isDemoMode, getGuestSession, createGuestUser, clearGuestSession } from '../lib/demoAuth';
+import { isDemoMode, getGuestSession, createGuestUser } from '../lib/demoAuth';
 import { getOrCreateProfile, type Profile } from '../lib/profileHelpers';
-import { log, warn, error } from '../lib/logger';
+import { log, warn } from '../lib/logger';
+import { resetChatUserInitiated } from '../hooks/useUnifiedChatLauncher';
+import { getSessionFlag, setSessionFlag, clearWelcomeFlagsForUser } from '../lib/welcomeSession';
 
 interface AuthContextType {
   user: any;
@@ -62,7 +64,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Removed didRouteToOnboardingRef - RouteDecisionGate owns routing decisions
   
   // Track last auth event for greeting toast
-  const lastAuthEventRef = useRef<'SIGNED_IN' | 'SIGNED_UP' | null>(null);
+  const lastAuthEventRef = useRef<'SIGNED_IN' | 'SIGNED_UP' | 'SHOWN' | null>(null);
+  const handledSignInTokenRef = useRef<string | null>(null);
+  const handledSignInUserIdRef = useRef<string | null>(null);
   const didShowToastRef = useRef<{ signedIn?: string; signedUp?: string }>({});
   
   // Compute firstName from profile or user metadata
@@ -111,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const showGreetingToast = useCallback(
     (authEvent: 'SIGNED_IN' | 'SIGNED_UP', profile: Profile | null, userName: string) => {
       if (!userId) return;
+      const ENABLE_AUTH_GREETING_TOASTS = false;
 
       // Check sessionStorage to prevent duplicate toasts (once per session per user)
       const storageKey = `auth_greeted_${userId}`;
@@ -135,20 +140,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const timeGreeting = getTimeGreeting(timezone);
 
       if (authEvent === 'SIGNED_IN') {
-        toast.success(`${timeGreeting} — Prime is ready.`, {
-          duration: 4000,
-          position: 'top-right',
-        });
+        if (getSessionFlag('xai_prime_ready_shown', userId)) {
+          return;
+        }
+        if (ENABLE_AUTH_GREETING_TOASTS) {
+          toast.success(`${timeGreeting} — Prime is ready.`, {
+            duration: 4000,
+            position: 'top-right',
+          });
+        }
+        setSessionFlag('xai_prime_ready_shown', userId);
       } else {
-        toast.success(`Welcome, ${userName}`, {
-          duration: 4000,
-          position: 'top-right',
-          icon: '👋',
-        });
-        toast('Your AI team is ready when you are.', {
-          duration: 3000,
-          position: 'top-right',
-        });
+        if (ENABLE_AUTH_GREETING_TOASTS) {
+          toast.success(`Welcome, ${userName}`, {
+            duration: 4000,
+            position: 'top-right',
+            icon: '👋',
+          });
+          toast('Your AI team is ready when you are.', {
+            duration: 3000,
+            position: 'top-right',
+          });
+        }
       }
 
       // Mark as shown (persists for session)
@@ -159,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   // Non-blocking profile loader - fire-and-forget, never gates auth init
-  const loadProfile = useCallback(async (uid: string, userEmail?: string, checkCustodianReady = false) => {
+  const loadProfile = useCallback(async (uid: string, userEmail?: string) => {
     setIsProfileLoading(true);
     try {
       const profile = await getOrCreateProfile(uid, userEmail || '');
@@ -168,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Show greeting toast after profile loads (only for SIGNED_IN or SIGNED_UP events)
       // CRITICAL: Only triggers if lastAuthEventRef is 'SIGNED_IN' or 'SIGNED_UP'
       // Other events (INITIAL_SESSION, TOKEN_REFRESHED, USER_UPDATED, SIGNED_OUT) are ignored
-      if (lastAuthEventRef.current === 'SIGNED_IN' || lastAuthEventRef.current === 'SIGNED_UP') {
+      if (lastAuthEventRef.current === 'SIGNED_IN') {
         if (profile) {
           const userName = profile.display_name || profile.first_name || profile.full_name || userEmail?.split('@')[0] || 'there';
           
@@ -178,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           
           showGreetingToast(lastAuthEventRef.current, profile, userName);
-          lastAuthEventRef.current = null; // Clear after showing (prevents duplicate)
+          lastAuthEventRef.current = 'SHOWN';
         }
       }
       
@@ -446,7 +459,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const eventType = _event as string;
       log('[AuthContext] Auth state change:', _event);
+
+      const uid = session?.user?.id ?? null;
+      const token = (session as any)?.access_token ?? null;
+
+      // DEDUPE: Sometimes Supabase fires SIGNED_IN twice (SIGNED_IN -> INITIAL_SESSION -> SIGNED_IN)
+      // We only want to handle SIGNED_IN once per token (or per user if token missing).
+      if (eventType === 'SIGNED_IN') {
+        if (token && handledSignInTokenRef.current === token) {
+          if (import.meta.env.DEV) log('[AuthContext] Skipping duplicate SIGNED_IN (same token)');
+          return;
+        }
+        if (!token && uid && handledSignInUserIdRef.current === uid) {
+          if (import.meta.env.DEV) log('[AuthContext] Skipping duplicate SIGNED_IN (same user)');
+          return;
+        }
+        handledSignInTokenRef.current = token ?? null;
+        handledSignInUserIdRef.current = uid ?? null;
+      }
+
+      if (eventType === 'INITIAL_SESSION') return;
+
+      if (eventType === 'SIGNED_IN' || eventType === 'SIGNED_UP') {
+        lastAuthEventRef.current = eventType as 'SIGNED_IN' | 'SIGNED_UP';
+      } else {
+        // Do NOT set lastAuthEventRef for INITIAL_SESSION, TOKEN_REFRESHED, USER_UPDATED, etc.
+        lastAuthEventRef.current = null;
+      }
 
       safe(() => {
         setSession(session);
@@ -461,10 +502,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Handle demo mode logic for SIGNED_OUT
-      if (_event === 'SIGNED_OUT') {
+      if (eventType === 'SIGNED_OUT') {
         log('🔍 AuthContext: User signed out');
+        resetChatUserInitiated();
+        clearWelcomeFlagsForUser(userId);
         // Clear lastAuthEventRef on sign out
         lastAuthEventRef.current = null;
+        handledSignInTokenRef.current = null;
+        handledSignInUserIdRef.current = null;
         // Clear greeting toast dedupe key for all users (cleanup)
         if (typeof window !== 'undefined') {
           // Clear all auth_greeted keys (in case userId changed)
@@ -499,7 +544,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setProfile(null);
           });
         }
-      } else if (_event === 'SIGNED_IN') {
+      } else if (eventType === 'SIGNED_IN') {
         log('🔍 AuthContext: User signed in');
         safe(() => {
           setIsDemoUser(false);
@@ -509,7 +554,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // CRITICAL: This is the ONLY place SIGNED_IN sets lastAuthEventRef
         // Do NOT clear on INITIAL_SESSION, TOKEN_REFRESHED, USER_UPDATED, etc.
         // Those events may fire after SIGNED_IN but before profile loads
-        lastAuthEventRef.current = 'SIGNED_IN';
         
         // Set flag to prevent auto-opening chat after login
         if (typeof window !== 'undefined') {
@@ -519,9 +563,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Load profile immediately on sign-in and check Custodian ready status
         if (session?.user?.id) {
-          void loadProfile(session.user.id, session.user.email || undefined, true); // Pass checkCustodianReady=true
+          void loadProfile(session.user.id, session.user.email || undefined);
         }
-      } else if (_event === 'SIGNED_UP') {
+      } else if (eventType === 'SIGNED_UP') {
         log('🔍 AuthContext: User signed up');
         safe(() => {
           setIsDemoUser(false);
@@ -530,7 +574,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Track auth event for greeting toast (will show after profile loads)
         // CRITICAL: This is the ONLY place SIGNED_UP sets lastAuthEventRef
         // Do NOT clear on INITIAL_SESSION, TOKEN_REFRESHED, USER_UPDATED, etc.
-        lastAuthEventRef.current = 'SIGNED_UP';
         
         // Set flag to prevent auto-opening chat after signup
         if (typeof window !== 'undefined') {
@@ -539,7 +582,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // Load profile immediately on sign-up
         if (session?.user?.id) {
-          void loadProfile(session.user.id, session.user.email || undefined, false);
+          void loadProfile(session.user.id, session.user.email || undefined);
         }
       }
       // All other events (_event === 'INITIAL_SESSION' | 'TOKEN_REFRESHED' | 'USER_UPDATED' | etc.)
@@ -636,6 +679,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Capture userId before clearing state
       const currentUserId = userId;
+      clearWelcomeFlagsForUser(currentUserId);
 
       // Clear Supabase session if exists
       const supabase = getSupabase();
@@ -686,6 +730,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(null);
       setIsDemoUser(false);
       setProfile(null);
+      handledSignInTokenRef.current = null;
+      handledSignInUserIdRef.current = null;
+      resetChatUserInitiated();
       log('✅ Signed out successfully');
       
       // Clear session storage

@@ -66,6 +66,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   
   const lastUserMessageRef = useRef<string>('');
   const abortControllerRef = useRef<AbortController | null>(null);
+  const inFlightRef = useRef(false);
 
   // Load session from localStorage
   useEffect(() => {
@@ -89,7 +90,8 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
   const sendMessage = useCallback(
     async (text: string) => {
       if (!text.trim()) return;
-      if (isLoading) return;
+      if (isLoading || inFlightRef.current) return;
+      inFlightRef.current = true;
 
       // Cancel any existing request
       if (abortControllerRef.current) {
@@ -103,6 +105,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
       lastUserMessageRef.current = text;
 
       // Add user message immediately
+      const clientMessageId = `c_${crypto.randomUUID()}`;
       const userMessage: ChatMessage = {
         id: `user-${Date.now()}`,
         role: 'user',
@@ -127,6 +130,13 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
 
       try {
         // Call API
+        if (import.meta.env.DEV) {
+          console.log('[CHAT SEND]', {
+            client_message_id: clientMessageId,
+            employeeSlug: currentEmployeeSlug,
+            endpoint: apiEndpoint,
+          });
+        }
         const response = await fetch(apiEndpoint, {
           method: 'POST',
           headers: {
@@ -138,6 +148,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
             message: text,
             session_id: sessionId,
             stream: true,
+            client_message_id: clientMessageId,
           }),
           signal: controller.signal,
         });
@@ -153,6 +164,10 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
         } else {
           // Handle JSON response (non-streaming)
           const data = await response.json();
+          if (data?.deduped === true || data?.type === 'noop') {
+            setIsLoading(false);
+            return;
+          }
           updateAIMessage(aiMessageId, data.content, data.employee);
           if (data.session_id) {
             setSessionId(data.session_id);
@@ -185,6 +200,7 @@ export function useChat(options: UseChatOptions = {}): UseChatReturn {
         }
       } finally {
         abortControllerRef.current = null;
+        inFlightRef.current = false;
       }
     },
     [isLoading, sessionId, currentEmployeeSlug, apiEndpoint, onError]

@@ -12,7 +12,7 @@
  */
 
 import { Handler } from '@netlify/functions';
-import { admin } from './_shared/upload';
+import { admin } from './_shared/upload.js';
 
 const BUCKET = 'docs';
 

@@ -1,6 +1,7 @@
 // Batch Processing Optimizer with Complexity Grouping and Streaming Results
-import { enhancedOCRSystem, PreprocessedImage } from './EnhancedOCRSystem';
 import { enhancedLearningSystem } from './EnhancedLearningSystem';
+import { requestOcrProcessing, pollOcrCompletion } from '@/lib/ocr/requestOcrProcessing';
+import { parseReceiptText } from '@/utils/ocrService';
 
 export interface BatchFile {
   id: string;
@@ -419,24 +420,40 @@ export class BatchProcessingOptimizer {
         throw new Error('Cost limit exceeded');
       }
       
-      // Process with enhanced OCR system
-      const result = await enhancedOCRSystem.processReceipt(file.file, userId);
+      const ocrRequest = await requestOcrProcessing({ file: file.file, userId });
+      if (!ocrRequest.ok || !ocrRequest.documentId) {
+        throw new Error(ocrRequest.error || 'OCR request failed');
+      }
+
+      const ocrStatus = await pollOcrCompletion(ocrRequest.documentId, userId);
+      if (!ocrStatus.ok || !ocrStatus.ocrText) {
+        throw new Error(ocrStatus.error || 'OCR processing did not return text');
+      }
+
+      const parsedData = parseReceiptText(ocrStatus.ocrText);
       
       const processingTime = Date.now() - startTime;
       
       // Check quality threshold
-      if (result.success && result.data && result.data.confidence < config.qualityThreshold) {
-        console.log(`🔄 Batch Processing: Low quality result for ${file.id}, confidence: ${result.data.confidence}`);
+      if (parsedData.confidence < config.qualityThreshold) {
+        console.log(`🔄 Batch Processing: Low quality result for ${file.id}, confidence: ${parsedData.confidence}`);
       }
-      
+
       return {
         id: file.id,
-        success: result.success,
-        data: result.data,
-        error: result.error,
+        success: true,
+        data: {
+          merchant: parsedData.vendor,
+          amount: parsedData.total,
+          date: parsedData.date,
+          category: parsedData.category,
+          confidence: parsedData.confidence,
+          items: parsedData.items,
+          rawText: ocrStatus.ocrText
+        },
         processingTime,
-        cost: result.cost,
-        confidence: result.data?.confidence || 0
+        cost: 0,
+        confidence: parsedData.confidence || 0
       };
       
     } catch (error) {

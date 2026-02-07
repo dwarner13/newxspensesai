@@ -14,6 +14,7 @@ import type { FeatureKey } from '../types/prime-state';
 export const ROUTE_TO_FEATURE_KEY: Record<string, FeatureKey> = {
   '/dashboard': 'main_dashboard',
   '/dashboard/prime-chat': 'prime_chat',
+  '/dashboard/chat-history': 'chat_history',
   '/dashboard/smart-import-ai': 'smart_import_ai',
   '/dashboard/ai-chat-assistant': 'ai_chat_assistant',
   '/dashboard/smart-categories': 'smart_categories',

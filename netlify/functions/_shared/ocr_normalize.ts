@@ -9,7 +9,7 @@
  * - linkToDocument: Link transaction to document (non-blocking)
  */
 
-import { ParsedDoc, InvoiceData, ReceiptData } from './ocr_parsers';
+import { ParsedDoc, InvoiceData, ReceiptData, parseInvoiceLike, parseReceiptLike, normalizeParsed } from './ocr_parsers';
 import { maskPII } from './pii';
 import { categorizeTransaction as sharedCategorize, categorizeTransactionWithLearning } from './categorize';
 
@@ -20,6 +20,8 @@ export type NormalizedTransaction = {
   merchant?: string;
   amount?: number;
   currency?: string;
+  description?: string;
+  invoiceNo?: string;
   items?: Array<{
     name: string;
     qty?: number;
@@ -42,10 +44,74 @@ export interface CategorizationResult {
  * Detects statement format and returns normalized transactions.
  * If primary parser returns 0 transactions, uses AI fallback parser.
  */
-export async function normalizeOcrResult(text: string, userId: string = 'default-user'): Promise<NormalizedTransaction[]>;
-export function normalizeOcrResult(text: string, userId: string = 'default-user', openaiClient?: any): Promise<NormalizedTransaction[]> | NormalizedTransaction[];
-export function normalizeOcrResult(text: string, userId: string = 'default-user', openaiClient?: any): Promise<NormalizedTransaction[]> | NormalizedTransaction[] {
+export async function normalizeOcrResult(
+  text: string,
+  userId: string = 'default-user',
+  openaiClient?: any,
+  context?: { filename?: string }
+): Promise<NormalizedTransaction[]>;
+export function normalizeOcrResult(
+  text: string,
+  userId: string = 'default-user',
+  openaiClient?: any,
+  context?: { filename?: string }
+): Promise<NormalizedTransaction[]> | NormalizedTransaction[];
+export function normalizeOcrResult(
+  text: string,
+  userId: string = 'default-user',
+  openaiClient?: any,
+  context?: { filename?: string }
+): Promise<NormalizedTransaction[]> | NormalizedTransaction[] {
   const normalizedText = text || "";
+  const filename = context?.filename || '';
+  const hasStatementHints = /statement|opening balance|closing balance|account|period ending|statement period|transaction details|balance/i.test(normalizedText);
+  const isCreditCard = /credit card|cardmember|visa|mastercard|amex|capital one|account ending|minimum payment/i.test(normalizedText);
+
+  const invoiceFilenameHint = /invoice/i.test(filename);
+  const invoiceKeywordHint = /invoice/i.test(normalizedText) && /(subtotal|tax|total)/i.test(normalizedText);
+  const invoiceAddressHint = /(bill to|ship to)/i.test(normalizedText);
+  const shouldTreatAsInvoice = invoiceFilenameHint || invoiceKeywordHint || invoiceAddressHint;
+
+  if (shouldTreatAsInvoice) {
+    console.log(`[Byte OCR] Detected docType=invoice`);
+    const invoiceData = extractInvoiceData(normalizedText, filename);
+    if (invoiceData.total && invoiceData.total > 0) {
+      console.log('[Byte OCR] Invoice parsed', {
+        vendor: invoiceData.vendor,
+        date: invoiceData.date,
+        total: invoiceData.total,
+        invoiceNo: invoiceData.invoiceNo,
+      });
+      const invoiceTx: NormalizedTransaction = {
+        userId,
+        kind: 'invoice',
+        date: invoiceData.date,
+        merchant: invoiceData.vendor,
+        amount: invoiceData.total,
+        currency: invoiceData.currency,
+        description: invoiceData.description,
+        invoiceNo: invoiceData.invoiceNo,
+        docId: undefined,
+      };
+      return openaiClient ? Promise.resolve([invoiceTx]) : [invoiceTx];
+    }
+    console.warn('[Byte OCR] Invoice parse failed: missing total', {
+      vendor: invoiceData.vendor,
+      date: invoiceData.date,
+      invoiceNo: invoiceData.invoiceNo,
+    });
+  }
+
+  // Try invoice/receipt parsing first when this doesn't look like a statement
+  if (!hasStatementHints) {
+    const receiptParsed = parseReceiptLike(normalizedText);
+    const receiptDoc = normalizeParsed(receiptParsed);
+    const receiptTx = toTransactions(userId, receiptDoc);
+    if (receiptTx.length > 0) {
+      console.log(`[Byte OCR] Parsed ${receiptTx.length} transaction(s) from receipt text`);
+      return openaiClient ? Promise.resolve(receiptTx) : receiptTx;
+    }
+  }
 
   // BMO Everyday Banking detection:
   // Check for specific BMO statement markers
@@ -95,30 +161,31 @@ export function normalizeOcrResult(text: string, userId: string = 'default-user'
 
   // Fallback to general bank statement normalization
   const bankTransactions = normalizeBankStatement(normalizedText);
-  
+  const mappedBankTransactions = bankTransactions.map(tx => ({
+    userId,
+    kind: 'bank' as const,
+    date: tx.date,
+    merchant: tx.merchant,
+    amount: tx.amount,
+    currency: 'CAD',
+    docId: undefined
+  }));
+
   // If primary parser found transactions, return them synchronously
-  if (bankTransactions.length > 0) {
+  if (bankTransactions.length > 0 && !(openaiClient && isCreditCard && bankTransactions.length <= 1)) {
     console.log(`[Byte OCR] Parsed ${bankTransactions.length} transactions with primary parser`);
-    // Convert to NormalizedTransaction format
-    const result = bankTransactions.map(tx => ({
-      userId,
-      kind: 'bank' as const,
-      date: tx.date,
-      merchant: tx.merchant,
-      amount: tx.amount,
-      currency: 'CAD',
-      docId: undefined
-    }));
-    // Return synchronously (wrap in Promise.resolve if openaiClient was provided to maintain consistent return type)
-    return openaiClient ? Promise.resolve(result) : result;
+    return openaiClient ? Promise.resolve(mappedBankTransactions) : mappedBankTransactions;
   }
 
-  // Primary parser found 0 transactions - use AI fallback if OpenAI client is available
+  // Primary parser found 0 transactions (or too few for credit card) - use AI fallback if OpenAI client is available
   if (openaiClient) {
-    console.log(`[Byte OCR] Primary parser found 0 transactions, using AI fallback parser`);
+    if (bankTransactions.length > 0 && isCreditCard) {
+      console.log(`[Byte OCR] Primary parser found ${bankTransactions.length} transaction(s) on credit card statement, using AI fallback parser`);
+    } else {
+      console.log(`[Byte OCR] Primary parser found 0 transactions, using AI fallback parser`);
+    }
     
     // Detect statement type for better AI parsing
-    const isCreditCard = /credit card|visa|mastercard|amex/i.test(normalizedText);
     const statementType: 'credit_card' | 'bank' | 'unknown' = isCreditCard ? 'credit_card' : 'bank';
     
     // Call AI fallback (async)
@@ -133,7 +200,7 @@ export function normalizeOcrResult(text: string, userId: string = 'default-user'
       if (aiTransactions.length > 0) {
         console.log(`[Byte OCR] AI fallback parser produced ${aiTransactions.length} transactions`);
         // Convert to NormalizedTransaction format and tag with source
-        return aiTransactions.map(tx => ({
+        const aiMapped = aiTransactions.map(tx => ({
           userId,
           kind: 'bank' as const,
           date: tx.date,
@@ -143,16 +210,153 @@ export function normalizeOcrResult(text: string, userId: string = 'default-user'
           docId: undefined,
           // Tag as AI fallback (can be used for metadata)
         }));
+        if (aiMapped.length > mappedBankTransactions.length) {
+          return aiMapped;
+        }
+        return mappedBankTransactions;
       } else {
         console.log(`[Byte OCR] AI fallback parser also found 0 transactions`);
-        return [];
+        return mappedBankTransactions;
       }
     })();
   }
 
   // No OpenAI client available, return empty array
   console.log(`[Byte OCR] Primary parser found 0 transactions, but OpenAI client not available for fallback`);
-  return [];
+  return mappedBankTransactions;
+}
+
+type InvoiceExtraction = {
+  vendor: string;
+  invoiceNo?: string;
+  date?: string;
+  total?: number;
+  currency: string;
+  description: string;
+};
+
+function extractInvoiceData(text: string, filename: string): InvoiceExtraction {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const topLines = lines.slice(0, 12);
+
+  const vendor = (() => {
+    for (const line of topLines) {
+      const lower = line.toLowerCase();
+      if (lower.includes('invoice') || lower.includes('bill to') || lower.includes('ship to')) {
+        continue;
+      }
+      if (looksLikeAddress(line)) {
+        continue;
+      }
+      if (line.length < 3) continue;
+      return line;
+    }
+    return 'Unknown Vendor';
+  })();
+
+  const invoiceNoMatch = text.match(/invoice\s*(?:#|no|number)?\s*[:#]?\s*([A-Z0-9-]+)/i) ||
+    text.match(/inv\s*#\s*([A-Z0-9-]+)/i);
+  const invoiceNo = invoiceNoMatch ? invoiceNoMatch[1].trim() : undefined;
+
+  const date = extractInvoiceDate(text);
+  const { total, currency } = extractInvoiceTotalAndCurrency(text);
+  const snippet = lines.slice(0, 3).join(' ').slice(0, 80);
+  const baseName = filename || 'Invoice';
+  const descInvoiceNo = invoiceNo ? `Invoice ${invoiceNo}` : 'Invoice';
+  const description = `${descInvoiceNo} - ${baseName}`;
+
+  return {
+    vendor,
+    invoiceNo,
+    date,
+    total,
+    currency,
+    description,
+  };
+}
+
+function looksLikeAddress(line: string): boolean {
+  const lower = line.toLowerCase();
+  const addressKeywords = /(street|st\.|road|rd\.|avenue|ave\.|blvd|boulevard|suite|ste\.|unit|zip|postal|po box)/i;
+  if (addressKeywords.test(lower) && /\d/.test(lower)) return true;
+  if (/^\d{3,}\s+\w+/.test(lower)) return true;
+  if (/\b\d{5}(?:-\d{4})?\b/.test(lower)) return true;
+  return false;
+}
+
+function extractInvoiceDate(text: string): string | undefined {
+  const labeledDate = text.match(/(?:date|invoice\s+date|dated)[:\s]+([^\n]+)/i);
+  if (labeledDate) {
+    const normalized = normalizeDate(labeledDate[1].trim());
+    if (normalized) return normalized;
+  }
+  const datePatterns = [
+    /\b(\d{4}-\d{2}-\d{2})\b/,
+    /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/,
+    /\b([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})\b/,
+  ];
+  for (const pattern of datePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const normalized = normalizeDate(match[1].trim());
+      if (normalized) return normalized;
+    }
+  }
+  return undefined;
+}
+
+function extractInvoiceTotalAndCurrency(text: string): { total?: number; currency: string } {
+  const lines = text.split(/\r?\n/);
+  let totalLineAmount: number | undefined;
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    if (lower.includes('total') && !lower.includes('subtotal')) {
+      const amount = extractLastAmount(line);
+      if (amount !== undefined) {
+        totalLineAmount = amount;
+        break;
+      }
+    }
+  }
+  if (totalLineAmount === undefined) {
+    totalLineAmount = extractLargestAmount(text);
+  }
+
+  return {
+    total: totalLineAmount,
+    currency: detectCurrency(text),
+  };
+}
+
+function extractLastAmount(line: string): number | undefined {
+  const matches = Array.from(line.matchAll(/[$€£]?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?/g));
+  if (matches.length === 0) return undefined;
+  const last = matches[matches.length - 1][0];
+  const cleaned = last.replace(/[$€£\s,]/g, '');
+  const parsed = parseFloat(cleaned);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function extractLargestAmount(text: string): number | undefined {
+  const matches = Array.from(text.matchAll(/[$€£]?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})/g));
+  let max = 0;
+  for (const match of matches) {
+    const cleaned = match[0].replace(/[$€£\s,]/g, '');
+    const parsed = parseFloat(cleaned);
+    if (Number.isFinite(parsed) && parsed > max) {
+      max = parsed;
+    }
+  }
+  return max > 0 ? max : undefined;
+}
+
+function detectCurrency(text: string): string {
+  if (/CAD/i.test(text)) return 'CAD';
+  if (/USD/i.test(text)) return 'USD';
+  if (/EUR|€/.test(text)) return 'EUR';
+  if (/GBP|£/.test(text)) return 'GBP';
+  if (/\$/.test(text)) return 'CAD';
+  return 'CAD';
 }
 
 /**
@@ -620,6 +824,91 @@ function parseCanadianStatementLine(line: string): {
   };
 }
 
+function parseStatementTableLine(line: string): {
+  date?: string;
+  merchant?: string;
+  description?: string;
+  amount: number;
+  category?: string;
+} | null {
+  // Strict table format: Date + Description + Amount + Balance
+  const regex = /^(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})\s+(.+?)\s+([\$\+\-]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s+([\$\+\-]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)$/;
+  const match = line.match(regex);
+  if (!match) return null;
+
+  const [, date, description, amountStr] = match;
+  const amount = parseAmount(amountStr);
+  if (amount === null || amount === 0) return null;
+
+  const cleanedDesc = cleanDescription(description);
+  const merchant = extractMerchant(cleanedDesc);
+
+  return {
+    date,
+    merchant,
+    description: cleanedDesc,
+    amount: Math.abs(amount),
+    category: categorizeTransactionSync(cleanedDesc),
+  };
+}
+
+function normalizeShortDate(dateStr: string): string | undefined {
+  const match = dateStr.match(/(\d{1,2})[\/\-](\d{1,2})/);
+  if (!match) return undefined;
+  const month = parseInt(match[1], 10);
+  const day = parseInt(match[2], 10);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return undefined;
+  const year = new Date().getFullYear();
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function parseCreditCardStatementLine(line: string): {
+  date?: string;
+  merchant?: string;
+  description?: string;
+  amount: number;
+  category?: string;
+} | null {
+  const withPostDate = /^(\d{1,2}[\/\-]\d{1,2})\s+(\d{1,2}[\/\-]\d{1,2})\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))\s*(CR|CREDIT)?$/i;
+  const singleDate = /^(\d{1,2}[\/\-]\d{1,2})\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))\s*(CR|CREDIT)?$/i;
+
+  let dateStr: string | undefined;
+  let description: string;
+  let amountStr: string;
+  let creditFlag: string | undefined;
+
+  const matchWithPost = line.match(withPostDate);
+  if (matchWithPost) {
+    dateStr = matchWithPost[1];
+    description = matchWithPost[3];
+    amountStr = matchWithPost[4];
+    creditFlag = matchWithPost[5];
+  } else {
+    const matchSingle = line.match(singleDate);
+    if (!matchSingle) return null;
+    dateStr = matchSingle[1];
+    description = matchSingle[2];
+    amountStr = matchSingle[3];
+    creditFlag = matchSingle[4];
+  }
+
+  const amount = parseAmount(amountStr);
+  if (amount === null || amount === 0) return null;
+
+  const cleanedDesc = cleanDescription(description);
+  const merchant = extractMerchant(cleanedDesc);
+  const normalizedDate = normalizeShortDate(dateStr || '') || normalizeDate(dateStr || '');
+  const signedAmount = creditFlag ? -Math.abs(amount) : Math.abs(amount);
+
+  return {
+    date: normalizedDate || dateStr,
+    merchant,
+    description: cleanedDesc,
+    amount: signedAmount,
+    category: categorizeTransactionSync(cleanedDesc),
+  };
+}
+
 /**
  * Normalize bank statement text into transaction array
  * 
@@ -646,6 +935,7 @@ export function normalizeBankStatement(rawText: string): Array<{
   }> = [];
   
   const lines = rawText.split('\n').map(line => line.trim()).filter(line => line.length > 5);
+  const isCreditCardStatement = /credit card|cardmember|payment due|minimum payment|new balance|account ending|statement period/i.test(rawText);
   
   // First, try BMO Everyday Banking format (multi-line transactions)
   // Check if this looks like a BMO statement
@@ -668,6 +958,34 @@ export function normalizeBankStatement(rawText: string): Array<{
   // Second, try Canadian bank statement format (single-line)
   for (const line of lines) {
     if (isSummaryLine(line)) continue;
+
+    if (isCreditCardStatement) {
+      const ccTx = parseCreditCardStatementLine(line);
+      if (ccTx) {
+        transactions.push({
+          date: ccTx.date,
+          merchant: ccTx.merchant,
+          description: ccTx.description,
+          amount: Math.abs(ccTx.amount),
+          category: categorizeTransactionSync(ccTx.description || ''),
+          raw_line_text: line,
+        });
+        continue;
+      }
+    }
+
+    const strictTableTx = parseStatementTableLine(line);
+    if (strictTableTx) {
+      transactions.push({
+        date: strictTableTx.date,
+        merchant: strictTableTx.merchant,
+        description: strictTableTx.description,
+        amount: Math.abs(strictTableTx.amount),
+        category: categorizeTransactionSync(strictTableTx.description || ''),
+        raw_line_text: line,
+      });
+      continue;
+    }
     
     const canadianTx = parseCanadianStatementLine(line);
     if (canadianTx) {
@@ -800,10 +1118,15 @@ function isSummaryLine(line: string): boolean {
  */
 function parseAmount(amountStr: string): number | null {
   try {
-    // Remove currency symbols and commas
-    const cleaned = amountStr.replace(/[\$,\s]/g, '');
+    const isParenNegative = /\(.*\)/.test(amountStr);
+    const cleaned = amountStr
+      .replace(/[()]/g, '')
+      .replace(/(cr|credit)$/i, '')
+      .replace(/[\$,\s]/g, '')
+      .trim();
     const parsed = parseFloat(cleaned);
-    return isNaN(parsed) ? null : parsed;
+    if (isNaN(parsed)) return null;
+    return isParenNegative ? -parsed : parsed;
   } catch {
     return null;
   }

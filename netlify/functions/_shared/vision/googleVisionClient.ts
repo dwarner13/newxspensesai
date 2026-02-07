@@ -17,6 +17,7 @@ export interface GoogleVisionParams {
   imageUrl: string; // signed/public URL to the image
   apiKey: string;
   feature?: 'TEXT_DETECTION' | 'DOCUMENT_TEXT_DETECTION';
+  timeoutMs?: number;
 }
 
 /**
@@ -28,7 +29,7 @@ export interface GoogleVisionParams {
 export async function callGoogleVisionOnImage(
   params: GoogleVisionParams
 ): Promise<VisionTextResult> {
-  const { imageUrl, apiKey, feature = 'DOCUMENT_TEXT_DETECTION' } = params;
+  const { imageUrl, apiKey, feature = 'DOCUMENT_TEXT_DETECTION', timeoutMs = 30000 } = params;
 
   try {
     const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`;
@@ -52,18 +53,23 @@ export async function callGoogleVisionOnImage(
 
     console.log(`[Vision] Calling Google Vision API for image (feature: ${feature})`);
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[Vision] Google Vision API error (${response.status}):`, errorText.substring(0, 500));
-      throw new Error(`Google Vision API error: ${response.status} - ${errorText.substring(0, 200)}`);
+      const err: Error & { status?: number } = new Error(`Google Vision API error: ${response.status} - ${errorText.substring(0, 200)}`);
+      err.status = response.status;
+      throw err;
     }
 
     const result = await response.json();

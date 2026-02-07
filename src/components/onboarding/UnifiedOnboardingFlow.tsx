@@ -11,7 +11,7 @@ import { useProfileContext } from '../../contexts/ProfileContext';
 import { useOnboardingUI } from '../../contexts/OnboardingUIContext';
 import { isProfileComplete, getGuestProfileCompleted } from '../../lib/userIdentity';
 import { PrimeCustodianOnboardingModal } from './PrimeCustodianOnboardingModal';
-import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { useUnifiedChatLauncher, hasChatUserInitiated } from '../../hooks/useUnifiedChatLauncher';
 import { isDemoMode } from '../../lib/demoAuth';
 import { ONBOARDING_MODE } from '../../config/onboardingConfig';
 
@@ -85,9 +85,12 @@ export function UnifiedOnboardingFlow() {
     }
   }, [showModal, setIsOnboardingOpen, profile, userId]);
   
-  // Close any open chat when onboarding opens
+  // Close any open chat when onboarding opens (unless user explicitly opened it)
   useEffect(() => {
     if (showModal) {
+      if (hasChatUserInitiated()) {
+        return;
+      }
       closeChat();
     }
   }, [showModal, closeChat]);

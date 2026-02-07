@@ -8,7 +8,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
-import { useLocation } from "react-router-dom";
 import { GuardrailNotice } from "../chat/GuardrailNotice";
 import { CHAT_SHEET_HEIGHT, CHAT_SHEET_WIDTH } from "../../lib/chatSlideoutConstants";
 import { useSlideoutResizeGuard } from "../../lib/slideoutResizeGuard";
@@ -78,9 +77,6 @@ export function PrimeSlideoutShell({
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Route awareness: On /dashboard/prime-chat, remove scroll trap to allow page scrolling
-  const location = useLocation();
-  const isPrimeChatPage = location.pathname === "/dashboard/prime-chat";
 
   // Lock shell height to stable viewport-based height (never changes during typing)
   const [lockedHeight, setLockedHeight] = useState<string | null>(null);
@@ -247,8 +243,11 @@ export function PrimeSlideoutShell({
           prefersReducedMotion
             ? { duration: 0 }
             : {
-                transform: { duration: 0.26, ease: [0.2, 0.9, 0.2, 1] },
-                opacity: { duration: 0.18, ease: "easeOut" },
+                type: "spring",
+                stiffness: 220,
+                damping: 28,
+                mass: 0.9,
+                opacity: { duration: 0.3, ease: "easeOut" },
               }
         }
         style={{
@@ -261,7 +260,7 @@ export function PrimeSlideoutShell({
           maxWidth: lockedWidth || "576px",
           transition: prefersReducedMotion
             ? "none"
-            : "transform 0.26s cubic-bezier(0.2, 0.9, 0.2, 1), opacity 0.18s ease-out",
+            : "transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease-out",
         }}
         className={`
           flex flex-col
@@ -285,9 +284,7 @@ export function PrimeSlideoutShell({
           {/* Main content area wrapper */}
           {/* CRITICAL: Must have flex flex-col min-h-0 so scroll container can shrink */}
           <div
-            className={`flex flex-1 flex-col min-h-0 ${
-              isPrimeChatPage ? "h-auto overflow-visible" : "h-full overflow-hidden"
-            }`}
+            className="flex flex-1 flex-col min-h-0 h-full overflow-hidden"
             style={{ minHeight: 0 }} // Explicit min-h-0 to ensure flex chain works
           >
             {/* HEADER */}
@@ -359,9 +356,7 @@ export function PrimeSlideoutShell({
             {/* The message list container inside children will have the scroll handlers and be the scroll owner */}
             <div
               className="flex-1 min-h-0 flex flex-col"
-              style={{ 
-                minHeight: "420px", // Prevent collapse to tiny height while chat is open
-              }}
+              style={{ minHeight: 0, height: "100%" }}
             >
               {children}
             </div>
@@ -370,11 +365,7 @@ export function PrimeSlideoutShell({
             {footer && (
               <div
                 className="sticky bottom-0 z-20 border-t border-white/10 bg-slate-950/95 px-4 pt-3 pb-4 backdrop-blur-sm flex-shrink-0 min-h-0"
-                style={
-                  isPrimeChatPage
-                    ? { overflowY: "visible" } // ✅ NO nested scroll on /dashboard/prime-chat
-                    : { maxHeight: "200px", overflowY: "auto" } // ✅ keep overlay behavior elsewhere
-                }
+                style={{ maxHeight: "200px", overflowY: "auto" }}
               >
                 {footer}
               </div>

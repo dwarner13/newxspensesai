@@ -9,7 +9,7 @@
  */
 
 import type { Handler } from '@netlify/functions';
-import { admin } from './_shared/supabase';
+import { admin } from './_shared/supabase.js';
 
 const SAMPLE_EVENTS = [
   {

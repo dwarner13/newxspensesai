@@ -1,6 +1,33 @@
 export interface ChatAttachment { name: string; type: string; data: string }
 export type ChatMessage = { role: 'user'|'assistant'|'system'; content: string; [k: string]: any };
 
+export async function postChat(payload: any, opts?: { signal?: AbortSignal }): Promise<any> {
+  const clientMessageId = payload?.client_message_id || (typeof crypto !== 'undefined' && crypto.randomUUID ? `c_${crypto.randomUUID()}` : `c_${Date.now()}`);
+  if (payload && !payload.client_message_id) {
+    payload = { ...payload, client_message_id: clientMessageId };
+  }
+  if (import.meta.env.DEV) {
+    console.warn('[postChat] -> /.netlify/functions/chat', { hasPayload: !!payload });
+    console.log('[CHAT SEND]', { client_message_id: clientMessageId, endpoint: '/.netlify/functions/chat' });
+  }
+  const res = await fetch('/.netlify/functions/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: opts?.signal,
+  });
+  const contentType = res.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+  const body = isJson ? await res.json().catch(() => null) : await res.text().catch(() => '');
+
+  if (!res.ok) {
+    const message = typeof body === 'string' && body ? body : `Chat failed: ${res.status}`;
+    throw new Error(message);
+  }
+
+  return body;
+}
+
 export function toMessage(role: ChatMessage['role'], content: string): ChatMessage {
   return { role, content };
 }
@@ -29,54 +56,35 @@ export async function chat({ agent = 'prime', messages, userId, attachments }: {
   const employeeSlug = employeeSlugMap[agent] || 'prime-boss';
 
   // Use canonical endpoint
-  const res = await fetch('/.netlify/functions/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: userId || localStorage.getItem('anonymous_user_id') || 'demo',
-      message: lastUserMessage.content,
-      employeeSlug,
-      stream: true,
-    })
+  const result = await postChat({
+    userId: userId || localStorage.getItem('anonymous_user_id') || 'demo',
+    message: lastUserMessage.content,
+    employeeSlug,
+    stream: true,
   });
 
-  if (!res.ok) throw new Error(`Chat failed: ${res.status}`);
-
-  const ct = res.headers.get('content-type') || '';
-  if (ct.includes('text/event-stream') || ct.includes('application/x-ndjson')) {
-    const reader = res.body?.getReader();
-    if (!reader) return await res.json();
-    const decoder = new TextDecoder();
+  if (typeof result === 'string') {
     let content = '';
-    let done = false;
-    while (!done) {
-      const chunk = await reader.read();
-      done = !!chunk.done;
-      if (chunk.value) {
-        const text = decoder.decode(chunk.value, { stream: true });
-        // Parse SSE format: data: {...}
-        const lines = text.split(/\r?\n/);
-        for (const line of lines) {
-          if (line.startsWith('data:')) {
-            const payload = line.slice(5).trim();
-            try {
-              const json = JSON.parse(payload);
-              if (json.type === 'token' && json.token) {
-                content += json.token;
-              } else if (json.content) {
-                content += String(json.content);
-              }
-            } catch {
-              // Ignore parse errors
-            }
+    const lines = result.split(/\r?\n/);
+    for (const line of lines) {
+      if (line.startsWith('data:')) {
+        const payload = line.slice(5).trim();
+        try {
+          const json = JSON.parse(payload);
+          if (json.type === 'token' && json.token) {
+            content += json.token;
+          } else if (json.content) {
+            content += String(json.content);
           }
+        } catch {
+          // Ignore parse errors
         }
       }
     }
     return { content };
   }
 
-  return await res.json();
+  return result;
 }
 
 function trimHistory(list: ChatMessage[]): ChatMessage[] {
@@ -143,24 +151,13 @@ export async function sendChatV2(params: ChatV2Request): Promise<ChatV2Response>
   // Map to canonical endpoint format
   const userId = localStorage.getItem('anonymous_user_id') || `anon-${Date.now()}`;
   
-  const res = await fetch('/.netlify/functions/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId,
-      message: params.message,
-      sessionId: params.convoId,
-      employeeSlug: params.preferredAgent || 'prime-boss',
-      stream: false, // v2 was non-streaming
-    })
+  const data = await postChat({
+    userId,
+    message: params.message,
+    sessionId: params.convoId,
+    employeeSlug: params.preferredAgent || 'prime-boss',
+    stream: false, // v2 was non-streaming
   });
-  
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => 'Unknown error');
-    throw new Error(`Chat failed: ${res.status} - ${errorText}`);
-  }
-  
-  const data = await res.json();
   
   // Convert response format
   return {

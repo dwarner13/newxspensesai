@@ -55,6 +55,7 @@ const useScrollbarWidth = () => {
 import HomePage from './pages/HomePage';
 import XspensesProDashboard from './components/XspensesProDashboard';
 import { PrimeChatPage } from './pages/dashboard/PrimeChatPage';
+import ChatHistoryPage from './pages/dashboard/ChatHistoryPage';
 import { SmartImportChatPage } from './pages/dashboard/SmartImportChatPage';
 import { AIChatAssistantPage } from './pages/dashboard/AIChatAssistantPage';
 import OverviewPage from './pages/dashboard/OverviewPage';
@@ -471,6 +472,11 @@ function App() {
                         <ErrorBoundary>
                           <PrimeChatPage />
                         </ErrorBoundary>
+                      } />
+                      <Route path="chat-history" element={
+                        <Suspense fallback={<LoadingSpinner />}>
+                          <ChatHistoryPage />
+                        </Suspense>
                       } />
                       <Route path="smart-import-ai" element={<SmartImportChatPage />} />
                       <Route path="ai-chat-assistant" element={<AIChatAssistantPage />} />

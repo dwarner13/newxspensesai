@@ -9,7 +9,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { PrimePanelBaseProps } from './PrimeTeamPanel';
-import DesktopChatSideBar from '../chat/DesktopChatSideBar';
 import { PrimeTasksSlideoutContent, type PrimeTask as SlideoutTask } from './PrimeTasksSlideoutContent';
 import { PrimeSlideoutShell } from './PrimeSlideoutShell';
 import { PrimeTasksContent } from './PrimeTasksContent';
@@ -255,13 +254,8 @@ export const PrimeTasksPanel: React.FC<PrimePanelBaseProps> = ({ isOpen, onClose
         onClick={onClose}
       />
       
-      {/* Panel + docked rail */}
+      {/* Panel */}
       <div className="relative z-50 h-full flex items-stretch">
-        {/* Docked action rail - LEFT side */}
-        <div className="hidden md:flex h-full items-center">
-          <DesktopChatSideBar dockedToPanel />
-        </div>
-        
         {/* Shell wrapper */}
         <div className="relative h-full w-full">
           <PrimeSlideoutShell

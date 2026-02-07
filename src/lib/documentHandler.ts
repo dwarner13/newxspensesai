@@ -3,9 +3,10 @@
  * Multi-format Document Handler
  */
 
+import { getSupabase } from '@/lib/supabase';
+import { requestOcrProcessing, pollOcrCompletion } from '@/lib/ocr/requestOcrProcessing';
 import { parsePDF } from '../utils/pdfParser';
 import { parseCSV } from '../utils/enhancedCsvParser';
-import { extractTextFromImage, processImageWithOCR } from '../utils/ocrService';
 
 export interface DocumentProcessingResult {
   success: boolean;
@@ -247,17 +248,35 @@ export class DocumentHandler {
         throw new Error('OCR processing is required for image files');
       }
 
-      const ocrResult = await processImageWithOCR(file);
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error('Supabase client not available');
+      }
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      const ocrRequest = await requestOcrProcessing({ file, userId: data.user.id });
+      if (!ocrRequest.ok || !ocrRequest.documentId) {
+        throw new Error(ocrRequest.error || 'OCR request failed');
+      }
+
+      const ocrStatus = await pollOcrCompletion(ocrRequest.documentId, data.user.id);
+      if (!ocrStatus.ok || !ocrStatus.ocrText) {
+        throw new Error(ocrStatus.error || 'OCR processing did not return text');
+      }
       
       // Parse the extracted text as a receipt or document
-      const parsedData = await this.parseImageText(ocrResult.text, file.name);
+      const parsedData = await this.parseImageText(ocrStatus.ocrText, file.name);
 
+      const confidence = ocrStatus.ocrText.length > 100 ? 0.75 : 0.6;
       return {
         data: parsedData,
-        confidence: ocrResult.confidence,
-        extractedText: ocrResult.text,
-        rawData: { ocrResult },
-        warnings: ocrResult.confidence < 0.7 ? ['Low OCR confidence - manual review recommended'] : []
+        confidence,
+        extractedText: ocrStatus.ocrText,
+        rawData: { ocrText: ocrStatus.ocrText },
+        warnings: confidence < 0.7 ? ['Low OCR confidence - manual review recommended'] : []
       };
 
     } catch (error) {

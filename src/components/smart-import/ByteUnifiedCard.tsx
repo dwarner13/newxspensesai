@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useByteQueueStats } from '../../hooks/useByteQueueStats';
 import { useSmartImportUploadState } from '../../hooks/useSmartImportUploadState';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
 import { EmployeeUnifiedCardBase, type SecondaryAction } from '../workspace/employees/EmployeeUnifiedCardBase';
 import toast from 'react-hot-toast';
 
@@ -62,7 +63,8 @@ export function ByteUnifiedCard({
     }
 
     openChat({
-      initialEmployeeSlug: 'byte-docs',
+      initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
+      force: true,
       context: {
         page: 'smart-import',
         data: {

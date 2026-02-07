@@ -211,6 +211,7 @@ function buildFeatureVisibilityMap(
     // Main
     main_dashboard: { visible: true, enabled: true },
     prime_chat: { visible: true, enabled: true },
+    chat_history: { visible: true, enabled: true },
     
     // AI Workspace
     smart_import_ai: { visible: true, enabled: true },
@@ -330,7 +331,7 @@ function buildWarnings(
 
 export const handler: Handler = async (event) => {
   // Health check log
-  if (import.meta.env?.DEV || process.env.NETLIFY_DEV === 'true') {
+  if (process.env.NETLIFY_DEV === 'true') {
     log('[prime-state] ✅ Handler called', { method: event.httpMethod, path: event.path });
   }
   // CORS headers
