@@ -211,6 +211,7 @@ function buildFeatureVisibilityMap(
     // Main
     main_dashboard: { visible: true, enabled: true },
     prime_chat: { visible: true, enabled: true },
+    chat_history: { visible: true, enabled: true },
     
     // AI Workspace
     smart_import_ai: { visible: true, enabled: true },

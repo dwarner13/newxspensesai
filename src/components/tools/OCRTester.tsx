@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import PDFToImageConverter from './PDFToImageConverter';
 import { OCRService } from '@/client/services/ocrService';
+import { parseReceiptText } from '@/utils/ocrService';
 
 export default function OCRTester() {
   const [file, setFile] = useState<File | null>(null);
@@ -33,27 +34,15 @@ export default function OCRTester() {
     setStep('Processing extracted text...');
 
     try {
-      setStep('Sending text to AI for parsing...');
-      const res = await fetch('/.netlify/functions/ocr-ingest', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          fileData: textData, 
-          fileName: fileName,
-          fileType: 'text/plain',
-          userId: 'demo-user',
-          isTextData: true
-        })
-      });
-
-      setStep('Processing with AI...');
-      const json = await res.json();
-      
+      setStep('Parsing extracted text...');
+      const parsed = parseReceiptText(textData);
       setStep('Complete!');
-      setResult(json);
-      
+      setResult({
+        success: true,
+        text: textData,
+        confidence: parsed.confidence,
+        parsed
+      });
     } catch (error) {
       console.error('Text processing error:', error);
       setResult({

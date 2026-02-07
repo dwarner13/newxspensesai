@@ -1,3 +1,4 @@
+import { postChat } from '@/lib/api/chat';
 import { getSupabase } from '@/lib/supabase';
 
 interface AIEmployee {
@@ -453,24 +454,12 @@ export class UniversalAIController {
 
     try {
       // Use the chat Netlify function instead of direct OpenAI
-      const response = await fetch('/.netlify/functions/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: userId,
-          employeeSlug: employeeId,
-          message: message,
-          stream: false
-        })
+      const data = await postChat({
+        userId: userId,
+        employeeSlug: employeeId,
+        message: message,
+        stream: false
       });
-
-      if (!response.ok) {
-        throw new Error(`Chat function failed: ${response.status}`);
-      }
-
-      const data = await response.json();
       const aiMessage = data.content;
       
       // Store conversation

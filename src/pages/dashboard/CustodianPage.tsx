@@ -1,28 +1,16 @@
-import React from 'react';
-import { useAuth } from '../../contexts/AuthContext';
-import UnifiedAssistantChat from '../../components/chat/UnifiedAssistantChat';
+import React, { useEffect } from "react";
+import { useUnifiedChatLauncher } from "../../hooks/useUnifiedChatLauncher";
 
-/**
- * Custodian Page
- * 
- * Security & Settings specialist - handles account security, settings, privacy, and onboarding.
- */
 export default function CustodianPage() {
-  const { user } = useAuth();
-  const userId = user?.id || '';
+  const { openWorkerChat } = useUnifiedChatLauncher();
+
+  useEffect(() => {
+    openWorkerChat("custodian");
+  }, [openWorkerChat]);
 
   return (
-    <div className="h-full w-full">
-      <UnifiedAssistantChat
-        isOpen={true}
-        initialEmployeeSlug="custodian"
-        mode="fullscreen"
-      />
+    <div className="flex items-center justify-center h-full text-slate-400">
+      Opening Custodian chat…
     </div>
   );
 }
-
-
-
-
-

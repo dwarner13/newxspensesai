@@ -28,6 +28,13 @@ import { categorizeTransactionWithLearning } from './_shared/categorize.js';
 import { detectAndUpsertRecurringObligations, type RecurringCandidate } from './_shared/recurringDetection.js';
 import { queueUpcomingPaymentNotifications } from './_shared/chimeNotifications.js';
 
+const STAGED_ROWS_WAIT_MS = 12000;
+const STAGED_ROWS_POLL_MS = 750;
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export const handler: Handler = async (event, context) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -193,7 +200,45 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
-    // 3. Read staged transactions for this import
+    // 3. Wait briefly for staged transactions to appear (when commit-import is called early)
+    const waitStart = Date.now();
+    console.log('[CommitImport] Waiting for staged rows...', { importId });
+    let stagedCount = 0;
+    while (Date.now() - waitStart < STAGED_ROWS_WAIT_MS) {
+      const { count, error: countError } = await sb
+        .from('transactions_staging')
+        .select('id', { count: 'exact', head: true })
+        .eq('import_id', importId)
+        .eq('user_id', userIdText);
+      if (countError) {
+        console.error('[CommitImport] Error checking staged count:', countError);
+        break;
+      }
+      stagedCount = count || 0;
+      if (stagedCount > 0) {
+        console.log('[CommitImport] Staged rows appeared', {
+          importId,
+          count: stagedCount,
+          elapsedMs: Date.now() - waitStart,
+        });
+        break;
+      }
+      await sleep(STAGED_ROWS_POLL_MS);
+    }
+    if (stagedCount === 0) {
+      console.log('[CommitImport] No staged rows after wait', { importId, elapsedMs: Date.now() - waitStart });
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          committed: 0,
+          reason: 'no_staged_rows',
+        }),
+      };
+    }
+
+    // 4. Read staged transactions for this import
     // SECURITY: Always filter by user_id from auth header to prevent cross-user access
     console.log('[CommitImport] Fetching staged transactions', { importId });
     const { data: stagedRows, error: stagingError } = await sb

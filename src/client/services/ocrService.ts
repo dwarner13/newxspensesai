@@ -1,5 +1,9 @@
 // src/client/services/ocrService.ts
 
+import { getSupabase } from '@/lib/supabase';
+import { requestOcrProcessing, pollOcrCompletion } from '@/lib/ocr/requestOcrProcessing';
+import { parseReceiptText } from '@/utils/ocrService';
+
 export interface OCRResult {
   success: boolean;
   text?: string;
@@ -24,35 +28,32 @@ export class OCRService {
         throw new Error('Image file is too large (max 10MB)');
       }
       
-      // Convert to base64
-      const base64 = await this.fileToBase64(file);
-      
-      // Call OCR function
-      const response = await fetch('/.netlify/functions/ocr-ingest', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ base64 })
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || error.error || `Server returned ${response.status}`);
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error('Supabase client not available');
       }
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        return {
-          success: true,
-          text: result.text,
-          confidence: result.confidence,
-          parsed: result.parsed
-        };
-      } else {
-        throw new Error(result.error || 'OCR processing failed');
+      const { data, error } = await supabase.auth.getUser();
+      if (error || !data.user?.id) {
+        throw new Error('User not authenticated');
       }
+
+      const ocrRequest = await requestOcrProcessing({ file, userId: data.user.id });
+      if (!ocrRequest.ok || !ocrRequest.documentId) {
+        throw new Error(ocrRequest.error || 'OCR request failed');
+      }
+
+      const ocrStatus = await pollOcrCompletion(ocrRequest.documentId, data.user.id);
+      if (!ocrStatus.ok || !ocrStatus.ocrText) {
+        throw new Error(ocrStatus.error || 'OCR processing did not return text');
+      }
+
+      const parsed = parseReceiptText(ocrStatus.ocrText);
+      return {
+        success: true,
+        text: ocrStatus.ocrText,
+        confidence: parsed.confidence,
+        parsed
+      };
       
     } catch (error) {
       console.error('OCR service error:', error);
@@ -61,22 +62,6 @@ export class OCRService {
         error: error.message || 'Failed to process image'
       };
     }
-  }
-  
-  private static fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // Remove data URL prefix to get pure base64
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = (error) => {
-        reject(new Error('Failed to read file: ' + error));
-      };
-      reader.readAsDataURL(file);
-    });
   }
   
   // Helper to validate if image is readable

@@ -51,6 +51,9 @@ export interface ChatInputBarProps {
   /** Optional callback when files are selected (for immediate processing) */
   onAttachmentsChange?: (files: File[]) => void;
   
+  /** Whether to show attachment chips */
+  showAttachmentChips?: boolean;
+  
   /** Optional cancel/stop handler (for stopping streaming) */
   onStop?: () => void;
   
@@ -80,6 +83,7 @@ export function ChatInputBar({
   guardrailsLastChecked,
   showPlusIcon = false,
   onAttachmentsChange,
+  showAttachmentChips = true,
   onStop,
   onInputFocus,
   onInputMouseDown,
@@ -285,7 +289,7 @@ export function ChatInputBar({
     <div className="w-full shrink-0">
       <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-2">
         {/* Attachment chips - shown above input when files are attached */}
-        {attachments.length > 0 && (
+        {showAttachmentChips && attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2 shrink-0">
             {attachments.map((file, index) => (
               <div

@@ -143,7 +143,8 @@ export interface GuardrailResult {
  */
 export async function runInputGuardrails(
   ctx: GuardrailContext,
-  input: GuardrailInput
+  input: GuardrailInput,
+  preloadedConfig?: GuardrailConfig | null
 ): Promise<GuardrailResult> {
   const { userId, sessionId, employeeSlug, source = 'chat' } = ctx;
   const { messages, attachments } = input;
@@ -153,23 +154,27 @@ export async function runInputGuardrails(
   
   // Load guardrail configuration
   let guardrailConfig: GuardrailConfig;
-  try {
-    guardrailConfig = await getGuardrailConfig(userId);
-  } catch (error: any) {
-    console.error('[Guardrails] Failed to load config:', error);
-    // Use default balanced config if loading fails
-    guardrailConfig = {
-      preset: 'balanced',
-      jailbreakThreshold: 75,
-      moderationBlock: false,
-      piiEntities: [],
-      ingestion: { pii: true, moderation: true },
-      chat: { pii: true, moderation: false, jailbreak: false },
-    };
-    events.push({
-      type: 'info',
-      detail: 'Using default guardrail config (config load failed)',
-    });
+  if (preloadedConfig) {
+    guardrailConfig = preloadedConfig;
+  } else {
+    try {
+      guardrailConfig = await getGuardrailConfig(userId);
+    } catch (error: any) {
+      console.error('[Guardrails] Failed to load config:', error);
+      // Use default balanced config if loading fails
+      guardrailConfig = {
+        preset: 'balanced',
+        jailbreakThreshold: 75,
+        moderationBlock: false,
+        piiEntities: [],
+        ingestion: { pii: true, moderation: true },
+        chat: { pii: true, moderation: false, jailbreak: false },
+      };
+      events.push({
+        type: 'info',
+        detail: 'Using default guardrail config (config load failed)',
+      });
+    }
   }
   
   // Determine stage based on source

@@ -1,3 +1,5 @@
+import { postChat } from '@/lib/api/chat';
+
 /**
  * Universal AI Employee Connection System
  * 
@@ -490,24 +492,12 @@ Remember: You are ${this.personality.name} - stay in character while delivering 
       ];
 
       // Use Netlify function for OpenAI calls
-      const response = await fetch('/.netlify/functions/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: context.userId || '00000000-0000-4000-8000-000000000001',
-          employeeSlug: this.employeeId,
-          message: message,
-          stream: false
-        })
+      const data = await postChat({
+        userId: context.userId || '00000000-0000-4000-8000-000000000001',
+        employeeSlug: this.employeeId,
+        message: message,
+        stream: false
       });
-
-      if (!response.ok) {
-        throw new Error(`Chat function failed: ${response.status}`);
-      }
-
-      const data = await response.json();
 
       const aiResponse = data.content || "I'm here to help!";
       const enhancedResponse = this.addPersonalityFlair(aiResponse);

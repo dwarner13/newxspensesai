@@ -77,14 +77,26 @@ export default function UploadSpeedTest() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId: user.id,
-        filename: fileName,
+        fileName,
         mime: 'application/octet-stream',
         source: 'speed-test',
       }),
     });
 
     if (!initRes.ok) {
-      throw new Error(`Init failed: ${initRes.statusText}`);
+      const errText = await initRes.text();
+      let message = errText || initRes.statusText;
+      try {
+        const parsed = JSON.parse(errText);
+        const missing = parsed?.missing;
+        message = parsed?.error || message;
+        if (missing) {
+          message = `${message} (missing: userId=${missing.userId}, fileName=${missing.fileName})`;
+        }
+      } catch {
+        // Keep plain text error
+      }
+      throw new Error(`Init failed: ${message}`);
     }
 
     const init = await initRes.json();

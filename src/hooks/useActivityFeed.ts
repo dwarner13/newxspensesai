@@ -72,6 +72,7 @@ export function useActivityFeed(
   
   // Throttle: Track when last fetch finished to prevent fetch storms
   const lastFetchFinishTimeRef = useRef<number>(0);
+  const inFlightRef = useRef<Promise<void> | null>(null);
   
   // Helper to stop polling and clear refs (StrictMode safe)
   const stopPolling = useCallback(() => {
@@ -263,11 +264,22 @@ export function useActivityFeed(
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(url, {
-        method: 'GET',
-        signal: controller.signal,
-        headers,
-      });
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: 'GET',
+          signal: controller.signal,
+          headers,
+        });
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          if (shouldLog) {
+            console.log('[useActivityFeed] Fetch aborted (new fetch started or component unmounted)');
+          }
+          return;
+        }
+        throw err;
+      }
 
       if (!response.ok) {
         // Handle 400: Missing userId or invalid request - stop polling permanently
@@ -353,6 +365,20 @@ export function useActivityFeed(
     }
   }, [ready, userId, isDemoUser, limit, category, unreadOnly, isOnboardingCompleted, checkFunctionExists, stopPolling]);
 
+  const safeFetchEvents = useCallback(() => {
+    const p = fetchEvents();
+    inFlightRef.current = p;
+    return p.catch((err: any) => {
+      // Abort is expected during route changes / unmount / new fetch
+      if (err?.name === 'AbortError') return;
+      console.error('[useActivityFeed] fetch failed', err);
+    }).finally(() => {
+      if (inFlightRef.current === p) {
+        inFlightRef.current = null;
+      }
+    });
+  }, [fetchEvents]);
+
   // Initial fetch on mount - but respect guards
   // HARD GUARD: Never fetch unless userId exists and is valid
   // QUIET MODE: Skip initial fetch when quiet mode is active
@@ -379,12 +405,12 @@ export function useActivityFeed(
     
     // Only fetch if all conditions are met
     if (ready && !isDemoUser && isOnboardingCompleted && !isFunctionDisabledRef.current) {
-      fetchEvents();
+      void safeFetchEvents();
     } else {
       // Guards prevent fetching - set loading to false immediately
       setIsLoading(false);
     }
-  }, [ready, userId, isDemoUser, isOnboardingCompleted, fetchEvents]);
+  }, [ready, userId, isDemoUser, isOnboardingCompleted, safeFetchEvents]);
 
   // Set up polling if pollMs is provided
   // HARD GUARD: Never start polling if userId is missing/invalid (prevents 400 spam)
@@ -418,7 +444,7 @@ export function useActivityFeed(
     intervalRef.current = window.setInterval(() => {
       // Guard: Only poll when document is visible
       if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-        fetchEvents();
+        void safeFetchEvents();
       } else {
         if (shouldLog) {
           console.log('[useActivityFeed] Poll skipped: Document not visible');
@@ -433,15 +459,38 @@ export function useActivityFeed(
     return () => {
       stopPolling();
     };
-  }, [userId, pollMs, fetchEvents, isOnboardingCompleted, stopPolling]);
+  }, [userId, pollMs, safeFetchEvents, isOnboardingCompleted, stopPolling]);
 
   // Cleanup: Abort any pending fetch on unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+        try {
+          abortControllerRef.current.abort();
+        } catch (err: any) {
+          if (err?.name !== 'AbortError') {
+            console.error('[useActivityFeed] Abort failed', err);
+          }
+        }
+        abortControllerRef.current = null;
+      }
+      if (inFlightRef.current) {
+        inFlightRef.current.catch(() => {});
       }
     };
+  }, []);
+
+  // Suppress unhandled AbortError rejections during unmounts/routes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason as any;
+      if (reason?.name === 'AbortError') {
+        event.preventDefault();
+      }
+    };
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => window.removeEventListener('unhandledrejection', handleRejection);
   }, []);
 
   return {
@@ -449,6 +498,6 @@ export function useActivityFeed(
     isLoading,
     isError,
     errorMessage,
-    refetch: fetchEvents,
+    refetch: safeFetchEvents,
   };
 }

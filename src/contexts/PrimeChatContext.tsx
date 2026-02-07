@@ -76,16 +76,6 @@ export function PrimeChatProvider({
     [] // No initial messages - let hook manage state
   );
   
-  // Handle initial question if provided
-  React.useEffect(() => {
-    if (initialQuestion && primeChat.messages.length === 0) {
-      // Send initial question after a short delay to ensure hook is ready
-      setTimeout(() => {
-        primeChat.send(initialQuestion).catch(console.error);
-      }, 100);
-    }
-  }, [initialQuestion, primeChat.messages.length, primeChat.send]);
-  
   // Sync external conversationId changes
   React.useEffect(() => {
     if (externalConversationId !== undefined) {

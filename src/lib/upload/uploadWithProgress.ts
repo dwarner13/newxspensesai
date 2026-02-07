@@ -35,7 +35,7 @@ export async function uploadWithProgress(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       userId,
-      filename: file.name,
+      fileName: file.name,
       mime: file.type,
       source,
       requestId, // Pass idempotency key
@@ -43,8 +43,19 @@ export async function uploadWithProgress(
   });
 
   if (!initRes.ok) {
-    const err = await initRes.text();
-    throw new Error(`Init failed: ${err}`);
+    const errText = await initRes.text();
+    let message = errText;
+    try {
+      const parsed = JSON.parse(errText);
+      const missing = parsed?.missing;
+      message = parsed?.error || errText;
+      if (missing) {
+        message = `${message} (missing: userId=${missing.userId}, fileName=${missing.fileName})`;
+      }
+    } catch {
+      // Keep plain text error
+    }
+    throw new Error(`Init failed: ${message}`);
   }
 
   const init = await initRes.json();

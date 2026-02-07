@@ -26,6 +26,7 @@ import { admin } from './_shared/supabase.js';
 
 export type SmartImportSyncResult = {
   docIds: string[];
+  importIds?: string[];
   transactionCount: number;
   // Optional: more fields later
   // categorizedCount?: number;
@@ -209,6 +210,7 @@ export const handler: Handler = async (event) => {
         headers,
         body: JSON.stringify({
           docIds,
+          importIds: [],
           transactionCount: 0,
         } as SmartImportSyncResult),
       };
@@ -406,6 +408,7 @@ export const handler: Handler = async (event) => {
 
     const result: SmartImportSyncResult = {
       docIds,
+      importIds: readyImportIds,
       transactionCount: totalTransactionCount,
     };
 

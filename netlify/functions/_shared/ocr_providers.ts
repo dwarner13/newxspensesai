@@ -30,21 +30,8 @@ export interface OCRProviderResult {
  * Phase 1: Returns stub response
  * Future: Integrate pdf.js for PDFs, tesseract for images
  */
-export async function ocrLocal(imageOrPdfBytes: Buffer): Promise<OCRProviderResult> {
-  const startTime = Date.now();
-  
-  // Stub implementation - will be enhanced in future phases
-  // TODO: Integrate pdf.js for PDFs
-  // TODO: Integrate tesseract for images
-  
-  return {
-    text: '', // Empty for stub
-    pages: [],
-    meta: {
-      ocr: 'local',
-      duration_ms: Date.now() - startTime
-    }
-  };
+export async function ocrLocal(_imageOrPdfBytes: Buffer): Promise<OCRProviderResult> {
+  throw new Error('Local OCR is not implemented. Use OCR.space or Google Vision.');
 }
 
 /**
@@ -154,25 +141,7 @@ export async function ocrVision(params: { bytes?: Buffer; gcsUri?: string }): Pr
   if (!process.env.GOOGLE_APPLICATION_CREDENTIALS && !process.env.GOOGLE_CLOUD_PROJECT) {
     return null; // Not configured
   }
-  
-  const startTime = Date.now();
-  
-  try {
-    // Stub implementation - will be enhanced in future phases
-    // TODO: Integrate Google Cloud Vision API
-    
-    return {
-      text: '', // Empty for stub
-      pages: [],
-      meta: {
-        ocr: 'vision',
-        duration_ms: Date.now() - startTime
-      }
-    };
-  } catch (error) {
-    console.warn('[OCR] Google Vision API error:', error);
-    return null;
-  }
+  throw new Error('Google Vision provider is not implemented in this wrapper.');
 }
 
 /**

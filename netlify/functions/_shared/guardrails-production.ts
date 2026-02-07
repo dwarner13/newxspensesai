@@ -330,7 +330,18 @@ export async function runGuardrails(
       reasons.push(`pii_masked:${foundTypes.join(',')}`);
       
       // Check if any BLOCK_PII_TYPES are present
-      const hasBlockTypes = foundTypes.some(type => BLOCK_PII_TYPES.includes(type));
+      const blockTypes = foundTypes.filter(type => BLOCK_PII_TYPES.includes(type));
+      const allowPanInIngestion = stage === 'ingestion_ocr';
+      const filteredBlockTypes = allowPanInIngestion
+        ? blockTypes.filter(
+            type =>
+              type !== 'pan_generic' &&
+              type !== 'credit_card' &&
+              type !== 'bank_account_us' &&
+              type !== 'routing_us'
+          )
+        : blockTypes;
+      const hasBlockTypes = filteredBlockTypes.length > 0;
       const hasOnlyMaskTypes = foundTypes.every(type => MASK_ONLY_PII_TYPES.includes(type));
       
       // Log PII detection (with hash only)
@@ -358,7 +369,7 @@ export async function runGuardrails(
         return {
           ok: false,
           text: '', // Don't send raw PII to model
-          reasons: [`pii_blocked:${foundTypes.filter(t => BLOCK_PII_TYPES.includes(t)).join(',')}`],
+          reasons: [`pii_blocked:${filteredBlockTypes.join(',')}`],
           block_message: blockMessage,
           signals: { pii, piiTypes: foundTypes }
         };

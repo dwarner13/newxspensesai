@@ -6,7 +6,7 @@
  * Respects prefers-reduced-motion and handles streaming messages.
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface TypingMessageProps {
   /** Full message content */
@@ -19,9 +19,9 @@ interface TypingMessageProps {
   isTyped: boolean;
   /** Callback when typing completes */
   onTyped: (messageId: string) => void;
-  /** Character delay in ms (default: 12-20ms with randomness) */
+  /** Character delay in ms (default: 8-14ms with randomness) */
   charDelay?: number;
-  /** Maximum animation duration in ms (default: 5000ms) */
+  /** Maximum animation duration in ms (default: 3000ms) */
   maxDuration?: number;
 }
 
@@ -31,31 +31,47 @@ export function TypingMessage({
   isStreaming = false,
   isTyped,
   onTyped,
-  charDelay = 18, // Default: ~18ms per character (ChatGPT-like speed, adjustable)
-  maxDuration = 5000, // Cap at 5 seconds for long messages
+  charDelay = 12, // Default: faster reveal for snappier responses
+  maxDuration = 3000, // Cap at 3 seconds for long messages
 }: TypingMessageProps) {
   const [displayedText, setDisplayedText] = useState('');
   const [showCursor, setShowCursor] = useState(false);
   const animationRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const isTypingRef = useRef(false);
+  const currentIndexRef = useRef(0);
+  const displayedLengthRef = useRef(0);
   
   // Check for prefers-reduced-motion
   const prefersReducedMotion = typeof window !== 'undefined' && 
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   useEffect(() => {
+    displayedLengthRef.current = displayedText.length;
+  }, [displayedText]);
+
+  useEffect(() => {
+    if (animationRef.current !== null) {
+      clearTimeout(animationRef.current);
+      animationRef.current = null;
+    }
+    isTypingRef.current = false;
+
+    // If streaming, render content immediately (no typing delay)
+    if (isStreaming) {
+      setDisplayedText(content);
+      setShowCursor(true);
+      currentIndexRef.current = content.length;
+      displayedLengthRef.current = content.length;
+      return;
+    }
+
     // If already typed, show full content immediately
     if (isTyped) {
       setDisplayedText(content);
       setShowCursor(false);
-      return;
-    }
-
-    // If streaming, show content immediately (no typewriter during stream)
-    if (isStreaming) {
-      setDisplayedText(content);
-      setShowCursor(true); // Show cursor while streaming
+      currentIndexRef.current = content.length;
+      displayedLengthRef.current = content.length;
       return;
     }
 
@@ -63,17 +79,20 @@ export function TypingMessage({
     if (prefersReducedMotion) {
       setDisplayedText(content);
       setShowCursor(false);
+      currentIndexRef.current = content.length;
+      displayedLengthRef.current = content.length;
       onTyped(messageId); // Mark as typed immediately
       return;
     }
 
     // Calculate typing speed (with slight randomness)
     const baseDelay = charDelay;
-    const randomVariation = Math.random() * 8; // 0-8ms variation
+    const randomVariation = Math.random() * 4; // 0-4ms variation
     const actualDelay = baseDelay + randomVariation;
 
     // Calculate total characters and estimated duration
     const totalChars = content.length;
+    currentIndexRef.current = Math.min(displayedLengthRef.current, totalChars);
     const estimatedDuration = totalChars * actualDelay;
 
     // If message is too long, speed up to cap duration
@@ -84,40 +103,59 @@ export function TypingMessage({
     // Start typing animation
     isTypingRef.current = true;
     startTimeRef.current = Date.now();
-    let currentIndex = 0;
 
     const typeNextChar = () => {
-      if (!isTypingRef.current || currentIndex >= totalChars) {
+      if (!isTypingRef.current) return;
+
+      const currentIndex = Math.min(currentIndexRef.current, totalChars);
+      if (currentIndex >= totalChars) {
         // Typing complete
         setDisplayedText(content);
-        setShowCursor(false);
+        setShowCursor(isStreaming);
         isTypingRef.current = false;
-        onTyped(messageId);
+        if (!isStreaming) {
+          onTyped(messageId);
+        }
         return;
       }
 
       // Check if we've exceeded max duration
-      const elapsed = Date.now() - (startTimeRef.current || 0);
-      if (elapsed >= maxDuration) {
-        // Show remaining text immediately
-        setDisplayedText(content);
-        setShowCursor(false);
-        isTypingRef.current = false;
-        onTyped(messageId);
-        return;
+      if (!isStreaming) {
+        const elapsed = Date.now() - (startTimeRef.current || 0);
+        if (elapsed >= maxDuration) {
+          // Show remaining text immediately
+          setDisplayedText(content);
+          setShowCursor(false);
+          isTypingRef.current = false;
+          onTyped(messageId);
+          return;
+        }
       }
 
       // Reveal next character
-      currentIndex++;
-      setDisplayedText(content.slice(0, currentIndex));
+      currentIndexRef.current = currentIndex + 1;
+      setDisplayedText(content.slice(0, currentIndexRef.current));
       setShowCursor(true);
 
       // Schedule next character
       animationRef.current = window.setTimeout(typeNextChar, finalDelay);
     };
 
+    if (!isStreaming && totalChars === 0) {
+      setDisplayedText('');
+      setShowCursor(false);
+      return;
+    }
+
+    // If streaming, keep revealing new chars as they arrive
+    if (isStreaming) {
+      setShowCursor(true);
+      animationRef.current = window.setTimeout(typeNextChar, 12);
+      return;
+    }
+
     // Start typing after a small delay (feels more natural, ChatGPT-like)
-    animationRef.current = window.setTimeout(typeNextChar, 150);
+    animationRef.current = window.setTimeout(typeNextChar, 40);
 
     // Cleanup on unmount or content change
     return () => {

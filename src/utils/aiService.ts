@@ -1,3 +1,4 @@
+import { postChat } from "@/lib/api/chat";
 import { generateContextualPrompt, getAIPersonality } from "./aiPersonalities";
 import { userMemory, rememberConversation, getPersonalizedContext } from "./userMemory";
 
@@ -44,24 +45,12 @@ export const getAIResponse = async (
     ];
 
     // Get AI response via Netlify function
-    const response = await fetch('/.netlify/functions/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        userId: context.userId || '00000000-0000-4000-8000-000000000001',
-        employeeSlug: 'general-assistant',
-        message: userMessage,
-        stream: false
-      })
+    const data = await postChat({
+      userId: context.userId || '00000000-0000-4000-8000-000000000001',
+      employeeSlug: 'general-assistant',
+      message: userMessage,
+      stream: false
     });
-
-    if (!response.ok) {
-      throw new Error(`Chat function failed: ${response.status}`);
-    }
-
-    const data = await response.json();
     const aiMessage = data.content || "I'm sorry, I couldn't process that request.";
 
     // Generate follow-up questions based on the AI's response

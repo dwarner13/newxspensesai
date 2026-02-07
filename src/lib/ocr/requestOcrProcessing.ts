@@ -22,6 +22,8 @@ export interface OCRProcessingResult {
   importRunId?: string;
   documentId?: string;
   status?: 'pending' | 'ready' | 'rejected' | 'error';
+  ocrText?: string;
+  piiTypes?: string[];
   error?: string;
 }
 
@@ -62,7 +64,6 @@ export async function requestOcrProcessing(
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type,
-        filename: file.name,
         mime: file.type,
         source: 'ocr_request',
         requestId,
@@ -71,8 +72,19 @@ export async function requestOcrProcessing(
     });
 
     if (!initRes.ok) {
-      const err = await initRes.text();
-      throw new Error(`Init failed: ${err}`);
+      const errText = await initRes.text();
+      let message = errText;
+      try {
+        const parsed = JSON.parse(errText);
+        const missing = parsed?.missing;
+        message = parsed?.error || errText;
+        if (missing) {
+          message = `${message} (missing: userId=${missing.userId}, fileName=${missing.fileName})`;
+        }
+      } catch {
+        // Keep plain text error
+      }
+      throw new Error(`Init failed: ${message}`);
     }
 
     const init = await initRes.json();
@@ -137,6 +149,15 @@ export async function requestOcrProcessing(
       };
     }
 
+    if (ocrBody?.inProgress) {
+      return {
+        ok: true,
+        importRunId: ocrBody.importRunId || importRunId,
+        documentId: ocrBody.docId || init.docId,
+        status: 'pending',
+      };
+    }
+
     return {
       ok: true,
       importRunId: ocrBody.importRunId || importRunId,
@@ -196,6 +217,8 @@ export async function pollOcrCompletion(
         ok: true,
         documentId: doc.id,
         status: 'ready',
+        ocrText: doc.ocr_text,
+        piiTypes: doc.pii_types || [],
       };
     }
 

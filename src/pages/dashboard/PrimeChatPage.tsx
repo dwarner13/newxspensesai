@@ -19,7 +19,6 @@ import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { ChatHistorySidebar } from '../../components/chat/ChatHistorySidebar';
-import DesktopChatSideBar from '../../components/chat/DesktopChatSideBar';
 import { EmployeeControlPanel } from '../../components/prime/EmployeeControlPanel';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { PrimeToolsCommandCenter } from '../../components/prime/PrimeToolsCommandCenter';
@@ -51,24 +50,12 @@ export function PrimeChatPage() {
   const [isPrimeStatusOpen, setIsPrimeStatusOpen] = useState(false);
   const [primeStatusInitialView, setPrimeStatusInitialView] = useState<PrimeStatusView>("team");
   
-  // Track whether Team slideout is open (derived from primePanel)
-  const isPrimeTeamOpen = primePanel === 'team';
-  
-  // Track whether Tasks slideout is open (derived from primePanel)
-  const isPrimeTasksOpen = primePanel === 'tasks';
-  
-  // Track whether Chat slideout is open (derived from primePanel)
-  const isPrimeChatOpen = primePanel === 'chat';
-  
   // Chat history sidebar state
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
   
   // Employee control panel state
   const [selectedEmployee, setSelectedEmployee] = useState<PrimeEmployee | null>(null);
   const [isEmployeePanelOpen, setIsEmployeePanelOpen] = useState(false);
-  
-  // Determine if any panel is open
-  const hasOpenPanel = primePanel !== 'none' || isEmployeePanelOpen;
   
   // Hooks for Prime Tools stats
   const primeStats = usePrimeLiveStats();
@@ -82,10 +69,6 @@ export function PrimeChatPage() {
   const memoryCount = 0; // TODO: wire to real data
   const connectedApps = 0; // TODO: wire to real data
   const totalApps = 4; // TODO: wire to real data
-  
-  const handleOpenChatHistory = () => {
-    setIsChatHistoryOpen(true);
-  };
   
   const handleCloseChatHistory = () => {
     setIsChatHistoryOpen(false);
@@ -104,7 +87,7 @@ export function PrimeChatPage() {
   }, []);
 
   // Get unified chat launcher for opening chat with other employees
-  const { openChat, isOpen: isChatOpen } = useUnifiedChatLauncher();
+  const { openChat } = useUnifiedChatLauncher();
 
   return (
     <PrimeOverlayProvider>
@@ -143,12 +126,7 @@ export function PrimeChatPage() {
         />
       </PageCinematicFade>
 
-      {/* Floating Action Rail - Right edge (same as main dashboard) */}
-      {!isChatOpen && (
-        <DesktopChatSideBar 
-          onHistoryClick={handleOpenChatHistory}
-        />
-      )}
+      {/* Floating Action Rail is provided by DashboardLayout */}
       
       {/* Chat History Sidebar */}
       <ChatHistorySidebar
@@ -175,14 +153,8 @@ export function PrimeChatPage() {
             onClick={() => setIsPrimeStatusOpen(false)}
           />
           
-          {/* Panel + docked rail */}
+          {/* Status Panel - wrapper removed, PrimeTeamStatusPanel handles its own card styling */}
           <div className="relative z-50 h-full flex items-stretch">
-            {/* Docked action rail - LEFT side */}
-            <div className="hidden md:flex h-full items-center">
-              <DesktopChatSideBar dockedToPanel />
-            </div>
-            
-            {/* Status Panel - wrapper removed, PrimeTeamStatusPanel handles its own card styling */}
             <PrimeTeamStatusPanel
               initialView={primeStatusInitialView}
               onClose={() => setIsPrimeStatusOpen(false)}

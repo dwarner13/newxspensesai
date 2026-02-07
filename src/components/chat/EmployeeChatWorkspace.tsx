@@ -157,7 +157,7 @@ export function EmployeeChatWorkspace({
 
       {/* Messages Area */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-        {displayMessages.length === 0 && (
+        {displayMessages.length === 0 && !initialQuestion && (
           <div className="flex flex-col items-center justify-center h-full text-center py-8">
             <div className="flex justify-center mb-6">
               <PrimeLogoBadge size={52} showGlow={true} />

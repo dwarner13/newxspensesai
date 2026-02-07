@@ -24,6 +24,7 @@ export function TagUnifiedCard({ onExpandClick, onChatInputClick }: TagUnifiedCa
     console.log('[TagUnifiedCard] Opening chat with Tag...');
     openChat({
       initialEmployeeSlug: 'tag-ai',
+      force: true,
       context: {
         page: 'smart-categories',
         data: {

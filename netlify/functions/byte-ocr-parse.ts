@@ -11,6 +11,7 @@ import { normalizeOcrResult } from './_shared/ocr_normalize.js';
 import OpenAI from 'openai';
 
 export const handler: Handler = async (event, context) => {
+  console.log("[FUNC=byte-ocr-parse] handler start");
   // CORS headers
   const headers = {
     'Content-Type': 'application/json',
@@ -48,12 +49,14 @@ export const handler: Handler = async (event, context) => {
       userId = 'default-user', 
       preview = false,
       text,
-      ocrText 
+      ocrText,
+      filename
     } = body;
 
     let ocrTextToParse: string | null = null;
     let effectiveUserId = userId;
     let effectiveImportId = importId;
+    let effectiveFilename = filename;
 
     // Option 1: Direct OCR text input
     if (text || ocrText) {
@@ -67,7 +70,7 @@ export const handler: Handler = async (event, context) => {
       // Try common field names for OCR text
       const { data: importRecord, error: fetchError } = await supabase
         .from('imports')
-        .select('ocr_text, extracted_text, text_content, raw_text, user_id')
+        .select('ocr_text, extracted_text, text_content, raw_text, user_id, document_id')
         .eq('id', importId)
         .single();
 
@@ -94,6 +97,18 @@ export const handler: Handler = async (event, context) => {
       // Use the userId from the import record if available
       if (importRecord.user_id) {
         effectiveUserId = importRecord.user_id;
+      }
+
+      // Try to resolve original filename from user_documents
+      if (importRecord.document_id) {
+        const { data: docRecord } = await supabase
+          .from('user_documents')
+          .select('original_name')
+          .eq('id', importRecord.document_id)
+          .maybeSingle();
+        if (docRecord?.original_name) {
+          effectiveFilename = docRecord.original_name;
+        }
       }
     } else {
       return {
@@ -133,7 +148,9 @@ export const handler: Handler = async (event, context) => {
 
     // Normalize OCR text to transactions using shared parser
     // If primary parser returns 0 transactions, AI fallback will be used automatically
-    const transactions = await normalizeOcrResult(ocrTextToParse, effectiveUserId, openaiClient);
+    const transactions = await normalizeOcrResult(ocrTextToParse, effectiveUserId, openaiClient, {
+      filename: effectiveFilename || '',
+    });
 
     // Convert transactions to preview format expected by frontend
     const previewRows = transactions.map(tx => ({

@@ -329,6 +329,15 @@ section[data-grid-wrapper] {
 
 }
 
+/* Hide scrollbar but keep scroll */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* Fix card content padding and spacing */
 .dashboard-main-content .group {
   padding: 1.5rem !important;
@@ -389,7 +398,8 @@ html, body, #root {
 }
 
 html {
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 body {

@@ -39,6 +39,7 @@ const getAIEmployeeForRoute = (route: string) => {
   const routeToEmployee: Record<string, string> = {
     '/dashboard': 'prime',
     '/dashboard/prime-chat': 'prime',
+    '/dashboard/chat-history': 'prime',
     '/dashboard/smart-import-ai': 'byte',
     '/dashboard/ai-chat-assistant': 'finley',
     '/dashboard/ai-financial-assistant': 'finley',

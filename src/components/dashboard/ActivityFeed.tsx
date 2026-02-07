@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useActivityFeed, type ActivityEvent } from '../../hooks/useActivityFeed';
 import { cn } from '../../lib/utils';
 import { ByteActivityItem } from '../prime/ByteActivityItem';
+import { getSupabase } from '../../lib/supabase';
+import { DocumentViewerModal } from '../ui/DocumentViewerModal';
 
 type LocalEvent = {
   id: string;
@@ -17,6 +20,9 @@ type ActivityFeedProps = {
   category?: string;
   localEvents?: LocalEvent[];
   variant?: 'column' | 'embedded';
+  maxHeight?: number;
+  scrollable?: boolean;
+  hideScrollbar?: boolean;
 };
 
 /**
@@ -89,12 +95,55 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   category,
   localEvents = [],
   variant = 'column',
+  maxHeight,
+  scrollable = false,
+  hideScrollbar = false,
 }) => {
   const { events, isLoading, isError, errorMessage } = useActivityFeed({
     limit,
     category,
     pollMs: 60000, // Poll every 60 seconds
   });
+  const navigate = useNavigate();
+  const [viewerDoc, setViewerDoc] = useState<{
+    id: string;
+    originalFilename?: string;
+    ocrText?: string;
+    redactedText?: string;
+    processingStatus?: string;
+    createdAt?: string;
+  } | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+
+  const handleViewResults = async (event: ActivityEvent) => {
+    const docIds = event.metadata?.doc_ids as string[] | undefined;
+    if (!docIds || docIds.length === 0) {
+      navigate('/dashboard/smart-import-ai');
+      return;
+    }
+    const supabase = getSupabase();
+    if (!supabase) {
+      return;
+    }
+    const { data } = await supabase
+      .from('user_documents')
+      .select('id, original_name, ocr_text, redacted_text, status, created_at, ocr_completed_at')
+      .eq('id', docIds[0])
+      .single();
+    if (!data) {
+      navigate('/dashboard/smart-import-ai');
+      return;
+    }
+    setViewerDoc({
+      id: data.id,
+      originalFilename: data.original_name,
+      ocrText: data.ocr_text || undefined,
+      redactedText: data.redacted_text || undefined,
+      processingStatus: data.status,
+      createdAt: data.ocr_completed_at || data.created_at || undefined,
+    });
+    setViewerOpen(true);
+  };
 
   // Merge local events (upload completions) with server events
   // Convert local events to ActivityEvent format
@@ -119,7 +168,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   return (
     <div 
       className={cn(
-        "w-full shrink-0 flex flex-col h-full overflow-hidden",
+        "w-full shrink-0 flex flex-col overflow-visible",
         !isEmbedded && "rounded-3xl border border-white/5 bg-slate-900/70 p-4" // Column: standalone card styling with padding
       )}
       data-variant={variant}
@@ -132,6 +181,11 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
         minHeight: 0
       } : undefined} // Force embedded styles via inline styles
     >
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        documentData={viewerDoc}
+      />
       {/* Header - Compact stacked layout */}
       <div className={cn("flex flex-col gap-0.5 mb-3 flex-shrink-0", isEmbedded && "px-4 pt-4")}>
         <h3 className="text-xs font-semibold tracking-wider text-slate-100 uppercase">
@@ -142,7 +196,15 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
 
       {/* Body - Tighter vertical spacing */}
       {/* CRITICAL: No nested scrolling - Activity Feed is part of main scroll flow */}
-      <div className={cn("flex-1 min-h-0 space-y-2", isEmbedded && "px-4 pb-4")}>
+      <div
+        className={cn(
+          "flex-1 min-h-0 space-y-2",
+          isEmbedded && "px-4 pb-4",
+          scrollable && "overflow-y-auto",
+          hideScrollbar && "hide-scrollbar"
+        )}
+        style={scrollable && maxHeight ? { maxHeight } : undefined}
+      >
         {isLoading ? (
           // Loading skeleton
           <>
@@ -188,10 +250,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
                 <ByteActivityItem
                   key={event.id}
                   event={event}
-                  onViewResults={() => {
-                    // Navigate to Smart Import page
-                    window.location.href = '/dashboard/smart-import-ai';
-                  }}
+                  onViewResults={() => handleViewResults(event)}
                 />
               );
             }

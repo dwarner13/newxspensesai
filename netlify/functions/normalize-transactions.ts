@@ -11,6 +11,41 @@ import type { Handler } from '@netlify/functions';
 import { createHash } from 'crypto';
 import { admin } from './_shared/supabase.js';
 import { normalizeOcrResult } from './_shared/ocr_normalize.js';
+import { parseInvoiceLike, parseReceiptLike } from './_shared/ocr_parsers.js';
+
+type ExtractedSummary = Record<string, any> | null;
+
+function parseStatementSummary(text: string): ExtractedSummary {
+  const normalized = text || '';
+  const periodMatch = normalized.match(/Statement Period:\s*([A-Za-z]{3}\s+\d{1,2},\s*\d{4})\s*-\s*([A-Za-z]{3}\s+\d{1,2},\s*\d{4})/i);
+  const newBalanceMatch = normalized.match(/New Balance\s*\$?([0-9,]+\.\d{2})/i);
+  const minPaymentMatch = normalized.match(/Minimum Payment Due\s*\$?([0-9,]+\.\d{2})/i);
+  const dueDateMatch = normalized.match(/Payment Due Date\s*([A-Za-z]{3,9}\s+\d{1,2},\s*\d{4})/i);
+  const prevBalanceMatch = normalized.match(/Previous Balance\s*\$?([0-9,]+\.\d{2})/i);
+  const paymentsMatch = normalized.match(/Payments\s*-?\s*\$?([0-9,]+\.\d{2})/i);
+  const transactionsMatch = normalized.match(/Transactions\s*\+?\s*\$?([0-9,]+\.\d{2})/i);
+  const interestMatch = normalized.match(/Interest Charged\s*\+?\s*\$?([0-9,]+\.\d{2})/i);
+  const creditLimitMatch = normalized.match(/Credit Limit\s*\$?([0-9,]+\.\d{2})/i);
+  const availableCreditMatch = normalized.match(/Available Credit\s*\$?([0-9,]+\.\d{2})/i);
+
+  if (!periodMatch && !newBalanceMatch && !minPaymentMatch) {
+    return null;
+  }
+
+  return {
+    docType: 'statement',
+    statement_period: periodMatch ? `${periodMatch[1]} - ${periodMatch[2]}` : undefined,
+    new_balance: newBalanceMatch ? newBalanceMatch[1] : undefined,
+    minimum_payment_due: minPaymentMatch ? minPaymentMatch[1] : undefined,
+    due_date: dueDateMatch ? dueDateMatch[1] : undefined,
+    previous_balance: prevBalanceMatch ? prevBalanceMatch[1] : undefined,
+    payments: paymentsMatch ? paymentsMatch[1] : undefined,
+    transactions: transactionsMatch ? transactionsMatch[1] : undefined,
+    interest_charged: interestMatch ? interestMatch[1] : undefined,
+    credit_limit: creditLimitMatch ? creditLimitMatch[1] : undefined,
+    available_credit: availableCreditMatch ? availableCreditMatch[1] : undefined,
+  };
+}
 import OpenAI from 'openai';
 import { visionStatementParser } from './_shared/visionStatementParser.js';
 
@@ -89,7 +124,9 @@ async function processNormalizationInBackground(
 
     // Try OCR text parsing first (if OCR text exists)
     if (hasOcrText) {
-      normalizedTransactions = await normalizeOcrResult(doc.ocr_text, userIdText, openaiClient);
+      normalizedTransactions = await normalizeOcrResult(doc.ocr_text, userIdText, openaiClient, {
+        filename: doc.original_name || '',
+      });
     }
 
     // If OCR parsing found 0 transactions AND this is an image, try Vision parser as fallback
@@ -136,6 +173,38 @@ async function processNormalizationInBackground(
     const resolvedImportRunId = importRunId || importRecord.id;
 
     if (!normalizedTransactions || normalizedTransactions.length === 0) {
+      const extractedData = (() => {
+        if (!doc.ocr_text) return null;
+        const invoice = parseInvoiceLike(doc.ocr_text);
+        if (invoice && (invoice.total || invoice.vendor || invoice.invoice_no)) {
+          return {
+            docType: 'invoice',
+            vendor: invoice.vendor,
+            invoice_no: invoice.invoice_no,
+            date: invoice.date,
+            subtotal: invoice.subtotal,
+            tax: invoice.tax,
+            total: invoice.total,
+            currency: invoice.currency,
+          };
+        }
+        const receipt = parseReceiptLike(doc.ocr_text);
+        if (receipt && (receipt.total || receipt.merchant)) {
+          return {
+            docType: 'receipt',
+            merchant: receipt.merchant,
+            date: receipt.date,
+            total: receipt.total,
+            taxes: receipt.taxes,
+            payment: receipt.payment,
+          };
+        }
+        const statement = parseStatementSummary(doc.ocr_text);
+        if (statement) {
+          return statement;
+        }
+        return null;
+      })();
       await sb
         .from('imports')
         .update({ 
@@ -144,14 +213,31 @@ async function processNormalizationInBackground(
           error: 'No transactions found'
         })
         .eq('id', importRecord.id);
+      await sb
+        .from('user_documents')
+        .update({
+          status: 'needs_review',
+          extracted_data: extractedData,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', documentId);
       return;
     }
 
     // 4. Convert normalized transactions to staging format
     const stagingRows = normalizedTransactions.map(tx => {
-      const hashInput = `${tx.date || ''}-${tx.amount || 0}-${tx.merchant || ''}`;
+      const isInvoice = tx.kind === 'invoice';
+      const hashInput = isInvoice
+        ? `${documentId || ''}-${tx.amount || 0}-${tx.date || ''}-${tx.merchant || ''}`
+        : `${tx.date || ''}-${tx.amount || 0}-${tx.merchant || ''}`;
       const hash = createHash('sha256').update(hashInput).digest('hex').substring(0, 64);
-      const description = (tx as any).description || tx.merchant || 'Transaction';
+      const fileName = doc.original_name || 'Invoice';
+      const invoiceDescription = `Invoice${tx.invoiceNo ? ` ${tx.invoiceNo}` : ''} - ${fileName}`;
+      const description = isInvoice ? invoiceDescription : ((tx as any).description || tx.merchant || 'Transaction');
+
+      if (isInvoice) {
+        console.log('[Byte OCR] Staged invoice transaction', { hash, docId: documentId });
+      }
 
       return {
         import_id: importRecord.id,
@@ -173,6 +259,33 @@ async function processNormalizationInBackground(
         hash,
       };
     });
+
+    const invoiceTx = normalizedTransactions.find(tx => tx.kind === 'invoice' && tx.amount);
+    if (invoiceTx) {
+      try {
+        const { error: extractedError } = await sb
+          .from('user_documents')
+          .update({
+            extracted_data: {
+              docType: 'invoice',
+              vendor: invoiceTx.merchant || null,
+              invoiceNo: invoiceTx.invoiceNo || null,
+              date: invoiceTx.date || null,
+              total: invoiceTx.amount || null,
+              currency: invoiceTx.currency || 'CAD',
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', documentId);
+        if (extractedError) {
+          console.warn('[normalize-transactions] extracted_data update skipped:', extractedError.message);
+        } else {
+          console.log('[normalize-transactions] extracted_data saved for invoice', { documentId });
+        }
+      } catch (err: any) {
+        console.warn('[normalize-transactions] extracted_data update failed:', err?.message || err);
+      }
+    }
 
     // 5. Save to transactions_staging
     if (stagingRows.length > 0) {

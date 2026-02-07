@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { UploadQueueItem, UploadQueueProgress } from '../../lib/upload/uploadQueue';
-import { X, RefreshCw, CheckCircle, AlertCircle, Loader2, Clock } from 'lucide-react';
+import { X, RefreshCw, CheckCircle, AlertCircle, Loader2, Clock, Eye } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 
 export interface UploadQueuePanelProps {
@@ -15,6 +15,9 @@ export interface UploadQueuePanelProps {
   progress: UploadQueueProgress;
   onCancel?: (uploadId: string) => void;
   onRetry?: (uploadId: string) => void;
+  onViewDocument?: (item: UploadQueueItem) => void;
+  showIntegrityBadge?: boolean;
+  showHeader?: boolean;
   className?: string;
 }
 
@@ -44,17 +47,17 @@ function formatTime(seconds: number): string {
 function getStatusColor(status: UploadQueueItem['status']): string {
   switch (status) {
     case 'completed':
-      return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+      return 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/40';
     case 'error':
-      return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+      return 'bg-red-500/15 text-red-200 border border-red-500/40';
     case 'uploading':
-      return 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400';
+      return 'bg-sky-500/15 text-sky-200 border border-sky-500/40';
     case 'pending':
-      return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+      return 'bg-slate-700/40 text-slate-200 border border-slate-600/60';
     case 'cancelled':
-      return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
+      return 'bg-amber-500/15 text-amber-200 border border-amber-500/40';
     default:
-      return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
+      return 'bg-slate-700/40 text-slate-200 border border-slate-600/60';
   }
 }
 
@@ -80,6 +83,9 @@ export function UploadQueuePanel({
   progress,
   onCancel,
   onRetry,
+  onViewDocument,
+  showIntegrityBadge = true,
+  showHeader = true,
   className = '',
 }: UploadQueuePanelProps) {
   const [integrityStatus, setIntegrityStatus] = useState<Map<string, { verified: boolean; reason?: string }>>(new Map());
@@ -133,37 +139,43 @@ export function UploadQueuePanel({
   }
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 ${className}`}>
-      {/* Overall Progress */}
-      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            Upload Queue ({progress.completed}/{progress.total})
-          </h3>
-          {progress.overallSpeed > 0 && (
-            <span className="text-xs text-gray-600 dark:text-gray-400">
-              {formatSpeed(progress.overallSpeed)} • {formatTime(progress.overallEta)}
-            </span>
-          )}
+    <div className={`rounded-xl border border-slate-800/80 bg-slate-900/60 backdrop-blur-sm shadow-[0_10px_30px_rgba(15,23,42,0.35)] ${className}`}>
+      {showHeader && (
+        <div className="p-4 border-b border-slate-800/80">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-slate-100">
+              Upload Queue ({progress.completed}/{progress.total})
+            </h3>
+            {progress.overallSpeed > 0 && (
+              <span className="text-xs text-slate-400">
+                {formatSpeed(progress.overallSpeed)} • {formatTime(progress.overallEta)}
+              </span>
+            )}
+          </div>
+          <div className="w-full bg-slate-800 rounded-full h-2">
+            <div
+              className="bg-gradient-to-r from-sky-400 via-emerald-400 to-sky-400 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${progress.overallProgress}%` }}
+            />
+          </div>
         </div>
-        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-          <div
-            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${progress.overallProgress}%` }}
-          />
-        </div>
-      </div>
+      )}
 
       {/* File List */}
-      <div className="divide-y divide-gray-200 dark:divide-gray-700 max-h-96 overflow-y-auto">
+      <div className="divide-y divide-slate-800/80 max-h-96 overflow-y-auto">
         {items.map((item) => (
-          <div key={item.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+          <div key={item.id} className="p-4 hover:bg-slate-900/80 transition-colors">
+            {(() => {
+              const fileName = item.file?.name || 'Document';
+              const fileSize = typeof item.file?.size === 'number' ? item.file.size : 0;
+              const safeProgress = Number.isFinite(item.progress) ? item.progress : 0;
+              return (
             <div className="flex items-start justify-between gap-4">
               {/* File Info */}
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                    {item.file.name}
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="text-sm font-medium text-slate-100 truncate max-w-full">
+                    {fileName}
                   </span>
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(item.status)}`}
@@ -172,38 +184,38 @@ export function UploadQueuePanel({
                     <span className="capitalize">{item.status}</span>
                   </span>
                 </div>
-                <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
-                  {formatFileSize(item.file.size)}
+                <div className="text-xs text-slate-400 mb-2">
+                  {formatFileSize(fileSize)}
                 </div>
 
                 {/* Progress Bar */}
                 {item.status === 'uploading' && (
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mb-2">
+                  <div className="w-full bg-slate-800 rounded-full h-1.5 mb-2">
                     <div
-                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                      style={{ width: `${item.progress}%` }}
+                      className="bg-sky-400 h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${safeProgress}%` }}
                     />
                   </div>
                 )}
 
                 {/* Speed and ETA */}
                 {item.status === 'uploading' && item.speed > 0 && (
-                  <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center gap-4 text-xs text-slate-400">
                     <span>{formatSpeed(item.speed)}</span>
                     {item.eta > 0 && <span>ETA: {formatTime(item.eta)}</span>}
-                    <span>{item.progress.toFixed(0)}%</span>
+                    <span>{safeProgress.toFixed(0)}%</span>
                   </div>
                 )}
 
                 {/* Error Message */}
                 {item.status === 'error' && item.error && (
-                  <div className="text-xs text-red-600 dark:text-red-400 mt-1">
+                  <div className="text-xs text-red-400 mt-1">
                     {item.error}
                   </div>
                 )}
 
                 {/* Integrity Verification Badge */}
-                {item.status === 'completed' && item.result?.docId && (() => {
+                {showIntegrityBadge && item.status === 'completed' && item.result?.docId && (() => {
                   const integrity = integrityStatus.get(item.result.docId);
                   if (integrity) {
                     return (
@@ -236,7 +248,17 @@ export function UploadQueuePanel({
               </div>
 
               {/* Actions */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
+                {item.status === 'completed' && item.result?.docId && onViewDocument && (
+                  <button
+                    onClick={() => onViewDocument(item)}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors"
+                    title="View document"
+                  >
+                    <Eye className="w-3 h-3" />
+                    View
+                  </button>
+                )}
                 {item.status === 'uploading' && onCancel && (
                   <button
                     onClick={() => onCancel(item.id)}
@@ -257,6 +279,8 @@ export function UploadQueuePanel({
                 )}
               </div>
             </div>
+              );
+            })()}
           </div>
         ))}
       </div>

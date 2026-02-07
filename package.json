@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port 8888 --host",
+    "dev": "vite --port 5174 --host",
     "build": "tsc && vite build",
     "build:ci": "pnpm -s build",
     "predeploy:ci": "pnpm -s build",
@@ -15,6 +15,8 @@
     "test:unit": "vitest run",
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
+    "verify:handoff": "rg \"Handoff from\" src/components/chat/UnifiedAssistantChat.tsx >/dev/null && rg \"greeting\" src/components/chat/UnifiedAssistantChat.tsx >/dev/null",
+    "verify:no-autosend": "rg -n \"sendMessage\\(initialQuestion\\)\" src && exit 1 || exit 0",
     "parity": "tsx scripts/parityTest.ts --old=http://localhost:3000/old-chat --new=http://localhost:8888/.netlify/functions/chat",
     "parity:custom": "tsx scripts/parityTest.ts",
     "test:delegate": "tsx scripts/localDelegateCheck.ts",
@@ -35,7 +37,7 @@
     "worker:dev": "tsx watch worker/src/index.ts",
     "functions:build": "tsx scripts/build-functions.ts",
     "functions:dev": "cross-env FUNCTIONS_WATCH=true tsx watch scripts/build-functions.ts",
-    "dev:netlify": "npm run functions:build && concurrently \"npm run functions:dev\" \"netlify dev --port 8888\""
+    "dev:netlify": "netlify dev"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.2",
@@ -79,8 +81,7 @@
     "openai": "^4.73.0",
     "papaparse": "^5.5.3",
     "pdf-lib": "^1.17.1",
-    "pdf-parse": "^2.4.3",
-    "pdfjs-dist": "^4.4.168",
+    "pdf-parse": "^1.1.1",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.2.0",

@@ -1,5 +1,5 @@
 import { Handler } from '@netlify/functions';
-import { admin } from './_shared/upload';
+import { admin } from './_shared/upload.js';
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -13,7 +13,13 @@ export const handler: Handler = async (event) => {
       console.error('[smart-import-init] Missing required fields:', { userId: !!userId, fileName: !!fileName });
       return { 
         statusCode: 400, 
-        body: JSON.stringify({ error: 'Missing userId or fileName' }) 
+        body: JSON.stringify({ 
+          error: 'Missing required fields',
+          missing: {
+            userId: !userId,
+            fileName: !fileName,
+          },
+        }) 
       };
     }
 

@@ -1,9 +1,9 @@
 // ⚠️ DEPRECATED: Use server-side pipeline instead (smart-import-* + normalize-transactions)
-// This exposes API key in browser and bypasses guardrails
+// This exposes API keys in the browser and bypasses guardrails
 // 
-// 🚫 HARD DEPRECATION: All functions in this file throw errors in DEV mode
+// 🚫 HARD DEPRECATION: All OCR functions in this file always throw
 // Use src/lib/ocr/requestOcrProcessing.ts instead (canonical backend pipeline)
-const OCR_API_KEY = "K82312040988957"; // Your new OCR.space API key
+const OCR_API_KEY = '';
 
 const DEPRECATION_MESSAGE = `DEPRECATED: Frontend OCR bypasses guardrails. Use backend smart-import-ocr pipeline.
   
@@ -17,11 +17,7 @@ This ensures:
   ✅ Idempotency support (requestId parameter)`;
 
 function throwIfDeprecated() {
-  if (process.env.NODE_ENV === 'development' || process.env.NETLIFY_DEV === 'true') {
-    throw new Error(DEPRECATION_MESSAGE);
-  }
-  // In production, log warning but don't throw (fail gracefully)
-  console.error('[DEPRECATED OCR]', DEPRECATION_MESSAGE);
+  throw new Error(DEPRECATION_MESSAGE);
 }
 
 // OpenAI Vision API fallback (like ChatGPT uses)

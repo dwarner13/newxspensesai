@@ -13,6 +13,9 @@ import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSmartImport } from '../../hooks/useSmartImport';
 import { UploadQueuePanel } from '../../components/upload/UploadQueuePanel';
+import { DocumentViewerModal } from '../../components/ui/DocumentViewerModal';
+import { getSupabase } from '../../lib/supabase';
+import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
 
 interface ProcessingFile {
   id: string;
@@ -57,8 +60,9 @@ interface WorkerMessage {
 
 const SmartImportAIPage: React.FC = () => {
   const { userId } = useAuth();
-  const { openChat } = useUnifiedChatLauncher();
-  const smartImport = useSmartImport(userId, 'upload');
+  const { openChat, isOpen: isChatOpen } = useUnifiedChatLauncher();
+  const smartImport = useSmartImport(userId || undefined, 'upload');
+  const shouldShowPageQueue = !isChatOpen;
   
   // AI Memory System Integration (for task management only, not chat UI)
   const { 
@@ -101,7 +105,7 @@ const SmartImportAIPage: React.FC = () => {
   const handleChatWithByte = (message?: string, source: string = 'quick-action') => {
     const currentImportId = files.length > 0 ? files[files.length - 1].id : undefined;
     openChat({
-      initialEmployeeSlug: 'byte-docs',
+      initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
       context: {
         page: 'smart-import',
         data: {
@@ -124,6 +128,20 @@ const SmartImportAIPage: React.FC = () => {
   // openChat is already declared above at line 63
   const [selectedDocType, setSelectedDocType] = useState<SmartDocType | null>(null);
   const [processedDocs, setProcessedDocs] = useState<ProcessedDocument[]>([]);
+  const [viewerDoc, setViewerDoc] = useState<{
+    id: string;
+    imageUrl?: string | null;
+    originalFilename?: string;
+    extractedData?: any;
+    processingStatus?: string;
+    createdAt?: string;
+    ocrText?: string;
+    redactedText?: string;
+    redactionSummary?: string;
+    ocrEngine?: string;
+    ocrConfidence?: number;
+  } | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Legacy document processed callback removed - document processing now handled via unified chat
@@ -310,7 +328,7 @@ const SmartImportAIPage: React.FC = () => {
     // Create Byte's contribution to the financial story
     const byteContribution = {
       timestamp: new Date().toISOString(),
-      employee: 'byte-docs',
+      employee: EMPLOYEE_SLUGS.BYTE,
       totalTransactions: totalTransactions,
       processedFiles: processedFiles,
       accuracy: "99.7%",
@@ -570,19 +588,99 @@ const SmartImportAIPage: React.FC = () => {
     return { errorType: '', errorMessage: '' };
   };
 
+  const handleViewDocument = async (item: { result?: { docId?: string } }) => {
+    const docId = item.result?.docId;
+    if (!docId) {
+      return;
+    }
+    const sb = getSupabase();
+    if (!sb) {
+      setViewerDoc({
+        id: docId,
+        originalFilename: 'Document',
+        processingStatus: 'completed',
+      });
+      setViewerOpen(true);
+      return;
+    }
+
+    try {
+      const { data: docData, error: docError } = await sb
+        .from('user_documents')
+        .select('*')
+        .eq('id', docId)
+        .maybeSingle();
+
+      if (docError || !docData) {
+        console.error('[SmartImportAIPage] Failed to load document', docError);
+        setViewerDoc({
+          id: docId,
+          originalFilename: 'Document',
+          processingStatus: 'completed',
+        });
+        setViewerOpen(true);
+        return;
+      }
+
+      let imageUrl: string | null = null;
+      if (docData.storage_path) {
+        try {
+          const { data: urlData } = sb.storage
+            .from('original_docs')
+            .getPublicUrl(docData.storage_path);
+          imageUrl = urlData?.publicUrl || null;
+        } catch (urlError) {
+          console.warn('[SmartImportAIPage] Failed to get original_docs URL', urlError);
+          try {
+            const { data: urlData2 } = sb.storage
+              .from('redacted_docs')
+              .getPublicUrl(docData.storage_path);
+            imageUrl = urlData2?.publicUrl || null;
+          } catch (urlError2) {
+            console.warn('[SmartImportAIPage] Failed to get redacted_docs URL', urlError2);
+          }
+        }
+      }
+
+      setViewerDoc({
+        id: docData.id,
+        imageUrl: imageUrl || null,
+        originalFilename: docData.original_name || docData.file_name || 'Document',
+        extractedData: docData.extracted_data || null,
+        processingStatus: docData.status || 'unknown',
+        createdAt: docData.created_at,
+        ocrText: docData.ocr_text || null,
+        redactedText: docData.redacted_text || null,
+        redactionSummary: docData.redaction_summary || null,
+        ocrEngine: docData.ocr_engine || null,
+        ocrConfidence: docData.ocr_confidence || null,
+      });
+      setViewerOpen(true);
+    } catch (error) {
+      console.error('[SmartImportAIPage] Error loading document', error);
+      setViewerDoc({
+        id: docId,
+        originalFilename: 'Document',
+        processingStatus: 'completed',
+      });
+      setViewerOpen(true);
+    }
+  };
+
   return (
     <>
       <div className="w-full pt-4 px-4 sm:px-6 lg:px-8 min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
         {/* Page title is handled by DashboardHeader - no duplicate title here */}
         
         {/* Upload Queue Panel */}
-        {smartImport.uploadQueue.items.length > 0 && (
+        {shouldShowPageQueue && smartImport.uploadQueue.items.length > 0 && (
           <div className="mb-6">
             <UploadQueuePanel
               items={smartImport.uploadQueue.items}
               progress={smartImport.uploadQueue.progress}
               onCancel={smartImport.uploadQueue.cancel}
               onRetry={smartImport.uploadQueue.retry}
+              onViewDocument={handleViewDocument}
             />
           </div>
         )}
@@ -592,7 +690,7 @@ const SmartImportAIPage: React.FC = () => {
             onClick={() => {
               const currentImportId = files.length > 0 ? files[files.length - 1].id : undefined;
               openChat({
-                initialEmployeeSlug: 'byte-docs',
+                initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
                 context: {
                   page: 'smart-import',
                   data: {
@@ -636,7 +734,7 @@ const SmartImportAIPage: React.FC = () => {
                   // Legacy Byte chat removed - now using unified chat
                   // Open unified chat with Byte employee
                   openChat({ 
-                    initialEmployeeSlug: 'byte-docs',
+                    initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
                     context: { 
                       page: 'smart-import', 
                       data: { source: 'document-upload', docType: 'generic_document' }
@@ -664,7 +762,7 @@ const SmartImportAIPage: React.FC = () => {
                   // Legacy Byte chat removed - now using unified chat
                   // Open unified chat with Byte employee
                   openChat({ 
-                    initialEmployeeSlug: 'byte-docs',
+                    initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
                     context: { 
                       page: 'smart-import', 
                       data: { source: 'receipt-scan', docType: 'receipt' }
@@ -692,7 +790,7 @@ const SmartImportAIPage: React.FC = () => {
                   // Legacy Byte chat removed - now using unified chat
                   // Open unified chat with Byte employee
                   openChat({ 
-                    initialEmployeeSlug: 'byte-docs',
+                    initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
                     context: { 
                       page: 'smart-import', 
                       data: { source: 'bank-statement', docType: 'bank_statement' }
@@ -716,7 +814,7 @@ const SmartImportAIPage: React.FC = () => {
                 setSelectedDocType('csv');
                 // Legacy Byte chat removed - now using unified chat
                 openChat({ 
-                  initialEmployeeSlug: 'byte-docs',
+                  initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
                   context: { 
                     page: 'smart-import', 
                     data: { source: 'csv-import', docType: 'csv' }
@@ -1611,6 +1709,11 @@ const SmartImportAIPage: React.FC = () => {
       </button>
 
       {/* Legacy Floating Byte Chat Button removed - now using unified chat side tab (desktop) / bottom nav (mobile) */}
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        documentData={viewerDoc}
+      />
     </>
   );
 };

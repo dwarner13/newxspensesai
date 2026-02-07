@@ -5,15 +5,36 @@
  * Provides fallback mechanisms and cost optimization
  */
 
-import { extractTextWithGoogleVision, selectOCREngine, parseReceiptWithGoogleVision, ImageAnalysisResult } from './googleVisionService';
-import { processImageWithOCR, parseReceiptText } from './ocrService';
+import { getSupabase } from '@/lib/supabase';
+import { requestOcrProcessing, pollOcrCompletion } from '@/lib/ocr/requestOcrProcessing';
+import { parseReceiptText } from './ocrService';
 
 export interface SmartOCRResult {
   text: string;
   confidence: number;
-  engine: 'google-vision' | 'ocr-space' | 'fallback';
+  engine: 'backend';
   processingTime: number;
-  imageAnalysis: ImageAnalysisResult;
+  imageAnalysis: {
+    text: string;
+    confidence: number;
+    language: string;
+    textBlocks: Array<{
+      text: string;
+      confidence: number;
+      boundingBox: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+    }>;
+    imageQuality: {
+      blur: number;
+      brightness: number;
+      contrast: number;
+      resolution: number;
+    };
+  };
   parsedData: {
     vendor: string;
     date: string;
@@ -59,109 +80,51 @@ class SmartOCRManager {
     this.stats.totalRequests++;
 
     try {
-      // Step 1: Analyze image to determine best OCR engine
-      const engineSelection = await selectOCREngine(imageFile);
-      console.log(`Selected OCR engine: ${engineSelection.engine} - ${engineSelection.reason}`);
-
-      let result: SmartOCRResult;
-      let cost = 0;
-
-      // Step 2: Process with selected engine
-      if (engineSelection.engine === 'google-vision') {
-        try {
-          const visionResult = await extractTextWithGoogleVision(imageFile);
-          const parsedData = parseReceiptWithGoogleVision(visionResult);
-          
-          result = {
-            text: visionResult.text,
-            confidence: visionResult.confidence,
-            engine: 'google-vision',
-            processingTime: Date.now() - startTime,
-            imageAnalysis: {
-              text: visionResult.text,
-              confidence: visionResult.confidence,
-              language: 'en',
-              textBlocks: visionResult.detectedText.map(block => ({
-                text: block.text,
-                confidence: block.confidence || 0.8,
-                boundingBox: {
-                  x: block.boundingBox.vertices[0]?.x || 0,
-                  y: block.boundingBox.vertices[0]?.y || 0,
-                  width: Math.abs((block.boundingBox.vertices[2]?.x || 0) - (block.boundingBox.vertices[0]?.x || 0)),
-                  height: Math.abs((block.boundingBox.vertices[2]?.y || 0) - (block.boundingBox.vertices[0]?.y || 0))
-                }
-              })),
-              imageQuality: {
-                blur: 0.2, // Default values, would be calculated in real implementation
-                brightness: 0.6,
-                contrast: 0.7,
-                resolution: 1.0
-              }
-            },
-            parsedData,
-            cost: {
-              engine: 'Google Vision API',
-              estimatedCost: 0.0015, // $1.50 per 1000 requests
-              reason: 'High accuracy for complex documents'
-            }
-          };
-
-          this.stats.googleVisionRequests++;
-          cost = 0.0015;
-
-        } catch (visionError) {
-          console.warn('Google Vision failed, falling back to OCR.space:', visionError);
-          return this.fallbackToOCRSpace(imageFile, startTime, 'Google Vision API failed');
-        }
-
-      } else {
-        // Use OCR.space for simple images
-        try {
-          const ocrResult = await processImageWithOCR(imageFile);
-          const parsedData = parseReceiptText(ocrResult.text);
-          
-          result = {
-            text: ocrResult.text,
-            confidence: ocrResult.confidence,
-            engine: 'ocr-space',
-            processingTime: Date.now() - startTime,
-            imageAnalysis: {
-              text: ocrResult.text,
-              confidence: ocrResult.confidence,
-              language: 'en',
-              textBlocks: [],
-              imageQuality: {
-                blur: 0.1,
-                brightness: 0.7,
-                contrast: 0.8,
-                resolution: 1.0
-              }
-            },
-            parsedData: {
-              ...parsedData,
-              rawText: ocrResult.text
-            },
-            cost: {
-              engine: 'OCR.space API',
-              estimatedCost: 0.0005, // $0.50 per 1000 requests
-              reason: 'Cost-effective for simple documents'
-            }
-          };
-
-          this.stats.ocrSpaceRequests++;
-          cost = 0.0005;
-
-        } catch (ocrError) {
-          console.error('OCR.space failed:', ocrError);
-          throw new Error(`Both OCR engines failed. OCR.space error: ${ocrError}`);
-        }
+      const userId = await this.resolveUserId();
+      const ocrRequest = await requestOcrProcessing({ file: imageFile, userId });
+      if (!ocrRequest.ok || !ocrRequest.documentId) {
+        throw new Error(ocrRequest.error || 'OCR request failed');
       }
 
+      const ocrStatus = await pollOcrCompletion(ocrRequest.documentId, userId);
+      if (!ocrStatus.ok || !ocrStatus.ocrText) {
+        throw new Error(ocrStatus.error || 'OCR processing did not return text');
+      }
+
+      const parsedData = parseReceiptText(ocrStatus.ocrText);
+      const result: SmartOCRResult = {
+        text: ocrStatus.ocrText,
+        confidence: parsedData.confidence || 0.6,
+        engine: 'backend',
+        processingTime: Date.now() - startTime,
+        imageAnalysis: {
+          text: ocrStatus.ocrText,
+          confidence: parsedData.confidence || 0.6,
+          language: 'en',
+          textBlocks: [],
+          imageQuality: {
+            blur: 0,
+            brightness: 0,
+            contrast: 0,
+            resolution: 0
+          }
+        },
+        parsedData: {
+          ...parsedData,
+          rawText: ocrStatus.ocrText
+        },
+        cost: {
+          engine: 'Backend OCR',
+          estimatedCost: 0,
+          reason: 'Server-side OCR with guardrails'
+        }
+      };
+
       // Step 3: Update statistics
-      this.updateStats(result, cost);
+      this.updateStats(result, 0);
 
       // Step 4: Log result for monitoring
-      this.logOCRResult(result, engineSelection);
+      this.logOCRResult(result, { reason: 'Server-side OCR pipeline' });
 
       return result;
 
@@ -171,50 +134,16 @@ class SmartOCRManager {
     }
   }
 
-  /**
-   * Fallback to OCR.space when Google Vision fails
-   */
-  private async fallbackToOCRSpace(imageFile: File, startTime: number, reason: string): Promise<SmartOCRResult> {
-    try {
-      const ocrResult = await processImageWithOCR(imageFile);
-      const parsedData = parseReceiptText(ocrResult.text);
-      
-      const result: SmartOCRResult = {
-        text: ocrResult.text,
-        confidence: ocrResult.confidence,
-        engine: 'fallback',
-        processingTime: Date.now() - startTime,
-        imageAnalysis: {
-          text: ocrResult.text,
-          confidence: ocrResult.confidence,
-          language: 'en',
-          textBlocks: [],
-          imageQuality: {
-            blur: 0.1,
-            brightness: 0.7,
-            contrast: 0.8,
-            resolution: 1.0
-          }
-        },
-        parsedData: {
-          ...parsedData,
-          rawText: ocrResult.text
-        },
-        cost: {
-          engine: 'OCR.space API (Fallback)',
-          estimatedCost: 0.0005,
-          reason
-        }
-      };
-
-      this.stats.fallbackRequests++;
-      this.updateStats(result, 0.0005);
-
-      return result;
-
-    } catch (error) {
-      throw new Error(`Fallback OCR also failed: ${error}`);
+  private async resolveUserId(): Promise<string> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      throw new Error('Supabase client not available');
     }
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user?.id) {
+      throw new Error('User not authenticated');
+    }
+    return data.user.id;
   }
 
   /**
@@ -297,13 +226,8 @@ class SmartOCRManager {
     let potentialSavings = 0;
 
     // Analyze usage patterns
-    if (googleVisionRatio > 0.7) {
-      recommendations.push('Consider optimizing image quality to reduce Google Vision usage');
-      potentialSavings += (googleVisionRequests * 0.001); // Potential savings from using OCR.space
-    }
-
-    if (ocrSpaceRatio > 0.8 && this.stats.averageConfidence < 0.8) {
-      recommendations.push('Consider using Google Vision for better accuracy on complex documents');
+    if (googleVisionRatio > 0.7 || ocrSpaceRatio > 0.7) {
+      recommendations.push('OCR runs server-side; tune provider selection in backend if needed');
     }
 
     if (this.stats.averageProcessingTime > 5000) {

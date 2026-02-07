@@ -15,7 +15,14 @@ import { useSmartImport } from '../../hooks/useSmartImport';
 import { GuardrailsActivePill } from '../upload/GuardrailsActivePill';
 import { emitSecurityMessage } from '../../lib/primeSecurityMessages';
 import { getSupabase } from '../../lib/supabase';
+import { UploadQueuePanel } from '../upload/UploadQueuePanel';
+import { DocumentViewerModal } from '../ui/DocumentViewerModal';
+import type { UploadQueueItem } from '../../lib/upload/uploadQueue';
 import toast from 'react-hot-toast';
+
+let activeQueueOwnerId: string | null = null;
+
+type SmartImportHook = ReturnType<typeof useSmartImport>;
 
 export interface ByteUploadPanelProps {
   /** Optional callback when upload completes */
@@ -24,9 +31,16 @@ export interface ByteUploadPanelProps {
   compact?: boolean;
   /** Callback when drag state changes (for overlay coordination) */
   onDragStateChange?: (isDragging: boolean) => void;
+  /** Optional smart import hook (shared with parent) */
+  smartImport?: SmartImportHook;
 }
 
-export function ByteUploadPanel({ onUploadCompleted, compact = false, onDragStateChange }: ByteUploadPanelProps) {
+export function ByteUploadPanel({
+  onUploadCompleted,
+  compact = false,
+  onDragStateChange,
+  smartImport: smartImportProp,
+}: ByteUploadPanelProps) {
   const navigate = useNavigate();
   const { userId, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,15 +48,41 @@ export function ByteUploadPanel({ onUploadCompleted, compact = false, onDragStat
   const [currentUploadIds, setCurrentUploadIds] = useState<string[]>([]);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [discardingUploadId, setDiscardingUploadId] = useState<string | null>(null);
+  const [lastUploadedFiles, setLastUploadedFiles] = useState<string[]>([]);
+  const [lastSummaryId, setLastSummaryId] = useState<string | null>(null);
+  const queueClearTimeoutRef = useRef<number | null>(null);
+  const [viewerDoc, setViewerDoc] = useState<{
+    id: string;
+    imageUrl?: string;
+    originalFilename?: string;
+    mimeType?: string;
+    extractedData?: any;
+    processingStatus?: string;
+    createdAt?: string;
+    ocrText?: string;
+    redactedText?: string;
+    redactionSummary?: string;
+    ocrEngine?: string;
+    ocrConfidence?: number;
+  } | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [isRetryingOcr, setIsRetryingOcr] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const queueOwnerIdRef = useRef<string>(`${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+  const [isQueueOwner, setIsQueueOwner] = useState(false);
   
   // Use the same Smart Import hook as the main page
+  const hookSmartImport = useSmartImport(userId || undefined, 'chat');
+  const smartImport = smartImportProp || hookSmartImport;
   const {
     uploading: isUploading,
     progress: uploadProgress,
     uploadFileCount,
     uploadFiles,
     uploadStatus,
-  } = useSmartImport();
+    lastUploadSummary,
+    uploadQueue,
+  } = smartImport;
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,6 +95,8 @@ export function ByteUploadPanel({ onUploadCompleted, compact = false, onDragStat
       }
 
       const fileArray = Array.from(files);
+      setLastUploadedFiles(fileArray.map((file) => file.name));
+      setLastSummaryId(null);
       e.target.value = ''; // Reset input
 
       const toastId = toast.loading(`Uploading ${fileArray.length} file(s)...`);
@@ -139,6 +181,8 @@ export function ByteUploadPanel({ onUploadCompleted, compact = false, onDragStat
       }
 
       const fileArray = Array.from(files);
+      setLastUploadedFiles(fileArray.map((file) => file.name));
+      setLastSummaryId(null);
       const toastId = toast.loading(`Uploading ${fileArray.length} file(s)...`);
 
       try {
@@ -269,7 +313,141 @@ export function ByteUploadPanel({ onUploadCompleted, compact = false, onDragStat
     }
   }, [uploadStatus.step]);
 
-  const isProcessing = uploadStatus.step === 'uploading' || uploadStatus.step === 'processing';
+  useEffect(() => {
+    if (uploadStatus.step !== 'completed' || !lastUploadSummary?.id) return;
+    if (lastSummaryId === lastUploadSummary.id) return;
+    setLastSummaryId(lastUploadSummary.id);
+  }, [uploadStatus.step, lastUploadSummary?.id, lastSummaryId]);
+
+  useEffect(() => {
+    if (!compact || uploadQueue.items.length === 0) return;
+    const hasActive = uploadQueue.items.some((item) => item.status === 'uploading' || item.status === 'pending');
+    if (!hasActive) {
+      setIsCollapsed(true);
+    }
+  }, [compact, uploadQueue.items]);
+
+  const handleViewDocument = useCallback(async (item: UploadQueueItem) => {
+    const docId = item.result?.docId;
+    if (!docId) return;
+
+    setViewerDoc({
+      id: docId,
+      originalFilename: item.file?.name || 'Document',
+      processingStatus: item.result?.queued ? 'processing' : 'completed',
+    });
+    setViewerOpen(true);
+
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    try {
+      const { data: docData, error: docError } = await supabase
+        .from('user_documents')
+        .select('*')
+        .eq('id', docId)
+        .maybeSingle();
+
+      if (docError || !docData) return;
+
+      let imageUrl: string | null = null;
+      let downloadUrl: string | null = null;
+      if (docData.storage_path) {
+        try {
+          const { data: urlData, error: urlError } = await supabase.storage
+            .from('docs')
+            .createSignedUrl(docData.storage_path, 60);
+          if (!urlError) {
+            imageUrl = urlData?.signedUrl || null;
+          }
+        } catch {
+          // no-op
+        }
+      }
+      if (!imageUrl && docData.storage_path) {
+        const { data: publicData } = supabase.storage
+          .from('docs')
+          .getPublicUrl(docData.storage_path);
+        imageUrl = publicData?.publicUrl || null;
+      }
+      if (docData.storage_path) {
+        try {
+          const { data: fileData, error: downloadError } = await supabase.storage
+            .from('docs')
+            .download(docData.storage_path);
+          if (!downloadError && fileData) {
+            downloadUrl = URL.createObjectURL(fileData);
+          }
+        } catch {
+          // no-op
+        }
+      }
+
+      setViewerDoc({
+        id: docData.id,
+        imageUrl: imageUrl || null,
+        downloadUrl: downloadUrl || null,
+        originalFilename: docData.original_name || docData.file_name || 'Document',
+        mimeType: docData.mime_type || undefined,
+        extractedData: docData.extracted_data || null,
+        processingStatus: docData.status || 'unknown',
+        createdAt: docData.created_at,
+        ocrText: docData.ocr_text || null,
+        redactedText: docData.redacted_text || null,
+        redactionSummary: docData.redaction_summary || null,
+        ocrEngine: docData.ocr_engine || null,
+        ocrConfidence: docData.ocr_confidence || null,
+      });
+    } catch {
+      // Keep safe shell
+    }
+  }, []);
+
+  const handleRetryOcr = useCallback(async (docId: string) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    setIsRetryingOcr(true);
+    try {
+      await fetch('/.netlify/functions/smart-import-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ docId }),
+      });
+      toast.success('Retrying OCR...');
+    } catch {
+      toast.error('Failed to retry OCR');
+    } finally {
+      setIsRetryingOcr(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (queueClearTimeoutRef.current) {
+      window.clearTimeout(queueClearTimeoutRef.current);
+      queueClearTimeoutRef.current = null;
+    }
+  }, [uploadQueue]);
+
+  useEffect(() => {
+    const id = queueOwnerIdRef.current;
+    if (!activeQueueOwnerId) {
+      activeQueueOwnerId = id;
+      setIsQueueOwner(true);
+    } else if (activeQueueOwnerId === id) {
+      setIsQueueOwner(true);
+    }
+    return () => {
+      if (activeQueueOwnerId === id) {
+        activeQueueOwnerId = null;
+      }
+    };
+  }, []);
+
+  const isProcessing =
+    uploadStatus.step === 'uploading' ||
+    uploadStatus.step === 'processing' ||
+    isUploading ||
+    uploadQueue.isUploading;
   const canDiscard = currentUploadIds.length > 0 && (isProcessing || uploadStatus.step === 'error');
 
   return (
@@ -288,8 +466,40 @@ export function ByteUploadPanel({ onUploadCompleted, compact = false, onDragStat
           <div className="text-[10px] text-slate-400 leading-tight">
             PDF, CSV, JPG/PNG • Max 25MB
           </div>
+          {isProcessing && (
+            <div className="mt-2">
+              <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
+                <span>
+                  {uploadStatus.step === 'processing' ? 'Processing' : 'Uploading'}
+                </span>
+                {uploadFileCount?.total ? (
+                  <span>
+                    {uploadFileCount.current}/{uploadFileCount.total}
+                  </span>
+                ) : null}
+              </div>
+              <div className="w-full bg-slate-800/60 rounded-full h-1 overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 ${
+                    uploadStatus.step === 'processing'
+                      ? 'bg-gradient-to-r from-emerald-400 to-teal-400'
+                      : 'bg-gradient-to-r from-sky-400 to-cyan-400'
+                  }`}
+                  style={{ width: `${Math.max(8, uploadProgress || 0)}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="shrink-0 text-[10px] px-2 py-1 rounded-md border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 transition-colors flex items-center gap-1"
+            onClick={handleButtonClick}
+          >
+            <UploadCloud className="w-3 h-3" />
+            Upload
+          </button>
           {/* Discard Button */}
           {canDiscard && (
             <button
@@ -319,6 +529,45 @@ export function ByteUploadPanel({ onUploadCompleted, compact = false, onDragStat
           </button>
         </div>
       </div>
+
+
+      {isQueueOwner && uploadQueue.items.length > 0 && (
+        <div className="mt-2">
+          {compact && isCollapsed ? (
+            <div className="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900/60 px-3 py-2 text-xs text-slate-200">
+              <span>{uploadQueue.items.length} upload{uploadQueue.items.length === 1 ? '' : 's'} completed</span>
+              <div className="flex items-center gap-2">
+                {uploadQueue.items[0]?.result?.docId && (
+                  <button
+                    type="button"
+                    onClick={() => handleViewDocument(uploadQueue.items[0])}
+                    className="px-2 py-1 rounded-md bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors"
+                  >
+                    View
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsCollapsed(false)}
+                  className="px-2 py-1 rounded-md bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors"
+                >
+                  Show
+                </button>
+              </div>
+            </div>
+          ) : (
+            <UploadQueuePanel
+              items={uploadQueue.items}
+              progress={uploadQueue.progress}
+              onCancel={uploadQueue.cancel}
+              onRetry={uploadQueue.retry}
+              onViewDocument={handleViewDocument}
+              showIntegrityBadge={false}
+              showHeader={false}
+            />
+          )}
+        </div>
+      )}
 
       {/* Drag and drop area - hidden in compact mode (overlay handles drag) */}
       {!compact && (
@@ -422,6 +671,14 @@ export function ByteUploadPanel({ onUploadCompleted, compact = false, onDragStat
           </div>
         </div>
       )}
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        onRetryOcr={handleRetryOcr}
+        isRetryingOcr={isRetryingOcr}
+        mode="preview"
+        documentData={viewerDoc}
+      />
     </div>
   );
 }

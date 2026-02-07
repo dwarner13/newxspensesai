@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Result, Ok, Err, wrapAsync } from '../types/result';
-import { getSupabaseUrl, getSupabaseServiceRole } from '../env';
+import { getSupabaseUrl, getSupabaseServiceRole } from './env';
 import crypto from 'crypto';
 
 let supabaseAdmin: SupabaseClient | null = null;

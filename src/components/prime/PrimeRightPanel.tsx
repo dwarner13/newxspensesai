@@ -66,7 +66,7 @@ export function PrimeRightPanel({
           height: "calc(100vh - 80px)",
           marginTop: "40px",
           marginBottom: "40px",
-          transition: "right 0.3s ease, opacity 0.3s ease",
+          transition: "right 0.45s ease, opacity 0.3s ease, transform 0.45s ease",
           // Hide off-screen when closed (but keep mounted)
           transform: open ? "translateX(0)" : "translateX(100%)",
         }}

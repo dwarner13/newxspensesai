@@ -1,14 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Download, Eye, FileText, Image as ImageIcon, AlertCircle, Bot, Send, CheckCircle, Brain, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 interface DocumentViewerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onRetryOcr?: (docId: string) => void;
+  isRetryingOcr?: boolean;
+  mode?: 'full' | 'preview';
   documentData: {
     id: string;
-    imageUrl?: string;
+    imageUrl?: string | null;
+    downloadUrl?: string | null;
     originalFilename?: string;
+    mimeType?: string;
     extractedData?: any;
     processingStatus?: string;
     createdAt?: string;
@@ -23,12 +29,18 @@ interface DocumentViewerModalProps {
 export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   isOpen,
   onClose,
+  onRetryOcr,
+  isRetryingOcr = false,
+  mode = 'full',
   documentData
 }) => {
   const [byteChatOpen, setByteChatOpen] = useState(false);
   const [byteMessages, setByteMessages] = useState<Array<{type: 'user' | 'byte', text: string, timestamp: string}>>([]);
   const [byteInput, setByteInput] = useState('');
   const [isByteProcessing, setIsByteProcessing] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
+  const [pdfLoadError, setPdfLoadError] = useState(false);
   const [byteSuggestions, setByteSuggestions] = useState<{
     category?: string;
     subcategory?: string;
@@ -36,30 +48,86 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     confidence?: number;
   } | null>(null);
   const [isApproving, setIsApproving] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  if (!documentData) return null;
 
   // Auto-scroll to bottom of chat
   useEffect(() => {
+    if (!isOpen) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [byteMessages]);
+  }, [byteMessages, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setPreviewFailed(false);
+  }, [isOpen, documentData?.imageUrl]);
+
+  useEffect(() => {
+    if (!isOpen || !documentData) {
+      setPdfBlobUrl(null);
+      setPdfLoadError(false);
+      setIsPdfLoading(false);
+      return;
+    }
+    const fileName = documentData.originalFilename || '';
+    const fileExt = fileName.split('.').pop()?.toLowerCase();
+    const isPdf = documentData.mimeType === 'application/pdf' || fileExt === 'pdf';
+    const url = documentData.downloadUrl || documentData.imageUrl || null;
+    if (!isPdf || !url) {
+      setPdfBlobUrl(null);
+      setPdfLoadError(false);
+      setIsPdfLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    if (url.startsWith('blob:')) {
+      setPdfBlobUrl(url);
+      setIsPdfLoading(false);
+      setPdfLoadError(false);
+      return;
+    }
+    setIsPdfLoading(true);
+    setPdfLoadError(false);
+    fetch(url)
+      .then((res) => {
+        if (!res.ok) throw new Error('PDF fetch failed');
+        return res.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        const objectUrl = URL.createObjectURL(blob);
+        setPdfBlobUrl(objectUrl);
+        setIsPdfLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPdfLoadError(true);
+        setIsPdfLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [isOpen, documentData?.imageUrl, documentData?.downloadUrl, documentData?.mimeType, documentData?.originalFilename]);
 
   // Initialize Byte AI when modal opens
   useEffect(() => {
-    if (isOpen && documentData) {
-      // Add welcome message from Byte
-      const welcomeMessage = {
-        type: 'byte' as const,
-        text: `Hello! I'm Byte, your document processing AI. I can see you've uploaded a ${documentData.originalFilename || 'document'}. I can help you categorize this transaction, extract additional insights, and optimize your financial data. What would you like me to analyze?`,
-        timestamp: new Date().toISOString()
-      };
-      setByteMessages([welcomeMessage]);
-      
-      // Auto-generate suggestions if we have extracted data
-      if (documentData.extractedData) {
-        generateByteSuggestions();
-      }
+    if (!isOpen || !documentData) return;
+    // Add welcome message from Byte
+    const welcomeMessage = {
+      type: 'byte' as const,
+      text: `Hello! I'm Byte, your document processing AI. I can see you've uploaded a ${documentData.originalFilename || 'document'}. I can help you categorize this transaction, extract additional insights, and optimize your financial data. What would you like me to analyze?`,
+      timestamp: new Date().toISOString()
+    };
+    setByteMessages([welcomeMessage]);
+    
+    // Auto-generate suggestions if we have extracted data
+    if (documentData.extractedData) {
+      generateByteSuggestions();
     }
   }, [isOpen, documentData]);
 
@@ -151,11 +219,19 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   };
 
   const handleDownload = () => {
-    if (documentData.imageUrl) {
+    const url = documentData?.imageUrl || documentData?.downloadUrl || null;
+    if (url) {
       const link = document.createElement('a');
-      link.href = documentData.imageUrl;
+      link.href = url;
       link.download = documentData.originalFilename || 'document';
       link.click();
+    }
+  };
+
+  const handleOpenInNewTab = () => {
+    const url = documentData?.imageUrl || documentData?.downloadUrl || null;
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -169,13 +245,44 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     });
   };
 
-  return (
-    <>
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
-          onClick={onClose}
-        >
+  if (!isOpen || !documentData) return null;
+
+  const fileName = documentData.originalFilename || 'Document';
+  const fileExt = fileName.split('.').pop()?.toLowerCase();
+  const isPdf = documentData.mimeType === 'application/pdf' || fileExt === 'pdf';
+  const previewUrl = documentData.downloadUrl || documentData.imageUrl || null;
+  const summaryLines: string[] = [];
+  if (documentData.extractedData) {
+    if (documentData.extractedData.vendor) {
+      summaryLines.push(`Vendor: ${documentData.extractedData.vendor}`);
+    }
+    if (documentData.extractedData.total) {
+      summaryLines.push(`Total: $${documentData.extractedData.total}`);
+    }
+    if (documentData.extractedData.date) {
+      summaryLines.push(`Date: ${documentData.extractedData.date}`);
+    }
+    if (documentData.extractedData.category) {
+      summaryLines.push(`Category: ${documentData.extractedData.category}`);
+    }
+  } else if (documentData.ocrText) {
+    const trimmed = documentData.ocrText.trim();
+    const preview = trimmed.length > 140 ? `${trimmed.slice(0, 140)}…` : trimmed;
+    summaryLines.push(`OCR captured ${trimmed.length} characters`);
+    if (preview) {
+      summaryLines.push(`Preview: ${preview}`);
+    }
+  }
+
+  const modalContent = (
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
           <div
             className="bg-gray-900 rounded-2xl border border-gray-700 shadow-2xl max-w-6xl max-h-[90vh] w-full mx-4 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
@@ -188,7 +295,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-white">
-                    {documentData.originalFilename || 'Document'}
+                    {fileName}
                   </h2>
                   <p className="text-gray-400 text-sm">
                     {documentData.createdAt && formatDate(documentData.createdAt)}
@@ -196,14 +303,23 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {documentData.imageUrl && (
-                  <button
-                    onClick={handleDownload}
-                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
-                    title="Download Document"
-                  >
-                    <Download className="w-5 h-5" />
-                  </button>
+                {previewUrl && (
+                  <>
+                    <button
+                      onClick={handleOpenInNewTab}
+                      className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                      title="Open in new tab"
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={handleDownload}
+                      className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+                      title="Download Document"
+                    >
+                      <Download className="w-5 h-5" />
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={onClose}
@@ -216,21 +332,89 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
+              {mode === 'preview' ? (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5" />
+                    Document Preview
+                  </h3>
+                  <div className="bg-gray-800 rounded-xl p-4">
+                    {previewUrl && !previewFailed ? (
+                      isPdf ? (
+                        pdfBlobUrl ? (
+                          <iframe
+                            src={pdfBlobUrl}
+                            title={fileName}
+                            className="w-full rounded-lg shadow-lg"
+                            style={{ height: '480px' }}
+                          />
+                        ) : isPdfLoading ? (
+                          <div className="text-sm text-gray-300">Loading preview...</div>
+                        ) : (
+                          <div className="text-sm text-gray-300">
+                            Preview blocked. Use the eye icon to open in a new tab.
+                          </div>
+                        )
+                      ) : (
+                        <img
+                          src={previewUrl}
+                          alt={fileName}
+                          className="w-full h-auto rounded-lg shadow-lg"
+                          style={{ maxHeight: '480px', objectFit: 'contain' }}
+                          onError={() => setPreviewFailed(true)}
+                        />
+                      )
+                    ) : (
+                      <div className="text-sm text-gray-400">
+                        Preview not available yet. Try again after processing completes.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Document Image */}
-                {documentData.imageUrl && (
+                {/* Document Preview */}
+                {previewUrl && !previewFailed ? (
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2">
                       <ImageIcon className="w-5 h-5" />
-                      Document Image
+                      Document Preview
                     </h3>
                     <div className="bg-gray-800 rounded-xl p-4">
-                      <img
-                        src={documentData.imageUrl}
-                        alt={documentData.originalFilename || 'Document'}
-                        className="w-full h-auto rounded-lg shadow-lg"
-                        style={{ maxHeight: '400px', objectFit: 'contain' }}
-                      />
+                      {isPdf ? (
+                        pdfBlobUrl ? (
+                          <iframe
+                            src={pdfBlobUrl}
+                            title={fileName}
+                            className="w-full rounded-lg shadow-lg"
+                            style={{ height: '400px' }}
+                          />
+                        ) : isPdfLoading ? (
+                          <div className="text-sm text-gray-300">Loading preview...</div>
+                        ) : (
+                          <div className="text-sm text-gray-300">
+                            Preview blocked. Use the eye icon to open in a new tab.
+                          </div>
+                        )
+                      ) : (
+                        <img
+                          src={previewUrl}
+                          alt={fileName}
+                          className="w-full h-auto rounded-lg shadow-lg"
+                          style={{ maxHeight: '400px', objectFit: 'contain' }}
+                          onError={() => setPreviewFailed(true)}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                      <ImageIcon className="w-5 h-5" />
+                      Document Preview
+                    </h3>
+                    <div className="bg-gray-800 rounded-xl p-4 text-sm text-gray-400">
+                      Preview not available yet. Try again after processing completes.
                     </div>
                   </div>
                 )}
@@ -269,11 +453,60 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                           </span>
                         </div>
                       )}
+                      {(documentData.processingStatus === 'rejected' || documentData.processingStatus === 'failed') && onRetryOcr && (
+                        <button
+                          onClick={() => onRetryOcr(documentData.id)}
+                          disabled={isRetryingOcr}
+                          className={`w-full mt-2 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                            isRetryingOcr
+                              ? 'bg-blue-500/30 text-blue-200 cursor-not-allowed'
+                              : 'bg-blue-500/20 text-blue-100 hover:bg-blue-500/30'
+                          }`}
+                        >
+                          {isRetryingOcr ? 'Retrying OCR…' : 'Retry OCR'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Byte Summary */}
+                  <div>
+                    <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                      <Bot className="w-5 h-5 text-blue-400" />
+                      Byte Summary
+                    </h3>
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 space-y-2">
+                      <p className="text-sm text-blue-100">
+                        Here’s what I found in your upload:
+                      </p>
+                      {summaryLines.length > 0 ? (
+                        <ul className="text-sm text-blue-200 space-y-1">
+                          {summaryLines.map((line, idx) => (
+                            <li key={idx}>• {line}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-sm text-blue-200">
+                          I’m still processing this document. Check back in a moment.
+                        </p>
+                      )}
+                      <button
+                        onClick={() => {
+                          setByteChatOpen(true);
+                          if (!byteInput) {
+                            setByteInput('Summarize this document and highlight any issues.');
+                          }
+                        }}
+                        className="mt-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/20 text-blue-100 hover:bg-blue-500/30 transition-colors text-sm"
+                      >
+                        <Bot className="w-4 h-4" />
+                        Ask Byte about this document
+                      </button>
                     </div>
                   </div>
 
                   {/* Extracted Data */}
-                  {documentData.extractedData && (
+                  {documentData.extractedData ? (
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-3">Extracted Information</h3>
                       <div className="bg-gray-800 rounded-xl p-4 space-y-3">
@@ -302,6 +535,10 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                           </div>
                         )}
                       </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-gray-400">
+                      No extracted data available yet.
                     </div>
                   )}
 
@@ -452,12 +689,17 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                   )}
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>
-      )}
-    </>
   );
+
+  if (typeof document === 'undefined') {
+    return modalContent;
+  }
+
+  return createPortal(modalContent, document.body);
 };
 
 export default DocumentViewerModal;

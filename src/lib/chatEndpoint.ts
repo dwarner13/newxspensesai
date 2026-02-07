@@ -26,12 +26,17 @@ export async function chatRequest(body: {
   employeeSlug?: string;
   stream?: boolean;
 }) {
+  const clientMessageId = (body as any).client_message_id || (typeof crypto !== 'undefined' && crypto.randomUUID ? `c_${crypto.randomUUID()}` : `c_${Date.now()}`);
+  const payload = (body as any).client_message_id ? body : { ...body, client_message_id: clientMessageId };
+  if (import.meta.env.DEV) {
+    console.log('[CHAT SEND]', { client_message_id: clientMessageId, endpoint: CHAT_ENDPOINT });
+  }
   const response = await fetch(CHAT_ENDPOINT, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
 
   // Verify backend version

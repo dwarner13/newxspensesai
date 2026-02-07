@@ -8,7 +8,7 @@
  * as UnifiedAssistantChat, ensuring consistency across both interfaces.
  */
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { EmployeeChatWorkspace } from './EmployeeChatWorkspace';
 import { usePrimeChat } from '../../hooks/usePrimeChat';
 import { useAuth } from '../../contexts/AuthContext';
@@ -40,15 +40,6 @@ export function PrimeChatWorkspace({
     undefined, // No custom system prompt
     [] // No initial messages
   );
-
-  // Send initial question if provided
-  useEffect(() => {
-    if (initialQuestion && primeChat.messages.length === 0) {
-      setTimeout(() => {
-        primeChat.send(initialQuestion);
-      }, 500);
-    }
-  }, [initialQuestion, primeChat.messages.length]);
 
   return (
     <EmployeeChatWorkspace

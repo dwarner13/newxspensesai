@@ -296,6 +296,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const orchestrator = useRef(new AIEmployeeOrchestrator());
+  const inFlightRef = useRef(false);
 
   // Privacy notice session tracking
   const SESSION_KEY = 'smartImport.redactionNoticeShown';
@@ -324,6 +325,44 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
 
     setMessages(prev => [...prev, privacyNotice]);
     markRedactionNoticeShown();
+  };
+
+  const loadRedactedOcrText = async (documentId: string, userId: string) => {
+    if (!supabase || !documentId) {
+      return { ocrText: '', piiTypes: [] as string[] };
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('user_documents')
+        .select('ocr_text, pii_types')
+        .eq('id', documentId)
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        console.warn('[ByteDocumentChat] Failed to fetch OCR text:', error);
+        return { ocrText: '', piiTypes: [] as string[] };
+      }
+
+      return {
+        ocrText: data?.ocr_text || '',
+        piiTypes: data?.pii_types || []
+      };
+    } catch (error) {
+      console.warn('[ByteDocumentChat] OCR text lookup error:', error);
+      return { ocrText: '', piiTypes: [] as string[] };
+    }
+  };
+
+  const buildOcrContextMessage = (context: ProcessedDocumentContext | null): string => {
+    if (!context?.ocrText) return '';
+    const maxChars = 4000;
+    const trimmedText = context.ocrText.length > maxChars
+      ? `${context.ocrText.slice(0, maxChars)}\n\n[truncated]`
+      : context.ocrText;
+
+    return `Context: Redacted OCR text from ${context.fileName} (${context.docType}):\n\n${trimmedText}\n\nUse this text to answer the user's questions about the document.`;
   };
 
   // Auto-scroll to bottom
@@ -495,7 +534,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
   }, [isOpen, user, sharedSessionId]); // Only run when isOpen changes, NOT when activeAI changes
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim()) {
+    if (!inputMessage.trim() || inFlightRef.current) {
       console.log('Message blocked: No message content');
       return;
     }
@@ -506,6 +545,7 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       setInputMessage('');
       return;
     }
+    inFlightRef.current = true;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -544,11 +584,19 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         
         // Get the new employee's response (uses shared sessionId)
         const newEmployeeResponse = await getEmployeeResponse(response.handoff.to, inputMessage);
+        if (!newEmployeeResponse.content) {
+          setIsProcessing(false);
+          return;
+        }
         const messageId = (Date.now() + 1).toString();
         await typewriterResponse(newEmployeeResponse.content, messageId, newEmployeeResponse.employeeSlug);
       } else {
         // Handle response from current employee (uses shared sessionId)
         const employeeResponse = await getEmployeeResponse(activeAI, inputMessage);
+        if (!employeeResponse.content) {
+          setIsProcessing(false);
+          return;
+        }
         const messageId = (Date.now() + 1).toString();
         await typewriterResponse(employeeResponse.content, messageId, employeeResponse.employeeSlug);
       }
@@ -562,6 +610,8 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       const messageId = (Date.now() + 1).toString();
       await typewriterResponse(fallbackResponse.content, messageId, fallbackResponse.employeeSlug);
       setIsProcessing(false);
+    } finally {
+      inFlightRef.current = false;
     }
   };
 
@@ -606,6 +656,9 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
     if (employeeSlug === 'prime-boss' && recentDocuments.length > 0) {
       contextMessage = buildDocumentContextMessage(recentDocuments);
     }
+
+    const ocrContextMessage = buildOcrContextMessage(activeDocumentContext);
+    const combinedContextMessage = [contextMessage, ocrContextMessage].filter(Boolean).join('\n\n');
     
     // Update conversation timestamp
     if (sessionId) {
@@ -624,6 +677,13 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       // Call the guarded chat endpoint
       // Request: POST /.netlify/functions/chat
       // Body: { userId, employeeSlug, message, sessionId, stream: true }
+      const clientMessageId = `c_${crypto.randomUUID()}`;
+      console.log('[CHAT SEND]', {
+        employeeSlug,
+        userId,
+        sessionId,
+        client_message_id: clientMessageId,
+      });
       const response = await fetch(CHAT_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -632,9 +692,10 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
         body: JSON.stringify({
           userId,
           employeeSlug,
-          message: contextMessage ? `${contextMessage}\n\n${userMessage}` : userMessage,
+          message: combinedContextMessage ? `${combinedContextMessage}\n\n${userMessage}` : userMessage,
           sessionId,
           stream: true, // Enable streaming for real-time responses
+          client_message_id: clientMessageId,
         }),
       });
       
@@ -716,6 +777,9 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
       } else {
         // Non-streaming response (shouldn't happen, but handle it)
         const data = await response.json().catch(() => ({}));
+        if (data?.deduped === true || data?.type === 'noop') {
+          return { content: '', employeeSlug: responseEmployeeHeader };
+        }
         
         // Save sessionId if returned from backend (shared for all employees)
         if (data.sessionId && !sharedSessionId) {
@@ -963,6 +1027,15 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
             
             // Use parsed transaction count, not mock count
             const transactionCount = parsedTransactions.length || result.transactionCount || 0;
+
+            // Load redacted OCR text for Byte/Prime context (prefer worker result)
+            let ocrText = result.redactedText || '';
+            let piiTypes: string[] = [];
+            if (!ocrText && result.documentId) {
+              const lookup = await loadRedactedOcrText(result.documentId, userId);
+              ocrText = lookup.ocrText;
+              piiTypes = lookup.piiTypes;
+            }
             
             // Save document to history (legacy format for chat component)
             const documentId = saveProcessedDocument(file, transactionsToShow, undefined, 'Worker Backend Processing');
@@ -1020,12 +1093,14 @@ export const ByteDocumentChat: React.FC<ByteDocumentChatProps> = ({
             let documentContext: ProcessedDocumentContext | null = null;
             if (result.analysis && transactionCount > 0) {
               documentContext = {
-                docId: uploadResult.document_id || `job-${Date.now()}`,
+                docId: result.documentId || uploadResult.document_id || `job-${Date.now()}`,
                 fileName: file.name,
                 docType: finalDocType,
                 uploadedAt: new Date().toISOString(),
                 transactions: transactionsToShow,
                 analysis: result.analysis,
+                ocrText: ocrText || undefined,
+                piiTypes: piiTypes.length > 0 ? piiTypes : undefined,
               };
               
               // Store as active context for Prime actions

@@ -11,14 +11,14 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Loader2, Send, User } from 'lucide-react';
+import { Loader2, Send } from 'lucide-react';
+import { useProfile } from '../../hooks/useProfile';
 import { useStreamChat } from '../../ui/hooks/useStreamChat';
 import { EMPLOYEE_CHAT_CONFIG } from '../../config/employeeChatConfig';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { useChatSessions } from '../../hooks/useChatSessions';
 import { PrimeSlideoutShell } from '../prime/PrimeSlideoutShell';
 import { GuardrailNotice } from './GuardrailNotice';
-import DesktopChatSideBar from './DesktopChatSideBar';
 
 // Suggested prompts for Tag
 const TAG_SUGGESTED_PROMPTS = [
@@ -43,6 +43,7 @@ export function TagChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const userJustSentRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { avatarUrl, avatarInitials } = useProfile();
 
   const { setActiveEmployee: setActiveEmployeeGlobal } = useUnifiedChatLauncher();
   const { loadSessions } = useChatSessions({ autoLoad: false });
@@ -152,9 +153,6 @@ export function TagChatPanel({
         onClick={onClose}
       />
       <div className="relative z-50 h-full flex items-stretch">
-        <div className="hidden md:flex h-full items-center">
-          <DesktopChatSideBar dockedToPanel />
-        </div>
         <div className="relative h-full w-full">
           <PrimeSlideoutShell
             title={config.title}
@@ -210,7 +208,7 @@ export function TagChatPanel({
             <GuardrailNotice />
             <div
               ref={scrollContainerRef}
-              className="flex-1 overflow-y-auto px-8 pt-2 pb-4 space-y-4 hide-scrollbar"
+              className="flex-1 overflow-y-auto px-8 pt-2 pb-4 space-y-4 hide-scrollbar scrollbar-hide"
             >
               <div className="space-y-3">
                 {displayMessages.map((message) => (
@@ -226,8 +224,14 @@ export function TagChatPanel({
                       }`}
                     >
                       {message.role === 'user' ? (
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-700">
-                          <User className="w-4 h-4 text-slate-200" />
+                        <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-slate-700 overflow-hidden">
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-xs font-semibold text-slate-100">
+                              {avatarInitials}
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br from-yellow-300 via-amber-400 to-orange-500 text-sm">

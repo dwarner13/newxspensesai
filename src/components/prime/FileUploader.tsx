@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { postChat } from '@/lib/api/chat';
 
 export interface ImageAttachmentMeta {
   name: string;
@@ -99,13 +100,8 @@ async function uploadDocument(agent: 'prime', messages: Array<{ role: 'user' | '
     attachments: [{ name: file.name, type: file.type, data: base64 }],
     stream: false
   };
-  const res = await fetch('/.netlify/functions/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  if (!res.ok) throw new Error(`upload failed ${res.status}`);
-  return await res.json();
+  const res = await postChat(body);
+  return res;
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {

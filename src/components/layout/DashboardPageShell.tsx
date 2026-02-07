@@ -19,6 +19,8 @@ interface DashboardPageShellProps {
   left?: React.ReactNode;
   /** Center column content (main content) */
   center: React.ReactNode;
+  /** Optional content between center and activity feed */
+  between?: React.ReactNode;
   /** Right column content (activity feed) */
   right?: React.ReactNode;
   /** Optional additional className for the wrapper */
@@ -30,6 +32,7 @@ interface DashboardPageShellProps {
 export function DashboardPageShell({
   left,
   center,
+  between,
   right,
   className,
   gridClassName,
@@ -50,6 +53,7 @@ export function DashboardPageShell({
           className={gridClassName}
           left={left}
           center={center}
+          between={between}
           right={right}
         />
       </div>

@@ -1,3 +1,5 @@
+import { postChat } from "@/lib/api/chat";
+
 // Enhanced OCR System with Parallel Processing and Smart Preprocessing
 export interface OCRResult {
   text: string;
@@ -446,39 +448,27 @@ export class EnhancedOCRSystem {
       // Convert ArrayBuffer to base64
       const base64 = await this.arrayBufferToBase64(preprocessed.optimized);
       
-      const response = await fetch('/.netlify/functions/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          model: 'gpt-4-vision-preview',
-          messages: [
-            {
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: 'Extract all text from this receipt image. Return only the raw text without any formatting or explanations.'
-                },
-                {
-                  type: 'image_url',
-                  image_url: {
-                    url: `data:image/jpeg;base64,${base64}`
-                  }
+      const data = await postChat({
+        model: 'gpt-4-vision-preview',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Extract all text from this receipt image. Return only the raw text without any formatting or explanations.'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:image/jpeg;base64,${base64}`
                 }
-              ]
-            }
-          ],
-          max_tokens: 1000
-        })
+              }
+            ]
+          }
+        ],
+        max_tokens: 1000
       });
-      
-      if (!response.ok) {
-        throw new Error(`OpenAI Vision API error: ${response.status}`);
-      }
-      
-      const data = await response.json();
       
       return {
         text: data.choices[0].message.content,

@@ -16,6 +16,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
+import { getSessionFlag, setSessionFlag } from '../../lib/welcomeSession';
 
 interface WelcomeBackOverlayProps {
   onDismiss?: () => void;
@@ -57,17 +58,18 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
   const navigate = useNavigate();
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [welcomeVisible, setWelcomeVisible] = useState(false);
   const [activeImport, setActiveImport] = useState<ActiveImport | null>(null);
   const [loadingImport, setLoadingImport] = useState(true);
   const [hasPulsed, setHasPulsed] = useState(false);
 
   // Check if overlay should be shown
   useEffect(() => {
-    const storageKey = 'xai_welcome_back_shown';
-    const shown = sessionStorage.getItem(storageKey);
+    const shown = getSessionFlag('xai_welcome_back_shown', userId);
     
     // Show if not shown in this session AND user is authenticated AND onboarding completed
     if (!shown && user && userId && profile?.onboarding_completed) {
+      setSessionFlag('xai_welcome_back_shown', userId);
       setIsVisible(true);
       setIsAnimating(true);
       // Trigger pulse animation after modal opens
@@ -80,6 +82,14 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
       }, 100);
     }
   }, [user, userId, profile?.onboarding_completed]);
+
+  useEffect(() => {
+    if (isVisible) {
+      requestAnimationFrame(() => setWelcomeVisible(true));
+    } else {
+      setWelcomeVisible(false);
+    }
+  }, [isVisible]);
 
   // Fetch active import/document
   useEffect(() => {
@@ -154,9 +164,10 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsAnimating(false);
+        setWelcomeVisible(false);
         setTimeout(() => {
           setIsVisible(false);
-          sessionStorage.setItem('xai_welcome_back_shown', 'true');
+          setSessionFlag('xai_welcome_back_shown', userId);
           onDismiss?.();
         }, 200);
       }
@@ -195,9 +206,10 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
 
   const handleDismiss = () => {
     setIsAnimating(false);
+    setWelcomeVisible(false);
     setTimeout(() => {
       setIsVisible(false);
-      sessionStorage.setItem('xai_welcome_back_shown', 'true');
+      setSessionFlag('xai_welcome_back_shown', userId);
       onDismiss?.();
     }, 200);
   };
@@ -266,10 +278,10 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
         <div
           className={cn(
             "relative w-full max-w-lg mx-auto pointer-events-auto",
-            "transition-all duration-300 ease-out",
-            isAnimating 
-              ? "scale-100 translate-y-0 opacity-100" 
-              : "scale-[0.98] translate-y-4 opacity-0"
+            "transition-all duration-300 ease-out transform",
+            welcomeVisible 
+              ? "opacity-100 scale-100" 
+              : "opacity-0 scale-95"
           )}
           onClick={(e) => e.stopPropagation()}
         >
@@ -363,14 +375,14 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
             </div>
 
             {/* Content */}
-            <div className="relative space-y-6 z-10">
+            <div className="relative space-y-7 z-10">
               {/* Greeting */}
-              <div className="text-center space-y-3">
+              <div className="text-center space-y-4">
                 <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight">
                   Welcome back, {displayName}
                 </h2>
                 <p className="text-slate-300 text-lg">
-                  Ready to keep building your financial clarity?
+                  Prime is ready. Want to pick up where you left off?
                 </p>
               </div>
 
@@ -385,10 +397,11 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
                     "hover:from-cyan-400 hover:to-teal-400",
                     "text-white font-semibold py-4 px-6 rounded-xl",
                     "border border-white/10",
-                    "shadow-lg shadow-cyan-500/25",
-                    "hover:shadow-cyan-500/40 hover:shadow-xl hover:shadow-cyan-500/30",
+                    "shadow-lg shadow-cyan-500/10",
+                    "hover:shadow-cyan-500/20 hover:shadow-xl hover:shadow-cyan-500/30",
                     "hover:-translate-y-[1px]",
-                    "active:translate-y-0 active:shadow-cyan-500/20",
+                    "hover:brightness-110",
+                    "active:translate-y-0 active:shadow-cyan-500/20 active:scale-[0.99]",
                     "transition-all duration-200",
                     "flex items-center justify-center gap-2",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent",
@@ -414,10 +427,9 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
                   onClick={handlePrimeChat}
                   className={cn(
                     "w-full",
-                    "bg-white/5 backdrop-blur-sm",
                     "border border-white/10",
-                    "hover:bg-white/10 hover:border-white/20",
-                    "text-white text-sm font-medium py-3 px-4 rounded-xl",
+                    "hover:bg-white/5 hover:border-white/20",
+                    "text-white/80 hover:text-white text-sm font-medium py-3 px-4 rounded-xl",
                     "transition-all duration-200",
                     "flex items-center justify-center gap-2",
                     "hover:-translate-y-[1px]",
@@ -457,6 +469,10 @@ export function WelcomeBackOverlay({ onDismiss }: WelcomeBackOverlayProps) {
                     </span>
                   </button>
                 )}
+
+                <p className="text-xs text-slate-400 text-center">
+                  Tip: Prime Chat stays private and secure — your session is restored.
+                </p>
 
                 {/* Tertiary: Settings - Match onboarding tertiary link */}
                 <button

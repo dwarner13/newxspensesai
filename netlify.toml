@@ -4,33 +4,22 @@
   functions = "netlify/functions"
 
 [functions]
-  # CRITICAL: Use ESBuild bundler to support ES modules (package.json has "type": "module")
-  # ESBuild properly handles import.meta.env and ES module syntax
-  # Without this, Netlify defaults to zisi bundler which outputs CommonJS, causing:
-  # - "module is not defined in ES module scope" errors
-  # - "import.meta is not available with the cjs output format" warnings
+  directory = "netlify/functions"
   node_bundler = "esbuild"
   # Mark dependencies as external to avoid CommonJS bundling issues
   # jsdom is marked external because it's used by safe_web_research tool but doesn't bundle well
   # @supabase/supabase-js removed from external - now bundled with functions
-  external_node_modules = ["openai", "undici", "jsdom", "@mozilla/readability"]
+  included_files = ["netlify/functions/_shared/**", "netlify/functions/_lib/**"]
+  external_node_modules = ["openai", "undici", "jsdom", "@mozilla/readability", "pdf-parse"]
   # NOTE: Environment variables are configured in Netlify Dashboard
   # VITE_ prefixed vars are automatically excluded from functions (frontend-only)
   # To avoid AWS Lambda 4KB env var limit, ensure only necessary vars are set in dashboard
 
 [dev]
-  # Netlify Dev will start on port 8888
+  framework = "vite"
+  command = "npm run dev"
+  targetPort = 5174
   port = 8888
-  # Serve built files from dist (for production-like testing)
-  publish = "dist"
-  # Start Vite dev server automatically when running 'netlify dev'
-  command = "pnpm exec vite --port 5173 --host"
-  # Vite runs on port 5173, Netlify Dev proxies to it
-  targetPort = 5173
-  # Use custom framework detection (Vite + React)
-  framework = "#custom"
-  # Load functions directly from TypeScript source (no dist folder needed for local dev)
-  functions = "netlify/functions"
 
 [[redirects]]
   from = "/*"
@@ -40,4 +29,6 @@
 [functions.esbuild]
   format = "esm"
   sourcemap = false
+  format = "cjs"
+  external = ["jsdom", "xhr-sync-worker.js"]
 

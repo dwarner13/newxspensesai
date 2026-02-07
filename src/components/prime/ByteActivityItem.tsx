@@ -10,6 +10,7 @@ import { CheckCircle, AlertTriangle, FileText } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import type { ActivityEvent } from '../../hooks/useActivityFeed';
+import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
 
 interface ByteActivityItemProps {
   event: ActivityEvent;
@@ -42,7 +43,7 @@ export function ByteActivityItem({ event, onViewResults }: ByteActivityItemProps
   const handleChatWithByte = (e: React.MouseEvent) => {
     e.stopPropagation();
     openChat({
-      initialEmployeeSlug: 'byte-docs',
+      initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
       context: {
         page: 'prime-activity',
         data: {

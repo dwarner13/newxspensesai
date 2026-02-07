@@ -19,6 +19,22 @@ export type ActivityFeedSidebarProps = {
    */
   className?: string;
   /**
+   * Optional limit to show in feed
+   */
+  limit?: number;
+  /**
+   * Optional max height for scrollable feed
+   */
+  maxHeight?: number;
+  /**
+   * Enable scroll within feed body
+   */
+  scrollable?: boolean;
+  /**
+   * Hide scrollbar while keeping scroll
+   */
+  hideScrollbar?: boolean;
+  /**
    * Variant: 'column' = standalone column styling, 'embedded' = integrated into parent grid
    */
   variant?: 'column' | 'embedded';
@@ -31,7 +47,16 @@ export type ActivityFeedSidebarProps = {
  * Wraps the ActivityFeed component and supports scope-based filtering.
  * Can also inject local upload events for Smart Import.
  */
-export function ActivityFeedSidebar({ scope, lastUploadSummary, className, variant = 'column' }: ActivityFeedSidebarProps) {
+export function ActivityFeedSidebar({
+  scope,
+  lastUploadSummary,
+  className,
+  limit = 3,
+  maxHeight = 240,
+  scrollable = true,
+  hideScrollbar = true,
+  variant = 'column'
+}: ActivityFeedSidebarProps) {
   const [localEvents, setLocalEvents] = useState<Array<{
     id: string;
     type: 'upload';
@@ -79,10 +104,13 @@ export function ActivityFeedSidebar({ scope, lastUploadSummary, className, varia
         <div className="w-full">
           <ActivityFeed 
             title="ACTIVITY FEED"
-            limit={20}
+            limit={limit}
             category={scope}
             localEvents={localEvents}
             variant={variant}
+            maxHeight={maxHeight}
+            scrollable={scrollable}
+            hideScrollbar={hideScrollbar}
           />
         </div>
       </div>

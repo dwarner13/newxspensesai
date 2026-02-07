@@ -8,7 +8,7 @@
  */
 
 import { Handler } from '@netlify/functions';
-import { admin, markDocStatus } from './_shared/upload';
+import { admin, markDocStatus } from './_shared/upload.js';
 
 const BUCKET = 'docs';
 

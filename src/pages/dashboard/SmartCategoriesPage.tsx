@@ -259,6 +259,7 @@ const SmartCategoriesPage: React.FC = () => {
     setSelectedCategoryForChat(categorySummary);
     openChat({
       initialEmployeeSlug: 'tag-ai',
+      force: true,
       context: {
         page: 'smart-categories',
         data: {
@@ -423,6 +424,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
   const openTagWorkspace = () => {
     openChat({
       initialEmployeeSlug: 'tag-ai',
+      force: true,
       context: {
         page: 'smart-categories',
         data: {
@@ -444,6 +446,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
               onExpandClick={() => {
                 openChat({
                   initialEmployeeSlug: 'tag-ai',
+                  force: true,
                   context: {
                     page: 'smart-categories',
                     data: {
@@ -455,6 +458,7 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
               onChatInputClick={() => {
                 openChat({
                   initialEmployeeSlug: 'tag-ai',
+                  force: true,
                   context: {
                     page: 'smart-categories',
                     data: {

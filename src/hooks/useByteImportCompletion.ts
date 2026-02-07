@@ -54,8 +54,8 @@ export function useByteImportCompletion({
 
           if (error || !data) return;
 
-          // When import status is 'parsed', normalization is complete
-          if (data.status === 'parsed') {
+          // When import status is 'parsed' or 'committed', normalization is complete
+          if (data.status === 'parsed' || data.status === 'committed') {
             completedImports.add(key);
 
             // Emit BYTE_IMPORT_COMPLETED event
@@ -77,7 +77,7 @@ export function useByteImportCompletion({
             .from('imports')
             .select('id, status, updated_at')
             .eq('user_id', userId)
-            .eq('status', 'parsed')
+            .in('status', ['parsed', 'committed'])
             .gte('created_at', oneHourAgo)
             .order('created_at', { ascending: false })
             .limit(10);
