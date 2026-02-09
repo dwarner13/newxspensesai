@@ -183,6 +183,8 @@ export function SmartImportChatPage() {
             statsLoading={statsLoading}
             statsError={statsError}
             userId={safeUserId}
+            lastUploadSummary={lastUploadSummary}
+            debugItems={smartImport.lastDebugPayload}
             uploadQueue={smartImport.uploadQueue}
           />
         }

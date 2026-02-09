@@ -68,6 +68,9 @@ export function ByteUploadPanel({
   const [viewerOpen, setViewerOpen] = useState(false);
   const [isRetryingOcr, setIsRetryingOcr] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showResetUpload, setShowResetUpload] = useState(false);
+  const [expandedRawByDoc, setExpandedRawByDoc] = useState<Record<string, boolean>>({});
+  const [expandedParsedByDoc, setExpandedParsedByDoc] = useState<Record<string, boolean>>({});
   const queueOwnerIdRef = useRef<string>(`${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const [isQueueOwner, setIsQueueOwner] = useState(false);
   
@@ -81,8 +84,11 @@ export function ByteUploadPanel({
     uploadFiles,
     uploadStatus,
     lastUploadSummary,
+    lastDebugPayload,
+    resetUploadState,
     uploadQueue,
   } = smartImport;
+  const debugEnabled = import.meta.env.VITE_OCR_DEBUG === '1';
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -236,8 +242,16 @@ export function ByteUploadPanel({
       toast.error('Please log in to upload files');
       return;
     }
+    if (!uploadQueue.isUploading && uploadQueue.items?.length > 0) {
+      uploadQueue.clear?.();
+    } else {
+      uploadQueue.clearCompleted?.();
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
     fileInputRef.current?.click();
-  }, [userId]);
+  }, [userId, uploadQueue]);
 
   const handleOpenFullConsole = useCallback(() => {
     navigate('/dashboard/smart-import-ai');
@@ -450,6 +464,23 @@ export function ByteUploadPanel({
     uploadQueue.isUploading;
   const canDiscard = currentUploadIds.length > 0 && (isProcessing || uploadStatus.step === 'error');
 
+  useEffect(() => {
+    if (!isProcessing) {
+      setShowResetUpload(false);
+      return;
+    }
+    if (uploadQueue.isUploading) {
+      setShowResetUpload(false);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      if (isProcessing && !uploadQueue.isUploading) {
+        setShowResetUpload(true);
+      }
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [isProcessing, uploadQueue.isUploading]);
+
   return (
     <div className="rounded-xl bg-slate-900/40 border border-dashed border-sky-500/30 px-3 py-2.5 backdrop-blur-sm">
       <div className="flex items-center justify-between gap-2 mb-2">
@@ -519,6 +550,18 @@ export function ByteUploadPanel({
               Discard
             </button>
           )}
+          {(showResetUpload || debugEnabled) && (
+            <button
+              type="button"
+              onClick={() => {
+                resetUploadState?.();
+                toast.success('Upload queue reset');
+              }}
+              className="shrink-0 text-[10px] px-2 py-1 rounded-md border border-amber-500/40 text-amber-200 hover:bg-amber-500/10 transition-colors flex items-center gap-1"
+            >
+              Reset
+            </button>
+          )}
           <button
             type="button"
             className="shrink-0 text-[10px] px-2 py-1 rounded-md border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 transition-colors flex items-center gap-1"
@@ -569,6 +612,76 @@ export function ByteUploadPanel({
         </div>
       )}
 
+      {debugEnabled && lastDebugPayload && lastDebugPayload.length > 0 && (
+        <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+          <div className="mb-2 text-[11px] font-semibold text-amber-200">Import Debug Panel</div>
+          <div className="space-y-3">
+            {lastDebugPayload.map((item) => (
+              <div key={item.docId} className="rounded-lg border border-amber-500/20 bg-slate-900/60 p-2">
+                <div className="flex flex-wrap items-center gap-2 text-[10px] text-amber-100">
+                  <span>Doc: …{item.docId?.slice(-6)}</span>
+                  {item.importId && <span>Import: …{item.importId.slice(-6)}</span>}
+                  {item.ocrEngineUsed && <span>OCR: {item.ocrEngineUsed}</span>}
+                  <span>Text: {item.rawTextLength} chars</span>
+                </div>
+                {item.parseWarnings?.length > 0 && (
+                  <div className="mt-1 text-[10px] text-amber-300">
+                    Warnings: {item.parseWarnings.join(', ')}
+                  </div>
+                )}
+                {item.parseError && (
+                  <div className="mt-1 text-[10px] text-red-300">
+                    Parse error: {item.parseError}
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors"
+                    onClick={() =>
+                      setExpandedRawByDoc((prev) => ({
+                        ...prev,
+                        [item.docId]: !prev[item.docId],
+                      }))
+                    }
+                  >
+                    {expandedRawByDoc[item.docId] ? 'Hide raw text' : 'Show raw text'}
+                  </button>
+                  <button
+                    type="button"
+                    className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors"
+                    onClick={() =>
+                      setExpandedParsedByDoc((prev) => ({
+                        ...prev,
+                        [item.docId]: !prev[item.docId],
+                      }))
+                    }
+                  >
+                    {expandedParsedByDoc[item.docId] ? 'Hide parsed JSON' : 'Show parsed JSON'}
+                  </button>
+                </div>
+                {expandedRawByDoc[item.docId] && (
+                  <div className="mt-2">
+                    <div className="text-[10px] text-amber-200 mb-1">Raw text preview</div>
+                    <pre className="max-h-40 overflow-auto rounded-md bg-slate-950/70 p-2 text-[10px] text-slate-200 whitespace-pre-wrap">
+                      {item.rawTextPreview || '(empty)'}
+                    </pre>
+                  </div>
+                )}
+                {expandedParsedByDoc[item.docId] && (
+                  <div className="mt-2">
+                    <div className="text-[10px] text-amber-200 mb-1">Parsed transactions</div>
+                    <pre className="max-h-40 overflow-auto rounded-md bg-slate-950/70 p-2 text-[10px] text-slate-200 whitespace-pre-wrap">
+                      {JSON.stringify(item.parsedTransactions || [], null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Drag and drop area - hidden in compact mode (overlay handles drag) */}
       {!compact && (
         <div
@@ -584,7 +697,7 @@ export function ByteUploadPanel({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          onClick={!isUploading ? handleButtonClick : undefined}
+          onClick={handleButtonClick}
         >
           <input
             ref={fileInputRef}
@@ -593,7 +706,6 @@ export function ByteUploadPanel({
             accept=".pdf,.csv,.xlsx,.xls,.txt,.jpg,.jpeg,.png,.heic"
             onChange={handleFileSelect}
             className="hidden"
-            disabled={isUploading}
           />
 
           {isUploading ? (
@@ -636,7 +748,6 @@ export function ByteUploadPanel({
           accept=".pdf,.csv,.xlsx,.xls,.txt,.jpg,.jpeg,.png,.heic"
           onChange={handleFileSelect}
           className="hidden"
-          disabled={isUploading}
         />
       )}
 

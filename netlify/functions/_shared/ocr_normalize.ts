@@ -70,7 +70,8 @@ export function normalizeOcrResult(
   const invoiceFilenameHint = /invoice/i.test(filename);
   const invoiceKeywordHint = /invoice/i.test(normalizedText) && /(subtotal|tax|total)/i.test(normalizedText);
   const invoiceAddressHint = /(bill to|ship to)/i.test(normalizedText);
-  const shouldTreatAsInvoice = invoiceFilenameHint || invoiceKeywordHint || invoiceAddressHint;
+  const invoicePaymentDueHint = /payment\s+due|outstanding\s+balance|balance\s+due|property\s+tax\s+notice|tax\s+notice/i.test(normalizedText);
+  const shouldTreatAsInvoice = invoiceFilenameHint || invoiceKeywordHint || invoiceAddressHint || invoicePaymentDueHint;
 
   if (shouldTreatAsInvoice) {
     console.log(`[Byte OCR] Detected docType=invoice`);
@@ -235,28 +236,173 @@ type InvoiceExtraction = {
   description: string;
 };
 
+const HEADER_LINE_SCAN_COUNT = 8;
+
+function getHeaderYear(text: string): number | null {
+  const lines = text.split(/\r?\n/).slice(0, HEADER_LINE_SCAN_COUNT);
+  for (const line of lines) {
+    const match = line.match(/\b(20\d{2})\b/);
+    if (match) {
+      const year = Number(match[1]);
+      if (!Number.isNaN(year)) {
+        return year;
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeDateWithHeaderYear(dateText: string, headerYear: number | null): string | undefined {
+  if (!dateText) return undefined;
+  if (!headerYear) return normalizeDate(dateText);
+
+  const monthDayMatch = dateText.match(/\b([A-Za-z]{3,9})\s+(\d{1,2})\b/);
+  if (monthDayMatch && !/\b\d{4}\b/.test(dateText)) {
+    const withYear = `${monthDayMatch[1]} ${monthDayMatch[2]}, ${headerYear}`;
+    return normalizeDate(withYear) || normalizeDate(dateText);
+  }
+
+  const parts = dateText.split(/[\/\-]/).map((part) => part.trim());
+  if (parts.length !== 3) {
+    return normalizeDate(dateText);
+  }
+
+  const yearPart = parts[2];
+  const parsedYear = Number(yearPart.length === 2 ? `20${yearPart}` : yearPart);
+  if (Number.isNaN(parsedYear)) {
+    return normalizeDate(dateText);
+  }
+
+  let adjusted = dateText;
+  if (yearPart.length === 2) {
+    adjusted = `${parts[0]}/${parts[1]}/${String(headerYear)}`;
+  } else if (Math.abs(parsedYear - headerYear) >= 2) {
+    adjusted = `${parts[0]}/${parts[1]}/${String(headerYear)}`;
+  }
+
+  return normalizeDate(adjusted) || normalizeDate(dateText);
+}
+
+function findLabeledTotal(text: string): number | undefined {
+  const lines = text.split(/\r?\n/);
+  const findNear = (labels: RegExp[], lookahead: number) => {
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      if (labels.some((label) => label.test(line))) {
+        const amount = extractLastAmount(line);
+        if (amount !== undefined) {
+          return amount;
+        }
+        for (let j = 1; j <= lookahead && i + j < lines.length; j += 1) {
+          const nextLine = lines[i + j];
+          const nextAmount = extractLastAmount(nextLine);
+          if (nextAmount !== undefined) {
+            return nextAmount;
+          }
+        }
+      }
+    }
+    return undefined;
+  };
+
+  const dueAmount = findNear([
+    /payment\s+due/i,
+    /outstanding\s+balance/i,
+    /balance\s+due/i,
+    /total\s+amount\s+due/i,
+    /amount\s+due/i,
+    /total\s+due/i,
+  ], 3);
+  if (dueAmount !== undefined) return dueAmount;
+
+  const totalAmount = findNear([
+    /\btotal\b/i,
+    /taxable\s+total/i,
+    /total\s+s\b/i,
+  ], 2);
+  if (totalAmount !== undefined) return totalAmount;
+
+  const amountLine = findNear([
+    /\bamount\b/i,
+    /transaction\s+amount/i,
+  ], 2);
+  if (amountLine !== undefined) return amountLine;
+
+  return undefined;
+}
+
+function findLabeledDate(text: string): string | undefined {
+  const headerYear = getHeaderYear(text);
+  const labels = [
+    /payment\s+due/i,
+    /due\s+date/i,
+  ];
+  const lines = text.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    if (labels.some((label) => label.test(line))) {
+      for (let j = 0; j <= 3 && i + j < lines.length; j += 1) {
+        const candidate = lines[i + j];
+        const normalized = normalizeDateWithHeaderYear(candidate.trim(), headerYear);
+        if (normalized) {
+          return normalized;
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
 function extractInvoiceData(text: string, filename: string): InvoiceExtraction {
   const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const topLines = lines.slice(0, 12);
 
   const vendor = (() => {
+    if (/the\s+brick/i.test(text) || /thebrick\.com/i.test(text)) {
+      return 'The Brick';
+    }
+    const revolutionMatch = text.match(/revolution\s+motors/i);
+    if (revolutionMatch) {
+      return 'Revolution Motors';
+    }
+    if (/edmonton/i.test(text) && /property\s+tax/i.test(text)) {
+      return 'City of Edmonton';
+    }
     for (const line of topLines) {
       const lower = line.toLowerCase();
-      if (lower.includes('invoice') || lower.includes('bill to') || lower.includes('ship to')) {
+      if (
+        lower.includes('invoice') ||
+        lower.includes('bill to') ||
+        lower.includes('ship to') ||
+        lower.includes('customer') ||
+        lower.includes('sales order') ||
+        lower.includes('date of mailing') ||
+        lower.includes('payment summary') ||
+        lower.includes('payment due') ||
+        lower.includes('property tax notice') ||
+        lower.includes('account')
+      ) {
         continue;
       }
       if (looksLikeAddress(line)) {
         continue;
       }
       if (line.length < 3) continue;
+      if (line.trim().toLowerCase() === 'evolution' && /revolution\s+motors/i.test(text)) {
+        continue;
+      }
       return line;
     }
     return 'Unknown Vendor';
   })();
 
-  const invoiceNoMatch = text.match(/invoice\s*(?:#|no|number)?\s*[:#]?\s*([A-Z0-9-]+)/i) ||
-    text.match(/inv\s*#\s*([A-Z0-9-]+)/i);
-  const invoiceNo = invoiceNoMatch ? invoiceNoMatch[1].trim() : undefined;
+  const docNoMatch = text.match(/document\s+number\s*[:#]?\s*([A-Z0-9-]+)/i);
+  const invoiceNoMatch = text.match(/invoice\s*(?:#|no|number)?\s*[:#]?\s*([A-Z0-9-]*\d[A-Z0-9-]*)/i) ||
+    text.match(/inv\s*#\s*([A-Z0-9-]*\d[A-Z0-9-]*)/i);
+  const rawInvoiceNo = (docNoMatch?.[1] || invoiceNoMatch?.[1] || '').trim();
+  const invoiceNo = rawInvoiceNo && !/^(del|pu|tba)$/i.test(rawInvoiceNo) && rawInvoiceNo.length >= 4
+    ? rawInvoiceNo
+    : undefined;
 
   const date = extractInvoiceDate(text);
   const { total, currency } = extractInvoiceTotalAndCurrency(text);
@@ -285,20 +431,30 @@ function looksLikeAddress(line: string): boolean {
 }
 
 function extractInvoiceDate(text: string): string | undefined {
+  const headerYear = getHeaderYear(text);
+  const labeledDueDate = findLabeledDate(text);
+  if (labeledDueDate) return labeledDueDate;
   const labeledDate = text.match(/(?:date|invoice\s+date|dated)[:\s]+([^\n]+)/i);
   if (labeledDate) {
-    const normalized = normalizeDate(labeledDate[1].trim());
+    const normalized = normalizeDateWithHeaderYear(labeledDate[1].trim(), headerYear);
+    if (normalized) return normalized;
+  }
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    if (!/(date|datetime|transaction|credit card)/i.test(line)) continue;
+    const normalized = normalizeDateWithHeaderYear(line.trim(), headerYear);
     if (normalized) return normalized;
   }
   const datePatterns = [
     /\b(\d{4}-\d{2}-\d{2})\b/,
     /\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/,
     /\b([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})\b/,
+    /\b(\d{1,2}[-\/\.][A-Za-z]{3,9}[-\/\.]\d{2,4})\b/,
   ];
   for (const pattern of datePatterns) {
     const match = text.match(pattern);
     if (match) {
-      const normalized = normalizeDate(match[1].trim());
+      const normalized = normalizeDateWithHeaderYear(match[1].trim(), headerYear);
       if (normalized) return normalized;
     }
   }
@@ -308,16 +464,32 @@ function extractInvoiceDate(text: string): string | undefined {
 function extractInvoiceTotalAndCurrency(text: string): { total?: number; currency: string } {
   const lines = text.split(/\r?\n/);
   let totalLineAmount: number | undefined;
-  for (const line of lines) {
-    const lower = line.toLowerCase();
-    if (lower.includes('total') && !lower.includes('subtotal')) {
-      const amount = extractLastAmount(line);
-      if (amount !== undefined) {
-        totalLineAmount = amount;
-        break;
+
+  const labeledTotal = findLabeledTotal(text);
+  if (labeledTotal !== undefined) {
+    totalLineAmount = labeledTotal;
+  } else {
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      const lower = line.toLowerCase();
+      if (lower.includes('total') && !lower.includes('subtotal')) {
+        const amount = extractLastAmount(line);
+        if (amount !== undefined) {
+          totalLineAmount = amount;
+          break;
+        }
+        for (let j = 1; j <= 2 && i + j < lines.length; j += 1) {
+          const nextAmount = extractLastAmount(lines[i + j]);
+          if (nextAmount !== undefined) {
+            totalLineAmount = nextAmount;
+            break;
+          }
+        }
       }
+      if (totalLineAmount !== undefined) break;
     }
   }
+
   if (totalLineAmount === undefined) {
     totalLineAmount = extractLargestAmount(text);
   }
@@ -329,19 +501,19 @@ function extractInvoiceTotalAndCurrency(text: string): { total?: number; currenc
 }
 
 function extractLastAmount(line: string): number | undefined {
-  const matches = Array.from(line.matchAll(/[$€£]?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?/g));
+  const matches = Array.from(line.matchAll(/(?:[$€£]|S)?\s*[\d\s,]+\.\d{2}/g));
   if (matches.length === 0) return undefined;
   const last = matches[matches.length - 1][0];
-  const cleaned = last.replace(/[$€£\s,]/g, '');
+  const cleaned = last.replace(/[$€£Ss,\s]/g, '');
   const parsed = parseFloat(cleaned);
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function extractLargestAmount(text: string): number | undefined {
-  const matches = Array.from(text.matchAll(/[$€£]?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})/g));
+  const matches = Array.from(text.matchAll(/(?:[$€£]|S)?\s*[\d\s,]+\.\d{2}/g));
   let max = 0;
   for (const match of matches) {
-    const cleaned = match[0].replace(/[$€£\s,]/g, '');
+    const cleaned = match[0].replace(/[$€£Ss,\s]/g, '');
     const parsed = parseFloat(cleaned);
     if (Number.isFinite(parsed) && parsed > max) {
       max = parsed;
@@ -351,10 +523,12 @@ function extractLargestAmount(text: string): number | undefined {
 }
 
 function detectCurrency(text: string): string {
+  if (/CDN/i.test(text)) return 'CAD';
   if (/CAD/i.test(text)) return 'CAD';
+  if (/\$\s*\d/.test(text)) return 'CAD';
   if (/USD/i.test(text)) return 'USD';
-  if (/EUR|€/.test(text)) return 'EUR';
-  if (/GBP|£/.test(text)) return 'GBP';
+  if (/EUR/i.test(text) || /€\s*\d/.test(text)) return 'EUR';
+  if (/GBP/i.test(text) || /£\s*\d/.test(text)) return 'GBP';
   if (/\$/.test(text)) return 'CAD';
   return 'CAD';
 }
@@ -470,6 +644,18 @@ export function toTransactions(userId: string, parsed: ParsedDoc | null): Normal
  */
 function normalizeDate(dateStr: string): string | undefined {
   try {
+    const trimmed = dateStr.trim();
+    const dashMonthMatch = trimmed.match(/(\d{1,2})[-\s]([A-Za-z]{3,9})[-\s](\d{2,4})/);
+    if (dashMonthMatch) {
+      const [, day, monthStr, yearRaw] = dashMonthMatch;
+      const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      const monthIndex = monthNames.findIndex(m => m === monthStr.toLowerCase().substring(0, 3));
+      if (monthIndex >= 0) {
+        const yearNum = parseInt(yearRaw.length === 2 ? `20${yearRaw}` : yearRaw, 10);
+        return `${yearNum}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
+    }
+
     // Try common formats
     // DD/MM/YYYY or MM/DD/YYYY
     const slashMatch = dateStr.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
@@ -504,7 +690,10 @@ function normalizeDate(dateStr: string): string | undefined {
     // Try parsing as Date
     const parsed = new Date(dateStr);
     if (!isNaN(parsed.getTime())) {
-      return parsed.toISOString().split('T')[0];
+      const year = parsed.getFullYear();
+      if (year >= 1900) {
+        return parsed.toISOString().split('T')[0];
+      }
     }
   } catch {
     // Ignore parse errors

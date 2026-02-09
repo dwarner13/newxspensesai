@@ -93,6 +93,14 @@ export async function recalcFluency(userId: string) {
     });
 
     if (error) {
+      const message = String(error?.message || '').toLowerCase();
+      if (message.includes('uuid = text')) {
+        console.warn('[UserActivity] Skipping fluency recalculation due to uuid/text mismatch', {
+          userId: userIdText,
+          error: error.message,
+        });
+        return;
+      }
       console.error('[UserActivity] Failed to recalculate fluency:', error);
       // Don't throw - recalculation failures shouldn't break the app
     }

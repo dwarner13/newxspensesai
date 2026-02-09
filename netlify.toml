@@ -23,5 +23,5 @@
 [functions.esbuild]
   sourcemap = false
   format = "cjs"
-  external = ["jsdom", "xhr-sync-worker.js"]
+  external = ["xhr-sync-worker.js"]
 

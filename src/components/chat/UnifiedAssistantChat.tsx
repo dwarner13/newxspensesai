@@ -1818,6 +1818,7 @@ export default function UnifiedAssistantChat({
       return false;
     } finally {
       setIsUploadingAttachments(false);
+      uploadedAttachmentKeysRef.current.clear();
     }
   }, [smartImport, userId]);
 

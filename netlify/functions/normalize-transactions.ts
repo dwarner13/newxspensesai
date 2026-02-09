@@ -14,6 +14,21 @@ import { normalizeOcrResult } from './_shared/ocr_normalize.js';
 import { parseInvoiceLike, parseReceiptLike } from './_shared/ocr_parsers.js';
 
 type ExtractedSummary = Record<string, any> | null;
+type NormalizationResult = {
+  ok: boolean;
+  skipped?: boolean;
+  error?: { code: string; message: string };
+  stagedCount?: number;
+  importId?: string;
+};
+
+function collapseWhitespace(input: string): string {
+  return input.replace(/\s+/g, ' ').trim();
+}
+
+function previewText(input: string, length: number): string {
+  return collapseWhitespace(input).slice(0, length);
+}
 
 function parseStatementSummary(text: string): ExtractedSummary {
   const normalized = text || '';
@@ -57,14 +72,29 @@ async function processNormalizationInBackground(
   userId: string,
   documentId: string,
   importRunId?: string
-) {
+): Promise<NormalizationResult> {
   const sb = admin();
   const userIdText = String(userId);
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userIdText);
 
   if (!userId || !documentId) {
     console.error('[normalize-transactions] Missing userId or documentId');
-    return;
+    return { ok: false, error: { code: 'missing_required_fields', message: 'Missing userId or documentId' } };
   }
+  if (!isUuid) {
+    console.error('[normalize-transactions] Invalid userId (expected UUID)', { userId: userIdText });
+    return { ok: false, error: { code: 'invalid_user_id', message: 'Invalid userId (expected UUID)' } };
+  }
+
+  let lockAcquired = false;
+  const releaseNormalizationLock = async (): Promise<void> => {
+    if (!lockAcquired) return;
+    await sb
+      .from('imports')
+      .update({ status: 'ready', updated_at: new Date().toISOString() })
+      .eq('document_id', documentId)
+      .eq('status', 'normalizing');
+  };
 
   try {
     // 1. Get document and OCR text
@@ -76,7 +106,7 @@ async function processNormalizationInBackground(
 
     if (docError || !doc) {
       console.error('[normalize-transactions] Error fetching document:', docError);
-      return;
+      return { ok: false, error: { code: 'doc_fetch_failed', message: docError?.message || 'Failed to fetch document' } };
     }
 
     // Check if this is an image that might need Vision parsing
@@ -86,7 +116,7 @@ async function processNormalizationInBackground(
     // 2. Find or create imports record
     let { data: importRecord, error: importFetchError } = await sb
       .from('imports')
-      .select('id')
+      .select('id, status')
       .eq('document_id', documentId)
       .maybeSingle();
 
@@ -104,14 +134,51 @@ async function processNormalizationInBackground(
           file_type: doc.mime_type || 'application/pdf',
           status: 'parsing',
         })
-        .select('id')
+        .select('id, status')
         .single();
 
       if (importError) {
         console.error('[normalize-transactions] Error creating import:', importError);
-        return;
+        return { ok: false, error: { code: 'import_create_failed', message: importError.message } };
       }
       importRecord = newImport;
+    }
+
+    const lockTimestamp = new Date().toISOString();
+    const { data: lockRows, error: lockError } = await sb
+      .from('imports')
+      .update({ status: 'normalizing', updated_at: lockTimestamp })
+      .eq('id', importRecord.id)
+      .in('status', ['ready', 'parsing', 'ocr_processing', 'uploaded'])
+      .select('id, status');
+
+    if (lockError) {
+      console.error('[normalize-transactions] Normalization lock update failed', {
+        importId: importRecord.id,
+        error: lockError.message,
+      });
+      return { ok: false, error: { code: 'normalization_lock_failed', message: lockError.message }, importId: importRecord.id };
+    }
+
+    if (!lockRows || lockRows.length === 0) {
+      console.log('[normalize-transactions] Normalization lock not acquired, skipping', {
+        importId: importRecord.id,
+      });
+      return { ok: true, skipped: true, stagedCount: 0, importId: importRecord.id };
+    }
+    lockAcquired = true;
+
+    const { count: existingStagingCount } = await sb
+      .from('transactions_staging')
+      .select('id', { count: 'exact', head: true })
+      .eq('import_id', importRecord.id);
+
+    if ((existingStagingCount || 0) > 0) {
+      console.log('[normalize-transactions] Staging already populated, skipping', {
+        importId: importRecord.id,
+        stagedCount: existingStagingCount,
+      });
+      return { ok: true, stagedCount: existingStagingCount || 0, importId: importRecord.id };
     }
 
     // 3. Parse OCR text to transactions using shared normalizer
@@ -172,7 +239,21 @@ async function processNormalizationInBackground(
 
     const resolvedImportRunId = importRunId || importRecord.id;
 
+    console.log('[normalize-transactions] Parse summary', {
+      importId: importRecord.id,
+      documentId,
+      userId: userIdText,
+      extractedTextLength: doc.ocr_text?.length || 0,
+      normalizedTransactionsLength: normalizedTransactions.length,
+      viaMethod,
+    });
+
     if (!normalizedTransactions || normalizedTransactions.length === 0) {
+      if (doc.ocr_text) {
+        console.log('[normalize-transactions] OCR text preview (no transactions)', {
+          preview: previewText(doc.ocr_text, 600),
+        });
+      }
       const extractedData = (() => {
         if (!doc.ocr_text) return null;
         const invoice = parseInvoiceLike(doc.ocr_text);
@@ -221,7 +302,7 @@ async function processNormalizationInBackground(
           updated_at: new Date().toISOString(),
         })
         .eq('id', documentId);
-      return;
+      return { ok: true, stagedCount: 0, importId: importRecord.id };
     }
 
     // 4. Convert normalized transactions to staging format
@@ -258,6 +339,15 @@ async function processNormalizationInBackground(
         },
         hash,
       };
+    });
+
+    console.log('[normalize-transactions] Staging rows built', {
+      count: stagingRows.length,
+      sample: stagingRows[0] ? {
+        import_id: stagingRows[0].import_id,
+        user_id: stagingRows[0].user_id,
+        doc_id: stagingRows[0].data_json?.documentId || null,
+      } : null,
     });
 
     const invoiceTx = normalizedTransactions.find(tx => tx.kind === 'invoice' && tx.amount);
@@ -298,8 +388,13 @@ async function processNormalizationInBackground(
 
       if (stagingError) {
         console.error('[normalize-transactions] Error inserting staging rows:', stagingError);
-        return;
+        await releaseNormalizationLock();
+        return { ok: false, error: { code: 'staging_upsert_failed', message: stagingError.message } };
       }
+      console.log('[normalize-transactions] staging upsert OK', {
+        importId: importRecord.id,
+        rowCount: stagingRows.length,
+      });
     }
 
     // 6. Update import status
@@ -312,8 +407,18 @@ async function processNormalizationInBackground(
       .eq('id', importRecord.id);
 
     console.log(`[normalize-transactions] Successfully normalized ${stagingRows.length} transactions for import ${importRecord.id}`);
+    return { ok: true, stagedCount: stagingRows.length, importId: importRecord.id };
   } catch (error: any) {
+    try {
+      await releaseNormalizationLock();
+    } catch (unlockError: any) {
+      console.warn('[normalize-transactions] Failed to release normalization lock', {
+        documentId,
+        error: unlockError?.message || String(unlockError),
+      });
+    }
     console.error('[normalize-transactions] Background processing error:', error);
+    return { ok: false, error: { code: 'unexpected_error', message: error?.message || 'Unknown error' } };
   }
 }
 
@@ -354,17 +459,22 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    // Byte Speed Mode v2: Return immediately, process in background
-    // Fire normalization asynchronously - don't wait for completion
-    processNormalizationInBackground(userId, documentId, importRunId).catch((error) => {
-      console.error('[normalize-transactions] Background processing error:', error);
-    });
-    
-    // Return immediately - Byte can chat while normalization processes
+    const result = await processNormalizationInBackground(userId, documentId, importRunId);
+    if (!result.ok && result.error?.code === 'staging_upsert_failed') {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          ok: false,
+          error: 'staging_upsert_failed',
+          message: result.error.message,
+        }),
+      };
+    }
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ started: true, processing: true }),
+      body: JSON.stringify({ started: true, processing: true, importId: result.importId, stagedCount: result.stagedCount }),
     };
   } catch (error: any) {
     console.error('[normalize-transactions] Unexpected error:', error);

@@ -91,13 +91,23 @@ export async function ocrOCRSpace(params: { bytes?: Buffer; url?: string }): Pro
     if (data.IsErroredOnProcessing) {
       const errorMessage = data.ErrorMessage?.[0] || data.ErrorMessage || `OCR processing error (exit code: ${data.OCRExitCode})`;
       console.error('[OCR] OCR.Space processing error:', errorMessage);
-      throw new Error(`OCR.Space processing failed: ${errorMessage}`);
+      const err: Error & { code?: string } = new Error(`OCR.Space processing failed: ${errorMessage}`);
+      const lower = String(errorMessage).toLowerCase();
+      if (lower.includes('maximum page limit') || lower.includes('page limit of 3')) {
+        err.code = 'OCR_SPACE_PAGE_LIMIT';
+      }
+      throw err;
     }
     
     if (data.OCRExitCode && data.OCRExitCode !== 1) {
       const errorMessage = data.ErrorMessage?.[0] || `OCR exit code: ${data.OCRExitCode}`;
       console.error('[OCR] OCR.Space processing error:', errorMessage);
-      throw new Error(`OCR.Space processing failed: ${errorMessage}`);
+      const err: Error & { code?: string } = new Error(`OCR.Space processing failed: ${errorMessage}`);
+      const lower = String(errorMessage).toLowerCase();
+      if (lower.includes('maximum page limit') || lower.includes('page limit of 3')) {
+        err.code = 'OCR_SPACE_PAGE_LIMIT';
+      }
+      throw err;
     }
     
     // Extract text from OCR.Space response

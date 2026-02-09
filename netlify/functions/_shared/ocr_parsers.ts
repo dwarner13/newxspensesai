@@ -50,12 +50,92 @@ export type ParsedDoc =
   | { kind: 'receipt'; data: ReceiptData }
   | { kind: 'bank'; data: any };
 
+const HEADER_LINE_SCAN_COUNT = 8;
+
+function getHeaderYear(text: string): number | null {
+  const lines = text.split('\n').slice(0, HEADER_LINE_SCAN_COUNT);
+  for (const line of lines) {
+    const match = line.match(/\b(20\d{2})\b/);
+    if (match) {
+      const year = Number(match[1]);
+      if (!Number.isNaN(year)) {
+        return year;
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeDateWithHeaderYear(dateText: string, headerYear: number | null): string {
+  if (!headerYear) {
+    return dateText;
+  }
+
+  const parts = dateText.split(/[\/\-]/).map((part) => part.trim());
+  if (parts.length !== 3) {
+    return dateText;
+  }
+
+  const yearPart = parts[2];
+  const parsedYear = Number(yearPart.length === 2 ? `20${yearPart}` : yearPart);
+  if (Number.isNaN(parsedYear)) {
+    return dateText;
+  }
+
+  if (yearPart.length === 2) {
+    return `${parts[0]}/${parts[1]}/${String(headerYear)}`;
+  }
+
+  if (Math.abs(parsedYear - headerYear) >= 2) {
+    return `${parts[0]}/${parts[1]}/${String(headerYear)}`;
+  }
+
+  return dateText;
+}
+
+function parseAmount(value: string): number {
+  return parseFloat(value.replace(/,/g, ''));
+}
+
+function extractAmountFromLine(line: string): number | undefined {
+  const match = line.match(/(?:\$|USD|CAD|EUR|GBP|S)?\s*([\d,\s]+\.\d{2})/i);
+  if (!match) {
+    return undefined;
+  }
+  const cleaned = match[1].replace(/\s+/g, '');
+  return parseAmount(cleaned);
+}
+
+function pickLabeledAmount(text: string, labels: RegExp[]): number | undefined {
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    for (const label of labels) {
+      if (label.test(line)) {
+        const onLine = extractAmountFromLine(line);
+        if (typeof onLine === 'number') {
+          return onLine;
+        }
+        for (let j = 1; j <= 3 && i + j < lines.length; j += 1) {
+          const nextLine = lines[i + j];
+          const nextAmount = extractAmountFromLine(nextLine);
+          if (typeof nextAmount === 'number') {
+            return nextAmount;
+          }
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
 /**
  * Parse invoice-like text into structured data
  */
 export function parseInvoiceLike(text: string): InvoiceData {
   const result: InvoiceData = {};
   const lower = text.toLowerCase();
+  const headerYear = getHeaderYear(text);
   
   // Extract vendor/invoice number
   const vendorMatch = text.match(/(?:from|vendor|supplier|bill\s+from|invoice\s+from)[:\s]+([A-Z][^\n]+)/i);
@@ -71,23 +151,37 @@ export function parseInvoiceLike(text: string): InvoiceData {
   // Extract date
   const dateMatch = text.match(/(?:date|invoice\s+date|dated)[:\s]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
   if (dateMatch) {
-    result.date = dateMatch[1].trim();
+    result.date = normalizeDateWithHeaderYear(dateMatch[1].trim(), headerYear);
   }
   
   // Extract totals
-  const totalMatch = text.match(/(?:total|amount\s+due|grand\s+total)[:\s]*\$?([\d,]+\.?\d*)/i);
-  if (totalMatch) {
-    result.total = parseFloat(totalMatch[1].replace(/,/g, ''));
+  const dueTotal = pickLabeledAmount(text, [
+    /payment\s+due/i,
+    /outstanding\s+balance/i,
+    /balance\s+due/i,
+    /total\s+amount\s+due/i,
+    /amount\s+due/i,
+    /total\s+due/i,
+  ]);
+  if (typeof dueTotal === 'number') {
+    result.total = dueTotal;
+  }
+
+  if (typeof result.total !== 'number') {
+    const totalMatch = text.match(/(?:total|grand\s+total)[:\s]*\$?([\d,]+\.?\d*)/i);
+    if (totalMatch) {
+      result.total = parseAmount(totalMatch[1]);
+    }
   }
   
   const subtotalMatch = text.match(/(?:subtotal|sub-total)[:\s]*\$?([\d,]+\.?\d*)/i);
   if (subtotalMatch) {
-    result.subtotal = parseFloat(subtotalMatch[1].replace(/,/g, ''));
+    result.subtotal = parseAmount(subtotalMatch[1]);
   }
   
   const taxMatch = text.match(/(?:tax|gst|hst|vat)[:\s]*\$?([\d,]+\.?\d*)/i);
   if (taxMatch) {
-    result.tax = parseFloat(taxMatch[1].replace(/,/g, ''));
+    result.tax = parseAmount(taxMatch[1]);
   }
   
   // Extract currency
@@ -105,7 +199,7 @@ export function parseInvoiceLike(text: string): InvoiceData {
     if (itemMatch && !itemMatch[1].match(/(?:total|subtotal|tax|invoice|date)/i)) {
       lineItems.push({
         desc: itemMatch[1].trim(),
-        price: parseFloat(itemMatch[2].replace(/,/g, ''))
+        price: parseAmount(itemMatch[2])
       });
     }
   }
@@ -122,6 +216,7 @@ export function parseInvoiceLike(text: string): InvoiceData {
 export function parseReceiptLike(text: string): ReceiptData {
   const result: ReceiptData = {};
   const lower = text.toLowerCase();
+  const headerYear = getHeaderYear(text);
   
   // Extract merchant
   const merchantMatch = text.match(/(?:from|merchant|store|retailer)[:\s]+([A-Z][^\n]+)/i) ||
@@ -133,13 +228,27 @@ export function parseReceiptLike(text: string): ReceiptData {
   // Extract date
   const dateMatch = text.match(/(?:date|purchase\s+date|transaction\s+date)[:\s]+(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i);
   if (dateMatch) {
-    result.date = dateMatch[1].trim();
+    result.date = normalizeDateWithHeaderYear(dateMatch[1].trim(), headerYear);
   }
   
   // Extract total
-  const totalMatch = text.match(/(?:total|amount|paid)[:\s]*\$?([\d,]+\.?\d*)/i);
-  if (totalMatch) {
-    result.total = parseFloat(totalMatch[1].replace(/,/g, ''));
+  const dueTotal = pickLabeledAmount(text, [
+    /payment\s+due/i,
+    /outstanding\s+balance/i,
+    /balance\s+due/i,
+    /total\s+amount\s+due/i,
+    /amount\s+due/i,
+    /total\s+due/i,
+  ]);
+  if (typeof dueTotal === 'number') {
+    result.total = dueTotal;
+  }
+
+  if (typeof result.total !== 'number') {
+    const totalMatch = text.match(/(?:total|amount|paid)[:\s]*\$?([\d,]+\.?\d*)/i);
+    if (totalMatch) {
+      result.total = parseAmount(totalMatch[1]);
+    }
   }
   
   // Extract payment method
@@ -166,7 +275,7 @@ export function parseReceiptLike(text: string): ReceiptData {
     if (itemMatch && !itemMatch[1].match(/(?:total|tax|subtotal|payment|card|date)/i)) {
       items.push({
         name: itemMatch[1].trim(),
-        price: parseFloat(itemMatch[2].replace(/,/g, ''))
+        price: parseAmount(itemMatch[2])
       });
     }
   }
@@ -180,7 +289,7 @@ export function parseReceiptLike(text: string): ReceiptData {
   for (const match of taxMatches) {
     taxes.push({
       name: match[0].split(/[:\s]/)[0] || 'Tax',
-      amount: parseFloat(match[1].replace(/,/g, ''))
+      amount: parseAmount(match[1])
     });
   }
   if (taxes.length > 0) {
