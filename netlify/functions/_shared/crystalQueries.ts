@@ -7,6 +7,11 @@
 
 import { admin } from './supabase.js';
 
+function isMissingRelationError(error: any): boolean {
+  const message = String(error?.message || '').toLowerCase();
+  return error?.code === 'PGRST205' || message.includes('does not exist') || message.includes('schema cache');
+}
+
 export interface ByteCompletionEvent {
   id: string;
   user_id: string;
@@ -46,7 +51,7 @@ export interface TransactionData {
 
 /**
  * Get Byte completion event for a specific import_run_id
- * Uses SAFE view: v_crystal_input_byte_event
+ * Uses ai_activity_events (byte.import.completed)
  */
 export async function getByteCompletionEvent(
   userId: string,
@@ -55,18 +60,41 @@ export async function getByteCompletionEvent(
   const sb = admin();
   
   const { data, error } = await sb
-    .from('v_crystal_input_byte_event')
-    .select('*')
+    .from('ai_activity_events')
+    .select('id, user_id, created_at, details')
     .eq('user_id', userId)
-    .eq('import_run_id', importRunId)
+    .eq('event_type', 'byte.import.completed')
+    .eq('details->>import_run_id', importRunId)
     .maybeSingle();
   
   if (error) {
+    if (isMissingRelationError(error)) {
+      console.warn('[crystalQueries] Missing source for Byte completion event, skipping', {
+        userId,
+        importRunId,
+        error: error.message,
+      });
+      return null;
+    }
     console.error('[crystalQueries] Error fetching Byte completion event:', error);
     return null;
   }
   
-  return data as ByteCompletionEvent | null;
+  if (!data) {
+    return null;
+  }
+
+  const details = (data as any).details || {};
+  return {
+    id: data.id,
+    user_id: data.user_id,
+    import_run_id: String(details.import_run_id || importRunId),
+    doc_count: details.doc_count !== undefined ? String(details.doc_count) : undefined,
+    txn_count: details.txn_count !== undefined ? String(details.txn_count) : undefined,
+    pages: details.pages !== undefined ? String(details.pages) : undefined,
+    integrity_verified: details.integrity_verified !== undefined ? String(details.integrity_verified) : undefined,
+    created_at: data.created_at,
+  };
 }
 
 /**
@@ -86,6 +114,14 @@ export async function getImportMetadata(
     .eq('import_run_id', importRunId);
   
   if (error) {
+    if (isMissingRelationError(error)) {
+      console.warn('[crystalQueries] Missing v_crystal_input_import view, skipping', {
+        userId,
+        importRunId,
+        error: error.message,
+      });
+      return [];
+    }
     console.error('[crystalQueries] Error fetching import metadata:', error);
     return [];
   }
@@ -111,6 +147,14 @@ export async function getTransactions(
     .order('posted_at', { ascending: false });
   
   if (error) {
+    if (isMissingRelationError(error)) {
+      console.warn('[crystalQueries] Missing v_crystal_input_transactions view, skipping', {
+        userId,
+        importRunId,
+        error: error.message,
+      });
+      return [];
+    }
     console.error('[crystalQueries] Error fetching transactions:', error);
     return [];
   }

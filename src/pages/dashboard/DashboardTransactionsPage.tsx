@@ -93,6 +93,10 @@ const DashboardTransactionsPage: React.FC = () => {
   const location = useLocation();
   const { userId } = useAuth();
   const { openChat } = useUnifiedChatLauncher();
+  const importIdFilter = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('importId');
+  }, [location.search]);
   
   // Handlers for AI actions from detail panel
   const handleAskCrystalAboutTransaction = (tx: Transaction) => {
@@ -187,10 +191,16 @@ const DashboardTransactionsPage: React.FC = () => {
         const TEST_USER_ID = "00000000-0000-4000-8000-000000000001";
         
         // Fetch transactions from Supabase for TEST user
-        const { data: transactionsData, error: transactionsError } = await supabase
+        let query = supabase
           .from('transactions')
           .select('*')
-          .eq('user_id', TEST_USER_ID)
+          .eq('user_id', TEST_USER_ID);
+
+        if (importIdFilter) {
+          query = query.eq('import_id', importIdFilter);
+        }
+
+        const { data: transactionsData, error: transactionsError } = await query
           .order('posted_at', { ascending: false })
           .limit(500); // Increased from 100 to 500 to support bank statements with many transactions
 
@@ -306,7 +316,7 @@ const DashboardTransactionsPage: React.FC = () => {
   // Fetch transactions on component mount
   useEffect(() => {
     fetchTransactions();
-  }, []);
+  }, [importIdFilter]);
 
   // Listen for document upload events to refresh transactions
   useEffect(() => {

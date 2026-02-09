@@ -13,10 +13,22 @@
 import { admin } from './supabase.js';
 import { safeLog } from './safeLog.js';
 
+const recurringLogOnceKeys = new Set<string>();
+
+function logOnce(key: string, message: string, meta?: Record<string, any>) {
+  if (recurringLogOnceKeys.has(key)) return;
+  recurringLogOnceKeys.add(key);
+  safeLog(message, meta || {});
+}
+
+function isMissingColumnError(error: any): boolean {
+  const message = String(error?.message || '').toLowerCase();
+  return error?.code === 'PGRST204' || message.includes('does not exist') || message.includes('schema cache');
+}
+
 export interface RecurringCandidate {
   userId: string;
   merchantName: string;
-  category?: string;
   transactions: {
     id: string;
     date: string;      // ISO date string
@@ -33,7 +45,7 @@ export interface RecurringObligationUpsertResult {
  * Detect recurring payment patterns from transaction candidates and upsert into database
  * 
  * Algorithm:
- * 1. Group by (userId, merchantName, category) and sort by date
+ * 1. Group by (userId, merchantName) and sort by date
  * 2. Analyze date gaps to determine frequency (weekly/biweekly/monthly)
  * 3. Calculate average amount, variance, last amount, confidence
  * 4. Upsert into recurring_obligations table
@@ -78,18 +90,12 @@ export async function detectAndUpsertRecurringObligations(
       );
 
       // Check if obligation already exists
-      let query = supabase
+      const query = supabase
         .from('recurring_obligations')
         .select('id')
         .eq('user_id', candidate.userId)
         .eq('merchant_name', candidate.merchantName);
-
-      if (candidate.category) {
-        query = query.eq('category', candidate.category);
-      } else {
-        query = query.is('category', null);
-      }
-
+      
       const { data: existing, error: checkError } = await query.maybeSingle();
 
       if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = not found, which is OK
@@ -104,18 +110,10 @@ export async function detectAndUpsertRecurringObligations(
       const obligationData = {
         user_id: candidate.userId,
         merchant_name: candidate.merchantName,
-        category: candidate.category || null,
-        average_amount: analysis.averageAmount,
-        avg_amount: analysis.averageAmount, // For backward compatibility
-        amount_variance: analysis.variance,
-        last_amount: sorted[sorted.length - 1].amount,
+        obligation_type: 'payment',
+        avg_amount: analysis.averageAmount,
         frequency: analysis.frequency,
         next_estimated_date: nextEstimatedDate?.toISOString().split('T')[0] || null,
-        last_observed_date: sorted[sorted.length - 1].date.split('T')[0],
-        last_seen_date: sorted[sorted.length - 1].date.split('T')[0], // For backward compatibility
-        first_seen_date: sorted[0].date.split('T')[0], // For backward compatibility
-        source: 'transactions',
-        confidence: analysis.confidence,
         updated_at: new Date().toISOString(),
       };
 
@@ -129,6 +127,12 @@ export async function detectAndUpsertRecurringObligations(
           .single();
 
         if (updateError) {
+          if (isMissingColumnError(updateError)) {
+            logOnce('recurring_obligations_missing_columns', '[RecurringDetection] Skipping due to schema mismatch', {
+              error: updateError.message,
+            });
+            return results;
+          }
           safeLog('[RecurringDetection] Error updating obligation', {
             userId: maskUserId(candidate.userId),
             merchant: candidate.merchantName.substring(0, 20),
@@ -153,6 +157,12 @@ export async function detectAndUpsertRecurringObligations(
           .single();
 
         if (insertError) {
+          if (isMissingColumnError(insertError)) {
+            logOnce('recurring_obligations_missing_columns', '[RecurringDetection] Skipping due to schema mismatch', {
+              error: insertError.message,
+            });
+            return results;
+          }
           safeLog('[RecurringDetection] Error inserting obligation', {
             userId: maskUserId(candidate.userId),
             merchant: candidate.merchantName.substring(0, 20),

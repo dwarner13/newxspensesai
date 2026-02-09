@@ -35,6 +35,72 @@ async function sleep(ms: number): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function isMissingColumnError(error: any): boolean {
+  const message = String(error?.message || '').toLowerCase();
+  return error?.code === 'PGRST204' || message.includes('does not exist') || message.includes('schema cache');
+}
+
+async function updateImportCommittedStatus(
+  sb: any,
+  importId: string,
+  userIdText: string,
+  committedCount: number,
+  now: string
+): Promise<void> {
+  const basePayload = {
+    status: 'committed',
+    updated_at: now,
+  };
+  const withCommittedAt = {
+    ...basePayload,
+    committed_at: now,
+  };
+  const withCommittedCount = {
+    ...withCommittedAt,
+    committed_count: committedCount,
+  };
+
+  let { error: updateError } = await sb
+    .from('imports')
+    .update(withCommittedCount)
+    .eq('id', importId)
+    .eq('user_id', userIdText);
+
+  if (updateError && isMissingColumnError(updateError)) {
+    console.warn('[CommitImport] Missing column in imports update, retrying without committed_count', {
+      importId,
+      error: updateError.message,
+    });
+    ({ error: updateError } = await sb
+      .from('imports')
+      .update(withCommittedAt)
+      .eq('id', importId)
+      .eq('user_id', userIdText));
+  }
+
+  if (updateError && isMissingColumnError(updateError)) {
+    console.warn('[CommitImport] Missing column in imports update, retrying with minimal fields', {
+      importId,
+      error: updateError.message,
+    });
+    ({ error: updateError } = await sb
+      .from('imports')
+      .update(basePayload)
+      .eq('id', importId)
+      .eq('user_id', userIdText));
+  }
+
+  if (updateError) {
+    console.error('[CommitImport] Error updating import status:', updateError);
+  } else {
+    console.log('[CommitImport] Import status updated successfully', {
+      importId,
+      status: 'committed',
+      committedCount,
+    });
+  }
+}
+
 export const handler: Handler = async (event, context) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -63,6 +129,7 @@ export const handler: Handler = async (event, context) => {
     // This prevents users from importing other users' staging data
     const userId = event.headers['x-user-id'] || event.headers['X-User-Id'];
     const userIdText = String(userId || '');
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userIdText);
     
     if (!importId) {
       return {
@@ -77,6 +144,13 @@ export const handler: Handler = async (event, context) => {
         statusCode: 403,
         headers,
         body: JSON.stringify({ ok: false, error: 'Unauthorized: Missing x-user-id header' }),
+      };
+    }
+    if (!isUuid) {
+      return {
+        statusCode: 403,
+        headers,
+        body: JSON.stringify({ ok: false, error: 'Unauthorized: Invalid x-user-id format' }),
       };
     }
 
@@ -205,11 +279,20 @@ export const handler: Handler = async (event, context) => {
     console.log('[CommitImport] Waiting for staged rows...', { importId });
     let stagedCount = 0;
     while (Date.now() - waitStart < STAGED_ROWS_WAIT_MS) {
+      console.log('[CommitImport] Poll staged count', {
+        importId,
+        userId: userIdText,
+      });
       const { count, error: countError } = await sb
         .from('transactions_staging')
         .select('id', { count: 'exact', head: true })
         .eq('import_id', importId)
         .eq('user_id', userIdText);
+      console.log('[CommitImport] Poll result', {
+        importId,
+        userId: userIdText,
+        stagedCount: count || 0,
+      });
       if (countError) {
         console.error('[CommitImport] Error checking staged count:', countError);
         break;
@@ -226,7 +309,7 @@ export const handler: Handler = async (event, context) => {
       await sleep(STAGED_ROWS_POLL_MS);
     }
     if (stagedCount === 0) {
-      console.log('[CommitImport] No staged rows after wait', { importId, elapsedMs: Date.now() - waitStart });
+      console.log('[CommitImport] No staged rows after wait', { importId, elapsedMs: Date.now() - waitStart, reason: 'no_staged_rows' });
       return {
         statusCode: 200,
         headers,
@@ -339,6 +422,8 @@ export const handler: Handler = async (event, context) => {
           category: category || 'Uncategorized',
           source_type: 'smart_import', // Use 'smart_import' to distinguish from manual entries
           source: 'bank_statement', // Legacy field for compatibility
+          import_id: importId,
+          document_id: tx.documentId || tx.docId || null,
         };
       })
     );
@@ -390,12 +475,17 @@ export const handler: Handler = async (event, context) => {
         // Check if import is already committed
         const { data: checkImport } = await sb
           .from('imports')
-          .select('status, committed_count')
+          .select('status')
           .eq('id', importId)
           .eq('user_id', userIdText)
           .maybeSingle();
         
         if (checkImport?.status === 'committed') {
+          const { count: committedCount } = await sb
+            .from('transactions')
+            .select('id', { count: 'exact', head: true })
+            .eq('import_id', importId)
+            .eq('user_id', userIdText);
           // Import was already committed - return 409 Conflict
           return {
             statusCode: 409,
@@ -406,8 +496,8 @@ export const handler: Handler = async (event, context) => {
               error: 'already_committed',
               message: 'This import has already been committed',
               importId,
-              insertedCount: checkImport.committed_count || 0,
-              committed: checkImport.committed_count || 0,
+              insertedCount: committedCount || 0,
+              committed: committedCount || 0,
             }),
           };
         }
@@ -444,28 +534,7 @@ export const handler: Handler = async (event, context) => {
       timestamp: now 
     });
     
-    const { error: updateError } = await sb
-      .from('imports')
-      .update({ 
-        status: 'committed',
-        updated_at: now,
-        committed_at: now,
-        committed_count: committedCount,
-      })
-      .eq('id', importId)
-      .eq('user_id', userIdText); // SECURITY: Always filter by user_id from auth
-    
-    if (updateError) {
-      console.error('[CommitImport] Error updating import status:', updateError);
-      // Don't fail the whole operation - transactions are already inserted
-      // But log the error for debugging
-    } else {
-      console.log('[CommitImport] Import status updated successfully', { 
-        importId, 
-        status: 'committed',
-        committedCount 
-      });
-    }
+    await updateImportCommittedStatus(sb, importId, userIdText, committedCount, now);
 
     safeLog('commit-import.success', { 
       importId, 
@@ -476,7 +545,11 @@ export const handler: Handler = async (event, context) => {
 
     // 7. Detect recurring obligations from newly committed transactions
     // This runs synchronously but doesn't block the response
-    try {
+    const DISABLE_RECURRING = process.env.DISABLE_RECURRING === '1' || process.env.DISABLE_RECURRING === 'true';
+    if (DISABLE_RECURRING) {
+      console.log('[recurring] disabled by env');
+    } else {
+      try {
       // Fetch newly committed transactions for this import
       const { data: newTransactions, error: txError } = await sb
         .from('transactions')
@@ -487,19 +560,17 @@ export const handler: Handler = async (event, context) => {
         .order('date', { ascending: true });
 
       if (!txError && newTransactions && newTransactions.length > 0) {
-        // Group transactions by merchant + category to form candidates
+        // Group transactions by merchant to form candidates
         const merchantGroups = new Map<string, RecurringCandidate>();
 
         for (const tx of newTransactions) {
           const merchant = tx.merchant || tx.description || 'Unknown';
-          const category = tx.category || undefined;
-          const key = `${merchant}|${category || ''}`;
+          const key = merchant;
 
           if (!merchantGroups.has(key)) {
             merchantGroups.set(key, {
               userId,
               merchantName: merchant,
-              category,
               transactions: [],
             });
           }
@@ -538,12 +609,13 @@ export const handler: Handler = async (event, context) => {
           });
         });
       }
-    } catch (err: any) {
-      // Silently fail - detection is not critical for import success
-      safeLog('[Chime] Error in recurring detection', {
-        userId: userIdText.substring(0, 8) + '...',
-        error: err?.message || String(err),
-      });
+      } catch (err: any) {
+        // Silently fail - detection is not critical for import success
+        safeLog('[Chime] Error in recurring detection', {
+          userId: userIdText.substring(0, 8) + '...',
+          error: err?.message || String(err),
+        });
+      }
     }
 
     // 8. Compute summary and detect issues from committed transactions

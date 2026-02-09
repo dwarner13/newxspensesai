@@ -13,8 +13,12 @@ import { callGoogleVisionOnImage } from './_shared/vision/googleVisionClient.js'
 // AI Fluency: Event logging
 import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
 import { extractPdfTextWithPdfParse } from './_lib/pdfText.js';
+import sharp from 'sharp';
+import OpenAI from 'openai';
 
 const BUCKET = 'docs';
+
+const bufferCache = new Map<string, Buffer>();
 
 const DEFAULT_OCR_TIMEOUT_MS = 30000;
 const MAX_OCR_TIMEOUT_MS = 60000;
@@ -67,7 +71,7 @@ async function withRetries<T>(label: string, fn: () => Promise<T>): Promise<T> {
   throw lastError;
 }
 
-type OCRProvider = 'vision' | 'ocrspace' | 'pdf-parse';
+type OCRProvider = 'vision' | 'ocrspace' | 'embedded_pdf_parse' | 'openai_vision';
 
 type OCRRunResult = {
   text: string;
@@ -75,6 +79,24 @@ type OCRRunResult = {
   durationMs: number;
   pageLimitReached?: boolean;
 };
+
+function inferMimeTypeFromName(name?: string | null): string | null {
+  if (!name) return null;
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  return null;
+}
+
+function sanitizeOcrText(input: string): string {
+  // Remove unpaired surrogate code units and control chars that break JSON/DB writes.
+  return input
+    .replace(/[\uD800-\uDFFF]/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+}
 
 /**
  * Run OCR on image/PDF using Google Vision (for images) or OCR.space (fallback)
@@ -92,33 +114,139 @@ function computeOcrTimeoutMs(expectedSize?: number, mimeType?: string): number {
   return Math.min(MAX_OCR_TIMEOUT_MS, Math.max(15000, Math.round(computed)));
 }
 
-async function extractEmbeddedPdfText(signedUrl: string, timeoutMs: number): Promise<string> {
+async function extractEmbeddedPdfText(
+  docId: string,
+  signedUrl: string,
+  timeoutMs: number
+): Promise<string> {
+  const buf = await getPdfBuffer(docId, signedUrl, timeoutMs);
+  const text = await extractPdfTextWithPdfParse(buf);
+  console.log("[OCR] pdf-parse embedded text extracted", { textLength: text.trim().length });
+  return text;
+}
+
+async function fetchPdfBuffer(signedUrl: string, timeoutMs: number): Promise<Buffer> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), Math.max(1_000, timeoutMs));
-
   try {
     const res = await fetch(signedUrl, { signal: controller.signal });
     if (!res.ok) throw new Error(`PDF download failed: ${res.status} ${res.statusText}`);
-
     const ab = await res.arrayBuffer();
-    const buf = Buffer.from(ab);
-
-    const text = await extractPdfTextWithPdfParse(buf);
-    console.log("[OCR] pdf-parse embedded text extracted", { textLength: text.trim().length });
-
-    return text;
+    return Buffer.from(ab);
   } finally {
     clearTimeout(t);
   }
 }
 
+async function fetchBinaryBuffer(signedUrl: string, timeoutMs: number): Promise<Buffer> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), Math.max(1_000, timeoutMs));
+  try {
+    const res = await fetch(signedUrl, { signal: controller.signal });
+    if (!res.ok) throw new Error(`File download failed: ${res.status} ${res.statusText}`);
+    const ab = await res.arrayBuffer();
+    return Buffer.from(ab);
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function getPdfBuffer(docId: string, url: string, timeoutMs: number): Promise<Buffer> {
+  if (!bufferCache.has(docId)) {
+    bufferCache.set(docId, await fetchPdfBuffer(url, timeoutMs));
+  }
+  return bufferCache.get(docId)!;
+}
+
+async function prepareOcrSpaceImagePayload(
+  signedUrl: string,
+  timeoutMs: number
+): Promise<{ base64Image: string; finalSize: number }> {
+  const originalBuffer = await fetchBinaryBuffer(signedUrl, timeoutMs);
+  const originalSize = originalBuffer.length;
+  let quality = 80;
+  let width = 1600;
+  let buffer = originalBuffer;
+
+  try {
+    const metadata = await sharp(originalBuffer).metadata();
+    if (metadata.width) {
+      width = Math.min(width, metadata.width);
+    }
+  } catch {
+    // ignore metadata errors, keep defaults
+  }
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    buffer = await sharp(originalBuffer)
+      .rotate()
+      .resize({ width, withoutEnlargement: true })
+      .jpeg({ quality })
+      .toBuffer();
+    if (buffer.length <= 950 * 1024) {
+      break;
+    }
+    if (quality > 50) {
+      quality -= 10;
+    } else {
+      width = Math.max(800, Math.round(width * 0.8));
+    }
+  }
+
+  console.log('[OCR] Prepared OCR.space image payload', {
+    originalSize,
+    finalSize: buffer.length,
+    quality,
+    width,
+  });
+
+  return {
+    base64Image: `data:image/jpeg;base64,${buffer.toString('base64')}`,
+    finalSize: buffer.length,
+  };
+}
+
+async function runOpenAIVisionOcr(
+  base64Image: string,
+  timeoutMs: number
+): Promise<OCRRunResult> {
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY as string });
+  const model = process.env.OPENAI_VISION_MODEL || 'gpt-4o-mini';
+  const start = Date.now();
+  console.log('[OCR] OpenAI Vision model', { model });
+  const response = await withRetries('OpenAI Vision', () =>
+    client.chat.completions.create({
+      model,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Extract all visible text from this image. Return only the text, preserving line breaks where possible.' },
+            { type: 'image_url', image_url: { url: base64Image } },
+          ],
+        },
+      ],
+      temperature: 0,
+      max_tokens: 2000,
+    })
+  );
+  const text = (response.choices?.[0]?.message?.content || '').trim();
+  return {
+    text,
+    provider: 'openai_vision',
+    durationMs: Date.now() - start,
+  };
+}
+
 async function runOCR(
   signedUrl: string,
   mimeType: string,
-  expectedSize?: number
+  expectedSize?: number,
+  docId?: string
 ): Promise<OCRRunResult> {
   const hasVision = !!process.env.GOOGLE_VISION_API_KEY;
   const hasOcrSpace = !!process.env.OCR_SPACE_API_KEY;
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
   const normalizedMime = mimeType || 'application/pdf';
   const isImage = normalizedMime.startsWith('image/') && !normalizedMime.includes('pdf');
   const isPdf = normalizedMime === 'application/pdf';
@@ -154,9 +282,18 @@ async function runOCR(
     return message.includes('maximum page limit') || message.includes('page limit of 3');
   }
 
+  let imagePayload: { base64Image: string; finalSize: number } | null = null;
+  if (isImage && (hasOcrSpace || hasOpenAI)) {
+    imagePayload = await prepareOcrSpaceImagePayload(signedUrl, timeoutMs);
+  }
+
   async function runOcrSpace(enhanced: boolean): Promise<OCRRunResult> {
     const formData = new FormData();
-    formData.append('url', signedUrl);
+    if (isImage && imagePayload?.base64Image) {
+      formData.append('base64Image', imagePayload.base64Image);
+    } else {
+      formData.append('url', signedUrl);
+    }
     const ocrSpaceKey = process.env.OCR_SPACE_API_KEY;
     if (ocrSpaceKey) {
       formData.append('apikey', ocrSpaceKey);
@@ -200,21 +337,21 @@ async function runOCR(
   }
 
   // 1) For PDFs, attempt embedded text extraction first
-  if (isPdf && enableEmbeddedPdfText) {
+  if (isPdf && enableEmbeddedPdfText && docId) {
     try {
       const embeddedStart = Date.now();
       const embeddedText = await withRetries('PDF embedded text', () =>
-        extractEmbeddedPdfText(signedUrl, timeoutMs)
+        extractEmbeddedPdfText(docId, signedUrl, timeoutMs)
       );
       if (embeddedText && embeddedText.trim().length > 50) {
         console.log('[OCR] Embedded PDF extraction success (pdf-parse)', { chars: embeddedText.trim().length });
         return {
           text: embeddedText,
-          provider: 'pdf-parse',
+          provider: 'embedded_pdf_parse',
           durationMs: Date.now() - embeddedStart,
         };
       }
-      console.warn('[OCR] PDF embedded text extraction returned short text, falling back to OCR');
+      console.log('[OCR] No embedded text via pdf-parse (likely scanned PDF)');
     } catch (error: any) {
       console.warn('[OCR] PDF embedded text extraction failed, falling back to OCR:', error.message || error);
     }
@@ -222,7 +359,53 @@ async function runOCR(
     console.log('[OCR] PDF embedded text extraction disabled; using OCR.space');
   }
 
-  // 2) Prefer Google Vision for images when configured
+  // 2) Prefer OCR.space first for images and PDFs when available
+  if (hasOcrSpace) {
+    console.log('[OCR] Using OCR.space backend');
+    try {
+      const baseResult = await runOcrSpace(false);
+      if (baseResult.text?.trim()) {
+        if (baseResult.text.trim().length < 200) {
+          console.warn('[OCR] OCR.space returned short text, retrying with enhanced settings');
+          const enhancedResult = await runOcrSpace(true);
+          if (enhancedResult.text?.trim().length > baseResult.text.trim().length) {
+            return enhancedResult;
+          }
+        }
+        return baseResult;
+      }
+      const enhancedResult = await runOcrSpace(true);
+      if (enhancedResult.text?.trim()) {
+        return enhancedResult;
+      }
+    } catch (error: any) {
+      if (isPdf && isOcrSpacePageLimitError(error)) {
+        return {
+          text: '',
+          provider: 'ocrspace',
+          durationMs: 0,
+          pageLimitReached: true,
+        };
+      }
+      console.error('[OCR] OCR.space error:', error.message || error);
+    }
+  }
+
+  // 3) Fallback to OpenAI Vision for images when configured
+  if (isImage && hasOpenAI && imagePayload?.base64Image) {
+    try {
+      console.log('[OCR] Using OpenAI Vision for image file');
+      const result = await runOpenAIVisionOcr(imagePayload.base64Image, timeoutMs);
+      if (result.text?.trim()) {
+        return result;
+      }
+      console.warn('[OCR] OpenAI Vision returned empty text');
+    } catch (error: any) {
+      console.error('[OCR] OpenAI Vision error:', error.message || error);
+    }
+  }
+
+  // 4) Fallback to Google Vision for images when configured
   if (isImage && hasVision) {
     try {
       console.log('[OCR] Using Google Vision for image file');
@@ -244,65 +427,13 @@ async function runOCR(
         };
       }
 
-      console.warn('[OCR] Google Vision returned empty text, falling back to legacy OCR if available');
+      console.warn('[OCR] Google Vision returned empty text');
     } catch (error: any) {
-      console.error('[OCR] Google Vision error, falling back to legacy OCR if available:', error.message || error);
-    }
-    // Fall through to legacy OCR / placeholder
-  }
-
-  // 3) Legacy OCR (OCR.space) for PDFs or as fallback
-  if (hasOcrSpace) {
-    console.log('[OCR] Using OCR.space backend');
-    try {
-      const baseResult = await runOcrSpace(false);
-      if (baseResult.text?.trim()) {
-        if (baseResult.text.trim().length < 200) {
-          console.warn('[OCR] OCR.space returned short text, retrying with enhanced settings');
-          const enhancedResult = await runOcrSpace(true);
-          if (enhancedResult.text?.trim().length > baseResult.text.trim().length) {
-            return enhancedResult;
-          }
-        }
-        return baseResult;
-      }
-      const enhancedResult = await runOcrSpace(true);
-      if (enhancedResult.text?.trim()) {
-        return enhancedResult;
-      }
-    } catch (error: any) {
-      if (isPdf && isOcrSpacePageLimitError(error)) {
-        console.warn('[OCR] OCR.space page limit reached');
-        if (enableEmbeddedPdfText) {
-          console.log('[OCR] OCR.space limit -> pdf-parse fallback (pdf-parse only)');
-          try {
-            const embeddedStart = Date.now();
-            const embeddedText = await withRetries('PDF embedded text fallback', () =>
-              extractEmbeddedPdfText(signedUrl, timeoutMs)
-            );
-            if (embeddedText && embeddedText.trim().length > 50) {
-              return {
-                text: embeddedText,
-                provider: 'pdf-parse',
-                durationMs: Date.now() - embeddedStart,
-              };
-            }
-          } catch (fallbackError: any) {
-            console.warn('[OCR] Embedded PDF fallback failed after OCR.space limit:', fallbackError.message || fallbackError);
-          }
-        }
-        return {
-          text: '',
-          provider: 'ocrspace',
-          durationMs: 0,
-          pageLimitReached: true,
-        };
-      }
-      console.error('[OCR] OCR.space error:', error.message || error);
+      console.error('[OCR] Google Vision error:', error.message || error);
     }
   }
 
-  // 4) Final fallback
+  // 5) Final fallback
   throw new Error('OCR failed: no provider returned text');
 }
 
@@ -353,6 +484,11 @@ export const handler: Handler = async (event, context) => {
     
     if (error || !doc) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Document not found' }) };
+    }
+    const docUserId = doc.user_id;
+    const effectiveUserId = docUserId || userId;
+    if (docUserId && userId && docUserId !== userId) {
+      console.warn('[OCR] user_id mismatch; using doc.user_id', { docId, docUserId, requestUserId: userId });
     }
 
     if (doc.ocr_text && doc.ocr_text.trim().length > 0) {
@@ -460,9 +596,19 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
+    const inferredMimeType =
+      inferMimeTypeFromName(fileName) || inferMimeTypeFromName(doc.original_name);
+    const effectiveMimeType = inferredMimeType || doc.mime_type || 'application/pdf';
+    if (doc.mime_type && inferredMimeType && doc.mime_type !== inferredMimeType) {
+      console.warn('[OCR] MIME type mismatch; using inferred type', {
+        docId,
+        docMimeType: doc.mime_type,
+        inferredMimeType,
+      });
+    }
     console.log(`${logPrefix} FILE`, {
       docId,
-      mimeType: doc.mime_type || 'application/pdf',
+      mimeType: effectiveMimeType,
       expectedSize,
       storedSize: storedFile.metadata?.size ? Number(storedFile.metadata.size) : undefined,
     });
@@ -472,25 +618,53 @@ export const handler: Handler = async (event, context) => {
       status: 'ocr_processing',
       updated_at: new Date().toISOString(),
     };
-    let lockQuery = sb
-      .from('user_documents')
-      .update(lockPayload)
-      .eq('id', docId)
-      .eq('status', doc.status);
-    if (!doc.status) {
-      lockQuery = sb
+    let lockStatus: string | null = doc.status ?? null;
+    let lockResult: any[] | null = null;
+    let lockError: any = null;
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      let lockQuery = sb
         .from('user_documents')
         .update(lockPayload)
+        .eq('id', docId);
+
+      if (lockStatus) {
+        lockQuery = lockQuery.eq('status', lockStatus);
+      } else {
+        lockQuery = lockQuery.is('status', null);
+      }
+
+      const { data, error: attemptError } = await lockQuery.select('id');
+      if (attemptError) {
+        lockError = attemptError;
+        break;
+      }
+      lockResult = data || [];
+      if (lockResult.length > 0) {
+        break;
+      }
+
+      const { data: latestDoc, error: latestError } = await sb
+        .from('user_documents')
+        .select('status')
         .eq('id', docId)
-        .is('status', null);
+        .single();
+      if (latestError) {
+        console.warn('[OCR] Failed to re-check lock status', { docId, error: latestError.message || latestError });
+        break;
+      }
+      lockStatus = latestDoc?.status ?? null;
+      if (lockStatus === 'ocr_processing') {
+        break;
+      }
     }
-    const { data: lockResult, error: lockError } = await lockQuery.select('id');
+
     if (lockError) {
       console.error(`${logPrefix} ERROR`, { error: 'Failed to acquire OCR lock', details: lockError.message });
       return { statusCode: 500, body: JSON.stringify({ error: 'Failed to acquire OCR lock', traceId, importRunId }) };
     }
     if (!lockResult || lockResult.length === 0) {
-      console.log('[OCR] IN_PROGRESS (lock held)', { docId, traceId, status: doc.status });
+      console.log('[OCR] IN_PROGRESS (lock held)', { docId, traceId, status: lockStatus });
       return {
         statusCode: 202,
         body: JSON.stringify({
@@ -510,7 +684,7 @@ export const handler: Handler = async (event, context) => {
     let ocrDurationMs: number | null = null;
     let ocrPageLimitReached = false;
     try {
-      const ocrResult = await runOCR(signed.signedUrl, doc.mime_type || 'application/pdf', expectedSize);
+      const ocrResult = await runOCR(signed.signedUrl, effectiveMimeType, expectedSize, docId);
       ocrText = ocrResult.text;
       ocrProvider = ocrResult.provider;
       ocrDurationMs = ocrResult.durationMs;
@@ -529,15 +703,16 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    if (ocrPageLimitReached && (doc.mime_type || 'application/pdf') === 'application/pdf') {
+    if (ocrPageLimitReached && effectiveMimeType === 'application/pdf') {
       console.warn('[OCR] OCR.space page limit reached', { docId });
       console.warn('[OCR] pdf too many pages; user must split', { docId });
       return {
         statusCode: 422,
         body: JSON.stringify({
           ok: false,
-          code: 'PDF_SCANNED_OR_TOO_LONG',
-          message: 'This PDF looks scanned or exceeds OCR limits. Please split into smaller PDFs or upload a CSV export from your bank/credit card.',
+          code: 'PDF_TOO_LONG_OR_SCANNED',
+          message: 'This PDF appears scanned or exceeds OCR limits. Please split the PDF into smaller parts (e.g., 10 pages each) or upload a CSV export.',
+          docId,
           traceId,
           importRunId,
         }),
@@ -550,7 +725,7 @@ export const handler: Handler = async (event, context) => {
     // ✅ Phase 2.2: Use unified guardrails API (includes config loading)
     const guardrailResult = await runGuardrailsForText(
       ocrText, 
-      userId, 
+      effectiveUserId, 
       'ingestion_ocr'  // OCR stage
     );
 
@@ -572,12 +747,20 @@ export const handler: Handler = async (event, context) => {
     }
     
     const guardrailReasons = Array.isArray(guardrailResult.reasons) ? guardrailResult.reasons : [];
-    const allowRedactedPanOnly =
+    const isPiiOnlyBlock =
       !guardrailResult.ok &&
-      guardrailReasons.length === 1 &&
-      guardrailReasons[0].includes('pii_blocked:pan_generic');
+      guardrailReasons.length > 0 &&
+      guardrailReasons.every(reason => reason.includes('pii_blocked'));
+    const importModeAllowPiiRedaction = true;
 
-    if (!guardrailResult.ok && !allowRedactedPanOnly) {
+    console.log('[OCR] Guardrails policy: import_mode_allow_pii_with_redaction=true');
+
+    if (!guardrailResult.ok && isPiiOnlyBlock && importModeAllowPiiRedaction) {
+      console.warn('[OCR] Guardrails PII detected; redacted and continuing', {
+        docId,
+        reasons: guardrailReasons,
+      });
+    } else if (!guardrailResult.ok) {
       console.warn(`${logPrefix} ERROR`, { error: 'Content blocked by guardrails', docId, reasons: guardrailResult.reasons });
       await markDocStatus(docId, 'rejected', `Blocked: ${guardrailResult.reasons.join(', ')}`);
       
@@ -592,10 +775,19 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
+    const sanitizedText = sanitizeOcrText(guardrailResult.text);
+    if (sanitizedText.length !== guardrailResult.text.length) {
+      console.warn('[OCR] Sanitized OCR text (removed invalid unicode)', {
+        docId,
+        originalLength: guardrailResult.text.length,
+        sanitizedLength: sanitizedText.length,
+      });
+    }
+
     // Store REDACTED OCR output as JSON (never store raw)
     const ocrKey = `${doc.storage_path}.ocr.json`;
     const ocrData = {
-      text: guardrailResult.text,  // Redacted text
+      text: sanitizedText,  // Redacted text (sanitized)
       pii_found: guardrailResult.signals?.pii || false,
       pii_types: guardrailResult.signals?.piiTypes || [],
       processed_at: new Date().toISOString(),
@@ -612,23 +804,73 @@ export const handler: Handler = async (event, context) => {
       );
 
     // Update document with OCR metadata
-    await sb.from('user_documents').update({
-      ocr_text: guardrailResult.text,  // Redacted
+    const baseUpdatePayload: Record<string, any> = {
+      ocr_text: sanitizedText,  // Redacted (sanitized)
       ocr_completed_at: new Date().toISOString(),
       pii_types: guardrailResult.signals?.piiTypes || [],
-      status: allowRedactedPanOnly ? 'needs_review' : 'ready',
+      status: guardrailResult.ok ? 'ready' : 'needs_review',
       updated_at: new Date().toISOString()
-    }).eq('id', docId);
-
-    console.log(`${logPrefix} SAVED`, { docId, textLength: guardrailResult.text.length });
+    };
+    const fullUpdatePayload = {
+      ...baseUpdatePayload,
+      ocr_engine: ocrProvider,
+    };
+    let { data: ocrUpdateRows, error: ocrUpdateError } = await sb
+      .from('user_documents')
+      .update(fullUpdatePayload)
+      .eq('id', docId)
+      .select('id,user_id,status,ocr_completed_at');
+    if (ocrUpdateError && String(ocrUpdateError.message || '').includes('ocr_engine')) {
+      console.warn(`${logPrefix} DB_WRITE_RETRY`, { docId, reason: 'missing_ocr_engine_column' });
+      ({ data: ocrUpdateRows, error: ocrUpdateError } = await sb
+        .from('user_documents')
+        .update(baseUpdatePayload)
+        .eq('id', docId)
+        .select('id,user_id,status,ocr_completed_at'));
+    }
+    if (ocrUpdateError) {
+      console.error(`${logPrefix} DB_WRITE_ERROR`, { docId, error: ocrUpdateError.message });
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          ok: false,
+          error: 'ocr_write_failed',
+          traceId,
+          docId,
+          importRunId,
+        }),
+      };
+    }
+    if (!ocrUpdateRows || ocrUpdateRows.length === 0) {
+      console.error(`${logPrefix} DB_WRITE_EMPTY`, { docId, userId: effectiveUserId, docUserId: doc.user_id });
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          ok: false,
+          error: 'ocr_write_empty',
+          traceId,
+          docId,
+          importRunId,
+        }),
+      };
+    }
+    console.log(`${logPrefix} DB_WRITE_OK`, { docId, len: guardrailResult.text.length });
 
     // Byte Speed Mode v2: Return immediately, queue normalization in background
     // Fire normalization asynchronously - don't wait
     const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
+    const OCR_DEBUG_ENABLED = process.env.OCR_DEBUG === '1' || process.env.OCR_DEBUG === 'true';
+    if (OCR_DEBUG_ENABLED) {
+      console.log('[smart-import-ocr] Queuing normalize-transactions', {
+        docId,
+        importRunId,
+        userId: effectiveUserId,
+      });
+    }
     fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, documentId: docId }),
+      body: JSON.stringify({ userId: effectiveUserId, documentId: docId }),
     }).catch((err) => {
       console.error('[smart-import-ocr] Error calling normalize-transactions:', err);
     });
@@ -644,27 +886,27 @@ export const handler: Handler = async (event, context) => {
     
     Promise.all([
       logUserEvent({
-        userId,
+        userId: effectiveUserId,
         eventType: 'doc_processed',
         eventValue: 1,
         meta: { docId, docType: doc.mime_type, isReceipt, isStatement }
       }),
       // Log receipt/statement upload separately for granularity
       isReceipt && logUserEvent({
-        userId,
+        userId: effectiveUserId,
         eventType: 'receipt_uploaded',
         eventValue: 1,
         meta: { docId }
       }),
       isStatement && logUserEvent({
-        userId,
+        userId: effectiveUserId,
         eventType: 'statement_uploaded',
         eventValue: 1,
         meta: { docId }
       })
     ]).then(() => {
       // Recalculate fluency after logging events (non-blocking)
-      recalcFluency(userId).catch(err => {
+      recalcFluency(effectiveUserId).catch(err => {
         console.error('[smart-import-ocr] Error recalculating fluency:', err);
       });
     }).catch(err => {

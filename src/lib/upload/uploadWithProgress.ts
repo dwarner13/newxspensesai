@@ -64,6 +64,15 @@ export async function uploadWithProgress(
   // Note: Supabase's createSignedUploadUrl returns a URL with auth already embedded
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    const timeoutMs = 90000;
+    const timeoutId = window.setTimeout(() => {
+      try {
+        xhr.abort();
+      } catch {
+        // no-op
+      }
+      reject(new Error('Upload timed out'));
+    }, timeoutMs);
 
     // Track upload progress
     xhr.upload.addEventListener('progress', (e) => {
@@ -76,6 +85,7 @@ export async function uploadWithProgress(
     });
 
     xhr.addEventListener('load', async () => {
+      window.clearTimeout(timeoutId);
       if (xhr.status >= 200 && xhr.status < 300) {
         // Step 3: Finalize (90-100%)
         onProgress?.(90);
@@ -112,10 +122,12 @@ export async function uploadWithProgress(
     });
 
     xhr.addEventListener('error', () => {
+      window.clearTimeout(timeoutId);
       reject(new Error('Upload failed: Network error'));
     });
 
     xhr.addEventListener('abort', () => {
+      window.clearTimeout(timeoutId);
       reject(new Error('Upload cancelled'));
     });
 

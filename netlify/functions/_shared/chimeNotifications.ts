@@ -12,6 +12,19 @@
 import { admin } from './supabase.js';
 import { safeLog } from './safeLog.js';
 
+const chimeLogOnceKeys = new Set<string>();
+
+function logOnce(key: string, message: string, meta?: Record<string, any>) {
+  if (chimeLogOnceKeys.has(key)) return;
+  chimeLogOnceKeys.add(key);
+  safeLog(message, meta || {});
+}
+
+function isMissingColumnError(error: any): boolean {
+  const message = String(error?.message || '').toLowerCase();
+  return error?.code === 'PGRST204' || message.includes('does not exist') || message.includes('schema cache');
+}
+
 export interface QueueUpcomingPaymentNotificationsOptions {
   userId: string;
   horizonDays: number; // e.g. 7
@@ -60,13 +73,20 @@ export async function queueUpcomingPaymentNotifications(
     // Find upcoming obligations
     const { data: obligations, error: obligationsError } = await supabase
       .from('recurring_obligations')
-      .select('id, merchant_name, category, average_amount, next_estimated_date, frequency')
+      .select('id, merchant_name, avg_amount, next_estimated_date, frequency')
       .eq('user_id', userId)
       .not('next_estimated_date', 'is', null)
       .gte('next_estimated_date', today.toISOString().split('T')[0])
       .lte('next_estimated_date', horizonDate.toISOString().split('T')[0]);
 
     if (obligationsError) {
+      if (isMissingColumnError(obligationsError)) {
+        logOnce('chime_obligations_missing_columns', '[ChimeNotifications] Skipping due to schema mismatch', {
+          userId: maskUserId(userId),
+          error: obligationsError.message,
+        });
+        return;
+      }
       safeLog('[ChimeNotifications] Error fetching obligations', {
         userId: maskUserId(userId),
         error: obligationsError.message,
@@ -98,9 +118,9 @@ export async function queueUpcomingPaymentNotifications(
       }
 
       // Create placeholder title/body (Chime will refine these later)
-      const humanLabel = getHumanLabel(obligation.category || 'other');
-      const title = `${humanLabel} Due Soon`;
-      const body = `Your ${obligation.merchant_name} payment of $${obligation.average_amount.toFixed(2)} is due in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}.`;
+      const title = `Payment Due Soon`;
+      const amount = Number(obligation.avg_amount || 0);
+      const body = `Your ${obligation.merchant_name} payment of $${amount.toFixed(2)} is due in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}.`;
 
       // Insert for each enabled channel
       if (inAppEnabled) {
@@ -116,7 +136,7 @@ export async function queueUpcomingPaymentNotifications(
           created_by_employee_slug: 'chime-ai',
           meta: {
             merchant_name: obligation.merchant_name,
-            amount: obligation.average_amount,
+            amount,
             due_date: obligation.next_estimated_date,
             days_until: daysUntil,
           },
@@ -136,7 +156,7 @@ export async function queueUpcomingPaymentNotifications(
           created_by_employee_slug: 'chime-ai',
           meta: {
             merchant_name: obligation.merchant_name,
-            amount: obligation.average_amount,
+            amount,
             due_date: obligation.next_estimated_date,
             days_until: daysUntil,
           },
@@ -156,7 +176,7 @@ export async function queueUpcomingPaymentNotifications(
           created_by_employee_slug: 'chime-ai',
           meta: {
             merchant_name: obligation.merchant_name,
-            amount: obligation.average_amount,
+            amount,
             due_date: obligation.next_estimated_date,
             days_until: daysUntil,
           },
@@ -192,29 +212,6 @@ export async function queueUpcomingPaymentNotifications(
       userId: maskUserId(userId),
       error: error?.message || String(error),
     });
-  }
-}
-
-/**
- * Get human-readable label for obligation category
- */
-function getHumanLabel(category: string): string {
-  switch (category.toLowerCase()) {
-    case 'mortgage':
-      return 'Mortgage Payment';
-    case 'car_loan':
-      return 'Car Payment';
-    case 'credit_card':
-    case 'credit_card_payment':
-      return 'Credit Card Payment';
-    case 'subscription':
-      return 'Subscription';
-    case 'utility':
-      return 'Utility Bill';
-    case 'insurance':
-      return 'Insurance Payment';
-    default:
-      return 'Payment';
   }
 }
 

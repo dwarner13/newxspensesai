@@ -35,6 +35,72 @@ export type SmartImportSyncResult = {
 
 const MAX_WAIT_MS = 30000; // 30 seconds max wait for async jobs
 const POLL_INTERVAL_MS = 1000; // Poll every 1 second
+const OCR_DEBUG_ENABLED =
+  process.env.OCR_DEBUG === '1' ||
+  process.env.OCR_DEBUG === 'true' ||
+  process.env.VITE_OCR_DEBUG === '1' ||
+  process.env.VITE_OCR_DEBUG === 'true';
+
+async function waitForOcrText(
+  sb: any,
+  docId: string,
+  maxMs: number = 15000,
+  pollMs: number = 500
+): Promise<{ ok: boolean; len: number }> {
+  const start = Date.now();
+  console.log('[smart-import-sync] waitForOcrText start', { docId, maxMs, pollMs });
+
+  while (Date.now() - start < maxMs) {
+    const { data, error } = await sb
+      .from('user_documents')
+      .select('id, ocr_text, updated_at, mime_type, original_name, status')
+      .eq('id', docId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[smart-import-sync] waitForOcrText error', { docId, error });
+      // keep waiting in case schema cache / transient
+    } else {
+      const mimeType = data?.mime_type || '';
+      const fileName = data?.original_name || '';
+      if (mimeType === 'text/csv' || fileName.toLowerCase().endsWith('.csv')) {
+        console.log('[smart-import-sync] waitForOcrText skip (CSV)', {
+          docId,
+          mimeType,
+          fileName,
+          elapsedMs: Date.now() - start,
+        });
+        return { ok: true, len: 0 };
+      }
+
+      const len = (data?.ocr_text || '').length;
+      if (data && len === 0) {
+        console.log('[smart-import-sync] OCR text empty', {
+          docId,
+          status: data.status,
+          updatedAt: data.updated_at,
+        });
+      }
+      if (len > 0) {
+        console.log('[smart-import-sync] OCR text ready', {
+          docId,
+          len,
+          elapsedMs: Date.now() - start,
+        });
+        return { ok: true, len };
+      }
+    }
+
+    await new Promise(r => setTimeout(r, pollMs));
+  }
+
+  console.warn('[smart-import-sync] OCR text NOT ready before timeout', {
+    docId,
+    maxMs,
+    elapsedMs: Date.now() - start,
+  });
+  return { ok: false, len: 0 };
+}
 
 /**
  * Wait for import status to become 'parsed' (ready to commit)
@@ -89,11 +155,21 @@ async function ensureNormalized(
     .maybeSingle();
   
   if (existingImport?.status === 'parsed' || existingImport?.status === 'committed') {
+    if (OCR_DEBUG_ENABLED) {
+      console.log('[smart-import-sync] Normalize skipped (already parsed/committed)', {
+        documentId,
+        importId: existingImport.id,
+        status: existingImport.status,
+      });
+    }
     return { ok: true, importId: existingImport.id };
   }
   
   // Trigger normalization
   try {
+    if (OCR_DEBUG_ENABLED) {
+      console.log('[smart-import-sync] Triggering normalize-transactions', { documentId });
+    }
     const normalizeRes = await fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -176,6 +252,23 @@ export const handler: Handler = async (event) => {
       if (!importRecord) {
         // Import doesn't exist yet - trigger normalization which will create it
         console.log('[smart-import-sync] Import not found, triggering normalization for docId:', docId);
+        const waitResult = await waitForOcrText(sb, docId, 15000, 500);
+        if (!waitResult.ok) {
+          console.log('[smart-import-sync] Skipping normalize; OCR not ready', { docId });
+          return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({
+              ok: true,
+              processing: true,
+              reason: 'ocr_not_ready',
+              docId,
+              docIds,
+              importIds: [],
+              transactionCount: 0,
+            }),
+          };
+        }
         const normalized = await ensureNormalized(sb, docId, userId, netlifyUrl);
         
         if (normalized.ok && normalized.importId) {
@@ -259,19 +352,25 @@ export const handler: Handler = async (event) => {
 
     // 3. Commit all ready imports
     let totalTransactionCount = 0;
+    const summaries: Record<string, any> = {};
+    const issuesByImport: Record<string, any> = {};
     
     for (const importId of readyImportIds) {
       // Check if already committed
       const { data: importRecord } = await sb
         .from('imports')
-        .select('status, committed_count')
+        .select('status')
         .eq('id', importId)
         .eq('user_id', userId)
         .maybeSingle();
       
       if (importRecord?.status === 'committed') {
-        // Already committed, use existing count
-        totalTransactionCount += importRecord.committed_count || 0;
+        const { count: committedCount } = await sb
+          .from('transactions')
+          .select('id', { count: 'exact', head: true })
+          .eq('import_id', importId)
+          .eq('user_id', userId);
+        totalTransactionCount += committedCount || 0;
         continue;
       }
       
@@ -290,6 +389,12 @@ export const handler: Handler = async (event) => {
           const commitData = await commitRes.json();
           const committed = commitData.committed || commitData.insertedCount || 0;
           totalTransactionCount += committed;
+          if (commitData?.summary) {
+            summaries[importId] = commitData.summary;
+          }
+          if (commitData?.issues) {
+            issuesByImport[importId] = commitData.issues;
+          }
           console.log('[smart-import-sync] Committed import', { importId, committed });
         } else {
           const errorText = await commitRes.text();
@@ -388,13 +493,18 @@ export const handler: Handler = async (event) => {
         } else {
           // ⚡ CRYSTAL ANALYTICS: Trigger Crystal analytics after successful Custodian verification
           // Runs exactly once per import_run_id (idempotent via DB constraint)
-          try {
-            const { triggerCrystalAnalytics } = await import('./_shared/crystalAnalytics.js');
-            await triggerCrystalAnalytics(userId, importRunId);
-            // Silent on success - Crystal failures don't affect Custodian flow
-          } catch (crystalError: any) {
-            console.error('[smart-import-sync] Error triggering Crystal analytics:', crystalError);
-            // Don't fail sync if Crystal analytics fails - it's a downstream consumer
+          const DISABLE_CRYSTAL = process.env.DISABLE_CRYSTAL === '1' || process.env.DISABLE_CRYSTAL === 'true';
+          if (DISABLE_CRYSTAL) {
+            console.log('[crystal] disabled by env');
+          } else {
+            try {
+              const { triggerCrystalAnalytics } = await import('./_shared/crystalAnalytics.js');
+              await triggerCrystalAnalytics(userId, importRunId);
+              // Silent on success - Crystal failures don't affect Custodian flow
+            } catch (crystalError: any) {
+              console.error('[smart-import-sync] Error triggering Crystal analytics:', crystalError);
+              // Don't fail sync if Crystal analytics fails - it's a downstream consumer
+            }
           }
         }
       } catch (error: any) {
@@ -406,11 +516,184 @@ export const handler: Handler = async (event) => {
       // Don't fail sync if event logging fails
     }
 
-    const result: SmartImportSyncResult = {
+    const result: SmartImportSyncResult & Record<string, any> = {
       docIds,
       importIds: readyImportIds,
       transactionCount: totalTransactionCount,
     };
+    if (Object.keys(summaries).length > 0) {
+      result.summaries = summaries;
+      const firstImportId = readyImportIds[0];
+      if (firstImportId && summaries[firstImportId]) {
+        result.summary = summaries[firstImportId];
+      }
+    }
+    if (Object.keys(issuesByImport).length > 0) {
+      result.issuesByImport = issuesByImport;
+      const firstImportId = readyImportIds[0];
+      if (firstImportId && issuesByImport[firstImportId]) {
+        result.issues = issuesByImport[firstImportId];
+      }
+    }
+
+    if (OCR_DEBUG_ENABLED) {
+      const debugItems: any[] = [];
+      for (const docId of docIds) {
+        let { data: docData } = await sb
+          .from('user_documents')
+          .select('id, user_id, ocr_text, ocr_engine, status, storage_path')
+          .eq('id', docId)
+          .eq('user_id', userId)
+          .maybeSingle();
+        const needsIdFallback = !docData || !docData.storage_path;
+        if (needsIdFallback) {
+          const { data: docDataById } = await sb
+            .from('user_documents')
+            .select('id, user_id, ocr_text, ocr_engine, status, storage_path')
+            .eq('id', docId)
+            .maybeSingle();
+          if (docDataById) {
+            docData = docDataById;
+            if (OCR_DEBUG_ENABLED) {
+              console.warn('[smart-import-sync] Debug doc lookup bypassed user_id filter', {
+                docId,
+                userId,
+                docUserId: docDataById.user_id,
+              });
+            }
+          }
+        }
+
+        const { data: importRecord } = await sb
+          .from('imports')
+          .select('id, error')
+          .eq('document_id', docId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        let parsedTransactions: any[] = [];
+        if (importRecord?.id) {
+          const { data: stagingRows } = await sb
+            .from('transactions_staging')
+            .select('data_json, parsed_at, hash')
+            .eq('import_id', importRecord.id)
+            .eq('user_id', userId)
+            .order('parsed_at', { ascending: true })
+            .limit(50);
+          parsedTransactions = (stagingRows || []).map((row: any) => row.data_json);
+        }
+
+        let rawText = String(docData?.ocr_text || '');
+        let storagePath = docData?.storage_path || null;
+        if (!storagePath) {
+          try {
+            const { data: files, error: listError } = await sb.storage
+              .from('docs')
+              .list(`${userId}/${docId}`, { limit: 1 });
+            if (listError && OCR_DEBUG_ENABLED) {
+              console.warn('[smart-import-sync] OCR storage list failed', {
+                docId,
+                prefix: `${userId}/${docId}`,
+                error: listError.message || String(listError),
+              });
+            } else if (files && files.length > 0) {
+              storagePath = `${userId}/${docId}/${files[0].name}`;
+              if (OCR_DEBUG_ENABLED) {
+                console.log('[smart-import-sync] Resolved storage path from list', {
+                  docId,
+                  storagePath,
+                });
+              }
+            } else if (OCR_DEBUG_ENABLED) {
+              console.warn('[smart-import-sync] OCR storage list empty', {
+                docId,
+                prefix: `${userId}/${docId}`,
+              });
+            }
+          } catch (error: any) {
+            if (OCR_DEBUG_ENABLED) {
+              console.warn('[smart-import-sync] OCR storage list error', {
+                docId,
+                error: error?.message || String(error),
+              });
+            }
+          }
+        }
+        if (OCR_DEBUG_ENABLED) {
+          console.log('[smart-import-sync] Debug doc OCR text length', {
+            docId,
+            length: rawText.length,
+            hasStoragePath: !!storagePath,
+            docUserId: docData?.user_id || null,
+          });
+        }
+        if (!rawText && storagePath) {
+          try {
+            const ocrKey = `${storagePath}.ocr.json`;
+            const { data: ocrBlob, error: ocrError } = await sb.storage.from('docs').download(ocrKey);
+            if (ocrError && OCR_DEBUG_ENABLED) {
+              console.warn('[smart-import-sync] OCR storage download failed', {
+                docId,
+                ocrKey,
+                error: ocrError.message || String(ocrError),
+              });
+            }
+            if (ocrBlob) {
+              let raw = '';
+              if (typeof (ocrBlob as any).text === 'function') {
+                raw = await (ocrBlob as any).text();
+              } else if (typeof (ocrBlob as any).arrayBuffer === 'function') {
+                const buffer = Buffer.from(await (ocrBlob as any).arrayBuffer());
+                raw = buffer.toString('utf-8');
+              } else if (Buffer.isBuffer(ocrBlob)) {
+                raw = ocrBlob.toString('utf-8');
+              } else if (ocrBlob instanceof ArrayBuffer) {
+                raw = Buffer.from(ocrBlob).toString('utf-8');
+              } else {
+                raw = String(ocrBlob);
+              }
+              const parsed = JSON.parse(raw || '{}');
+              rawText = String(parsed?.text || '');
+              if (rawText && OCR_DEBUG_ENABLED) {
+                console.log('[smart-import-sync] Loaded OCR storage text', {
+                  docId,
+                  length: rawText.length,
+                });
+              }
+            }
+          } catch (error: any) {
+            if (OCR_DEBUG_ENABLED) {
+              console.warn('[smart-import-sync] Failed to load OCR storage text', {
+                docId,
+                error: error?.message || String(error),
+              });
+            }
+          }
+        }
+        const parseWarnings: string[] = [];
+        if (!rawText) parseWarnings.push('missing_ocr_text');
+        if (parsedTransactions.length === 0) parseWarnings.push('no_parsed_transactions');
+        if (docData?.status === 'needs_review' || docData?.status === 'rejected') {
+          parseWarnings.push(`doc_status:${docData.status}`);
+        }
+
+        debugItems.push({
+          docId,
+          importId: importRecord?.id || undefined,
+          rawTextPreview: rawText.slice(0, 2000),
+          rawTextLength: rawText.length,
+          parsedTransactions,
+          parseWarnings,
+          parseError: importRecord?.error || null,
+          ocrEngineUsed: docData?.ocr_engine || null,
+        });
+      }
+
+      result.debug = { items: debugItems };
+      if (debugItems.length === 1) {
+        Object.assign(result, debugItems[0]);
+      }
+    }
 
     return {
       statusCode: 200,

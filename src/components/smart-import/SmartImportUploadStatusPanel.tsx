@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { DocumentStats } from '../../hooks/useDocumentStats';
+import type { SmartImportUploadSummary, SmartImportDebugItem } from '../../hooks/useSmartImport';
 import type { UploadQueueItem, UploadQueueProgress } from '../../lib/upload/uploadQueue';
 import { UploadQueuePanel } from '../upload/UploadQueuePanel';
 import { DocumentViewerModal } from '../ui/DocumentViewerModal';
@@ -10,6 +12,8 @@ interface SmartImportUploadStatusPanelProps {
   statsLoading?: boolean;
   statsError?: boolean;
   userId?: string;
+  lastUploadSummary?: SmartImportUploadSummary | null;
+  debugItems?: SmartImportDebugItem[] | null;
   uploadQueue: {
     items: UploadQueueItem[];
     progress: UploadQueueProgress;
@@ -23,6 +27,8 @@ export function SmartImportUploadStatusPanel({
   statsLoading = false,
   statsError = false,
   userId,
+  lastUploadSummary,
+  debugItems,
   uploadQueue,
 }: SmartImportUploadStatusPanelProps) {
   const [viewerDoc, setViewerDoc] = useState<{
@@ -41,6 +47,9 @@ export function SmartImportUploadStatusPanel({
   const [viewerOpen, setViewerOpen] = useState(false);
   const [isRetryingOcr, setIsRetryingOcr] = useState(false);
   const refreshTimerRef = useRef<number | null>(null);
+  const navigate = useNavigate();
+  const debugEnabled = import.meta.env.VITE_OCR_DEBUG === '1';
+  const importIdForView = lastUploadSummary?.importId || lastUploadSummary?.importIds?.[0];
 
   const handleViewDocument = useCallback(async (item: UploadQueueItem) => {
     const docId = item.result?.docId;
@@ -201,6 +210,44 @@ export function SmartImportUploadStatusPanel({
 
   return (
     <>
+      {(lastUploadSummary?.transactionCount !== undefined || importIdForView || lastUploadSummary?.summary) && (
+        <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-medium text-white">Import summary</div>
+              <div className="text-xs text-slate-400">
+                {lastUploadSummary?.transactionCount !== undefined
+                  ? `Saved ${lastUploadSummary.transactionCount} transaction${lastUploadSummary.transactionCount === 1 ? '' : 's'}`
+                  : 'Import in progress'}
+              </div>
+            </div>
+            {importIdForView && (
+              <button
+                onClick={() => navigate(`/dashboard/transactions?importId=${importIdForView}`)}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-slate-700"
+              >
+                View in Transactions
+              </button>
+            )}
+          </div>
+          {lastUploadSummary?.summary && (
+            <div className="mt-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-3 text-xs text-slate-300">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>Total transactions: {lastUploadSummary.summary.totalTransactions}</div>
+                <div>Uncategorized: {lastUploadSummary.summary.uncategorizedCount}</div>
+                <div>Total debits: {lastUploadSummary.summary.totalDebits}</div>
+                <div>Total credits: {lastUploadSummary.summary.totalCredits}</div>
+              </div>
+              {lastUploadSummary.summary.dateRange && (
+                <div className="mt-2">
+                  Date range: {lastUploadSummary.summary.dateRange.startDate} → {lastUploadSummary.summary.dateRange.endDate}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)] p-4">
           <div className="flex items-center justify-between mb-2">
@@ -258,6 +305,46 @@ export function SmartImportUploadStatusPanel({
         isRetryingOcr={isRetryingOcr}
         documentData={viewerDoc}
       />
+
+      {debugEnabled && debugItems && debugItems.length > 0 && (
+        <div className="mt-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,193,7,0.08)] p-4">
+          <div className="mb-3 text-sm font-semibold text-amber-200">Import Debug Panel</div>
+          <div className="space-y-4">
+            {debugItems.map((item) => (
+              <div key={item.docId} className="rounded-xl border border-amber-500/20 bg-slate-900/60 p-3">
+                <div className="flex flex-wrap items-center gap-3 text-xs text-amber-100">
+                  <span>Doc: {item.docId}</span>
+                  {item.importId && <span>Import: {item.importId}</span>}
+                  {item.ocrEngineUsed && <span>OCR: {item.ocrEngineUsed}</span>}
+                  <span>Text: {item.rawTextLength} chars</span>
+                </div>
+                {item.parseWarnings?.length > 0 && (
+                  <div className="mt-2 text-xs text-amber-300">
+                    Warnings: {item.parseWarnings.join(', ')}
+                  </div>
+                )}
+                {item.parseError && (
+                  <div className="mt-2 text-xs text-red-300">
+                    Parse error: {item.parseError}
+                  </div>
+                )}
+                <div className="mt-3">
+                  <div className="text-xs text-amber-200 mb-1">Raw text preview</div>
+                  <pre className="max-h-48 overflow-auto rounded-lg bg-slate-950/70 p-2 text-[11px] text-slate-200 whitespace-pre-wrap">
+                    {item.rawTextPreview || '(empty)'}
+                  </pre>
+                </div>
+                <div className="mt-3">
+                  <div className="text-xs text-amber-200 mb-1">Parsed transactions</div>
+                  <pre className="max-h-48 overflow-auto rounded-lg bg-slate-950/70 p-2 text-[11px] text-slate-200 whitespace-pre-wrap">
+                    {JSON.stringify(item.parsedTransactions || [], null, 2)}
+                  </pre>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }

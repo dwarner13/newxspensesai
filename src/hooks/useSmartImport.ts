@@ -48,6 +48,19 @@ export type SmartImportUploadSummary = {
   docIds?: string[];
   importId?: string;
   importIds?: string[];
+  summary?: any;
+  issues?: any;
+};
+
+export type SmartImportDebugItem = {
+  docId: string;
+  importId?: string;
+  rawTextPreview: string;
+  rawTextLength: number;
+  parsedTransactions: any[];
+  parseWarnings: string[];
+  parseError?: string | null;
+  ocrEngineUsed?: string | null;
 };
 
 const defaultUploadStatus: SmartImportUploadStatus = {
@@ -75,6 +88,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
     total: 0,
   });
   const [lastUploadSummary, setLastUploadSummary] = useState<SmartImportUploadSummary | null>(null);
+  const [lastDebugPayload, setLastDebugPayload] = useState<SmartImportDebugItem[] | null>(null);
   
   // Shared upload status with step tracking
   const [uploadStatus, setUploadStatus] = useState<SmartImportUploadStatus>(defaultUploadStatus);
@@ -109,6 +123,17 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       setUploadStatus(defaultUploadStatus);
     }, 2000);
   }, []);
+
+  const resetUploadState = useCallback(() => {
+    setUploading(false);
+    setProgress(0);
+    setError(null);
+    setUploadFileCount({ current: 0, total: 0 });
+    setLastUploadSummary(null);
+    setLastDebugPayload(null);
+    setUploadStatus(defaultUploadStatus);
+    uploadQueue.clear();
+  }, [uploadQueue]);
 
   const failUpload = useCallback((error: string) => {
     setUploadStatus({
@@ -269,6 +294,16 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       setQueueUserId(userIdParam);
       await Promise.resolve();
     }
+
+    if (!uploadQueue.isReady) {
+      for (let i = 0; i < 10; i += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (uploadQueue.isReady) break;
+      }
+    }
+    if (!uploadQueue.isReady) {
+      throw new Error('Upload queue not ready. Please try again.');
+    }
     
     debug('[useSmartImport] uploadFiles called', {
       fileCount: files.length,
@@ -281,13 +316,22 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
     setUploadFileCount({ current: 0, total: files.length });
     setError(null);
     
+    if (!uploadQueue.isUploading && uploadQueue.items.length > 0) {
+      uploadQueue.clear();
+    }
+
     // Add files to queue (with dedupe prevention)
-    const uploadIds = uploadQueue.addFiles(files);
-    
+    let uploadIds = uploadQueue.addFiles(files);
+
     if (uploadIds.length === 0) {
       console.warn('[useSmartImport] No files added to queue (all duplicates?)');
+      uploadQueue.clear();
+      uploadIds = uploadQueue.addFiles(files);
+    }
+    
+    if (uploadIds.length === 0) {
       setUploading(false);
-      return [];
+      throw new Error('Upload queue is blocked. Please try Reset.');
     }
     
     // Wait for all uploads to complete
@@ -318,8 +362,24 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
             
             // Collect docIds and sync transaction counts
             const docIds = results.map(r => r.docId).filter(Boolean);
-            
-            // Sync transaction counts
+
+            // Immediately unblock UI; sync runs in background
+            const baseSummary = {
+              id: crypto.randomUUID(),
+              finishedAt: new Date().toISOString(),
+              fileCount: files.length,
+              docIds,
+              importId: undefined,
+              importIds: [],
+            };
+            setLastUploadSummary(baseSummary);
+            setLastDebugPayload(null);
+            completeUpload();
+            setUploading(false);
+            uploadQueue.clearCompleted();
+            resolve(results);
+
+            // Sync transaction counts (background)
             if (docIds.length > 0 && userIdParam) {
               fetch('/.netlify/functions/smart-import-sync', {
                 method: 'POST',
@@ -331,51 +391,49 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
               })
                 .then(res => res.ok ? res.json() : null)
                 .then(syncData => {
+                  if (!syncData) return;
                   const transactionCount = syncData?.transactionCount ?? 0;
                   const importIds = Array.isArray(syncData?.importIds) ? syncData.importIds : [];
                   const importId = importIds[0];
-                const summary = {
-                    id: crypto.randomUUID(),
-                    finishedAt: new Date().toISOString(),
-                    fileCount: files.length,
+                  const summary = {
+                    ...baseSummary,
                     transactionCount: transactionCount > 0 ? transactionCount : undefined,
-                  docIds,
-                  importId,
-                  importIds,
+                    importId,
+                    importIds,
+                    summary: syncData?.summary,
+                    issues: syncData?.issues,
                   };
                   setLastUploadSummary(summary);
-                  completeUpload();
-                  setUploading(false);
-                  resolve(results);
+                  const debugItems = (() => {
+                    const fromItems = syncData?.debug?.items;
+                    if (Array.isArray(fromItems)) {
+                      return fromItems as SmartImportDebugItem[];
+                    }
+                    if (syncData?.rawTextPreview || syncData?.rawTextLength !== undefined) {
+                      return [{
+                        docId: syncData?.docId || docIds[0],
+                        importId: syncData?.importId,
+                        rawTextPreview: syncData?.rawTextPreview || '',
+                        rawTextLength: syncData?.rawTextLength || 0,
+                        parsedTransactions: Array.isArray(syncData?.parsedTransactions) ? syncData.parsedTransactions : [],
+                        parseWarnings: Array.isArray(syncData?.parseWarnings) ? syncData.parseWarnings : [],
+                        parseError: syncData?.parseError ?? null,
+                        ocrEngineUsed: syncData?.ocrEngineUsed ?? null,
+                      }];
+                    }
+                    return null;
+                  })();
+                  setLastDebugPayload(debugItems);
+                  if (import.meta.env.DEV && import.meta.env.VITE_OCR_DEBUG === '1' && debugItems && debugItems[0]) {
+                    console.log('[OCR Debug] sync payload', {
+                      rawTextLength: debugItems[0].rawTextLength,
+                      parsedCount: debugItems[0].parsedTransactions?.length || 0,
+                    });
+                  }
                 })
                 .catch(err => {
                   console.error('[useSmartImport] Sync error:', err);
-                  const summary = {
-                    id: crypto.randomUUID(),
-                    finishedAt: new Date().toISOString(),
-                    fileCount: files.length,
-                    docIds,
-                    importId: undefined,
-                    importIds: [],
-                  };
-                  setLastUploadSummary(summary);
-                  completeUpload();
-                  setUploading(false);
-                  resolve(results);
                 });
-            } else {
-              const summary = {
-                id: crypto.randomUUID(),
-                finishedAt: new Date().toISOString(),
-                fileCount: files.length,
-                docIds,
-                importId: undefined,
-                importIds: [],
-              };
-              setLastUploadSummary(summary);
-              completeUpload();
-              setUploading(false);
-              resolve(results);
             }
           }
         } else if (event.type === 'item-error') {
@@ -485,9 +543,10 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       uploadFileCount,
       hasLastUploadSummary: !!lastUploadSummary,
       lastUploadSummaryId: lastUploadSummary?.id,
+      hasLastDebugPayload: !!lastDebugPayload,
       uploadStatus,
     });
-  }, [uploading, progress, uploadFileCount, lastUploadSummary, uploadStatus]);
+  }, [uploading, progress, uploadFileCount, lastUploadSummary, lastDebugPayload, uploadStatus]);
   
   // Optional: Detect completion from stats polling
   // This can be enhanced to check latestImport status from queue stats
@@ -502,12 +561,14 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
     error,
     uploadFileCount,
     lastUploadSummary,
+    lastDebugPayload,
     // Shared upload status
     uploadStatus,
     startUpload,
     updateUploadProgress,
     completeUpload,
     failUpload,
+    resetUploadState,
     // Upload queue (for UI components)
     uploadQueue: {
       items: uploadQueue.items,
