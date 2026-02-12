@@ -46,6 +46,8 @@ const buildOptions = {
     'jsdom',
     '@mozilla/readability',
     '@netlify/functions',
+    '@napi-rs/canvas',
+    '@napi-rs/canvas-win32-x64-msvc',
   ],
   // Exclude src/ directory imports from bundling - they're TypeScript source files
   // These will be resolved at runtime by Node.js (functions run in Node environment)

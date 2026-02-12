@@ -185,6 +185,7 @@ export function SmartImportChatPage() {
             userId={safeUserId}
             lastUploadSummary={lastUploadSummary}
             debugItems={smartImport.lastDebugPayload}
+            refreshDebugPayload={smartImport.refreshDebugPayload}
             uploadQueue={smartImport.uploadQueue}
           />
         }

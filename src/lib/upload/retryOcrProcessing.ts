@@ -62,15 +62,15 @@ export async function retryOcrProcessing(
 
       // Retry finalize to check if upload is complete
       try {
-        const formData = new FormData();
-        formData.append('userId', userId);
-        formData.append('docId', docId);
-        formData.append('expectedSize', String(request.file.size));
-        if (request.requestId) formData.append('requestId', request.requestId);
-
-        const retryRes = await fetch('/.netlify/functions/smart-import-ocr', {
+        const retryRes = await fetch('/.netlify/functions/smart-import-finalize', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            docId,
+            expectedSize: request.file.size,
+            requestId: request.requestId,
+          }),
         });
 
         if (!retryRes.ok) {

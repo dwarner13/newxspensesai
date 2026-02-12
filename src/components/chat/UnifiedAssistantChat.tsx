@@ -1467,10 +1467,23 @@ export default function UnifiedAssistantChat({
         const { getSupabase } = await import('../../lib/supabase');
         const supabase = getSupabase();
         if (!supabase) return;
-        const { data: docs } = await supabase
-          .from('user_documents')
-          .select('id, original_name, extracted_data, ocr_text, pii_types')
-          .in('id', docIds);
+        let docs: any[] | null = null;
+        {
+          const baseQuery = supabase
+            .from('user_documents')
+            .select('id, original_name, extracted_data, ocr_text, pii_types')
+            .in('id', docIds);
+          const { data, error } = await baseQuery;
+          if (error && String(error.message || '').includes('extracted_data')) {
+            const fallback = await supabase
+              .from('user_documents')
+              .select('id, original_name, ocr_text, pii_types')
+              .in('id', docIds);
+            docs = fallback.data as any[] | null;
+          } else {
+            docs = data as any[] | null;
+          }
+        }
         if (cancelled || !docs || docs.length === 0) {
           fallbackSummaryAttemptsRef.current.set(importId, attempts + 1);
           setTimeout(() => {

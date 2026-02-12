@@ -10,7 +10,7 @@
   # jsdom is marked external because it's used by safe_web_research tool but doesn't bundle well
   # @supabase/supabase-js removed from external - now bundled with functions
   included_files = ["netlify/functions/_shared/**", "netlify/functions/_lib/**"]
-  external_node_modules = ["openai", "undici", "jsdom", "@mozilla/readability", "pdf-parse"]
+  external_node_modules = ["openai", "undici", "jsdom", "@mozilla/readability", "pdf-parse", "@napi-rs/canvas", "@napi-rs/canvas-win32-x64-msvc"]
   # NOTE: Environment variables are configured in Netlify Dashboard
   # VITE_ prefixed vars are automatically excluded from functions (frontend-only)
   # To avoid AWS Lambda 4KB env var limit, ensure only necessary vars are set in dashboard
@@ -30,5 +30,5 @@
   format = "esm"
   sourcemap = false
   format = "cjs"
-  external = ["xhr-sync-worker.js"]
+  external = ["xhr-sync-worker.js", "@napi-rs/canvas", "@napi-rs/canvas-win32-x64-msvc"]
 

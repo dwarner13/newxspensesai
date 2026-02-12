@@ -398,11 +398,24 @@ async function preparePrimeSummary(importId: string, _userId: string): Promise<s
       }
 
       if (importData.document_id) {
-        const { data: docData } = await supabase
-          .from('user_documents')
-          .select('extracted_data, ocr_text, original_name, pii_types')
-          .eq('id', importData.document_id)
-          .maybeSingle();
+        let docData: any = null;
+        {
+          const { data, error } = await supabase
+            .from('user_documents')
+            .select('extracted_data, ocr_text, original_name, pii_types')
+            .eq('id', importData.document_id)
+            .maybeSingle();
+          if (error && String(error.message || '').includes('extracted_data')) {
+            const fallback = await supabase
+              .from('user_documents')
+              .select('ocr_text, original_name, pii_types')
+              .eq('id', importData.document_id)
+              .maybeSingle();
+            docData = fallback.data;
+          } else {
+            docData = data;
+          }
+        }
 
         if (docData?.extracted_data) {
           const extracted = docData.extracted_data as any;

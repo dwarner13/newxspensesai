@@ -14,6 +14,7 @@ interface SmartImportUploadStatusPanelProps {
   userId?: string;
   lastUploadSummary?: SmartImportUploadSummary | null;
   debugItems?: SmartImportDebugItem[] | null;
+  refreshDebugPayload?: (options?: { includeAllAccounts?: boolean }) => void;
   uploadQueue: {
     items: UploadQueueItem[];
     progress: UploadQueueProgress;
@@ -29,6 +30,7 @@ export function SmartImportUploadStatusPanel({
   userId,
   lastUploadSummary,
   debugItems,
+  refreshDebugPayload,
   uploadQueue,
 }: SmartImportUploadStatusPanelProps) {
   const [viewerDoc, setViewerDoc] = useState<{
@@ -50,6 +52,34 @@ export function SmartImportUploadStatusPanel({
   const navigate = useNavigate();
   const debugEnabled = import.meta.env.VITE_OCR_DEBUG === '1';
   const importIdForView = lastUploadSummary?.importId || lastUploadSummary?.importIds?.[0];
+  const [debugSearch, setDebugSearch] = useState('');
+  const [includeAllAccounts, setIncludeAllAccounts] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('ocr_debug_include_all_accounts') === '1';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('ocr_debug_include_all_accounts', includeAllAccounts ? '1' : '0');
+    if (debugEnabled && refreshDebugPayload) {
+      refreshDebugPayload({ includeAllAccounts });
+    }
+  }, [includeAllAccounts, debugEnabled, refreshDebugPayload]);
+
+  const escapeRegExp = useCallback((input: string) => input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), []);
+  const countMatches = useCallback((text: string, term: string) => {
+    if (!term) return 0;
+    const regex = new RegExp(escapeRegExp(term), 'gi');
+    return (text.match(regex) || []).length;
+  }, [escapeRegExp]);
+  const getSnippet = useCallback((text: string, term: string) => {
+    if (!term) return '';
+    const idx = text.toLowerCase().indexOf(term.toLowerCase());
+    if (idx === -1) return '';
+    const start = Math.max(0, idx - 80);
+    const end = Math.min(text.length, idx + term.length + 120);
+    return text.slice(start, end);
+  }, []);
 
   const handleViewDocument = useCallback(async (item: UploadQueueItem) => {
     const docId = item.result?.docId;
@@ -177,7 +207,7 @@ export function SmartImportUploadStatusPanel({
     if (!userId) return;
     setIsRetryingOcr(true);
     try {
-      await fetch('/.netlify/functions/smart-import-ocr', {
+      await fetch('/.netlify/functions/smart-import-finalize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, docId }),
@@ -309,6 +339,29 @@ export function SmartImportUploadStatusPanel({
       {debugEnabled && debugItems && debugItems.length > 0 && (
         <div className="mt-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,193,7,0.08)] p-4">
           <div className="mb-3 text-sm font-semibold text-amber-200">Import Debug Panel</div>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <input
+              value={debugSearch}
+              onChange={(e) => setDebugSearch(e.target.value)}
+              placeholder="Search OCR text..."
+              className="flex-1 min-w-[200px] rounded-md border border-amber-500/30 bg-slate-950/60 px-2 py-1 text-[11px] text-amber-100 placeholder:text-amber-300/60"
+            />
+            <label className="flex items-center gap-2 text-[11px] text-amber-200">
+              <input
+                type="checkbox"
+                checked={includeAllAccounts}
+                onChange={(e) => setIncludeAllAccounts(e.target.checked)}
+              />
+              Include all accounts (debug)
+            </label>
+            <button
+              type="button"
+              onClick={() => refreshDebugPayload?.({ includeAllAccounts })}
+              className="text-[11px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
           <div className="space-y-4">
             {debugItems.map((item) => (
               <div key={item.docId} className="rounded-xl border border-amber-500/20 bg-slate-900/60 p-3">
@@ -317,6 +370,9 @@ export function SmartImportUploadStatusPanel({
                   {item.importId && <span>Import: {item.importId}</span>}
                   {item.ocrEngineUsed && <span>OCR: {item.ocrEngineUsed}</span>}
                   <span>Text: {item.rawTextLength} chars</span>
+                  {debugSearch && (
+                    <span>Matches: {countMatches(item.rawTextPreview || '', debugSearch)}</span>
+                  )}
                 </div>
                 {item.parseWarnings?.length > 0 && (
                   <div className="mt-2 text-xs text-amber-300">
@@ -334,12 +390,22 @@ export function SmartImportUploadStatusPanel({
                     {item.rawTextPreview || '(empty)'}
                   </pre>
                 </div>
+                {debugSearch && (
+                  <div className="mt-2 text-[11px] text-amber-200">
+                    Search snippet: {getSnippet(item.rawTextPreview || '', debugSearch) || 'No match'}
+                  </div>
+                )}
                 <div className="mt-3">
                   <div className="text-xs text-amber-200 mb-1">Parsed transactions</div>
                   <pre className="max-h-48 overflow-auto rounded-lg bg-slate-950/70 p-2 text-[11px] text-slate-200 whitespace-pre-wrap">
                     {JSON.stringify(item.parsedTransactions || [], null, 2)}
                   </pre>
                 </div>
+                {Array.isArray(item.parsedTransactions) && (
+                  <div className="mt-2 text-[11px] text-amber-200">
+                    Low confidence: {item.parsedTransactions.filter((tx: any) => typeof tx?.confidence === 'number' && tx.confidence < 0.6).length}
+                  </div>
+                )}
               </div>
             ))}
           </div>
