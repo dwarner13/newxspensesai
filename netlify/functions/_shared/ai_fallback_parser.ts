@@ -45,7 +45,7 @@ export async function aiFallbackParseTransactions(params: {
     : ocrText;
 
   if (ocrText.length > MAX_OCR_LENGTH) {
-    console.log(`[Byte OCR] OCR text truncated for AI fallback (from ${originalLength} to ${truncatedLength} chars)`);
+    console.log(`[Byte OCR] OCR text truncated for AI fallback (from ${originalLength} to ${truncatedText.length} chars)`);
   }
 
   try {

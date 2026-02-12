@@ -8,10 +8,11 @@
  * All files run through STRICT guardrails before processing
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useUploadQueue } from './useUploadQueue';
 import { debug } from '../lib/logger';
 import { useAuth } from '../contexts/AuthContext';
+import { runSmartImportPipeline } from '../lib/smartImport/runSmartImportPipeline';
 
 export type UploadSource = 'upload' | 'chat';
 
@@ -92,6 +93,9 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
   
   // Shared upload status with step tracking
   const [uploadStatus, setUploadStatus] = useState<SmartImportUploadStatus>(defaultUploadStatus);
+  const debugRefreshInFlightRef = useRef(false);
+  const debugRefreshKeyRef = useRef<string>('');
+  const debugRefreshAtRef = useRef<number>(0);
   
   // Helper functions for upload status management
   const startUpload = useCallback((file: File) => {
@@ -118,10 +122,10 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       progress: 100,
       step: 'completed',
     }));
-    // Reset after a brief delay
+    // Keep completion state visible long enough for users to notice.
     setTimeout(() => {
       setUploadStatus(defaultUploadStatus);
-    }, 2000);
+    }, 15000);
   }, []);
 
   const resetUploadState = useCallback(() => {
@@ -134,6 +138,71 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
     setUploadStatus(defaultUploadStatus);
     uploadQueue.clear();
   }, [uploadQueue]);
+
+  const refreshDebugPayload = useCallback(async (options?: { includeAllAccounts?: boolean }) => {
+    const effectiveUserId = userId || queueUserId;
+    const docIds = lastUploadSummary?.docIds || [];
+    if (!effectiveUserId || docIds.length === 0) return;
+    const refreshKey = `${docIds.join(',')}|${options?.includeAllAccounts ? 'all' : 'primary'}`;
+    const now = Date.now();
+    if (debugRefreshInFlightRef.current) return;
+    if (refreshKey === debugRefreshKeyRef.current && now - debugRefreshAtRef.current < 5000) {
+      return;
+    }
+    debugRefreshInFlightRef.current = true;
+    debugRefreshKeyRef.current = refreshKey;
+    debugRefreshAtRef.current = now;
+    try {
+      const res = await fetch('/.netlify/functions/smart-import-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({
+          userId: effectiveUserId,
+          docIds,
+          includeAllAccounts: options?.includeAllAccounts,
+        }),
+      });
+      const syncData = res.ok ? await res.json() : null;
+      if (!syncData) return;
+      if (lastUploadSummary) {
+        setLastUploadSummary({
+          ...lastUploadSummary,
+          transactionCount: syncData?.transactionCount ?? lastUploadSummary.transactionCount,
+          importId: syncData?.importIds?.[0] || lastUploadSummary.importId,
+          importIds: syncData?.importIds || lastUploadSummary.importIds,
+          summary: syncData?.summary ?? lastUploadSummary.summary,
+          issues: syncData?.issues ?? lastUploadSummary.issues,
+        });
+      }
+      const debugItems = (() => {
+        const fromItems = syncData?.debug?.items;
+        if (Array.isArray(fromItems)) {
+          return fromItems as SmartImportDebugItem[];
+        }
+        if (syncData?.rawTextPreview || syncData?.rawTextLength !== undefined) {
+          return [{
+            docId: syncData?.docId || docIds[0],
+            importId: syncData?.importId,
+            rawTextPreview: syncData?.rawTextPreview || '',
+            rawTextLength: syncData?.rawTextLength || 0,
+            parsedTransactions: Array.isArray(syncData?.parsedTransactions) ? syncData.parsedTransactions : [],
+            parseWarnings: Array.isArray(syncData?.parseWarnings) ? syncData.parseWarnings : [],
+            parseError: syncData?.parseError ?? null,
+            ocrEngineUsed: syncData?.ocrEngineUsed ?? null,
+          }];
+        }
+        return null;
+      })();
+      setLastDebugPayload(debugItems);
+    } catch (err) {
+      console.error('[useSmartImport] Debug refresh error:', err);
+    } finally {
+      debugRefreshInFlightRef.current = false;
+    }
+  }, [userId, queueUserId, lastUploadSummary, session]);
 
   const failUpload = useCallback((error: string) => {
     setUploadStatus({
@@ -170,85 +239,21 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       setProgress(0);
       setError(null);
 
-      // Step 1: Initialize upload (get signed URL)
-      setProgress(10);
-      updateUploadProgress({ progress: 10, step: 'uploading' });
-      const initRes = await fetch('/.netlify/functions/smart-import-init', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userIdParam,
-          fileName: file.name,
-          mime: file.type,
-          source
-        })
-      });
-
-      if (!initRes.ok) {
-        const errText = await initRes.text();
-        let message = errText;
-        try {
-          const parsed = JSON.parse(errText);
-          const missing = parsed?.missing;
-          message = parsed?.error || errText;
-          if (missing) {
-            message = `${message} (missing: userId=${missing.userId}, fileName=${missing.fileName})`;
-          }
-        } catch {
-          // Keep plain text error
-        }
-        throw new Error(`Init failed: ${message}`);
-      }
-
-      const init = await initRes.json();
-
-      // Step 2: Upload file to signed URL (auth is embedded in the URL)
-      setProgress(40);
-      updateUploadProgress({ progress: 40, step: 'uploading' });
-      const uploadRes = await fetch(init.uploadUrl, {
-        method: 'PUT',
-        headers: {
-          'content-type': file.type
+      const result = await runSmartImportPipeline({
+        userId: userIdParam,
+        source,
+        file,
+        fileName: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        lastModified: file.lastModified || 0,
+        authToken: session?.access_token,
+        onProgress: (p) => {
+          setProgress(p);
+          updateUploadProgress({ progress: p, step: p < 70 ? 'uploading' : 'processing' });
         },
-        body: file
       });
-
-      if (!uploadRes.ok) {
-        throw new Error(`Upload failed: ${uploadRes.statusText}`);
-      }
-
-      // Step 3: Finalize (triggers guardrails + processing)
-      setProgress(70);
-      updateUploadProgress({ progress: 70, step: 'processing' });
-      const finalizeRes = await fetch('/.netlify/functions/smart-import-finalize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userIdParam,
-          docId: init.docId
-        })
-      });
-
-      if (!finalizeRes.ok) {
-        const err = await finalizeRes.text();
-        throw new Error(`Finalize failed: ${err}`);
-      }
-
-      const result = await finalizeRes.json();
-      setProgress(100);
-      updateUploadProgress({ progress: 100, step: 'processing' });
-
-      // NOTE: transactionCount may be undefined at this point because:
-      // - Finalize only queues OCR/parse (async)
-      // - Normalization happens asynchronously after OCR/parse completes
-      // - Transaction counts are only available after normalize-transactions completes
-      // TODO: Implement polling or event-based updates to capture transaction counts when available
-      return {
-        docId: init.docId,
-        ...result,
-        // Extract transaction count from result if available (may be undefined if normalization hasn't completed)
-        transactionCount: result?.normalizedTransactionCount ?? result?.transactionCount ?? result?.stats?.transactionCount,
-      };
+      return result;
 
     } catch (err: any) {
       console.error('[useSmartImport] Error:', err);
@@ -338,14 +343,21 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
     return new Promise((resolve, reject) => {
       const results: UploadResult[] = [];
       const completedIds = new Set<string>();
+      const timeoutMs = Math.max(uploadIds.length * 60000, 120000); // 1m per file, min 2m
+      let lastActivityAt = Date.now();
+
+      const touchActivity = () => {
+        lastActivityAt = Date.now();
+      };
       
       // Subscribe to queue events (only if queue is initialized and has .on method)
-    if (!uploadQueue || !uploadQueue.isReady || typeof uploadQueue.on !== 'function') {
+      if (!uploadQueue || !uploadQueue.isReady || typeof uploadQueue.on !== 'function') {
         reject(new Error('Upload queue not initialized'));
         return;
       }
       
       const unsubscribe = uploadQueue.on((event) => {
+        touchActivity();
         if (event.type === 'item-completed' && event.item.result) {
           completedIds.add(event.item.id);
           results.push(event.item.result as UploadResult);
@@ -359,11 +371,12 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
           // Check if all done
           if (completed === total) {
             unsubscribe();
+            window.clearInterval(watchdog);
             
             // Collect docIds and sync transaction counts
             const docIds = results.map(r => r.docId).filter(Boolean);
 
-            // Immediately unblock UI; sync runs in background
+            // Keep UI in processing mode until OCR jobs are done.
             const baseSummary = {
               id: crypto.randomUUID(),
               finishedAt: new Date().toISOString(),
@@ -374,67 +387,38 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
             };
             setLastUploadSummary(baseSummary);
             setLastDebugPayload(null);
-            completeUpload();
-            setUploading(false);
+            updateUploadProgress({
+              isUploading: true,
+              progress: 95,
+              step: 'processing',
+              error: null,
+            });
             uploadQueue.clearCompleted();
             resolve(results);
-
-            // Sync transaction counts (background)
-            if (docIds.length > 0 && userIdParam) {
-              fetch('/.netlify/functions/smart-import-sync', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}),
-                },
-                body: JSON.stringify({ userId: userIdParam, docIds }),
-              })
-                .then(res => res.ok ? res.json() : null)
-                .then(syncData => {
-                  if (!syncData) return;
-                  const transactionCount = syncData?.transactionCount ?? 0;
-                  const importIds = Array.isArray(syncData?.importIds) ? syncData.importIds : [];
-                  const importId = importIds[0];
-                  const summary = {
-                    ...baseSummary,
-                    transactionCount: transactionCount > 0 ? transactionCount : undefined,
-                    importId,
-                    importIds,
-                    summary: syncData?.summary,
-                    issues: syncData?.issues,
-                  };
-                  setLastUploadSummary(summary);
-                  const debugItems = (() => {
-                    const fromItems = syncData?.debug?.items;
-                    if (Array.isArray(fromItems)) {
-                      return fromItems as SmartImportDebugItem[];
-                    }
-                    if (syncData?.rawTextPreview || syncData?.rawTextLength !== undefined) {
-                      return [{
-                        docId: syncData?.docId || docIds[0],
-                        importId: syncData?.importId,
-                        rawTextPreview: syncData?.rawTextPreview || '',
-                        rawTextLength: syncData?.rawTextLength || 0,
-                        parsedTransactions: Array.isArray(syncData?.parsedTransactions) ? syncData.parsedTransactions : [],
-                        parseWarnings: Array.isArray(syncData?.parseWarnings) ? syncData.parseWarnings : [],
-                        parseError: syncData?.parseError ?? null,
-                        ocrEngineUsed: syncData?.ocrEngineUsed ?? null,
-                      }];
-                    }
-                    return null;
-                  })();
-                  setLastDebugPayload(debugItems);
-                  if (import.meta.env.DEV && import.meta.env.VITE_OCR_DEBUG === '1' && debugItems && debugItems[0]) {
-                    console.log('[OCR Debug] sync payload', {
-                      rawTextLength: debugItems[0].rawTextLength,
-                      parsedCount: debugItems[0].parsedTransactions?.length || 0,
-                    });
-                  }
-                })
-                .catch(err => {
-                  console.error('[useSmartImport] Sync error:', err);
-                });
+            const totalTx = results.reduce((sum, item) => sum + (item.transactionCount || 0), 0);
+            setLastUploadSummary({
+              ...baseSummary,
+              transactionCount: totalTx > 0 ? totalTx : undefined,
+            });
+            const hasPendingProcessing = results.some((item) =>
+              Boolean(item.queued) || (
+                item.transactionCount === undefined &&
+                item.normalizedTransactionCount === undefined &&
+                item.stats?.transactionCount === undefined
+              )
+            );
+            if (hasPendingProcessing) {
+              // Keep panel in processing mode while backend catch-up completes.
+              setTimeout(() => {
+                completeUpload();
+              }, 45000);
+            } else {
+              completeUpload();
             }
+            setTimeout(() => {
+              refreshDebugPayload({ includeAllAccounts: false });
+            }, 1500);
+            setUploading(false);
           }
         } else if (event.type === 'item-error') {
           setError(event.item.error || 'Upload failed');
@@ -447,17 +431,17 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
           });
         }
       });
-      
-      // Cleanup on timeout (30 seconds per file max)
-      setTimeout(() => {
-        if (completedIds.size < uploadIds.length) {
+
+      const watchdog = window.setInterval(() => {
+        if (Date.now() - lastActivityAt > timeoutMs) {
           unsubscribe();
+          window.clearInterval(watchdog);
           setUploading(false);
           reject(new Error('Upload timeout'));
         }
-      }, uploadIds.length * 30000);
+      }, 5000);
     });
-  }, [queueUserId, uploadQueue]);
+  }, [queueUserId, uploadQueue, session, completeUpload, failUpload, updateUploadProgress, refreshDebugPayload]);
 
   /**
    * Upload file from base64 (for chat attachments)
@@ -476,56 +460,19 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       setUploading(true);
       setProgress(0);
       setError(null);
-
-      // Step 1: Initialize
-      setProgress(10);
-      const initRes = await fetch('/.netlify/functions/smart-import-init', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userIdParam, fileName: filename, mime, source })
+      const estimatedSize = Math.floor((base64.length * 3) / 4);
+      const result = await runSmartImportPipeline({
+        userId: userIdParam,
+        source,
+        base64,
+        fileName: filename,
+        mimeType: mime,
+        fileSize: estimatedSize,
+        lastModified: 0,
+        authToken: session?.access_token,
+        onProgress: (p) => setProgress(p),
       });
-
-      if (!initRes.ok) {
-        const errText = await initRes.text();
-        let message = errText;
-        try {
-          const parsed = JSON.parse(errText);
-          const missing = parsed?.missing;
-          message = parsed?.error || errText;
-          if (missing) {
-            message = `${message} (missing: userId=${missing.userId}, fileName=${missing.fileName})`;
-          }
-        } catch {
-          // Keep plain text error
-        }
-        throw new Error(`Init failed: ${message}`);
-      }
-      const init = await initRes.json();
-
-      // Step 2: Upload base64 data (auth is embedded in the URL)
-      setProgress(40);
-      const buffer = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
-
-      const uploadRes = await fetch(init.uploadUrl, {
-        method: 'PUT',
-        body: buffer
-      });
-
-      if (!uploadRes.ok) throw new Error('Upload failed');
-
-      // Step 3: Finalize
-      setProgress(70);
-      const finalizeRes = await fetch('/.netlify/functions/smart-import-finalize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: userIdParam, docId: init.docId })
-      });
-
-      if (!finalizeRes.ok) throw new Error('Finalize failed');
-      const result = await finalizeRes.json();
-      
-      setProgress(100);
-      return { docId: init.docId, ...result };
+      return result;
 
     } catch (err: any) {
       setError(err.message);
@@ -569,6 +516,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
     completeUpload,
     failUpload,
     resetUploadState,
+    refreshDebugPayload,
     // Upload queue (for UI components)
     uploadQueue: {
       items: uploadQueue.items,

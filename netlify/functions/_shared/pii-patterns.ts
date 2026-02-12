@@ -332,6 +332,17 @@ const CONTACT_DETECTORS: PiiDetector[] = [
     description: 'Phone numbers (international format with +, spaces, dashes, parens)',
     rx: /\+?\d[\d\s().-]{7,}\d/g,
     mask: (text, strategy) => {
+      const normalized = text.replace(/\s/g, '');
+      const digitsOnly = normalized.replace(/[^\d]/g, '');
+      if (digitsOnly.length < 9) {
+        return text; // Too short for a phone number
+      }
+      if (/[,$]/.test(text)) {
+        return text; // Likely a money amount with separators
+      }
+      if (/\d+\.\d{2}$/.test(normalized) && !normalized.startsWith('+')) {
+        return text; // Likely a currency amount
+      }
       // Exclude IPv4 addresses (XXX.XXX.XXX.XXX format)
       if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(text.replace(/\s/g, ''))) {
         return text; // Likely an IP address, not phone number

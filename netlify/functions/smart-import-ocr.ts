@@ -5,6 +5,7 @@
  */
 
 import { Handler } from '@netlify/functions';
+import { createHash } from 'crypto';
 import { admin, markDocStatus } from './_shared/upload.js';
 // Phase 2.2: Use unified guardrails API (single source of truth)
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
@@ -12,7 +13,16 @@ import { maskPII as maskPiiFallback } from './_shared/pii.js';
 import { callGoogleVisionOnImage } from './_shared/vision/googleVisionClient.js';
 // AI Fluency: Event logging
 import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
-import { extractPdfTextWithPdfParse } from './_lib/pdfText.js';
+import { extractPdfTextWithPdfParse, extractPdfTextWithLayout } from './_lib/pdfText.js';
+import { pdfToImages } from './lib/pdf/pdfToImages.js';
+import {
+  ocrPageImage,
+  retryOcrPageFallback,
+  type OcrPageResult,
+  type OcrFallbackProvider,
+} from './lib/ocr/ocrPageImage.js';
+import { mergeOcrPages } from './lib/ocr/mergeOcrPages.js';
+import { selectWorstPagesForFallback, shouldEarlyStopScanning } from './lib/ocr/optimizationPolicy.js';
 import sharp from 'sharp';
 import OpenAI from 'openai';
 
@@ -24,6 +34,18 @@ const DEFAULT_OCR_TIMEOUT_MS = 30000;
 const MAX_OCR_TIMEOUT_MS = 60000;
 const OCR_RETRY_ATTEMPTS = 3;
 const OCR_RETRY_BASE_DELAY_MS = 500;
+const SCANNED_PDF_TEXT_THRESHOLD = Number(process.env.OCR_SCANNED_PDF_TEXT_THRESHOLD || 220);
+const SCANNED_PDF_MAX_PAGES = Number(process.env.OCR_SCANNED_PDF_MAX_PAGES || 10);
+const SCANNED_PDF_MAX_IMAGE_BYTES = Number(process.env.OCR_SCANNED_PDF_MAX_IMAGE_BYTES || 950 * 1024);
+const OCR_CONFIDENCE_THRESHOLD = Number(process.env.OCR_CONFIDENCE_THRESHOLD || 0.75);
+const OCR_EARLY_STOP_CONFIDENCE = Number(process.env.OCR_EARLY_STOP_CONFIDENCE || 0.85);
+const OCR_MIN_PAGES_FOR_EARLY_STOP = Number(process.env.MIN_PAGES_FOR_EARLY_STOP || 2);
+const OCR_STATEMENT_EARLY_STOP_MAX_PAGES = Number(process.env.OCR_STATEMENT_EARLY_STOP_MAX_PAGES || 4);
+const OCR_FALLBACK_MAX_PAGES = Number(process.env.OCR_FALLBACK_MAX_PAGES || 2);
+const OCR_FALLBACK_PAGE_CONFIDENCE_THRESHOLD = Number(process.env.OCR_FALLBACK_PAGE_CONFIDENCE_THRESHOLD || 0.7);
+const OCR_FALLBACK_ORDER_STATEMENT = process.env.OCR_FALLBACK_ORDER_STATEMENT || 'google,openai';
+const OCR_FALLBACK_ORDER_RECEIPT = process.env.OCR_FALLBACK_ORDER_RECEIPT || 'openai,google';
+const OCR_FALLBACK_MONTHLY_CAP_FREE = Number(process.env.OCR_FALLBACK_MONTHLY_CAP_FREE || 10);
 
 type RetryableError = Error & { status?: number };
 
@@ -77,8 +99,364 @@ type OCRRunResult = {
   text: string;
   provider: OCRProvider;
   durationMs: number;
+  pages?: number;
   pageLimitReached?: boolean;
 };
+
+type OcrResult = {
+  docType: "receipt" | "statement" | "invoice" | "unknown";
+  pages: number;
+  rawText: string;
+  tables?: any[];
+  fields?: {
+    merchant?: string;
+    date?: string;
+    total?: number;
+    currency?: string;
+  };
+  confidence: {
+    overall: number;
+    total?: number;
+    date?: number;
+    merchant?: number;
+    tables?: number;
+  };
+  engineUsed: string;
+  fallbackUsed?: boolean;
+  needsUserConfirmation?: boolean;
+  debug?: any;
+};
+
+type OcrJobRow = {
+  id: string;
+  user_id: string;
+  document_id: string | null;
+  file_hash: string;
+  status: 'queued' | 'running' | 'done' | 'error';
+  engine_used: string | null;
+  pages: number | null;
+  confidence: number | null;
+  raw_text: string | null;
+  normalized_json: OcrResult | null;
+  error: string | null;
+};
+
+type OcrRunMetrics = {
+  pagesTotal: number;
+  pagesProcessed: number;
+  primaryEngineCalls: number;
+  fallbackEngineCalls: {
+    openai: number;
+    google: number;
+    total: number;
+  };
+  fallbackAttempted: {
+    pages: number;
+    openai: number;
+    google: number;
+    total: number;
+  };
+  fallbackAdopted: {
+    pages: number;
+    openai: number;
+    google: number;
+    total: number;
+  };
+  earlyStopTriggered: {
+    triggered: boolean;
+    reason: string | null;
+  };
+  worstPagesRetried: number[];
+  totalTimeMs: number;
+  fallbackSkippedByBudget?: boolean;
+};
+
+function detectDocTypeFromNameAndText(name: string, text: string): OcrResult['docType'] {
+  const lowerName = name.toLowerCase();
+  if (/invoice/.test(lowerName) || /\binvoice\b/i.test(text)) return 'invoice';
+  if (/statement|bank|credit.?card|account/.test(lowerName) || /\bstatement\b|\bopening balance\b|\bclosing balance\b|\btransaction\b/i.test(text)) return 'statement';
+  if (/receipt/.test(lowerName) || /\bsubtotal\b|\btip\b|\btotal\b/i.test(text)) return 'receipt';
+  return 'unknown';
+}
+
+function extractCurrency(text: string): string | undefined {
+  if (/\bCAD\b|C\$|CDN/i.test(text)) return 'CAD';
+  if (/\bUSD\b|US\$/i.test(text)) return 'USD';
+  if (/\bEUR\b|€/i.test(text)) return 'EUR';
+  if (/\bGBP\b|£/i.test(text)) return 'GBP';
+  if (/\$/i.test(text)) return 'CAD';
+  return undefined;
+}
+
+function extractFields(text: string): OcrResult['fields'] {
+  const dateMatch = text.match(/\b(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})\b/);
+  const totalMatch =
+    text.match(/\b(?:total|amount due|new balance)\b[^\d]{0,20}([0-9,]+\.\d{2})/i) ||
+    text.match(/\$([0-9,]+\.\d{2})/);
+  const merchantLine = text
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => !!line && !/\d{1,2}[\/\-]\d{1,2}|invoice|statement|account/i.test(line));
+
+  return {
+    merchant: merchantLine?.slice(0, 120),
+    date: dateMatch?.[1],
+    total: totalMatch?.[1] ? Number(totalMatch[1].replace(/,/g, '')) : undefined,
+    currency: extractCurrency(text),
+  };
+}
+
+function computeConfidence(fields: OcrResult['fields'], text: string, docType: OcrResult['docType']): OcrResult['confidence'] {
+  const total = typeof fields?.total === 'number' && fields.total > 0 ? 0.9 : 0.35;
+  const date = fields?.date ? 0.85 : 0.4;
+  const merchant = fields?.merchant ? 0.8 : 0.35;
+  const tables = docType === 'statement'
+    ? (/amounts?\s*deducted|amounts?\s*added|balance\s*\(\$?\)|transaction details/i.test(text) ? 0.8 : 0.45)
+    : undefined;
+  const lengthScore = Math.min(0.95, Math.max(0.25, text.trim().length / 2500));
+  const weighted = [
+    total * 0.25,
+    date * 0.2,
+    merchant * 0.2,
+    (tables ?? 0.6) * 0.15,
+    lengthScore * 0.2,
+  ].reduce((sum, part) => sum + part, 0);
+  return {
+    overall: Number(Math.max(0, Math.min(0.99, weighted)).toFixed(3)),
+    total,
+    date,
+    merchant,
+    ...(tables !== undefined ? { tables } : {}),
+  };
+}
+
+function buildNormalizedResult(args: {
+  text: string;
+  provider: OCRProvider;
+  pages?: number;
+  originalName?: string;
+  fallbackUsed?: boolean;
+}): OcrResult {
+  const rawText = args.text || '';
+  const docType = detectDocTypeFromNameAndText(args.originalName || '', rawText);
+  const fields = extractFields(rawText);
+  const confidence = computeConfidence(fields, rawText, docType);
+  const needsUserConfirmation = confidence.overall < 0.75;
+  return {
+    docType,
+    pages: args.pages || 1,
+    rawText,
+    fields,
+    confidence,
+    engineUsed: args.provider,
+    fallbackUsed: Boolean(args.fallbackUsed),
+    needsUserConfirmation,
+  };
+}
+
+function computeFileHash(buffer: Buffer): string {
+  return createHash('sha256').update(buffer).digest('hex');
+}
+
+function shouldUseScannedPdfFallback(params: {
+  mimeType: string;
+  provider: OCRProvider | null;
+  text: string;
+  pageLimitReached: boolean;
+}): boolean {
+  if (params.mimeType !== 'application/pdf') return false;
+  if (params.pageLimitReached) return true;
+  const text = (params.text || '').trim();
+  if (!text) return true;
+  if (params.provider === 'embedded_pdf_parse' && text.length < SCANNED_PDF_TEXT_THRESHOLD) {
+    return true;
+  }
+  const denseNoSpaces = spaceRatio(text) < 0.04 && text.length < 800;
+  return text.length < SCANNED_PDF_TEXT_THRESHOLD || denseNoSpaces;
+}
+
+async function runScannedPdfFallback(params: {
+  pdfBuffer: Buffer;
+  originalName?: string;
+  docMode: 'statement' | 'receipt';
+  ocrJobId?: string | null;
+  allowPaidFallback: boolean;
+  sb: any;
+}): Promise<{
+  merged: OcrResult;
+  warning?: string;
+  truncated?: boolean;
+  metrics: OcrRunMetrics;
+  fallbackSkippedByBudget: boolean;
+}> {
+  const includeDebug = process.env.OCR_DEBUG === '1' || process.env.OCR_DEBUG === 'true';
+  const startedAt = Date.now();
+  const updateProgress = async (processedPages: number, totalPages: number) => {
+    if (!params.ocrJobId) return;
+    const progressJson = {
+      debug: {
+        progress: {
+          processedPages,
+          totalPages: Math.min(totalPages, SCANNED_PDF_MAX_PAGES),
+        },
+      },
+    };
+    await params.sb
+      .from('ocr_jobs')
+      .update({
+        status: 'running',
+        normalized_json: progressJson,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.ocrJobId);
+  };
+
+  const rendered = await pdfToImages(params.pdfBuffer, {
+    maxPages: SCANNED_PDF_MAX_PAGES,
+    scale: 2,
+    maxImageBytes: SCANNED_PDF_MAX_IMAGE_BYTES,
+    onPageRendered: updateProgress,
+  });
+  const fallbackOrder = getFallbackOrderForDocMode(params.docMode);
+  const pageResults: OcrPageResult[] = [];
+  const metrics: OcrRunMetrics = {
+    pagesTotal: rendered.totalPages,
+    pagesProcessed: 0,
+    primaryEngineCalls: 0,
+    fallbackEngineCalls: { openai: 0, google: 0, total: 0 },
+    fallbackAttempted: { pages: 0, openai: 0, google: 0, total: 0 },
+    fallbackAdopted: { pages: 0, openai: 0, google: 0, total: 0 },
+    earlyStopTriggered: { triggered: false, reason: null },
+    worstPagesRetried: [],
+    totalTimeMs: 0,
+    fallbackSkippedByBudget: false,
+  };
+  let earlyStopReason: string | null = null;
+
+  for (let idx = 0; idx < rendered.pages.length; idx += 1) {
+    const page = rendered.pages[idx];
+    const pageResult = await ocrPageImage({
+      pageIndex: page.pageIndex,
+      imageBuffer: page.imageBuffer,
+      statementMode: params.docMode === 'statement',
+      confidenceThreshold: OCR_CONFIDENCE_THRESHOLD,
+      disableFallback: true,
+    });
+    pageResults.push(pageResult);
+    metrics.primaryEngineCalls += 1;
+    metrics.pagesProcessed = pageResults.length;
+    await updateProgress(idx + 1, rendered.totalPages);
+
+    const mergedSoFar = mergeOcrPages(pageResults, {
+      originalName: params.originalName || '',
+      confidenceThreshold: OCR_CONFIDENCE_THRESHOLD,
+      includeDebug: false,
+      pagesProcessed: pageResults.length,
+      pagesTotal: rendered.totalPages,
+    });
+    const processedPages = pageResults.length;
+    const tableSignalPages = pageResults.filter((p) => hasStrongTableSignal(p.rawText)).length;
+    const decision = shouldEarlyStopScanning({
+      docMode: params.docMode,
+      processedPages,
+      mergedConfidence: mergedSoFar.confidence.overall,
+      minPagesForEarlyStop: OCR_MIN_PAGES_FOR_EARLY_STOP,
+      earlyStopConfidence: OCR_EARLY_STOP_CONFIDENCE,
+      hasDate: Boolean(mergedSoFar.fields?.date),
+      hasTotal: typeof mergedSoFar.fields?.total === 'number',
+      tableSignalPages,
+      statementMaxPages: OCR_STATEMENT_EARLY_STOP_MAX_PAGES,
+      lowConfidenceFloor: OCR_FALLBACK_PAGE_CONFIDENCE_THRESHOLD,
+    });
+    if (decision.stop) {
+      earlyStopReason = decision.reason;
+      metrics.earlyStopTriggered = { triggered: true, reason: earlyStopReason };
+      break;
+    }
+  }
+
+  let fallbackSkippedByBudget = false;
+  const eligibleWorstPages = selectWorstPagesForFallback({
+    pages: pageResults,
+    maxPages: OCR_FALLBACK_MAX_PAGES,
+    pageConfidenceThreshold: OCR_FALLBACK_PAGE_CONFIDENCE_THRESHOLD,
+  });
+  metrics.worstPagesRetried = eligibleWorstPages.map((page) => page.pageIndex);
+
+  if (eligibleWorstPages.length > 0 && !params.allowPaidFallback) {
+    fallbackSkippedByBudget = true;
+    metrics.fallbackSkippedByBudget = true;
+  }
+
+  if (params.allowPaidFallback) {
+    for (const page of eligibleWorstPages) {
+      metrics.fallbackAttempted.pages += 1;
+      const target = rendered.pages.find((item) => item.pageIndex === page.pageIndex);
+      if (!target) continue;
+      const retried = await retryOcrPageFallback({
+        pageResult: page,
+        imageBuffer: target.imageBuffer,
+        statementMode: params.docMode === 'statement',
+        confidenceThreshold: OCR_CONFIDENCE_THRESHOLD,
+        fallbackOrder,
+      });
+      const calledProviders: string[] = Array.isArray(retried.debug?.fallbackProvidersCalled)
+        ? retried.debug.fallbackProvidersCalled
+        : [];
+      for (const calledProvider of calledProviders) {
+        if (calledProvider === 'openai_vision') {
+          metrics.fallbackEngineCalls.openai += 1;
+          metrics.fallbackAttempted.openai += 1;
+        }
+        if (calledProvider === 'vision') {
+          metrics.fallbackEngineCalls.google += 1;
+          metrics.fallbackAttempted.google += 1;
+        }
+        metrics.fallbackAttempted.total += 1;
+      }
+      const adopted = retried.confidence > page.confidence;
+      if (adopted) {
+        metrics.fallbackAdopted.pages += 1;
+        if (retried.provider === 'openai_vision') {
+          metrics.fallbackAdopted.openai += 1;
+        } else if (retried.provider === 'vision') {
+          metrics.fallbackAdopted.google += 1;
+        }
+        metrics.fallbackAdopted.total += 1;
+      }
+      const pageIdx = pageResults.findIndex((item) => item.pageIndex === page.pageIndex);
+      if (pageIdx >= 0) {
+        pageResults[pageIdx] = retried;
+      }
+    }
+  }
+  metrics.fallbackEngineCalls.total =
+    metrics.fallbackEngineCalls.openai + metrics.fallbackEngineCalls.google;
+  metrics.totalTimeMs = Date.now() - startedAt;
+
+  const merged = mergeOcrPages(pageResults, {
+    originalName: params.originalName || '',
+    confidenceThreshold: OCR_CONFIDENCE_THRESHOLD,
+    truncated: rendered.truncated,
+    warning: rendered.warning,
+    includeDebug,
+    pagesTotal: rendered.totalPages,
+    pagesProcessed: pageResults.length,
+    earlyStopTriggered: metrics.earlyStopTriggered.triggered,
+    earlyStopReason,
+    metrics,
+  });
+  if (fallbackSkippedByBudget) {
+    merged.needsUserConfirmation = true;
+  }
+  return {
+    merged,
+    warning: rendered.warning,
+    truncated: rendered.truncated,
+    metrics,
+    fallbackSkippedByBudget,
+  };
+}
 
 function inferMimeTypeFromName(name?: string | null): string | null {
   if (!name) return null;
@@ -123,6 +501,73 @@ async function extractEmbeddedPdfText(
   const text = await extractPdfTextWithPdfParse(buf);
   console.log("[OCR] pdf-parse embedded text extracted", { textLength: text.trim().length });
   return text;
+}
+
+function shouldUseLayoutText(text: string): boolean {
+  if (!text) return false;
+  const hasStatementHints = /statement|opening balance|closing balance|account|period ending|statement period|transaction details|balance/i.test(text);
+  if (!hasStatementHints) return false;
+  const crowdedMarkers = /Amountsdeducted|Amountsadded|DebitCardPurchase|Pre-AuthorizedPayment|DateDescriptionWithdrawals|Withdrawals\s*\(\$?\)|Deposits\s*\(\$?\)|Balance\s*\(\$?\)/i.test(text);
+  const spaceRatio = text.split('').filter(ch => ch === ' ').length / Math.max(1, text.length);
+  const isCibc = /CIBC\s+Account\s+Statement/i.test(text);
+  return crowdedMarkers || spaceRatio < 0.06 || (isCibc && spaceRatio < 0.12);
+}
+
+function spaceRatio(text: string): number {
+  if (!text) return 0;
+  return text.split('').filter(ch => ch === ' ').length / Math.max(1, text.length);
+}
+
+function hasStrongTableSignal(text: string): boolean {
+  return /amounts?\s*deducted|amounts?\s*added|balance\s*\(\$?\)|transaction details|date\s+description\s+amount/i.test(text);
+}
+
+function parseFallbackOrder(orderEnvValue: string): OcrFallbackProvider[] {
+  const parsed = String(orderEnvValue || '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean)
+    .map((item): OcrFallbackProvider | null => {
+      if (item === 'openai' || item === 'openai_vision') return 'openai_vision';
+      if (item === 'google' || item === 'vision') return 'vision';
+      return null;
+    })
+    .filter((item): item is OcrFallbackProvider => Boolean(item));
+  return parsed.length > 0 ? Array.from(new Set(parsed)) : ['openai_vision', 'vision'];
+}
+
+function getFallbackOrderForDocMode(docMode: 'statement' | 'receipt'): OcrFallbackProvider[] {
+  return docMode === 'statement'
+    ? parseFallbackOrder(OCR_FALLBACK_ORDER_STATEMENT)
+    : parseFallbackOrder(OCR_FALLBACK_ORDER_RECEIPT);
+}
+
+function getMonthStartIso(date = new Date()): string {
+  const monthStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0));
+  return monthStart.toISOString();
+}
+
+async function getMonthlyFallbackUsageCount(sb: any, userId: string): Promise<number> {
+  if (!userId) return 0;
+  const { data, error } = await sb
+    .from('ocr_jobs')
+    .select('normalized_json, updated_at')
+    .eq('user_id', userId)
+    .eq('status', 'done')
+    .gte('updated_at', getMonthStartIso());
+  if (error || !Array.isArray(data)) {
+    console.warn('[OCR] Unable to load monthly fallback usage count', {
+      userId,
+      error: error?.message || String(error),
+    });
+    return 0;
+  }
+  return data.reduce((count: number, row: any) => {
+    const normalized = row?.normalized_json || {};
+    const fallbackUsed = Boolean(normalized?.fallbackUsed);
+    const fallbackCalls = Number(normalized?.debug?.metrics?.fallbackEngineCalls?.total || 0);
+    return fallbackUsed || fallbackCalls > 0 ? count + 1 : count;
+  }, 0);
 }
 
 async function fetchPdfBuffer(signedUrl: string, timeoutMs: number): Promise<Buffer> {
@@ -235,14 +680,43 @@ async function runOpenAIVisionOcr(
     text,
     provider: 'openai_vision',
     durationMs: Date.now() - start,
+    pages: 1,
   };
+}
+
+async function runGoogleVisionOcr(
+  signedUrl: string,
+  timeoutMs: number
+): Promise<OCRRunResult | null> {
+  if (!process.env.GOOGLE_VISION_API_KEY) return null;
+  try {
+    const visionStart = Date.now();
+    const result = await withRetries('Google Vision', () =>
+      callGoogleVisionOnImage({
+        imageUrl: signedUrl,
+        apiKey: process.env.GOOGLE_VISION_API_KEY as string,
+        feature: 'DOCUMENT_TEXT_DETECTION',
+        timeoutMs,
+      })
+    );
+    if (!result.fullText?.trim()) return null;
+    return {
+      text: result.fullText,
+      provider: 'vision',
+      durationMs: Date.now() - visionStart,
+      pages: 1,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function runOCR(
   signedUrl: string,
   mimeType: string,
   expectedSize?: number,
-  docId?: string
+  docId?: string,
+  docMode: 'statement' | 'receipt' = 'receipt'
 ): Promise<OCRRunResult> {
   const hasVision = !!process.env.GOOGLE_VISION_API_KEY;
   const hasOcrSpace = !!process.env.OCR_SPACE_API_KEY;
@@ -333,6 +807,7 @@ async function runOCR(
       text,
       provider: 'ocrspace',
       durationMs: Date.now() - ocrSpaceStart,
+      pages: parsedResults.length || undefined,
     };
   }
 
@@ -344,11 +819,35 @@ async function runOCR(
         extractEmbeddedPdfText(docId, signedUrl, timeoutMs)
       );
       if (embeddedText && embeddedText.trim().length > 50) {
-        console.log('[OCR] Embedded PDF extraction success (pdf-parse)', { chars: embeddedText.trim().length });
+        let finalText = embeddedText;
+        if (shouldUseLayoutText(embeddedText)) {
+          try {
+            const buf = await getPdfBuffer(docId, signedUrl, timeoutMs);
+            const layoutText = await extractPdfTextWithLayout(buf);
+            if (layoutText && layoutText.trim().length > 50) {
+              const embeddedRatio = spaceRatio(embeddedText);
+              const layoutRatio = spaceRatio(layoutText);
+              if (layoutRatio >= embeddedRatio || layoutText.length > embeddedText.length) {
+                finalText = layoutText;
+                console.log('[OCR] Using layout-aware PDF text extraction', {
+                  embeddedRatio,
+                  layoutRatio,
+                  chars: layoutText.trim().length,
+                });
+              }
+            }
+          } catch (layoutError: any) {
+            console.warn('[OCR] Layout PDF extraction failed, using embedded text', {
+              error: layoutError?.message || String(layoutError),
+            });
+          }
+        }
+        console.log('[OCR] Embedded PDF extraction success (pdf-parse)', { chars: finalText.trim().length });
         return {
-          text: embeddedText,
+          text: finalText,
           provider: 'embedded_pdf_parse',
           durationMs: Date.now() - embeddedStart,
+          pages: undefined,
         };
       }
       console.log('[OCR] No embedded text via pdf-parse (likely scanned PDF)');
@@ -363,7 +862,7 @@ async function runOCR(
   if (hasOcrSpace) {
     console.log('[OCR] Using OCR.space backend');
     try {
-      const baseResult = await runOcrSpace(false);
+      const baseResult = await runOcrSpace(docMode === 'statement');
       if (baseResult.text?.trim()) {
         if (baseResult.text.trim().length < 200) {
           console.warn('[OCR] OCR.space returned short text, retrying with enhanced settings');
@@ -437,6 +936,83 @@ async function runOCR(
   throw new Error('OCR failed: no provider returned text');
 }
 
+async function runLowConfidenceFallbackOCR(args: {
+  signedUrl: string;
+  mimeType: string;
+  expectedSize?: number;
+  primaryProvider: OCRProvider;
+  docMode: 'statement' | 'receipt';
+  allowPaidFallback: boolean;
+}): Promise<OCRRunResult | null> {
+  const normalizedMime = args.mimeType || 'application/pdf';
+  const isImage = normalizedMime.startsWith('image/') && !normalizedMime.includes('pdf');
+  if (!isImage) return null;
+  if (!args.allowPaidFallback) return null;
+
+  const timeoutMs = computeOcrTimeoutMs(args.expectedSize, normalizedMime);
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
+  const fallbackOrder = getFallbackOrderForDocMode(args.docMode);
+  let preparedPayload: { base64Image: string; finalSize: number } | null = null;
+  const ensurePayload = async () => {
+    if (!preparedPayload) {
+      preparedPayload = await prepareOcrSpaceImagePayload(args.signedUrl, timeoutMs);
+    }
+    return preparedPayload;
+  };
+
+  for (const provider of fallbackOrder) {
+    if (provider === 'openai_vision') {
+      if (!hasOpenAI || args.primaryProvider === 'openai_vision') continue;
+      try {
+        const imagePayload = await ensurePayload();
+        const openAi = await runOpenAIVisionOcr(imagePayload.base64Image, timeoutMs);
+        if (openAi.text?.trim()) return openAi;
+      } catch {
+        // continue
+      }
+      continue;
+    }
+    if (provider === 'vision' && args.primaryProvider !== 'vision') {
+      const google = await runGoogleVisionOcr(args.signedUrl, timeoutMs);
+      if (google?.text?.trim()) return google;
+    }
+  }
+
+  return null;
+}
+
+async function applyCachedOcrToDocument(sb: any, docId: string, cached: OcrResult): Promise<void> {
+  const baseUpdatePayload: Record<string, any> = {
+    ocr_text: cached.rawText,
+    ocr_completed_at: new Date().toISOString(),
+    status: cached.needsUserConfirmation ? 'needs_review' : 'ready',
+    extracted_data: cached,
+    updated_at: new Date().toISOString(),
+  };
+  const fullUpdatePayload = {
+    ...baseUpdatePayload,
+    ocr_engine: cached.engineUsed,
+  };
+  let { error } = await sb
+    .from('user_documents')
+    .update(fullUpdatePayload)
+    .eq('id', docId);
+  if (error && String(error.message || '').includes('ocr_engine')) {
+    ({ error } = await sb.from('user_documents').update(baseUpdatePayload).eq('id', docId));
+  }
+  if (error && String(error.message || '').includes('extracted_data')) {
+    const { extracted_data, ...withoutExtracted } = baseUpdatePayload;
+    const fallbackPayload = {
+      ...withoutExtracted,
+      ocr_engine: cached.engineUsed,
+    };
+    ({ error } = await sb.from('user_documents').update(fallbackPayload).eq('id', docId));
+  }
+  if (error) {
+    throw error;
+  }
+}
+
 export const handler: Handler = async (event, context) => {
   console.log("[FUNC=smart-import-ocr] handler start");
   // Byte Speed Mode v2: Non-blocking background processing
@@ -446,6 +1022,7 @@ export const handler: Handler = async (event, context) => {
   
   let lockAcquired = false;
   let lockedDocId: string | null = null;
+  let ocrJobId: string | null = null;
 
   try {
     const contentType = event.headers['content-type'] || event.headers['Content-Type'] || '';
@@ -613,7 +1190,71 @@ export const handler: Handler = async (event, context) => {
       storedSize: storedFile.metadata?.size ? Number(storedFile.metadata.size) : undefined,
     });
 
-    // Step 4: Acquire in-flight OCR lock (atomic)
+    // Step 4: Resolve file hash + OCR job idempotency
+    const binaryBuffer = await fetchBinaryBuffer(signed.signedUrl, computeOcrTimeoutMs(expectedSize, effectiveMimeType));
+    const fileHash = computeFileHash(binaryBuffer);
+    await sb
+      .from('user_documents')
+      .update({ content_hash: fileHash, updated_at: new Date().toISOString() })
+      .eq('id', docId)
+      .is('content_hash', null);
+
+    const jobInsertPayload = {
+      user_id: effectiveUserId,
+      document_id: docId,
+      file_hash: fileHash,
+      status: 'running',
+      updated_at: new Date().toISOString(),
+    };
+    let existingJob: OcrJobRow | null = null;
+    const { data: insertedJob, error: insertJobError } = await sb
+      .from('ocr_jobs')
+      .insert(jobInsertPayload)
+      .select('*')
+      .maybeSingle();
+    const jobWasInserted = !insertJobError && !!insertedJob;
+    if (insertJobError) {
+      const { data: foundJob } = await sb
+        .from('ocr_jobs')
+        .select('*')
+        .eq('user_id', effectiveUserId)
+        .eq('file_hash', fileHash)
+        .maybeSingle();
+      existingJob = foundJob as OcrJobRow | null;
+    } else {
+      existingJob = insertedJob as OcrJobRow | null;
+    }
+
+    if (existingJob?.status === 'done' && existingJob.normalized_json) {
+      await applyCachedOcrToDocument(sb, docId, existingJob.normalized_json);
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          ok: true,
+          cached: true,
+          docId,
+          importRunId,
+          traceId,
+          result: existingJob.normalized_json,
+        }),
+      };
+    }
+    if (existingJob?.status === 'running' && !jobWasInserted) {
+      return {
+        statusCode: 202,
+        body: JSON.stringify({
+          inProgress: true,
+          docId,
+          traceId,
+          importRunId,
+        }),
+      };
+    }
+    if (existingJob?.id) {
+      ocrJobId = existingJob.id;
+    }
+
+    // Step 5: Acquire in-flight OCR lock (atomic)
     const lockPayload = {
       status: 'ocr_processing',
       updated_at: new Date().toISOString(),
@@ -682,15 +1323,44 @@ export const handler: Handler = async (event, context) => {
     let ocrText: string;
     let ocrProvider: OCRProvider | null = null;
     let ocrDurationMs: number | null = null;
+    let ocrPages: number | undefined;
     let ocrPageLimitReached = false;
+    let fallbackUsed = false;
+    let fallbackSkippedByBudget = false;
+    let scannedMetrics: OcrRunMetrics | null = null;
+    const docMode: 'statement' | 'receipt' =
+      effectiveMimeType === 'application/pdf' || /statement|bank|account|invoice/i.test(doc.original_name || '')
+        ? 'statement'
+        : 'receipt';
+    const monthlyFallbackUsageCount = await getMonthlyFallbackUsageCount(sb, effectiveUserId);
+    const allowPaidFallback = monthlyFallbackUsageCount < OCR_FALLBACK_MONTHLY_CAP_FREE;
+    if (!allowPaidFallback) {
+      console.warn('[OCR] Monthly fallback cap reached; skipping paid fallback engines', {
+        docId,
+        effectiveUserId,
+        monthlyFallbackUsageCount,
+        cap: OCR_FALLBACK_MONTHLY_CAP_FREE,
+      });
+    }
     try {
-      const ocrResult = await runOCR(signed.signedUrl, effectiveMimeType, expectedSize, docId);
+      const ocrResult = await runOCR(signed.signedUrl, effectiveMimeType, expectedSize, docId, docMode);
       ocrText = ocrResult.text;
       ocrProvider = ocrResult.provider;
       ocrDurationMs = ocrResult.durationMs;
+      ocrPages = ocrResult.pages;
       ocrPageLimitReached = !!ocrResult.pageLimitReached;
     } catch (ocrError: any) {
       console.error(`${logPrefix} ERROR`, { error: ocrError?.message || ocrError });
+      if (ocrJobId) {
+        await sb
+          .from('ocr_jobs')
+          .update({
+            status: 'error',
+            error: ocrError?.message || 'ocr_failed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', ocrJobId);
+      }
       await markDocStatus(docId, 'rejected', `OCR failed: ${ocrError.message}`);
       return { 
         statusCode: 200, 
@@ -703,20 +1373,90 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    if (ocrPageLimitReached && effectiveMimeType === 'application/pdf') {
-      console.warn('[OCR] OCR.space page limit reached', { docId });
-      console.warn('[OCR] pdf too many pages; user must split', { docId });
-      return {
-        statusCode: 422,
-        body: JSON.stringify({
-          ok: false,
-          code: 'PDF_TOO_LONG_OR_SCANNED',
-          message: 'This PDF appears scanned or exceeds OCR limits. Please split the PDF into smaller parts (e.g., 10 pages each) or upload a CSV export.',
+    let scannedPdfMerged: OcrResult | null = null;
+    if (shouldUseScannedPdfFallback({
+      mimeType: effectiveMimeType,
+      provider: ocrProvider,
+      text: ocrText,
+      pageLimitReached: ocrPageLimitReached,
+    })) {
+      try {
+        const scannedFallback = await runScannedPdfFallback({
+          pdfBuffer: binaryBuffer,
+          originalName: doc.original_name || '',
+          docMode,
+          allowPaidFallback,
+          sb,
+          ocrJobId,
+        });
+        scannedPdfMerged = scannedFallback.merged;
+        scannedMetrics = scannedFallback.metrics;
+        fallbackSkippedByBudget = scannedFallback.fallbackSkippedByBudget;
+        ocrText = scannedPdfMerged.rawText;
+        ocrProvider = scannedPdfMerged.engineUsed.includes('openai_vision')
+          ? 'openai_vision'
+          : scannedPdfMerged.engineUsed.includes('vision')
+            ? 'vision'
+            : 'ocrspace';
+        ocrPages = scannedPdfMerged.pages;
+        fallbackUsed = Boolean(scannedPdfMerged.fallbackUsed);
+      } catch (scannedError: any) {
+        console.warn('[OCR] scanned PDF fallback failed; using best available text', {
           docId,
-          traceId,
-          importRunId,
-        }),
-      };
+          error: scannedError?.message || String(scannedError),
+        });
+        if (ocrProvider) {
+          const bestEffort = buildNormalizedResult({
+            text: ocrText,
+            provider: ocrProvider,
+            pages: ocrPages,
+            originalName: doc.original_name || '',
+            fallbackUsed: fallbackUsed || ocrPageLimitReached,
+          });
+          bestEffort.needsUserConfirmation = true;
+          bestEffort.debug = {
+            scannedPdfFallbackError: scannedError?.message || String(scannedError),
+          };
+          scannedPdfMerged = bestEffort;
+        }
+      }
+    }
+
+    let normalizedPreGuard = scannedPdfMerged || buildNormalizedResult({
+      text: ocrText,
+      provider: (ocrProvider || 'ocrspace') as OCRProvider,
+      pages: ocrPages,
+      originalName: doc.original_name || '',
+      fallbackUsed: fallbackUsed || Boolean(scannedPdfMerged),
+    });
+    if (!scannedPdfMerged && normalizedPreGuard.confidence.overall < OCR_CONFIDENCE_THRESHOLD && ocrProvider) {
+      const fallbackResult = await runLowConfidenceFallbackOCR({
+        signedUrl: signed.signedUrl,
+        mimeType: effectiveMimeType,
+        expectedSize,
+        primaryProvider: ocrProvider,
+        docMode,
+        allowPaidFallback,
+      });
+      if (fallbackResult?.text?.trim()) {
+        const fallbackNormalized = buildNormalizedResult({
+          text: fallbackResult.text,
+          provider: fallbackResult.provider,
+          pages: fallbackResult.pages,
+          originalName: doc.original_name || '',
+          fallbackUsed: true,
+        });
+        if (fallbackNormalized.confidence.overall > normalizedPreGuard.confidence.overall) {
+          ocrText = fallbackResult.text;
+          ocrProvider = fallbackResult.provider;
+          ocrDurationMs = (ocrDurationMs || 0) + fallbackResult.durationMs;
+          ocrPages = fallbackResult.pages || ocrPages;
+          fallbackUsed = true;
+          normalizedPreGuard = fallbackNormalized;
+        }
+      } else if (!allowPaidFallback) {
+        fallbackSkippedByBudget = true;
+      }
     }
 
     console.log(`${logPrefix} EXTRACTED`, { docId, textLength: ocrText.length, provider: ocrProvider, durationMs: ocrDurationMs });
@@ -762,6 +1502,16 @@ export const handler: Handler = async (event, context) => {
       });
     } else if (!guardrailResult.ok) {
       console.warn(`${logPrefix} ERROR`, { error: 'Content blocked by guardrails', docId, reasons: guardrailResult.reasons });
+      if (ocrJobId) {
+        await sb
+          .from('ocr_jobs')
+          .update({
+            status: 'error',
+            error: `Blocked: ${(guardrailResult.reasons || []).join(', ')}`,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', ocrJobId);
+      }
       await markDocStatus(docId, 'rejected', `Blocked: ${guardrailResult.reasons.join(', ')}`);
       
       return { 
@@ -776,6 +1526,63 @@ export const handler: Handler = async (event, context) => {
     }
 
     const sanitizedText = sanitizeOcrText(guardrailResult.text);
+    const normalized = scannedPdfMerged
+      ? {
+          ...scannedPdfMerged,
+          rawText: sanitizedText,
+          needsUserConfirmation:
+            Boolean(scannedPdfMerged.needsUserConfirmation) ||
+            scannedPdfMerged.confidence.overall < OCR_CONFIDENCE_THRESHOLD,
+        }
+      : buildNormalizedResult({
+          text: sanitizedText,
+          provider: (ocrProvider || 'ocrspace') as OCRProvider,
+          pages: ocrPages,
+          originalName: doc.original_name || '',
+          fallbackUsed,
+        });
+    if (fallbackSkippedByBudget) {
+      normalized.needsUserConfirmation = true;
+    }
+    if (process.env.OCR_DEBUG === '1' || process.env.OCR_DEBUG === 'true') {
+      normalized.debug = {
+        ...(normalized.debug || {}),
+        metrics: scannedMetrics || {
+          pagesTotal: normalized.pages,
+          pagesProcessed: normalized.pages,
+          primaryEngineCalls: normalized.pages,
+          fallbackEngineCalls: {
+            openai: normalized.engineUsed.includes('openai_vision') ? 1 : 0,
+            google: normalized.engineUsed.includes('vision') ? 1 : 0,
+            total: normalized.fallbackUsed ? 1 : 0,
+          },
+          fallbackAttempted: {
+            pages: normalized.fallbackUsed ? 1 : 0,
+            openai: normalized.engineUsed.includes('openai_vision') ? 1 : 0,
+            google: normalized.engineUsed.includes('vision') ? 1 : 0,
+            total: normalized.fallbackUsed ? 1 : 0,
+          },
+          fallbackAdopted: {
+            pages: normalized.fallbackUsed ? 1 : 0,
+            openai: normalized.engineUsed.includes('openai_vision') ? 1 : 0,
+            google: normalized.engineUsed.includes('vision') ? 1 : 0,
+            total: normalized.fallbackUsed ? 1 : 0,
+          },
+          earlyStopTriggered: {
+            triggered: false,
+            reason: null,
+          },
+          worstPagesRetried: [],
+          totalTimeMs: ocrDurationMs || 0,
+          fallbackSkippedByBudget,
+        },
+        budget: {
+          monthlyFallbackUsageCount,
+          monthlyFallbackCap: OCR_FALLBACK_MONTHLY_CAP_FREE,
+          capExceeded: !allowPaidFallback,
+        },
+      };
+    }
     if (sanitizedText.length !== guardrailResult.text.length) {
       console.warn('[OCR] Sanitized OCR text (removed invalid unicode)', {
         docId,
@@ -788,6 +1595,7 @@ export const handler: Handler = async (event, context) => {
     const ocrKey = `${doc.storage_path}.ocr.json`;
     const ocrData = {
       text: sanitizedText,  // Redacted text (sanitized)
+      normalized,
       pii_found: guardrailResult.signals?.pii || false,
       pii_types: guardrailResult.signals?.piiTypes || [],
       processed_at: new Date().toISOString(),
@@ -808,7 +1616,8 @@ export const handler: Handler = async (event, context) => {
       ocr_text: sanitizedText,  // Redacted (sanitized)
       ocr_completed_at: new Date().toISOString(),
       pii_types: guardrailResult.signals?.piiTypes || [],
-      status: guardrailResult.ok ? 'ready' : 'needs_review',
+      extracted_data: normalized,
+      status: normalized.needsUserConfirmation ? 'needs_review' : (guardrailResult.ok ? 'ready' : 'needs_review'),
       updated_at: new Date().toISOString()
     };
     const fullUpdatePayload = {
@@ -828,8 +1637,27 @@ export const handler: Handler = async (event, context) => {
         .eq('id', docId)
         .select('id,user_id,status,ocr_completed_at'));
     }
+    if (ocrUpdateError && String(ocrUpdateError.message || '').includes('extracted_data')) {
+      console.warn(`${logPrefix} DB_WRITE_RETRY`, { docId, reason: 'missing_extracted_data_column' });
+      const { extracted_data, ...withoutExtractedData } = baseUpdatePayload;
+      ({ data: ocrUpdateRows, error: ocrUpdateError } = await sb
+        .from('user_documents')
+        .update(withoutExtractedData)
+        .eq('id', docId)
+        .select('id,user_id,status,ocr_completed_at'));
+    }
     if (ocrUpdateError) {
       console.error(`${logPrefix} DB_WRITE_ERROR`, { docId, error: ocrUpdateError.message });
+      if (ocrJobId) {
+        await sb
+          .from('ocr_jobs')
+          .update({
+            status: 'error',
+            error: 'ocr_write_failed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', ocrJobId);
+      }
       return {
         statusCode: 500,
         body: JSON.stringify({
@@ -843,6 +1671,16 @@ export const handler: Handler = async (event, context) => {
     }
     if (!ocrUpdateRows || ocrUpdateRows.length === 0) {
       console.error(`${logPrefix} DB_WRITE_EMPTY`, { docId, userId: effectiveUserId, docUserId: doc.user_id });
+      if (ocrJobId) {
+        await sb
+          .from('ocr_jobs')
+          .update({
+            status: 'error',
+            error: 'ocr_write_empty',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', ocrJobId);
+      }
       return {
         statusCode: 500,
         body: JSON.stringify({
@@ -855,6 +1693,23 @@ export const handler: Handler = async (event, context) => {
       };
     }
     console.log(`${logPrefix} DB_WRITE_OK`, { docId, len: guardrailResult.text.length });
+
+    if (ocrJobId) {
+      await sb
+        .from('ocr_jobs')
+        .update({
+          status: 'done',
+          document_id: docId,
+          engine_used: normalized.engineUsed,
+          pages: normalized.pages,
+          confidence: normalized.confidence.overall,
+          raw_text: normalized.rawText,
+          normalized_json: normalized,
+          error: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', ocrJobId);
+    }
 
     // Byte Speed Mode v2: Return immediately, queue normalization in background
     // Fire normalization asynchronously - don't wait
@@ -943,6 +1798,7 @@ export const handler: Handler = async (event, context) => {
         piiDetected: guardrailResult.signals?.pii || false,
         provider: ocrProvider,
         durationMs: ocrDurationMs,
+        result: normalized,
         traceId,
       }) 
     };
@@ -956,6 +1812,21 @@ export const handler: Handler = async (event, context) => {
         await markDocStatus(lockedDocId, 'rejected', `OCR failed: ${e?.message || 'unknown error'}`);
       } catch (markError: any) {
         console.error(`[OCR][${traceId}] ERROR`, { error: 'Failed to release OCR lock', details: markError?.message || markError });
+      }
+    }
+    if (ocrJobId) {
+      try {
+        const sb = admin();
+        await sb
+          .from('ocr_jobs')
+          .update({
+            status: 'error',
+            error: e?.message || 'unknown_error',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', ocrJobId);
+      } catch (jobErr: any) {
+        console.error(`[OCR][${traceId}] ERROR`, { error: 'Failed to set ocr_jobs error', details: jobErr?.message || jobErr });
       }
     }
     return { 

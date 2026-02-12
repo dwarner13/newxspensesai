@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Download, Eye, FileText, Image as ImageIcon, AlertCircle, Bot, Send, CheckCircle, Brain, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getSupabase } from '../../lib/supabase';
 
 interface DocumentViewerModalProps {
   isOpen: boolean;
@@ -49,6 +50,7 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   } | null>(null);
   const [isApproving, setIsApproving] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
+  const [isPurging, setIsPurging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom of chat
@@ -228,6 +230,43 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     }
   };
 
+  const handlePurgeSource = async () => {
+    if (!documentData?.id) return;
+    if (!window.confirm('Delete the original document + OCR text? Transactions will be kept.')) {
+      return;
+    }
+
+    setIsPurging(true);
+    try {
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error('Supabase not available');
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Not authenticated');
+      }
+      const response = await fetch('/.netlify/functions/purge-document', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ uploadId: documentData.id }),
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to purge document');
+      }
+      toast.success('Source document deleted. Transactions kept.');
+      onClose();
+    } catch (err: any) {
+      toast.error(`Failed to delete source document: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setIsPurging(false);
+    }
+  };
+
   const handleOpenInNewTab = () => {
     const url = documentData?.imageUrl || documentData?.downloadUrl || null;
     if (url) {
@@ -252,18 +291,26 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   const isPdf = documentData.mimeType === 'application/pdf' || fileExt === 'pdf';
   const previewUrl = documentData.downloadUrl || documentData.imageUrl || null;
   const summaryLines: string[] = [];
+  const normalizedFields = documentData.extractedData?.fields || documentData.extractedData || null;
+  const normalizedConfidence = documentData.extractedData?.confidence?.overall;
   if (documentData.extractedData) {
-    if (documentData.extractedData.vendor) {
-      summaryLines.push(`Vendor: ${documentData.extractedData.vendor}`);
+    if (documentData.extractedData.docType) {
+      summaryLines.push(`Type: ${documentData.extractedData.docType}`);
     }
-    if (documentData.extractedData.total) {
-      summaryLines.push(`Total: $${documentData.extractedData.total}`);
+    if (normalizedFields?.merchant) {
+      summaryLines.push(`Merchant: ${normalizedFields.merchant}`);
     }
-    if (documentData.extractedData.date) {
-      summaryLines.push(`Date: ${documentData.extractedData.date}`);
+    if (normalizedFields?.total) {
+      summaryLines.push(`Total: $${normalizedFields.total}`);
     }
-    if (documentData.extractedData.category) {
-      summaryLines.push(`Category: ${documentData.extractedData.category}`);
+    if (normalizedFields?.date) {
+      summaryLines.push(`Date: ${normalizedFields.date}`);
+    }
+    if (typeof normalizedConfidence === 'number') {
+      summaryLines.push(`Confidence: ${(normalizedConfidence * 100).toFixed(1)}%`);
+    }
+    if (documentData.extractedData.needsUserConfirmation) {
+      summaryLines.push('Needs confirmation: yes');
     }
   } else if (documentData.ocrText) {
     const trimmed = documentData.ocrText.trim();
@@ -321,6 +368,16 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                     </button>
                   </>
                 )}
+                <button
+                  onClick={handlePurgeSource}
+                  disabled={isPurging}
+                  className={`p-2 text-red-300 hover:text-red-100 hover:bg-red-900/20 rounded-lg transition-colors ${
+                    isPurging ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  title="Delete source document (keep transactions)"
+                >
+                  <AlertCircle className="w-5 h-5" />
+                </button>
                 <button
                   onClick={onClose}
                   className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
@@ -510,28 +567,34 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-3">Extracted Information</h3>
                       <div className="bg-gray-800 rounded-xl p-4 space-y-3">
-                        {documentData.extractedData.vendor && (
+                        {normalizedFields?.merchant && (
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-400">Vendor:</span>
-                            <span className="text-white text-sm">{documentData.extractedData.vendor}</span>
+                            <span className="text-gray-400">Merchant:</span>
+                            <span className="text-white text-sm">{normalizedFields.merchant}</span>
                           </div>
                         )}
-                        {documentData.extractedData.total && (
+                        {normalizedFields?.total && (
                           <div className="flex items-center justify-between">
                             <span className="text-gray-400">Total:</span>
-                            <span className="text-white text-sm">${documentData.extractedData.total}</span>
+                            <span className="text-white text-sm">${normalizedFields.total}</span>
                           </div>
                         )}
-                        {documentData.extractedData.date && (
+                        {normalizedFields?.date && (
                           <div className="flex items-center justify-between">
                             <span className="text-gray-400">Date:</span>
-                            <span className="text-white text-sm">{documentData.extractedData.date}</span>
+                            <span className="text-white text-sm">{normalizedFields.date}</span>
                           </div>
                         )}
-                        {documentData.extractedData.category && (
+                        {documentData.extractedData.docType && (
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-400">Category:</span>
-                            <span className="text-white text-sm">{documentData.extractedData.category}</span>
+                            <span className="text-gray-400">Doc Type:</span>
+                            <span className="text-white text-sm">{documentData.extractedData.docType}</span>
+                          </div>
+                        )}
+                        {typeof normalizedConfidence === 'number' && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-400">Confidence:</span>
+                            <span className="text-white text-sm">{(normalizedConfidence * 100).toFixed(1)}%</span>
                           </div>
                         )}
                       </div>

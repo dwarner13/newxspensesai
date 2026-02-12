@@ -7,7 +7,7 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
   included_files = ["netlify/functions/_shared/**", "netlify/functions/_lib/**"]
-  external_node_modules = ["pdf-parse"]
+  external_node_modules = ["pdf-parse", "@napi-rs/canvas", "@napi-rs/canvas-win32-x64-msvc"]
 
 [dev]
   framework = "vite"
@@ -23,5 +23,5 @@
 [functions.esbuild]
   sourcemap = false
   format = "cjs"
-  external = ["xhr-sync-worker.js"]
+  external = ["xhr-sync-worker.js", "@napi-rs/canvas", "@napi-rs/canvas-win32-x64-msvc"]
 

@@ -71,6 +71,11 @@ export function ByteUploadPanel({
   const [showResetUpload, setShowResetUpload] = useState(false);
   const [expandedRawByDoc, setExpandedRawByDoc] = useState<Record<string, boolean>>({});
   const [expandedParsedByDoc, setExpandedParsedByDoc] = useState<Record<string, boolean>>({});
+  const [debugSearch, setDebugSearch] = useState('');
+  const [includeAllAccounts, setIncludeAllAccounts] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem('ocr_debug_include_all_accounts') === '1';
+  });
   const queueOwnerIdRef = useRef<string>(`${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const [isQueueOwner, setIsQueueOwner] = useState(false);
   
@@ -86,9 +91,42 @@ export function ByteUploadPanel({
     lastUploadSummary,
     lastDebugPayload,
     resetUploadState,
+    refreshDebugPayload,
     uploadQueue,
   } = smartImport;
   const debugEnabled = import.meta.env.VITE_OCR_DEBUG === '1';
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('ocr_debug_include_all_accounts', includeAllAccounts ? '1' : '0');
+    if (debugEnabled && refreshDebugPayload) {
+      refreshDebugPayload({ includeAllAccounts });
+    }
+  }, [includeAllAccounts, debugEnabled, refreshDebugPayload]);
+
+  useEffect(() => {
+    if (!debugEnabled || !refreshDebugPayload) return;
+    if (!isProcessing && uploadStatus.step !== 'completed') return;
+    const timer = window.setInterval(() => {
+      refreshDebugPayload({ includeAllAccounts });
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [debugEnabled, refreshDebugPayload, includeAllAccounts, isProcessing, uploadStatus.step]);
+
+  const escapeRegExp = useCallback((input: string) => input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), []);
+  const countMatches = useCallback((text: string, term: string) => {
+    if (!term) return 0;
+    const regex = new RegExp(escapeRegExp(term), 'gi');
+    return (text.match(regex) || []).length;
+  }, [escapeRegExp]);
+  const getSnippet = useCallback((text: string, term: string) => {
+    if (!term) return '';
+    const idx = text.toLowerCase().indexOf(term.toLowerCase());
+    if (idx === -1) return '';
+    const start = Math.max(0, idx - 80);
+    const end = Math.min(text.length, idx + term.length + 120);
+    return text.slice(start, end);
+  }, []);
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -418,14 +456,13 @@ export function ByteUploadPanel({
   }, []);
 
   const handleRetryOcr = useCallback(async (docId: string) => {
-    const supabase = getSupabase();
-    if (!supabase) return;
+    if (!userId) return;
     setIsRetryingOcr(true);
     try {
-      await fetch('/.netlify/functions/smart-import-ocr', {
+      await fetch('/.netlify/functions/smart-import-finalize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docId }),
+        body: JSON.stringify({ userId, docId }),
       });
       toast.success('Retrying OCR...');
     } catch {
@@ -433,7 +470,7 @@ export function ByteUploadPanel({
     } finally {
       setIsRetryingOcr(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     if (queueClearTimeoutRef.current) {
@@ -462,6 +499,10 @@ export function ByteUploadPanel({
     uploadStatus.step === 'processing' ||
     isUploading ||
     uploadQueue.isUploading;
+  const showProgressBar =
+    isProcessing ||
+    (typeof uploadProgress === 'number' && uploadProgress > 0 && uploadProgress < 100) ||
+    uploadStatus.step === 'completed';
   const canDiscard = currentUploadIds.length > 0 && (isProcessing || uploadStatus.step === 'error');
 
   useEffect(() => {
@@ -497,7 +538,7 @@ export function ByteUploadPanel({
           <div className="text-[10px] text-slate-400 leading-tight">
             PDF, CSV, JPG/PNG • Max 25MB
           </div>
-          {isProcessing && (
+          {showProgressBar && (
             <div className="mt-2">
               <div className="flex items-center justify-between text-[10px] text-slate-400 mb-1">
                 <span>
@@ -612,17 +653,48 @@ export function ByteUploadPanel({
         </div>
       )}
 
-      {debugEnabled && lastDebugPayload && lastDebugPayload.length > 0 && (
+      {debugEnabled && (
         <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
           <div className="mb-2 text-[11px] font-semibold text-amber-200">Import Debug Panel</div>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <input
+              value={debugSearch}
+              onChange={(e) => setDebugSearch(e.target.value)}
+              placeholder="Search OCR text..."
+              className="flex-1 min-w-[160px] rounded-md border border-amber-500/30 bg-slate-950/60 px-2 py-1 text-[10px] text-amber-100 placeholder:text-amber-300/60"
+            />
+            <label className="flex items-center gap-2 text-[10px] text-amber-200">
+              <input
+                type="checkbox"
+                checked={includeAllAccounts}
+                onChange={(e) => setIncludeAllAccounts(e.target.checked)}
+              />
+              Include all accounts (debug)
+            </label>
+            <button
+              type="button"
+              onClick={() => refreshDebugPayload?.({ includeAllAccounts })}
+              className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
           <div className="space-y-3">
-            {lastDebugPayload.map((item) => (
-              <div key={item.docId} className="rounded-lg border border-amber-500/20 bg-slate-900/60 p-2">
+            {(!lastDebugPayload || lastDebugPayload.length === 0) && (
+              <div className="rounded-lg border border-amber-500/20 bg-slate-900/60 p-2 text-[10px] text-amber-200">
+                No debug payload yet. Click Refresh after OCR finishes.
+              </div>
+            )}
+            {(lastDebugPayload || []).map((item) => (
+              <div key={item.docId} className="rounded-lg border border-amber-500/20 bg-slate-900/60 p-2"> 
                 <div className="flex flex-wrap items-center gap-2 text-[10px] text-amber-100">
                   <span>Doc: …{item.docId?.slice(-6)}</span>
                   {item.importId && <span>Import: …{item.importId.slice(-6)}</span>}
                   {item.ocrEngineUsed && <span>OCR: {item.ocrEngineUsed}</span>}
                   <span>Text: {item.rawTextLength} chars</span>
+                  {debugSearch && (
+                    <span>Matches: {countMatches(item.rawTextPreview || '', debugSearch)}</span>
+                  )}
                 </div>
                 {item.parseWarnings?.length > 0 && (
                   <div className="mt-1 text-[10px] text-amber-300">
@@ -660,6 +732,16 @@ export function ByteUploadPanel({
                     {expandedParsedByDoc[item.docId] ? 'Hide parsed JSON' : 'Show parsed JSON'}
                   </button>
                 </div>
+                {debugSearch && (
+                  <div className="mt-2 text-[10px] text-amber-200">
+                    Search snippet: {getSnippet(item.rawTextPreview || '', debugSearch) || 'No match'}
+                  </div>
+                )}
+                {Array.isArray(item.parsedTransactions) && (
+                  <div className="mt-1 text-[10px] text-amber-200">
+                    Low confidence: {item.parsedTransactions.filter((tx: any) => typeof tx?.confidence === 'number' && tx.confidence < 0.6).length}
+                  </div>
+                )}
                 {expandedRawByDoc[item.docId] && (
                   <div className="mt-2">
                     <div className="text-[10px] text-amber-200 mb-1">Raw text preview</div>

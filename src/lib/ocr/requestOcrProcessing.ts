@@ -9,6 +9,7 @@
  */
 
 import { getSupabase } from '../supabase';
+import { runSmartImportPipeline } from '../smartImport/runSmartImportPipeline';
 
 export interface OCRProcessingRequest {
   file: File;
@@ -30,14 +31,8 @@ export interface OCRProcessingResult {
 /**
  * Request OCR processing via the canonical backend pipeline
  * 
- * Pipeline:
- * 1. smart-import-init → Creates doc record, returns signed URL
- * 2. Client uploads file to signed URL → File stored in Supabase Storage
- * 3. smart-import-finalize → Routes by file type:
- *    - Images/PDFs → smart-import-ocr (async, applies guardrails)
- *    - CSV/OFX/QIF → smart-import-parse-csv (async, applies guardrails)
- * 4. OCR/Parse → Applies guardrails, extracts text
- * 5. normalize-transactions → Extracts transactions (async)
+ * Pipeline (canonical frontend wrapper):
+ * runSmartImportPipeline() → init/upload/finalize/poll/sync
  * 
  * @param request OCR processing request with file and userId
  * @returns Processing result with docId and status
@@ -45,7 +40,7 @@ export interface OCRProcessingResult {
 export async function requestOcrProcessing(
   request: OCRProcessingRequest
 ): Promise<OCRProcessingResult> {
-  const { file, userId, requestId, threadId } = request;
+  const { file, userId, requestId } = request;
   const traceId = `ocr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const importRunId = requestId || `import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const shouldTrace = import.meta.env.VITE_OCR_TRACE === '1';
@@ -55,114 +50,23 @@ export async function requestOcrProcessing(
   }
 
   try {
-    // Step 1: Initialize upload (get signed URL)
-    const initRes = await fetch('/.netlify/functions/smart-import-init', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type,
-        mime: file.type,
-        source: 'ocr_request',
-        requestId,
-        importRunId,
-      }),
+    const result = await runSmartImportPipeline({
+      userId,
+      source: 'upload',
+      file,
+      fileName: file.name,
+      mimeType: file.type,
+      fileSize: file.size,
+      lastModified: file.lastModified || 0,
+      requestId,
+      onProgress: undefined,
     });
-
-    if (!initRes.ok) {
-      const errText = await initRes.text();
-      let message = errText;
-      try {
-        const parsed = JSON.parse(errText);
-        const missing = parsed?.missing;
-        message = parsed?.error || errText;
-        if (missing) {
-          message = `${message} (missing: userId=${missing.userId}, fileName=${missing.fileName})`;
-        }
-      } catch {
-        // Keep plain text error
-      }
-      throw new Error(`Init failed: ${message}`);
-    }
-
-    const init = await initRes.json();
-
-    // Step 2: Upload file to signed URL (auth is embedded in the URL)
-    const uploadRes = await fetch(init.uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'content-type': file.type,
-      },
-      body: file,
-    });
-
-    if (!uploadRes.ok) {
-      throw new Error(`Upload failed: ${uploadRes.statusText}`);
-    }
-
-    // Step 3: Trigger OCR processing (canonical backend pipeline)
-    const formData = new FormData();
-    formData.append('userId', userId);
-    formData.append('docId', init.docId);
-    formData.append('expectedSize', String(file.size));
-    formData.append('importRunId', importRunId);
-    if (requestId) formData.append('requestId', requestId);
-    if (threadId) formData.append('threadId', threadId);
-
-    const ocrRes = await fetch('/.netlify/functions/smart-import-ocr', {
-      method: 'POST',
-      headers: { 'x-trace-id': traceId },
-      body: formData,
-    });
-
-    const ocrBody = await ocrRes.json().catch(() => ({} as any));
-
-    if (!ocrRes.ok) {
-      const err = ocrBody?.error || 'OCR request failed';
-      return {
-        ok: false,
-        importRunId,
-        documentId: init.docId,
-        status: 'error',
-        error: err,
-      };
-    }
-
-    if (ocrBody?.rejected) {
-      return {
-        ok: false,
-        importRunId: ocrBody.importRunId || importRunId,
-        documentId: init.docId,
-        status: 'rejected',
-        error: ocrBody?.reasons?.join(', ') || ocrBody?.error || 'Content blocked by guardrails',
-      };
-    }
-
-    if (ocrBody?.pending && ocrBody?.status === 'PENDING_UPLOAD') {
-      return {
-        ok: true,
-        importRunId: ocrBody.importRunId || importRunId,
-        documentId: init.docId,
-        status: 'pending',
-      };
-    }
-
-    if (ocrBody?.inProgress) {
-      return {
-        ok: true,
-        importRunId: ocrBody.importRunId || importRunId,
-        documentId: ocrBody.docId || init.docId,
-        status: 'pending',
-      };
-    }
-
     return {
-      ok: true,
-      importRunId: ocrBody.importRunId || importRunId,
-      documentId: ocrBody.docId || init.docId,
-      status: 'ready',
+      ok: !result.rejected,
+      importRunId,
+      documentId: result.docId,
+      status: result.rejected ? 'rejected' : (result.queued ? 'pending' : 'ready'),
+      error: result.rejected ? result.reason || 'Document rejected' : undefined,
     };
 
   } catch (error: any) {

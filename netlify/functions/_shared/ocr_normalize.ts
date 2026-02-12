@@ -22,6 +22,11 @@ export type NormalizedTransaction = {
   currency?: string;
   description?: string;
   invoiceNo?: string;
+  confidence?: number;
+  confidenceFlags?: string[];
+  accountName?: string;
+  statementType?: 'credit_card' | 'bank';
+  statementCredit?: boolean;
   items?: Array<{
     name: string;
     qty?: number;
@@ -48,30 +53,34 @@ export async function normalizeOcrResult(
   text: string,
   userId: string = 'default-user',
   openaiClient?: any,
-  context?: { filename?: string }
+  context?: { filename?: string; includeAllAccounts?: boolean }
 ): Promise<NormalizedTransaction[]>;
 export function normalizeOcrResult(
   text: string,
   userId: string = 'default-user',
   openaiClient?: any,
-  context?: { filename?: string }
+  context?: { filename?: string; includeAllAccounts?: boolean }
 ): Promise<NormalizedTransaction[]> | NormalizedTransaction[];
 export function normalizeOcrResult(
   text: string,
   userId: string = 'default-user',
   openaiClient?: any,
-  context?: { filename?: string }
+  context?: { filename?: string; includeAllAccounts?: boolean }
 ): Promise<NormalizedTransaction[]> | NormalizedTransaction[] {
   const normalizedText = text || "";
   const filename = context?.filename || '';
   const hasStatementHints = /statement|opening balance|closing balance|account|period ending|statement period|transaction details|balance/i.test(normalizedText);
   const isCreditCard = /credit card|cardmember|visa|mastercard|amex|capital one|account ending|minimum payment/i.test(normalizedText);
+  const statementText = hasStatementHints ? filterStatementPages(normalizedText) : normalizedText;
 
   const invoiceFilenameHint = /invoice/i.test(filename);
   const invoiceKeywordHint = /invoice/i.test(normalizedText) && /(subtotal|tax|total)/i.test(normalizedText);
   const invoiceAddressHint = /(bill to|ship to)/i.test(normalizedText);
   const invoicePaymentDueHint = /payment\s+due|outstanding\s+balance|balance\s+due|property\s+tax\s+notice|tax\s+notice/i.test(normalizedText);
-  const shouldTreatAsInvoice = invoiceFilenameHint || invoiceKeywordHint || invoiceAddressHint || invoicePaymentDueHint;
+  const shouldTreatAsInvoice =
+    !hasStatementHints &&
+    !isCreditCard &&
+    (invoiceFilenameHint || invoiceKeywordHint || invoiceAddressHint || invoicePaymentDueHint);
 
   if (shouldTreatAsInvoice) {
     console.log(`[Byte OCR] Detected docType=invoice`);
@@ -133,6 +142,7 @@ export function normalizeOcrResult(
         merchant: tx.merchant,
         amount: tx.amount,
         currency: 'CAD',
+        statementType: 'bank',
         docId: undefined
       }));
     }
@@ -155,13 +165,25 @@ export function normalizeOcrResult(
         merchant: tx.merchant,
         amount: tx.amount,
         currency: 'CAD',
+        statementType: 'bank',
         docId: undefined
       }));
     }
   }
 
   // Fallback to general bank statement normalization
-  const bankTransactions = normalizeBankStatement(normalizedText);
+  const bankTransactions = normalizeBankStatement(statementText, {
+    includeAllAccounts: context?.includeAllAccounts,
+  });
+  const dateLineCount = (statementText.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/igm) || []).length;
+  const isCibcStatement = /cibc|cibc account statement|transaction details/i.test(normalizedText);
+  const hasColumnMode = bankTransactions.some(tx => Array.isArray(tx.confidenceFlags) && tx.confidenceFlags.includes('amount_from_columns'));
+  const preferAiForCibc = isCibcStatement && !!openaiClient && !hasColumnMode;
+  const preferAiForStatements = !!openaiClient && process.env.OCR_PREFER_AI_STATEMENTS === '1' && !hasColumnMode;
+  const preferAi = preferAiForCibc || preferAiForStatements;
+  const lowCoverageBase = !isCreditCard && dateLineCount >= 5 && bankTransactions.length < Math.max(3, Math.floor(dateLineCount * 0.4));
+  const lowCoverageCibc = isCibcStatement && bankTransactions.length < Math.max(6, Math.floor(dateLineCount * 0.6));
+  const lowCoverage = lowCoverageBase || lowCoverageCibc;
   const mappedBankTransactions = bankTransactions.map(tx => ({
     userId,
     kind: 'bank' as const,
@@ -169,11 +191,16 @@ export function normalizeOcrResult(
     merchant: tx.merchant,
     amount: tx.amount,
     currency: 'CAD',
+    confidence: tx.confidence,
+    confidenceFlags: tx.confidenceFlags,
+    accountName: (tx as any).accountName,
+    statementType: (tx as any).statementType,
+    statementCredit: (tx as any).statementCredit,
     docId: undefined
   }));
 
   // If primary parser found transactions, return them synchronously
-  if (bankTransactions.length > 0 && !(openaiClient && isCreditCard && bankTransactions.length <= 1)) {
+  if (!preferAi && bankTransactions.length > 0 && !lowCoverage && !(openaiClient && isCreditCard && bankTransactions.length <= 1)) {
     console.log(`[Byte OCR] Parsed ${bankTransactions.length} transactions with primary parser`);
     return openaiClient ? Promise.resolve(mappedBankTransactions) : mappedBankTransactions;
   }
@@ -182,6 +209,12 @@ export function normalizeOcrResult(
   if (openaiClient) {
     if (bankTransactions.length > 0 && isCreditCard) {
       console.log(`[Byte OCR] Primary parser found ${bankTransactions.length} transaction(s) on credit card statement, using AI fallback parser`);
+    } else if (preferAiForCibc) {
+      console.log(`[Byte OCR] CIBC statement detected, using AI fallback parser`);
+    } else if (preferAiForStatements) {
+      console.log(`[Byte OCR] Statement AI preference enabled, using AI fallback parser`);
+    } else if (lowCoverage) {
+      console.log(`[Byte OCR] Primary parser coverage low (${bankTransactions.length}/${dateLineCount}), using AI fallback parser`);
     } else {
       console.log(`[Byte OCR] Primary parser found 0 transactions, using AI fallback parser`);
     }
@@ -208,6 +241,7 @@ export function normalizeOcrResult(
           merchant: tx.merchant,
           amount: tx.amount,
           currency: 'CAD',
+          statementType,
           docId: undefined,
           // Tag as AI fallback (can be used for metadata)
         }));
@@ -859,7 +893,7 @@ function parseBmoEverydayStatement(text: string): Array<{
     Sep: "09", Oct: "10", Nov: "11", Dec: "12",
   };
 
-  const monthRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\b/i;
+  const monthRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})(?=\b|[A-Z])/i;
   const moneyRegex = /^-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?$/;
 
   const normalizeMoney = (raw: string): number | null => {
@@ -940,18 +974,30 @@ function parseBmoEverydayStatement(text: string): Array<{
     // Take first part as merchant name
     const merchantParts = merchant.split(/\s+/);
     const merchantName = merchantParts[0] || merchant.substring(0, 50);
+    const signedAmount = isIncomeDescription(description)
+      ? Math.abs(amount)
+      : -Math.abs(amount);
 
     // Combine all lines for raw_line_text
     const rawLines = [line, ...descLines, amountLine];
     const rawLineText = rawLines.join(' | ');
 
-      transactions.push({
+    const confidenceData = buildStatementConfidence({
+      date: isoDate,
+      description,
+      amount: signedAmount,
+      rawLineText: rawLineText,
+    });
+
+    transactions.push({
       date: isoDate,
       merchant: merchantName,
       description: description,
-      amount: Math.abs(amount), // Always positive for expenses
+      amount: signedAmount,
       category: categorizeTransactionSync(description), // Sync fallback - will be re-categorized with learning later
-      raw_line_text: rawLineText
+      raw_line_text: rawLineText,
+      confidence: confidenceData.confidence,
+      confidenceFlags: confidenceData.flags,
     });
   }
 
@@ -970,6 +1016,8 @@ function parseCanadianStatementLine(line: string): {
   description?: string;
   amount: number;
   category?: string;
+  confidence?: number;
+  confidenceFlags?: string[];
 } | null {
   // Match: Month Day Description Amount Balance
   // e.g., "Sep 17   Debit Card Purchase SOBEYS HOLLICK KENYON   76.09   1,519.47"
@@ -1004,12 +1052,118 @@ function parseCanadianStatementLine(line: string): {
   const merchantParts = merchant.split(/\s+/);
   const merchantName = merchantParts[0] || merchant.substring(0, 50);
   
+  const signedAmount = isIncomeDescription(description)
+    ? Math.abs(amount)
+    : -Math.abs(amount);
+
+  const confidenceData = buildStatementConfidence({
+    date,
+    description: description.trim(),
+    amount: signedAmount,
+    rawLineText: line,
+  });
+
   return {
     date,
     merchant: merchantName,
     description: description.trim(),
-    amount: -amount, // Treat as debit by default
-    category: 'Uncategorized'
+    amount: signedAmount,
+    category: 'Uncategorized',
+    confidence: confidenceData.confidence,
+    confidenceFlags: confidenceData.flags,
+  };
+}
+
+function parseBmoColumnStatementLine(line: string): {
+  date?: string;
+  merchant?: string;
+  description?: string;
+  amount: number;
+  balance?: number;
+  category?: string;
+  confidence?: number;
+  confidenceFlags?: string[];
+} | null {
+  const dateMatch = line.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\b/i);
+  if (!dateMatch) return null;
+
+  const numbers = line.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g);
+  if (!numbers || numbers.length < 1) return null;
+
+  const tail = numbers.slice(-3);
+  let debitStr: string | undefined;
+  let creditStr: string | undefined;
+  let amountStr: string | undefined;
+  let balanceStr: string | undefined;
+  const hasThreeColumns = tail.length === 3;
+  const hasTwoColumns = tail.length === 2;
+
+  if (tail.length === 3) {
+    [debitStr, creditStr, balanceStr] = tail;
+  } else if (tail.length === 2) {
+    [debitStr, balanceStr] = tail;
+  } else if (tail.length === 1) {
+    [balanceStr] = tail;
+  }
+
+  const parseNumber = (value?: string) => {
+    if (!value) return 0;
+    const cleaned = value.replace(/,/g, '');
+    return Number(cleaned);
+  };
+
+  const debit = parseNumber(debitStr);
+  const credit = parseNumber(creditStr);
+  const amount = parseNumber(amountStr);
+  const balance = parseNumber(balanceStr);
+
+  let description = line.replace(dateMatch[0], '').trim();
+  description = description.replace(/\s+[\d,]+\.\d{2}(?:\s+[\d,]+\.\d{2}){1,2}\s*$/, '').trim();
+
+  if (!description) return null;
+
+  const cleanedDesc = cleanDescription(description);
+  const merchant = extractMerchant(cleanedDesc);
+
+  let signedAmount = 0;
+  if (hasThreeColumns) {
+    if (credit > 0 && debit <= 0) {
+      signedAmount = Math.abs(credit);
+    } else if (debit > 0 && credit <= 0) {
+      signedAmount = -Math.abs(debit);
+    } else if (credit > 0 && debit > 0) {
+      signedAmount = isIncomeDescription(cleanedDesc) ? Math.abs(credit) : -Math.abs(debit);
+    } else {
+      signedAmount = 0;
+    }
+  } else if (hasTwoColumns && debit > 0 && credit <= 0) {
+    signedAmount = -Math.abs(debit);
+  } else {
+    signedAmount = isIncomeDescription(cleanedDesc) ? Math.abs(amount) : -Math.abs(amount);
+  }
+
+  if (!signedAmount || signedAmount === 0) {
+    if (!balance) return null;
+  }
+
+  const year = new Date().getFullYear();
+  const normalizedDate = normalizeDate(`${dateMatch[1]} ${dateMatch[2]}, ${year}`);
+  const confidenceData = buildStatementConfidence({
+    date: normalizedDate,
+    description: cleanedDesc,
+    amount: signedAmount,
+    rawLineText: line,
+  });
+
+  return {
+    date: normalizedDate,
+    merchant,
+    description: cleanedDesc,
+    amount: signedAmount,
+    balance,
+    category: categorizeTransactionSync(cleanedDesc),
+    confidence: confidenceData.confidence,
+    confidenceFlags: confidenceData.flags,
   };
 }
 
@@ -1019,6 +1173,8 @@ function parseStatementTableLine(line: string): {
   description?: string;
   amount: number;
   category?: string;
+  confidence?: number;
+  confidenceFlags?: string[];
 } | null {
   // Strict table format: Date + Description + Amount + Balance
   const regex = /^(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})\s+(.+?)\s+([\$\+\-]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s+([\$\+\-]?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)$/;
@@ -1031,14 +1187,724 @@ function parseStatementTableLine(line: string): {
 
   const cleanedDesc = cleanDescription(description);
   const merchant = extractMerchant(cleanedDesc);
+  const signedAmount = isIncomeDescription(cleanedDesc)
+    ? Math.abs(amount)
+    : -Math.abs(amount);
+
+  const confidenceData = buildStatementConfidence({
+    date,
+    description: cleanedDesc,
+    amount: signedAmount,
+    rawLineText: line,
+  });
 
   return {
     date,
     merchant,
     description: cleanedDesc,
-    amount: Math.abs(amount),
+    amount: signedAmount,
     category: categorizeTransactionSync(cleanedDesc),
+    confidence: confidenceData.confidence,
+    confidenceFlags: confidenceData.flags,
   };
+}
+
+function parseCibcStatementLines(rawText: string): Array<{
+  date?: string;
+  merchant?: string;
+  description?: string;
+  amount: number;
+  category?: string;
+  raw_line_text?: string;
+  confidence?: number;
+  confidenceFlags?: string[];
+}> {
+  const parseColumnMode = (): Array<{
+    date?: string;
+    merchant?: string;
+    description?: string;
+    amount: number;
+    category?: string;
+    raw_line_text?: string;
+    confidence?: number;
+    confidenceFlags?: string[];
+  }> => {
+    const pageChunks = rawText
+      .split(/Page\s+[0-9I]+\s+of\s+\d+/i)
+      .map(chunk => chunk.trim())
+      .filter(Boolean);
+    if (pageChunks.length === 0) return [];
+    const year = getHeaderYear(rawText) || new Date().getFullYear();
+    const monthRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})$/i;
+    const inlineMonthRegex = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\b/i;
+
+    const normalizeAmountLine = (text: string) => {
+      const trimmed = text.trim();
+      if (!/[A-Za-z]/.test(trimmed)) {
+        return trimmed.replace(/_/g, '.');
+      }
+      // For OCR noise in amount-only lines, convert O/o to 0 and underscores to dots.
+      if (/^[\dOog.,_]+$/.test(trimmed)) {
+        return trimmed
+          .replace(/[oO]/g, '0')
+          .replace(/g/g, '9')
+          .replace(/_/g, '.');
+      }
+      return trimmed;
+    };
+
+    const parseImpliedCents = (raw: string): number | null => {
+      const digits = raw.replace(/[^\d]/g, '');
+      if (digits.length < 3) return null;
+      const value = Number(digits) / 100;
+      return Number.isNaN(value) ? null : value;
+    };
+
+    const extractAmounts = (text: string) => {
+      const normalized = normalizeAmountLine(text);
+      const matches = normalized.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})|\d+\.\d{2}|\d{3,}/g) || [];
+      return matches
+        .map(raw => {
+          if (raw.includes('.') || raw.includes(',')) {
+            const parsed = Number(raw.replace(/,/g, ''));
+            return Number.isNaN(parsed) ? null : parsed;
+          }
+          return parseImpliedCents(raw);
+        })
+        .filter((num): num is number => typeof num === 'number' && !Number.isNaN(num));
+    };
+
+    const isAmountLine = (text: string) => !/[A-Za-z]/.test(text) && extractAmounts(text).length > 0;
+    const deriveMerchant = (desc: string) => {
+      const trimmed = desc.trim();
+      const lower = trimmed.toLowerCase();
+      if (lower.startsWith('e-transfer')) {
+        const withoutPrefix = trimmed.replace(/^E-TRANSFER\s+\[[^\]]+\]\s*/i, '').replace(/^E-TRANSFER\s+/i, '');
+        return (withoutPrefix || trimmed).substring(0, 80);
+      }
+      if (lower.startsWith('retail purchase')) {
+        const withoutPrefix = trimmed.replace(/^RETAIL PURCHASE\s*/i, '');
+        return (withoutPrefix || trimmed).substring(0, 80);
+      }
+      if (lower.startsWith('withdrawal')) {
+        const withoutPrefix = trimmed.replace(/^WITHDRAWAL\s*/i, '');
+        return (withoutPrefix || trimmed).substring(0, 80);
+      }
+      if (lower.startsWith('service charge')) {
+        const withoutPrefix = trimmed.replace(/^SERVICE CHARGE\s*/i, '');
+        return (withoutPrefix || trimmed).substring(0, 80);
+      }
+      return extractMerchant(trimmed);
+    };
+
+    const allResults: Array<{
+      date?: string;
+      merchant?: string;
+      description?: string;
+      amount: number;
+      category?: string;
+      raw_line_text?: string;
+      confidence?: number;
+      confidenceFlags?: string[];
+    }> = [];
+
+    for (const chunk of pageChunks) {
+      const lines = chunk.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      if (lines.length === 0) continue;
+      const withdrawalQueue: number[] = [];
+      const depositQueue: number[] = [];
+      const dateQueue: string[] = [];
+      const descriptionEntries: Array<{ description: string; rawLine: string }> = [];
+      let pendingEntry: { description: string; rawLine: string } | null = null;
+      let sawOpeningBalance = false;
+
+      const pushDate = (month: string, day: string) => {
+        const formatted = `${month} ${day}, ${year}`;
+        if (dateQueue[dateQueue.length - 1] !== formatted) {
+          dateQueue.push(formatted);
+        }
+      };
+
+      for (const line of lines) {
+        if (/to\s+Jan\s+\d{1,2},?\s+\d{4}/i.test(line)) continue;
+        const match = line.match(monthRegex);
+        if (match) {
+          pushDate(match[1], match[2]);
+          continue;
+        }
+        const inlineMatch = line.match(inlineMonthRegex);
+        if (inlineMatch && line.length <= 12) {
+          pushDate(inlineMatch[1], inlineMatch[2]);
+        }
+      }
+
+      const consumeAmountSection = (startIdx: number, stopHeaders: RegExp[]) => {
+        for (let i = startIdx + 1; i < lines.length; i += 1) {
+          const line = lines[i];
+          if (stopHeaders.some(rx => rx.test(line))) {
+            return i;
+          }
+          if (!line || /page\s+\d+/i.test(line)) continue;
+          const normalizedLine = normalizeAmountLine(line);
+          if (isAmountLine(normalizedLine)) {
+            const numbers = extractAmounts(normalizedLine);
+            withdrawalQueue.push(...numbers);
+          }
+        }
+        return lines.length;
+      };
+
+      const consumeDepositSection = (startIdx: number, stopHeaders: RegExp[]) => {
+        for (let i = startIdx + 1; i < lines.length; i += 1) {
+          const line = lines[i];
+          if (stopHeaders.some(rx => rx.test(line))) {
+            return i;
+          }
+          if (!line || /page\s+\d+/i.test(line)) continue;
+          const normalizedLine = normalizeAmountLine(line);
+          if (isAmountLine(normalizedLine)) {
+            const numbers = extractAmounts(normalizedLine);
+            depositQueue.push(...numbers);
+          }
+        }
+        return lines.length;
+      };
+
+      for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i];
+        if (/^Description$/i.test(line)) {
+          for (let j = i + 1; j < lines.length; j += 1) {
+            const descLine = lines[j];
+            if (/Withdrawals\s*\(S\)|Withdrawals\s*\(\$?\)/i.test(descLine)) {
+              i = consumeAmountSection(j, [/Deposits\s*\(S\)|Deposits\s*\(\$?\)/i, /Balance\s*\(S\)|Balance\s*\(\$?\)/i]);
+              break;
+            }
+            if (/Deposits\s*\(S\)|Deposits\s*\(\$?\)/i.test(descLine)) {
+              i = consumeDepositSection(j, [/Balance\s*\(S\)|Balance\s*\(\$?\)/i, /Page\s+\d+/i]);
+              break;
+            }
+            if (/Balance\s*\(S\)|Balance\s*\(\$?\)/i.test(descLine)) break;
+            if (/page\s+\d+/i.test(descLine)) break;
+            if (!descLine || /account number|branch transit|transaction details/i.test(descLine)) continue;
+
+            const isKeyword = /^(E-TRANSFER|RETAIL PURCHASE|WITHDRAWAL|SERVICE CHARGE|BALANCE FORWARD|OPENING BALANCE)/i.test(descLine);
+            if (isKeyword) {
+              pendingEntry = { description: descLine, rawLine: descLine };
+              if (/opening balance/i.test(descLine)) {
+                sawOpeningBalance = true;
+              }
+              if (!/opening balance|balance forward/i.test(descLine)) {
+                descriptionEntries.push({
+                  description: descLine,
+                  rawLine: descLine,
+                });
+              }
+              continue;
+            }
+            if (pendingEntry) {
+              pendingEntry.description = `${pendingEntry.description} ${descLine}`.trim();
+              pendingEntry.rawLine = `${pendingEntry.rawLine} | ${descLine}`;
+              if (descriptionEntries.length > 0) {
+                descriptionEntries[descriptionEntries.length - 1] = {
+                  description: pendingEntry.description,
+                  rawLine: pendingEntry.rawLine,
+                };
+              }
+            }
+          }
+        }
+        if (/Withdrawals\s*\(S\)|Withdrawals\s*\(\$?\)/i.test(line)) {
+          i = consumeAmountSection(i, [/Deposits\s*\(S\)|Deposits\s*\(\$?\)/i, /Balance\s*\(S\)|Balance\s*\(\$?\)/i]);
+        }
+        if (/Deposits\s*\(S\)|Deposits\s*\(\$?\)/i.test(line)) {
+          i = consumeDepositSection(i, [/Balance\s*\(S\)|Balance\s*\(\$?\)/i, /Page\s+\d+/i]);
+        }
+      }
+
+      if (sawOpeningBalance && dateQueue.length > 0) {
+        dateQueue.shift();
+      }
+
+      if (descriptionEntries.length === 0 || (withdrawalQueue.length === 0 && depositQueue.length === 0)) {
+        continue;
+      }
+
+      for (let idx = 0; idx < descriptionEntries.length; idx += 1) {
+        const entry = descriptionEntries[idx];
+        const entryDate = dateQueue[idx] || dateQueue[dateQueue.length - 1] || undefined;
+        const normalizedDate = normalizeDate(entryDate || '') || entryDate;
+        const cleanedDesc = cleanDescription(entry.description);
+        if (!cleanedDesc) continue;
+
+        const isDeposit =
+          /deposit|payment received|refund|direct deposit|salary|payroll/i.test(cleanedDesc) ||
+          (/e-?transfer/i.test(cleanedDesc) && /money mart|payroll|deposit|received/i.test(cleanedDesc));
+        const isWithdrawal = /withdrawal|retail purchase|purchase|service charge|fee|debit|atm|cash/i.test(cleanedDesc);
+        const isEtransfer = /e-?transfer/i.test(cleanedDesc);
+
+        let amountCandidate: number | undefined;
+        if (isDeposit && depositQueue.length > 0) {
+          amountCandidate = depositQueue.shift();
+        } else if (isWithdrawal && withdrawalQueue.length > 0) {
+          amountCandidate = withdrawalQueue.shift();
+        } else if (isEtransfer && withdrawalQueue.length > 0 && depositQueue.length === 0) {
+          amountCandidate = withdrawalQueue.shift();
+        } else if (isEtransfer && depositQueue.length > 0 && withdrawalQueue.length === 0) {
+          amountCandidate = depositQueue.shift();
+        } else if (isEtransfer && withdrawalQueue.length >= depositQueue.length && withdrawalQueue.length > 0) {
+          amountCandidate = withdrawalQueue.shift();
+        } else if (isEtransfer && depositQueue.length > 0) {
+          amountCandidate = depositQueue.shift();
+        } else if (depositQueue.length > 0) {
+          amountCandidate = depositQueue.shift();
+        } else if (withdrawalQueue.length > 0) {
+          amountCandidate = withdrawalQueue.shift();
+        }
+        if (!amountCandidate || amountCandidate === 0) continue;
+
+        const signedAmount = (isDeposit && !isWithdrawal)
+          ? Math.abs(amountCandidate)
+          : (isWithdrawal ? -Math.abs(amountCandidate) : -Math.abs(amountCandidate));
+
+        const merchant = deriveMerchant(cleanedDesc);
+        const confidenceData = buildStatementConfidence({
+          date: normalizedDate || entryDate,
+          description: cleanedDesc,
+          amount: signedAmount,
+          rawLineText: entry.rawLine,
+        });
+        allResults.push({
+          date: normalizedDate || entryDate,
+          merchant,
+          description: cleanedDesc,
+          amount: signedAmount,
+          category: categorizeTransactionSync(cleanedDesc),
+          raw_line_text: entry.rawLine,
+          confidence: confidenceData.confidence,
+          confidenceFlags: [...confidenceData.flags, 'amount_from_columns'],
+        });
+      }
+    }
+
+    return allResults;
+  };
+
+  const columnModeResults = parseColumnMode();
+  if (columnModeResults.length > 0) {
+    return columnModeResults;
+  }
+
+  let preparedText = rawText;
+  const rawLines = rawText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (rawLines.length < 3) {
+    preparedText = rawText.replace(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*\d{1,2}\b/gi, '\n$&');
+  }
+  preparedText = preparedText.replace(/(E-TRANSFER|RETAIL PURCHASE|WITHDRAWAL|SERVICE CHARGE|BALANCE FORWARD)/gi, '\n$1');
+  preparedText = preparedText.replace(/(\d{1,3}(?:,\d{3})*\.\d{2})(?=\d)/g, '$1 ');
+
+  const lines = preparedText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  if (lines.length === 0) return [];
+
+  const year = getHeaderYear(rawText) || new Date().getFullYear();
+  const monthRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})(?=\b|[A-Z])/i;
+  const isHeaderLine = (line: string) =>
+    /transaction details|date\s*description|withdrawals|deposits|balance/i.test(line);
+  const isNoiseLine = (line: string) =>
+    /page\s+\d+\s+of\s+\d+|important:|account summary|contact information|account number|branch transit|cibc account statement/i.test(line);
+  const isBalanceLine = (line: string) =>
+    /opening balance|closing balance|balance forward/i.test(line);
+
+  const openingBalanceMatch = rawText.match(/opening balance[^-\d]*(-?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i);
+  let lastBalance: number | null = openingBalanceMatch
+    ? Number(openingBalanceMatch[1].replace(/,/g, ''))
+    : null;
+
+  const hasLetters = (text: string) => /[A-Za-z]/.test(text);
+  const extractAmounts = (text: string) =>
+    (text.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g) || [])
+      .map(num => Number(num.replace(/,/g, '')))
+      .filter(num => !Number.isNaN(num));
+  const isKeywordLine = (text: string) =>
+    /(E-TRANSFER|RETAIL PURCHASE|WITHDRAWAL|SERVICE CHARGE|CAPPED MONTHLY FEE|FEE|DEBIT|PAYMENT|TRANSFER|DEPOSIT)/i.test(text);
+
+  const results: Array<{
+    date?: string;
+    merchant?: string;
+    description?: string;
+    amount: number;
+    category?: string;
+    raw_line_text?: string;
+    confidence?: number;
+    confidenceFlags?: string[];
+  }> = [];
+
+  let currentDate: string | undefined;
+  let pendingEntry: { description: string; rawLine: string } | null = null;
+  const pendingEntries: Array<{ date?: string; description: string; rawLine: string }> = [];
+
+  const extractColumnAmounts = (text: string, header: RegExp, stopHeaders: RegExp[]): number[] => {
+    const lines = text.split(/\r?\n/).map(line => line.trim());
+    const amounts: number[] = [];
+    let inSection = false;
+    for (const line of lines) {
+      if (header.test(line)) {
+        inSection = true;
+        continue;
+      }
+      if (stopHeaders.some(rx => rx.test(line))) {
+        inSection = false;
+      }
+      if (!inSection) continue;
+      if (!line || /page\s+\d+/i.test(line) || /account number|branch transit|transaction details/i.test(line)) {
+        continue;
+      }
+      const numbers = extractAmounts(line);
+      if (numbers.length === 0) continue;
+      const hasLettersInLine = /[A-Za-z]/.test(line);
+      if (hasLettersInLine) continue;
+      amounts.push(...numbers);
+    }
+    return amounts;
+  };
+
+  const withdrawalsList = extractColumnAmounts(rawText, /Withdrawals\s*\(S\)|Withdrawals\s*\(\$?\)/i, [/Deposits\s*\(S\)|Deposits\s*\(\$?\)/i, /Balance\s*\(S\)|Balance\s*\(\$?\)/i]);
+  const depositsList = extractColumnAmounts(rawText, /Deposits\s*\(S\)|Deposits\s*\(\$?\)/i, [/Balance\s*\(S\)|Balance\s*\(\$?\)/i, /Transaction details|Description\b/i]);
+  const withdrawalQueue = [...withdrawalsList];
+  const depositQueue = [...depositsList];
+  const dateLine = (line: string) => {
+    const match = line.match(monthRegex);
+    if (!match) return null;
+    return {
+      date: `${match[1]} ${match[2]}, ${year}`,
+      rest: line.replace(match[0], '').trim(),
+    };
+  };
+
+  for (const line of lines) {
+    if (isNoiseLine(line) || isHeaderLine(line)) continue;
+
+    const dateData = dateLine(line);
+    if (dateData) {
+      currentDate = dateData.date;
+      if (!dateData.rest) continue;
+    }
+
+    if (!currentDate) continue;
+    if (isBalanceLine(line)) continue;
+
+    const descriptionLine = (dateData?.rest || line).replace(/\s+/g, ' ').trim();
+    if (!descriptionLine) continue;
+
+    const amountsInLine = extractAmounts(descriptionLine);
+    const isAmountOnlyLine = !hasLetters(descriptionLine) && amountsInLine.length > 0;
+
+    if (isAmountOnlyLine) {
+      if (!pendingEntry) continue;
+      const entry = pendingEntry;
+      pendingEntry = null;
+      const amountCandidate = amountsInLine.length >= 3
+        ? (amountsInLine[0] || amountsInLine[1])
+        : amountsInLine[0];
+      const balanceCandidate = amountsInLine.length >= 2 ? amountsInLine[amountsInLine.length - 1] : undefined;
+
+      const isDeposit = /deposit|e-?transfer|transfer|payment|refund/i.test(entry.description);
+      const isWithdrawal = /withdrawal|retail purchase|purchase|service charge|fee|debit|atm|cash/i.test(entry.description);
+      let signedAmount = 0;
+      if (balanceCandidate !== undefined && lastBalance !== null) {
+        const delta = balanceCandidate - lastBalance;
+        if (delta !== 0) {
+          signedAmount = delta > 0 ? Math.abs(delta) : -Math.abs(delta);
+        }
+      }
+      if (!signedAmount) {
+        signedAmount = isDeposit
+          ? Math.abs(amountCandidate)
+          : (isWithdrawal ? -Math.abs(amountCandidate) : (isIncomeDescription(entry.description) ? Math.abs(amountCandidate) : -Math.abs(amountCandidate)));
+      }
+
+      const cleanedDesc = cleanDescription(entry.description);
+      const merchant = extractMerchant(cleanedDesc);
+      const normalizedDate = normalizeDate(currentDate || '') || currentDate;
+      const confidenceData = buildStatementConfidence({
+        date: normalizedDate || currentDate,
+        description: cleanedDesc,
+        amount: signedAmount,
+        rawLineText: `${entry.rawLine} | ${descriptionLine}`,
+      });
+
+      const confidenceFlags = confidenceData.flags ? [...confidenceData.flags] : [];
+      if (balanceCandidate !== undefined) {
+        confidenceFlags.push('amount_from_table');
+        lastBalance = balanceCandidate;
+      }
+
+      results.push({
+        date: normalizedDate || currentDate,
+        merchant,
+        description: cleanedDesc,
+        amount: signedAmount,
+        category: categorizeTransactionSync(cleanedDesc),
+        raw_line_text: `${entry.rawLine} | ${descriptionLine}`,
+        confidence: confidenceData.confidence,
+        confidenceFlags,
+      });
+      continue;
+    }
+
+    if (hasLetters(descriptionLine)) {
+      if (amountsInLine.length > 0 && isKeywordLine(descriptionLine)) {
+        const amountCandidate = amountsInLine.length >= 3
+          ? (amountsInLine[0] || amountsInLine[1])
+          : amountsInLine[0];
+        const balanceCandidate = amountsInLine.length >= 2 ? amountsInLine[amountsInLine.length - 1] : undefined;
+
+        const isDeposit = /deposit|e-?transfer|transfer|payment|refund/i.test(descriptionLine);
+        const isWithdrawal = /withdrawal|retail purchase|purchase|service charge|fee|debit|atm|cash/i.test(descriptionLine);
+        let signedAmount = 0;
+        if (balanceCandidate !== undefined && lastBalance !== null) {
+          const delta = balanceCandidate - lastBalance;
+          if (delta !== 0) {
+            signedAmount = delta > 0 ? Math.abs(delta) : -Math.abs(delta);
+          }
+        }
+        if (!signedAmount) {
+          signedAmount = isDeposit
+            ? Math.abs(amountCandidate)
+            : (isWithdrawal ? -Math.abs(amountCandidate) : (isIncomeDescription(descriptionLine) ? Math.abs(amountCandidate) : -Math.abs(amountCandidate)));
+        }
+
+        const cleanedDesc = cleanDescription(descriptionLine.replace(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g, '').trim());
+        const merchant = extractMerchant(cleanedDesc);
+        const normalizedDate = normalizeDate(currentDate || '') || currentDate;
+        const confidenceData = buildStatementConfidence({
+          date: normalizedDate || currentDate,
+          description: cleanedDesc,
+          amount: signedAmount,
+          rawLineText: descriptionLine,
+        });
+
+        const confidenceFlags = confidenceData.flags ? [...confidenceData.flags] : [];
+        if (balanceCandidate !== undefined) {
+          confidenceFlags.push('amount_from_table');
+          lastBalance = balanceCandidate;
+        }
+
+        results.push({
+          date: normalizedDate || currentDate,
+          merchant,
+          description: cleanedDesc,
+          amount: signedAmount,
+          category: categorizeTransactionSync(cleanedDesc),
+          raw_line_text: descriptionLine,
+          confidence: confidenceData.confidence,
+          confidenceFlags,
+        });
+        pendingEntry = null;
+        continue;
+      }
+
+      if (isKeywordLine(descriptionLine)) {
+        pendingEntry = { description: descriptionLine, rawLine: descriptionLine };
+        pendingEntries.push({ date: currentDate, description: descriptionLine, rawLine: descriptionLine });
+      } else if (pendingEntry) {
+        pendingEntry.description = `${pendingEntry.description} ${descriptionLine}`.trim();
+        pendingEntry.rawLine = `${pendingEntry.rawLine} | ${descriptionLine}`;
+        pendingEntries[pendingEntries.length - 1] = {
+          date: currentDate,
+          description: pendingEntry.description,
+          rawLine: pendingEntry.rawLine,
+        };
+      }
+    }
+  }
+
+  if (pendingEntries.length > 0 && (withdrawalQueue.length > 0 || depositQueue.length > 0)) {
+    for (const entry of pendingEntries) {
+      const normalizedDate = normalizeDate(entry.date || '') || entry.date;
+      const cleanedDesc = cleanDescription(entry.description);
+      if (!cleanedDesc || isBalanceLine(cleanedDesc)) continue;
+
+      const isDeposit = /deposit|e-?transfer|transfer|payment|refund/i.test(cleanedDesc);
+      const isWithdrawal = /withdrawal|retail purchase|purchase|service charge|fee|debit|atm|cash/i.test(cleanedDesc);
+      let amountCandidate: number | undefined;
+      if (isDeposit && depositQueue.length > 0) {
+        amountCandidate = depositQueue.shift();
+      } else if (isWithdrawal && withdrawalQueue.length > 0) {
+        amountCandidate = withdrawalQueue.shift();
+      } else if (depositQueue.length > 0 && withdrawalQueue.length === 0) {
+        amountCandidate = depositQueue.shift();
+      } else if (withdrawalQueue.length > 0 && depositQueue.length === 0) {
+        amountCandidate = withdrawalQueue.shift();
+      }
+      if (!amountCandidate || amountCandidate === 0) continue;
+
+      const signedAmount = isDeposit
+        ? Math.abs(amountCandidate)
+        : (isWithdrawal ? -Math.abs(amountCandidate) : -Math.abs(amountCandidate));
+
+      const merchant = extractMerchant(cleanedDesc);
+      const confidenceData = buildStatementConfidence({
+        date: normalizedDate || entry.date,
+        description: cleanedDesc,
+        amount: signedAmount,
+        rawLineText: entry.rawLine,
+      });
+
+      results.push({
+        date: normalizedDate || entry.date,
+        merchant,
+        description: cleanedDesc,
+        amount: signedAmount,
+        category: categorizeTransactionSync(cleanedDesc),
+        raw_line_text: entry.rawLine,
+        confidence: confidenceData.confidence,
+        confidenceFlags: confidenceData.flags,
+      });
+    }
+  }
+
+  return results;
+}
+
+function normalizeAccountName(name: string): string {
+  return name.replace(/\s+/g, ' ').trim().toUpperCase();
+}
+
+function splitStatementPages(text: string): string[] {
+  if (!text) return [];
+  const markers = /(?:\n|^)\s*Page\s*\d+\s*(?:of\s*\d+)?\s*(?:\n|$)/ig;
+  if (!markers.test(text)) {
+    return [text];
+  }
+  return text.split(markers).map(part => part.trim()).filter(Boolean);
+}
+
+function pageHasTransactionSignals(page: string): boolean {
+  const lines = page.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return false;
+  const joined = lines.join(' ');
+  const hasDate = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b|\d{1,2}[\/\-]\d{1,2}\b/i.test(joined);
+  const hasAmounts = /\d{1,3}(?:,\d{3})*\.\d{2}/.test(joined);
+  const hasColumns = /amounts?\s*deducted|amounts?\s*added|balance\s*\(\$?\)/i.test(joined);
+  const hasTxnKeywords = /debit\s+card\s+purchase|pre-?authorized|transaction\s+date|posting\s+date|payments?\s+credits|account\s+activity/i.test(joined);
+  return (hasDate && hasAmounts) && (hasColumns || hasTxnKeywords);
+}
+
+function filterStatementPages(text: string): string {
+  const pages = splitStatementPages(text);
+  if (pages.length <= 1) return text;
+  const signalPages = pages.filter(pageHasTransactionSignals);
+  if (signalPages.length === 0) return text;
+  return signalPages.join('\n');
+}
+
+function adjustBalanceWithLast(balance: number, lastBalance: number): number {
+  if (balance < 1000 && lastBalance >= 1000) {
+    const base = Math.floor(lastBalance / 1000) * 1000;
+    const candidate = base + balance;
+    if (Math.abs(lastBalance - candidate) < Math.abs(lastBalance - balance)) {
+      return candidate;
+    }
+  }
+  return balance;
+}
+
+function getStatementAccountNames(lines: string[]): Array<{ name: string; index: number }> {
+  const accountHeaderRegex = /([A-Z][A-Z]+(?:\s+[A-Z][A-Z]+)+)\s*#\s*\d{3,6}\b/;
+  const names: Array<{ name: string; index: number }> = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const match = line.match(accountHeaderRegex);
+    if (match) {
+      names.push({ name: normalizeAccountName(match[1]), index: i });
+    }
+  }
+  return names;
+}
+
+function detectPrimaryStatementName(lines: string[], accountNames: Set<string>): string | null {
+  const headerScan = Math.min(lines.length, 60);
+  for (let i = 0; i < headerScan; i += 1) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (/statement|account|capital|summary|payment|balance/i.test(line)) continue;
+    if (/^[A-Z][A-Z\s]{3,}$/.test(line) && line.split(/\s+/).length >= 2) {
+      const normalized = normalizeAccountName(line);
+      if (accountNames.size === 0 || accountNames.has(normalized)) {
+        return normalized;
+      }
+    }
+  }
+  return null;
+}
+
+function filterStatementLinesForPrimaryAccount(lines: string[], includeAllAccounts?: boolean): string[] {
+  if (includeAllAccounts) {
+    return lines;
+  }
+  const accountHeaders = getStatementAccountNames(lines);
+  if (accountHeaders.length === 0) {
+    return lines;
+  }
+
+  const accountNames = new Set(accountHeaders.map(h => h.name));
+  const primaryName =
+    detectPrimaryStatementName(lines, accountNames) || accountHeaders[0].name;
+
+  let currentName: string | null = null;
+  const filtered: string[] = [];
+  for (const line of lines) {
+    const headerMatch = line.match(/([A-Z][A-Z]+(?:\s+[A-Z][A-Z]+)+)\s*#\s*\d{3,6}\b/);
+    if (headerMatch) {
+      currentName = normalizeAccountName(headerMatch[1]);
+    }
+    if (!currentName || currentName === primaryName) {
+      filtered.push(line);
+    }
+  }
+
+  return filtered;
+}
+
+function isIncomeDescription(description: string): boolean {
+  const text = description.toLowerCase();
+  return (
+    /direct deposit|deposit|payroll|refund|reversal|interest|credit\b(?! card)|transfer from|e-?transfer.*(received|deposit)|payment received/.test(text)
+  );
+}
+
+function buildStatementConfidence(params: {
+  date?: string;
+  description?: string;
+  amount?: number;
+  rawLineText?: string;
+}): { confidence: number; flags: string[] } {
+  let confidence = 0.95;
+  const flags: string[] = [];
+
+  if (!params.date) {
+    confidence -= 0.25;
+    flags.push('missing_date');
+  }
+  if (!params.description || params.description.trim().length < 3) {
+    confidence -= 0.25;
+    flags.push('missing_description');
+  }
+  if (!params.amount || params.amount === 0) {
+    confidence -= 0.4;
+    flags.push('missing_amount');
+  }
+  if (params.rawLineText && /[�?]/.test(params.rawLineText)) {
+    confidence -= 0.1;
+    flags.push('ocr_noise');
+  }
+  if (params.description && /page\s+\d+/i.test(params.description)) {
+    confidence -= 0.2;
+    flags.push('likely_header');
+  }
+
+  confidence = Math.max(0.1, Math.min(0.99, confidence));
+  return { confidence, flags };
 }
 
 function normalizeShortDate(dateStr: string): string | undefined {
@@ -1057,6 +1923,7 @@ function parseCreditCardStatementLine(line: string): {
   description?: string;
   amount: number;
   category?: string;
+  isCredit?: boolean;
 } | null {
   const withPostDate = /^(\d{1,2}[\/\-]\d{1,2})\s+(\d{1,2}[\/\-]\d{1,2})\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))\s*(CR|CREDIT)?$/i;
   const singleDate = /^(\d{1,2}[\/\-]\d{1,2})\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))\s*(CR|CREDIT)?$/i;
@@ -1087,7 +1954,17 @@ function parseCreditCardStatementLine(line: string): {
   const cleanedDesc = cleanDescription(description);
   const merchant = extractMerchant(cleanedDesc);
   const normalizedDate = normalizeShortDate(dateStr || '') || normalizeDate(dateStr || '');
-  const signedAmount = creditFlag ? -Math.abs(amount) : Math.abs(amount);
+  const isCredit =
+    Boolean(creditFlag) || /payment|credit|refund|reversal/i.test(cleanedDesc);
+  const signedAmount = isCredit ? Math.abs(amount) : -Math.abs(amount);
+
+  const confidenceData = buildStatementConfidence({
+    date: normalizedDate || dateStr,
+    description: cleanedDesc,
+    amount: signedAmount,
+    rawLineText: line,
+  });
+  const creditFlags = isCredit ? ['credit_card_credit'] : [];
 
   return {
     date: normalizedDate || dateStr,
@@ -1095,6 +1972,9 @@ function parseCreditCardStatementLine(line: string): {
     description: cleanedDesc,
     amount: signedAmount,
     category: categorizeTransactionSync(cleanedDesc),
+    isCredit,
+    confidence: confidenceData.confidence,
+    confidenceFlags: [...confidenceData.flags, ...creditFlags],
   };
 }
 
@@ -1106,13 +1986,21 @@ function parseCreditCardStatementLine(line: string): {
  * 
  * If primary parser returns 0 transactions, AI fallback parser is used automatically.
  */
-export function normalizeBankStatement(rawText: string): Array<{
+export function normalizeBankStatement(
+  rawText: string,
+  options: { includeAllAccounts?: boolean } = {}
+): Array<{
   date?: string;
   merchant?: string;
   description?: string;
   amount: number;
   category?: string;
   raw_line_text?: string;
+  confidence?: number;
+  confidenceFlags?: string[];
+  accountName?: string;
+  statementType?: 'credit_card' | 'bank';
+  statementCredit?: boolean;
 }> {
   const transactions: Array<{
     date?: string;
@@ -1122,18 +2010,37 @@ export function normalizeBankStatement(rawText: string): Array<{
     category?: string;
     raw_line_text?: string;
   }> = [];
+  let lastBalance: number | null = null;
   
-  const lines = rawText.split('\n').map(line => line.trim()).filter(line => line.length > 5);
-  const isCreditCardStatement = /credit card|cardmember|payment due|minimum payment|new balance|account ending|statement period/i.test(rawText);
+  const allLines = rawText.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+  const filteredLines = filterStatementLinesForPrimaryAccount(allLines, options.includeAllAccounts);
+  const filteredText = filteredLines.join('\n');
+  const lines = filteredLines.filter(line => line.length > 5);
+  const isCreditCardStatement = /credit card|cardmember|payment due|minimum payment|new balance|account ending|statement period/i.test(filteredText);
+  const statementType: 'credit_card' | 'bank' = isCreditCardStatement ? 'credit_card' : 'bank';
+  const hasColumnLayout = /amounts?\s*deducted|amounts?\s*added|balance\s*\(\$?\)/i.test(filteredText);
+  const isCibcStatement = /CIBC\s+Account\s+Statement/i.test(filteredText);
+
+  if (isCibcStatement) {
+    const cibcTransactions = parseCibcStatementLines(rawText);
+    if (cibcTransactions.length > 0) {
+      const uniqueTransactions = removeDuplicates(cibcTransactions);
+      return uniqueTransactions.sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateA - dateB;
+      });
+    }
+  }
   
   // First, try BMO Everyday Banking format (multi-line transactions)
   // Check if this looks like a BMO statement
-  const isBmoStatement = rawText.includes('Everyday Banking') || 
-                         rawText.includes('For the period ending') ||
-                         /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i.test(rawText);
+  const isBmoStatement = filteredText.includes('Everyday Banking') || 
+                         filteredText.includes('For the period ending') ||
+                         /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/i.test(filteredText);
   
-  if (isBmoStatement) {
-    const bmoTransactions = parseBmoEverydayStatement(rawText);
+  if (isBmoStatement && !hasColumnLayout) {
+    const bmoTransactions = parseBmoEverydayStatement(filteredText);
     if (bmoTransactions.length > 0) {
       const uniqueTransactions = removeDuplicates(bmoTransactions);
       return uniqueTransactions.sort((a, b) => {
@@ -1143,10 +2050,86 @@ export function normalizeBankStatement(rawText: string): Array<{
       });
     }
   }
-  
+
   // Second, try Canadian bank statement format (single-line)
   for (const line of lines) {
     if (isSummaryLine(line)) continue;
+
+    if (lastBalance !== null && /DebitCardPurchase|Pre-Authorized|Pre-authorized|DirectDeposit|Payment/i.test(line)) {
+      const dateMatch = line.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s*(\d{1,2})\b/i);
+      const numbers = line.match(/\d{1,3}(?:,\d{3})*(?:\.\d{2})/g);
+      if (dateMatch && numbers && numbers.length === 1) {
+        let balance = Number(numbers[0].replace(/,/g, ''));
+        balance = adjustBalanceWithLast(balance, lastBalance);
+        const delta = lastBalance - balance;
+        if (delta !== 0) {
+          const year = new Date().getFullYear();
+          const normalizedDate = normalizeDate(`${dateMatch[1]} ${dateMatch[2]}, ${year}`);
+          const description = line.replace(dateMatch[0], '').trim().replace(/\s+[\d,]+\.\d{2}\s*$/, '').trim();
+          const cleanedDesc = cleanDescription(description);
+          const merchant = extractMerchant(cleanedDesc);
+          const amount = delta > 0 ? -Math.abs(delta) : Math.abs(delta);
+          const confidenceData = buildStatementConfidence({
+            date: normalizedDate,
+            description: cleanedDesc,
+            amount,
+            rawLineText: line,
+          });
+          transactions.push({
+            date: normalizedDate,
+            merchant,
+            description: cleanedDesc,
+            amount,
+            category: categorizeTransactionSync(cleanedDesc),
+            raw_line_text: line,
+            confidence: confidenceData.confidence,
+            confidenceFlags: [...confidenceData.flags, 'amount_from_balance'],
+          });
+          lastBalance = balance;
+          continue;
+        }
+      }
+    }
+
+    const columnTx = parseBmoColumnStatementLine(line);
+    if (columnTx) {
+      let amount = columnTx.amount;
+      let confidence = columnTx.confidence;
+      let confidenceFlags = columnTx.confidenceFlags ? [...columnTx.confidenceFlags] : [];
+      let balance = columnTx.balance;
+
+      if (balance !== undefined && lastBalance !== null) {
+        balance = adjustBalanceWithLast(balance, lastBalance);
+      }
+
+      if ((!amount || amount === 0) && balance !== undefined && lastBalance !== null) {
+        const delta = lastBalance - balance;
+        if (delta !== 0) {
+          amount = delta > 0 ? -Math.abs(delta) : Math.abs(delta);
+          confidence = Math.max(0.2, (confidence ?? 0.6) - 0.2);
+          confidenceFlags.push('amount_from_balance');
+        }
+      }
+
+      if (balance !== undefined && balance > 0) {
+        lastBalance = balance;
+      }
+
+      if (!amount || amount === 0) {
+        continue;
+      }
+      transactions.push({
+        date: columnTx.date,
+        merchant: columnTx.merchant,
+        description: columnTx.description,
+        amount,
+        category: categorizeTransactionSync(columnTx.description || ''),
+        raw_line_text: line,
+        confidence,
+        confidenceFlags,
+      });
+      continue;
+    }
 
     if (isCreditCardStatement) {
       const ccTx = parseCreditCardStatementLine(line);
@@ -1155,9 +2138,13 @@ export function normalizeBankStatement(rawText: string): Array<{
           date: ccTx.date,
           merchant: ccTx.merchant,
           description: ccTx.description,
-          amount: Math.abs(ccTx.amount),
+          amount: ccTx.amount,
           category: categorizeTransactionSync(ccTx.description || ''),
           raw_line_text: line,
+          confidence: ccTx.confidence,
+          confidenceFlags: ccTx.confidenceFlags,
+          statementType,
+          statementCredit: ccTx.isCredit,
         });
         continue;
       }
@@ -1169,9 +2156,11 @@ export function normalizeBankStatement(rawText: string): Array<{
         date: strictTableTx.date,
         merchant: strictTableTx.merchant,
         description: strictTableTx.description,
-        amount: Math.abs(strictTableTx.amount),
+        amount: strictTableTx.amount,
         category: categorizeTransactionSync(strictTableTx.description || ''),
         raw_line_text: line,
+        confidence: strictTableTx.confidence,
+        confidenceFlags: strictTableTx.confidenceFlags,
       });
       continue;
     }
@@ -1182,9 +2171,11 @@ export function normalizeBankStatement(rawText: string): Array<{
         date: canadianTx.date,
         merchant: canadianTx.merchant,
         description: canadianTx.description,
-        amount: Math.abs(canadianTx.amount), // Always positive for expenses
+        amount: canadianTx.amount,
         category: categorizeTransactionSync(canadianTx.description || ''), // Sync fallback - will be re-categorized with learning later
-        raw_line_text: line
+        raw_line_text: line,
+        confidence: canadianTx.confidence,
+        confidenceFlags: canadianTx.confidenceFlags,
       });
       continue; // Skip to next line if Canadian format matched
     }
@@ -1192,7 +2183,11 @@ export function normalizeBankStatement(rawText: string): Array<{
   
   // If we found Canadian transactions, return them (don't try other patterns)
   if (transactions.length > 0) {
-    const uniqueTransactions = removeDuplicates(transactions);
+    const uniqueTransactions = removeDuplicates(transactions).map(tx => ({
+      ...tx,
+      statementType: tx.statementType ?? statementType,
+      statementCredit: tx.statementCredit ?? (statementType === 'credit_card' ? false : undefined),
+    }));
     return uniqueTransactions.sort((a, b) => {
       const dateA = a.date ? new Date(a.date).getTime() : 0;
       const dateB = b.date ? new Date(b.date).getTime() : 0;

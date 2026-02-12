@@ -22,6 +22,9 @@ type NormalizationResult = {
   importId?: string;
 };
 
+const AUTO_PURGE_SOURCE = process.env.OCR_AUTO_PURGE_SOURCE === '1';
+const AUTO_PURGE_TEXT = process.env.OCR_AUTO_PURGE_TEXT === '1';
+
 function collapseWhitespace(input: string): string {
   return input.replace(/\s+/g, ' ').trim();
 }
@@ -71,7 +74,8 @@ import { visionStatementParser } from './_shared/visionStatementParser.js';
 async function processNormalizationInBackground(
   userId: string,
   documentId: string,
-  importRunId?: string
+  importRunId?: string,
+  options?: { includeAllAccounts?: boolean }
 ): Promise<NormalizationResult> {
   const sb = admin();
   const userIdText = String(userId);
@@ -193,6 +197,7 @@ async function processNormalizationInBackground(
     if (hasOcrText) {
       normalizedTransactions = await normalizeOcrResult(doc.ocr_text, userIdText, openaiClient, {
         filename: doc.original_name || '',
+        includeAllAccounts: options?.includeAllAccounts,
       });
     }
 
@@ -320,6 +325,14 @@ async function processNormalizationInBackground(
         console.log('[Byte OCR] Staged invoice transaction', { hash, docId: documentId });
       }
 
+      const rawAmount = Number(tx.amount || 0);
+      const normalizedAmount = Math.abs(rawAmount);
+      const isCreditCardStatement = (tx as any).statementType === 'credit_card';
+      const isCreditCardCredit = Boolean((tx as any).statementCredit);
+      const type = tx.kind === 'bank'
+        ? (isCreditCardStatement && isCreditCardCredit ? 'expense' : (rawAmount < 0 ? 'expense' : 'income'))
+        : 'expense';
+
       return {
         import_id: importRecord.id,
         user_id: userIdText,
@@ -328,11 +341,13 @@ async function processNormalizationInBackground(
           posted_at: tx.date ? new Date(tx.date).toISOString() : new Date().toISOString(),
           merchant: tx.merchant,
           description: description,
-          amount: tx.amount || 0,
-          type: tx.amount && tx.amount < 0 ? 'income' : 'expense',
+          amount: normalizedAmount,
+          type,
           currency: tx.currency || 'CAD',
           category: null,
-          confidence: null,
+          confidence: (tx as any).confidence ?? null,
+          confidence_flags: (tx as any).confidenceFlags ?? null,
+          account_name: (tx as any).accountName ?? null,
           category_source: null,
           importRunId: resolvedImportRunId,
           documentId,
@@ -406,6 +421,55 @@ async function processNormalizationInBackground(
       })
       .eq('id', importRecord.id);
 
+    // 7. Optional: purge source document + OCR text after normalization
+    if (documentId && (AUTO_PURGE_SOURCE || AUTO_PURGE_TEXT)) {
+      try {
+        const { data: docRow } = await sb
+          .from('user_documents')
+          .select('id, storage_path')
+          .eq('id', documentId)
+          .maybeSingle();
+        const storagePath = docRow?.storage_path || null;
+
+        if (AUTO_PURGE_SOURCE && storagePath) {
+          await sb.storage.from('docs').remove([storagePath]).catch(() => {
+            // ignore storage errors
+          });
+          await sb.storage.from('docs').remove([`${storagePath}.ocr.json`]).catch(() => {
+            // ignore missing OCR json
+          });
+          await sb.storage.from('docs').remove([`${storagePath}.txt`]).catch(() => {
+            // ignore missing OCR txt
+          });
+        }
+
+        const updatePayload: Record<string, any> = {
+          updated_at: new Date().toISOString(),
+        };
+        if (AUTO_PURGE_SOURCE) {
+          updatePayload.storage_path = null;
+          updatePayload.status = 'purged';
+        }
+        if (AUTO_PURGE_TEXT) {
+          updatePayload.ocr_text = null;
+          updatePayload.redacted_text = null;
+          updatePayload.redaction_summary = null;
+          updatePayload.ocr_engine = null;
+          updatePayload.ocr_completed_at = null;
+        }
+
+        await sb
+          .from('user_documents')
+          .update(updatePayload)
+          .eq('id', documentId);
+      } catch (err: any) {
+        console.warn('[normalize-transactions] Auto purge skipped', {
+          documentId,
+          error: err?.message || String(err),
+        });
+      }
+    }
+
     console.log(`[normalize-transactions] Successfully normalized ${stagingRows.length} transactions for import ${importRecord.id}`);
     return { ok: true, stagedCount: stagingRows.length, importId: importRecord.id };
   } catch (error: any) {
@@ -449,7 +513,7 @@ export const handler: Handler = async (event, context) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { userId, documentId, importRunId } = body;
+    const { userId, documentId, importRunId, includeAllAccounts } = body;
 
     if (!userId || !documentId) {
       return {
@@ -459,7 +523,9 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    const result = await processNormalizationInBackground(userId, documentId, importRunId);
+    const result = await processNormalizationInBackground(userId, documentId, importRunId, {
+      includeAllAccounts: Boolean(includeAllAccounts),
+    });
     if (!result.ok && result.error?.code === 'staging_upsert_failed') {
       return {
         statusCode: 500,
