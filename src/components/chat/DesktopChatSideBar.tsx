@@ -347,14 +347,14 @@ export default function DesktopChatSideBar({
         data-floating-rail="true"
         data-ai-rail="true"
         className={cn(
-          'pointer-events-auto fixed -translate-y-1/2 z-[999] hidden sm:flex flex-col',
+          'pointer-events-auto fixed -translate-y-1/2 z-[60] hidden sm:flex flex-col',
           // Portal renders to document.body/#portal-root, immune to overflow-hidden and stacking contexts
           // right position uses CSS variable for rail gap
           // z-[60] ensures rail is above main content but below Prime Chat panel (z-[80])
           // data-floating-rail provides stable selector for debugging/verification
           // Changed from md:flex to sm:flex so rail shows when DevTools is docked (>=640px)
-          // Hide rail when chat is open to prevent overlap
-          isChatOpen && 'opacity-0 pointer-events-none translate-x-4',
+          // Keep rail visible while chat is open and fully crisp.
+          isChatOpen && 'opacity-100 pointer-events-auto translate-x-0',
           // Visual dimming when mini workspace is active
           activeMiniWorkspace && !isChatOpen && 'opacity-50 pointer-events-auto translate-x-0 transition-all duration-250',
           // When right panel is open: de-emphasize but keep clickable

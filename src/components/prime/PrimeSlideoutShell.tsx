@@ -236,9 +236,9 @@ export function PrimeSlideoutShell({
       <motion.aside
         ref={shellRef}
         data-prime-slideout-shell="true"
-        initial={{ opacity: 0, transform: "translate3d(110%, 0, 0)" }}
-        animate={{ opacity: 1, transform: "translate3d(0, 0, 0)" }}
-        exit={{ opacity: 0, transform: "translate3d(110%, 0, 0)" }}
+        initial={{ opacity: 0, x: 620 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 620 }}
         transition={
           prefersReducedMotion
             ? { duration: 0 }

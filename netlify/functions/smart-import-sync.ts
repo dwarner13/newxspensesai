@@ -443,6 +443,14 @@ export const handler: Handler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}');
     const { userId, docIds, includeAllAccounts } = body;
+    const waitForOcrMsRaw = Number(body?.waitForOcrMs);
+    const pollForOcrMsRaw = Number(body?.pollForOcrMs);
+    const waitForOcrMs = Number.isFinite(waitForOcrMsRaw)
+      ? Math.max(0, Math.min(30000, waitForOcrMsRaw))
+      : 15000;
+    const pollForOcrMs = Number.isFinite(pollForOcrMsRaw)
+      ? Math.max(100, Math.min(2000, pollForOcrMsRaw))
+      : 500;
 
     if (!userId || !docIds || !Array.isArray(docIds) || docIds.length === 0) {
       return {
@@ -474,21 +482,52 @@ export const handler: Handler = async (event) => {
       if (!importRecord) {
         // Import doesn't exist yet - trigger normalization which will create it
         console.log('[smart-import-sync] Import not found, triggering normalization for docId:', docId);
-        const waitResult = await waitForOcrText(sb, docId, 15000, 500);
+        const waitResult = await waitForOcrText(sb, docId, waitForOcrMs, pollForOcrMs);
         if (!waitResult.ok) {
+          let docStatus = 'ocr_processing';
+          let ocrEngineUsed: string | null = null;
+          try {
+            const { data: pendingDoc } = await sb
+              .from('user_documents')
+              .select('status, ocr_engine')
+              .eq('id', docId)
+              .eq('user_id', userId)
+              .maybeSingle();
+            docStatus = pendingDoc?.status || docStatus;
+            ocrEngineUsed = pendingDoc?.ocr_engine || null;
+          } catch {
+            // Best effort only; do not fail sync response for debug metadata.
+          }
           console.log('[smart-import-sync] Skipping normalize; OCR not ready', { docId });
+          const processingBody: Record<string, any> = {
+            ok: true,
+            processing: true,
+            reason: 'ocr_not_ready',
+            docId,
+            docIds,
+            importIds: [],
+            transactionCount: 0,
+          };
+          if (OCR_DEBUG_ENABLED) {
+            processingBody.debug = {
+              items: [
+                {
+                  docId,
+                  importId: undefined,
+                  rawTextPreview: '',
+                  rawTextLength: 0,
+                  parsedTransactions: [],
+                  parseWarnings: ['ocr_not_ready', `doc_status:${docStatus}`],
+                  parseError: null,
+                  ocrEngineUsed,
+                },
+              ],
+            };
+          }
           return {
             statusCode: 200,
             headers,
-            body: JSON.stringify({
-              ok: true,
-              processing: true,
-              reason: 'ocr_not_ready',
-              docId,
-              docIds,
-              importIds: [],
-              transactionCount: 0,
-            }),
+            body: JSON.stringify(processingBody),
           };
         }
         const normalized = await ensureNormalized(sb, docId, userId, netlifyUrl);

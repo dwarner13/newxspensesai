@@ -10,6 +10,28 @@ const headers = {
 
 const GENERIC_SUMMARY = 'Your categorized results and insights are available.';
 
+function extractVendorForSummary(dataJson: any): string {
+  return String(
+    dataJson?.description ||
+    dataJson?.merchant ||
+    dataJson?.vendor ||
+    dataJson?.payee ||
+    dataJson?.memo ||
+    dataJson?.name ||
+    dataJson?.details ||
+    'Unknown vendor'
+  ).trim() || 'Unknown vendor';
+}
+
+function normalizeVendorForSummary(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[0-9]{4,}/g, '')
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function buildFallbackSummary(docData: any): string | null {
   if (!docData) return null;
   const extracted = docData.extracted_data || null;
@@ -109,7 +131,7 @@ export const handler: Handler = async (event) => {
 
     const { data: stagingTransactions } = await sb
       .from('transactions_staging')
-      .select('id, data_json')
+      .select('id, data_json, tag_category, tag_status, tag_confidence, tag_rule_source')
       .eq('import_id', importId);
 
     let transactions = stagingTransactions || [];
@@ -123,14 +145,14 @@ export const handler: Handler = async (event) => {
     if (!transactions.length && importData.document_id) {
       const { data: stagedByDoc } = await sb
         .from('transactions_staging')
-        .select('id, data_json')
+        .select('id, data_json, tag_category, tag_status, tag_confidence, tag_rule_source')
         .contains('data_json', { documentId: importData.document_id });
       transactions = stagedByDoc || [];
     }
     if (!transactions.length && importData.document_id) {
       const { data: stagedByDocEq } = await sb
         .from('transactions_staging')
-        .select('id, data_json')
+        .select('id, data_json, tag_category, tag_status, tag_confidence, tag_rule_source')
         .eq('data_json->>documentId', importData.document_id);
       transactions = stagedByDocEq || [];
     }
@@ -159,7 +181,7 @@ export const handler: Handler = async (event) => {
       if (latestImport?.id && latestImport.id !== importId) {
         const { data: stagedByLatest } = await sb
           .from('transactions_staging')
-          .select('id, data_json')
+          .select('id, data_json, tag_category, tag_status, tag_confidence, tag_rule_source')
           .eq('import_id', latestImport.id);
         transactions = stagedByLatest || [];
       }
@@ -185,14 +207,40 @@ export const handler: Handler = async (event) => {
     }
 
     const categoryTotals = new Map<string, { amount: number; count: number }>();
+    const needsReviewVendors = new Map<string, { vendorLabel: string; count: number }>();
+    let needsReviewCount = 0;
+    let vendorMemoryHits = 0;
+    let aiInferredCount = 0;
     transactions.forEach((tx: any) => {
-      const category = tx.data_json?.category || 'Uncategorized';
+      const tagCategory = tx.tag_category ?? null;
+      const tagStatus = tx.tag_status ?? 'untagged';
+      const tagConfidence = Number(tx.tag_confidence ?? 0) || 0;
+      const tagRuleSource = String(tx.tag_rule_source ?? '');
+      const category = tagCategory ?? tx.data_json?.category ?? 'Uncategorized';
       const amount = Math.abs(Number(tx.data_json?.amount || 0));
       const existing = categoryTotals.get(category) || { amount: 0, count: 0 };
       categoryTotals.set(category, {
         amount: existing.amount + amount,
         count: existing.count + 1,
       });
+      if (tagStatus === 'needs_review') {
+        needsReviewCount += 1;
+        const vendorLabel = extractVendorForSummary(tx.data_json);
+        const vendorKey = normalizeVendorForSummary(vendorLabel) || 'unknown vendor';
+        const existingVendor = needsReviewVendors.get(vendorKey) || { vendorLabel, count: 0 };
+        needsReviewVendors.set(vendorKey, {
+          vendorLabel: existingVendor.vendorLabel,
+          count: existingVendor.count + 1,
+        });
+      }
+      if (tagRuleSource === 'vendor_memory') {
+        vendorMemoryHits += 1;
+      } else if (tagRuleSource === 'ai') {
+        aiInferredCount += 1;
+      }
+
+      // Defensive read to avoid crashes when tag confidence is missing.
+      void tagConfidence;
     });
 
     const topCategories = Array.from(categoryTotals.entries())
@@ -204,6 +252,23 @@ export const handler: Handler = async (event) => {
     insights.push(`${transactionCount} transaction${transactionCount !== 1 ? 's' : ''} processed`);
     if (topCategories.length > 0) {
       insights.push(`Top category: ${topCategories[0]}`);
+    }
+    if (needsReviewCount > 0) {
+      insights.push(`${needsReviewCount} transaction${needsReviewCount !== 1 ? 's' : ''} need review`);
+      insights.push(`You have ${needsReviewCount} transactions that need review. Once confirmed, I will remember these vendors automatically.`);
+      const topNeedsReviewVendors = Array.from(needsReviewVendors.values())
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5)
+        .map((v) => `${v.vendorLabel} (${v.count})`);
+      if (topNeedsReviewVendors.length > 0) {
+        insights.push(`Top vendors needing review: ${topNeedsReviewVendors.join(', ')}`);
+      }
+    }
+    if (vendorMemoryHits > 0) {
+      insights.push('I recognized several vendors from your history to improve accuracy.');
+    }
+    if (aiInferredCount > 0) {
+      insights.push('Some categories were AI-inferred and may benefit from confirmation.');
     }
 
     const recapParts: string[] = [];

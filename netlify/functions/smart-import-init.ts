@@ -92,6 +92,22 @@ function hasFileReference(doc: ExistingDoc): boolean {
 }
 
 function safeToSkipUpload(doc: ExistingDoc, ocrJobStatus: string | null): { safe: boolean; reason: string } {
+  const hasOcrText = typeof doc.ocr_text === 'string' && doc.ocr_text.trim().length > 0;
+  const updatedAtMs = Date.parse(String(doc?.updated_at || ''));
+  const ageMs = Number.isFinite(updatedAtMs) ? Date.now() - updatedAtMs : Number.POSITIVE_INFINITY;
+  const OCR_STALE_MS = 2 * 60 * 1000;
+  const isStaleProcessingWithoutText =
+    doc?.status === 'ocr_processing' &&
+    !hasOcrText &&
+    ageMs > OCR_STALE_MS &&
+    ocrJobStatus !== 'done';
+
+  // If a reused document is stuck in OCR for too long with no text,
+  // force a fresh upload/finalize path so OCR can be re-triggered.
+  if (isStaleProcessingWithoutText) {
+    return { safe: false, reason: 'stale_ocr_processing_without_text' };
+  }
+
   const hasFileRef = hasFileReference(doc);
   if (hasFileRef) {
     return { safe: true, reason: 'has_file_ref' };

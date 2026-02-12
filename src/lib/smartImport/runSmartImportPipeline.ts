@@ -101,7 +101,14 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
   input.onProgress?.(15);
 
   const skipDecision = safeToSkipUpload(init);
-  if (skipDecision.safe) {
+  const forceRerunForPendingOcr =
+    init?.status === 'reused' &&
+    init?.processingStatus === 'ocr_processing' &&
+    init?.ocrJobStatus !== 'running' &&
+    init?.ocrJobStatus !== 'done' &&
+    !init?.alreadyProcessed;
+
+  if (skipDecision.safe && !forceRerunForPendingOcr) {
     logReuseDecision('REUSED_DOC_SKIP_UPLOAD', {
       docId,
       reason: skipDecision.reason,
@@ -123,6 +130,16 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
       transactionCount: init?.transactionCount ?? init?.normalizedTransactionCount ?? init?.stats?.transactionCount,
     };
   }
+  if (forceRerunForPendingOcr) {
+    logReuseDecision('REUSED_DOC_NOT_SAFE_UPLOAD_CONTINUES', {
+      docId,
+      reason: 'pending_ocr_without_active_job',
+      processingStatus: init?.processingStatus || null,
+      ocrJobStatus: init?.ocrJobStatus || null,
+      hasFileRef: Boolean(init?.hasFileRef),
+      hasExtractedData: Boolean(init?.hasExtractedData),
+    });
+  }
   if (init?.status === 'reused') {
     logReuseDecision('REUSED_DOC_NOT_SAFE_UPLOAD_CONTINUES', {
       docId,
@@ -133,10 +150,11 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
     });
   }
 
-  if (!init.uploadUrl) {
+  if (init.uploadUrl) {
+    await putBytesToSignedUrl(input, init.uploadUrl);
+  } else if (!(init?.status === 'reused' && init?.hasFileRef)) {
     throw new Error('Init did not return uploadUrl');
   }
-  await putBytesToSignedUrl(input, init.uploadUrl);
   input.onProgress?.(70);
 
   const finalizeRes = await fetch('/.netlify/functions/smart-import-finalize', {
@@ -156,9 +174,10 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
   const finalized = await finalizeRes.json();
   const ocrPollStartedAt = Date.now();
   let bestProgress = 72;
+  let reachedTerminalOcrState = false;
 
   // Keep frontend deterministic: poll OCR status for image/PDF-like flow.
-  const pollDeadline = Date.now() + 120000;
+  const pollDeadline = Date.now() + 45000;
   while (Date.now() < pollDeadline) {
     const statusRes = await fetch('/.netlify/functions/ocr-job-status', {
       method: 'POST',
@@ -186,6 +205,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
         input.onProgress?.(bestProgress);
       }
       if (item?.status === 'done' || item?.status === 'error') {
+        reachedTerminalOcrState = true;
         break;
       }
     } else {
@@ -204,7 +224,13 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
       'Content-Type': 'application/json',
       ...(input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {}),
     },
-    body: JSON.stringify({ userId: input.userId, docIds: [docId] }),
+    body: JSON.stringify({
+      userId: input.userId,
+      docIds: [docId],
+      // Fast mode: don't block UI for long waits when OCR is still running.
+      waitForOcrMs: reachedTerminalOcrState ? 15000 : 1200,
+      pollForOcrMs: 250,
+    }),
   });
   const syncData = syncRes.ok ? await syncRes.json() : null;
   input.onProgress?.(100);

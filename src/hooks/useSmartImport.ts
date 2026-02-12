@@ -96,6 +96,10 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
   const debugRefreshInFlightRef = useRef(false);
   const debugRefreshKeyRef = useRef<string>('');
   const debugRefreshAtRef = useRef<number>(0);
+  const resetVersionRef = useRef(0);
+  const completionTimerRef = useRef<number | null>(null);
+  const debugTimerRef = useRef<number | null>(null);
+  const statusResetTimerRef = useRef<number | null>(null);
   
   // Helper functions for upload status management
   const startUpload = useCallback((file: File) => {
@@ -116,6 +120,10 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
   }, []);
 
   const completeUpload = useCallback(() => {
+    if (statusResetTimerRef.current) {
+      window.clearTimeout(statusResetTimerRef.current);
+      statusResetTimerRef.current = null;
+    }
     setUploadStatus(prev => ({
       ...prev,
       isUploading: false,
@@ -123,12 +131,29 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       step: 'completed',
     }));
     // Keep completion state visible long enough for users to notice.
-    setTimeout(() => {
+    statusResetTimerRef.current = window.setTimeout(() => {
       setUploadStatus(defaultUploadStatus);
+      statusResetTimerRef.current = null;
     }, 15000);
   }, []);
 
   const resetUploadState = useCallback(() => {
+    resetVersionRef.current += 1;
+    if (completionTimerRef.current) {
+      window.clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = null;
+    }
+    if (debugTimerRef.current) {
+      window.clearTimeout(debugTimerRef.current);
+      debugTimerRef.current = null;
+    }
+    if (statusResetTimerRef.current) {
+      window.clearTimeout(statusResetTimerRef.current);
+      statusResetTimerRef.current = null;
+    }
+    debugRefreshInFlightRef.current = false;
+    debugRefreshKeyRef.current = '';
+    debugRefreshAtRef.current = 0;
     setUploading(false);
     setProgress(0);
     setError(null);
@@ -140,6 +165,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
   }, [uploadQueue]);
 
   const refreshDebugPayload = useCallback(async (options?: { includeAllAccounts?: boolean }) => {
+    const requestVersion = resetVersionRef.current;
     const effectiveUserId = userId || queueUserId;
     const docIds = lastUploadSummary?.docIds || [];
     if (!effectiveUserId || docIds.length === 0) return;
@@ -163,10 +189,13 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
           userId: effectiveUserId,
           docIds,
           includeAllAccounts: options?.includeAllAccounts,
+          waitForOcrMs: 0,
+          pollForOcrMs: 250,
         }),
       });
       const syncData = res.ok ? await res.json() : null;
       if (!syncData) return;
+      if (requestVersion !== resetVersionRef.current) return;
       if (lastUploadSummary) {
         setLastUploadSummary({
           ...lastUploadSummary,
@@ -196,6 +225,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
         }
         return null;
       })();
+      if (requestVersion !== resetVersionRef.current) return;
       setLastDebugPayload(debugItems);
     } catch (err) {
       console.error('[useSmartImport] Debug refresh error:', err);
@@ -315,6 +345,7 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       userId: userIdParam,
       source: sourceParam,
     });
+    const runVersion = resetVersionRef.current;
     
     setUploading(true);
     setProgress(0);
@@ -357,6 +388,9 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
       }
       
       const unsubscribe = uploadQueue.on((event) => {
+        if (runVersion !== resetVersionRef.current) {
+          return;
+        }
         touchActivity();
         if (event.type === 'item-completed' && event.item.result) {
           completedIds.add(event.item.id);
@@ -409,21 +443,33 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
             );
             if (hasPendingProcessing) {
               // Keep panel in processing mode while backend catch-up completes.
-              setTimeout(() => {
+              if (completionTimerRef.current) {
+                window.clearTimeout(completionTimerRef.current);
+              }
+              completionTimerRef.current = window.setTimeout(() => {
+                if (runVersion !== resetVersionRef.current) return;
                 completeUpload();
+                completionTimerRef.current = null;
               }, 45000);
             } else {
               completeUpload();
             }
-            setTimeout(() => {
+            if (debugTimerRef.current) {
+              window.clearTimeout(debugTimerRef.current);
+            }
+            debugTimerRef.current = window.setTimeout(() => {
+              if (runVersion !== resetVersionRef.current) return;
               refreshDebugPayload({ includeAllAccounts: false });
+              debugTimerRef.current = null;
             }, 1500);
             setUploading(false);
           }
         } else if (event.type === 'item-error') {
+          if (runVersion !== resetVersionRef.current) return;
           setError(event.item.error || 'Upload failed');
           // Don't reject - let other files continue
         } else if (event.type === 'queue-progress') {
+          if (runVersion !== resetVersionRef.current) return;
           setProgress(event.progress.overallProgress);
           setUploadFileCount({
             current: event.progress.completed,
