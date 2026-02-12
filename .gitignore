@@ -87,6 +87,7 @@ ai-backend-flask/database.db
 
 # PostgreSQL
 *.sql
+!sql/migrations/*.sql
 *.dump
 
 # Redis

@@ -95,6 +95,11 @@ export function ByteUploadPanel({
     uploadQueue,
   } = smartImport;
   const debugEnabled = import.meta.env.VITE_OCR_DEBUG === '1';
+  const isProcessing =
+    uploadStatus.step === 'uploading' ||
+    uploadStatus.step === 'processing' ||
+    isUploading ||
+    uploadQueue.isUploading;
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -494,11 +499,6 @@ export function ByteUploadPanel({
     };
   }, []);
 
-  const isProcessing =
-    uploadStatus.step === 'uploading' ||
-    uploadStatus.step === 'processing' ||
-    isUploading ||
-    uploadQueue.isUploading;
   const showProgressBar =
     isProcessing ||
     (typeof uploadProgress === 'number' && uploadProgress > 0 && uploadProgress < 100) ||
