@@ -23,6 +23,9 @@ interface PrimeSummary {
  */
 const primeSummaryStore = new Map<string, PrimeSummary>();
 
+const PRIME_ROUTER_STATUS_MAX_POLLS = 8;
+const PRIME_ROUTER_STATUS_POLL_MS = 1500;
+
 interface UsePostImportHandoffOptions {
   /**
    * If true, bypass the quiet-mode gate so summaries still appear in chat.
@@ -57,6 +60,10 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
       log('[usePostImportHandoff] BYTE_IMPORT_COMPLETED received', payload);
 
       try {
+        // Step 2/3 integration: use prime-router status polling before summary generation.
+        // This keeps orchestration centralized and avoids duplicate completion logic in the UI layer.
+        await waitForPrimeRouterStatus(payload.importId);
+
         // STEP 3: Run Tag + Crystal silently (no chat messages, no UI changes)
         await Promise.all([
           // Tag categorization (silent)
@@ -336,7 +343,29 @@ async function preparePrimeSummary(importId: string, _userId: string): Promise<s
       return "Your categorized results and insights are available.";
     }
 
-    // Prefer server-side summary (service role) when available
+    // Prefer canonical orchestration endpoint first.
+    // prime-router summary mode safely handles TAG gating and returns summary even on partial failures.
+    try {
+      const response = await fetch('/.netlify/functions/prime-router', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'summary', importId }),
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        const routerSummary = payload?.summary?.summary;
+        if (typeof routerSummary === 'string' && routerSummary && !isGeneric(routerSummary)) {
+          return routerSummary;
+        }
+        if (payload?.ready === false) {
+          return "Your categorized results and insights are available.";
+        }
+      }
+    } catch (err: any) {
+      error('[preparePrimeSummary] prime-router summary failed:', err);
+    }
+
+    // Legacy fallback path (direct prime-summary) to preserve reliability.
     try {
       const response = await fetch('/.netlify/functions/prime-summary', {
         method: 'POST',
@@ -350,7 +379,7 @@ async function preparePrimeSummary(importId: string, _userId: string): Promise<s
         }
       }
     } catch (err: any) {
-      error('[preparePrimeSummary] Server summary failed:', err);
+      error('[preparePrimeSummary] Server summary fallback failed:', err);
     }
 
     // Count documents (usually 1 per import, but check)
@@ -514,6 +543,28 @@ async function preparePrimeSummary(importId: string, _userId: string): Promise<s
   } catch (err: any) {
     error('[preparePrimeSummary] Error:', err);
     return "Your categorized results and insights are available.";
+  }
+}
+
+async function waitForPrimeRouterStatus(importId: string): Promise<void> {
+  for (let i = 0; i < PRIME_ROUTER_STATUS_MAX_POLLS; i += 1) {
+    try {
+      const response = await fetch('/.netlify/functions/prime-router', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'status', importId }),
+      });
+      if (response.ok) {
+        const payload = await response.json();
+        if (payload?.status === 'complete') {
+          return;
+        }
+      }
+    } catch (err: any) {
+      error('[waitForPrimeRouterStatus] Poll failed:', err);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, PRIME_ROUTER_STATUS_POLL_MS));
   }
 }
 
