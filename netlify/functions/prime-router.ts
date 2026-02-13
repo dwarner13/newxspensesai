@@ -40,13 +40,31 @@ function getBaseUrl(event: any) {
   return `http://localhost:${port}`;
 }
 
-async function callFn(event: any, fnName: string, init: { method: string; headers?: Record<string, string>; body?: any }) {
+function getInboundAuthorization(event: any): string | null {
+  const auth = event?.headers?.authorization || event?.headers?.Authorization;
+  if (typeof auth !== "string") return null;
+  const trimmed = auth.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+async function callFn(event: any, fnName: string, init: any) {
   const base = getBaseUrl(event);
   const url = `${base}/.netlify/functions/${fnName}`;
 
+  // Forward inbound Authorization header if present
+  const inboundAuth =
+    event.headers?.authorization ||
+    event.headers?.Authorization ||
+    undefined;
+
+  const headers = {
+    ...(init.headers || {}),
+    ...(inboundAuth ? { authorization: inboundAuth } : {}),
+  };
+
   const res = await fetch(url, {
     method: init.method,
-    headers: init.headers,
+    headers,
     body: init.body,
   });
 
