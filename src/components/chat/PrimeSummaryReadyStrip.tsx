@@ -10,11 +10,25 @@ import { Button } from '../ui/button';
 
 interface PrimeSummaryReadyStripProps {
   summaryText: string;
+  needsReviewCount?: number | null;
+  taggedCount?: number | null;
+  autoCount?: number | null;
+  aiCount?: number | null;
+  tagRan?: boolean | null;
   onApprove: () => void;
   onDismiss: () => void;
 }
 
-export function PrimeSummaryReadyStrip({ summaryText, onApprove, onDismiss }: PrimeSummaryReadyStripProps) {
+export function PrimeSummaryReadyStrip({
+  summaryText,
+  needsReviewCount,
+  taggedCount,
+  autoCount,
+  aiCount,
+  tagRan,
+  onApprove,
+  onDismiss,
+}: PrimeSummaryReadyStripProps) {
   return (
     <div className="w-full mb-2 px-3 py-3 bg-green-50 border border-green-200 rounded-lg flex flex-col gap-2">
       <div className="flex items-center gap-2">
@@ -26,6 +40,33 @@ export function PrimeSummaryReadyStrip({ summaryText, onApprove, onDismiss }: Pr
       </div>
       <div className="text-xs text-green-900/90 whitespace-pre-wrap">
         {summaryText}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+        {needsReviewCount !== null && needsReviewCount !== undefined && (
+          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+            Needs review: {needsReviewCount}
+          </span>
+        )}
+        {(taggedCount !== null && taggedCount !== undefined) && (
+          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+            Tagged: {taggedCount}
+          </span>
+        )}
+        {(autoCount !== null && autoCount !== undefined) && (
+          <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+            Auto: {autoCount}
+          </span>
+        )}
+        {(aiCount !== null && aiCount !== undefined) && (
+          <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+            AI inferred: {aiCount}
+          </span>
+        )}
+        {tagRan !== null && tagRan !== undefined && (
+          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+            TAG run: {tagRan ? 'yes' : 'no'}
+          </span>
+        )}
       </div>
       <div className="flex items-center justify-end gap-2">
         <Button

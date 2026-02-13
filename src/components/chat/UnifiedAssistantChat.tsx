@@ -1158,6 +1158,7 @@ export default function UnifiedAssistantChat({
   const {
     primeSummaryReady,
     getPrimeSummary,
+    getPrimeSummaryMeta,
     consumePrimeSummary,
   } = usePostImportHandoff(userId || undefined, { bypassQuietMode: true });
   const lastUploadFinishedAt = smartImport.lastUploadSummary?.finishedAt;
@@ -2977,6 +2978,91 @@ export default function UnifiedAssistantChat({
     );
   }, [engineReadyLatched, messages, loadedHistoryMessages]);
 
+  const PENDING_IMPORT_RECAP_KEY = 'xspenses:pending_import_recap';
+  const getDeliveredRecapKey = (importId: string) => `xspenses:import_recap_delivered:${importId}`;
+  const tryInjectImportRecap = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (currentEmployeeSlug !== 'prime-boss') return;
+    if (isStreaming || inFlightTurnRef.current || hasStreamingAssistantBubble) return;
+
+    let pending: any = null;
+    try {
+      const raw = window.localStorage.getItem(PENDING_IMPORT_RECAP_KEY);
+      if (!raw) return;
+      pending = JSON.parse(raw);
+    } catch {
+      return;
+    }
+
+    const importId = String(pending?.importId || '').trim();
+    const recapText = String(pending?.recapText || '').trim();
+    if (!importId || !recapText) return;
+
+    const deliveredKey = getDeliveredRecapKey(importId);
+    if (window.localStorage.getItem(deliveredKey) === '1') {
+      window.localStorage.removeItem(PENDING_IMPORT_RECAP_KEY);
+      return;
+    }
+
+    const recapAlreadyInMessages =
+      [...messages, ...loadedHistoryMessages, ...injectedMessages].some((msg) => (
+        msg?.meta?.type === 'import_recap' && msg?.meta?.importId === importId
+      ));
+    if (recapAlreadyInMessages) {
+      window.localStorage.setItem(deliveredKey, '1');
+      window.localStorage.removeItem(PENDING_IMPORT_RECAP_KEY);
+      return;
+    }
+
+    setInjectedMessages((prev) => {
+      if (prev.some((msg) => msg.meta?.type === 'import_recap' && msg.meta?.importId === importId)) {
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          id: `import-recap-${importId}`,
+          role: 'assistant',
+          content: recapText,
+          createdAt: new Date().toISOString(),
+          meta: {
+            type: 'import_recap',
+            importId,
+            source: 'prime-router',
+          },
+        },
+      ];
+    });
+
+    window.localStorage.setItem(deliveredKey, '1');
+    window.localStorage.removeItem(PENDING_IMPORT_RECAP_KEY);
+    if (import.meta.env.DEV) {
+      debug('[UnifiedAssistantChat] import recap injected', { importId });
+    }
+    setTimeout(() => {
+      scrollToBottom('smooth');
+    }, 120);
+  }, [
+    currentEmployeeSlug,
+    isStreaming,
+    hasStreamingAssistantBubble,
+    messages,
+    loadedHistoryMessages,
+    injectedMessages,
+    scrollToBottom,
+  ]);
+
+  useEffect(() => {
+    tryInjectImportRecap();
+    const onRecapReady = () => {
+      tryInjectImportRecap();
+    };
+    window.addEventListener('xspenses:import_recap_ready', onRecapReady as EventListener);
+    return () => {
+      window.removeEventListener('xspenses:import_recap_ready', onRecapReady as EventListener);
+    };
+  }, [tryInjectImportRecap]);
+
   // CRITICAL: Prevent double typing - ensure mutual exclusion
   // Greeting typing is ONLY allowed when: no assistant messages AND not streaming AND no in-flight turn
   const showGreetingTyping = useMemo(() => {
@@ -3581,6 +3667,11 @@ export default function UnifiedAssistantChat({
                   <div className="px-4 pb-2">
                     <PrimeSummaryReadyStrip
                       summaryText={(getPrimeSummary(primeSummaryReady)?.content || 'Your categorized results and insights are available.').trim()}
+                      needsReviewCount={getPrimeSummaryMeta(primeSummaryReady)?.needsReviewCount ?? null}
+                      taggedCount={getPrimeSummaryMeta(primeSummaryReady)?.taggedCount ?? null}
+                      autoCount={getPrimeSummaryMeta(primeSummaryReady)?.autoCount ?? null}
+                      aiCount={getPrimeSummaryMeta(primeSummaryReady)?.aiCount ?? null}
+                      tagRan={getPrimeSummaryMeta(primeSummaryReady)?.tagRan ?? null}
                       onApprove={async () => {
                         // STEP 6: Controlled handoff to Smart Categories
                         const summary = getPrimeSummary(primeSummaryReady);

@@ -754,16 +754,8 @@ export const handler: Handler = async (event, context) => {
     let { userId, error: authError } = await verifyAuth(event);
     timingLogs.auth = Date.now() - authStartTime;
 
-    // Allow internal service-to-service calls with service role key
-    if (authError && authHeader?.includes(process.env.SUPABASE_SERVICE_ROLE_KEY || 'service-key')) {
-      console.log('[Chat] 🔧 Internal service call detected, extracting userId from body');
-      const requestBody = JSON.parse(event.body || '{}');  // Parse it HERE
-      const bodyUserId = requestBody.userId;
-      if (bodyUserId) {
-        userId = bodyUserId;
-        authError = null;
-      }
-    }
+    // Security lock: JWT identity is the only trusted user source.
+    // Never accept user identity from request body for chat.
 
     if (authError || !userId) {
       // Enhanced error logging for debugging

@@ -235,12 +235,32 @@ export const handler: Handler = async (event) => {
       if (!statusRes.ok) return json(statusRes.status, { ok: false, step: "ocr-job-status", importId, error: statusRes.data });
 
       const status = statusRes.data?.status || statusRes.data?.state || (statusRes.data?.done ? "done" : "running");
+      const itemStatuses = Array.isArray(statusRes.data?.items)
+        ? statusRes.data.items.map((item: any) => String(item?.status || "").toLowerCase())
+        : [];
+      const hasItemError = itemStatuses.includes("error") || itemStatuses.includes("failed");
+      const hasTopLevelError =
+        String(status).toLowerCase() === "error" ||
+        String(status).toLowerCase() === "failed" ||
+        statusRes.data?.ok === false;
+      const isError = hasItemError || hasTopLevelError;
       const isComplete =
         status === "complete" ||
         status === "completed" ||
         status === "done" ||
         statusRes.data?.isComplete === true ||
         statusRes.data?.done === true;
+
+      if (isError) {
+        return json(200, {
+          ok: true,
+          mode: "status",
+          importId,
+          status: "error",
+          details: statusRes.data,
+          error: statusRes.data?.error || "ocr_status_error",
+        });
+      }
 
       if (!isComplete) {
         return json(200, { ok: true, mode: "status", importId, status: "running", details: statusRes.data });
