@@ -1,6 +1,6 @@
 /**
  * Hook to handle post-import handoff flow:
- * - Runs Tag + Crystal silently on BYTE_IMPORT_COMPLETED
+ * - Uses Prime Router as the canonical orchestration path
  * - Prepares Prime summary (stores in memory, doesn't send)
  * - Manages "Prime Summary Ready" UI state
  */
@@ -18,13 +18,24 @@ interface PrimeSummary {
   consumed: boolean;
 }
 
+interface PrimeSummaryMeta {
+  tagRan?: boolean | null;
+  needsReviewCount?: number | null;
+  autoCount?: number | null;
+  aiCount?: number | null;
+  taggedCount?: number | null;
+  ready?: boolean | null;
+}
+
 /**
  * Store for Prime summaries (key: importId)
  */
 const primeSummaryStore = new Map<string, PrimeSummary>();
+const primeSummaryMetaStore = new Map<string, PrimeSummaryMeta>();
 
 const PRIME_ROUTER_STATUS_MAX_POLLS = 8;
 const PRIME_ROUTER_STATUS_POLL_MS = 1500;
+const PENDING_IMPORT_RECAP_KEY = 'xspenses:pending_import_recap';
 
 interface UsePostImportHandoffOptions {
   /**
@@ -60,48 +71,21 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
       log('[usePostImportHandoff] BYTE_IMPORT_COMPLETED received', payload);
 
       try {
-        // Step 2/3 integration: use prime-router status polling before summary generation.
-        // This keeps orchestration centralized and avoids duplicate completion logic in the UI layer.
-        await waitForPrimeRouterStatus(payload.importId);
-
-        // STEP 3: Run Tag + Crystal silently (no chat messages, no UI changes)
-        await Promise.all([
-          // Tag categorization (silent)
-          fetch('/.netlify/functions/categorize-transactions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ importId: payload.importId }),
-          }).catch((err) => {
-            error('[usePostImportHandoff] Tag categorization failed (silent):', err);
-            // Continue even if Tag fails
-          }),
-
-          // Crystal analysis (silent) - wrapped in try/catch to prevent summary failure
-          (async () => {
-            try {
-              await fetch('/.netlify/functions/crystal-analyze-import', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                  importId: payload.importId,
-                  userId: payload.userId,
-                }),
-              });
-            } catch (err) {
-              // Crystal failure should not prevent summary preparation
-              error('[usePostImportHandoff] Crystal analysis failed (silent):', err);
-            }
-          })(),
-        ]);
+        // Canonical orchestration: Chat -> Prime Router -> downstream functions.
+        // Do not call TAG/OCR/summary endpoints directly from chat flow.
+        const routerStatus = await waitForPrimeRouterStatus(payload.importId);
+        if (routerStatus === 'error') {
+          error('[usePostImportHandoff] Prime router status returned error; continuing with summary fallback');
+        }
 
         // STEP 4: Prepare Prime summary (store in memory, do NOT send yet)
         // Wrap in try/catch to ensure summary is always prepared even if preparePrimeSummary fails
-        let summaryContent: string;
+        let prepared: { content: string; meta?: PrimeSummaryMeta };
         try {
-          summaryContent = await preparePrimeSummary(payload.importId, payload.userId);
+          prepared = await preparePrimeSummary(payload.importId, payload.userId);
         } catch (err: any) {
           error('[usePostImportHandoff] Error preparing summary, using fallback:', err);
-          summaryContent = "Your categorized results and insights are available.";
+          prepared = { content: "Your categorized results and insights are available." };
         }
 
         // Stable key: Use importId (threadId can be added later if needed for multi-thread support)
@@ -123,20 +107,22 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
 
         const summary: PrimeSummary = {
           importId: payload.importId,
-          content: summaryContent,
+          content: prepared.content,
           preparedAt: new Date().toISOString(),
           consumed: false,
         };
 
         primeSummaryStore.set(stableKey, summary);
+        primeSummaryMetaStore.set(stableKey, prepared.meta || {});
         await persistSummaryToDb(summary, payload.userId);
         setLatestSummary(summary);
+        enqueueImportRecapIfReady(payload.importId, prepared.content, prepared.meta);
 
         // STEP 5: Show "Prime Summary Ready" strip
         setPrimeSummaryReady(payload.importId);
 
         // If summary is generic, retry after OCR/normalization completes
-        if (isGenericSummary(summaryContent)) {
+        if (isGenericSummary(prepared.content)) {
           scheduleSummaryRetry(payload.importId, payload.userId);
         }
       } catch (err: any) {
@@ -165,7 +151,8 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
     summaryRetryRef.current.set(importId, attempts + 1);
     setTimeout(async () => {
       try {
-        const updatedContent = await preparePrimeSummary(importId, retryUserId);
+        const updated = await preparePrimeSummary(importId, retryUserId);
+        const updatedContent = updated?.content;
         if (!updatedContent) {
           scheduleSummaryRetry(importId, retryUserId);
           return;
@@ -185,8 +172,10 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
             preparedAt: new Date().toISOString(),
           };
           primeSummaryStore.set(importId, updatedSummary);
+          primeSummaryMetaStore.set(importId, updated?.meta || {});
           setLatestSummary(updatedSummary);
           setPrimeSummaryReady(importId);
+          enqueueImportRecapIfReady(importId, updatedContent, updated?.meta);
         } else if (isGenericSummary(updatedContent)) {
           scheduleSummaryRetry(importId, retryUserId);
         }
@@ -232,6 +221,10 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
    */
   const getPrimeSummary = (importId: string): PrimeSummary | null => {
     return primeSummaryStore.get(importId) || null;
+  };
+
+  const getPrimeSummaryMeta = (importId: string): PrimeSummaryMeta | null => {
+    return primeSummaryMetaStore.get(importId) || null;
   };
 
   /**
@@ -280,6 +273,7 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
   return {
     primeSummaryReady,
     getPrimeSummary,
+    getPrimeSummaryMeta,
     getLatestPrimeSummary,
     consumePrimeSummary,
   };
@@ -321,30 +315,21 @@ async function persistSummaryToDb(summary: PrimeSummary, userId: string) {
  * Prepare Prime's recap content based on import data
  * Includes: counts (# docs, # transactions), top categories (3), notable insights (3 short bullets)
  */
-async function preparePrimeSummary(importId: string, _userId: string): Promise<string> {
-  try {
-    const supabase = getSupabase();
-    if (!supabase) {
-      return "Your categorized results and insights are available.";
-    }
+function parseCount(content: string, pattern: RegExp): number | null {
+  const match = content.match(pattern);
+  if (!match?.[1]) return null;
+  const n = Number(match[1]);
+  return Number.isFinite(n) ? n : null;
+}
 
+async function preparePrimeSummary(importId: string, _userId: string): Promise<{ content: string; meta?: PrimeSummaryMeta }> {
+  try {
     const isGeneric = (content: string) =>
       content.includes('ready for your review') ||
       content.includes('categorized results and insights are available');
 
-    // Fetch import data
-    const { data: importData } = await supabase
-      .from('imports')
-      .select('id, status, created_at, document_id')
-      .eq('id', importId)
-      .single();
-
-    if (!importData) {
-      return "Your categorized results and insights are available.";
-    }
-
-    // Prefer canonical orchestration endpoint first.
-    // prime-router summary mode safely handles TAG gating and returns summary even on partial failures.
+    // Canonical orchestration endpoint for chat summary path.
+    // No direct summary/TAG endpoint calls from chat flow.
     try {
       const response = await fetch('/.netlify/functions/prime-router', {
         method: 'POST',
@@ -355,198 +340,66 @@ async function preparePrimeSummary(importId: string, _userId: string): Promise<s
         const payload = await response.json();
         const routerSummary = payload?.summary?.summary;
         if (typeof routerSummary === 'string' && routerSummary && !isGeneric(routerSummary)) {
-          return routerSummary;
+          const totalProcessed = parseCount(routerSummary, /(\d+)\s+transactions?\s+processed/i);
+          const needsReview = payload?.meta?.needsReviewCount ?? parseCount(routerSummary, /(\d+)\s+transactions?\s+need review/i);
+          const autoCount = payload?.meta?.autoCount ?? (
+            totalProcessed !== null && needsReview !== null ? Math.max(totalProcessed - needsReview, 0) : null
+          );
+          return {
+            content: routerSummary,
+            meta: {
+              tagRan: payload?.meta?.tagRan ?? null,
+              needsReviewCount: needsReview,
+              autoCount,
+              aiCount: payload?.meta?.aiCount ?? null,
+              taggedCount: autoCount,
+              ready: true,
+            },
+          };
         }
         if (payload?.ready === false) {
-          return "Your categorized results and insights are available.";
+          return { content: "Your categorized results and insights are available.", meta: { tagRan: false, ready: false } };
         }
       }
     } catch (err: any) {
       error('[preparePrimeSummary] prime-router summary failed:', err);
     }
 
-    // Legacy fallback path (direct prime-summary) to preserve reliability.
+    // Safe fallback: direct prime-summary if router summary path fails.
     try {
       const response = await fetch('/.netlify/functions/prime-summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ importId, userId: _userId }),
+        body: JSON.stringify({ importId }),
       });
       if (response.ok) {
         const payload = await response.json();
-        if (payload?.summary && typeof payload.summary === 'string' && !isGeneric(payload.summary)) {
-          return payload.summary;
+        const fallbackSummary = payload?.summary;
+        if (typeof fallbackSummary === 'string' && fallbackSummary.trim().length > 0 && !isGeneric(fallbackSummary)) {
+          const totalProcessed = parseCount(fallbackSummary, /(\d+)\s+transactions?\s+processed/i);
+          const needsReview = parseCount(fallbackSummary, /(\d+)\s+transactions?\s+need review/i);
+          return {
+            content: fallbackSummary,
+            meta: {
+              needsReviewCount: needsReview,
+              taggedCount: totalProcessed !== null && needsReview !== null ? Math.max(totalProcessed - needsReview, 0) : null,
+              ready: true,
+            },
+          };
         }
       }
     } catch (err: any) {
-      error('[preparePrimeSummary] Server summary fallback failed:', err);
+      error('[preparePrimeSummary] prime-summary fallback failed:', err);
     }
 
-    // Count documents (usually 1 per import, but check)
-    const docCount = importData.document_id ? 1 : 0;
-
-    // Fetch transactions from staging first (after normalization)
-    const { data: stagingTransactions } = await supabase
-      .from('transactions_staging')
-      .select('id, data_json')
-      .eq('import_id', importId);
-    
-    let transactions = stagingTransactions;
-    // Fallback to committed transactions if staging is empty
-    if (!transactions || transactions.length === 0) {
-      const { data: committedTransactions } = await supabase
-        .from('transactions')
-        .select('id, data_json')
-        .eq('import_id', importId);
-      transactions = committedTransactions;
-    }
-
-    const transactionCount = transactions?.length || 0;
-
-    // Generate summary content
-    if (transactionCount === 0) {
-      // Try server-side summary (service role) for reliable access
-      try {
-        const response = await fetch('/.netlify/functions/prime-summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            importId,
-            docId: importData.document_id || null,
-            userId: _userId,
-          }),
-        });
-        if (response.ok) {
-          const payload = await response.json();
-          if (payload?.summary && typeof payload.summary === 'string') {
-            return payload.summary;
-          }
-        }
-      } catch (err: any) {
-        error('[preparePrimeSummary] Server summary failed:', err);
-      }
-
-      if (importData.document_id) {
-        let docData: any = null;
-        {
-          const { data, error } = await supabase
-            .from('user_documents')
-            .select('extracted_data, ocr_text, original_name, pii_types')
-            .eq('id', importData.document_id)
-            .maybeSingle();
-          if (error && String(error.message || '').includes('extracted_data')) {
-            const fallback = await supabase
-              .from('user_documents')
-              .select('ocr_text, original_name, pii_types')
-              .eq('id', importData.document_id)
-              .maybeSingle();
-            docData = fallback.data;
-          } else {
-            docData = data;
-          }
-        }
-
-        if (docData?.extracted_data) {
-          const extracted = docData.extracted_data as any;
-          const lines: string[] = [];
-          if (extracted.vendor) lines.push(`Vendor: ${extracted.vendor}`);
-          if (extracted.merchant) lines.push(`Merchant: ${extracted.merchant}`);
-          if (extracted.invoice_no) lines.push(`Invoice #: ${extracted.invoice_no}`);
-          if (extracted.date) lines.push(`Date: ${extracted.date}`);
-          if (extracted.statement_period) lines.push(`Statement period: ${extracted.statement_period}`);
-          if (extracted.new_balance) lines.push(`New balance: $${extracted.new_balance}`);
-          if (extracted.minimum_payment_due) lines.push(`Minimum payment due: $${extracted.minimum_payment_due}`);
-          if (extracted.due_date) lines.push(`Payment due date: ${extracted.due_date}`);
-          if (extracted.previous_balance) lines.push(`Previous balance: $${extracted.previous_balance}`);
-          if (extracted.payments) lines.push(`Payments: -$${extracted.payments}`);
-          if (extracted.transactions) lines.push(`Transactions: +$${extracted.transactions}`);
-          if (extracted.interest_charged) lines.push(`Interest charged: +$${extracted.interest_charged}`);
-          if (extracted.credit_limit) lines.push(`Credit limit: $${extracted.credit_limit}`);
-          if (extracted.available_credit) lines.push(`Available credit: $${extracted.available_credit}`);
-          if (extracted.total) lines.push(`Total: $${extracted.total}${extracted.currency ? ` ${extracted.currency}` : ''}`);
-          if (Array.isArray(docData.pii_types) && docData.pii_types.length > 0) {
-            lines.push(`PII redacted: ${docData.pii_types.join(', ')}`);
-          }
-          if (lines.length > 0) {
-            return `I read your document (${docData.original_name || 'upload'}). Here’s what I found:\n${lines.map(l => `• ${l}`).join('\n')}`;
-          }
-        }
-
-        if (docData?.ocr_text) {
-          const trimmed = docData.ocr_text.trim();
-          const preview = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
-          if (preview) {
-            return `I read your document (${docData.original_name || 'upload'}) but couldn’t extract transactions. OCR preview:\n${preview}`;
-          }
-        }
-      }
-      return "I've reviewed your import. The document has been processed and is ready for your review.";
-    }
-
-    // Calculate totals by category (amount + count)
-    const categoryTotals = new Map<string, { amount: number; count: number }>();
-    transactions?.forEach((tx: any) => {
-      const category = tx.data_json?.category || 'Uncategorized';
-      const amount = Math.abs(Number(tx.data_json?.amount || 0));
-      const existing = categoryTotals.get(category) || { amount: 0, count: 0 };
-      categoryTotals.set(category, {
-        amount: existing.amount + amount,
-        count: existing.count + 1,
-      });
-    });
-
-    // Top 3 categories
-    const topCategories = Array.from(categoryTotals.entries())
-      .sort((a, b) => b[1].amount - a[1].amount)
-      .slice(0, 3)
-      .map(([cat, stats]) => `${cat} (${stats.count} tx, $${stats.amount.toFixed(2)})`);
-
-    // Notable insights (3 short bullets)
-    const insights: string[] = [];
-    
-    // Insight 1: Transaction count
-    if (transactionCount > 0) {
-      insights.push(`${transactionCount} transaction${transactionCount !== 1 ? 's' : ''} processed`);
-    }
-
-    // Insight 2: Top category
-    if (topCategories.length > 0) {
-      insights.push(`Top category: ${topCategories[0]}`);
-    }
-
-    // Insight 3: Categorization status
-    const categorizedCount = transactions?.filter((tx: any) => tx.data_json?.category && tx.data_json.category !== 'Uncategorized').length || 0;
-    if (categorizedCount > 0) {
-      insights.push(`${categorizedCount} transaction${categorizedCount !== 1 ? 's' : ''} categorized`);
-    }
-
-    // Build recap message
-    const recapParts: string[] = [];
-    
-    recapParts.push(`I've finished analyzing your import${docCount > 0 ? ` (${docCount} document${docCount !== 1 ? 's' : ''})` : ''}.`);
-    
-    if (transactionCount > 0) {
-      recapParts.push(`Found ${transactionCount} transaction${transactionCount !== 1 ? 's' : ''}.`);
-    }
-
-    if (topCategories.length > 0) {
-      recapParts.push(`Top categories: ${topCategories.join(', ')}.`);
-    }
-
-    if (insights.length > 0) {
-      recapParts.push(`\nNotable insights:\n${insights.map(i => `• ${i}`).join('\n')}`);
-    }
-
-    recapParts.push(`Everything is categorized and ready for review.`);
-
-    return recapParts.join(' ');
+    return { content: "Your categorized results and insights are available.", meta: { tagRan: false, ready: false } };
   } catch (err: any) {
     error('[preparePrimeSummary] Error:', err);
-    return "Your categorized results and insights are available.";
+    return { content: "Your categorized results and insights are available.", meta: { tagRan: false, ready: false } };
   }
 }
 
-async function waitForPrimeRouterStatus(importId: string): Promise<void> {
+async function waitForPrimeRouterStatus(importId: string): Promise<'complete' | 'error' | 'running_timeout'> {
   for (let i = 0; i < PRIME_ROUTER_STATUS_MAX_POLLS; i += 1) {
     try {
       const response = await fetch('/.netlify/functions/prime-router', {
@@ -557,14 +410,84 @@ async function waitForPrimeRouterStatus(importId: string): Promise<void> {
       if (response.ok) {
         const payload = await response.json();
         if (payload?.status === 'complete') {
-          return;
+          return 'complete';
+        }
+        if (payload?.status === 'error') {
+          return 'error';
         }
       }
     } catch (err: any) {
       error('[waitForPrimeRouterStatus] Poll failed:', err);
-      return;
+      return 'running_timeout';
     }
     await new Promise((resolve) => setTimeout(resolve, PRIME_ROUTER_STATUS_POLL_MS));
+  }
+  return 'running_timeout';
+}
+
+function pickQuickInsight(summary: string): string {
+  if (!summary || typeof summary !== 'string') {
+    return "I’m ready when you are — want a quick review or category cleanup?";
+  }
+  const cleaned = summary.replace(/\s+/g, ' ').trim();
+  if (!cleaned) {
+    return "I’m ready when you are — want a quick review or category cleanup?";
+  }
+  const firstSentence = cleaned.split(/[.!?]/).map((s) => s.trim()).find((s) => s.length > 0);
+  if (!firstSentence) {
+    return "I’m ready when you are — want a quick review or category cleanup?";
+  }
+  const capped = firstSentence.length > 140 ? `${firstSentence.slice(0, 137)}...` : firstSentence;
+  return capped;
+}
+
+function buildImportRecapText(params: { summary: string; meta?: PrimeSummaryMeta }): string {
+  const { summary, meta } = params;
+  const txCount = parseCount(summary, /(\d+)\s+transactions?\s+processed/i);
+  const taggedAuto = meta?.autoCount ?? 0;
+  const taggedAI = meta?.aiCount ?? 0;
+  const needsReview = meta?.needsReviewCount ?? 0;
+  const insight = pickQuickInsight(summary);
+  const nextStep =
+    needsReview > 0
+      ? `Next step: Review the ${needsReview} item${needsReview === 1 ? '' : 's'} and I’ll learn from your corrections.`
+      : "Next step: Everything looks good. You can continue with insights or category cleanup.";
+
+  const lines = [
+    "Your document is ready. Here’s what I found:",
+    ...(txCount !== null ? [`• Transactions: ${txCount}`] : []),
+    `• Tagged automatically: ${taggedAuto}`,
+    `• Tagged with AI: ${taggedAI}`,
+    `• Needs review: ${needsReview}`,
+    `Quick insight: ${insight}`,
+    nextStep,
+  ];
+  return lines.join('\n');
+}
+
+function enqueueImportRecapIfReady(importId: string, summary: string, meta?: PrimeSummaryMeta) {
+  if (typeof window === 'undefined') return;
+  const ready = meta?.ready;
+  if (ready === false) return;
+  if (!summary || typeof summary !== 'string' || summary.trim().length === 0) return;
+
+  const recapText = buildImportRecapText({ summary, meta });
+  const payload = {
+    importId,
+    createdAt: new Date().toISOString(),
+    recapText,
+    meta: meta || {},
+    summary,
+  };
+
+  try {
+    window.localStorage.setItem(PENDING_IMPORT_RECAP_KEY, JSON.stringify(payload));
+    window.dispatchEvent(new CustomEvent('xspenses:import_recap_ready'));
+    if (import.meta.env.DEV) {
+      log('[usePostImportHandoff] queued pending import recap', { importId });
+    }
+  } catch (err: any) {
+    error('[usePostImportHandoff] failed to queue import recap:', err);
   }
 }
 
