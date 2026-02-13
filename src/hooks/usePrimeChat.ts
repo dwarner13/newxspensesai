@@ -35,6 +35,14 @@ interface SendOptions {
   employeeSlug?: string;
 }
 
+interface AssistantUpsertParams {
+  messageId: string;
+  requestId?: string;
+  content: string;
+  isStreaming: boolean;
+  employeeKey?: string;
+}
+
 export interface ChatHeaders {
   guardrails?: string;
   piiMask?: string;
@@ -478,6 +486,67 @@ export function usePrimeChat(
     setUploads(prev => prev.filter(u => u.id !== id));
   }, []);
 
+  // One request => one assistant bubble.
+  // Updates existing placeholder (id/request_id), and collapses accidental duplicates.
+  const upsertAssistantMessage = useCallback((params: AssistantUpsertParams) => {
+    const { messageId, requestId, content, isStreaming, employeeKey } = params;
+    const normalizedContent = String(content || '');
+    setMessages(prev => {
+      let matched = false;
+      const next: ChatMessage[] = [];
+
+      for (const msg of prev) {
+        const isAssistant = msg.role === 'assistant';
+        const byId = msg.id === messageId;
+        const byRequest =
+          Boolean(requestId) &&
+          isAssistant &&
+          msg.meta?.request_id === requestId;
+
+        if (!byId && !byRequest) {
+          next.push(msg);
+          continue;
+        }
+
+        if (matched) {
+          // Drop extra assistant entries for the same request.
+          continue;
+        }
+
+        matched = true;
+        next.push({
+          ...msg,
+          id: messageId,
+          role: 'assistant',
+          content: normalizedContent,
+          createdAt: msg.createdAt || new Date().toISOString(),
+          meta: {
+            ...(msg.meta || {}),
+            ...(employeeKey ? { employee_key: employeeKey } : {}),
+            ...(requestId ? { request_id: requestId } : {}),
+            is_streaming: isStreaming,
+          },
+        });
+      }
+
+      if (!matched) {
+        next.push({
+          id: messageId,
+          role: 'assistant',
+          content: normalizedContent,
+          createdAt: new Date().toISOString(),
+          meta: {
+            ...(employeeKey ? { employee_key: employeeKey } : {}),
+            ...(requestId ? { request_id: requestId } : {}),
+            is_streaming: isStreaming,
+          },
+        });
+      }
+
+      return next;
+    });
+  }, []);
+
   // Helper to parse SSE event and handle tool_executing
   // Track active employee for handoff handling
   const [activeEmployeeSlug, setActiveEmployeeSlug] = useState<string | undefined>(undefined);
@@ -527,7 +596,7 @@ export function usePrimeChat(
     loadEmployeeFromSession();
   }, [effectiveSessionId, safeUserId, employeeOverride]);
 
-  const parseSSEEvent = useCallback((event: string, aiText: string, aiId: string, requestId?: string) => {
+  const parseSSEEvent = useCallback((event: string, aiText: string, requestId?: string) => {
     // CRITICAL: Short-circuit guards BEFORE parsing JSON (prevents duplicate processing)
     if (requestId) {
       // Ignore chunks for finalized requests (prevents duplicate bubbles)
@@ -782,41 +851,17 @@ export function usePrimeChat(
               log('[usePrimeChat] assistant chunk', frag.slice(0, 20) + '...');
             }
             
-            // Update the assistant message with accumulated text
-            setMessages(prev => {
-              // Check if message exists (should exist if created properly)
-              const existingMessage = prev.find(m => m.id === mid);
-              if (!existingMessage) {
-                // Message doesn't exist - this shouldn't happen, but guard against it
-                if (import.meta.env.DEV) {
-                  warn(`[usePrimeChat] ⚠️ Chunk handler: message ${mid} not found in state, skipping update`);
-                }
-                return prev;
-              }
-              
-              // Update existing message (do not append, do not create new)
-              // Keep is_streaming flag true while streaming
-              const updated = prev.map(m => {
-                if (m.id === mid) {
-                  return { 
-                    ...m, 
-                    content: nextText,
-                    meta: {
-                      ...m.meta,
-                      is_streaming: true, // Keep streaming flag while updating
-                    },
-                  };
-                }
-                return m;
-              });
-              
-              // Dev log: streaming update (reduced frequency)
-              if (import.meta.env.DEV && Math.random() < 0.05) { // Log ~5% of updates
-                log(`[usePrimeChat] 📝 Streaming update (id: ${mid}, length: ${nextText.length})`);
-              }
-              
-              return updated;
+            upsertAssistantMessage({
+              messageId: mid,
+              requestId,
+              content: nextText,
+              isStreaming: true,
             });
+            
+            // Dev log: streaming update (reduced frequency)
+            if (import.meta.env.DEV && Math.random() < 0.05) { // Log ~5% of updates
+              log(`[usePrimeChat] 📝 Streaming update (id: ${mid}, length: ${nextText.length})`);
+            }
             
             // Report chunk to dev tools
             if (eventTap) {
@@ -905,12 +950,6 @@ export function usePrimeChat(
       log(`[usePrimeChat] ✅ Added optimistic user message (client_message_id: ${clientMessageId})`);
     }
     setInput('');
-
-    const filesToSend = (opts?.files ?? uploads).map(f => ({
-      name: f.name,
-      type: f.type,
-      data: f.data,
-    }));
 
     // reset uploads after sending
     if (!opts?.files) setUploads([]);
@@ -1318,11 +1357,12 @@ export function usePrimeChat(
           if (contentText) {
             textByRequestRef.current.set(requestId, contentText);
             committedAssistantIdsRef.current.add(messageId);
-            setMessages(prev => prev.map(msg => (
-              msg.id === messageId
-                ? { ...msg, content: contentText, meta: { ...msg.meta, is_streaming: false } }
-                : msg
-            )));
+            upsertAssistantMessage({
+              messageId,
+              requestId,
+              content: contentText,
+              isStreaming: false,
+            });
           }
           setIsStreaming(false);
           streamingIdRef.current = null;
@@ -1403,10 +1443,10 @@ export function usePrimeChat(
                 }
               }
               if (eventRequestId) {
-                parseSSEEvent(event, '', messageId, eventRequestId);
+                parseSSEEvent(event, '', eventRequestId);
               } else {
                 // Fallback: parse without requestId (won't update textByRequestRef)
-                parseSSEEvent(event, '', messageId, requestId);
+                parseSSEEvent(event, '', requestId);
               }
               
               lastIndex = eventEnd + 2;
@@ -1424,7 +1464,7 @@ export function usePrimeChat(
               log('[SSE] Final buffer:', bufferRef.current);
             }
             // Parse final buffer - need to pass requestId to update textByRequestRef
-            parseSSEEvent(bufferRef.current, '', messageId, requestId);
+            parseSSEEvent(bufferRef.current, '', requestId);
           }
           
           bufferRef.current = ''; // Clear buffer
@@ -1454,47 +1494,21 @@ export function usePrimeChat(
                 ? finalContent 
                 : "Sorry — I didn't receive a response. Please try again.";
               
-              setMessages(prev => {
-                // Find existing message by ID and update it
-                const existingIndex = prev.findIndex(m => m.id === streamingAssistantId);
-                
-                if (existingIndex !== -1) {
-                  // Update existing message (same id, not append)
-                  const updated = [...prev];
-                  const existingMessage = updated[existingIndex];
-                  updated[existingIndex] = { 
-                    ...existingMessage, 
-                    content: contentToCommit,
-                    meta: {
-                      ...existingMessage.meta,
-                      is_streaming: false, // Remove streaming flag on completion
-                    },
-                  };
-                  
-                  // Dev log: final message committed (update, not append)
-                  if (import.meta.env.DEV && !isRetry) {
-                    log(`[usePrimeChat] ✅ Final message committed (update: true, appended: false, requestId: ${requestId}):`, {
-                      messageId: streamingAssistantId,
-                      contentLength: contentToCommit.length,
-                      totalMessages: updated.length,
-                      assistantMessages: updated.filter(m => m.role === 'assistant').length,
-                    });
-                  }
-                  
-                  return updated;
-                } else {
-                  // Fallback: message not found (shouldn't happen, but defensive)
-                  if (import.meta.env.DEV) {
-                    warn(`[usePrimeChat] ⚠️ Streaming message ${streamingAssistantId} not found, appending as fallback`);
-                  }
-                  return [...prev, {
-                    id: streamingAssistantId,
-                    role: 'assistant',
-                    content: contentToCommit,
-                    createdAt: new Date().toISOString(),
-                  }];
-                }
+              upsertAssistantMessage({
+                messageId: streamingAssistantId,
+                requestId,
+                content: contentToCommit,
+                isStreaming: false,
+                employeeKey: employeeSlugToSend,
               });
+              
+              // Dev log: final message committed (single-bubble upsert)
+              if (import.meta.env.DEV && !isRetry) {
+                log(`[usePrimeChat] ✅ Final message committed (single bubble, requestId: ${requestId})`, {
+                  messageId: streamingAssistantId,
+                  contentLength: contentToCommit.length,
+                });
+              }
             }
             
             // Trigger scroll after state update (use requestAnimationFrame to ensure DOM updated)
@@ -1632,50 +1646,17 @@ export function usePrimeChat(
               if (assistantContent) {
                 // CRITICAL: Update existing placeholder instead of creating new message
                 // This prevents duplicate assistant bubbles
-                setMessages(prev => {
-                  const existingIndex = prev.findIndex(m => m.id === fallbackMessageId);
-                  
-                  if (existingIndex !== -1) {
-                    // Update existing placeholder message
-                    const updated = [...prev];
-                    const existingMessage = updated[existingIndex];
-                    updated[existingIndex] = {
-                      ...existingMessage,
-                      content: String(assistantContent),
-                      meta: {
-                        ...existingMessage.meta,
-                        is_streaming: false, // Remove streaming flag on completion
-                      },
-                    };
-                    
-                    if (import.meta.env.DEV) {
-                      log(`[usePrimeChat] ✅ Fallback: Updated existing placeholder (id: ${fallbackMessageId}, content length: ${assistantContent.length})`);
-                    }
-                    
-                    return updated;
-                  } else {
-                    // Placeholder not found - create it first, then update (prevents duplicate)
-                    if (import.meta.env.DEV) {
-                      warn(`[usePrimeChat] ⚠️ Fallback: Placeholder ${fallbackMessageId} not found, creating placeholder first`);
-                    }
-                    
-                    // Create placeholder message first
-                    const fallbackPlaceholder: ChatMessage = {
-                      id: fallbackMessageId,
-                      role: 'assistant',
-                      content: String(assistantContent),
-                      createdAt: new Date().toISOString(),
-                      meta: {
-                        employee_key: employeeSlugToSend,
-                        is_streaming: false, // Already complete from fallback
-                        request_id: requestId,
-                      },
-                    };
-                    
-                    // Update placeholder with content (same as if found)
-                    return [...prev, fallbackPlaceholder];
-                  }
+                upsertAssistantMessage({
+                  messageId: fallbackMessageId,
+                  requestId,
+                  content: String(assistantContent),
+                  isStreaming: false,
+                  employeeKey: employeeSlugToSend,
                 });
+                
+                if (import.meta.env.DEV) {
+                  log(`[usePrimeChat] ✅ Fallback: single-bubble upsert complete (id: ${fallbackMessageId}, content length: ${assistantContent.length})`);
+                }
                 
                 // Store thread_id if received
                 if (responseThreadId && safeUserId) {
@@ -1724,31 +1705,12 @@ export function usePrimeChat(
           
           // If fallback failed or not attempted, update placeholder with error message
           const errorMessageId = streamingMsgByRequestRef.current.get(requestId) || effectiveAiId;
-          setMessages(prev => {
-            const existingIndex = prev.findIndex(m => m.id === errorMessageId);
-            
-            if (existingIndex !== -1) {
-              // Update existing placeholder with error message
-              const updated = [...prev];
-              const existingMessage = updated[existingIndex];
-              updated[existingIndex] = {
-                ...existingMessage,
-                content: "Sorry — I didn't receive a response. Please try again.",
-                meta: {
-                  ...existingMessage.meta,
-                  is_streaming: false, // Remove streaming flag on error
-                },
-              };
-              return updated;
-            }
-            
-            // Placeholder not found, add error message
-            return [...prev, {
-              id: `error-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-              role: 'assistant',
-              content: String(`Sorry, I encountered an error: ${err.message || 'Unknown error'}. Please try again.`),
-              createdAt: new Date().toISOString(),
-            }];
+          upsertAssistantMessage({
+            messageId: errorMessageId,
+            requestId,
+            content: "Sorry — I didn't receive a response. Please try again.",
+            isStreaming: false,
+            employeeKey: employeeSlugToSend,
           });
         } finally {
           // Only clear if this is still the active request
@@ -1830,7 +1792,8 @@ export function usePrimeChat(
     effectiveThreadId,
     activeEmployeeSlug,
     threadByEmployee,
-    parseSSEEvent
+    parseSSEEvent,
+    upsertAssistantMessage
   ]);
 
   const stop = useCallback(() => {

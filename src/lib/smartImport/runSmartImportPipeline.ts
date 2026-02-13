@@ -44,6 +44,83 @@ function buildPreInitPipelineKey(input: SmartImportPipelineInput): string {
   ].join('|');
 }
 
+function getAuthHeaders(input: SmartImportPipelineInput): Record<string, string> {
+  return input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {};
+}
+
+async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<SmartImportPipelineResult | null> {
+  // Prime Router mode A requires multipart/form-data; keep legacy path for base64 callers.
+  if (!input.file) return null;
+
+  input.onProgress?.(10);
+  const formData = new FormData();
+  formData.append('file', input.file, input.fileName);
+  formData.append('userId', input.userId);
+  formData.append('source', input.source || 'upload');
+  if (input.requestId) formData.append('requestId', input.requestId);
+
+  const uploadRes = await fetch('/.netlify/functions/prime-router', {
+    method: 'POST',
+    headers: getAuthHeaders(input),
+    body: formData,
+  });
+  const uploadPayload = await uploadRes.json().catch(() => ({}));
+  if (!uploadRes.ok) {
+    const msg = uploadPayload?.error || uploadPayload?.step || `prime-router upload failed (${uploadRes.status})`;
+    throw new Error(String(msg));
+  }
+
+  const importId = String(uploadPayload?.importId || '').trim();
+  const documentId = String(uploadPayload?.documentId || '').trim();
+  if (!importId || !documentId) {
+    throw new Error('prime-router upload missing importId/documentId');
+  }
+  input.onProgress?.(70);
+
+  const pollDeadline = Date.now() + 45000;
+  let bestProgress = 72;
+  while (Date.now() < pollDeadline) {
+    const statusRes = await fetch('/.netlify/functions/prime-router', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(input),
+      },
+      body: JSON.stringify({ mode: 'status', importId }),
+    });
+    if (statusRes.ok) {
+      const statusPayload = await statusRes.json().catch(() => ({}));
+      const status = String(statusPayload?.status || '').toLowerCase();
+      if (status === 'error') {
+        const reason = statusPayload?.error || statusPayload?.details?.error || 'OCR processing failed';
+        throw new Error(String(reason));
+      }
+      if (status === 'complete') {
+        input.onProgress?.(100);
+        return {
+          docId: documentId,
+          queued: false,
+          via: 'ocr',
+          transactionCount:
+            statusPayload?.sync?.transactionCount ??
+            statusPayload?.sync?.stats?.transactionCount,
+        };
+      }
+    }
+    bestProgress = Math.min(89, bestProgress + 1);
+    input.onProgress?.(bestProgress);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  // Timeout fallback keeps UI responsive while backend finishes.
+  input.onProgress?.(90);
+  return {
+    docId: documentId,
+    queued: true,
+    via: 'ocr',
+  };
+}
+
 async function putBytesToSignedUrl(input: SmartImportPipelineInput, uploadUrl: string): Promise<void> {
   if (input.file) {
     const res = await fetch(uploadUrl, {
@@ -252,6 +329,15 @@ export function runSmartImportPipeline(input: SmartImportPipelineInput): Promise
   const promise = (async () => {
     let activeKey = preInitKey;
     try {
+      // Canonical upload route: Prime Router mode A/B orchestration.
+      // Falls back to legacy init/upload/finalize path if router is unavailable.
+      try {
+        const routed = await runViaPrimeRouter(input);
+        if (routed) return routed;
+      } catch (routerErr) {
+        console.warn('[runSmartImportPipeline] prime-router path failed, falling back to legacy path:', routerErr);
+      }
+
       const { init, fileSize } = await initializePipeline(input);
       const uploadHash = init?.uploadHash;
       if (typeof uploadHash === 'string' && uploadHash.trim().length > 0) {
