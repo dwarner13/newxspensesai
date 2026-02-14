@@ -650,6 +650,24 @@ export default function DashboardLayout() {
     setIsChatHistoryOpen(false);
   };
 
+  const handleCloseUnifiedChat = () => {
+    closeChat();
+  };
+
+  const handlePrimeChatCta = () => {
+    if (!isChatOpen) {
+      openChat({
+        initialEmployeeSlug: 'prime-boss',
+        force: true,
+        context: {
+          data: { source: 'prime-chat-expand-cta' },
+        },
+      });
+      return;
+    }
+    closeChat();
+  };
+
   // Prime intro hook - REMOVED: Prime onboarding now handled in chat
   // const { showIntro, complete } = usePrimeIntro();
 
@@ -1217,7 +1235,7 @@ export default function DashboardLayout() {
         <ChatErrorBoundary>
           <UnifiedAssistantChat
             isOpen={isChatOpen}
-            onClose={closeChat}
+            onClose={handleCloseUnifiedChat}
             initialEmployeeSlug={chatOptions.initialEmployeeSlug || activeEmployeeSlug}
             conversationId={chatOptions.conversationId}
             context={chatOptions.context}
@@ -1225,10 +1243,28 @@ export default function DashboardLayout() {
             handoff={chatOptions.handoff}
             forceOpen={chatOptions.force === true}
             renderMode="slideout"
+            viewportInsetLeftPx={isSidebarCollapsed ? 64 : 224}
+            viewportInsetRightPx={104}
+            panelPlacement="center"
           />
         </ChatErrorBoundary>
       )}
       
+      {/* Prime Chat CTA - persistent expansion toggle */}
+      <button
+        type="button"
+        onClick={handlePrimeChatCta}
+        className={`fixed bottom-8 right-[100px] z-[70] hidden md:inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold shadow-lg backdrop-blur-sm transition-colors ${
+          isChatOpen
+            ? 'border-amber-400/60 bg-amber-500/20 text-amber-100'
+            : 'border-slate-600/70 bg-slate-900/80 text-slate-100 hover:border-slate-500 hover:bg-slate-800/85'
+        }`}
+        aria-pressed={isChatOpen}
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        Chat with Prime
+      </button>
+
 
       {/* Chat History Sidebar */}
       <ChatHistorySidebar

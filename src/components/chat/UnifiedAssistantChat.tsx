@@ -10,7 +10,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Send, User, ArrowRight, X, Upload, TrendingUp, MessageCircle, UploadCloud } from 'lucide-react';
+import { Loader2, Send, User, ArrowRight, X, Upload, TrendingUp, MessageCircle, UploadCloud, Maximize2, Minimize2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 // Migration: Using unified chat engine instead of useStreamChat
 import { useUnifiedChatEngine } from '../../hooks/useUnifiedChatEngine';
@@ -52,7 +52,6 @@ import { PrimeGreetingCard } from './PrimeGreetingCard';
 import { PrimeQuickActions } from './PrimeQuickActions';
 import { TypingMessage } from './TypingMessage';
 import type { ChatMessage } from '../../hooks/usePrimeChat';
-import { CustodianStatusBadge } from '../badges/CustodianStatusBadge';
 import { onBus, emitBus } from '../../lib/bus';
 import { usePostImportHandoff } from '../../hooks/usePostImportHandoff';
 import { PrimeSummaryReadyStrip } from './PrimeSummaryReadyStrip';
@@ -63,6 +62,8 @@ import type { ChatHandoffPayload } from '../../types/chatHandoff';
 
 // Quick prompts are now defined in EMPLOYEE_DISPLAY_CONFIG
 // Access via: displayConfig.chatQuickPrompts
+const MAX_CHAT_UPLOAD_FILES = 5;
+const PRIME_CHAT_WIDE_STORAGE_KEY = 'xspenses:prime_chat_wide';
 
 interface UnifiedAssistantChatProps {
   /** Whether chat is open (required for slideout/overlay mode, ignored in inline mode) */
@@ -104,6 +105,21 @@ interface UnifiedAssistantChatProps {
   
   /** Disable chat runtime (no engine, no streaming, static UI only) */
   disableRuntime?: boolean;
+
+  /** Optional controlled expanded state for slideout width */
+  isExpanded?: boolean;
+
+  /** Optional expanded state change callback */
+  onExpandedChange?: (expanded: boolean) => void;
+
+  /** Optional viewport inset from left (for fixed sidebar layouts) */
+  viewportInsetLeftPx?: number;
+
+  /** Optional viewport inset from right (for rail/padding reservation) */
+  viewportInsetRightPx?: number;
+
+  /** Horizontal placement mode for slideout shell */
+  panelPlacement?: 'right' | 'center';
 }
 
 export default function UnifiedAssistantChat({
@@ -120,6 +136,11 @@ export default function UnifiedAssistantChat({
   showTypingIndicator = mode !== 'inline', // Default: show for slideout/overlay, hide for inline
   renderMode = mode === 'inline' ? 'page' : 'slideout', // Default: page for inline, slideout otherwise
   disableRuntime = renderMode === 'page', // Default: disable runtime for page mode (slideout = false, page = true)
+  isExpanded: controlledExpanded,
+  onExpandedChange,
+  viewportInsetLeftPx = 0,
+  viewportInsetRightPx = 0,
+  panelPlacement = 'right',
 }: UnifiedAssistantChatProps) {
   
   // ============================================================================
@@ -217,11 +238,39 @@ export default function UnifiedAssistantChat({
   const [categorizeStatusByImportId, setCategorizeStatusByImportId] = useState<Record<string, 'idle' | 'pending' | 'done' | 'error'>>({});
   const userJustSentRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isPrimeChatRevampEnabled = import.meta.env.VITE_PRIME_CHAT_REVAMP === '1';
+  const [internalExpanded, setInternalExpanded] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    if (import.meta.env.VITE_PRIME_CHAT_REVAMP !== '1') return false;
+    try {
+      return window.localStorage.getItem(PRIME_CHAT_WIDE_STORAGE_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const isExpanded = controlledExpanded ?? internalExpanded;
+
+  const setExpandedState = useCallback((next: boolean) => {
+    if (controlledExpanded === undefined) {
+      setInternalExpanded(next);
+    }
+    if (import.meta.env.DEV) {
+      log('[PrimeChatRevamp] Wide mode toggled', { enabled: next });
+    }
+    onExpandedChange?.(next);
+  }, [controlledExpanded, onExpandedChange]);
   const [showUploadCard, setShowUploadCard] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<StatusType | null>(null);
+  const [uploadStatusMessage, setUploadStatusMessage] = useState<string | null>(null);
+  const [primeNarrationText, setPrimeNarrationText] = useState<string | null>(null);
   const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDraggingOverChat, setIsDraggingOverChat] = useState(false);
+  const [queuedUploadCount, setQueuedUploadCount] = useState(0);
+  const pendingUploadFilesRef = useRef<File[]>([]);
+  const inFlightUploadKeysRef = useRef<Set<string>>(new Set());
+  const primeNarrationStageRef = useRef<{ importKey: string; stage: string }>({ importKey: '', stage: '' });
+  const primeNarrationClearTimerRef = useRef<number | null>(null);
   
   // Determine effective employee slug: prioritize override, then prop, then global activeEmployeeSlug, then fallback
   // PART 2: Route-aware override takes precedence (UI-only) - but only on initial mount
@@ -1051,9 +1100,42 @@ export default function UnifiedAssistantChat({
   let employeeId = normalizedSlug;
   if (normalizedSlug === '/dashboard/smart-import-ai' || normalizedSlug === 'smart-import-ai') {
     employeeId = 'byte-docs';
+  } else if (normalizedSlug === '/dashboard/prime-chat' || normalizedSlug === 'prime-chat') {
+    employeeId = 'prime-boss';
   }
 
+  const primeUploadInChatEnabled = import.meta.env.VITE_PRIME_UPLOAD_IN_CHAT === '1';
+  const primeNarrationFlowEnabled = import.meta.env.VITE_PRIME_NARRATION_FLOW === '1';
   const isByte = employeeId === 'byte-docs';
+  const isPrimeUploadAssistant = employeeId === 'prime-boss' && primeUploadInChatEnabled;
+  const isPrimeNarrationEnabled = employeeId === 'prime-boss' && primeUploadInChatEnabled && primeNarrationFlowEnabled;
+  const supportsChatUploads = isByte || isPrimeUploadAssistant;
+  const uploadStep = smartImport.uploadStatus?.step;
+  const showCenteredUploadIndicator =
+    supportsChatUploads &&
+    (
+      queuedUploadCount > 0 ||
+      isUploadingAttachments ||
+      uploadStep === 'uploading' ||
+      uploadStep === 'processing'
+    );
+  const uploadProgressValue = (() => {
+    const raw = Number(smartImport.uploadStatus?.progress ?? 0);
+    if (Number.isFinite(raw) && raw > 0) return Math.max(0, Math.min(100, Math.round(raw)));
+    if (queuedUploadCount > 0 && !isUploadingAttachments) return 8;
+    if (uploadStep === 'uploading') return 28;
+    if (uploadStep === 'processing') return 72;
+    return 0;
+  })();
+  const uploadCircleLabel =
+    uploadStatusMessage ||
+    (queuedUploadCount > 0 && !isUploadingAttachments
+      ? `Upload queued (${queuedUploadCount})`
+      : uploadStep === 'uploading'
+        ? 'Uploading your document...'
+        : uploadStep === 'processing'
+          ? 'Analyzing transactions...'
+          : 'Preparing your summary...');
 
   useEffect(() => {
     if (!employeeId) return;
@@ -1093,6 +1175,92 @@ export default function UnifiedAssistantChat({
   const typingStallTimeoutRef = useRef<number | null>(null);
   const [handoffNoteMessage, setHandoffNoteMessage] = useState<ChatMessage | null>(null);
   const handoffConsumedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!isPrimeNarrationEnabled) {
+      if (primeNarrationText) setPrimeNarrationText(null);
+      if (primeNarrationClearTimerRef.current !== null) {
+        window.clearTimeout(primeNarrationClearTimerRef.current);
+        primeNarrationClearTimerRef.current = null;
+      }
+      primeNarrationStageRef.current = { importKey: '', stage: '' };
+      return;
+    }
+    if (isStreaming || inFlightTurnRef.current) return;
+
+    const rawMessage = (uploadStatusMessage || '').toLowerCase();
+    const importId = String(smartImport.lastUploadSummary?.importId || '').trim();
+    const fallbackKey = `${smartImport.uploadStatus?.fileName || 'prime-upload'}:${smartImport.uploadStatus?.progress || 0}`;
+    const importKey = importId || fallbackKey;
+
+    let nextStage = '';
+    let nextText: string | null = null;
+    if (uploadStep === 'error' || uploadError || smartImport.uploadStatus?.error) {
+      nextStage = 'error';
+      nextText = "I couldn't read that file. Try a clearer PDF or image.";
+    } else if (uploadStep === 'completed') {
+      nextStage = 'complete';
+      nextText = 'Your document is ready.';
+    } else if (rawMessage.includes('categoriz')) {
+      nextStage = 'categorizing';
+      nextText = 'Categorizing expenses...';
+    } else if (rawMessage.includes('summary') || rawMessage.includes('summariz')) {
+      nextStage = 'summarizing';
+      nextText = 'Preparing your summary...';
+    } else if (uploadStep === 'processing' || rawMessage.includes('analyz') || rawMessage.includes('extract')) {
+      nextStage = 'extracting';
+      nextText = 'Extracting transactions...';
+    } else if (uploadStep === 'uploading' || isUploadingAttachments) {
+      nextStage = 'uploading';
+      nextText = 'Uploading your document...';
+    }
+
+    if (!nextText) {
+      if (primeNarrationText) setPrimeNarrationText(null);
+      return;
+    }
+
+    const prev = primeNarrationStageRef.current;
+    if (prev.importKey === importKey && prev.stage === nextStage) return;
+    primeNarrationStageRef.current = { importKey, stage: nextStage };
+    setPrimeNarrationText(nextText);
+
+    if (primeNarrationClearTimerRef.current !== null) {
+      window.clearTimeout(primeNarrationClearTimerRef.current);
+      primeNarrationClearTimerRef.current = null;
+    }
+
+    if (nextStage === 'complete' || nextStage === 'error') {
+      primeNarrationClearTimerRef.current = window.setTimeout(() => {
+        const current = primeNarrationStageRef.current;
+        if (current.importKey === importKey && current.stage === nextStage) {
+          setPrimeNarrationText(null);
+        }
+        primeNarrationClearTimerRef.current = null;
+      }, 2400);
+    }
+  }, [
+    isPrimeNarrationEnabled,
+    isStreaming,
+    uploadStatusMessage,
+    uploadStep,
+    uploadError,
+    isUploadingAttachments,
+    primeNarrationText,
+    smartImport.lastUploadSummary?.importId,
+    smartImport.uploadStatus?.error,
+    smartImport.uploadStatus?.fileName,
+    smartImport.uploadStatus?.progress,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (primeNarrationClearTimerRef.current !== null) {
+        window.clearTimeout(primeNarrationClearTimerRef.current);
+        primeNarrationClearTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     initialQuestionRouteGuardRef.current = true;
@@ -1805,7 +1973,10 @@ export default function UnifiedAssistantChat({
   
   // Handle send - use currentEmployeeSlug to ensure correct employee receives message
   // NOTE: Duplicate send prevention is handled by usePrimeChat hook (inFlightRef)
-  const getAttachmentKey = useCallback((file: File) => `${file.name}-${file.size}`, []);
+  const getAttachmentKey = useCallback(
+    (file: File) => `${file.name}-${file.size}-${file.lastModified}`,
+    []
+  );
 
   const processByteUploads = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return false;
@@ -1813,40 +1984,112 @@ export default function UnifiedAssistantChat({
       toast.error('Please log in to upload files');
       return false;
     }
+    const eligibleFiles = files.filter((file) => !inFlightUploadKeysRef.current.has(getAttachmentKey(file)));
+    if (eligibleFiles.length === 0) {
+      toast('This file upload is already in progress.');
+      return false;
+    }
+    eligibleFiles.forEach((file) => inFlightUploadKeysRef.current.add(getAttachmentKey(file)));
     try {
       setIsUploadingAttachments(true);
       setUploadError(null);
       setUploadStatus('uploading');
+      setUploadStatusMessage('Uploading your document...');
       setShowUploadCard(true);
-      await smartImport.uploadFiles(userId, files, 'chat');
+      await smartImport.uploadFiles(userId, eligibleFiles, 'chat');
       setUploadStatus('processing');
+      setUploadStatusMessage('Analyzing transactions...');
+      setTimeout(() => {
+        setUploadStatusMessage('Preparing your summary...');
+      }, 500);
       setTimeout(() => {
         setUploadStatus(null);
+        setUploadStatusMessage(null);
         setShowUploadCard(false);
       }, 1200);
       return true;
     } catch (err: any) {
       setUploadError(err?.message || 'Upload failed');
       setUploadStatus(null);
+      setUploadStatusMessage(null);
       toast.error(err?.message || 'Upload failed');
       return false;
     } finally {
       setIsUploadingAttachments(false);
+      eligibleFiles.forEach((file) => inFlightUploadKeysRef.current.delete(getAttachmentKey(file)));
       uploadedAttachmentKeysRef.current.clear();
     }
-  }, [smartImport, userId]);
+  }, [smartImport, userId, getAttachmentKey]);
+
+  const normalizeUploadFiles = useCallback((files: File[]): File[] => {
+    if (!files || files.length === 0) return [];
+    const deduped: File[] = [];
+    const seen = new Set<string>();
+    for (const file of files) {
+      const key = getAttachmentKey(file);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(file);
+      if (deduped.length >= MAX_CHAT_UPLOAD_FILES) break;
+    }
+    return deduped;
+  }, [getAttachmentKey]);
+
+  const enqueueUploads = useCallback((files: File[]) => {
+    const incoming = normalizeUploadFiles(files);
+    if (incoming.length === 0) return;
+    const merged = [...pendingUploadFilesRef.current];
+    const seen = new Set(merged.map(getAttachmentKey));
+    for (const file of incoming) {
+      const key = getAttachmentKey(file);
+      if (seen.has(key)) continue;
+      if (merged.length >= MAX_CHAT_UPLOAD_FILES) break;
+      seen.add(key);
+      merged.push(file);
+    }
+    pendingUploadFilesRef.current = merged;
+    setQueuedUploadCount(merged.length);
+    setUploadStatus('processing');
+    setUploadStatusMessage('Preparing your summary...');
+  }, [getAttachmentKey, normalizeUploadFiles]);
 
   const handleAttachmentsChange = useCallback(async (files: File[]) => {
-    if (!isByte || files.length === 0) return;
-    const pendingFiles = files.filter((file) => !uploadedAttachmentKeysRef.current.has(getAttachmentKey(file)));
+    if (!supportsChatUploads || files.length === 0) return;
+    const limitedFiles = normalizeUploadFiles(files);
+    if (files.length > MAX_CHAT_UPLOAD_FILES) {
+      toast.error(`Please upload up to ${MAX_CHAT_UPLOAD_FILES} files at a time.`);
+    }
+    const pendingFiles = limitedFiles.filter((file) => !uploadedAttachmentKeysRef.current.has(getAttachmentKey(file)));
     if (pendingFiles.length === 0) return;
+    if (isStreaming || inFlightTurnRef.current) {
+      enqueueUploads(pendingFiles);
+      toast('Prime will start this upload after the current response.');
+      return;
+    }
     const uploaded = await processByteUploads(pendingFiles);
     if (uploaded) {
       pendingFiles.forEach((file) => {
         uploadedAttachmentKeysRef.current.add(getAttachmentKey(file));
       });
     }
-  }, [getAttachmentKey, isByte, processByteUploads]);
+  }, [supportsChatUploads, normalizeUploadFiles, getAttachmentKey, isStreaming, enqueueUploads, processByteUploads]);
+
+  useEffect(() => {
+    if (!supportsChatUploads) return;
+    if (isStreaming || isUploadingAttachments) return;
+    const queued = pendingUploadFilesRef.current;
+    if (!queued.length) return;
+    pendingUploadFilesRef.current = [];
+    setQueuedUploadCount(0);
+    void (async () => {
+      const uploaded = await processByteUploads(queued);
+      if (uploaded) {
+        queued.forEach((file) => {
+          uploadedAttachmentKeysRef.current.add(getAttachmentKey(file));
+        });
+      }
+    })();
+  }, [supportsChatUploads, isStreaming, isUploadingAttachments, processByteUploads, getAttachmentKey]);
 
   const handleSend = async (options?: { attachments?: File[] }) => {
     const attachments = options?.attachments ?? [];
@@ -1861,8 +2104,9 @@ export default function UnifiedAssistantChat({
       }
       return;
     }
-    // Block if already streaming or loading (hook also checks this, but early return for UX)
-    if (isStreaming || isUploadingAttachments) {
+    // Block normal send if already streaming/loading (hook also checks this, but early return for UX)
+    // Attachments can be queued safely while streaming.
+    if ((isStreaming && !hasAttachments) || isUploadingAttachments) {
       if (import.meta.env.DEV) {
         console.warn('[UnifiedAssistantChat] 🚫 Send blocked - already streaming or uploading');
       }
@@ -1870,17 +2114,27 @@ export default function UnifiedAssistantChat({
     }
     
     if (hasAttachments) {
-      if (!isByte) {
-        toast.error('File uploads are only supported in Byte right now.');
+      if (!supportsChatUploads) {
+        toast.error('File uploads are not available in this chat.');
         return;
       }
-      const pendingFiles = attachments.filter((file) => !uploadedAttachmentKeysRef.current.has(getAttachmentKey(file)));
+      const limitedFiles = normalizeUploadFiles(attachments);
+      if (attachments.length > MAX_CHAT_UPLOAD_FILES) {
+        toast.error(`Please upload up to ${MAX_CHAT_UPLOAD_FILES} files at a time.`);
+      }
+      const pendingFiles = limitedFiles.filter((file) => !uploadedAttachmentKeysRef.current.has(getAttachmentKey(file)));
       if (pendingFiles.length > 0) {
-        const uploaded = await processByteUploads(pendingFiles);
-        if (!uploaded) return;
-        pendingFiles.forEach((file) => {
-          uploadedAttachmentKeysRef.current.add(getAttachmentKey(file));
-        });
+        if (isStreaming || inFlightTurnRef.current) {
+          enqueueUploads(pendingFiles);
+          toast('Prime queued your upload and will start it right after this response.');
+          if (!trimmedMessage) return;
+        } else {
+          const uploaded = await processByteUploads(pendingFiles);
+          if (!uploaded) return;
+          pendingFiles.forEach((file) => {
+            uploadedAttachmentKeysRef.current.add(getAttachmentKey(file));
+          });
+        }
       }
       if (!trimmedMessage) return;
     }
@@ -2071,11 +2325,21 @@ export default function UnifiedAssistantChat({
 
   // Handle file upload
   const handleFileUpload = async (files: File[]) => {
+    if (!supportsChatUploads) return;
     if (import.meta.env.DEV) {
       debug('[UnifiedAssistantChat] Upload started', { fileCount: files.length });
     }
-    console.debug('[UnifiedAssistantChat] Upload started', { fileCount: files.length });
-    await processByteUploads(files);
+    const limitedFiles = normalizeUploadFiles(files);
+    if (files.length > MAX_CHAT_UPLOAD_FILES) {
+      toast.error(`Please upload up to ${MAX_CHAT_UPLOAD_FILES} files at a time.`);
+    }
+    console.debug('[UnifiedAssistantChat] Upload started', { fileCount: limitedFiles.length });
+    if (isStreaming || inFlightTurnRef.current) {
+      enqueueUploads(limitedFiles);
+      toast('Prime queued your upload and will start it after the current response.');
+      return;
+    }
+    await processByteUploads(limitedFiles);
   };
 
   // Detect handoff messages and upload intent
@@ -2239,13 +2503,25 @@ export default function UnifiedAssistantChat({
         if (bullets.length === 0 && snapshot?.transactionCount) {
           bullets.push(`• ${snapshot.transactionCount} total transactions on file`);
         }
-        greetingText = [
-          `Welcome back, ${userName}. 👋`,
-          `I've been keeping things organized while you were away.`,
-          ...(bullets.length > 0 ? ['', `Here's where we left off:`, ...bullets] : ['', `I can pull a fresh snapshot whenever you're ready.`]),
-          ``,
-          `What would you like to focus on today - quick review, insights, or something new?`,
-        ].join('\n');
+        if (isPrimeChatRevampEnabled) {
+          const welcomeLine = userName && userName !== 'there'
+            ? `Welcome back, ${userName}. Your latest snapshot is ready.`
+            : 'Welcome back. Your latest snapshot is ready.';
+          greetingText = [
+            welcomeLine,
+            ...(bullets.length > 0 ? ['', `Here's where we left off:`, ...bullets] : []),
+            ``,
+            'Want to import a statement, review categories, or ask a question?',
+          ].join('\n');
+        } else {
+          greetingText = [
+            `Welcome back, ${userName}. 👋`,
+            `I've been keeping things organized while you were away.`,
+            ...(bullets.length > 0 ? ['', `Here's where we left off:`, ...bullets] : ['', `I can pull a fresh snapshot whenever you're ready.`]),
+            ``,
+            `What would you like to focus on today - quick review, insights, or something new?`,
+          ].join('\n');
+        }
       }
     } else if (currentEmployeeSlug === 'byte-docs') {
       greetingText = [
@@ -2288,7 +2564,7 @@ export default function UnifiedAssistantChat({
       timestamp: new Date().toISOString(),
       meta: { isGreeting: true, hideTimestamp: true },
     };
-  }, [isHandoff, isOpen, isLoadingHistory, isStreaming, hasAnyMessages, currentEmployeeSlug, resolvedThreadId, conversationId, profile, user, firstName, messages, loadedHistoryMessages, primeState, engineReadyLatched, primeOnboardingCompleted, userId]);
+  }, [isHandoff, isOpen, isLoadingHistory, isStreaming, hasAnyMessages, currentEmployeeSlug, resolvedThreadId, conversationId, profile, user, firstName, messages, loadedHistoryMessages, primeState, engineReadyLatched, primeOnboardingCompleted, userId, isPrimeChatRevampEnabled]);
 
   useEffect(() => {
     if (!greetingMessage || !currentEmployeeSlug) return;
@@ -3271,12 +3547,6 @@ export default function UnifiedAssistantChat({
     return metadata.custodian_ready === true;
   }, [profile?.metadata]);
 
-  const custodianSetupDate = useMemo(() => {
-    if (!profile?.metadata || typeof profile.metadata !== 'object') return null;
-    const metadata = profile.metadata as any;
-    return metadata.custodian_setup_at || null;
-  }, [profile?.metadata]);
-  
   // TASK 3: Never return null - use CSS to hide instead of conditional rendering
   // For slideout/overlay mode, hide with CSS when closed (prevents remounting)
   // CRITICAL: Include shouldMount check here to hide when not ready (prevents hook count changes)
@@ -3301,6 +3571,17 @@ export default function UnifiedAssistantChat({
   const employeeDisplay = getEmployeeDisplay(currentEmployeeSlug);
   // Determine send button gradient based on employee
   const isPrime = normalizedSlug === 'prime-boss';
+  const isPrimeWideToggleEnabled = isPrimeChatRevampEnabled && isPrime;
+  const effectiveExpanded = isPrimeWideToggleEnabled ? isExpanded : false;
+  useEffect(() => {
+    if (!isPrimeWideToggleEnabled) return;
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(PRIME_CHAT_WIDE_STORAGE_KEY, isExpanded ? '1' : '0');
+    } catch {
+      // Ignore localStorage access failures.
+    }
+  }, [isPrimeWideToggleEnabled, isExpanded]);
   // Extract guardrails status from headers (from useUnifiedChatEngine)
   const guardrailsActive = headers?.guardrails === 'active';
   const piiProtectionActive = headers?.piiMask === 'enabled';
@@ -3317,32 +3598,27 @@ export default function UnifiedAssistantChat({
           ? 'rgba(168,85,247,0.65)'
           : 'rgba(251,191,36,0.65)';
 
-  // Status badge - Online indicator + Custodian status badge
-  const statusBadge = (
-    <div className="flex items-center gap-3">
-      {/* Online indicator */}
-      <div className="flex items-center gap-2 text-xs text-emerald-300">
-        <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.9)]" />
-        <span>Online</span>
+  // Status badge - Prime uses a single "Protected" chip with details tooltip.
+  const statusBadge = normalizedSlug === 'prime-boss' ? (
+    <div className="relative group">
+      <button
+        type="button"
+        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-200"
+        title={`Online: Yes\nAI Ready: ${chatReady ? 'Yes' : 'No'}\nCustodian Ready: ${custodianReady ? 'Yes' : 'No'}`}
+      >
+        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        <span>{guardrailsActive || piiProtectionActive ? 'Protected' : 'Secured'}</span>
+      </button>
+      <div className="pointer-events-none absolute right-0 top-full z-30 mt-2 min-w-[170px] rounded-lg border border-white/10 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-200 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+        <p>Online: Yes</p>
+        <p>AI Ready: {chatReady ? 'Yes' : 'No'}</p>
+        <p>Custodian Ready: {custodianReady ? 'Yes' : 'No'}</p>
       </div>
-      {/* Custodian status badge - only show for Prime */}
-      {normalizedSlug === 'prime-boss' && (
-        <CustodianStatusBadge
-          ready={custodianReady}
-          variant="pill"
-          size="sm"
-          isLoading={isProfileLoading}
-          setupDate={custodianSetupDate}
-          onClick={() => {
-            if (!custodianReady) {
-              navigate('/onboarding/setup');
-            } else {
-              // Ready state - could show popover or do nothing
-              // Popover is handled internally by the badge
-            }
-          }}
-        />
-      )}
+    </div>
+  ) : (
+    <div className="flex items-center gap-2 text-xs text-emerald-300">
+      <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.9)]" />
+      <span>Online</span>
     </div>
   );
 
@@ -3398,7 +3674,9 @@ export default function UnifiedAssistantChat({
     const guardrailsStatus = chatGuardrailsStatus;
     if (guardrailsStatus && typeof guardrailsStatus === 'object') {
       if (guardrailsStatus.enabled) {
-        return 'Secured • Guardrails + PII protection active';
+        return isPrimeChatRevampEnabled && normalizedSlug === 'prime-boss'
+          ? 'Secure • Guardrails active'
+          : 'Secured • Guardrails + PII protection active';
       } else {
         return `Offline • Protection unavailable${guardrailsStatus.reason ? ` (${guardrailsStatus.reason})` : ''}`;
       }
@@ -3414,7 +3692,9 @@ export default function UnifiedAssistantChat({
     if (guardrailsHealth) {
       // Map health endpoint format to status text
       if (guardrailsHealth.status === 'active' || (guardrailsHealth as any).enabled === true) {
-        return 'Secured • Guardrails + PII protection active';
+        return isPrimeChatRevampEnabled && normalizedSlug === 'prime-boss'
+          ? 'Secure • Guardrails active'
+          : 'Secured • Guardrails + PII protection active';
       } else if (guardrailsHealth.status === 'degraded') {
         return 'Degraded • Limited protection';
       } else if (guardrailsHealth.status === 'offline' || (guardrailsHealth as any).enabled === false) {
@@ -3428,6 +3708,10 @@ export default function UnifiedAssistantChat({
   };
 
   const guardrailsStatusText = getGuardrailsStatusText();
+  const primeNarrationStatusText =
+    isPrimeNarrationEnabled && !isStreaming && !inFlightTurnRef.current
+      ? (primeNarrationText || uploadStatusMessage)
+      : uploadStatusMessage;
   
   // Dev-only: Get last checked timestamp for tooltip
   const guardrailsLastChecked = guardrailsHealth?.last_check_at 
@@ -3455,76 +3739,63 @@ export default function UnifiedAssistantChat({
     openPrimeSlideoutAndFocus();
   };
 
-  // PART 2: Prime Launchpad (compact, non-blocking, above input)
-  const showLaunchpad = normalizedSlug === 'prime-boss' && 
-    !isProfileLoading && 
-    profile && 
-    userId && 
-    realMessagesCount === 0 &&
-    !isStreaming;
+  const primeSnapshotData = useMemo(() => {
+    const snapshot = primeState?.financialSnapshot;
+    if (!snapshot) return null;
+    return {
+      monthlySpend: snapshot.monthlySpend,
+      activeGoalCount: snapshot.activeGoalCount,
+      ready: true,
+    };
+  }, [primeState]);
 
-  const handleLaunchpadAction = (action: 'import' | 'categories' | 'ask') => {
-    if (action === 'import') {
-      // PART 4: Launchpad click does BOTH: switch to Byte + navigate
-      setActiveEmployeeSlugOverride('byte-docs');
-      // Optional: Add UI-only system note (handled by route-aware switch)
-      // Navigate with short delay for WOW feel
-      setTimeout(() => {
-        navigate('/dashboard/smart-import-ai');
-      }, 180);
-    } else if (action === 'categories') {
-      navigate('/dashboard/smart-categories');
-    } else if (action === 'ask') {
-      // Focus input and scroll to bottom
-      inputRef.current?.focus();
-      scrollToBottom('auto');
+  const primeSnapshotCurrency = useMemo(() => {
+    const raw = String((profile as any)?.currency || primeState?.userProfileSummary?.currency || 'USD')
+      .trim()
+      .toUpperCase();
+    return /^[A-Z]{3}$/.test(raw) ? raw : 'USD';
+  }, [profile, primeState?.userProfileSummary?.currency]);
+
+  const formatPrimeSnapshotAmount = useCallback((amount: number) => {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: primeSnapshotCurrency,
+      }).format(amount);
+    } catch {
+      return `$${amount.toFixed(2)}`;
     }
-  };
+  }, [primeSnapshotCurrency]);
 
   const inputFooter = (
     <div className="w-full max-w-full mx-0 min-w-0 shrink-0 flex flex-col">
-      {/* Prime Launchpad - compact row above input */}
-      {showLaunchpad && (
-        <div className="px-4 pb-3 shrink-0">
-          <div className="flex flex-col gap-2">
-            <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Start here</p>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handleLaunchpadAction('import')}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/8 border border-white/10 text-xs font-medium text-white/90 transition-all duration-200 hover:scale-[1.02] hover:border-white/20 hover:shadow-lg hover:shadow-cyan-500/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-950"
-              >
-                Smart Import
-              </button>
-              <button
-                onClick={() => handleLaunchpadAction('categories')}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/8 border border-white/10 text-xs font-medium text-white/90 transition-all duration-200 hover:scale-[1.02] hover:border-white/20 hover:shadow-lg hover:shadow-cyan-500/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-950"
-              >
-                Review Categories
-              </button>
-              <button
-                onClick={() => handleLaunchpadAction('ask')}
-                className="flex-1 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/8 border border-white/10 text-xs font-medium text-white/90 transition-all duration-200 hover:scale-[1.02] hover:border-white/20 hover:shadow-lg hover:shadow-cyan-500/10 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-slate-950"
-              >
-                Ask Prime
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       <ChatInputBar
         value={inputMessage}
         onChange={setInputMessage}
         onSubmit={handleSend}
-        onAttachmentsChange={isByte ? handleAttachmentsChange : undefined}
-        placeholder={`Ask ${displayConfig.chatTitle.split('—')[0].trim()} anything...`}
+        onAttachmentsChange={supportsChatUploads ? handleAttachmentsChange : undefined}
+        placeholder={
+          normalizedSlug === 'prime-boss'
+            ? 'Ask Prime anything... Try: Import statement, Show insights, Review categories'
+            : `Ask ${displayConfig.chatTitle.split('—')[0].trim()} anything...`
+        }
         isStreaming={isStreaming}
-        disabled={isUploadingAttachments || isStreaming}
+        disabled={isUploadingAttachments}
         sendButtonGradient={sendButtonGradient}
         sendButtonGlow={sendButtonGlow}
-        guardrailsStatus={isUploadingAttachments ? 'Uploading attachments...' : uploadError || guardrailsStatusText}
+        guardrailsStatus={
+          isUploadingAttachments
+            ? (primeNarrationStatusText || 'Uploading your document...')
+            : queuedUploadCount > 0
+              ? `Upload queued (${queuedUploadCount})`
+              : uploadError || guardrailsStatusText
+        }
         guardrailsLastChecked={guardrailsLastChecked || undefined}
+        guardrailsQuiet={isPrimeChatRevampEnabled && normalizedSlug === 'prime-boss'}
         showPlusIcon={isByte}
+        attachmentsEnabled={supportsChatUploads}
         showAttachmentChips={!isByte}
+        allowAttachmentsWhileStreaming={supportsChatUploads}
         onStop={cancelStream}
         onInputFocus={isInlinePrime ? handleInlinePrimeInputFocus : undefined}
         onInputMouseDown={isInlinePrime ? handleInlinePrimeInputMouseDown : undefined}
@@ -3574,14 +3845,44 @@ export default function UnifiedAssistantChat({
           ref={scrollContainerRef}
           className="flex-1 min-h-0"
         >
-            <div className={compact ? "px-4 pt-3 pb-3" : "px-4 pt-4 pb-4"}>
+            <div className={(compact ? "px-4 pt-3 pb-3" : "px-4 pt-4 pb-4") + " relative"}>
+            {showCenteredUploadIndicator && (
+              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                <div className="rounded-2xl border border-white/15 bg-slate-950/80 px-5 py-4 backdrop-blur-md shadow-2xl shadow-black/40">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="relative h-16 w-16">
+                      <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
+                        <path
+                          d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
+                          fill="none"
+                          stroke="rgba(148,163,184,0.25)"
+                          strokeWidth="3"
+                        />
+                        <path
+                          d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
+                          fill="none"
+                          stroke="rgb(56,189,248)"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeDasharray={`${uploadProgressValue}, 100`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-sky-300">
+                        {uploadProgressValue}%
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-200">{uploadCircleLabel}</div>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="w-full max-w-full mx-0 min-w-0 space-y-3">
               {/* Messages list - greeting is now a message row, no separate welcome region */}
               <div className="space-y-3">
                 {/* Status indicator */}
                 {uploadStatus && (
                   <div className="shrink-0">
-                    <StatusIndicator status={uploadStatus} />
+                    <StatusIndicator status={uploadStatus} message={primeNarrationStatusText || undefined} />
                   </div>
                 )}
 
@@ -3771,10 +4072,13 @@ export default function UnifiedAssistantChat({
         className={isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
         style={{ 
           position: 'fixed',
-          inset: 0,
+          top: 0,
+          bottom: 0,
+          left: viewportInsetLeftPx,
+          right: viewportInsetRightPx,
           zIndex: 80, // Above floating rail (z-[60])
           display: 'flex',
-          justifyContent: 'flex-end',
+          justifyContent: panelPlacement === 'center' ? 'center' : 'flex-end',
           transition: 'opacity 0.45s ease',
         }}
       >
@@ -3786,10 +4090,10 @@ export default function UnifiedAssistantChat({
           {/* Backdrop - animated separately for smooth transition */}
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: showPrimeOnboarding && !primeOnboardingCompleted ? 0.85 : 0.5 }}
+            animate={{ opacity: showPrimeOnboarding && !primeOnboardingCompleted ? 0.85 : (normalizedSlug === 'prime-boss' ? (effectiveExpanded ? 0.76 : 0.64) : (effectiveExpanded ? 0.62 : 0.5)) }}
             exit={{ opacity: 0 }}
             transition={prefersReducedMotion ? { duration: 0 } : { duration: 0.45, ease: 'easeOut' }}
-            className={`absolute inset-0 ${showPrimeOnboarding && !primeOnboardingCompleted ? 'bg-black/80 backdrop-blur-xl' : 'bg-black/50 backdrop-blur-sm'}`}
+            className={`absolute inset-0 ${showPrimeOnboarding && !primeOnboardingCompleted ? 'bg-black/80 backdrop-blur-xl' : (normalizedSlug === 'prime-boss' ? 'bg-black/65 backdrop-blur-md' : 'bg-black/50 backdrop-blur-sm')}`}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -3824,6 +4128,19 @@ export default function UnifiedAssistantChat({
               statusBadge={statusBadge}
               icon={<span className="text-lg">{displayConfig.emoji}</span>}
               iconGradient={displayConfig.gradient}
+              headerActions={
+                isPrimeWideToggleEnabled ? (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedState(!isExpanded)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700/80 bg-slate-900/70 text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100"
+                    aria-label={isExpanded ? 'Use standard width' : 'Expand chat'}
+                    title={isExpanded ? 'Use standard width' : 'Expand chat'}
+                  >
+                    {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                  </button>
+                ) : null
+              }
               onClose={() => {
                 // Abort any in-flight requests before closing
                 cancelStream();
@@ -3833,22 +4150,28 @@ export default function UnifiedAssistantChat({
               showGuardrailsBanner={false}
               welcomeRegion={combinedWelcomeRegion}
               footer={inputFooter}
+              isExpanded={effectiveExpanded}
+              collapsedWidthPx={normalizedSlug === 'prime-boss' ? 760 : (isPrimeChatRevampEnabled ? 520 : 420)}
+              expandedViewportRatio={normalizedSlug === 'prime-boss' ? 0.93 : 0.68}
+              minExpandedWidthPx={normalizedSlug === 'prime-boss' ? 980 : 760}
+              maxExpandedWidthPx={normalizedSlug === 'prime-boss' ? 1920 : 1180}
+              align={panelPlacement}
             >
               {/* MESSAGES AREA - Message list container is the scroll owner */}
               {/* CRITICAL: This wrapper provides padding and flex structure - must have flex flex-col h-full min-h-0 */}
               {/* The message list container inside will be the actual scroll owner with capture handlers */}
                   <div 
-                    className="relative px-4 pt-4 pb-4 min-w-0 flex flex-col h-full min-h-0 overflow-hidden" 
+                    className={`relative px-4 ${normalizedSlug === 'prime-boss' ? 'pt-1 pb-3' : (isPrimeChatRevampEnabled ? 'pt-2 pb-3' : 'pt-4 pb-4')} min-w-0 flex flex-col h-full min-h-0 overflow-hidden`} 
                 ref={scrollContainerRef}
                 onDragOver={(e) => {
-                  if (isByte && e.dataTransfer.types.includes('Files')) {
+                  if (supportsChatUploads && e.dataTransfer.types.includes('Files')) {
                     e.preventDefault();
                     e.stopPropagation();
                     setIsDraggingOverChat(true);
                   }
                 }}
                 onDragLeave={(e) => {
-                  if (isByte) {
+                  if (supportsChatUploads) {
                     // Only hide if we're leaving the container (not just moving to a child)
                     const rect = e.currentTarget.getBoundingClientRect();
                     const x = e.clientX;
@@ -3859,14 +4182,17 @@ export default function UnifiedAssistantChat({
                   }
                 }}
                 onDrop={(e) => {
-                  if (isByte) {
-                    setIsDraggingOverChat(false);
-                    // Let ByteUploadPanel handle the drop
-                  }
+                  if (!supportsChatUploads) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setIsDraggingOverChat(false);
+                  const droppedFiles = Array.from(e.dataTransfer?.files || []);
+                  if (droppedFiles.length === 0) return;
+                  void handleFileUpload(droppedFiles);
                 }}
               >
                   {/* Dropzone overlay - subtle background helper, never blocks scrolling */}
-                  {isByte && (
+                  {supportsChatUploads && (
                     <div
                       className={`absolute inset-0 z-0 pointer-events-none transition-all duration-200 ${
                         isDraggingOverChat
@@ -3887,11 +4213,41 @@ export default function UnifiedAssistantChat({
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                           <div className="text-center">
                             <UploadCloud className="w-12 h-12 text-sky-400 mx-auto mb-2 opacity-60" />
-                            <div className="text-sm font-medium text-sky-300">Drop files here</div>
-                            <div className="text-xs text-slate-400 mt-1">PDF, CSV, JPG/PNG • Max 25MB</div>
+                            <div className="text-sm font-medium text-sky-300">Drop files to upload</div>
+                            <div className="text-xs text-slate-400 mt-1">Up to 5 files • PDF, CSV, JPG/PNG</div>
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {showCenteredUploadIndicator && (
+                    <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+                      <div className="rounded-2xl border border-white/15 bg-slate-950/80 px-5 py-4 backdrop-blur-md shadow-2xl shadow-black/40">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="relative h-16 w-16">
+                            <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
+                              <path
+                                d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
+                                fill="none"
+                                stroke="rgba(148,163,184,0.25)"
+                                strokeWidth="3"
+                              />
+                              <path
+                                d="M18 2.5a15.5 15.5 0 1 1 0 31a15.5 15.5 0 1 1 0-31"
+                                fill="none"
+                                stroke="rgb(56,189,248)"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                                strokeDasharray={`${uploadProgressValue}, 100`}
+                              />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-sky-300">
+                              {uploadProgressValue}%
+                            </div>
+                          </div>
+                          <div className="text-xs text-slate-200">{uploadCircleLabel}</div>
+                        </div>
+                      </div>
                     </div>
                   )}
                   {/* CRITICAL: Message list container - must be the scroll owner with capture handlers */}
@@ -3928,7 +4284,7 @@ export default function UnifiedAssistantChat({
                       {/* Status indicator - shown when processing (non-Byte) */}
                           {!isByte && uploadStatus && (
                             <div className="shrink-0">
-                              <StatusIndicator status={uploadStatus} />
+                              <StatusIndicator status={uploadStatus} message={primeNarrationStatusText || undefined} />
                             </div>
                           )}
 
@@ -4028,8 +4384,37 @@ export default function UnifiedAssistantChat({
                         </div>
                       )}
 
+                      {normalizedSlug === 'prime-boss' && (
+                        <div className="mx-auto w-full max-w-3xl rounded-lg border border-white/10 bg-slate-900/35 px-3 py-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300">Financial Snapshot</p>
+                          <div className="mt-1.5 grid grid-cols-1 gap-1 text-[11px] text-slate-300 sm:grid-cols-3">
+                            <div className="flex items-center justify-between gap-2 sm:block sm:text-center">
+                              <span className="text-slate-400">This month spend</span>
+                              <span className="font-medium text-slate-100 sm:block">
+                                {typeof primeSnapshotData?.monthlySpend === 'number'
+                                  ? formatPrimeSnapshotAmount(primeSnapshotData.monthlySpend)
+                                  : '—'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 sm:block sm:text-center">
+                              <span className="text-slate-400">Active goals</span>
+                              <span className="font-medium text-slate-100 sm:block">
+                                {typeof primeSnapshotData?.activeGoalCount === 'number' ? primeSnapshotData.activeGoalCount : '—'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 sm:block sm:text-center">
+                              <span className="text-slate-400">AI status</span>
+                              <span className="font-medium text-emerald-300 sm:block">Ready</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Messages list - Hide greeting when showing Prime onboarding */}
-                      {burstDedupedMessages.filter(m => !(showPrimeOnboarding && !primeOnboardingCompleted && m.id === 'greeting-message')).map((message) => {
+                      {burstDedupedMessages
+                        .filter(m => !(showPrimeOnboarding && !primeOnboardingCompleted && m.id === 'greeting-message'))
+                        .filter(m => !(normalizedSlug === 'prime-boss' && (m.id === 'greeting-message' || m.id?.startsWith('prime-greeting-'))))
+                        .map((message) => {
                         const isGreetingMessage = message.id === 'greeting-message' || message.id?.startsWith('prime-greeting-');
                         // Detect handoff messages
                         const isHandoffMessage = message.role === 'assistant' && message.meta?.isHandoff === true;
@@ -4139,10 +4524,10 @@ export default function UnifiedAssistantChat({
                                   message.role === 'user'
                                     ? 'border border-amber-400/70 bg-slate-900/90 text-slate-50 shadow-[0_0_24px_rgba(251,191,36,0.60)]'
                                     : message.role === 'system'
-                                    ? 'bg-slate-800/60 border border-slate-700/50 text-slate-300 italic'
+                                    ? 'bg-slate-900/35 border border-white/10 text-slate-300 italic'
                                     : isHandoffMessage
                                     ? 'bg-purple-900/40 border border-purple-500/30 text-slate-100'
-                                    : 'bg-slate-800/80 text-slate-100 border border-slate-700/70'
+                                    : 'bg-slate-900/45 text-slate-100 border border-white/10'
                                 }`}
                               >
                                       {isHandoffMessage && (

@@ -10,6 +10,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { toast } from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { Paperclip, X, File, Plus, Camera, Image, FileText } from 'lucide-react';
 import { CHAT_INPUT_MAX_HEIGHT_PX } from '../../lib/chatSlideoutConstants';
@@ -44,12 +45,18 @@ export interface ChatInputBarProps {
   
   /** Optional guardrails last checked timestamp (for dev tooltips) */
   guardrailsLastChecked?: string;
+
+  /** Render guardrails status in a quieter visual style */
+  guardrailsQuiet?: boolean;
   
   /** Whether to show "+" icon instead of paperclip (for Byte/ChatGPT-style) */
   showPlusIcon?: boolean;
   
   /** Optional callback when files are selected (for immediate processing) */
   onAttachmentsChange?: (files: File[]) => void;
+
+  /** Whether attachment interactions are enabled */
+  attachmentsEnabled?: boolean;
   
   /** Whether to show attachment chips */
   showAttachmentChips?: boolean;
@@ -65,10 +72,14 @@ export interface ChatInputBarProps {
   
   /** Whether input is read-only (for launcher-only mode) */
   readOnly?: boolean;
+
+  /** Allow selecting attachments while streaming (uploads can be queued by parent). */
+  allowAttachmentsWhileStreaming?: boolean;
 }
 
 const CHAT_INPUT_MAX_CHARS = 2000;
 const CHAT_INPUT_COUNTER_THRESHOLD = 1600;
+const COMPOSER_MAX_HEIGHT_PX = Math.min(CHAT_INPUT_MAX_HEIGHT_PX, 96);
 
 export function ChatInputBar({
   value,
@@ -81,13 +92,16 @@ export function ChatInputBar({
   sendButtonGlow = 'rgba(251,191,36,0.65)',
   guardrailsStatus,
   guardrailsLastChecked,
+  guardrailsQuiet = false,
   showPlusIcon = false,
   onAttachmentsChange,
+  attachmentsEnabled = true,
   showAttachmentChips = true,
   onStop,
   onInputFocus,
   onInputMouseDown,
   readOnly = false,
+  allowAttachmentsWhileStreaming = false,
 }: ChatInputBarProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -108,13 +122,14 @@ export function ChatInputBar({
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
+      textarea.style.transition = 'height 120ms ease';
       // Reset height to auto to get accurate scrollHeight
       textarea.style.height = 'auto';
       // Cap at CHAT_INPUT_MAX_HEIGHT_PX to prevent footer expansion
-      const newHeight = Math.min(textarea.scrollHeight, CHAT_INPUT_MAX_HEIGHT_PX);
+      const newHeight = Math.min(textarea.scrollHeight, COMPOSER_MAX_HEIGHT_PX);
       textarea.style.height = `${newHeight}px`;
       // Ensure overflow-y: auto when content exceeds max height
-      if (textarea.scrollHeight > CHAT_INPUT_MAX_HEIGHT_PX) {
+      if (textarea.scrollHeight > COMPOSER_MAX_HEIGHT_PX) {
         textarea.style.overflowY = 'auto';
       } else {
         textarea.style.overflowY = 'hidden';
@@ -191,6 +206,10 @@ export function ChatInputBar({
   }, [onAttachmentsChange]);
 
   const handleAttachClick = useCallback(() => {
+    if (!attachmentsEnabled) {
+      toast('Uploads are not enabled in this chat yet.');
+      return;
+    }
     console.log('[ChatInputBar] ✅ Attach button clicked!', { showPlusIcon, isMenuOpen });
     
     if (showPlusIcon) {
@@ -204,7 +223,7 @@ export function ChatInputBar({
       // Direct file picker for paperclip icon
       fileInputRef.current?.click();
     }
-  }, [showPlusIcon, isMenuOpen]);
+  }, [showPlusIcon, isMenuOpen, attachmentsEnabled]);
 
   // Close menu on Escape key
   useEffect(() => {
@@ -314,15 +333,15 @@ export function ChatInputBar({
         )}
 
         {/* Input container - fixed height to prevent footer layout shifts */}
-        <div className="flex items-end gap-2 relative shrink-0" style={{ minHeight: '36px', maxHeight: '152px' }}>
+        <div className="flex items-end gap-2 relative shrink-0" style={{ minHeight: '24px', maxHeight: '96px' }}>
           {/* Attachment button */}
           <button
             ref={buttonRef}
             type="button"
             onClick={handleAttachClick}
-            disabled={disabled || isStreaming || attachments.length >= MAX_ATTACHMENTS}
+            disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming) || attachments.length >= MAX_ATTACHMENTS}
             className={cn(
-              "h-9 w-9 rounded-full border border-white/10 flex items-center justify-center transition-all shrink-0",
+              "h-7 w-7 rounded-xl border border-white/10 flex items-center justify-center transition-all shrink-0",
               "hover:bg-white/10 active:bg-white/15",
               "disabled:opacity-40 disabled:cursor-not-allowed",
               "focus:outline-none focus:ring-2 focus:ring-white/20 focus:ring-offset-2 focus:ring-offset-slate-950",
@@ -332,9 +351,9 @@ export function ChatInputBar({
             title={`Attach files (${attachments.length}/${MAX_ATTACHMENTS})`}
           >
             {showPlusIcon ? (
-              <Plus className="w-4 h-4 text-white/70" />
+              <Plus className="w-3.5 h-3.5 text-white/70" />
             ) : (
-              <Paperclip className="w-4 h-4 text-white/70" />
+              <Paperclip className="w-3.5 h-3.5 text-white/70" />
             )}
           </button>
 
@@ -387,7 +406,8 @@ export function ChatInputBar({
             capture="environment"
             onChange={handleFileSelect}
             className="hidden"
-            disabled={disabled || isStreaming}
+            disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming)}
+            aria-hidden={!attachmentsEnabled}
           />
           
           {/* Gallery input - multiple images */}
@@ -398,7 +418,8 @@ export function ChatInputBar({
             accept="image/*"
             onChange={handleFileSelect}
             className="hidden"
-            disabled={disabled || isStreaming}
+            disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming)}
+            aria-hidden={!attachmentsEnabled}
           />
           
           {/* Statement input - PDF/CSV/XLSX files */}
@@ -409,7 +430,8 @@ export function ChatInputBar({
             accept=".pdf,.csv,.xlsx,.xls,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             onChange={handleFileSelect}
             className="hidden"
-            disabled={disabled || isStreaming}
+            disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming)}
+            aria-hidden={!attachmentsEnabled}
           />
 
           {/* Legacy file input - kept for backward compatibility (paperclip icon) */}
@@ -420,12 +442,13 @@ export function ChatInputBar({
             accept="image/*,.pdf,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
             onChange={handleFileSelect}
             className="hidden"
-            disabled={disabled || isStreaming}
+            disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming)}
+            aria-hidden={!attachmentsEnabled}
           />
 
           {/* Text input - fixed height container prevents layout shifts */}
           {/* CRITICAL: Container maxHeight matches CHAT_INPUT_MAX_HEIGHT_PX to prevent footer growth */}
-          <div className="flex-1 rounded-full bg-black/40 border border-white/10 px-4 py-2 flex items-center shrink-0 relative" style={{ minHeight: '36px', maxHeight: `${CHAT_INPUT_MAX_HEIGHT_PX}px` }}>
+          <div className="flex-1 rounded-2xl bg-black/25 border border-white/10 px-2.5 py-0 flex items-center shrink-0 relative transition-all duration-150" style={{ minHeight: '24px', maxHeight: `${COMPOSER_MAX_HEIGHT_PX}px` }}>
             <textarea
               ref={textareaRef}
               value={value}
@@ -440,10 +463,10 @@ export function ChatInputBar({
               maxLength={CHAT_INPUT_MAX_CHARS}
               data-slideout-chat-input={!readOnly ? 'true' : undefined}
               className={cn(
-                "flex-1 bg-transparent text-sm text-white placeholder:text-white/40 resize-none outline-none border-none min-h-[22px]",
+                "flex-1 bg-transparent text-[12px] leading-5 text-white placeholder:text-white/28 resize-none outline-none border-none min-h-[14px]",
                 readOnly && "cursor-pointer"
               )}
-              style={{ maxHeight: `${CHAT_INPUT_MAX_HEIGHT_PX}px`, overflowY: 'auto' }}
+              style={{ maxHeight: `${COMPOSER_MAX_HEIGHT_PX}px`, overflowY: 'auto' }}
             />
             
             {/* Character counter - shown when >= threshold, positioned absolutely to not affect layout */}
@@ -462,9 +485,9 @@ export function ChatInputBar({
               type="button"
               onClick={onStop}
               className={cn(
-                "h-9 w-9 rounded-full flex items-center justify-center transition-all shrink-0",
+                "h-7 w-7 rounded-xl flex items-center justify-center transition-all shrink-0",
                 "bg-red-500 hover:bg-red-400 active:bg-red-600",
-                "shadow-lg shadow-red-500/50 hover:shadow-red-500/70",
+                "shadow-md shadow-red-500/35 hover:shadow-red-500/50",
                 "focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
               )}
               aria-label="Stop generating"
@@ -487,10 +510,10 @@ export function ChatInputBar({
               type="submit"
               disabled={isStreaming || (!value.trim() && attachments.length === 0) || disabled || isOverLimit}
               className={cn(
-                "h-9 w-9 rounded-full flex items-center justify-center transition-all shrink-0",
+                "h-7 w-7 rounded-xl flex items-center justify-center transition-all shrink-0",
                 "bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600",
                 "disabled:bg-slate-600/50 disabled:cursor-not-allowed",
-                "shadow-lg shadow-emerald-500/50 hover:shadow-emerald-500/70",
+                "shadow-md shadow-emerald-500/35 hover:shadow-emerald-500/50",
                 "relative",
                 "focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-slate-950"
               )}
@@ -523,12 +546,16 @@ export function ChatInputBar({
           <div className="flex justify-center mt-1 shrink-0">
             <div 
               className={cn(
-                "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-medium shadow transition-colors",
-                guardrailsStatus.includes('Secured') 
+                guardrailsQuiet
+                  ? "inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-medium border transition-colors bg-slate-900/55 border-white/10 text-slate-300 shadow-none"
+                  : "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-medium shadow transition-colors",
+                !guardrailsQuiet && guardrailsStatus.includes('Secured') 
                   ? "bg-emerald-900/70 text-emerald-300 shadow-emerald-500/30"
-                  : guardrailsStatus.includes('Degraded')
+                  : !guardrailsQuiet && guardrailsStatus.includes('Degraded')
                   ? "bg-amber-900/70 text-amber-300 shadow-amber-500/30"
-                  : "bg-slate-800/70 text-slate-400 shadow-slate-500/20"
+                  : !guardrailsQuiet
+                  ? "bg-slate-800/70 text-slate-400 shadow-slate-500/20"
+                  : ""
               )}
               title={import.meta.env.DEV && guardrailsLastChecked ? `Last checked: ${guardrailsLastChecked}` : undefined}
             >

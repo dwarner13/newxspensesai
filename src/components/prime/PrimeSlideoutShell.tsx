@@ -54,6 +54,24 @@ export interface PrimeSlideoutShellProps {
 
   /** Optional floating rail component to render inside the slideout */
   floatingRail?: React.ReactNode;
+
+  /** Horizontal alignment inside the viewport container */
+  align?: 'right' | 'center';
+
+  /** Whether shell should use expanded panel width mode */
+  isExpanded?: boolean;
+
+  /** Base desktop width in pixels (non-expanded mode) */
+  collapsedWidthPx?: number;
+
+  /** Expanded width as viewport ratio (0-1), default ~68vw */
+  expandedViewportRatio?: number;
+
+  /** Min width in expanded mode */
+  minExpandedWidthPx?: number;
+
+  /** Max width in expanded mode */
+  maxExpandedWidthPx?: number;
 }
 
 export function PrimeSlideoutShell({
@@ -71,12 +89,21 @@ export function PrimeSlideoutShell({
   showGuardrailsBanner = false,
   className = "",
   floatingRail,
+  isExpanded = false,
+  collapsedWidthPx = 576,
+  expandedViewportRatio = 0.68,
+  minExpandedWidthPx = 780,
+  maxExpandedWidthPx = 1200,
+  align = 'right',
 }: PrimeSlideoutShellProps) {
   // Check for reduced motion preference
   const prefersReducedMotion =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+
+  const getInitialIsMobile = () =>
+    typeof window !== "undefined" ? window.innerWidth < 768 : false;
 
   // Lock shell height to stable viewport-based height (never changes during typing)
   const [lockedHeight, setLockedHeight] = useState<string | null>(null);
@@ -85,7 +112,7 @@ export function PrimeSlideoutShell({
   const chatReadyRef = useRef(false); // Track if chat content is ready (prevents locking to tiny height)
 
   // Detect mobile viewport
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(getInitialIsMobile);
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
@@ -101,24 +128,43 @@ export function PrimeSlideoutShell({
   const MIN_SHELL_HEIGHT_MOBILE = 320; // Minimum height for mobile
   const MIN_SHELL_HEIGHT = isMobile ? MIN_SHELL_HEIGHT_MOBILE : MIN_H;
 
+  const computePanelHeightPx = () => {
+    const vh = Math.max(0, window.innerHeight || 0);
+    if (isExpanded) {
+      // Max mode: near fullscreen while keeping chrome visible
+      return Math.max(MIN_SHELL_HEIGHT, Math.min(Math.round(vh * 0.85), vh - 24));
+    }
+    const topChromeOffset = 80;
+    return Math.max(MIN_SHELL_HEIGHT, Math.min(MAX_H, vh - topChromeOffset));
+  };
+
+  const computePanelWidthPx = () => {
+    const viewportWidth = Math.max(0, window.innerWidth || 0);
+    const reservedRightGutter = isExpanded ? 104 : 56; // keep rail visible + breathing room
+    const maxAvailable = Math.max(320, viewportWidth - reservedRightGutter);
+    const targetWidth = isExpanded
+      ? Math.round(viewportWidth * expandedViewportRatio)
+      : collapsedWidthPx;
+
+    if (!isExpanded) {
+      return Math.min(targetWidth, maxAvailable);
+    }
+
+    const boundedExpanded = Math.max(
+      minExpandedWidthPx,
+      Math.min(targetWidth, maxExpandedWidthPx)
+    );
+    return Math.min(boundedExpanded, maxAvailable);
+  };
+
   useEffect(() => {
     // Wait for chat to be ready before locking height (prevents locking to tiny initial size)
     // Use a small delay to ensure content has rendered
     const timer = setTimeout(() => {
       chatReadyRef.current = true;
       
-      // CRITICAL: Use window.innerHeight as the source of truth
       const vh = Math.max(0, window.innerHeight || 0);
-      
-      // Calculate top chrome offset (header + padding)
-      // Header is typically ~64px, add some padding for spacing
-      const topChromeOffset = 80; // Header + top padding
-      
-      // Compute height: viewport height minus top chrome offset
-      let next = vh - topChromeOffset;
-      
-      // Clamp to MIN_H and MAX_H
-      next = Math.max(MIN_SHELL_HEIGHT, Math.min(MAX_H, next));
+      let next = computePanelHeightPx();
       
       // CRITICAL: Sanity check - if computed height is below minimum, force minimum
       if (next < MIN_SHELL_HEIGHT) {
@@ -128,7 +174,7 @@ export function PrimeSlideoutShell({
         next = MIN_SHELL_HEIGHT;
       }
       
-      const frozenW = 576; // max-w-xl = 576px
+      const frozenW = computePanelWidthPx();
 
       setLockedHeight(`${next}px`);
       setLockedWidth(`${frozenW}px`);
@@ -143,7 +189,7 @@ export function PrimeSlideoutShell({
           minHeight: MIN_SHELL_HEIGHT,
           maxHeight: MAX_H,
           viewportHeight: vh,
-          topChromeOffset,
+          topChromeOffset: isExpanded ? 'expanded-85vh' : 80,
           isMobile,
           timestamp: new Date().toISOString(),
         });
@@ -151,7 +197,15 @@ export function PrimeSlideoutShell({
     }, 100); // Small delay to ensure content rendered
 
     return () => clearTimeout(timer);
-  }, [isMobile, MIN_SHELL_HEIGHT]);
+  }, [
+    isMobile,
+    MIN_SHELL_HEIGHT,
+    isExpanded,
+    collapsedWidthPx,
+    expandedViewportRatio,
+    minExpandedWidthPx,
+    maxExpandedWidthPx,
+  ]);
 
   // Optional: Recompute on window resize (debounced)
   useEffect(() => {
@@ -161,17 +215,8 @@ export function PrimeSlideoutShell({
     const handleResize = () => {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
-        // CRITICAL: Use window.innerHeight as the source of truth
         const vh = Math.max(0, window.innerHeight || 0);
-        
-        // Calculate top chrome offset (header + padding)
-        const topChromeOffset = 80; // Header + top padding
-        
-        // Compute height: viewport height minus top chrome offset
-        let next = vh - topChromeOffset;
-        
-        // Clamp to MIN_H and MAX_H
-        next = Math.max(MIN_SHELL_HEIGHT, Math.min(MAX_H, next));
+        let next = computePanelHeightPx();
         
         // CRITICAL: Sanity check - if computed height is below minimum, force minimum
         if (next < MIN_SHELL_HEIGHT) {
@@ -181,7 +226,9 @@ export function PrimeSlideoutShell({
           next = MIN_SHELL_HEIGHT;
         }
         
+        const nextWidth = computePanelWidthPx();
         setLockedHeight(`${next}px`);
+        setLockedWidth(`${nextWidth}px`);
 
         if (import.meta.env.DEV) {
           console.log("[PrimeSlideoutShell] 🔄 Resize recompute (debounced)", {
@@ -191,7 +238,7 @@ export function PrimeSlideoutShell({
             minHeight: MIN_SHELL_HEIGHT,
             maxHeight: MAX_H,
             viewportHeight: vh,
-            topChromeOffset,
+            topChromeOffset: isExpanded ? 'expanded-85vh' : 80,
             isMobile,
           });
         }
@@ -203,7 +250,16 @@ export function PrimeSlideoutShell({
       window.removeEventListener("resize", handleResize);
       clearTimeout(resizeTimeout);
     };
-  }, [lockedHeight, MIN_SHELL_HEIGHT, isMobile]);
+  }, [
+    lockedHeight,
+    MIN_SHELL_HEIGHT,
+    isMobile,
+    isExpanded,
+    collapsedWidthPx,
+    expandedViewportRatio,
+    minExpandedWidthPx,
+    maxExpandedWidthPx,
+  ]);
 
   // Resize guard (dev-only) - monitors shell for unwanted resizing
   const shellRef = useRef<HTMLElement>(null);
@@ -232,7 +288,7 @@ export function PrimeSlideoutShell({
   }, []);
 
   return (
-    <div className="flex h-full justify-end items-stretch py-6 pr-4">
+    <div className={`flex h-full items-stretch py-4 ${align === 'center' ? 'justify-center px-2' : 'justify-end pr-4'}`}>
       <motion.aside
         ref={shellRef}
         data-prime-slideout-shell="true"
@@ -256,11 +312,11 @@ export function PrimeSlideoutShell({
           maxHeight: lockedHeight || CHAT_SHEET_HEIGHT,
           // CRITICAL: Enforce minimum height to prevent collapse while open
           minHeight: lockedHeight ? undefined : `${MIN_SHELL_HEIGHT}px`,
-          width: lockedWidth || "100%",
-          maxWidth: lockedWidth || "576px",
+          width: lockedWidth || `${collapsedWidthPx}px`,
+          maxWidth: lockedWidth || `${collapsedWidthPx}px`,
           transition: prefersReducedMotion
             ? "none"
-            : "transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease-out",
+            : "transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease-out, width 0.3s ease-out",
         }}
         className={`
           flex flex-col
@@ -288,7 +344,7 @@ export function PrimeSlideoutShell({
             style={{ minHeight: 0 }} // Explicit min-h-0 to ensure flex chain works
           >
             {/* HEADER */}
-            <div className="sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-6 pt-5 pb-4 backdrop-blur-sm flex-shrink-0 min-h-0">
+            <div className="sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-6 pt-3 pb-2 backdrop-blur-sm flex-shrink-0 min-h-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
