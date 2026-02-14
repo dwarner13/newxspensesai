@@ -48,6 +48,8 @@ import { PrimeTrustMessage } from './PrimeTrustMessage';
 import { markPrimeInitialized, markGuardrailsAcknowledged } from '../../lib/profileMetadataHelpers';
 import { classifyIntent, getNextBestAction, type UserIntent } from '../../lib/intentClassification';
 import { buildPrimeGreeting, type PrimeGreetingData, type PrimeGreetingChip } from './greetings/primeGreeting';
+// Reserved (post-MVP): structured Prime greeting card system consolidation.
+// Keep import for now; do not activate in MVP path.
 import { PrimeGreetingCard } from './PrimeGreetingCard';
 import { PrimeQuickActions } from './PrimeQuickActions';
 import { TypingMessage } from './TypingMessage';
@@ -62,6 +64,7 @@ import type { ChatHandoffPayload } from '../../types/chatHandoff';
 
 // Quick prompts are now defined in EMPLOYEE_DISPLAY_CONFIG
 // Access via: displayConfig.chatQuickPrompts
+// Reserved (post-MVP): keep usePrimeAutoGreet detached from this runtime.
 const MAX_CHAT_UPLOAD_FILES = 5;
 const PRIME_CHAT_WIDE_STORAGE_KEY = 'xspenses:prime_chat_wide';
 
@@ -239,6 +242,7 @@ export default function UnifiedAssistantChat({
   const userJustSentRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isPrimeChatRevampEnabled = import.meta.env.VITE_PRIME_CHAT_REVAMP === '1';
+  const isPrimeChatUiRefinementsEnabled = import.meta.env.VITE_PRIME_CHAT_UI_REFINEMENTS === '1';
   const [internalExpanded, setInternalExpanded] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     if (import.meta.env.VITE_PRIME_CHAT_REVAMP !== '1') return false;
@@ -2478,17 +2482,24 @@ export default function UnifiedAssistantChat({
     let greetingText = '';
     if (currentEmployeeSlug === 'prime-boss') {
       if (isFirstRun) {
-        greetingText = [
-          `Hi, I'm Prime. 👋`,
-          `I'm your AI financial guide inside XspensesAI.`,
-          ``,
-          `My job is simple:`,
-          `I help you understand your money without stress, without judgment, and without complexity.`,
-          ``,
-          `You don't have to be an expert - I'll handle the hard parts.`,
-          ``,
-          `When you're ready, we can start by importing your first document, or I can show you around.`,
-        ].join('\n');
+        if (isPrimeChatUiRefinementsEnabled) {
+          greetingText = [
+            'Welcome to Prime.',
+            'Import a statement to begin, or ask a finance question anytime.',
+          ].join('\n');
+        } else {
+          greetingText = [
+            `Hi, I'm Prime. 👋`,
+            `I'm your AI financial guide inside XspensesAI.`,
+            ``,
+            `My job is simple:`,
+            `I help you understand your money without stress, without judgment, and without complexity.`,
+            ``,
+            `You don't have to be an expert - I'll handle the hard parts.`,
+            ``,
+            `When you're ready, we can start by importing your first document, or I can show you around.`,
+          ].join('\n');
+        }
       } else {
         const bullets: string[] = [];
         if (snapshot?.uncategorizedCount && snapshot.uncategorizedCount > 0) {
@@ -2503,7 +2514,19 @@ export default function UnifiedAssistantChat({
         if (bullets.length === 0 && snapshot?.transactionCount) {
           bullets.push(`• ${snapshot.transactionCount} total transactions on file`);
         }
-        if (isPrimeChatRevampEnabled) {
+        if (isPrimeChatUiRefinementsEnabled) {
+          // MVP refinement: keep Prime greeting to two lines max (calm, concise, trust-first).
+          const welcomeLine = userName && userName !== 'there'
+            ? `Welcome back, ${userName}.`
+            : 'Welcome back.';
+          const snapshotLine = bullets.length > 0
+            ? `Snapshot: ${bullets[0].replace(/^•\s*/, '')}.`
+            : 'Your latest snapshot is ready.';
+          greetingText = [
+            welcomeLine,
+            `${snapshotLine} Import a statement or ask a question.`,
+          ].join('\n');
+        } else if (isPrimeChatRevampEnabled) {
           const welcomeLine = userName && userName !== 'there'
             ? `Welcome back, ${userName}. Your latest snapshot is ready.`
             : 'Welcome back. Your latest snapshot is ready.';
@@ -2564,7 +2587,7 @@ export default function UnifiedAssistantChat({
       timestamp: new Date().toISOString(),
       meta: { isGreeting: true, hideTimestamp: true },
     };
-  }, [isHandoff, isOpen, isLoadingHistory, isStreaming, hasAnyMessages, currentEmployeeSlug, resolvedThreadId, conversationId, profile, user, firstName, messages, loadedHistoryMessages, primeState, engineReadyLatched, primeOnboardingCompleted, userId, isPrimeChatRevampEnabled]);
+  }, [isHandoff, isOpen, isLoadingHistory, isStreaming, hasAnyMessages, currentEmployeeSlug, resolvedThreadId, conversationId, profile, user, firstName, messages, loadedHistoryMessages, primeState, engineReadyLatched, primeOnboardingCompleted, userId, isPrimeChatRevampEnabled, isPrimeChatUiRefinementsEnabled]);
 
   useEffect(() => {
     if (!greetingMessage || !currentEmployeeSlug) return;
@@ -3739,34 +3762,6 @@ export default function UnifiedAssistantChat({
     openPrimeSlideoutAndFocus();
   };
 
-  const primeSnapshotData = useMemo(() => {
-    const snapshot = primeState?.financialSnapshot;
-    if (!snapshot) return null;
-    return {
-      monthlySpend: snapshot.monthlySpend,
-      activeGoalCount: snapshot.activeGoalCount,
-      ready: true,
-    };
-  }, [primeState]);
-
-  const primeSnapshotCurrency = useMemo(() => {
-    const raw = String((profile as any)?.currency || primeState?.userProfileSummary?.currency || 'USD')
-      .trim()
-      .toUpperCase();
-    return /^[A-Z]{3}$/.test(raw) ? raw : 'USD';
-  }, [profile, primeState?.userProfileSummary?.currency]);
-
-  const formatPrimeSnapshotAmount = useCallback((amount: number) => {
-    try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: primeSnapshotCurrency,
-      }).format(amount);
-    } catch {
-      return `$${amount.toFixed(2)}`;
-    }
-  }, [primeSnapshotCurrency]);
-
   const inputFooter = (
     <div className="w-full max-w-full mx-0 min-w-0 shrink-0 flex flex-col">
       <ChatInputBar
@@ -3792,7 +3787,7 @@ export default function UnifiedAssistantChat({
         }
         guardrailsLastChecked={guardrailsLastChecked || undefined}
         guardrailsQuiet={isPrimeChatRevampEnabled && normalizedSlug === 'prime-boss'}
-        showPlusIcon={isByte}
+        showPlusIcon={isByte || normalizedSlug === 'prime-boss'}
         attachmentsEnabled={supportsChatUploads}
         showAttachmentChips={!isByte}
         allowAttachmentsWhileStreaming={supportsChatUploads}
@@ -4384,32 +4379,6 @@ export default function UnifiedAssistantChat({
                         </div>
                       )}
 
-                      {normalizedSlug === 'prime-boss' && (
-                        <div className="mx-auto w-full max-w-3xl rounded-lg border border-white/10 bg-slate-900/35 px-3 py-2">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-300">Financial Snapshot</p>
-                          <div className="mt-1.5 grid grid-cols-1 gap-1 text-[11px] text-slate-300 sm:grid-cols-3">
-                            <div className="flex items-center justify-between gap-2 sm:block sm:text-center">
-                              <span className="text-slate-400">This month spend</span>
-                              <span className="font-medium text-slate-100 sm:block">
-                                {typeof primeSnapshotData?.monthlySpend === 'number'
-                                  ? formatPrimeSnapshotAmount(primeSnapshotData.monthlySpend)
-                                  : '—'}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 sm:block sm:text-center">
-                              <span className="text-slate-400">Active goals</span>
-                              <span className="font-medium text-slate-100 sm:block">
-                                {typeof primeSnapshotData?.activeGoalCount === 'number' ? primeSnapshotData.activeGoalCount : '—'}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 sm:block sm:text-center">
-                              <span className="text-slate-400">AI status</span>
-                              <span className="font-medium text-emerald-300 sm:block">Ready</span>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
                       {/* Messages list - Hide greeting when showing Prime onboarding */}
                       {burstDedupedMessages
                         .filter(m => !(showPrimeOnboarding && !primeOnboardingCompleted && m.id === 'greeting-message'))
@@ -4423,7 +4392,8 @@ export default function UnifiedAssistantChat({
                         // When greeting is typing, TypingIndicatorRow renders its own avatar - don't render message row avatar
                         const isGreetingTyping = chatReady && isGreetingMessage && isTypingFor(currentEmployeeSlug);
                         
-                        // Prime greeting card disabled to keep chats locked down
+                        // Reserved (post-MVP): PrimeGreetingCard pathway.
+                        // Keep disabled for MVP to avoid branching/duplicate greeting surfaces.
                         const isPrimeGreetingCard = false;
                         const primeGreetingSafe = primeGreetingData as PrimeGreetingData;
                         
