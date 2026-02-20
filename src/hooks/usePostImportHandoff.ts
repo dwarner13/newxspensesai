@@ -9,7 +9,11 @@ import { useEffect, useState, useRef } from 'react';
 import { onBus } from '../lib/bus';
 import { getSupabase } from '../lib/supabase';
 import { log, error } from '../lib/logger';
-import { isPostImportTriggersDisabled } from '../lib/featureFlags';
+import { isPostImportTriggersDisabled, isPrimeUploadNarrationEnabled } from '../lib/featureFlags';
+import {
+  buildUploadTimelineTruthFromRouterStatus,
+  type UploadTimelineTruth,
+} from '../components/chat/upload/progressTruth';
 
 interface PrimeSummary {
   importId: string;
@@ -27,6 +31,11 @@ interface PrimeSummaryMeta {
   ready?: boolean | null;
 }
 
+type ImportTimelineState = {
+  truth: UploadTimelineTruth;
+  updatedAt: string;
+};
+
 /**
  * Store for Prime summaries (key: importId)
  */
@@ -36,20 +45,59 @@ const primeSummaryMetaStore = new Map<string, PrimeSummaryMeta>();
 const PRIME_ROUTER_STATUS_MAX_POLLS = 8;
 const PRIME_ROUTER_STATUS_POLL_MS = 1500;
 const PENDING_IMPORT_RECAP_KEY = 'xspenses:pending_import_recap';
+const SUMMARY_REQUEST_CACHE_TTL_MS = 2500;
+const primeSummaryRequestCache = new Map<string, { expiresAt: number; result: { content: string; meta?: PrimeSummaryMeta } }>();
+const primeSummaryRequestInflight = new Map<string, Promise<{ content: string; meta?: PrimeSummaryMeta }>>();
+
+function buildSummaryRequestKey(importId: string, importIds?: string[]): string {
+  const base = [String(importId || '').trim(), ...((importIds || []).map((id) => String(id || '').trim()))]
+    .filter(Boolean);
+  const uniqueSorted = Array.from(new Set(base)).sort();
+  return uniqueSorted.join('|');
+}
+
+async function getAuthHeader(): Promise<Record<string, string>> {
+  try {
+    const supabase = getSupabase();
+    if (!supabase) return {};
+    const { data } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    if (!token) return {};
+    return { Authorization: `Bearer ${token}` };
+  } catch {
+    return {};
+  }
+}
 
 interface UsePostImportHandoffOptions {
   /**
    * If true, bypass the quiet-mode gate so summaries still appear in chat.
    */
   bypassQuietMode?: boolean;
+  /**
+   * Optional provider for currently active import IDs (batch upload context).
+   */
+  getBatchImportIds?: () => string[];
 }
 
 export function usePostImportHandoff(userId: string | undefined, options: UsePostImportHandoffOptions = {}) {
-  const { bypassQuietMode = false } = options;
+  const { bypassQuietMode = false, getBatchImportIds } = options;
   const [primeSummaryReady, setPrimeSummaryReady] = useState<string | null>(null); // importId when ready
   const [latestSummary, setLatestSummary] = useState<PrimeSummary | null>(null);
+  const [importTimelineById, setImportTimelineById] = useState<Record<string, ImportTimelineState>>({});
   const processingImportsRef = useRef<Set<string>>(new Set());
   const summaryRetryRef = useRef<Map<string, number>>(new Map());
+
+  const setImportTimelineTruth = (importId: string, truth: UploadTimelineTruth) => {
+    if (!importId) return;
+    setImportTimelineById((prev) => ({
+      ...prev,
+      [importId]: {
+        truth,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+  };
 
   useEffect(() => {
     if (!userId) return;
@@ -71,18 +119,42 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
       log('[usePostImportHandoff] BYTE_IMPORT_COMPLETED received', payload);
 
       try {
+        setImportTimelineTruth(payload.importId, {
+          phase: 'extracting',
+          status: 'running',
+          summaryReady: false,
+        });
         // Canonical orchestration: Chat -> Prime Router -> downstream functions.
         // Do not call TAG/OCR/summary endpoints directly from chat flow.
-        const routerStatus = await waitForPrimeRouterStatus(payload.importId);
-        if (routerStatus === 'error') {
+        const routerStatus = await waitForPrimeRouterStatus(payload.importId, (statusPayload) => {
+          const truth = buildUploadTimelineTruthFromRouterStatus(statusPayload);
+          setImportTimelineTruth(payload.importId, truth);
+        });
+        if (routerStatus.state === 'error') {
           error('[usePostImportHandoff] Prime router status returned error; continuing with summary fallback');
+          setImportTimelineTruth(payload.importId, {
+            phase: 'error',
+            status: 'error',
+            summaryReady: false,
+          });
+        } else if (routerStatus.state === 'no_input_needs_review') {
+          setImportTimelineTruth(payload.importId, {
+            phase: 'error',
+            status: 'needs_review_no_input',
+            summaryReady: false,
+          });
         }
 
+        const batchImportIds = Array.from(
+          new Set(
+            [payload.importId, ...((getBatchImportIds?.() || []).map((id) => String(id || "").trim()).filter(Boolean))]
+          )
+        );
         // STEP 4: Prepare Prime summary (store in memory, do NOT send yet)
         // Wrap in try/catch to ensure summary is always prepared even if preparePrimeSummary fails
         let prepared: { content: string; meta?: PrimeSummaryMeta };
         try {
-          prepared = await preparePrimeSummary(payload.importId, payload.userId);
+          prepared = await preparePrimeSummary(payload.importId, payload.userId, batchImportIds.length > 1 ? batchImportIds : undefined);
         } catch (err: any) {
           error('[usePostImportHandoff] Error preparing summary, using fallback:', err);
           prepared = { content: "Your categorized results and insights are available." };
@@ -114,6 +186,13 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
 
         primeSummaryStore.set(stableKey, summary);
         primeSummaryMetaStore.set(stableKey, prepared.meta || {});
+        setImportTimelineTruth(payload.importId, {
+          phase: 'summary_ready',
+          status: 'complete',
+          summaryReady: true,
+          needsReviewCount: prepared.meta?.needsReviewCount ?? null,
+          tagRan: prepared.meta?.tagRan ?? null,
+        });
         await persistSummaryToDb(summary, payload.userId);
         setLatestSummary(summary);
         enqueueImportRecapIfReady(payload.importId, prepared.content, prepared.meta);
@@ -123,10 +202,15 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
 
         // If summary is generic, retry after OCR/normalization completes
         if (isGenericSummary(prepared.content)) {
-          scheduleSummaryRetry(payload.importId, payload.userId);
+          scheduleSummaryRetry(payload.importId, payload.userId, batchImportIds.length > 1 ? batchImportIds : undefined);
         }
       } catch (err: any) {
         error('[usePostImportHandoff] Error processing import completion:', err);
+        setImportTimelineTruth(payload.importId, {
+          phase: 'error',
+          status: 'error',
+          summaryReady: false,
+        });
         // Remove from processing set on error so it can retry
         processingImportsRef.current.delete(payload.importId);
       }
@@ -134,7 +218,7 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
 
     const unsubscribe = onBus('BYTE_IMPORT_COMPLETED', handleByteImportCompleted);
     return unsubscribe;
-  }, [userId, bypassQuietMode]);
+  }, [userId, bypassQuietMode, getBatchImportIds]);
 
   const isGenericSummary = (content: string) => {
     return (
@@ -143,7 +227,7 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
     );
   };
 
-  const scheduleSummaryRetry = (importId: string, retryUserId: string) => {
+  const scheduleSummaryRetry = (importId: string, retryUserId: string, batchImportIds?: string[]) => {
     const attempts = summaryRetryRef.current.get(importId) ?? 0;
     if (attempts >= 5) {
       return;
@@ -151,16 +235,16 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
     summaryRetryRef.current.set(importId, attempts + 1);
     setTimeout(async () => {
       try {
-        const updated = await preparePrimeSummary(importId, retryUserId);
+        const updated = await preparePrimeSummary(importId, retryUserId, batchImportIds);
         const updatedContent = updated?.content;
         if (!updatedContent) {
-          scheduleSummaryRetry(importId, retryUserId);
+          scheduleSummaryRetry(importId, retryUserId, batchImportIds);
           return;
         }
 
         const existing = primeSummaryStore.get(importId);
         if (!existing) {
-          scheduleSummaryRetry(importId, retryUserId);
+          scheduleSummaryRetry(importId, retryUserId, batchImportIds);
           return;
         }
 
@@ -227,6 +311,10 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
     return primeSummaryMetaStore.get(importId) || null;
   };
 
+  const getImportTimeline = (importId: string): ImportTimelineState | null => {
+    return importTimelineById[importId] || null;
+  };
+
   /**
    * Get the latest prepared summary (if any)
    */
@@ -274,6 +362,7 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
     primeSummaryReady,
     getPrimeSummary,
     getPrimeSummaryMeta,
+    getImportTimeline,
     getLatestPrimeSummary,
     consumePrimeSummary,
   };
@@ -322,151 +411,180 @@ function parseCount(content: string, pattern: RegExp): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-async function preparePrimeSummary(importId: string, _userId: string): Promise<{ content: string; meta?: PrimeSummaryMeta }> {
+async function preparePrimeSummary(importId: string, _userId: string, importIds?: string[]): Promise<{ content: string; meta?: PrimeSummaryMeta }> {
+  const requestKey = buildSummaryRequestKey(importId, importIds);
+  const now = Date.now();
+  const cached = primeSummaryRequestCache.get(requestKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.result;
+  }
+  const inflight = primeSummaryRequestInflight.get(requestKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const runRequest = (async () => {
+    try {
+      const authHeader = await getAuthHeader();
+      const isGeneric = (content: string) =>
+        content.includes('ready for your review') ||
+        content.includes('categorized results and insights are available');
+      let routerReportedNotReady = false;
+
+      // Canonical orchestration endpoint for chat summary path.
+      // No direct summary/TAG endpoint calls from chat flow.
+      try {
+        const response = await fetch('/.netlify/functions/prime-router', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify({ mode: 'summary', importId, importIds }),
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          const routerSummary = payload?.summary?.summary;
+          if (typeof routerSummary === 'string' && routerSummary && !isGeneric(routerSummary)) {
+            const totalProcessed =
+              parseCount(routerSummary, /Parsed transactions:\s*(\d+)/i) ??
+              parseCount(routerSummary, /(\d+)\s+transactions?\s+processed/i);
+            const needsReview =
+              payload?.meta?.needsReviewCount ??
+              parseCount(routerSummary, /Flagged for review:\s*(\d+)/i) ??
+              parseCount(routerSummary, /(\d+)\s+transactions?\s+need review/i);
+            const autoCount = payload?.meta?.autoCount ?? (
+              totalProcessed !== null && needsReview !== null ? Math.max(totalProcessed - needsReview, 0) : null
+            );
+            return {
+              content: routerSummary,
+              meta: {
+                tagRan: payload?.meta?.tagRan ?? null,
+                needsReviewCount: needsReview,
+                autoCount,
+                aiCount: payload?.meta?.aiCount ?? null,
+                taggedCount: autoCount,
+                ready: true,
+              },
+            };
+          }
+          if (payload?.ready === false) {
+            // Router may report "not ready" while prime-summary can still return a
+            // structured markdown fallback (including zero-transaction summaries).
+            routerReportedNotReady = true;
+          }
+        }
+      } catch (err: any) {
+        error('[preparePrimeSummary] prime-router summary failed:', err);
+      }
+
+      // Safe fallback: direct prime-summary if router summary path fails.
+      try {
+        const response = await fetch('/.netlify/functions/prime-summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeader },
+          body: JSON.stringify({ importId, importIds }),
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          const fallbackSummary = payload?.summary;
+          if (typeof fallbackSummary === 'string' && fallbackSummary.trim().length > 0 && !isGeneric(fallbackSummary)) {
+            const totalProcessed =
+              parseCount(fallbackSummary, /Parsed transactions:\s*(\d+)/i) ??
+              parseCount(fallbackSummary, /(\d+)\s+transactions?\s+processed/i);
+            const needsReview =
+              parseCount(fallbackSummary, /Flagged for review:\s*(\d+)/i) ??
+              parseCount(fallbackSummary, /(\d+)\s+transactions?\s+need review/i);
+            return {
+              content: fallbackSummary,
+              meta: {
+                needsReviewCount: needsReview,
+                taggedCount: totalProcessed !== null && needsReview !== null ? Math.max(totalProcessed - needsReview, 0) : null,
+                ready: true,
+              },
+            };
+          }
+        }
+      } catch (err: any) {
+        error('[preparePrimeSummary] prime-summary fallback failed:', err);
+      }
+
+      return {
+        content: "Your categorized results and insights are available.",
+        meta: { tagRan: false, ready: !routerReportedNotReady ? null : false },
+      };
+    } catch (err: any) {
+      error('[preparePrimeSummary] Error:', err);
+      return { content: "Your categorized results and insights are available.", meta: { tagRan: false, ready: false } };
+    }
+  })();
+
+  primeSummaryRequestInflight.set(requestKey, runRequest);
   try {
-    const isGeneric = (content: string) =>
-      content.includes('ready for your review') ||
-      content.includes('categorized results and insights are available');
-
-    // Canonical orchestration endpoint for chat summary path.
-    // No direct summary/TAG endpoint calls from chat flow.
-    try {
-      const response = await fetch('/.netlify/functions/prime-router', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'summary', importId }),
-      });
-      if (response.ok) {
-        const payload = await response.json();
-        const routerSummary = payload?.summary?.summary;
-        if (typeof routerSummary === 'string' && routerSummary && !isGeneric(routerSummary)) {
-          const totalProcessed = parseCount(routerSummary, /(\d+)\s+transactions?\s+processed/i);
-          const needsReview = payload?.meta?.needsReviewCount ?? parseCount(routerSummary, /(\d+)\s+transactions?\s+need review/i);
-          const autoCount = payload?.meta?.autoCount ?? (
-            totalProcessed !== null && needsReview !== null ? Math.max(totalProcessed - needsReview, 0) : null
-          );
-          return {
-            content: routerSummary,
-            meta: {
-              tagRan: payload?.meta?.tagRan ?? null,
-              needsReviewCount: needsReview,
-              autoCount,
-              aiCount: payload?.meta?.aiCount ?? null,
-              taggedCount: autoCount,
-              ready: true,
-            },
-          };
-        }
-        if (payload?.ready === false) {
-          return { content: "Your categorized results and insights are available.", meta: { tagRan: false, ready: false } };
-        }
-      }
-    } catch (err: any) {
-      error('[preparePrimeSummary] prime-router summary failed:', err);
-    }
-
-    // Safe fallback: direct prime-summary if router summary path fails.
-    try {
-      const response = await fetch('/.netlify/functions/prime-summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ importId }),
-      });
-      if (response.ok) {
-        const payload = await response.json();
-        const fallbackSummary = payload?.summary;
-        if (typeof fallbackSummary === 'string' && fallbackSummary.trim().length > 0 && !isGeneric(fallbackSummary)) {
-          const totalProcessed = parseCount(fallbackSummary, /(\d+)\s+transactions?\s+processed/i);
-          const needsReview = parseCount(fallbackSummary, /(\d+)\s+transactions?\s+need review/i);
-          return {
-            content: fallbackSummary,
-            meta: {
-              needsReviewCount: needsReview,
-              taggedCount: totalProcessed !== null && needsReview !== null ? Math.max(totalProcessed - needsReview, 0) : null,
-              ready: true,
-            },
-          };
-        }
-      }
-    } catch (err: any) {
-      error('[preparePrimeSummary] prime-summary fallback failed:', err);
-    }
-
-    return { content: "Your categorized results and insights are available.", meta: { tagRan: false, ready: false } };
-  } catch (err: any) {
-    error('[preparePrimeSummary] Error:', err);
-    return { content: "Your categorized results and insights are available.", meta: { tagRan: false, ready: false } };
+    const result = await runRequest;
+    primeSummaryRequestCache.set(requestKey, {
+      expiresAt: Date.now() + SUMMARY_REQUEST_CACHE_TTL_MS,
+      result,
+    });
+    return result;
+  } finally {
+    primeSummaryRequestInflight.delete(requestKey);
   }
 }
 
-async function waitForPrimeRouterStatus(importId: string): Promise<'complete' | 'error' | 'running_timeout'> {
+async function waitForPrimeRouterStatus(
+  importId: string,
+  onUpdate?: (payload: any) => void
+): Promise<{ state: 'complete' | 'error' | 'running_timeout' | 'no_input_needs_review'; payload?: any }> {
+  const authHeader = await getAuthHeader();
   for (let i = 0; i < PRIME_ROUTER_STATUS_MAX_POLLS; i += 1) {
     try {
       const response = await fetch('/.netlify/functions/prime-router', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ mode: 'status', importId }),
       });
       if (response.ok) {
         const payload = await response.json();
+        onUpdate?.(payload);
+        const detailItems = Array.isArray(payload?.details?.items) ? payload.details.items : [];
+        const needsReviewNoInput = detailItems.some((item: any) => {
+          const itemStatus = String(item?.status || '').toLowerCase();
+          const ocrStatus = String(item?.ocrStatus || '').toLowerCase();
+          return itemStatus === 'done' && (ocrStatus === 'needs_review' || ocrStatus === 'rejected');
+        });
+        if (needsReviewNoInput) {
+          return { state: 'no_input_needs_review', payload };
+        }
         if (payload?.status === 'complete') {
-          return 'complete';
+          return { state: 'complete', payload };
         }
         if (payload?.status === 'error') {
-          return 'error';
+          return { state: 'error', payload };
         }
       }
     } catch (err: any) {
       error('[waitForPrimeRouterStatus] Poll failed:', err);
-      return 'running_timeout';
+      return { state: 'running_timeout' };
     }
     await new Promise((resolve) => setTimeout(resolve, PRIME_ROUTER_STATUS_POLL_MS));
   }
-  return 'running_timeout';
-}
-
-function pickQuickInsight(summary: string): string {
-  if (!summary || typeof summary !== 'string') {
-    return "I’m ready when you are — want a quick review or category cleanup?";
-  }
-  const cleaned = summary.replace(/\s+/g, ' ').trim();
-  if (!cleaned) {
-    return "I’m ready when you are — want a quick review or category cleanup?";
-  }
-  const firstSentence = cleaned.split(/[.!?]/).map((s) => s.trim()).find((s) => s.length > 0);
-  if (!firstSentence) {
-    return "I’m ready when you are — want a quick review or category cleanup?";
-  }
-  const capped = firstSentence.length > 140 ? `${firstSentence.slice(0, 137)}...` : firstSentence;
-  return capped;
+  return { state: 'running_timeout' };
 }
 
 function buildImportRecapText(params: { summary: string; meta?: PrimeSummaryMeta }): string {
-  const { summary, meta } = params;
-  const txCount = parseCount(summary, /(\d+)\s+transactions?\s+processed/i);
-  const taggedAuto = meta?.autoCount ?? 0;
-  const taggedAI = meta?.aiCount ?? 0;
-  const needsReview = meta?.needsReviewCount ?? 0;
-  const insight = pickQuickInsight(summary);
-  const nextStep =
-    needsReview > 0
-      ? `Next step: Review the ${needsReview} item${needsReview === 1 ? '' : 's'} and I’ll learn from your corrections.`
-      : "Next step: Everything looks good. You can continue with insights or category cleanup.";
-
-  const lines = [
-    "Your document is ready. Here’s what I found:",
-    ...(txCount !== null ? [`• Transactions: ${txCount}`] : []),
-    `• Tagged automatically: ${taggedAuto}`,
-    `• Tagged with AI: ${taggedAI}`,
-    `• Needs review: ${needsReview}`,
-    `Quick insight: ${insight}`,
-    nextStep,
-  ];
-  return lines.join('\n');
+  const cleaned = String(params.summary || '')
+    .replace(/\t+/g, ' ')
+    .replace(/[ \u00A0]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  if (!cleaned) return 'Your categorized results and insights are available.';
+  // Match Prime's polished Step 3 style and avoid appending legacy recap prose.
+  return cleaned.replace(/\n+\s*Categorization status[\s\S]*$/i, '').trim();
 }
 
 function enqueueImportRecapIfReady(importId: string, summary: string, meta?: PrimeSummaryMeta) {
   if (typeof window === 'undefined') return;
+  // Prime narration mode owns upload messaging end-to-end.
+  // Avoid injecting legacy recap text that can appear as an abrupt extra bubble.
+  if (isPrimeUploadNarrationEnabled()) return;
   const ready = meta?.ready;
   if (ready === false) return;
   if (!summary || typeof summary !== 'string' || summary.trim().length === 0) return;

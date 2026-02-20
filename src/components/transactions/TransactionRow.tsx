@@ -27,6 +27,42 @@ export function TransactionRow({
 }: TransactionRowProps) {
   const [isHovered, setIsHovered] = useState(false);
 
+  const normalizeText = (value: unknown): string => {
+    if (typeof value !== 'string') return '';
+    return value.trim();
+  };
+
+  const isGenericMerchantLabel = (value: string): boolean => {
+    const normalized = value.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (!normalized) return true;
+    const genericPatterns = [
+      /^withdrawal$/,
+      /^e-?transfer$/,
+      /^transfer$/,
+      /^payment$/,
+      /^purchase$/,
+      /^debit$/,
+      /^credit$/,
+      /^pos$/,
+      /^atm$/,
+      /^card$/,
+      /^bank fee$/,
+      /^fee$/,
+      /^deposit$/,
+      /^misc$/,
+      /^other$/,
+    ];
+    return genericPatterns.some((pattern) => pattern.test(normalized));
+  };
+
+  const sanitizeMerchantFallback = (value: string): string => {
+    // Remove common bank-feed prefixes so merchant names are easier to read.
+    return value
+      .replace(/\b(withdrawal|e-?transfer|debit|credit|purchase|payment|pos)\b[:\-\s]*/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
+  };
+
   const isPending = !!pendingTransaction;
   const isCommitted = !!transaction;
 
@@ -37,38 +73,60 @@ export function TransactionRow({
   if (isPending) {
     const confidence = pendingTransaction.confidence.overall;
     if (confidence >= 0.9) {
-      statusBadge = <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400">🟢 Pending</span>;
+      statusBadge = <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 whitespace-nowrap">Pending</span>;
       statusColor = 'text-emerald-400';
     } else if (confidence >= 0.75) {
-      statusBadge = <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">🟡 Pending</span>;
+      statusBadge = <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 whitespace-nowrap">Pending</span>;
       statusColor = 'text-amber-400';
     } else {
-      statusBadge = <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">⚠️ Needs Review</span>;
+      statusBadge = <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 whitespace-nowrap">Needs review</span>;
       statusColor = 'text-red-400';
     }
 
     if (pendingTransaction.possibleDuplicate) {
       statusBadge = (
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-400">
-          🔍 Possible Duplicate
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 whitespace-nowrap">
+          Duplicate
         </span>
       );
     }
   } else if (isCommitted) {
-    statusBadge = <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-300">🟢 Reviewed</span>;
+    statusBadge = <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-200 whitespace-nowrap">Reviewed</span>;
   }
 
   // Get display data
   const date = isPending
     ? pendingTransaction.data_json.date
     : transaction?.posted_at;
-  const merchant = isPending
-    ? pendingTransaction.data_json.merchant || 'Unknown'
-    : transaction?.merchant_name || 'Unknown';
+  const committedMerchant = normalizeText(transaction?.merchant_name);
+  const committedDescription = normalizeText((transaction as any)?.description);
+  const committedMemo = normalizeText((transaction as any)?.memo);
+  const committedMerchantAlt = normalizeText((transaction as any)?.merchant);
+  const pendingMerchant = normalizeText(pendingTransaction?.data_json?.merchant);
+  const pendingDescription = normalizeText((pendingTransaction?.data_json as any)?.description);
+
+  const merchantCandidate = isPending
+    ? pendingMerchant
+    : committedMerchant || committedMerchantAlt;
+  const merchantFallback = isPending
+    ? pendingDescription
+    : committedDescription || committedMemo;
+  const merchantResolved = (() => {
+    if (merchantCandidate && !isGenericMerchantLabel(merchantCandidate)) {
+      return merchantCandidate;
+    }
+    const cleanedFallback = sanitizeMerchantFallback(merchantFallback);
+    if (cleanedFallback && !isGenericMerchantLabel(cleanedFallback)) {
+      return cleanedFallback;
+    }
+    if (merchantCandidate) return merchantCandidate;
+    return 'Unknown merchant';
+  })();
   const amount = isPending
     ? pendingTransaction.data_json.amount ?? 0
     : transaction?.amount ?? 0;
-  const category = isCommitted ? transaction.category : undefined;
+  const pendingCategory = isPending ? (pendingTransaction.data_json as { category?: string }).category : undefined;
+  const category = isCommitted ? transaction?.category : pendingCategory;
 
   const isExpense = amount < 0;
   const amountColor = isExpense ? 'text-red-400' : 'text-emerald-400';
@@ -76,7 +134,7 @@ export function TransactionRow({
 
   return (
     <div
-      className="grid grid-cols-[100px_1fr_120px_120px_100px_auto] gap-3 items-center px-4 py-3 bg-slate-900/50 border-b border-slate-800 hover:bg-slate-900 transition-colors cursor-pointer group"
+      className="grid grid-cols-[88px_minmax(180px,1.4fr)_120px_minmax(150px,1fr)_130px_auto] gap-2 items-center px-4 py-3 bg-slate-900/50 border-b border-slate-800 hover:bg-slate-900 transition-colors cursor-pointer group"
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -88,7 +146,7 @@ export function TransactionRow({
 
       {/* Merchant */}
       <div className="min-w-0">
-        <div className="text-sm font-medium text-slate-100 truncate">{merchant}</div>
+        <div className="text-sm font-medium text-slate-100 truncate" title={merchantResolved}>{merchantResolved}</div>
         {isPending && (
           <ConfidenceBar
             score={pendingTransaction.confidence.overall}
@@ -103,16 +161,18 @@ export function TransactionRow({
       </div>
 
       {/* Category */}
-      <div className="text-xs text-slate-400">
+      <div className="text-xs text-slate-300 min-w-0">
         {category ? (
-          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300">{category}</span>
+          <span className="inline-block max-w-[160px] truncate px-2 py-0.5 rounded bg-slate-800 text-slate-200" title={category}>
+            {category}
+          </span>
         ) : (
           <span className="text-slate-600">—</span>
         )}
       </div>
 
       {/* Status */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center">
         {statusBadge}
       </div>
 

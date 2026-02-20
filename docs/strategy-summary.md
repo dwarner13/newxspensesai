@@ -31,3 +31,33 @@ Most important priorities
 
 Bottom line
 The plan is realistic and well suited for a solo founder. It protects the mission, reduces complexity, and maximizes the chance of helping real people quickly. Keep the AI-first feel, but simplify the surface area and ship the core.
+
+---
+
+Next Strategy Update
+Date: Feb 18, 2026
+
+Focus now (honest priority order)
+1) Reliability and trust first
+- Finish upload/OCR/normalize/summary stability before new automation features.
+- Every upload must end in a clear terminal state: done, needs_review, or failed_with_reason.
+- Eliminate silent skips and ambiguous processing loops.
+
+2) Prime response quality and UX polish
+- Keep required OCR summary headings and bullet format.
+- Improve Prime voice to be more personable and action-oriented while staying factual.
+- Ensure structured summary always replaces generic fallback when ready.
+- Keep chat scrolling behavior predictable (no mid-screen start, no forced jump while user is reading).
+
+3) First intelligence features after stability
+- Add explainable anomaly detection (duplicates, unusual spend, low-confidence clusters).
+- Expand document-type insights for non-bank documents (car loan, RRSP, pay stub).
+- Then add 30/60/90 cash-flow forecasting and limited "what-if" scenarios.
+
+4) Defer high-complexity autonomy until core is boringly reliable
+- Hold off on full autonomous AP/AR, inbox actions, fixed assets, and multi-entity consolidation.
+- Use human-in-the-loop suggestions before action-taking automation.
+
+Product rule for roadmap decisions
+- If upload-to-summary is not boringly reliable, pause new autonomy work.
+- Build in this sequence: reliability -> anomaly insights -> doc-type intelligence -> forecasting -> scenarios -> deeper automation.

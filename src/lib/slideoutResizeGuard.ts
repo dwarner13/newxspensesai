@@ -32,7 +32,6 @@ export function useSlideoutResizeGuard(
   enabled: boolean = true
 ) {
   const previousSizeRef = useRef<ResizeGuardState | null>(null);
-  const isMonitoringRef = useRef(false);
   const openTimeRef = useRef<number | null>(null);
   
   // CRITICAL: Minimum heights to prevent false positives
@@ -40,7 +39,10 @@ export function useSlideoutResizeGuard(
   const MIN_SHELL_HEIGHT_MOBILE = 320;
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const MIN_SHELL_HEIGHT = isMobile ? MIN_SHELL_HEIGHT_MOBILE : MIN_SHELL_HEIGHT_DESKTOP;
-  const INITIAL_QUIET_PERIOD_MS = 300; // Ignore resizes during first 300ms after open
+  const INITIAL_QUIET_PERIOD_MS = 1200; // Ignore expected settle/animation resizes after open
+  const SETTLE_WINDOW_MS = 3000; // Treat moderate size drift as expected while shell settles
+  const SETTLE_DELTA_PX = 32;
+  const MEANINGFUL_DELTA_PX = 8;
 
   useEffect(() => {
     // Only run in development
@@ -68,10 +70,20 @@ export function useSlideoutResizeGuard(
         const deltaHeight = currentSize.height - previous.height;
         const timeSinceOpen = openTimeRef.current ? currentSize.timestamp - openTimeRef.current : 0;
         
-        // CRITICAL: Ignore resizes during initial quiet period (first 300ms)
+        // CRITICAL: Ignore resizes during initial quiet period
         if (timeSinceOpen < INITIAL_QUIET_PERIOD_MS) {
           previousSizeRef.current = currentSize;
           return; // Skip logging during initial period
+        }
+
+        // During initial settle window, tolerate moderate drift from lock/animation/content mount.
+        if (
+          timeSinceOpen < SETTLE_WINDOW_MS &&
+          Math.abs(deltaWidth) <= SETTLE_DELTA_PX &&
+          Math.abs(deltaHeight) <= SETTLE_DELTA_PX
+        ) {
+          previousSizeRef.current = currentSize;
+          return;
         }
         
         // CRITICAL: Ignore resizes that shrink below minimum height (likely measurement error or initial render)
@@ -87,16 +99,9 @@ export function useSlideoutResizeGuard(
           return; // Skip logging for collapses below minimum
         }
 
-        // Only log if there's a meaningful change (> 3px threshold to avoid rounding errors and minor layout shifts)
+        // Only log if there's a meaningful change (> 8px threshold avoids harmless jitter)
         // Input area growth within max-height constraints should not trigger warnings
-        if (Math.abs(deltaWidth) > 3 || Math.abs(deltaHeight) > 3) {
-          const event: ResizeEvent = {
-            previous,
-            current: currentSize,
-            deltaWidth,
-            deltaHeight,
-          };
-
+        if (Math.abs(deltaWidth) > MEANINGFUL_DELTA_PX || Math.abs(deltaHeight) > MEANINGFUL_DELTA_PX) {
           // Get element selector for debugging
           const elementSelector = element.id 
             ? `#${element.id}` 

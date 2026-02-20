@@ -19,6 +19,8 @@ type ExistingDoc = {
   [key: string]: any;
 };
 
+const BUCKET = 'docs';
+
 function toInt(input: unknown, fallback = 0): number {
   const n = Number(input);
   return Number.isFinite(n) ? n : fallback;
@@ -91,7 +93,11 @@ function hasFileReference(doc: ExistingDoc): boolean {
   return candidates.some((value) => typeof value === 'string' && value.trim().length > 0);
 }
 
-function safeToSkipUpload(doc: ExistingDoc, ocrJobStatus: string | null): { safe: boolean; reason: string } {
+function safeToSkipUpload(
+  doc: ExistingDoc,
+  ocrJobStatus: string | null,
+  hasFileRefOverride?: boolean | null
+): { safe: boolean; reason: string } {
   const hasOcrText = typeof doc.ocr_text === 'string' && doc.ocr_text.trim().length > 0;
   const updatedAtMs = Date.parse(String(doc?.updated_at || ''));
   const ageMs = Number.isFinite(updatedAtMs) ? Date.now() - updatedAtMs : Number.POSITIVE_INFINITY;
@@ -108,7 +114,7 @@ function safeToSkipUpload(doc: ExistingDoc, ocrJobStatus: string | null): { safe
     return { safe: false, reason: 'stale_ocr_processing_without_text' };
   }
 
-  const hasFileRef = hasFileReference(doc);
+  const hasFileRef = typeof hasFileRefOverride === 'boolean' ? hasFileRefOverride : hasFileReference(doc);
   if (hasFileRef) {
     return { safe: true, reason: 'has_file_ref' };
   }
@@ -125,10 +131,24 @@ function safeToSkipUpload(doc: ExistingDoc, ocrJobStatus: string | null): { safe
 async function createSignedUrl(sb: any, storagePath: string | null | undefined): Promise<string | null> {
   if (!storagePath) return null;
   const { data, error } = await sb.storage
-    .from('docs')
+    .from(BUCKET)
     .createSignedUploadUrl(storagePath);
   if (error) return null;
   return data?.signedUrl || null;
+}
+
+async function storageObjectExists(sb: any, storagePath: string | null | undefined): Promise<boolean> {
+  const rawPath = String(storagePath || '').trim();
+  if (!rawPath) return false;
+  const parts = rawPath.split('/').filter(Boolean);
+  const fileName = parts.pop();
+  if (!fileName) return false;
+  const parentDir = parts.join('/');
+  const { data, error } = await sb.storage
+    .from(BUCKET)
+    .list(parentDir, { limit: 1000, search: fileName });
+  if (error || !Array.isArray(data)) return false;
+  return data.some((item: any) => item?.name === fileName);
 }
 
 function buildInitResponse(args: {
@@ -137,12 +157,14 @@ function buildInitResponse(args: {
   uploadUrl: string | null;
   uploadHash: string;
   ocrJobStatus?: string | null;
+  hasLiveStorageObject?: boolean | null;
 }) {
   const extracted = args.doc.extracted_data || null;
   const confidence = extracted?.confidence?.overall ?? null;
   const hasExtracted = hasExtractedDataSignal(extracted);
-  const hasFileRef = hasFileReference(args.doc);
-  const skipDecision = safeToSkipUpload(args.doc, args.ocrJobStatus || null);
+  const hasRecordedFileRef = hasFileReference(args.doc);
+  const hasFileRef = args.hasLiveStorageObject === false ? false : hasRecordedFileRef;
+  const skipDecision = safeToSkipUpload(args.doc, args.ocrJobStatus || null, hasFileRef);
   return {
     docId: args.doc.id,
     document_id: args.doc.id,
@@ -223,7 +245,8 @@ export const handler: Handler = async (event) => {
 
     if (existingByUploadHash?.id) {
       const ocrJobStatus = await fetchOcrJobStatus(sb, userId, existingByUploadHash.id, existingByUploadHash.content_hash);
-      const uploadUrl = existingByUploadHash.status === 'ready' || ocrJobStatus === 'done'
+      const hasLiveStorageObject = await storageObjectExists(sb, existingByUploadHash.storage_path);
+      const uploadUrl = (existingByUploadHash.status === 'ready' || ocrJobStatus === 'done') && hasLiveStorageObject
         ? null
         : await createSignedUrl(sb, existingByUploadHash.storage_path);
 
@@ -236,6 +259,7 @@ export const handler: Handler = async (event) => {
             uploadUrl,
             uploadHash,
             ocrJobStatus,
+            hasLiveStorageObject,
           })
         )
       };
@@ -294,7 +318,8 @@ export const handler: Handler = async (event) => {
         .maybeSingle();
       if (racedDoc?.id) {
         const ocrJobStatus = await fetchOcrJobStatus(sb, userId, racedDoc.id, racedDoc.content_hash);
-        const uploadUrl = racedDoc.status === 'ready' || ocrJobStatus === 'done'
+        const hasLiveStorageObject = await storageObjectExists(sb, racedDoc.storage_path);
+        const uploadUrl = (racedDoc.status === 'ready' || ocrJobStatus === 'done') && hasLiveStorageObject
           ? null
           : await createSignedUrl(sb, racedDoc.storage_path);
         return {
@@ -306,6 +331,7 @@ export const handler: Handler = async (event) => {
               uploadUrl,
               uploadHash,
               ocrJobStatus,
+              hasLiveStorageObject,
             })
           ),
         };

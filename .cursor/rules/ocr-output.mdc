@@ -1,0 +1,33 @@
+---
+description: OCR and PDF summary output contract
+alwaysApply: true
+---
+
+# OCR Output Rules (XspensesAI)
+
+Applies to any work involving OCR, PDF parsing, statement summaries, transaction extraction, and Prime/Byte/Tag handoff output.
+
+## Required headings
+
+When summarizing OCR or PDF content, use these exact headings in order:
+
+## Summary
+## Key details
+## Transactions (cleaned)
+## Issues / Uncertain lines
+
+## Content requirements
+
+- Use bullets only unless the user explicitly asks for paragraphs.
+- `## Summary`: 3-6 short, plain-language bullets.
+- `## Key details`: include statement period, institution/card, account last-4 (if present), and totals only if visible.
+- `## Transactions (cleaned)`: `YYYY-MM-DD | Merchant | Amount | Currency | Notes`
+- Use `UNKNOWN-DATE` when date is missing.
+- Use `UNKNOWN-MERCHANT` when merchant is unclear.
+- Do not invent values; place uncertain items in `## Issues / Uncertain lines`.
+
+## Privacy and safety
+
+- Do NOT persist raw OCR text by default.
+- Keep logs minimal and redacted.
+- Gate debug OCR views behind local/dev flags.

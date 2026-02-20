@@ -5,12 +5,13 @@
  * Single source of truth for Smart Import workspace
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { FileText, Clock, CheckCircle, BarChart3, Loader2, TrendingUp, AlertTriangle } from 'lucide-react';
 import { getSupabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { DocumentViewerModal } from '../ui/DocumentViewerModal';
 import type { DocumentStats } from '../../hooks/useDocumentStats';
+import { isSmartImportOpsDashboardV1Enabled } from '../../lib/featureFlags';
 
 interface StatusCard {
   id: string;
@@ -113,12 +114,23 @@ export function ByteWorkspacePanel({
   statsError = false,
 }: ByteWorkspacePanelProps) {
   const { user } = useAuth();
+  const opsDashboardEnabled = isSmartImportOpsDashboardV1Enabled();
 
-  const [recentDocuments, setRecentDocuments] = useState<Array<{id: string; name: string; text: string; date: string; status?: string}>>([]);
+  const [recentDocuments, setRecentDocuments] = useState<Array<{
+    id: string;
+    name: string;
+    text: string;
+    date: string;
+    status?: string;
+    storagePath?: string | null;
+    mimeType?: string | null;
+  }>>([]);
   const [viewerDoc, setViewerDoc] = useState<{
     id: string;
     imageUrl?: string;
+    downloadUrl?: string;
     originalFilename?: string;
+    mimeType?: string;
     extractedData?: any;
     processingStatus?: string;
     createdAt?: string;
@@ -129,6 +141,87 @@ export function ByteWorkspacePanel({
     ocrConfidence?: number;
   } | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [openingDocId, setOpeningDocId] = useState<string | null>(null);
+
+  const openDocumentViewer = useCallback(async (doc: {
+    id: string;
+    name: string;
+    text: string;
+    date: string;
+    status?: string;
+    storagePath?: string | null;
+    mimeType?: string | null;
+  }) => {
+    setOpeningDocId(doc.id);
+    setViewerDoc({
+      id: doc.id,
+      originalFilename: doc.name,
+      ocrText: doc.text,
+      createdAt: doc.date,
+      processingStatus: doc.status || 'completed',
+      mimeType: doc.mimeType || undefined,
+    });
+    setViewerOpen(true);
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      setOpeningDocId(null);
+      return;
+    }
+
+    try {
+      const { data: fullDoc } = await supabase
+        .from('user_documents')
+        .select('*')
+        .eq('id', doc.id)
+        .maybeSingle();
+
+      const storagePath = fullDoc?.storage_path || doc.storagePath || null;
+      let signedUrl: string | null = null;
+      if (storagePath) {
+        try {
+          const { data: urlData, error: urlError } = await supabase.storage
+            .from('original_docs')
+            .createSignedUrl(storagePath, 60);
+          if (!urlError) {
+            signedUrl = urlData?.signedUrl || null;
+          }
+        } catch {
+          // no-op
+        }
+        if (!signedUrl) {
+          try {
+            const { data: urlData2, error: urlError2 } = await supabase.storage
+              .from('redacted_docs')
+              .createSignedUrl(storagePath, 60);
+            if (!urlError2) {
+              signedUrl = urlData2?.signedUrl || null;
+            }
+          } catch {
+            // no-op
+          }
+        }
+      }
+
+      setViewerDoc({
+        id: fullDoc?.id || doc.id,
+        imageUrl: signedUrl || storagePath || undefined,
+        downloadUrl: signedUrl || undefined,
+        originalFilename: fullDoc?.original_name || fullDoc?.file_name || doc.name,
+        mimeType: fullDoc?.mime_type || doc.mimeType || undefined,
+        extractedData: fullDoc?.extracted_data || null,
+        processingStatus: fullDoc?.status || doc.status || 'completed',
+        createdAt: fullDoc?.created_at || doc.date,
+        ocrText: fullDoc?.ocr_text || doc.text,
+        redactedText: fullDoc?.redacted_text || null,
+        redactionSummary: fullDoc?.redaction_summary || null,
+        ocrEngine: fullDoc?.ocr_engine || null,
+        ocrConfidence: fullDoc?.ocr_confidence || null,
+      });
+    } finally {
+      setOpeningDocId(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (statsLoading) return;
@@ -142,7 +235,7 @@ export function ByteWorkspacePanel({
     }
     supabase
       .from('user_documents')
-      .select('id, original_name, ocr_text, ocr_completed_at, created_at, status')
+      .select('id, original_name, ocr_text, ocr_completed_at, created_at, status, storage_path, mime_type')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(3)
@@ -155,6 +248,8 @@ export function ByteWorkspacePanel({
               text: d.ocr_text || '',
               date: d.ocr_completed_at || d.created_at || '',
               status: d.status,
+              storagePath: d.storage_path || null,
+              mimeType: d.mime_type || null,
             }))
           );
         }
@@ -171,8 +266,12 @@ export function ByteWorkspacePanel({
           <FileText className="w-5 h-5 text-blue-400" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">BYTE WORKSPACE</h3>
-          <p className="text-sm text-slate-400">Document processing status</p>
+          <h3 className="text-lg font-semibold text-white">
+            {opsDashboardEnabled ? 'IMPORT OPERATIONS' : 'BYTE WORKSPACE'}
+          </h3>
+          <p className="text-sm text-slate-400">
+            {opsDashboardEnabled ? 'Monitor import status, document history, and pipeline health.' : 'Document processing status'}
+          </p>
         </div>
       </div>
 
@@ -215,19 +314,19 @@ export function ByteWorkspacePanel({
             {recentDocuments.map(doc => (
               <div
                 key={doc.id}
-                className="text-xs cursor-pointer hover:bg-slate-700/50 rounded p-2 transition-colors"
-                onClick={() => {
-                  setViewerDoc({
-                    id: doc.id,
-                    originalFilename: doc.name,
-                    ocrText: doc.text,
-                    createdAt: doc.date,
-                    processingStatus: doc.status || 'completed',
-                  });
-                  setViewerOpen(true);
-                }}
+                className="text-xs hover:bg-slate-700/50 rounded p-2 transition-colors"
               >
-                <div className="text-slate-300 font-medium truncate">📄 {doc.name}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-slate-300 font-medium truncate">📄 {doc.name}</div>
+                  <button
+                    type="button"
+                    onClick={() => void openDocumentViewer(doc)}
+                    disabled={openingDocId === doc.id}
+                    className="shrink-0 rounded-md border border-slate-600 px-2 py-1 text-[10px] text-slate-100 hover:bg-slate-600 disabled:opacity-50"
+                  >
+                    {openingDocId === doc.id ? 'Opening…' : 'View PDF'}
+                  </button>
+                </div>
                 {doc.text ? (
                   <div className="text-slate-500 truncate">{doc.text.substring(0, 80)}...</div>
                 ) : (
@@ -246,7 +345,7 @@ export function ByteWorkspacePanel({
         <div className="flex items-center justify-between mb-2">
           <h4 className="text-sm font-medium text-white">Import Health</h4>
           <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded-full">
-            Healthy
+            {opsDashboardEnabled ? (stats?.health?.status === 'good' ? 'Operational' : stats?.health?.status === 'degraded' ? 'Degraded' : 'Attention') : 'Healthy'}
           </span>
         </div>
         {statsError ? (
@@ -255,7 +354,13 @@ export function ByteWorkspacePanel({
           <p className="text-sm text-slate-500 animate-pulse">Loading health status...</p>
         ) : (
           <p className="text-sm text-slate-400">
-            {stats?.health?.status === 'good' ? 'All systems operational' : 'Some issues detected'}
+            {opsDashboardEnabled
+              ? (stats?.health?.status === 'good'
+                ? 'Imports are processing normally.'
+                : stats?.health?.status === 'degraded'
+                  ? 'Processing is slower than expected; monitoring in progress.'
+                  : 'Import pipeline needs attention.')
+              : (stats?.health?.status === 'good' ? 'All systems operational' : 'Some issues detected')}
           </p>
         )}
       </div>

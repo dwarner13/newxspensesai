@@ -5,6 +5,7 @@ import { cn } from '../../lib/utils';
 import { ByteActivityItem } from '../prime/ByteActivityItem';
 import { getSupabase } from '../../lib/supabase';
 import { DocumentViewerModal } from '../ui/DocumentViewerModal';
+import { isSmartImportOpsDashboardV1Enabled } from '../../lib/featureFlags';
 
 type LocalEvent = {
   id: string;
@@ -99,6 +100,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   scrollable = false,
   hideScrollbar = false,
 }) => {
+  const opsDashboardEnabled = isSmartImportOpsDashboardV1Enabled();
   const { events, isLoading, isError, errorMessage } = useActivityFeed({
     limit,
     category,
@@ -191,7 +193,9 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
         <h3 className="text-xs font-semibold tracking-wider text-slate-100 uppercase">
           {title}
         </h3>
-        <span className="text-[10px] text-slate-500 truncate">Recent AI team activity</span>
+        <span className="text-[10px] text-slate-500 truncate">
+          {opsDashboardEnabled ? 'Recent import and processing activity' : 'Recent AI team activity'}
+        </span>
       </div>
 
       {/* Body - Tighter vertical spacing */}
@@ -238,7 +242,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
               No recent activity yet.
             </p>
             <p className="text-[10px] text-slate-600 mt-0.5 leading-relaxed">
-              Start by uploading or chatting.
+              {opsDashboardEnabled ? 'Start by uploading a document.' : 'Start by uploading or chatting.'}
             </p>
           </div>
         ) : (

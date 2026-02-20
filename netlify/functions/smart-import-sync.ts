@@ -22,9 +22,7 @@
  */
 
 import type { Handler } from '@netlify/functions';
-import OpenAI from 'openai';
 import { admin } from './_shared/supabase.js';
-import { normalizeOcrResult } from './_shared/ocr_normalize.js';
 
 export type SmartImportSyncResult = {
   docIds: string[];
@@ -42,68 +40,300 @@ const OCR_DEBUG_ENABLED =
   process.env.OCR_DEBUG === 'true' ||
   process.env.VITE_OCR_DEBUG === '1' ||
   process.env.VITE_OCR_DEBUG === 'true';
+const SYNC_DEBUG_ENABLED =
+  OCR_DEBUG_ENABLED ||
+  String(process.env.VITE_LOG_LEVEL || '').toLowerCase() === 'debug';
 const PREFER_AI_STATEMENTS = process.env.OCR_PREFER_AI_STATEMENTS === '1';
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-async function waitForOcrText(
+export function shouldProceedWithNormalize(input: {
+  ocrStatus: string | null | undefined;
+  textHash?: string | null;
+  textLength?: number | null;
+  hasExtractedData?: boolean;
+  hasNormalizedJson?: boolean;
+  hasReadyMarker?: boolean;
+  hasProofs?: boolean;
+  ocrJobDone?: boolean;
+}): boolean {
+  const status = String(input.ocrStatus || '').toLowerCase();
+  const readyState =
+    status === 'ready' ||
+    status === 'ready_cached' ||
+    status === 'needs_review' ||
+    status === 'rejected';
+  const hasMetrics = Boolean(input.textHash) || Number(input.textLength || 0) > 0;
+  const hasStructured = Boolean(input.hasExtractedData) || Boolean(input.hasNormalizedJson);
+  const hasReadyMarker = Boolean(input.hasReadyMarker);
+  const hasProofs = Boolean(input.hasProofs);
+  return hasProofs || (readyState && (hasMetrics || hasStructured || hasReadyMarker)) || Boolean(input.ocrJobDone);
+}
+
+export function shouldBlockCachedNoInput(input: {
+  textHash?: string | null;
+  textLength?: number | null;
+  hasExtractedData?: boolean;
+  hasNormalizedJson?: boolean;
+  hasStagingRows?: boolean;
+  hasReadyMarker?: boolean;
+  hasImportRecord?: boolean;
+  ocrJobDone?: boolean;
+  readyForNormalize?: boolean;
+}): boolean {
+  const noInput =
+    !input.textHash &&
+    Number(input.textLength || 0) <= 0 &&
+    !input.hasExtractedData &&
+    !input.hasNormalizedJson &&
+    !input.hasStagingRows;
+  const weakProofOnly =
+    !input.hasExtractedData &&
+    !input.hasNormalizedJson &&
+    (Boolean(input.hasReadyMarker) || Boolean(input.hasImportRecord) || Boolean(input.ocrJobDone));
+  return Boolean(input.readyForNormalize) && noInput && weakProofOnly;
+}
+
+async function waitForOcrReadyOrMetrics(
   sb: any,
   docId: string,
+  userId: string,
   maxMs: number = 15000,
   pollMs: number = 500
-): Promise<{ ok: boolean; len: number }> {
+): Promise<{
+  ok: boolean;
+  len: number;
+  ocrStatus: string | null;
+  textHash: string | null;
+  hasStructured: boolean;
+  metricsReady: boolean;
+  reason: string;
+}> {
   const start = Date.now();
-  console.log('[smart-import-sync] waitForOcrText start', { docId, maxMs, pollMs });
+  const READY_EMPTY_GRACE_MS = 2500;
+  let warnedReadyEmpty = false;
+  console.log('[smart-import-sync] waitForOcrReadyOrMetrics start', { docId, maxMs, pollMs });
 
   while (Date.now() - start < maxMs) {
     const { data, error } = await sb
       .from('user_documents')
-      .select('id, ocr_text, updated_at, mime_type, original_name, status')
+      .select('*')
       .eq('id', docId)
       .maybeSingle();
 
     if (error) {
-      console.error('[smart-import-sync] waitForOcrText error', { docId, error });
+      console.error('[smart-import-sync] waitForOcrReadyOrMetrics error', { docId, error });
       // keep waiting in case schema cache / transient
     } else {
       const mimeType = data?.mime_type || '';
       const fileName = data?.original_name || '';
+      const ocrStatus = String(data?.ocr_status || data?.status || '');
+      const textLengthValue = data?.ocr_text_length ?? data?.extracted_data?.text_length ?? null;
+      const textLength = Number.isFinite(Number(textLengthValue)) ? Number(textLengthValue) : 0;
+      const textHash = (data?.ocr_text_hash || data?.extracted_data?.text_hash || null) as string | null;
+
       if (mimeType === 'text/csv' || fileName.toLowerCase().endsWith('.csv')) {
-        console.log('[smart-import-sync] waitForOcrText skip (CSV)', {
+        console.log('[smart-import-sync] waitForOcrReadyOrMetrics skip (CSV)', {
           docId,
           mimeType,
           fileName,
           elapsedMs: Date.now() - start,
         });
-        return { ok: true, len: 0 };
+        return { ok: true, len: 0, ocrStatus: ocrStatus || null, textHash, hasStructured: false, metricsReady: true, reason: 'csv_skip' };
       }
 
-      const len = (data?.ocr_text || '').length;
-      if (data && len === 0) {
-        console.log('[smart-import-sync] OCR text empty', {
+      const { data: importRecord } = await sb
+        .from('imports')
+        .select('id, status')
+        .eq('document_id', docId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      let stagingCount = 0;
+      if (importRecord?.id) {
+        const { count } = await sb
+          .from('transactions_staging')
+          .select('id', { count: 'exact', head: true })
+          .eq('import_id', importRecord.id)
+          .eq('user_id', userId);
+        stagingCount = Number(count || 0);
+      }
+      const { data: ocrJob } = await sb
+        .from('ocr_jobs')
+        .select('status')
+        .eq('document_id', docId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const ocrJobStatus = String(ocrJob?.status || '');
+      const hasStructured = Boolean(data?.extracted_data) || Boolean(data?.normalized_json) || Boolean(data?.structured_extraction) || Boolean(data?.extraction_artifacts);
+      const metricsReady = Boolean(textHash) || textLength > 0;
+      const hasReadyMarker = Boolean(
+        data?.ocr_completed_at ||
+        data?.ocr_engine ||
+        data?.ocr_provider ||
+        data?.extraction_quality ||
+        Number(data?.pages_detected || 0) > 0
+      );
+      const hasImportRecord = Boolean(importRecord?.id);
+      const hasStagingRows = stagingCount > 0;
+      const ocrJobDone = ocrJobStatus === 'done';
+      const hasSafeProofs = metricsReady || hasStructured || hasStagingRows;
+      const proofsFound = [
+        metricsReady,
+        hasStructured,
+        hasStagingRows,
+        hasImportRecord,
+        hasReadyMarker,
+        ocrJobDone,
+      ];
+      const hasProofs = proofsFound.some(Boolean);
+      if (SYNC_DEBUG_ENABLED) {
+        console.log('[smart-import-sync] OCR ready check with', {
           docId,
-          status: data.status,
-          updatedAt: data.updated_at,
+          ocr_status: ocrStatus || null,
+          ocr_text_length: Number.isFinite(Number(textLengthValue)) ? Number(textLengthValue) : null,
+          text_hash_present: Boolean(textHash),
+          proofs_found: proofsFound,
         });
       }
-      if (len > 0) {
-        console.log('[smart-import-sync] OCR text ready', {
+      const readyForNormalize = shouldProceedWithNormalize({
+        ocrStatus,
+        textHash,
+        textLength,
+        hasExtractedData: Boolean(data?.extracted_data),
+        hasNormalizedJson: Boolean(data?.normalized_json),
+        hasReadyMarker,
+        hasProofs: hasSafeProofs,
+        ocrJobDone,
+      });
+
+      const normalizedStatus = String(ocrStatus || '').toLowerCase();
+      const statusLooksReady =
+        normalizedStatus === 'ready' ||
+        normalizedStatus === 'ready_cached' ||
+        normalizedStatus === 'needs_review' ||
+        normalizedStatus === 'rejected';
+      if (hasSafeProofs && !statusLooksReady) {
+        console.log('[smart-import-sync] OCR ready via proofs (status ignored)', {
           docId,
-          len,
-          elapsedMs: Date.now() - start,
+          ocr_status: ocrStatus || null,
+          proofs_found: proofsFound,
         });
-        return { ok: true, len };
+      }
+
+      const shouldMarkNeedsReviewForNoInput = shouldBlockCachedNoInput({
+        textHash,
+        textLength,
+        hasExtractedData: Boolean(data?.extracted_data),
+        hasNormalizedJson: Boolean(data?.normalized_json),
+        hasStagingRows,
+        hasReadyMarker,
+        hasImportRecord,
+        ocrJobDone,
+        readyForNormalize,
+      });
+      if (shouldMarkNeedsReviewForNoInput) {
+        try {
+          const metadata = {
+            ...(data?.metadata && typeof data.metadata === 'object' ? data.metadata : {}),
+            import_block_reason: 'cached_no_input',
+            import_block_detail: {
+              textHash: textHash || null,
+              textLength,
+              hasExtractedData: Boolean(data?.extracted_data),
+              hasNormalizedJson: Boolean(data?.normalized_json),
+              hasStagingRows,
+              hasReadyMarker,
+            },
+          };
+          await sb
+            .from('user_documents')
+            .update({
+              ocr_status: 'needs_review',
+              status: 'needs_review',
+              metadata,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', docId);
+        } catch {
+          // Best effort; sync should still proceed with safe reason.
+        }
+        console.warn('[smart-import-sync] cached doc has no input; marking needs_review and skipping normalize', {
+          docId,
+        });
+        return {
+          ok: true,
+          len: textLength,
+          ocrStatus: 'needs_review',
+          textHash,
+          hasStructured,
+          metricsReady,
+          reason: 'cached_no_input_needs_review',
+        };
+      }
+
+      if (hasStagingRows) {
+        return { ok: true, len: textLength, ocrStatus: ocrStatus || null, textHash, hasStructured, metricsReady, reason: 'staging_rows_ready' };
+      }
+      if (hasImportRecord) {
+        return { ok: true, len: textLength, ocrStatus: ocrStatus || null, textHash, hasStructured, metricsReady, reason: `import_exists:${importRecord.status}` };
+      }
+      if (String(ocrStatus).toLowerCase() === 'ready' && !readyForNormalize && Date.now() - start >= READY_EMPTY_GRACE_MS) {
+        if (!warnedReadyEmpty) {
+          warnedReadyEmpty = true;
+          console.warn('[smart-import-sync] OCR ready but empty; marking needs_review', {
+            docId,
+            ocr_status: ocrStatus || null,
+            ocr_text_length: Number.isFinite(Number(textLengthValue)) ? Number(textLengthValue) : null,
+            text_hash_present: Boolean(textHash),
+            proofs_found: proofsFound,
+          });
+        }
+        try {
+          await sb
+            .from('user_documents')
+            .update({
+              ocr_status: 'needs_review',
+              status: data?.status === 'ready' ? 'needs_review' : data?.status,
+            })
+            .eq('id', docId)
+            .eq('user_id', userId);
+        } catch {
+          // Best effort; continue without blocking sync.
+        }
+        return {
+          ok: true,
+          len: textLength,
+          ocrStatus: 'needs_review',
+          textHash,
+          hasStructured,
+          metricsReady,
+          reason: 'ocr_ready_empty_needs_review',
+        };
+      }
+      if (readyForNormalize) {
+        return {
+          ok: true,
+          len: textLength,
+          ocrStatus: ocrStatus || null,
+          textHash,
+          hasStructured,
+          metricsReady,
+          reason: ocrJobStatus === 'done'
+            ? 'ocr_job_done'
+            : (textLength === 0 && !textHash && hasStructured ? 'ready_with_structured_only' : 'ready_with_metrics'),
+        };
       }
     }
 
     await new Promise(r => setTimeout(r, pollMs));
   }
 
-  console.warn('[smart-import-sync] OCR text NOT ready before timeout', {
+  console.warn('[smart-import-sync] OCR readiness NOT reached before timeout', {
     docId,
     maxMs,
     elapsedMs: Date.now() - start,
   });
-  return { ok: false, len: 0 };
+  return { ok: false, len: 0, ocrStatus: null, textHash: null, hasStructured: false, metricsReady: false, reason: 'timeout' };
 }
 
 /**
@@ -148,8 +378,15 @@ async function ensureNormalized(
   sb: any,
   documentId: string,
   userId: string,
-  netlifyUrl: string
+  netlifyUrl: string,
+  payload?: { ocrText?: string; ocrTextHash?: string | null; ocrTextLength?: number | null }
 ): Promise<{ ok: boolean; importId?: string }> {
+  if (!documentId || !UUID_V4_RE.test(String(documentId))) {
+    console.warn('[smart-import-sync] Skipping normalize-transactions due to invalid documentId', {
+      documentId,
+    });
+    return { ok: false };
+  }
   // Check if import already exists and is parsed
   const { data: existingImport } = await sb
     .from('imports')
@@ -159,14 +396,34 @@ async function ensureNormalized(
     .maybeSingle();
   
   if (existingImport?.status === 'parsed' || existingImport?.status === 'committed') {
-    if (OCR_DEBUG_ENABLED) {
-      console.log('[smart-import-sync] Normalize skipped (already parsed/committed)', {
-        documentId,
-        importId: existingImport.id,
-        status: existingImport.status,
-      });
+    let stagingCount = 0;
+    if (existingImport?.id) {
+      const { count } = await sb
+        .from('transactions_staging')
+        .select('id', { count: 'exact', head: true })
+        .eq('import_id', existingImport.id)
+        .eq('user_id', userId);
+      stagingCount = Number(count || 0);
     }
-    return { ok: true, importId: existingImport.id };
+    const shouldSkipAsReady =
+      existingImport.status === 'committed' || stagingCount > 0;
+    if (shouldSkipAsReady) {
+      if (OCR_DEBUG_ENABLED) {
+        console.log('[smart-import-sync] Normalize skipped (already parsed/committed)', {
+          documentId,
+          importId: existingImport.id,
+          status: existingImport.status,
+          stagingCount,
+        });
+      }
+      return { ok: true, importId: existingImport.id };
+    }
+    console.warn('[smart-import-sync] Parsed import has zero staging rows; re-running normalize', {
+      documentId,
+      importId: existingImport.id,
+      status: existingImport.status,
+      stagingCount,
+    });
   }
   
   // Trigger normalization
@@ -177,7 +434,13 @@ async function ensureNormalized(
     const normalizeRes = await fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, documentId }),
+      body: JSON.stringify({
+        userId,
+        documentId,
+        ocrText: typeof payload?.ocrText === 'string' ? payload?.ocrText : undefined,
+        ocrTextHash: payload?.ocrTextHash || undefined,
+        ocrTextLength: Number.isFinite(Number(payload?.ocrTextLength)) ? Number(payload?.ocrTextLength) : undefined,
+      }),
     });
     
     if (!normalizeRes.ok) {
@@ -223,7 +486,7 @@ async function buildDebugResponse(
   for (const docId of docIds) {
     let { data: docData } = await sb
       .from('user_documents')
-      .select('id, user_id, ocr_text, ocr_engine, status, storage_path')
+      .select('*')
       .eq('id', docId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -231,7 +494,7 @@ async function buildDebugResponse(
     if (needsIdFallback) {
       const { data: docDataById } = await sb
         .from('user_documents')
-        .select('id, user_id, ocr_text, ocr_engine, status, storage_path')
+        .select('*')
         .eq('id', docId)
         .maybeSingle();
       if (docDataById) {
@@ -264,147 +527,37 @@ async function buildDebugResponse(
         .limit(50);
       parsedTransactions = (stagingRows || []).map((row: any) => row.data_json);
     }
-
-    let rawText = String(docData?.ocr_text || '');
-    let storagePath = docData?.storage_path || null;
-    if (!storagePath) {
-      try {
-        const { data: files, error: listError } = await sb.storage
-          .from('docs')
-          .list(`${userId}/${docId}`, { limit: 1 });
-        if (listError && OCR_DEBUG_ENABLED) {
-          console.warn('[smart-import-sync] OCR storage list failed', {
-            docId,
-            prefix: `${userId}/${docId}`,
-            error: listError.message || String(listError),
-          });
-        } else if (files && files.length > 0) {
-          storagePath = `${userId}/${docId}/${files[0].name}`;
-          if (OCR_DEBUG_ENABLED) {
-            console.log('[smart-import-sync] Resolved storage path from list', {
-              docId,
-              storagePath,
-            });
-          }
-        } else if (OCR_DEBUG_ENABLED) {
-          console.warn('[smart-import-sync] OCR storage list empty', {
-            docId,
-            prefix: `${userId}/${docId}`,
-          });
-        }
-      } catch (error: any) {
-        if (OCR_DEBUG_ENABLED) {
-          console.warn('[smart-import-sync] OCR storage list error', {
-            docId,
-            error: error?.message || String(error),
-          });
-        }
-      }
-    }
-    if (OCR_DEBUG_ENABLED) {
-      console.log('[smart-import-sync] Debug doc OCR text length', {
-        docId,
-        length: rawText.length,
-        hasStoragePath: !!storagePath,
-        docUserId: docData?.user_id || null,
-      });
-    }
-    if (!rawText && storagePath) {
-      try {
-        const ocrKey = `${storagePath}.ocr.json`;
-        const { data: ocrBlob, error: ocrError } = await sb.storage.from('docs').download(ocrKey);
-        if (ocrError && OCR_DEBUG_ENABLED) {
-          console.warn('[smart-import-sync] OCR storage download failed', {
-            docId,
-            ocrKey,
-            error: ocrError.message || String(ocrError),
-          });
-        }
-        if (ocrBlob) {
-          let raw = '';
-          if (typeof (ocrBlob as any).text === 'function') {
-            raw = await (ocrBlob as any).text();
-          } else if (typeof (ocrBlob as any).arrayBuffer === 'function') {
-            const buffer = Buffer.from(await (ocrBlob as any).arrayBuffer());
-            raw = buffer.toString('utf-8');
-          } else if (Buffer.isBuffer(ocrBlob)) {
-            raw = ocrBlob.toString('utf-8');
-          } else if (ocrBlob instanceof ArrayBuffer) {
-            raw = Buffer.from(ocrBlob).toString('utf-8');
-          } else {
-            raw = String(ocrBlob);
-          }
-          const parsed = JSON.parse(raw || '{}');
-          rawText = String(parsed?.text || '');
-          if (rawText && OCR_DEBUG_ENABLED) {
-            console.log('[smart-import-sync] Loaded OCR storage text', {
-              docId,
-              length: rawText.length,
-            });
-          }
-        }
-      } catch (error: any) {
-        if (OCR_DEBUG_ENABLED) {
-          console.warn('[smart-import-sync] Failed to load OCR storage text', {
-            docId,
-            error: error?.message || String(error),
-          });
-        }
-      }
-    }
     const parseWarnings: string[] = [];
-    if (!rawText) parseWarnings.push('missing_ocr_text');
+    const ocrLengthValue = docData?.ocr_text_length ?? docData?.extracted_data?.text_length ?? null;
+    const ocrTextLength = Number.isFinite(Number(ocrLengthValue)) ? Number(ocrLengthValue) : 0;
+    const ocrTextHash = docData?.ocr_text_hash || docData?.extracted_data?.text_hash || null;
+    if (ocrTextHash === null && ocrTextLength <= 0) parseWarnings.push('missing_ocr_metrics');
     if (parsedTransactions.length === 0) parseWarnings.push('no_parsed_transactions');
-    if (docData?.status === 'needs_review' || docData?.status === 'rejected') {
-      parseWarnings.push(`doc_status:${docData.status}`);
+    const docStatus = docData?.ocr_status || docData?.status || null;
+    if (docStatus === 'needs_review' || docStatus === 'rejected') {
+      parseWarnings.push(`doc_status:${docStatus}`);
     }
-
-    if (OCR_DEBUG_ENABLED && rawText && parsedTransactions.length === 0 && PREFER_AI_STATEMENTS && OPENAI_API_KEY) {
-      try {
-        const openaiClient = new OpenAI({ apiKey: OPENAI_API_KEY });
-        const aiParsed = await normalizeOcrResult(rawText, userId, openaiClient, {
-          filename: '',
-          includeAllAccounts: includeAllAccounts,
-        });
-        if (Array.isArray(aiParsed) && aiParsed.length > 0) {
-          parsedTransactions = aiParsed;
-          parseWarnings.push('debug_ai_fallback');
-        }
-      } catch (error: any) {
-        console.warn('[smart-import-sync] Debug AI parse failed', {
-          docId,
-          error: error?.message || String(error),
-        });
-      }
-    }
-
-    if (OCR_DEBUG_ENABLED && includeAllAccounts && rawText) {
-      try {
-        const overrideParsed = await normalizeOcrResult(rawText, userId, null, {
-          filename: '',
-          includeAllAccounts: true,
-        });
-        if (Array.isArray(overrideParsed)) {
-          parsedTransactions = overrideParsed;
-          parseWarnings.push('debug_include_all_accounts');
-        }
-      } catch (error: any) {
-        console.warn('[smart-import-sync] Debug include-all parse failed', {
-          docId,
-          error: error?.message || String(error),
-        });
-      }
+    if (SYNC_DEBUG_ENABLED) {
+      console.log('[smart-import-sync][debug] doc metrics', {
+        docId,
+        ocr_status: docStatus,
+        ocr_text_length: ocrTextLength,
+        text_hash: ocrTextHash,
+      });
     }
 
     debugItems.push({
       docId,
       importId: importRecord?.id || undefined,
-      rawTextPreview: rawText,
-      rawTextLength: rawText.length,
+      rawTextLength: ocrTextLength,
+      ocrTextHash,
+      ocrStatus: docStatus,
       parsedTransactions,
       parseWarnings,
       parseError: importRecord?.error || null,
       ocrEngineUsed: docData?.ocr_engine || null,
+      includeAllAccounts: Boolean(includeAllAccounts),
+      aiFallbackEnabled: Boolean(PREFER_AI_STATEMENTS),
     });
   }
 
@@ -482,23 +635,29 @@ export const handler: Handler = async (event) => {
       if (!importRecord) {
         // Import doesn't exist yet - trigger normalization which will create it
         console.log('[smart-import-sync] Import not found, triggering normalization for docId:', docId);
-        const waitResult = await waitForOcrText(sb, docId, waitForOcrMs, pollForOcrMs);
+        const waitResult = await waitForOcrReadyOrMetrics(sb, docId, userId, waitForOcrMs, pollForOcrMs);
         if (!waitResult.ok) {
           let docStatus = 'ocr_processing';
+          let docTextLength: number | null = null;
+          let docTextHash: string | null = null;
           let ocrEngineUsed: string | null = null;
           try {
             const { data: pendingDoc } = await sb
               .from('user_documents')
-              .select('status, ocr_engine')
+              .select('*')
               .eq('id', docId)
               .eq('user_id', userId)
               .maybeSingle();
-            docStatus = pendingDoc?.status || docStatus;
+            docStatus = pendingDoc?.ocr_status || pendingDoc?.status || docStatus;
+            docTextLength = Number.isFinite(Number(pendingDoc?.ocr_text_length))
+              ? Number(pendingDoc?.ocr_text_length)
+              : null;
+            docTextHash = pendingDoc?.ocr_text_hash || null;
             ocrEngineUsed = pendingDoc?.ocr_engine || null;
           } catch {
             // Best effort only; do not fail sync response for debug metadata.
           }
-          console.log('[smart-import-sync] Skipping normalize; OCR not ready', { docId });
+          console.log('[smart-import-sync] Skipping normalize; OCR not ready', { docId, reason: waitResult.reason });
           const processingBody: Record<string, any> = {
             ok: true,
             processing: true,
@@ -514,12 +673,13 @@ export const handler: Handler = async (event) => {
                 {
                   docId,
                   importId: undefined,
-                  rawTextPreview: '',
                   rawTextLength: 0,
                   parsedTransactions: [],
-                  parseWarnings: ['ocr_not_ready', `doc_status:${docStatus}`],
+                  parseWarnings: ['ocr_not_ready', `doc_status:${docStatus}`, `wait_reason:${waitResult.reason}`],
                   parseError: null,
                   ocrEngineUsed,
+                  ocrTextLength: docTextLength,
+                  ocrTextHash: docTextHash,
                 },
               ],
             };
@@ -530,8 +690,25 @@ export const handler: Handler = async (event) => {
             body: JSON.stringify(processingBody),
           };
         }
-        const normalized = await ensureNormalized(sb, docId, userId, netlifyUrl);
-        
+        const shouldSkipNormalizeTrigger =
+          waitResult.reason.startsWith('import_exists:') ||
+          waitResult.reason === 'staging_rows_ready' ||
+          waitResult.reason === 'ocr_ready_empty_needs_review' ||
+          waitResult.reason === 'cached_no_input_needs_review';
+        let normalized: { ok: boolean; importId?: string } = { ok: false };
+        if (!shouldSkipNormalizeTrigger) {
+          normalized = await ensureNormalized(sb, docId, userId, netlifyUrl, {
+            ocrText: undefined,
+            ocrTextHash: waitResult.textHash,
+            ocrTextLength: waitResult.len,
+          });
+        } else if (SYNC_DEBUG_ENABLED) {
+          console.log('[smart-import-sync][debug] normalize trigger skipped', {
+            docId,
+            reason: waitResult.reason,
+          });
+        }
+
         if (normalized.ok && normalized.importId) {
           importRecord = { id: normalized.importId, status: 'parsed', document_id: docId };
         } else {
@@ -812,7 +989,7 @@ export const handler: Handler = async (event) => {
       for (const docId of docIds) {
         let { data: docData } = await sb
           .from('user_documents')
-          .select('id, user_id, ocr_text, ocr_engine, status, storage_path')
+          .select('*')
           .eq('id', docId)
           .eq('user_id', userId)
           .maybeSingle();
@@ -820,7 +997,7 @@ export const handler: Handler = async (event) => {
         if (needsIdFallback) {
           const { data: docDataById } = await sb
             .from('user_documents')
-            .select('id, user_id, ocr_text, ocr_engine, status, storage_path')
+            .select('*')
             .eq('id', docId)
             .maybeSingle();
           if (docDataById) {
@@ -853,128 +1030,37 @@ export const handler: Handler = async (event) => {
             .limit(50);
           parsedTransactions = (stagingRows || []).map((row: any) => row.data_json);
         }
-
-        let rawText = String(docData?.ocr_text || '');
-        let storagePath = docData?.storage_path || null;
-        if (!storagePath) {
-          try {
-            const { data: files, error: listError } = await sb.storage
-              .from('docs')
-              .list(`${userId}/${docId}`, { limit: 1 });
-            if (listError && OCR_DEBUG_ENABLED) {
-              console.warn('[smart-import-sync] OCR storage list failed', {
-                docId,
-                prefix: `${userId}/${docId}`,
-                error: listError.message || String(listError),
-              });
-            } else if (files && files.length > 0) {
-              storagePath = `${userId}/${docId}/${files[0].name}`;
-              if (OCR_DEBUG_ENABLED) {
-                console.log('[smart-import-sync] Resolved storage path from list', {
-                  docId,
-                  storagePath,
-                });
-              }
-            } else if (OCR_DEBUG_ENABLED) {
-              console.warn('[smart-import-sync] OCR storage list empty', {
-                docId,
-                prefix: `${userId}/${docId}`,
-              });
-            }
-          } catch (error: any) {
-            if (OCR_DEBUG_ENABLED) {
-              console.warn('[smart-import-sync] OCR storage list error', {
-                docId,
-                error: error?.message || String(error),
-              });
-            }
-          }
-        }
-        if (OCR_DEBUG_ENABLED) {
-          console.log('[smart-import-sync] Debug doc OCR text length', {
-            docId,
-            length: rawText.length,
-            hasStoragePath: !!storagePath,
-            docUserId: docData?.user_id || null,
-          });
-        }
-        if (!rawText && storagePath) {
-          try {
-            const ocrKey = `${storagePath}.ocr.json`;
-            const { data: ocrBlob, error: ocrError } = await sb.storage.from('docs').download(ocrKey);
-            if (ocrError && OCR_DEBUG_ENABLED) {
-              console.warn('[smart-import-sync] OCR storage download failed', {
-                docId,
-                ocrKey,
-                error: ocrError.message || String(ocrError),
-              });
-            }
-            if (ocrBlob) {
-              let raw = '';
-              if (typeof (ocrBlob as any).text === 'function') {
-                raw = await (ocrBlob as any).text();
-              } else if (typeof (ocrBlob as any).arrayBuffer === 'function') {
-                const buffer = Buffer.from(await (ocrBlob as any).arrayBuffer());
-                raw = buffer.toString('utf-8');
-              } else if (Buffer.isBuffer(ocrBlob)) {
-                raw = ocrBlob.toString('utf-8');
-              } else if (ocrBlob instanceof ArrayBuffer) {
-                raw = Buffer.from(ocrBlob).toString('utf-8');
-              } else {
-                raw = String(ocrBlob);
-              }
-              const parsed = JSON.parse(raw || '{}');
-              rawText = String(parsed?.text || '');
-              if (rawText && OCR_DEBUG_ENABLED) {
-                console.log('[smart-import-sync] Loaded OCR storage text', {
-                  docId,
-                  length: rawText.length,
-                });
-              }
-            }
-          } catch (error: any) {
-            if (OCR_DEBUG_ENABLED) {
-              console.warn('[smart-import-sync] Failed to load OCR storage text', {
-                docId,
-                error: error?.message || String(error),
-              });
-            }
-          }
-        }
         const parseWarnings: string[] = [];
-        if (!rawText) parseWarnings.push('missing_ocr_text');
+        const ocrLengthValue = docData?.ocr_text_length ?? docData?.extracted_data?.text_length ?? null;
+        const ocrTextLength = Number.isFinite(Number(ocrLengthValue)) ? Number(ocrLengthValue) : 0;
+        const ocrTextHash = docData?.ocr_text_hash || docData?.extracted_data?.text_hash || null;
+        if (ocrTextHash === null && ocrTextLength <= 0) parseWarnings.push('missing_ocr_metrics');
         if (parsedTransactions.length === 0) parseWarnings.push('no_parsed_transactions');
-        if (docData?.status === 'needs_review' || docData?.status === 'rejected') {
-          parseWarnings.push(`doc_status:${docData.status}`);
+        const docStatus = docData?.ocr_status || docData?.status || null;
+        if (docStatus === 'needs_review' || docStatus === 'rejected') {
+          parseWarnings.push(`doc_status:${docStatus}`);
         }
-
-        if (OCR_DEBUG_ENABLED && includeAllAccounts && rawText) {
-          try {
-            const overrideParsed = await normalizeOcrResult(rawText, userId, null, {
-              filename: '',
-              includeAllAccounts: true,
-            });
-            if (Array.isArray(overrideParsed)) {
-              parsedTransactions = overrideParsed;
-              parseWarnings.push('debug_include_all_accounts');
-            }
-          } catch (error: any) {
-            console.warn('[smart-import-sync] Debug include-all parse failed', {
-              docId,
-              error: error?.message || String(error),
-            });
-          }
+        if (SYNC_DEBUG_ENABLED) {
+          console.log('[smart-import-sync][debug] doc metrics', {
+            docId,
+            ocr_status: docStatus,
+            ocr_text_length: ocrTextLength,
+            text_hash: ocrTextHash,
+          });
         }
 
         debugItems.push({
           docId,
           importId: importRecord?.id || undefined,
-          rawTextPreview: rawText,
-          rawTextLength: rawText.length,
+          rawTextLength: ocrTextLength,
+          ocrTextHash,
+          ocrStatus: docStatus,
           parsedTransactions,
           parseWarnings,
           parseError: importRecord?.error || null,
           ocrEngineUsed: docData?.ocr_engine || null,
+          includeAllAccounts: Boolean(includeAllAccounts),
+          aiFallbackEnabled: Boolean(PREFER_AI_STATEMENTS),
         });
       }
 

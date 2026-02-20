@@ -72,6 +72,9 @@ export interface PrimeSlideoutShellProps {
 
   /** Max width in expanded mode */
   maxExpandedWidthPx?: number;
+
+  /** Freeze resize recompute while chat turn is active */
+  freezeResizeRecompute?: boolean;
 }
 
 export function PrimeSlideoutShell({
@@ -94,6 +97,7 @@ export function PrimeSlideoutShell({
   expandedViewportRatio = 0.68,
   minExpandedWidthPx = 780,
   maxExpandedWidthPx = 1200,
+  freezeResizeRecompute = false,
   align = 'right',
 }: PrimeSlideoutShellProps) {
   // Check for reduced motion preference
@@ -109,6 +113,7 @@ export function PrimeSlideoutShell({
   const [lockedHeight, setLockedHeight] = useState<string | null>(null);
   const [lockedWidth, setLockedWidth] = useState<string | null>(null);
   const openTimeRef = useRef<number | null>(null);
+  const lastViewportHeightRef = useRef<number>(0);
   const chatReadyRef = useRef(false); // Track if chat content is ready (prevents locking to tiny height)
 
   // Detect mobile viewport
@@ -165,6 +170,7 @@ export function PrimeSlideoutShell({
       
       const vh = Math.max(0, window.innerHeight || 0);
       let next = computePanelHeightPx();
+      lastViewportHeightRef.current = vh;
       
       // CRITICAL: Sanity check - if computed height is below minimum, force minimum
       if (next < MIN_SHELL_HEIGHT) {
@@ -210,12 +216,21 @@ export function PrimeSlideoutShell({
   // Optional: Recompute on window resize (debounced)
   useEffect(() => {
     if (!lockedHeight) return;
+    if (freezeResizeRecompute) return;
 
     let resizeTimeout: NodeJS.Timeout;
     const handleResize = () => {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
         const vh = Math.max(0, window.innerHeight || 0);
+        const previousVh = lastViewportHeightRef.current || vh;
+        const viewportDelta = Math.abs(vh - previousVh);
+        // Ignore minor viewport jitter (address bar/devtools micro shifts) to keep
+        // chat height stable and preserve scroll anchoring.
+        if (viewportDelta < 100) {
+          return;
+        }
+        lastViewportHeightRef.current = vh;
         let next = computePanelHeightPx();
         
         // CRITICAL: Sanity check - if computed height is below minimum, force minimum
@@ -252,6 +267,7 @@ export function PrimeSlideoutShell({
     };
   }, [
     lockedHeight,
+    freezeResizeRecompute,
     MIN_SHELL_HEIGHT,
     isMobile,
     isExpanded,

@@ -50,6 +50,9 @@ import * as chimeGenerateNotification from './impl/chime_generate_notification';
 import * as getRecentDocuments from './impl/get_recent_documents';
 import * as getDocumentById from './impl/get_document_by_id';
 import * as getTransactionsByDocument from './impl/get_transactions_by_document';
+import * as txSearch from './impl/tx_search';
+import * as txGet from './impl/tx_get';
+import * as txUpdateCategory from './impl/tx_update_category';
 import { OpenAIToolDef } from '../../server/ai/openai';
 
 export interface ToolModule {
@@ -71,6 +74,7 @@ export interface ToolContext {
   userId: string;
   conversationId: string;
   sessionId?: string;
+  authHeader?: string;
   abortSignal?: AbortSignal;
 }
 
@@ -657,6 +661,40 @@ const toolModules: Map<string, ToolModule> = new Map([
     outputSchema: getTransactionsByDocument.outputSchema,
     run: getTransactionsByDocument.execute,
     meta: {
+      timeout: 15000,
+      rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['tx_search', {
+    id: 'tx_search',
+    description: 'Search already-imported transactions by statement scope, text, date, amount, category, and optional pending rows. Use this for user chat questions about imported transaction history.',
+    inputSchema: txSearch.inputSchema,
+    outputSchema: txSearch.outputSchema,
+    run: txSearch.execute,
+    meta: {
+      timeout: 15000,
+      rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['tx_get', {
+    id: 'tx_get',
+    description: 'Fetch one specific transaction by id from committed or staging tables. Use this when user refers to a specific matched row like "the 2nd one" or "that one" and an id is available.',
+    inputSchema: txGet.inputSchema,
+    outputSchema: txGet.outputSchema,
+    run: txGet.execute,
+    meta: {
+      timeout: 15000,
+      rateLimit: { perMinute: 30 },
+    },
+  }],
+  ['tx_update_category', {
+    id: 'tx_update_category',
+    description: 'Update category for one committed or pending transaction. Optionally apply vendor learning for future categorization.',
+    inputSchema: txUpdateCategory.inputSchema,
+    outputSchema: txUpdateCategory.outputSchema,
+    run: txUpdateCategory.execute,
+    meta: {
+      mutates: true,
       timeout: 15000,
       rateLimit: { perMinute: 30 },
     },

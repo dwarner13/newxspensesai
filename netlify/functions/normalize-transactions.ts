@@ -12,11 +12,33 @@ import { createHash } from 'crypto';
 import { admin } from './_shared/supabase.js';
 import { normalizeOcrResult } from './_shared/ocr_normalize.js';
 import { parseInvoiceLike, parseReceiptLike } from './_shared/ocr_parsers.js';
+import { safeTextMetrics } from './_shared/textHash.js';
 
 type ExtractedSummary = Record<string, any> | null;
+type UserDocumentRow = {
+  id: string;
+  user_id?: string | null;
+  storage_path?: string | null;
+  mime_type?: string | null;
+  original_name?: string | null;
+  status?: string | null;
+  ocr_text_hash?: string | null;
+  ocr_text_length?: number | null;
+  extracted_text_hash?: string | null;
+  extracted_text_length?: number | null;
+  extracted_data?: any;
+  normalized_json?: any;
+  metadata?: any;
+  extraction_quality?: any;
+  pages_detected?: number | null;
+  ocr_completed_at?: string | null;
+  ocr_engine?: string | null;
+};
 type NormalizationResult = {
   ok: boolean;
   skipped?: boolean;
+  reason?: string;
+  documentId?: string;
   error?: { code: string; message: string };
   stagedCount?: number;
   importId?: string;
@@ -24,13 +46,40 @@ type NormalizationResult = {
 
 const AUTO_PURGE_SOURCE = process.env.OCR_AUTO_PURGE_SOURCE === '1';
 const AUTO_PURGE_TEXT = process.env.OCR_AUTO_PURGE_TEXT === '1';
+const NORMALIZE_DEBUG_ENABLED =
+  String(process.env.VITE_LOG_LEVEL || '').toLowerCase() === 'debug' ||
+  String(process.env.PRIME_DEBUG || '').toLowerCase() === 'true';
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function collapseWhitespace(input: string): string {
-  return input.replace(/\s+/g, ' ').trim();
+function isMissingColumnError(error: any): boolean {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('column') && message.includes('does not exist');
 }
 
-function previewText(input: string, length: number): string {
-  return collapseWhitespace(input).slice(0, length);
+async function fetchDocumentWithCompatibility(sb: any, documentId: string): Promise<{ doc: UserDocumentRow | null; error: any }> {
+  const selectAttempts = [
+    'id, user_id, storage_path, mime_type, original_name, status, ocr_text_hash, ocr_text_length, extracted_text_hash, extracted_text_length, extracted_data, normalized_json, metadata, extraction_quality, pages_detected, ocr_completed_at, ocr_engine',
+    'id, user_id, storage_path, mime_type, original_name, status, ocr_text_hash, ocr_text_length, extracted_text_hash, extracted_text_length, extracted_data, normalized_json, metadata',
+    'id, user_id, storage_path, mime_type, original_name, status, ocr_text_hash, ocr_text_length, extracted_text_hash, extracted_text_length, metadata',
+    'id, storage_path, mime_type, original_name, status',
+  ];
+
+  let lastError: any = null;
+  for (const selectClause of selectAttempts) {
+    const { data, error } = await sb
+      .from('user_documents')
+      .select(selectClause)
+      .eq('id', documentId)
+      .single();
+    if (!error) {
+      return { doc: data as UserDocumentRow, error: null };
+    }
+    lastError = error;
+    if (!isMissingColumnError(error)) {
+      return { doc: null, error };
+    }
+  }
+  return { doc: null, error: lastError };
 }
 
 function parseStatementSummary(text: string): ExtractedSummary {
@@ -75,19 +124,14 @@ async function processNormalizationInBackground(
   userId: string,
   documentId: string,
   importRunId?: string,
-  options?: { includeAllAccounts?: boolean }
+  options?: { includeAllAccounts?: boolean; transientOcrText?: string; transientOcrTextHash?: string | null; transientOcrTextLength?: number }
 ): Promise<NormalizationResult> {
   const sb = admin();
   const userIdText = String(userId);
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userIdText);
 
   if (!userId || !documentId) {
     console.error('[normalize-transactions] Missing userId or documentId');
     return { ok: false, error: { code: 'missing_required_fields', message: 'Missing userId or documentId' } };
-  }
-  if (!isUuid) {
-    console.error('[normalize-transactions] Invalid userId (expected UUID)', { userId: userIdText });
-    return { ok: false, error: { code: 'invalid_user_id', message: 'Invalid userId (expected UUID)' } };
   }
 
   let lockAcquired = false;
@@ -102,30 +146,129 @@ async function processNormalizationInBackground(
 
   try {
     // 1. Get document and OCR text
-    const { data: doc, error: docError } = await sb
-      .from('user_documents')
-      .select('ocr_text, id, storage_path, mime_type, original_name')
-      .eq('id', documentId)
-      .single();
+    const { doc, error: docError } = await fetchDocumentWithCompatibility(sb, documentId);
 
     if (docError || !doc) {
       console.error('[normalize-transactions] Error fetching document:', docError);
       return { ok: false, error: { code: 'doc_fetch_failed', message: docError?.message || 'Failed to fetch document' } };
     }
 
+    // ---- Idempotency guard (NO migration safe) ----
+    const metadata =
+      doc?.metadata && typeof doc.metadata === 'object'
+        ? (doc.metadata as Record<string, any>)
+        : {};
+    if (metadata.normalized_cached === true || doc?.normalized_json) {
+      console.log('[normalize-transactions] Skip normalize - already normalized');
+      return {
+        ok: true,
+        skipped: true,
+        reason: 'already_normalized',
+        documentId,
+      };
+    }
+
     // Check if this is an image that might need Vision parsing
     const isImage = doc.mime_type?.startsWith('image/') || false;
-    const hasOcrText = doc.ocr_text && doc.ocr_text.trim().length > 0;
+    const transientText = String(options?.transientOcrText || '');
+    const ocrInputText = transientText;
+    const hasOcrText = ocrInputText.trim().length > 0;
+    const docTextLengthValue =
+      doc?.ocr_text_length ??
+      doc?.extracted_text_length ??
+      doc?.extracted_data?.text_length ??
+      null;
+    const docTextLength = Number.isFinite(Number(docTextLengthValue)) ? Number(docTextLengthValue) : 0;
+    const docTextHash =
+      doc?.ocr_text_hash ||
+      doc?.extracted_text_hash ||
+      doc?.extracted_data?.text_hash ||
+      null;
+    const hasExtractedData = Boolean(doc?.extracted_data) || Boolean(doc?.normalized_json);
+    const docMetadata = metadata;
+    const hasMetadataMarkers = Boolean(
+      docMetadata?.extraction ||
+      docMetadata?.ocr ||
+      docMetadata?.pipeline ||
+      doc?.extraction_quality ||
+      Number(doc?.pages_detected || 0) > 0 ||
+      doc?.ocr_completed_at ||
+      doc?.ocr_engine
+    );
+    console.log('[normalize-transactions] document fields', {
+      documentId,
+      hasTextHash: Boolean(docTextHash),
+      ocrTextLength: docTextLength,
+      hasExtractedData,
+      hasMetadataMarkers,
+    });
+    if (NORMALIZE_DEBUG_ENABLED) {
+      console.log('[normalize-transactions][debug] input source', {
+        documentId,
+        source: transientText ? 'transient_ocrText' : 'structured_only',
+        textLength: ocrInputText.length,
+        textHash: options?.transientOcrTextHash || docTextHash,
+        structuredTextLength: docTextLength,
+      });
+    }
 
-    // 2. Find or create imports record
+    // 2) Find existing import (if any) BEFORE creating one.
     let { data: importRecord, error: importFetchError } = await sb
       .from('imports')
-      .select('id, status')
+      .select('id, status, updated_at')
       .eq('document_id', documentId)
       .maybeSingle();
 
     if (importFetchError) {
       console.error('[normalize-transactions] Error fetching import:', importFetchError);
+    }
+
+    // ---- Early "no input" guard (prevents creating empty imports) ----
+    // We only proceed if we have:
+    // - OCR text metrics (hash or length), OR
+    // - structured payloads already saved (extracted_data / normalized_json), OR
+    // - explicit metadata markers that indicate structured extraction exists.
+    const ocrTextLength = Number((doc as any)?.ocr_text_length || 0);
+    const textHash = ((doc as any)?.text_hash as string | null) || docTextHash || null;
+    const transientTextLength = Number.isFinite(Number(options?.transientOcrTextLength))
+      ? Number(options?.transientOcrTextLength)
+      : ocrInputText.length;
+    const transientTextHash =
+      typeof options?.transientOcrTextHash === 'string' && options.transientOcrTextHash.length > 0
+        ? options.transientOcrTextHash
+        : null;
+    const hasNormalizedJson = Boolean((doc as any)?.normalized_json);
+    const hasMetadataReadyMarkers =
+      Boolean(docMetadata?.ocr_cached) ||
+      Boolean(docMetadata?.extraction_ready_marker) ||
+      Boolean(docMetadata?.structured_ready) ||
+      Boolean(docMetadata?.normalized_ready);
+
+    const hasOcrSignals =
+      Boolean(textHash) ||
+      ocrTextLength > 0 ||
+      Boolean(transientTextHash) ||
+      transientTextLength > 0 ||
+      hasOcrText;
+    const hasStructuredSignals = hasExtractedData || hasNormalizedJson || hasMetadataMarkers || hasMetadataReadyMarkers;
+
+    if (!hasOcrSignals && !hasStructuredSignals) {
+      console.warn('[normalize-transactions] no input; skipping normalization', {
+        documentId,
+        importId: importRecord?.id || null,
+        ocrTextLength,
+        transientTextLength,
+        hasTransientTextHash: Boolean(transientTextHash),
+        hasExtractedData,
+        hasNormalizedJson,
+      });
+      return {
+        ok: false,
+        skipped: true,
+        reason: 'no_input',
+        documentId,
+        importId: importRecord?.id,
+      };
     }
 
     if (!importRecord) {
@@ -138,7 +281,7 @@ async function processNormalizationInBackground(
           file_type: doc.mime_type || 'application/pdf',
           status: 'parsing',
         })
-        .select('id, status')
+        .select('id, status, updated_at')
         .single();
 
       if (importError) {
@@ -165,12 +308,96 @@ async function processNormalizationInBackground(
     }
 
     if (!lockRows || lockRows.length === 0) {
-      console.log('[normalize-transactions] Normalization lock not acquired, skipping', {
-        importId: importRecord.id,
-      });
-      return { ok: true, skipped: true, stagedCount: 0, importId: importRecord.id };
+      const { data: latestImport } = await sb
+        .from('imports')
+        .select('id, status, updated_at')
+        .eq('id', importRecord.id)
+        .maybeSingle();
+      const latestStatus = String(latestImport?.status || importRecord.status || '').toLowerCase();
+      const updatedAtMs = latestImport?.updated_at ? Date.parse(String(latestImport.updated_at)) : NaN;
+      const staleMs = Number.isFinite(updatedAtMs) ? Date.now() - updatedAtMs : Number.POSITIVE_INFINITY;
+      const STALE_NORMALIZING_MS = 120000;
+
+      if (latestStatus === 'parsed' || latestStatus === 'committed') {
+        const { count: parsedCount } = await sb
+          .from('transactions_staging')
+          .select('id', { count: 'exact', head: true })
+          .eq('import_id', importRecord.id);
+        const parsedCountValue = Number(parsedCount || 0);
+        if (latestStatus === 'parsed' && parsedCountValue === 0) {
+          console.warn('[normalize-transactions] Parsed import has zero staging rows; attempting normalize recovery', {
+            importId: importRecord.id,
+          });
+          const { error: reopenError } = await sb
+            .from('imports')
+            .update({ status: 'parsing', updated_at: new Date().toISOString() })
+            .eq('id', importRecord.id)
+            .eq('status', 'parsed');
+          if (!reopenError) {
+            const { data: recoveryLockRows, error: recoveryLockError } = await sb
+              .from('imports')
+              .update({ status: 'normalizing', updated_at: new Date().toISOString() })
+              .eq('id', importRecord.id)
+              .eq('status', 'parsing')
+              .select('id, status');
+            if (!recoveryLockError && Array.isArray(recoveryLockRows) && recoveryLockRows.length > 0) {
+              lockAcquired = true;
+            }
+          }
+        }
+        if (lockAcquired) {
+          // Continue normalization flow below.
+        } else {
+        console.log('[normalize-transactions] Import already parsed/committed; skip normalize', {
+          importId: importRecord.id,
+          status: latestStatus,
+          stagedCount: parsedCountValue,
+        });
+        return {
+          ok: true,
+          skipped: true,
+          reason: 'already_parsed',
+          stagedCount: parsedCountValue,
+          importId: importRecord.id,
+        };
+        }
+      }
+
+      if (latestStatus === 'normalizing' && staleMs >= STALE_NORMALIZING_MS) {
+        const takeoverTimestamp = new Date().toISOString();
+        const { data: takeoverRows, error: takeoverError } = await sb
+          .from('imports')
+          .update({ status: 'normalizing', updated_at: takeoverTimestamp })
+          .eq('id', importRecord.id)
+          .eq('status', 'normalizing')
+          .select('id, status');
+        if (!takeoverError && Array.isArray(takeoverRows) && takeoverRows.length > 0) {
+          console.warn('[normalize-transactions] Recovered stale normalization lock', {
+            importId: importRecord.id,
+            staleMs,
+          });
+          lockAcquired = true;
+        }
+      }
+
+      if (!lockAcquired) {
+        console.log('[normalize-transactions] Normalization lock not acquired, skipping', {
+          importId: importRecord.id,
+          status: latestStatus || null,
+          staleMs: Number.isFinite(staleMs) ? staleMs : null,
+        });
+        return {
+          ok: true,
+          skipped: true,
+          reason: latestStatus === 'normalizing' ? 'normalization_in_progress' : 'lock_not_acquired',
+          stagedCount: 0,
+          importId: importRecord.id,
+        };
+      }
     }
-    lockAcquired = true;
+    if (!lockAcquired) {
+      lockAcquired = true;
+    }
 
     const { count: existingStagingCount } = await sb
       .from('transactions_staging')
@@ -192,10 +419,62 @@ async function processNormalizationInBackground(
 
     let normalizedTransactions: any[] = [];
     let viaMethod: 'ocr' | 'vision-parse' = 'ocr';
+    let usedStructuredArtifacts = false;
+
+    // Structured fallback: if no OCR text is available, try OCR job normalized_json.
+    if (!hasOcrText) {
+      const docStructuredTx = Array.isArray((doc as any)?.normalized_json?.transactions)
+        ? (doc as any).normalized_json.transactions
+        : [];
+      if (docStructuredTx.length > 0) {
+        normalizedTransactions = docStructuredTx.map((tx: any) => ({
+          userId: userIdText,
+          kind: 'bank' as const,
+          date: tx?.date || tx?.posting_date || undefined,
+          merchant: tx?.merchant_normalized || tx?.merchant || undefined,
+          amount: Number(tx?.amount || 0),
+          currency: 'CAD',
+          docId: documentId,
+          description: tx?.description_raw || tx?.description || undefined,
+        }));
+        usedStructuredArtifacts = true;
+      }
+    }
+
+    if (!hasOcrText && normalizedTransactions.length === 0) {
+      try {
+        const { data: ocrJob } = await sb
+          .from('ocr_jobs')
+          .select('normalized_json, status')
+          .eq('document_id', documentId)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const txRows = Array.isArray((ocrJob as any)?.normalized_json?.transactions)
+          ? (ocrJob as any).normalized_json.transactions
+          : [];
+        if (txRows.length > 0) {
+          normalizedTransactions = txRows.map((tx: any) => ({
+            userId: userIdText,
+            kind: 'bank' as const,
+            date: tx?.date || tx?.posting_date || undefined,
+            merchant: tx?.merchant_normalized || tx?.merchant || undefined,
+            amount: Number(tx?.amount || 0),
+            currency: 'CAD',
+            docId: documentId,
+            description: tx?.description_raw || tx?.description || undefined,
+          }));
+          viaMethod = 'ocr';
+          usedStructuredArtifacts = true;
+        }
+      } catch {
+        // Non-fatal: continue with existing flow.
+      }
+    }
 
     // Try OCR text parsing first (if OCR text exists)
     if (hasOcrText) {
-      normalizedTransactions = await normalizeOcrResult(doc.ocr_text, userIdText, openaiClient, {
+      normalizedTransactions = await normalizeOcrResult(ocrInputText, userIdText, openaiClient, {
         filename: doc.original_name || '',
         includeAllAccounts: options?.includeAllAccounts,
       });
@@ -248,49 +527,19 @@ async function processNormalizationInBackground(
       importId: importRecord.id,
       documentId,
       userId: userIdText,
-      extractedTextLength: doc.ocr_text?.length || 0,
+      extractedTextLength: Number(options?.transientOcrTextLength || ocrInputText.length || docTextLength || 0),
+      extractedTextHash: options?.transientOcrTextHash || safeTextMetrics(ocrInputText).hash || docTextHash,
       normalizedTransactionsLength: normalizedTransactions.length,
       viaMethod,
+      source: transientText ? 'transient_ocrText' : (usedStructuredArtifacts ? 'structured_artifacts' : 'none'),
     });
 
     if (!normalizedTransactions || normalizedTransactions.length === 0) {
-      if (doc.ocr_text) {
-        console.log('[normalize-transactions] OCR text preview (no transactions)', {
-          preview: previewText(doc.ocr_text, 600),
-        });
-      }
-      const extractedData = (() => {
-        if (!doc.ocr_text) return null;
-        const invoice = parseInvoiceLike(doc.ocr_text);
-        if (invoice && (invoice.total || invoice.vendor || invoice.invoice_no)) {
-          return {
-            docType: 'invoice',
-            vendor: invoice.vendor,
-            invoice_no: invoice.invoice_no,
-            date: invoice.date,
-            subtotal: invoice.subtotal,
-            tax: invoice.tax,
-            total: invoice.total,
-            currency: invoice.currency,
-          };
-        }
-        const receipt = parseReceiptLike(doc.ocr_text);
-        if (receipt && (receipt.total || receipt.merchant)) {
-          return {
-            docType: 'receipt',
-            merchant: receipt.merchant,
-            date: receipt.date,
-            total: receipt.total,
-            taxes: receipt.taxes,
-            payment: receipt.payment,
-          };
-        }
-        const statement = parseStatementSummary(doc.ocr_text);
-        if (statement) {
-          return statement;
-        }
-        return null;
-      })();
+      const hasStructuredSignals = Boolean(
+        parseInvoiceLike(ocrInputText)?.total ||
+        parseReceiptLike(ocrInputText)?.total ||
+        parseStatementSummary(ocrInputText)
+      );
       await sb
         .from('imports')
         .update({ 
@@ -303,10 +552,18 @@ async function processNormalizationInBackground(
         .from('user_documents')
         .update({
           status: 'needs_review',
-          extracted_data: extractedData,
           updated_at: new Date().toISOString(),
         })
         .eq('id', documentId);
+      if (NORMALIZE_DEBUG_ENABLED) {
+        console.log('[normalize-transactions][debug] no transactions path', {
+          documentId,
+          hadInputText: hasOcrText,
+          ocrTextHash: options?.transientOcrTextHash || docTextHash,
+          ocrTextLength: Number(options?.transientOcrTextLength || docTextLength || 0),
+          hasStructuredSignals,
+        });
+      }
       return { ok: true, stagedCount: 0, importId: importRecord.id };
     }
 
@@ -364,33 +621,6 @@ async function processNormalizationInBackground(
         doc_id: stagingRows[0].data_json?.documentId || null,
       } : null,
     });
-
-    const invoiceTx = normalizedTransactions.find(tx => tx.kind === 'invoice' && tx.amount);
-    if (invoiceTx) {
-      try {
-        const { error: extractedError } = await sb
-          .from('user_documents')
-          .update({
-            extracted_data: {
-              docType: 'invoice',
-              vendor: invoiceTx.merchant || null,
-              invoiceNo: invoiceTx.invoiceNo || null,
-              date: invoiceTx.date || null,
-              total: invoiceTx.amount || null,
-              currency: invoiceTx.currency || 'CAD',
-            },
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', documentId);
-        if (extractedError) {
-          console.warn('[normalize-transactions] extracted_data update skipped:', extractedError.message);
-        } else {
-          console.log('[normalize-transactions] extracted_data saved for invoice', { documentId });
-        }
-      } catch (err: any) {
-        console.warn('[normalize-transactions] extracted_data update failed:', err?.message || err);
-      }
-    }
 
     // 5. Save to transactions_staging
     if (stagingRows.length > 0) {
@@ -470,6 +700,32 @@ async function processNormalizationInBackground(
       }
     }
 
+    // Stamp normalization metadata (no migration safe)
+    try {
+      const { data: latestDoc } = await sb
+        .from('user_documents')
+        .select('metadata')
+        .eq('id', documentId)
+        .maybeSingle();
+      const latestMetadata =
+        latestDoc?.metadata && typeof latestDoc.metadata === 'object'
+          ? (latestDoc.metadata as Record<string, any>)
+          : (metadata || {});
+      await sb
+        .from('user_documents')
+        .update({
+          metadata: {
+            ...latestMetadata,
+            normalized_cached: true,
+            normalized_at: new Date().toISOString(),
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', documentId);
+    } catch (e) {
+      console.warn('[normalize-transactions] metadata stamp failed', e);
+    }
+
     console.log(`[normalize-transactions] Successfully normalized ${stagingRows.length} transactions for import ${importRecord.id}`);
     return { ok: true, stagedCount: stagingRows.length, importId: importRecord.id };
   } catch (error: any) {
@@ -491,6 +747,14 @@ export const handler: Handler = async (event, context) => {
   if (context && typeof context.callbackWaitsForEmptyEventLoop === 'boolean') {
     context.callbackWaitsForEmptyEventLoop = false;
   }
+  const t0 = Date.now();
+  const headersIn = event?.headers || {};
+  const traceId =
+    headersIn['x-trace-id'] ||
+    headersIn['x-request-id'] ||
+    headersIn['X-Trace-Id'] ||
+    headersIn['X-Request-Id'] ||
+    `trace_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   
   const headers = {
     'Content-Type': 'application/json',
@@ -498,60 +762,171 @@ export const handler: Handler = async (event, context) => {
     'Access-Control-Allow-Headers': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
+  const respond = (statusCode: number, payload: Record<string, any>) => {
+    const duration_ms = Date.now() - t0;
+    return {
+      // Contract pinning: keep legacy behavior (HTTP 200) and encode errors in JSON.
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        ...payload,
+        http_status: statusCode,
+        traceId,
+        duration_ms,
+      }),
+    };
+  };
+  const respondError = (
+    statusCode: number,
+    code: string,
+    message: string,
+    extra: Record<string, any> = {}
+  ) =>
+    respond(statusCode, {
+      ok: false,
+      error: { code, message },
+      ...extra,
+    });
+  const mergeMetadata = (existing: unknown, patch: Record<string, any>) => {
+    const base = existing && typeof existing === 'object' ? (existing as Record<string, any>) : {};
+    return { ...base, ...patch };
+  };
+  const stampNormalizeError = async (docId: string, code: string, message: string): Promise<void> => {
+    if (!docId) return;
+    try {
+      const sb = admin();
+      const { data: row } = await sb
+        .from('user_documents')
+        .select('metadata')
+        .eq('id', docId)
+        .maybeSingle();
+      const metadata = mergeMetadata(row?.metadata, {
+        normalize_error: {
+          code,
+          message: String(message || ''),
+          at: new Date().toISOString(),
+          traceId,
+        },
+      });
+      await sb
+        .from('user_documents')
+        .update({ metadata, updated_at: new Date().toISOString() })
+        .eq('id', docId);
+    } catch {
+      // Best effort only; never block API response.
+    }
+  };
 
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers,
-      body: JSON.stringify({ ok: false, error: 'Method not allowed. Use POST.' }),
-    };
+    return respondError(405, 'method_not_allowed', 'Method not allowed. Use POST.');
   }
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { userId, documentId, importRunId, includeAllAccounts } = body;
+    const { userId, documentId, importRunId, includeAllAccounts, ocrText, ocrTextHash, ocrTextLength } = body;
 
     if (!userId || !documentId) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ ok: false, error: 'Missing userId or documentId' }),
-      };
+      if (documentId) {
+        await stampNormalizeError(documentId, 'missing_required_fields', 'Missing userId or documentId');
+      }
+      return respondError(400, 'missing_required_fields', 'Missing userId or documentId');
+    }
+    if (!UUID_V4_RE.test(String(documentId))) {
+      return respondError(400, 'invalid_document_id', 'documentId must be a valid UUID');
     }
 
     const result = await processNormalizationInBackground(userId, documentId, importRunId, {
       includeAllAccounts: Boolean(includeAllAccounts),
+      transientOcrText: typeof ocrText === 'string' ? ocrText : '',
+      transientOcrTextHash: typeof ocrTextHash === 'string' ? ocrTextHash : null,
+      transientOcrTextLength: Number.isFinite(Number(ocrTextLength)) ? Number(ocrTextLength) : undefined,
     });
-    if (!result.ok && result.error?.code === 'staging_upsert_failed') {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({
-          ok: false,
-          error: 'staging_upsert_failed',
-          message: result.error.message,
-        }),
-      };
+    if (result.skipped) {
+      const duration_ms = Date.now() - t0;
+      console.log('[normalize-transactions] done', {
+        traceId,
+        duration_ms,
+        skipped: true,
+        reason: result.reason || null,
+        ok: Boolean(result.ok),
+      });
+      return respond(200, {
+        ok: Boolean(result.ok),
+        skipped: true,
+        started: false,
+        processing: false,
+        completed: Boolean(result.ok),
+        reason: result.reason || null,
+        importId: result.importId,
+        stagedCount: result.stagedCount,
+        documentId: result.documentId || documentId,
+      });
     }
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ started: true, processing: true, importId: result.importId, stagedCount: result.stagedCount }),
-    };
+    if (!result.ok && result.error) {
+      const statusCode = result.error.code === 'doc_fetch_failed'
+        ? 404
+        : result.error.code === 'empty_input_text'
+          ? 422
+          : result.error.code === 'missing_required_fields'
+            ? 400
+            : 500;
+      await stampNormalizeError(
+        documentId,
+        result.error.code,
+        result.error.message || 'Normalization failed'
+      );
+      return respondError(
+        statusCode,
+        result.error.code,
+        result.error.message || 'Normalization failed',
+        { documentId }
+      );
+    }
+    if (!result.ok) {
+      await stampNormalizeError(documentId, 'normalization_failed', 'Normalization failed');
+      return respondError(500, 'normalization_failed', 'Normalization failed', { documentId });
+    }
+    const duration_ms = Date.now() - t0;
+    console.log('[normalize-transactions] done', {
+      traceId,
+      duration_ms,
+      skipped: Boolean(result.skipped),
+      reason: result.reason || null,
+      ok: result.ok,
+    });
+    return respond(200, {
+      ok: result.ok,
+      skipped: Boolean(result.skipped),
+      // "started" means we actually performed normalization work in this request
+      started: Boolean(result.ok && !result.skipped),
+      // This handler is synchronous: if we're responding, we are not still processing
+      processing: false,
+      // "completed" means the handler reached a terminal outcome (success or skip)
+      completed: Boolean(result.ok),
+      reason: result.reason || null,
+      importId: result.importId,
+      stagedCount: result.stagedCount,
+      documentId: result.documentId || documentId,
+    });
   } catch (error: any) {
     console.error('[normalize-transactions] Unexpected error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        ok: false, 
-        error: 'Internal server error',
-        message: error?.message || 'Unknown error',
-      }),
-    };
+    try {
+      const parsed = JSON.parse(event?.body || '{}');
+      const failedDocumentId = parsed?.documentId;
+      if (failedDocumentId) {
+        await stampNormalizeError(
+          failedDocumentId,
+          'internal_server_error',
+          error?.message || 'Unknown error'
+        );
+      }
+    } catch {
+      // ignore parse failures
+    }
+    return respondError(500, 'internal_server_error', error?.message || 'Unknown error');
   }
 };

@@ -28,8 +28,12 @@ export interface SmartImportUploadStatus {
 
 export type UploadResult = {
   docId: string;
+  importId?: string;
+  importIds?: string[];
   queued: boolean;
   via: 'ocr' | 'statement-parse' | 'vision-parse' | 'unsupported';
+  reused?: boolean;
+  reuseReason?: string;
   rejected?: boolean;
   reason?: string;
   pii_redacted?: boolean;
@@ -58,6 +62,8 @@ export type SmartImportDebugItem = {
   importId?: string;
   rawTextPreview: string;
   rawTextLength: number;
+  cleanedText?: string | null;
+  rawText?: string | null;
   parsedTransactions: any[];
   parseWarnings: string[];
   parseError?: string | null;
@@ -217,6 +223,8 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
             importId: syncData?.importId,
             rawTextPreview: syncData?.rawTextPreview || '',
             rawTextLength: syncData?.rawTextLength || 0,
+            cleanedText: syncData?.cleanedText ?? null,
+            rawText: syncData?.rawText ?? null,
             parsedTransactions: Array.isArray(syncData?.parsedTransactions) ? syncData.parsedTransactions : [],
             parseWarnings: Array.isArray(syncData?.parseWarnings) ? syncData.parseWarnings : [],
             parseError: syncData?.parseError ?? null,
@@ -409,6 +417,16 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
             
             // Collect docIds and sync transaction counts
             const docIds = results.map(r => r.docId).filter(Boolean);
+            const importIds = Array.from(
+              new Set(
+                results
+                  .flatMap((r) => [
+                    ...(Array.isArray(r.importIds) ? r.importIds : []),
+                    ...(r.importId ? [r.importId] : []),
+                  ])
+                  .filter((id): id is string => typeof id === 'string' && id.length > 0)
+              )
+            );
 
             // Keep UI in processing mode until OCR jobs are done.
             const baseSummary = {
@@ -416,8 +434,8 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
               finishedAt: new Date().toISOString(),
               fileCount: files.length,
               docIds,
-              importId: undefined,
-              importIds: [],
+              importId: importIds[0],
+              importIds,
             };
             setLastUploadSummary(baseSummary);
             setLastDebugPayload(null);

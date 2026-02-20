@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { X, Download, Eye, FileText, Image as ImageIcon, AlertCircle, Bot, Send, CheckCircle, Brain, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
+import { useNavigate } from 'react-router-dom';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 
 interface DocumentViewerModalProps {
   isOpen: boolean;
@@ -52,6 +54,8 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
   const [previewFailed, setPreviewFailed] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { openChat } = useUnifiedChatLauncher();
 
   // Auto-scroll to bottom of chat
   useEffect(() => {
@@ -274,6 +278,27 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
     }
   };
 
+  const handleContinueInPrime = () => {
+    const fileLabel = documentData?.originalFilename || 'this document';
+    onClose();
+    navigate('/dashboard/prime-chat');
+    openChat({
+      initialEmployeeSlug: 'prime-boss',
+      force: true,
+      routeHint: '/dashboard/prime-chat',
+      initialQuestion: `I just reviewed ${fileLabel}. Continue from this upload and walk me through the key findings, categories, and what I should review next.`,
+      context: {
+        page: 'smart-import-ai',
+        data: {
+          source: 'document-viewer',
+          documentId: documentData?.id,
+          fileName: documentData?.originalFilename,
+          mimeType: documentData?.mimeType,
+        },
+      },
+    });
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -350,6 +375,13 @@ export const DocumentViewerModal: React.FC<DocumentViewerModalProps> = ({
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleContinueInPrime}
+                  className="px-3 py-1.5 text-xs rounded-md border border-emerald-500/40 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 transition-colors"
+                  title="Continue this in Prime chat"
+                >
+                  Continue in Prime
+                </button>
                 {previewUrl && (
                   <>
                     <button

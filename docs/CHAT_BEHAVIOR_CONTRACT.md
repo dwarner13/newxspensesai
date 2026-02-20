@@ -1,4 +1,4 @@
-# Chat Behavior Contract (Lock v1)
+
 
 ## Goals
 - Make chat stable and predictable (ChatGPT-like).

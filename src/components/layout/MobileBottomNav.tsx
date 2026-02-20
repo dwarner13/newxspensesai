@@ -76,6 +76,29 @@ export default function MobileBottomNav({
   };
   const currentEmployeeSlug = employeeKeyToSlug[currentEmployeeKey] || 'prime-boss';
 
+  const triggerPrimeUploadFlow = () => {
+    openChat({
+      initialEmployeeSlug: 'prime-boss',
+      force: true,
+      context: {
+        data: { source: 'mobile-import', intent: 'upload' },
+      },
+      routeHint: '/dashboard/prime-chat',
+    });
+
+    if (typeof window !== 'undefined') {
+      window.setTimeout(() => {
+        const statementInputs = Array.from(
+          document.querySelectorAll(
+            'input[type="file"][accept*=".pdf"][accept*=".csv"][accept*=".xlsx"][accept*=".xls"]'
+          )
+        ) as HTMLInputElement[];
+        const statementInput = statementInputs.find((input) => !input.disabled);
+        statementInput?.click();
+      }, 120);
+    }
+  };
+
   const navItems = [
     { icon: Home, label: "Dashboard", to: "/dashboard" },
     { icon: Upload, label: "Import", to: "/dashboard/smart-import-ai", isByteChat: true },
@@ -105,11 +128,7 @@ export default function MobileBottomNav({
               });
             } else if (item.isByteChat) {
               e.preventDefault();
-              // Legacy Byte chat removed - now using unified chat
-              openChat({ 
-                initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
-                context: { page: location.pathname }
-              });
+              triggerPrimeUploadFlow();
             }
           };
           

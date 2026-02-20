@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import type { ActivityEvent } from '../../hooks/useActivityFeed';
 import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
+import { isSmartImportOpsDashboardV1Enabled } from '../../lib/featureFlags';
 
 interface ByteActivityItemProps {
   event: ActivityEvent;
@@ -20,6 +21,7 @@ interface ByteActivityItemProps {
 export function ByteActivityItem({ event, onViewResults }: ByteActivityItemProps) {
   const navigate = useNavigate();
   const { openChat } = useUnifiedChatLauncher();
+  const opsDashboardEnabled = isSmartImportOpsDashboardV1Enabled();
 
   // Extract metadata from event
   const metadata = event.metadata || {};
@@ -30,6 +32,11 @@ export function ByteActivityItem({ event, onViewResults }: ByteActivityItemProps
   const integrityVerified = metadata.integrity_verified as boolean | undefined;
   const integrityReason = metadata.integrity_reason as string | undefined;
   const docIds = (metadata.doc_ids as string[]) || [];
+  const importRunId = (metadata.import_run_id as string | undefined) || (metadata.import_id as string | undefined);
+  const effectiveTitle =
+    opsDashboardEnabled && txnCount > 0
+      ? `Import completed — ${txnCount} transaction${txnCount > 1 ? 's' : ''} processed.`
+      : event.title;
 
   const handleClick = () => {
     if (onViewResults) {
@@ -40,8 +47,25 @@ export function ByteActivityItem({ event, onViewResults }: ByteActivityItemProps
     }
   };
 
-  const handleChatWithByte = (e: React.MouseEvent) => {
+  const handleChatClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (opsDashboardEnabled) {
+      openChat({
+        initialEmployeeSlug: EMPLOYEE_SLUGS.PRIME,
+        force: true,
+        routeHint: '/dashboard/prime-chat',
+        context: {
+          page: 'smart-import-ai',
+          data: {
+            source: 'byte-activity-item',
+            docIds,
+            importRunId,
+          },
+        },
+        initialQuestion: `Review this import and summarize ${txnCount || 'the'} transaction${txnCount === 1 ? '' : 's'}, category coverage, and any items I should review.`,
+      });
+      return;
+    }
     openChat({
       initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
       context: {
@@ -70,7 +94,7 @@ export function ByteActivityItem({ event, onViewResults }: ByteActivityItemProps
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2 mb-0.5">
           <p className="text-xs font-medium text-slate-200 leading-snug break-words">
-            {event.title}
+            {effectiveTitle}
           </p>
           {/* Integrity badge */}
           {integrityVerified !== undefined && (
@@ -141,10 +165,10 @@ export function ByteActivityItem({ event, onViewResults }: ByteActivityItemProps
           </button>
           <span className="text-slate-600">•</span>
           <button
-            onClick={handleChatWithByte}
+            onClick={handleChatClick}
             className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors"
           >
-            Chat with Byte
+            {opsDashboardEnabled ? 'Ask Prime' : 'Chat with Byte'}
           </button>
         </div>
 

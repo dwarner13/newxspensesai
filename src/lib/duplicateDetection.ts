@@ -7,6 +7,12 @@
 import { getSupabase } from '../lib/supabase';
 import type { NormalizedTransaction, PossibleDuplicate, CommittedTransaction } from '../types/transactions';
 
+const DUPLICATE_CACHE_TTL_MS = 60 * 1000;
+const DUPLICATE_ERROR_COOLDOWN_MS = 15 * 1000;
+const duplicateCache = new Map<string, { ts: number; value: PossibleDuplicate[] }>();
+const duplicateInFlight = new Map<string, Promise<PossibleDuplicate[]>>();
+let duplicateDetectionPauseUntilMs = 0;
+
 /**
  * Calculate Levenshtein distance between two strings
  */
@@ -71,8 +77,26 @@ export async function checkForDuplicates(
   transaction: NormalizedTransaction,
   userId: string
 ): Promise<PossibleDuplicate[]> {
+  if (Date.now() < duplicateDetectionPauseUntilMs) {
+    return [];
+  }
   if (!transaction.date || !transaction.amount || !transaction.merchant) {
     return [];
+  }
+  const normalizedMerchant = normalizeMerchantName(transaction.merchant);
+  if (!normalizedMerchant) {
+    return [];
+  }
+
+  const amount = Math.abs(transaction.amount);
+  const cacheKey = `${userId}|${transaction.date}|${amount.toFixed(2)}|${normalizedMerchant}`;
+  const cached = duplicateCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < DUPLICATE_CACHE_TTL_MS) {
+    return cached.value;
+  }
+  const inFlight = duplicateInFlight.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
   }
 
   const supabase = getSupabase();
@@ -80,7 +104,7 @@ export async function checkForDuplicates(
     return [];
   }
 
-  try {
+  const run = (async (): Promise<PossibleDuplicate[]> => {
     // Calculate date range (±3 days)
     const transactionDate = new Date(transaction.date);
     const startDate = new Date(transactionDate);
@@ -94,15 +118,15 @@ export async function checkForDuplicates(
       .select('*')
       .eq('user_id', userId)
       .gte('posted_at', startDate.toISOString().split('T')[0])
-      .lte('posted_at', endDate.toISOString().split('T')[0]);
+      .lte('posted_at', endDate.toISOString().split('T')[0])
+      .limit(120);
 
     if (error || !candidates) {
       console.error('[duplicateDetection] Error querying transactions:', error);
+      duplicateDetectionPauseUntilMs = Date.now() + DUPLICATE_ERROR_COOLDOWN_MS;
       return [];
     }
 
-    const amount = Math.abs(transaction.amount);
-    const normalizedMerchant = normalizeMerchantName(transaction.merchant);
     const duplicates: PossibleDuplicate[] = [];
 
     // Check each candidate
@@ -132,11 +156,20 @@ export async function checkForDuplicates(
     // Sort by similarity (highest first)
     duplicates.sort((a, b) => b.similarity - a.similarity);
 
+    duplicateCache.set(cacheKey, { ts: Date.now(), value: duplicates });
     return duplicates;
-  } catch (error) {
-    console.error('[duplicateDetection] Error checking duplicates:', error);
-    return [];
-  }
+  })()
+    .catch((error) => {
+      console.error('[duplicateDetection] Error checking duplicates:', error);
+      duplicateDetectionPauseUntilMs = Date.now() + DUPLICATE_ERROR_COOLDOWN_MS;
+      return [];
+    })
+    .finally(() => {
+      duplicateInFlight.delete(cacheKey);
+    });
+
+  duplicateInFlight.set(cacheKey, run);
+  return run;
 }
 
 /**

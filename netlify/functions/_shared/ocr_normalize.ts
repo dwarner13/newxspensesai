@@ -69,7 +69,10 @@ export function normalizeOcrResult(
 ): Promise<NormalizedTransaction[]> | NormalizedTransaction[] {
   const normalizedText = text || "";
   const filename = context?.filename || '';
-  const hasStatementHints = /statement|opening balance|closing balance|account|period ending|statement period|transaction details|balance/i.test(normalizedText);
+  const hasReceiptHints = /transaction\s+record|interac|verified\s+by\s+pin|pump\s+\d+|esso\s+express\s+pay|thank\s+you|hst\s+included|gst\s*#|total\s*[:$]/i.test(normalizedText);
+  const hasStrongStatementHints = /opening balance|closing balance|statement period|period ending|account summary|minimum payment|credit limit|transaction details|for the period ending|cardmember/i.test(normalizedText);
+  const hasStatementKeyword = /\bstatement\b/i.test(normalizedText);
+  const hasStatementHints = hasStrongStatementHints || (hasStatementKeyword && !hasReceiptHints);
   const isCreditCard = /credit card|cardmember|visa|mastercard|amex|capital one|account ending|minimum payment/i.test(normalizedText);
   const statementText = hasStatementHints ? filterStatementPages(normalizedText) : normalizedText;
 

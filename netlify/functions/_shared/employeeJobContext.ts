@@ -9,17 +9,6 @@ type JobContextArgs = {
   importId?: string | null;
 };
 
-function safeShorten(text: string, max = 800): string {
-  const t = (text || '').trim();
-  if (!t) return '';
-  if (t.length <= max) return t;
-  return t.slice(0, max) + '…';
-}
-
-function redactLikelySecrets(text: string): string {
-  return (text || '').replace(/eyJ[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}\.[a-zA-Z0-9_-]{20,}/g, '[REDACTED_TOKEN]');
-}
-
 /**
  * Build a small “job context” system message for a specific employee.
  * This is NOT the brain pack; it’s the “what’s happening right now” snapshot.
@@ -40,14 +29,13 @@ export async function buildEmployeeJobContextSystemMessage(
   // NOTE: Table names may differ; we keep this safe and non-breaking.
   // If your table is different, we’ll adjust after seeing your schema.
   let docsSummary = '';
-  let ocrPreview = '';
-  let ocrStatus = 'unknown';
+  let hasOcrSignals = false;
 
   try {
     // Try common table name: user_documents
     const { data: docs, error } = await sb
       .from('user_documents')
-      .select('id, original_name, mime_type, status, created_at, ocr_text, pii_types, ocr_completed_at')
+      .select('*')
       .in('id', docIds.length ? docIds : ['__none__'])
       .limit(5);
 
@@ -59,18 +47,17 @@ export async function buildEmployeeJobContextSystemMessage(
             const name = d.original_name || d.id;
             const mime = d.mime_type || 'unknown';
             const st = d.status || 'unknown';
-            const hasText = !!(d.ocr_text && d.ocr_text.trim().length);
-            return `- ${name} (${mime}) status=${st} ocr_text=${hasText ? 'yes' : 'no'}`;
+            const textLength = Number(d?.ocr_text_length ?? d?.extracted_data?.text_length ?? 0);
+            const textHash = String(d?.ocr_text_hash || d?.extracted_data?.text_hash || '');
+            const docType = d?.extracted_data?.docType || 'unknown';
+            const pages = d?.extracted_data?.pages || d?.page_count || 0;
+            const txns = d?.extracted_data?.summary?.count || d?.parsed_transactions_count || 0;
+            const warnings = Array.isArray(d?.extracted_data?.warnings) ? d.extracted_data.warnings.length : 0;
+            const missingFields = Array.isArray(d?.extracted_data?.missingFields) ? d.extracted_data.missingFields.length : 0;
+            hasOcrSignals = hasOcrSignals || textLength > 0 || Boolean(textHash);
+            return `- ${name} (${mime}) status=${st} text_length=${textLength} text_hash=${textHash || 'n/a'} doc_type=${docType} pages=${pages} txns=${txns} warnings=${warnings} missing_fields=${missingFields}`;
           })
           .join('\n');
-
-      // Pick first doc with OCR text for preview
-      const withText = docs.find((d: any) => (d.ocr_text || '').trim().length > 0);
-      if (withText) {
-        ocrStatus = withText.status || 'unknown';
-        const raw = redactLikelySecrets(withText.ocr_text || '');
-        ocrPreview = safeShorten(raw, 900);
-      }
     }
   } catch (e) {
     // swallow (no breaking)
@@ -94,7 +81,7 @@ export async function buildEmployeeJobContextSystemMessage(
 
   const header = `BYTE JOB CONTEXT (Upload + OCR + Import Snapshot)`;
 
-  if (!hasDocs && !docsSummary && !ocrPreview) {
+  if (!hasDocs && !docsSummary && !hasOcrSignals) {
     return [
       header,
       '',
@@ -115,15 +102,12 @@ export async function buildEmployeeJobContextSystemMessage(
 
   if (stagingInfo) parts.push('', stagingInfo.trim());
 
-  if (ocrPreview) {
+  if (hasOcrSignals) {
     parts.push('');
-    parts.push(`OCR Preview (truncated):`);
-    parts.push(ocrPreview);
-    parts.push('');
-    parts.push(`OCR Status: ${ocrStatus}`);
+    parts.push('OCR Signals: text metrics and structured extraction data are available.');
     parts.push('');
     parts.push('Byte Instructions:');
-    parts.push('- Summarize what the OCR contains (count/date range/merchants/totals if visible).');
+    parts.push('- Summarize structured extraction signals (counts/date range/merchants/totals if available).');
     parts.push('- Flag missing/unclear fields.');
     parts.push('- Provide Confidence (high/medium/low).');
     parts.push('- Recommend the next step (normalize → stage → commit, or ask user for clarification).');
@@ -131,7 +115,7 @@ export async function buildEmployeeJobContextSystemMessage(
   } else {
     parts.push('');
     parts.push('Byte Instructions:');
-    parts.push('- Documents exist, but no OCR text preview is available here.');
+    parts.push('- Documents exist, but no OCR metrics are available yet.');
     parts.push('- Ask the user to run OCR or confirm the document is processed.');
     parts.push('- Offer to proceed if the system has extracted staging transactions.');
   }

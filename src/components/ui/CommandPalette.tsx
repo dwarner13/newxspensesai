@@ -60,13 +60,13 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     },
     {
       id: 'smart-import',
-      label: 'Go to Smart Import AI',
+      label: 'Go to Import Operations',
       icon: <Upload className="w-4 h-4" />,
       action: () => {
         navigate(DASHBOARD_ROUTES.smartImportAI);
         onClose();
       },
-      keywords: ['smart', 'import', 'byte', 'upload', 'receipt'],
+      keywords: ['import', 'operations', 'byte', 'upload', 'receipt', 'smart'],
     },
     {
       id: 'smart-categories',

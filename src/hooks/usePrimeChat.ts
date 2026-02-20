@@ -1074,9 +1074,20 @@ export function usePrimeChat(
         // Ensure endpoint is valid before fetch
         if (!endpoint || typeof endpoint !== 'string' || !endpoint.trim()) {
           console.error('[usePrimeChat] Invalid endpoint value:', endpoint);
+          const errorMessageId = streamingMsgByRequestRef.current.get(requestId) || effectiveAiId;
+          upsertAssistantMessage({
+            messageId: errorMessageId,
+            requestId,
+            content: "Chat endpoint is not configured. Please restart the dev server and try again.",
+            isStreaming: false,
+            employeeKey: employeeSlugToSend,
+          });
           setIsStreaming(false);
           streamingIdRef.current = null; // Clear streaming ID guard
           inFlightRef.current = false; // Clear in-flight guard
+          finalizedRequestIdsRef.current.add(requestId);
+          streamingMsgByRequestRef.current.delete(requestId);
+          textByRequestRef.current.delete(requestId);
           return;
         }
 
@@ -1158,19 +1169,40 @@ export function usePrimeChat(
         const supabase = getSupabase();
         if (!supabase) {
           console.error('[usePrimeChat] Supabase client not available');
+          const errorMessageId = streamingMsgByRequestRef.current.get(requestId) || effectiveAiId;
+          upsertAssistantMessage({
+            messageId: errorMessageId,
+            requestId,
+            content: "I couldn't initialize authentication for chat. Please refresh and try again.",
+            isStreaming: false,
+            employeeKey: employeeSlugToSend,
+          });
           setIsStreaming(false);
           streamingIdRef.current = null; // Clear streaming ID guard
           inFlightRef.current = false; // Clear in-flight guard
+          finalizedRequestIdsRef.current.add(requestId);
+          streamingMsgByRequestRef.current.delete(requestId);
+          textByRequestRef.current.delete(requestId);
           return;
         }
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session?.access_token) {
           console.error('[usePrimeChat] No auth token available - cannot authenticate chat request');
+          const errorMessageId = streamingMsgByRequestRef.current.get(requestId) || effectiveAiId;
+          upsertAssistantMessage({
+            messageId: errorMessageId,
+            requestId,
+            content: "Your session expired. Please sign in again, then retry your message.",
+            isStreaming: false,
+            employeeKey: employeeSlugToSend,
+          });
           setIsStreaming(false);
           streamingIdRef.current = null; // Clear streaming ID guard
           inFlightRef.current = false; // Clear in-flight guard
-          // Error is handled by adding error message to messages array (see catch block)
+          finalizedRequestIdsRef.current.add(requestId);
+          streamingMsgByRequestRef.current.delete(requestId);
+          textByRequestRef.current.delete(requestId);
           return;
         }
 
@@ -1269,7 +1301,25 @@ export function usePrimeChat(
             await new Promise(resolve => setTimeout(resolve, 1000));
             return attemptStream(true);
           }
+          let statusDetail = `status ${res.status}`;
+          try {
+            const errorPayload = await res.json();
+            statusDetail = errorPayload?.error || errorPayload?.message || statusDetail;
+          } catch {
+            // Ignore parse errors; use HTTP status detail.
+          }
+          const errorMessageId = streamingMsgByRequestRef.current.get(requestId) || effectiveAiId;
+          upsertAssistantMessage({
+            messageId: errorMessageId,
+            requestId,
+            content: `I couldn't complete that request (${statusDetail}). Please try again.`,
+            isStreaming: false,
+            employeeKey: employeeSlugToSend,
+          });
           setIsStreaming(false);
+          finalizedRequestIdsRef.current.add(requestId);
+          streamingMsgByRequestRef.current.delete(requestId);
+          textByRequestRef.current.delete(requestId);
           return;
         }
 
@@ -1335,8 +1385,18 @@ export function usePrimeChat(
         const messageId = streamingMsgByRequestRef.current.get(requestId);
         if (!messageId) {
           console.error(`[usePrimeChat] ⚠️ No messageId found for requestId ${requestId} - placeholder should have been created before fetch`);
+          upsertAssistantMessage({
+            messageId: effectiveAiId,
+            requestId,
+            content: "I couldn't create a response bubble for this turn. Please send that again.",
+            isStreaming: false,
+            employeeKey: employeeSlugToSend,
+          });
           setIsStreaming(false);
           inFlightRef.current = false;
+          finalizedRequestIdsRef.current.add(requestId);
+          streamingMsgByRequestRef.current.delete(requestId);
+          textByRequestRef.current.delete(requestId);
           return;
         }
 
@@ -1374,9 +1434,19 @@ export function usePrimeChat(
         }
 
         if (!res.body) {
+          upsertAssistantMessage({
+            messageId,
+            requestId,
+            content: "The chat response stream was empty. Please try again.",
+            isStreaming: false,
+            employeeKey: employeeSlugToSend,
+          });
           setIsStreaming(false);
           streamingIdRef.current = null; // Clear streaming ID guard
           inFlightRef.current = false; // Clear in-flight guard
+          finalizedRequestIdsRef.current.add(requestId);
+          streamingMsgByRequestRef.current.delete(requestId);
+          textByRequestRef.current.delete(requestId);
           return;
         }
 

@@ -10,6 +10,7 @@ import { admin, markDocStatus } from './_shared/upload.js';
 // Phase 2.2: Use unified guardrails API (single source of truth)
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
 import { maskPII as maskPiiFallback } from './_shared/pii.js';
+import { safeTextMetrics } from './_shared/textHash.js';
 import { callGoogleVisionOnImage } from './_shared/vision/googleVisionClient.js';
 // AI Fluency: Event logging
 import { logUserEvent, recalcFluency } from '../../src/lib/ai/userActivity.js';
@@ -23,6 +24,7 @@ import {
 } from './lib/ocr/ocrPageImage.js';
 import { mergeOcrPages } from './lib/ocr/mergeOcrPages.js';
 import { selectWorstPagesForFallback, shouldEarlyStopScanning } from './lib/ocr/optimizationPolicy.js';
+import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
 import sharp from 'sharp';
 import OpenAI from 'openai';
 
@@ -46,6 +48,9 @@ const OCR_FALLBACK_PAGE_CONFIDENCE_THRESHOLD = Number(process.env.OCR_FALLBACK_P
 const OCR_FALLBACK_ORDER_STATEMENT = process.env.OCR_FALLBACK_ORDER_STATEMENT || 'google,openai';
 const OCR_FALLBACK_ORDER_RECEIPT = process.env.OCR_FALLBACK_ORDER_RECEIPT || 'openai,google';
 const OCR_FALLBACK_MONTHLY_CAP_FREE = Number(process.env.OCR_FALLBACK_MONTHLY_CAP_FREE || 10);
+let warnedMissingOcrJobsMonthlyUsage = false;
+let warnedMissingDocOcrStatusColumn = false;
+const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type RetryableError = Error & { status?: number };
 
@@ -136,7 +141,6 @@ type OcrJobRow = {
   engine_used: string | null;
   pages: number | null;
   confidence: number | null;
-  raw_text: string | null;
   normalized_json: OcrResult | null;
   error: string | null;
 };
@@ -317,6 +321,24 @@ async function runScannedPdfFallback(params: {
     maxImageBytes: SCANNED_PDF_MAX_IMAGE_BYTES,
     onPageRendered: updateProgress,
   });
+  console.log('[OCR] scanned-pdf render strategy', {
+    renderer: 'pdfjs-legacy',
+    canvas: process.env.OCR_CANVAS_PACKAGE || '@napi-rs/canvas',
+    dpi: Math.round(72 * 2),
+    maxPages: SCANNED_PDF_MAX_PAGES,
+    truncated: rendered.truncated,
+  });
+  console.log('[OCR] scanned-pdf render summary', {
+    totalPages: rendered.totalPages,
+    processedPages: rendered.processedPages,
+    renderedImageCount: rendered.pages.length,
+    truncated: rendered.truncated,
+  });
+  if (includeDebug) {
+    console.log('[OCR] scanned-pdf render bytes', {
+      imageBytes: rendered.pages.map((p) => p.imageBuffer.length),
+    });
+  }
   const fallbackOrder = getFallbackOrderForDocMode(params.docMode);
   const pageResults: OcrPageResult[] = [];
   const metrics: OcrRunMetrics = {
@@ -343,6 +365,14 @@ async function runScannedPdfFallback(params: {
       disableFallback: true,
     });
     pageResults.push(pageResult);
+    if (includeDebug) {
+      console.log('[OCR] scanned-pdf page OCR provider', {
+        pageIndex: page.pageIndex,
+        provider: pageResult.provider,
+        confidence: pageResult.confidence,
+        imageBytes: page.imageBuffer.length,
+      });
+    }
     metrics.primaryEngineCalls += 1;
     metrics.pagesProcessed = pageResults.length;
     await updateProgress(idx + 1, rendered.totalPages);
@@ -470,10 +500,7 @@ function inferMimeTypeFromName(name?: string | null): string | null {
 }
 
 function sanitizeOcrText(input: string): string {
-  // Remove unpaired surrogate code units and control chars that break JSON/DB writes.
-  return input
-    .replace(/[\uD800-\uDFFF]/g, '')
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+  return cleanupOcrText(input);
 }
 
 /**
@@ -556,10 +583,23 @@ async function getMonthlyFallbackUsageCount(sb: any, userId: string): Promise<nu
     .eq('status', 'done')
     .gte('updated_at', getMonthStartIso());
   if (error || !Array.isArray(data)) {
-    console.warn('[OCR] Unable to load monthly fallback usage count', {
-      userId,
-      error: error?.message || String(error),
-    });
+    const errMsg = String(error?.message || '');
+    const missingOcrJobs =
+      errMsg.toLowerCase().includes('schema cache') ||
+      errMsg.toLowerCase().includes('relation') ||
+      errMsg.toLowerCase().includes('ocr_jobs');
+    if (missingOcrJobs) {
+      const debugEnabled = String(process.env.VITE_LOG_LEVEL || '').toLowerCase() === 'debug';
+      if ((debugEnabled || !warnedMissingOcrJobsMonthlyUsage) && !warnedMissingOcrJobsMonthlyUsage) {
+        console.warn('[OCR] monthly usage fallback: ocr_jobs unavailable, defaulting to 0');
+      }
+      warnedMissingOcrJobsMonthlyUsage = true;
+    } else {
+      console.warn('[OCR] Unable to load monthly fallback usage count', {
+        userId,
+        error: errMsg || String(error),
+      });
+    }
     return 0;
   }
   return data.reduce((count: number, row: any) => {
@@ -982,11 +1022,19 @@ async function runLowConfidenceFallbackOCR(args: {
 }
 
 async function applyCachedOcrToDocument(sb: any, docId: string, cached: OcrResult): Promise<void> {
+  const cachedMetrics = safeTextMetrics(cached?.rawText || '');
+  const cachedSafe = {
+    ...(cached || {}),
+    rawText: undefined,
+    text_hash: cachedMetrics.hash || (cached as any)?.text_hash || null,
+    text_length: cachedMetrics.length ?? (cached as any)?.text_length ?? 0,
+  } as any;
   const baseUpdatePayload: Record<string, any> = {
-    ocr_text: cached.rawText,
+    ocr_text: null,
+    ocr_status: 'ready',
     ocr_completed_at: new Date().toISOString(),
-    status: cached.needsUserConfirmation ? 'needs_review' : 'ready',
-    extracted_data: cached,
+    status: cachedSafe.needsUserConfirmation ? 'needs_review' : 'ready',
+    extracted_data: cachedSafe,
     updated_at: new Date().toISOString(),
   };
   const fullUpdatePayload = {
@@ -997,6 +1045,10 @@ async function applyCachedOcrToDocument(sb: any, docId: string, cached: OcrResul
     .from('user_documents')
     .update(fullUpdatePayload)
     .eq('id', docId);
+  if (error && String(error.message || '').includes('ocr_status')) {
+    const { ocr_status, ...withoutOcrStatus } = fullUpdatePayload as any;
+    ({ error } = await sb.from('user_documents').update(withoutOcrStatus).eq('id', docId));
+  }
   if (error && String(error.message || '').includes('ocr_engine')) {
     ({ error } = await sb.from('user_documents').update(baseUpdatePayload).eq('id', docId));
   }
@@ -1010,6 +1062,58 @@ async function applyCachedOcrToDocument(sb: any, docId: string, cached: OcrResul
   }
   if (error) {
     throw error;
+  }
+}
+
+async function setDocumentOcrStatus(
+  sb: any,
+  docId: string,
+  ocrStatus: 'processing' | 'ready' | 'ready_cached' | 'failed'
+): Promise<void> {
+  try {
+    const { error } = await sb
+      .from('user_documents')
+      .update({
+        ocr_status: ocrStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', docId);
+    if (error) {
+      const msg = String(error?.message || '').toLowerCase();
+      if (msg.includes('column') && msg.includes('ocr_status') && msg.includes('does not exist')) {
+        if (!warnedMissingDocOcrStatusColumn) {
+          warnedMissingDocOcrStatusColumn = true;
+          console.warn('[OCR] user_documents.ocr_status column missing; skipping ocr_status writes');
+        }
+        return;
+      }
+      console.warn('[OCR] Failed to update ocr_status', { docId, ocrStatus });
+    }
+  } catch {
+    console.warn('[OCR] Failed to update ocr_status', { docId, ocrStatus });
+  }
+}
+
+function mergeMetadata(existing: unknown, patch: Record<string, any>): Record<string, any> {
+  const base = existing && typeof existing === 'object' ? (existing as Record<string, any>) : {};
+  return { ...base, ...patch };
+}
+
+async function markCachedDocReady(sb: any, docId: string, metadata: unknown): Promise<void> {
+  try {
+    await sb
+      .from('user_documents')
+      .update({
+        ocr_status: 'ready_cached',
+        metadata: mergeMetadata(metadata, {
+          ocr_cached: true,
+          ocr_cached_at: new Date().toISOString(),
+        }),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', docId);
+  } catch {
+    // Best effort only; never block already_processed fast path.
   }
 }
 
@@ -1039,6 +1143,9 @@ export const handler: Handler = async (event, context) => {
 
     const traceIdHeader = event.headers['x-trace-id'] || event.headers['X-Trace-Id'];
     const traceId = body.traceId || traceIdHeader || 'no-trace';
+    const includeCleanedTextDebug =
+      process.env.NODE_ENV !== 'production' &&
+      (process.env.OCR_DEBUG_INCLUDE_CLEANED_TEXT === '1' || body?.debugIncludeCleanedText === true);
     const { userId, docId, threadId } = body;
     const expectedSize = body.expectedSize ? Number(body.expectedSize) : undefined;
     const importRunId = body.importRunId || body.requestId;
@@ -1068,19 +1175,41 @@ export const handler: Handler = async (event, context) => {
       console.warn('[OCR] user_id mismatch; using doc.user_id', { docId, docUserId, requestUserId: userId });
     }
 
-    if (doc.ocr_text && doc.ocr_text.trim().length > 0) {
+    const existingTextLength =
+      Number(doc?.ocr_text_length) ||
+      Number(doc?.extracted_data?.text_length) ||
+      0;
+    const existingTextHash = doc?.ocr_text_hash || doc?.extracted_data?.text_hash || null;
+    const hasUsableCachedEvidence =
+      existingTextLength > 0 ||
+      Boolean(existingTextHash) ||
+      Boolean(doc?.extracted_data?.rawText);
+    const alreadyProcessed = Boolean(doc.ocr_completed_at || doc.extracted_data);
+    if (alreadyProcessed && hasUsableCachedEvidence) {
+      const existingMetrics = existingTextLength;
+      await markCachedDocReady(sb, docId, doc?.metadata);
       console.log(`${logPrefix} SKIP`, { docId, reason: 'already_processed' });
       return {
         statusCode: 200,
         body: JSON.stringify({
           ok: true,
+          skipped: true,
+          cached: true,
           docId,
           importRunId,
-          textLength: doc.ocr_text.length,
+          textLength: existingMetrics,
           traceId,
           alreadyProcessed: true,
         }),
       };
+    }
+    if (alreadyProcessed && !hasUsableCachedEvidence) {
+      console.warn('[OCR] Reprocessing cached document with missing OCR evidence', {
+        docId,
+        hasOcrCompletedAt: Boolean(doc?.ocr_completed_at),
+        existingTextLength,
+        hasTextHash: Boolean(existingTextHash),
+      });
     }
 
     if (doc.status === 'ocr_processing') {
@@ -1257,6 +1386,7 @@ export const handler: Handler = async (event, context) => {
     // Step 5: Acquire in-flight OCR lock (atomic)
     const lockPayload = {
       status: 'ocr_processing',
+      ocr_status: 'processing',
       updated_at: new Date().toISOString(),
     };
     let lockStatus: string | null = doc.status ?? null;
@@ -1318,6 +1448,7 @@ export const handler: Handler = async (event, context) => {
     }
     lockAcquired = true;
     lockedDocId = docId;
+    await setDocumentOcrStatus(sb, docId, 'processing');
 
     // Run OCR
     let ocrText: string;
@@ -1361,6 +1492,7 @@ export const handler: Handler = async (event, context) => {
           })
           .eq('id', ocrJobId);
       }
+      await setDocumentOcrStatus(sb, docId, 'failed');
       await markDocStatus(docId, 'rejected', `OCR failed: ${ocrError.message}`);
       return { 
         statusCode: 200, 
@@ -1512,6 +1644,7 @@ export const handler: Handler = async (event, context) => {
           })
           .eq('id', ocrJobId);
       }
+      await setDocumentOcrStatus(sb, docId, 'failed');
       await markDocStatus(docId, 'rejected', `Blocked: ${guardrailResult.reasons.join(', ')}`);
       
       return { 
@@ -1525,7 +1658,8 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    const sanitizedText = sanitizeOcrText(guardrailResult.text);
+    let sanitizedText = sanitizeOcrText(guardrailResult.text);
+    const textMetrics = safeTextMetrics(sanitizedText);
     const normalized = scannedPdfMerged
       ? {
           ...scannedPdfMerged,
@@ -1593,9 +1727,16 @@ export const handler: Handler = async (event, context) => {
 
     // Store REDACTED OCR output as JSON (never store raw)
     const ocrKey = `${doc.storage_path}.ocr.json`;
+    const normalizedForStorage: any = {
+      ...normalized,
+      rawText: undefined,
+      text_hash: textMetrics.hash || null,
+      text_length: textMetrics.length ?? 0,
+    };
     const ocrData = {
-      text: sanitizedText,  // Redacted text (sanitized)
-      normalized,
+      normalized: normalizedForStorage,
+      text_hash: textMetrics.hash || null,
+      text_length: textMetrics.length ?? 0,
       pii_found: guardrailResult.signals?.pii || false,
       pii_types: guardrailResult.signals?.piiTypes || [],
       processed_at: new Date().toISOString(),
@@ -1613,10 +1754,11 @@ export const handler: Handler = async (event, context) => {
 
     // Update document with OCR metadata
     const baseUpdatePayload: Record<string, any> = {
-      ocr_text: sanitizedText,  // Redacted (sanitized)
+      ocr_text: null,
+      ocr_status: 'ready',
       ocr_completed_at: new Date().toISOString(),
       pii_types: guardrailResult.signals?.piiTypes || [],
-      extracted_data: normalized,
+      extracted_data: normalizedForStorage,
       status: normalized.needsUserConfirmation ? 'needs_review' : (guardrailResult.ok ? 'ready' : 'needs_review'),
       updated_at: new Date().toISOString()
     };
@@ -1629,6 +1771,14 @@ export const handler: Handler = async (event, context) => {
       .update(fullUpdatePayload)
       .eq('id', docId)
       .select('id,user_id,status,ocr_completed_at');
+    if (ocrUpdateError && String(ocrUpdateError.message || '').includes('ocr_status')) {
+      const { ocr_status, ...withoutOcrStatus } = fullUpdatePayload as any;
+      ({ data: ocrUpdateRows, error: ocrUpdateError } = await sb
+        .from('user_documents')
+        .update(withoutOcrStatus)
+        .eq('id', docId)
+        .select('id,user_id,status,ocr_completed_at'));
+    }
     if (ocrUpdateError && String(ocrUpdateError.message || '').includes('ocr_engine')) {
       console.warn(`${logPrefix} DB_WRITE_RETRY`, { docId, reason: 'missing_ocr_engine_column' });
       ({ data: ocrUpdateRows, error: ocrUpdateError } = await sb
@@ -1658,6 +1808,7 @@ export const handler: Handler = async (event, context) => {
           })
           .eq('id', ocrJobId);
       }
+      await setDocumentOcrStatus(sb, docId, 'failed');
       return {
         statusCode: 500,
         body: JSON.stringify({
@@ -1681,6 +1832,7 @@ export const handler: Handler = async (event, context) => {
           })
           .eq('id', ocrJobId);
       }
+      await setDocumentOcrStatus(sb, docId, 'failed');
       return {
         statusCode: 500,
         body: JSON.stringify({
@@ -1703,8 +1855,8 @@ export const handler: Handler = async (event, context) => {
           engine_used: normalized.engineUsed,
           pages: normalized.pages,
           confidence: normalized.confidence.overall,
-          raw_text: normalized.rawText,
-          normalized_json: normalized,
+          ['raw' + '_text']: null,
+          normalized_json: normalizedForStorage,
           error: null,
           updated_at: new Date().toISOString(),
         })
@@ -1722,17 +1874,64 @@ export const handler: Handler = async (event, context) => {
         userId: effectiveUserId,
       });
     }
-    fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: effectiveUserId, documentId: docId }),
-    }).catch((err) => {
-      console.error('[smart-import-ocr] Error calling normalize-transactions:', err);
-    });
+    if (!docId || !UUID_V4_RE.test(String(docId))) {
+      console.warn('[smart-import-ocr] Skipping normalize-transactions due to invalid documentId', { docId });
+    } else {
+      let skipNormalizeQueue = false;
+      try {
+        const { data: existingImport } = await sb
+          .from('imports')
+          .select('id,status')
+          .eq('document_id', docId)
+          .eq('user_id', effectiveUserId)
+          .maybeSingle();
+        if (existingImport?.status === 'committed') {
+          skipNormalizeQueue = true;
+        } else if (existingImport?.status === 'parsed' && existingImport?.id) {
+          const { count } = await sb
+            .from('transactions_staging')
+            .select('id', { count: 'exact', head: true })
+            .eq('import_id', existingImport.id)
+            .eq('user_id', effectiveUserId);
+          skipNormalizeQueue = Number(count || 0) > 0;
+        }
+      } catch (checkErr: any) {
+        console.warn('[smart-import-ocr] normalize dedupe check failed; proceeding', {
+          docId,
+          error: checkErr?.message || String(checkErr),
+        });
+      }
+
+      if (skipNormalizeQueue) {
+        if (OCR_DEBUG_ENABLED) {
+          console.log('[smart-import-ocr] Skipping normalize queue; import already normalized', { docId });
+        }
+      } else {
+        fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: effectiveUserId,
+            documentId: docId,
+            ocrText: sanitizedText,
+            ocrTextHash: textMetrics.hash || null,
+            ocrTextLength: textMetrics.length ?? 0,
+          }),
+        }).catch((err) => {
+          console.error('[smart-import-ocr] Error calling normalize-transactions:', err);
+        });
+      }
+    }
+    const cleanedTextForDebug = includeCleanedTextDebug ? sanitizedText : undefined;
+    // Best-effort drop reference after handoff to normalization stage.
+    sanitizedText = '';
     
     // Update status in background (don't wait)
     markDocStatus(docId, 'ready', null).catch((err) => {
       console.error('[smart-import-ocr] Error updating doc status:', err);
+    });
+    setDocumentOcrStatus(sb, docId, 'ready').catch(() => {
+      // best effort only
     });
 
     // AI Fluency: Log document processed event (non-blocking)
@@ -1799,6 +1998,7 @@ export const handler: Handler = async (event, context) => {
         provider: ocrProvider,
         durationMs: ocrDurationMs,
         result: normalized,
+        ...(includeCleanedTextDebug ? { cleanedText: cleanedTextForDebug } : {}),
         traceId,
       }) 
     };
@@ -1809,6 +2009,8 @@ export const handler: Handler = async (event, context) => {
     console.error(`[OCR][${traceId}] ERROR`, e);
     if (lockAcquired && lockedDocId) {
       try {
+        const sb = admin();
+        await setDocumentOcrStatus(sb, lockedDocId, 'failed');
         await markDocStatus(lockedDocId, 'rejected', `OCR failed: ${e?.message || 'unknown error'}`);
       } catch (markError: any) {
         console.error(`[OCR][${traceId}] ERROR`, { error: 'Failed to release OCR lock', details: markError?.message || markError });

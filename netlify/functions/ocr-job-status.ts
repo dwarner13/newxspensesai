@@ -26,7 +26,7 @@ export const handler: Handler = async (event) => {
     const sb = admin();
     let { data: docs, error: docsError } = await sb
       .from('user_documents')
-      .select('id, status, content_hash, extracted_data, ocr_engine, ocr_completed_at')
+      .select('id, status, ocr_status, content_hash, extracted_data, ocr_engine, ocr_completed_at')
       .eq('user_id', userId)
       .in('id', docIds);
     if (docsError) {
@@ -36,7 +36,7 @@ export const handler: Handler = async (event) => {
       if (missingExtractedData || missingOcrEngine) {
         ({ data: docs, error: docsError } = await sb
           .from('user_documents')
-          .select('id, status, content_hash, ocr_completed_at')
+          .select('id, status, ocr_status, content_hash, ocr_completed_at')
           .eq('user_id', userId)
           .in('id', docIds));
       }
@@ -86,9 +86,17 @@ export const handler: Handler = async (event) => {
       const byDoc = jobByDocId.get(doc.id);
       const byHash = doc.content_hash ? jobByHash.get(doc.content_hash) : null;
       const job = byDoc || byHash || null;
+      const normalizedOcrStatus = String(doc?.ocr_status || '').toLowerCase();
+      const docLooksDone =
+        normalizedOcrStatus === 'ready' ||
+        normalizedOcrStatus === 'ready_cached' ||
+        normalizedOcrStatus === 'needs_review' ||
+        normalizedOcrStatus === 'rejected' ||
+        doc.status === 'ready';
       return {
         docId: doc.id,
-        status: job?.status || (doc.status === 'ready' ? 'done' : doc.status === 'rejected' ? 'error' : 'running'),
+        status: job?.status || (docLooksDone ? 'done' : doc.status === 'rejected' ? 'error' : 'running'),
+        ocrStatus: doc?.ocr_status || null,
         engineUsed: job?.engine_used || doc.ocr_engine || null,
         confidence: job?.confidence || doc?.extracted_data?.confidence?.overall || null,
         result: job?.normalized_json || doc.extracted_data || null,

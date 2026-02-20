@@ -99,24 +99,24 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    // Trigger OCR processing after successful upload
     const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
-    fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        docId: docId,
-        userId: userId
-      })
-    }).catch(err => {
-      console.error('[smart-import-finalize] Failed to trigger OCR:', err);
-      // Don't fail the upload if OCR trigger fails - it can be retried
-    });
 
     // Route 1: Images/PDFs → OCR (guardrails run in OCR function)
     if (isImageOrPdf(doc.mime_type)) {
+      // Trigger OCR processing after successful upload
+      fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          docId: docId,
+          userId: userId
+        })
+      }).catch(err => {
+        console.error('[smart-import-finalize] Failed to trigger OCR:', err);
+        // Don't fail the upload if OCR trigger fails - it can be retried
+      });
       // Return immediately - Byte can chat while OCR processes
       return { statusCode: 200, body: JSON.stringify({ started: true, queued: true, via: 'ocr' }) };
     }
@@ -133,10 +133,6 @@ export const handler: Handler = async (event, context) => {
         return { statusCode: 200, body: JSON.stringify({ rejected: true, reasons: result.reasons }) };
       }
 
-      // Store REDACTED text only
-      const safeKey = `${doc.storage_path}.txt`;
-      await sb.storage.from(BUCKET).upload(safeKey, new Blob([result.text], { type: 'text/plain' }), { upsert: true });
-
       // Byte Speed Mode v2: Return immediately, process in background
       const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
       
@@ -144,7 +140,7 @@ export const handler: Handler = async (event, context) => {
       fetch(`${netlifyUrl}/.netlify/functions/smart-import-parse-csv`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, docId, key: safeKey }),
+        body: JSON.stringify({ userId, docId, csvText: result.text }),
       }).catch((error) => {
         console.error('[smart-import-finalize] Background Parse CSV call error:', error);
       });
@@ -153,9 +149,19 @@ export const handler: Handler = async (event, context) => {
       return { statusCode: 200, body: JSON.stringify({ started: true, queued: true, via: 'statement-parse', pii_redacted: result.signals?.pii }) };
     }
 
-    // Unknown type
-    await markDocStatus(docId, 'rejected', 'unsupported_type');
-    return { statusCode: 200, body: JSON.stringify({ rejected: true, reason: 'unsupported_type' }) };
+    // Route 3: Accept all other file types without rejection.
+    // These are stored and can be reviewed, even if not yet parser-supported.
+    await markDocStatus(docId, 'needs_review', 'accepted_unstructured_file');
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        started: true,
+        queued: false,
+        via: 'unsupported',
+        accepted: true,
+        reason: 'accepted_unstructured_file',
+      }),
+    };
   } catch (e: any) {
     return { statusCode: 500, body: e.message };
   }

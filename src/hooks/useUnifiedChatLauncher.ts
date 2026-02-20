@@ -64,6 +64,7 @@ export interface ChatLaunchOptions {
   handoff?: ChatHandoffPayload;
   conversationId?: string;
   force?: boolean; // Force open even if explicitly closed (for user-initiated opens)
+  routeHint?: string; // Optional target route hint to avoid unintended guard redirects
 }
 
 const CHAT_ALLOWED_PREFIXES = [
@@ -265,7 +266,8 @@ export function useUnifiedChatLauncher() {
       setActiveEmployee(slug);
     }
 
-    if (!isChatAllowedPath(location.pathname)) {
+    const guardPath = resolvedOptions?.routeHint || location.pathname;
+    if (!isChatAllowedPath(guardPath)) {
       navigate('/dashboard/prime-chat');
     }
     openChatInternal(resolvedOptions);

@@ -60,6 +60,12 @@ export interface ChatInputBarProps {
   
   /** Whether to show attachment chips */
   showAttachmentChips?: boolean;
+
+  /** Whether attachment upload is currently in progress */
+  isAttachmentUploading?: boolean;
+
+  /** Upload progress percentage (0-100) for attachment tray */
+  attachmentUploadProgress?: number;
   
   /** Optional cancel/stop handler (for stopping streaming) */
   onStop?: () => void;
@@ -75,6 +81,9 @@ export interface ChatInputBarProps {
 
   /** Allow selecting attachments while streaming (uploads can be queued by parent). */
   allowAttachmentsWhileStreaming?: boolean;
+
+  /** Immediately submit selected attachments (no send button click). */
+  autoSubmitOnAttachmentSelect?: boolean;
 }
 
 const CHAT_INPUT_MAX_CHARS = 2000;
@@ -97,11 +106,14 @@ export function ChatInputBar({
   onAttachmentsChange,
   attachmentsEnabled = true,
   showAttachmentChips = true,
+  isAttachmentUploading = false,
+  attachmentUploadProgress = 0,
   onStop,
   onInputFocus,
   onInputMouseDown,
   readOnly = false,
   allowAttachmentsWhileStreaming = false,
+  autoSubmitOnAttachmentSelect = false,
 }: ChatInputBarProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -161,6 +173,7 @@ export function ChatInputBar({
   const charCount = value.length;
   const showCounter = charCount >= CHAT_INPUT_COUNTER_THRESHOLD;
   const isOverLimit = charCount > CHAT_INPUT_MAX_CHARS;
+  const normalizedUploadProgress = Math.max(0, Math.min(100, Math.round(attachmentUploadProgress)));
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -188,22 +201,31 @@ export function ChatInputBar({
     if (newAttachments.length > 0) {
       const updatedAttachments = [...attachments, ...newAttachments];
       setAttachments(updatedAttachments);
-      // Call onAttachmentsChange callback for immediate processing (e.g., Byte Smart Import)
-      onAttachmentsChange?.(updatedAttachments);
+      // In instant-upload mode, notify parent immediately.
+      // In instruction-first mode, parent receives attachments on explicit submit.
+      if (autoSubmitOnAttachmentSelect) {
+        onAttachmentsChange?.(updatedAttachments);
+      }
+      if (autoSubmitOnAttachmentSelect && !disabled && !readOnly) {
+        onSubmit({ attachments: updatedAttachments });
+        setAttachments([]);
+      }
     }
     
     // Reset input so same file can be selected again
     e.target.value = '';
-  }, [attachments, onAttachmentsChange]);
+  }, [attachments, onAttachmentsChange, autoSubmitOnAttachmentSelect, disabled, readOnly, onSubmit]);
 
   const handleRemoveAttachment = useCallback((index: number) => {
     setAttachments(prev => {
       const updated = prev.filter((_, i) => i !== index);
-      // Call onAttachmentsChange callback to notify parent of removal
-      onAttachmentsChange?.(updated);
+      if (autoSubmitOnAttachmentSelect) {
+        // Keep parent in sync only for instant-upload mode.
+        onAttachmentsChange?.(updated);
+      }
       return updated;
     });
-  }, [onAttachmentsChange]);
+  }, [onAttachmentsChange, autoSubmitOnAttachmentSelect]);
 
   const handleAttachClick = useCallback(() => {
     if (!attachmentsEnabled) {
@@ -309,26 +331,43 @@ export function ChatInputBar({
       <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-2">
         {/* Attachment chips - shown above input when files are attached */}
         {showAttachmentChips && attachments.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2 shrink-0">
-            {attachments.map((file, index) => (
-              <div
-                key={`${file.name}-${file.size}-${index}`}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-white/10 text-xs text-white/80 border border-white/10"
-              >
-                <File className="w-3 h-3 shrink-0" />
-                <span className="max-w-[120px] truncate" title={file.name}>
-                  {file.name}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveAttachment(index)}
-                  className="ml-0.5 p-0.5 hover:bg-white/20 rounded-full transition-colors shrink-0"
-                  aria-label={`Remove ${file.name}`}
+          <div className="mb-2 w-full shrink-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {attachments.map((file, index) => (
+                <div
+                  key={`${file.name}-${file.size}-${index}`}
+                  className="inline-flex max-w-full items-center gap-2 rounded-xl border border-white/15 bg-white/8 px-2.5 py-1.5"
                 >
-                  <X className="w-3 h-3" />
-                </button>
+                  <File className="w-3.5 h-3.5 text-white/75 shrink-0" />
+                  <span className="max-w-[180px] truncate text-xs text-white/90" title={file.name}>
+                    {file.name}
+                  </span>
+                  <span className="text-[10px] text-white/55 shrink-0">
+                    {(file.size / (1024 * 1024)).toFixed(2)} MB
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttachment(index)}
+                    className="p-0.5 hover:bg-white/20 rounded transition-colors shrink-0"
+                    aria-label={`Remove ${file.name}`}
+                    disabled={isAttachmentUploading}
+                  >
+                    <X className="w-3 h-3 text-white/70" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {isAttachmentUploading && (
+              <div className="mt-2">
+                <div className="h-1 w-full rounded-full bg-white/15 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-cyan-400 transition-all duration-300"
+                    style={{ width: `${normalizedUploadProgress}%` }}
+                  />
+                </div>
+                <div className="mt-1 text-[10px] text-white/55 text-right">{normalizedUploadProgress}%</div>
               </div>
-            ))}
+            )}
           </div>
         )}
 
@@ -341,7 +380,7 @@ export function ChatInputBar({
             onClick={handleAttachClick}
             disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming) || attachments.length >= MAX_ATTACHMENTS}
             className={cn(
-              "h-7 w-7 rounded-xl border border-white/10 flex items-center justify-center transition-all shrink-0",
+              "h-10 w-10 rounded-xl border border-white/10 flex items-center justify-center transition-all shrink-0",
               "hover:bg-white/10 active:bg-white/15",
               "disabled:opacity-40 disabled:cursor-not-allowed",
               "focus:outline-none focus:ring-2 focus:ring-white/20 focus:ring-offset-2 focus:ring-offset-slate-950",
@@ -351,9 +390,9 @@ export function ChatInputBar({
             title={`Attach files (${attachments.length}/${MAX_ATTACHMENTS})`}
           >
             {showPlusIcon ? (
-              <Plus className="w-3.5 h-3.5 text-white/70" />
+              <Plus className="w-5 h-5 text-white/70" />
             ) : (
-              <Paperclip className="w-3.5 h-3.5 text-white/70" />
+              <Paperclip className="w-5 h-5 text-white/70" />
             )}
           </button>
 
@@ -422,12 +461,12 @@ export function ChatInputBar({
             aria-hidden={!attachmentsEnabled}
           />
           
-          {/* Statement input - PDF/CSV/XLSX files */}
+          {/* Statement input - accept any file type */}
           <input
             ref={statementInputRef}
             type="file"
             multiple
-            accept=".pdf,.csv,.xlsx,.xls,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            accept="*/*"
             onChange={handleFileSelect}
             className="hidden"
             disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming)}
@@ -439,7 +478,7 @@ export function ChatInputBar({
             ref={fileInputRef}
             type="file"
             multiple
-            accept="image/*,.pdf,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+            accept="*/*"
             onChange={handleFileSelect}
             className="hidden"
             disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming)}

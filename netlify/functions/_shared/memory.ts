@@ -61,7 +61,15 @@ export interface RecalledFact {
   fact: string;
   score: number;
   fact_id: string;
+  memory_type?: 'habit' | 'goal' | 'correction' | 'stress_signal' | 'preference' | 'fact';
 }
+
+type MemoryQueryIntent =
+  | 'coaching'
+  | 'categorization'
+  | 'stress_support'
+  | 'goal_progress'
+  | 'general';
 
 // ============================================================================
 // HELPERS
@@ -77,6 +85,83 @@ function normalizeSessionId(raw: unknown): string | null {
     if (typeof v === 'string') return v;
   }
   return null;
+}
+
+function detectMemoryQueryIntent(query: string): MemoryQueryIntent {
+  const text = String(query || '').toLowerCase();
+  if (!text.trim()) return 'general';
+
+  if (/\b(stress|stressed|anxious|overwhelmed|worried|panic|burnout)\b/.test(text)) {
+    return 'stress_support';
+  }
+  if (/\b(goal|target|save|savings|debt|payoff|plan|milestone)\b/.test(text)) {
+    return 'goal_progress';
+  }
+  if (/\b(category|categorize|uncategorized|merchant|tag)\b/.test(text)) {
+    return 'categorization';
+  }
+  if (/\b(budget|coach|advice|improve|reduce|cut spending|optimi[sz]e)\b/.test(text)) {
+    return 'coaching';
+  }
+  return 'general';
+}
+
+function classifyMemoryType(fact: string): RecalledFact['memory_type'] {
+  const text = String(fact || '').toLowerCase();
+  if (!text.trim()) return 'fact';
+
+  if (text.startsWith('pref:') || /\b(prefer|preference|always use|format)\b/.test(text)) {
+    return 'preference';
+  }
+  if (text.startsWith('correct:') || /\b(correct|actually|not .* but|changed to|update)\b/.test(text)) {
+    return 'correction';
+  }
+  if (
+    /\b(stress|stressed|anxious|overwhelmed|worried|financial anxiety|money stress)\b/.test(text)
+  ) {
+    return 'stress_signal';
+  }
+  if (/\b(goal|target|save|savings|debt|payoff|plan by|by \w+ \d{4})\b/.test(text)) {
+    return 'goal';
+  }
+  if (/\b(always|usually|every month|typically|routine|habit)\b/.test(text)) {
+    return 'habit';
+  }
+  return 'fact';
+}
+
+function intentBoost(memoryType: RecalledFact['memory_type'], intent: MemoryQueryIntent): number {
+  const t = memoryType || 'fact';
+  if (intent === 'stress_support') {
+    if (t === 'stress_signal') return 0.22;
+    if (t === 'goal') return 0.04;
+  } else if (intent === 'goal_progress') {
+    if (t === 'goal') return 0.2;
+    if (t === 'habit') return 0.06;
+  } else if (intent === 'categorization') {
+    if (t === 'correction') return 0.2;
+    if (t === 'preference') return 0.08;
+  } else if (intent === 'coaching') {
+    if (t === 'habit') return 0.12;
+    if (t === 'goal') return 0.1;
+    if (t === 'stress_signal') return 0.08;
+  }
+  if (t === 'preference') return 0.03;
+  return 0;
+}
+
+function prioritizeFactsForIntent(facts: RecalledFact[], intent: MemoryQueryIntent, maxFacts: number): RecalledFact[] {
+  return [...facts]
+    .map((f) => {
+      const memoryType = f.memory_type || classifyMemoryType(f.fact);
+      return {
+        ...f,
+        memory_type: memoryType,
+        score: f.score + intentBoost(memoryType, intent),
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxFacts);
 }
 
 /**
@@ -314,7 +399,8 @@ export async function recall(params: RecallParams): Promise<RecalledFact[]> {
               sessionResults.push({
                 fact: emb.chunk || emb.content_redacted || '',
                 score: similarity,
-                fact_id: emb.id
+                fact_id: emb.id,
+                memory_type: classifyMemoryType(emb.chunk || emb.content_redacted || ''),
               });
             }
           } catch (e) {
@@ -368,7 +454,8 @@ export async function recall(params: RecallParams): Promise<RecalledFact[]> {
       const mappedFacts = (facts || []).map((f: any) => ({
         fact: f.fact || '',
         score: f.source_message_id === normalizedSessionId ? 0.7 : 0.5, // Boost session-scoped facts
-        fact_id: f.id
+        fact_id: f.id,
+        memory_type: classifyMemoryType(f.fact || ''),
       }));
 
       // Sort by score (session-scoped first) then take top k
@@ -380,7 +467,8 @@ export async function recall(params: RecallParams): Promise<RecalledFact[]> {
     const globalResults = (data || []).map((item: any) => ({
       fact: item.chunk || item.content_redacted || '',
       score: item.similarity || 0,
-      fact_id: item.id || ''
+      fact_id: item.id || '',
+      memory_type: classifyMemoryType(item.chunk || item.content_redacted || ''),
     })).filter((r: RecalledFact) => r.score >= minScore);
 
     if (normalizedSessionId) {
@@ -432,6 +520,22 @@ export function extractFactsFromMessages(messages: Array<{ role: string; content
 
   for (const msg of messages) {
     const content = msg.content || '';
+    const lower = content.toLowerCase();
+
+    // Financial emotion/stress signals (memory brain hook)
+    const stressSignals = [
+      /\b(stress|stressed|stressful)\b/,
+      /\b(anxious|anxiety|worried)\b/,
+      /\b(overwhelmed|panic|panicking)\b/,
+    ];
+    if (stressSignals.some((rx) => rx.test(lower))) {
+      const signalValue = 'financial_stress_signal=true';
+      const key = `emotion:${signalValue}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        facts.push({ key: 'emotion_signal', value: signalValue, scope: 'wellbeing' });
+      }
+    }
     
     // Vendor detection (capitalized words, quoted strings)
     const vendorMatch = content.match(/(?:vendor|merchant|store|shop|from|at)\s+["']?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)["']?/i);
@@ -647,6 +751,7 @@ export async function getMemory(params: {
     includeTasks = true,
     includeSummaries = false
   } = options;
+  const queryIntent = detectMemoryQueryIntent(query);
 
   // Use context-retrieval.ts for comprehensive context
   const retrieved = await retrieveContext({
@@ -679,21 +784,24 @@ export async function getMemory(params: {
       existing => existing.fact === f.fact
     );
     if (!existing) {
+      const normalizedFact = f.fact || '';
       factMap.set(f.fact || '', {
-        fact: f.fact || '',
+        fact: normalizedFact,
         score: 0.5, // Default score for context-retrieval facts
-        fact_id: f.fact || ''
+        fact_id: normalizedFact,
+        memory_type: classifyMemoryType(normalizedFact),
       });
     }
   });
+  const prioritizedFacts = prioritizeFactsForIntent(Array.from(factMap.values()), queryIntent, maxFacts);
 
   // Build unified context
   const contextParts: string[] = [];
 
   // Add facts section
-  if (retrieved.facts.length > 0) {
-    const factLines = retrieved.facts
-      .map(f => `- ${f.fact}`)
+  if (prioritizedFacts.length > 0) {
+    const factLines = prioritizedFacts
+      .map(f => `- [${f.memory_type || 'fact'}] ${f.fact}`)
       .join('\n');
     contextParts.push(`## Known User Facts & Preferences\n${factLines}`);
   }
@@ -724,7 +832,7 @@ export async function getMemory(params: {
 
   return {
     context,
-    facts: Array.from(factMap.values()),
+    facts: prioritizedFacts,
     memories: retrieved.memories.map(m => ({
       content: m.content_redacted || '',
       similarity: m.similarity || 0,

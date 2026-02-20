@@ -17,9 +17,10 @@ import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
-import { CheckCircle, Clock, AlertCircle, FileText, Calendar, ArrowRight } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, FileText, Calendar, ArrowRight, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { CommitImportResponse } from '@/types/smartImport';
+import { DocumentViewerModal } from '@/components/ui/DocumentViewerModal';
 
 interface ImportRecord {
   id: string;
@@ -41,6 +42,23 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [committing, setCommitting] = useState<string | null>(null);
+  const [viewingDocumentId, setViewingDocumentId] = useState<string | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerDoc, setViewerDoc] = useState<{
+    id: string;
+    imageUrl?: string | null;
+    downloadUrl?: string | null;
+    originalFilename?: string;
+    mimeType?: string;
+    extractedData?: any;
+    processingStatus?: string;
+    createdAt?: string;
+    ocrText?: string;
+    redactedText?: string;
+    redactionSummary?: string;
+    ocrEngine?: string;
+    ocrConfidence?: number;
+  } | null>(null);
 
   useEffect(() => {
     if (userId) {
@@ -122,6 +140,84 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
       toast.error(error.message || 'Failed to commit import');
     } finally {
       setCommitting(null);
+    }
+  };
+
+  const handleViewDocument = async (importRecord: ImportRecord) => {
+    if (!importRecord.document_id) {
+      toast.error('No source document is attached to this import yet.');
+      return;
+    }
+    if (!supabase) {
+      toast.error('Supabase is not configured in this environment.');
+      return;
+    }
+
+    setViewingDocumentId(importRecord.id);
+    setViewerOpen(true);
+    setViewerDoc({
+      id: importRecord.document_id,
+      originalFilename: getFileName(importRecord.file_url),
+      processingStatus: importRecord.status,
+    });
+
+    try {
+      const { data: docData, error: docError } = await supabase
+        .from('user_documents')
+        .select('*')
+        .eq('id', importRecord.document_id)
+        .maybeSingle();
+
+      if (docError || !docData) {
+        toast.error('Unable to load the source document details.');
+        return;
+      }
+
+      let signedUrl: string | null = null;
+      if (docData.storage_path) {
+        try {
+          const { data: urlData, error: urlError } = await supabase.storage
+            .from('original_docs')
+            .createSignedUrl(docData.storage_path, 60);
+          if (!urlError) {
+            signedUrl = urlData?.signedUrl || null;
+          }
+        } catch {
+          // no-op
+        }
+        if (!signedUrl) {
+          try {
+            const { data: urlData2, error: urlError2 } = await supabase.storage
+              .from('redacted_docs')
+              .createSignedUrl(docData.storage_path, 60);
+            if (!urlError2) {
+              signedUrl = urlData2?.signedUrl || null;
+            }
+          } catch {
+            // no-op
+          }
+        }
+      }
+
+      setViewerDoc({
+        id: docData.id,
+        imageUrl: signedUrl || docData.storage_path || null,
+        downloadUrl: signedUrl || null,
+        originalFilename: docData.original_name || docData.file_name || getFileName(importRecord.file_url),
+        mimeType: docData.mime_type || importRecord.file_type || undefined,
+        extractedData: docData.extracted_data || null,
+        processingStatus: docData.status || importRecord.status,
+        createdAt: docData.created_at,
+        ocrText: docData.ocr_text || null,
+        redactedText: docData.redacted_text || null,
+        redactionSummary: docData.redaction_summary || null,
+        ocrEngine: docData.ocr_engine || null,
+        ocrConfidence: docData.ocr_confidence || null,
+      });
+    } catch {
+      toast.error('Unable to open this document right now.');
+    } finally {
+      setViewingDocumentId(null);
     }
   };
 
@@ -220,6 +316,26 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
           )}
 
           <div className="flex items-center gap-2 mt-4">
+            {importRecord.document_id && (
+              <button
+                onClick={() => handleViewDocument(importRecord)}
+                disabled={viewingDocumentId === importRecord.id}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                {viewingDocumentId === importRecord.id ? (
+                  <>
+                    <Clock className="h-4 w-4 animate-spin" />
+                    Opening...
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4" />
+                    View Document
+                  </>
+                )}
+              </button>
+            )}
+
             {importRecord.status === 'parsed' && (
               <button
                 onClick={() => handleCommit(importRecord.id)}
@@ -261,6 +377,11 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
           </div>
         </div>
       ))}
+      <DocumentViewerModal
+        isOpen={viewerOpen}
+        onClose={() => setViewerOpen(false)}
+        documentData={viewerDoc}
+      />
     </div>
   );
 }

@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Loader2, Send, User, ArrowRight, Upload, Eye, EyeOff, History, LayoutDashboard, Grid3X3, Tags, LineChart } from 'lucide-react';
+import { Loader2, Send, User, ArrowRight, Upload, Eye, EyeOff, History, LayoutDashboard, Grid3X3, Tags, LineChart, ChevronDown } from 'lucide-react';
 import { useStreamChat } from '../../ui/hooks/useStreamChat';
 import { getEmployeeDisplay } from '../../utils/employeeUtils';
 import { EMPLOYEE_CHAT_CONFIG } from '../../config/employeeChatConfig';
@@ -49,7 +49,11 @@ export function PrimeChatPanel({
 }: PrimeChatPanelProps) {
   const [inputMessage, setInputMessage] = useState('');
   const [isRailHidden, setIsRailHidden] = useState(false);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const forceNextAutoScrollRef = useRef(false);
   const navigate = useNavigate();
   const { setPrimeToolsOpen } = usePrimeOverlaySafe();
 
@@ -94,6 +98,48 @@ export function PrimeChatPanel({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const updateNearBottom = () => {
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      setIsNearBottom(distanceFromBottom < 120);
+    };
+
+    container.addEventListener('scroll', updateNearBottom, { passive: true });
+    updateNearBottom();
+    return () => container.removeEventListener('scroll', updateNearBottom);
+  }, [isOpen]);
+
+  // Keep messages pinned to bottom unless user intentionally scrolled up.
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const container = messagesContainerRef.current;
+    const endMarker = messagesEndRef.current;
+    if (!container && !endMarker) return;
+    const shouldAutoScroll = isNearBottom || forceNextAutoScrollRef.current;
+    if (!shouldAutoScroll) return;
+
+    const scrollToLatest = () => {
+      if (container) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+      }
+      if (endMarker) {
+        endMarker.scrollIntoView({ block: 'end', behavior: 'auto' });
+      }
+    };
+
+    requestAnimationFrame(() => {
+      scrollToLatest();
+      // Second pass catches late layout growth from wrapped long text.
+      setTimeout(scrollToLatest, 0);
+    });
+    forceNextAutoScrollRef.current = false;
+  }, [isOpen, messages.length, isStreaming, error, isNearBottom]);
+
   // Handle send
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -101,6 +147,8 @@ export function PrimeChatPanel({
     const trimmedMessage = inputMessage.trim();
     if (!trimmedMessage || isStreaming) return;
 
+    forceNextAutoScrollRef.current = true;
+    setIsNearBottom(true);
     setInputMessage('');
 
     try {
@@ -133,6 +181,18 @@ export function PrimeChatPanel({
   };
 
   if (!isOpen) return null;
+
+  const jumpToLatest = () => {
+    const container = messagesContainerRef.current;
+    const endMarker = messagesEndRef.current;
+    if (container) {
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    }
+    if (endMarker) {
+      endMarker.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    }
+    setIsNearBottom(true);
+  };
 
   // Filter out system messages for display
   const displayMessages = messages.filter((m) => m.role !== 'system');
@@ -337,8 +397,11 @@ export function PrimeChatPanel({
             }
           >
             {/* Messages area */}
-            <div className="flex h-full flex-col">
-              <div className="flex-1 overflow-y-auto px-4 pt-3 pb-32 space-y-3 hide-scrollbar">
+            <div className="relative flex h-full flex-col">
+              <div
+                ref={messagesContainerRef}
+                className="flex-1 overflow-y-auto px-4 pt-3 pb-32 space-y-3 hide-scrollbar"
+              >
                 {/* Messages list */}
                 <div className="space-y-3">
                   {displayMessages.map((message) => {
@@ -419,7 +482,18 @@ export function PrimeChatPanel({
                   )}
 
                 </div>
+                <div ref={messagesEndRef} />
               </div>
+              {!isNearBottom && (
+                <button
+                  type="button"
+                  onClick={jumpToLatest}
+                  className="absolute bottom-36 right-6 inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-slate-900/90 px-3 py-1.5 text-xs font-medium text-amber-200 shadow-[0_0_20px_rgba(251,191,36,0.25)] hover:bg-slate-800"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                  Jump to latest
+                </button>
+              )}
             </div>
         </PrimeSlideoutShell>
       </div>

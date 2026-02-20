@@ -36,8 +36,8 @@ function getFallbackTitle(pathname: string): { title: string; subtitle: string }
   }
   if (pathname.startsWith('/dashboard/smart-import-ai')) {
     return { 
-      title: 'Smart Import AI', 
-      subtitle: 'Automatically import and categorize your financial data.' 
+      title: 'Import Operations', 
+      subtitle: 'Monitor import status, history, and processing health.' 
     };
   }
   if (pathname.startsWith('/dashboard/settings')) {
@@ -70,7 +70,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard/reports': { title: 'Reports', subtitle: 'Preview shell for financial reports. Coming soon: Custom report generation and export functionality.' },
   '/dashboard/transactions': { title: 'Transactions', subtitle: 'View and manage your financial transactions.' },
   '/dashboard/ai-financial-assistant': { title: 'AI Financial Assistant', subtitle: 'Get personalized financial advice from AI.' },
-  '/dashboard/smart-import-ai': { title: 'Smart Import AI', subtitle: 'Automatically import and categorize your financial data.' },
+  '/dashboard/smart-import-ai': { title: 'Import Operations', subtitle: 'Monitor import status, history, and processing health.' },
   '/dashboard/prime-chat': { title: 'Prime Chat', subtitle: 'Chat directly with Prime, your AI CEO.' },
   '/dashboard/ai-chat-assistant': { title: 'AI Chat Assistant', subtitle: 'Chat with your AI financial assistant.' },
   '/dashboard/team-room': { title: 'Team Room', subtitle: 'Collaborate with your AI financial team.' },

@@ -17,6 +17,7 @@ import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
 import { EmployeeUnifiedCardBase, type SecondaryAction } from '../workspace/employees/EmployeeUnifiedCardBase';
 import toast from 'react-hot-toast';
+import { isSmartImportOpsDashboardV1Enabled } from '../../lib/featureFlags';
 
 interface ByteUnifiedCardProps {
   onExpandClick?: () => void;
@@ -43,6 +44,7 @@ export function ByteUnifiedCard({
   const { userId } = useAuth();
   const { refetch: refetchStats } = useByteQueueStats();
   const { openChat } = useUnifiedChatLauncher();
+  const opsDashboardEnabled = isSmartImportOpsDashboardV1Enabled();
   
   // Task B: Shared upload state hook (must be at component level)
   const { addUpload } = useSmartImportUploadState();
@@ -51,6 +53,24 @@ export function ByteUnifiedCard({
 
   // Handler to open unified chat with Byte
   const handleChatClick = useCallback(() => {
+    if (opsDashboardEnabled) {
+      openChat({
+        initialEmployeeSlug: EMPLOYEE_SLUGS.PRIME,
+        force: true,
+        routeHint: '/dashboard/prime-chat',
+        context: {
+          page: 'smart-import',
+          data: {
+            source: 'smart-import-ops-dashboard',
+            intent: 'import-review',
+          },
+        },
+        initialQuestion:
+          'Please review my latest import status and summarize what is ready, what needs category review, and the next action.',
+      });
+      return;
+    }
+
     console.log('[ByteUnifiedCard] Opening chat with Byte...');
 
     // ALWAYS clear old Byte thread so we start fresh
@@ -76,7 +96,7 @@ export function ByteUnifiedCard({
     if (onChatInputClick) {
       onChatInputClick();
     }
-  }, [openChat, onChatInputClick]);
+  }, [openChat, onChatInputClick, opsDashboardEnabled]);
 
   // Handle file upload - universal uploader (no validation, Smart Import handles everything)
   const handleFileSelect = useCallback(
@@ -224,10 +244,14 @@ export function ByteUnifiedCard({
       />
       <EmployeeUnifiedCardBase
         employeeSlug="byte-docs"
-        primaryActionLabel="Chat with Byte about your imports"
+        primaryActionLabel={opsDashboardEnabled ? "Ask Prime about this import" : "Chat with Byte about your imports"}
         onPrimaryActionClick={handleChatClick}
         secondaryActions={secondaryActions}
-        footerStatusText="Online 24/7"
+        footerStatusText={
+          opsDashboardEnabled
+            ? "For guided imports and insights, upload directly through Prime chat."
+            : "Online 24/7"
+        }
       />
     </>
   );

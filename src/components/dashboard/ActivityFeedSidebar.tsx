@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ActivityFeed } from './ActivityFeed';
 import type { SmartImportUploadSummary } from '../../hooks/useSmartImport';
 import { cn } from '../../lib/utils';
+import { isSmartImportOpsDashboardV1Enabled } from '../../lib/featureFlags';
 
 export type ActivityFeedSidebarProps = {
   /**
@@ -57,6 +58,7 @@ export function ActivityFeedSidebar({
   hideScrollbar = true,
   variant = 'column'
 }: ActivityFeedSidebarProps) {
+  const opsDashboardEnabled = isSmartImportOpsDashboardV1Enabled();
   const [localEvents, setLocalEvents] = useState<Array<{
     id: string;
     type: 'upload';
@@ -75,14 +77,18 @@ export function ActivityFeedSidebar({
 
       const { fileCount, transactionCount, finishedAt, id } = lastUploadSummary;
 
-      const title = 'Byte processed your documents';
+      const title = opsDashboardEnabled ? 'Import completed' : 'Byte processed your documents';
       
       // Ensure transaction count is properly extracted and displayed
       const txCount = transactionCount ?? 0;
       const description =
         txCount > 0
-          ? `Imported ${fileCount} document${fileCount > 1 ? 's' : ''} and created ${txCount} transaction${txCount > 1 ? 's' : ''}.`
-          : `Imported ${fileCount} document${fileCount > 1 ? 's' : ''}.`;
+          ? (opsDashboardEnabled
+            ? `${txCount} transaction${txCount > 1 ? 's' : ''} processed from ${fileCount} document${fileCount > 1 ? 's' : ''}.`
+            : `Imported ${fileCount} document${fileCount > 1 ? 's' : ''} and created ${txCount} transaction${txCount > 1 ? 's' : ''}.`)
+          : (opsDashboardEnabled
+            ? `Import completed for ${fileCount} document${fileCount > 1 ? 's' : ''}.`
+            : `Imported ${fileCount} document${fileCount > 1 ? 's' : ''}.`);
 
       const newEvent = {
         id,

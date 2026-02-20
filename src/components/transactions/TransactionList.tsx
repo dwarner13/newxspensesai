@@ -97,12 +97,12 @@ export function TransactionList({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="grid grid-cols-[100px_1fr_120px_120px_100px_auto] gap-3 items-center px-4 py-2 bg-slate-900 border-b border-slate-800">
+      <div className="grid grid-cols-[88px_minmax(180px,1.4fr)_120px_minmax(150px,1fr)_130px_auto] gap-2 items-center px-4 py-2 bg-slate-900 border-b border-slate-800">
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Date</div>
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Merchant</div>
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide text-right">Amount</div>
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Category</div>
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide text-center">Status</div>
+        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</div>
         <div></div>
       </div>
 

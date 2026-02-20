@@ -12,6 +12,8 @@ import { getSupabase } from '../lib/supabase';
 interface UseByteImportCompletionOptions {
   userId: string;
   importId?: string;
+  importIds?: string[];
+  enabled?: boolean;
   onImportCompleted?: (importId: string) => void;
 }
 
@@ -24,11 +26,14 @@ const completedImports = new Set<string>();
 export function useByteImportCompletion({
   userId,
   importId,
+  importIds,
+  enabled = true,
   onImportCompleted,
 }: UseByteImportCompletionOptions) {
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!userId) return;
 
     const supabase = getSupabase();
@@ -37,65 +42,50 @@ export function useByteImportCompletion({
     // Poll for recent imports that have completed (status='parsed')
     const checkImportStatus = async () => {
       try {
-        // If specific importId provided, check that one; otherwise check recent imports
-        if (importId) {
-          const key = `${userId}:${importId}`;
-          
-          // Skip if we've already handled this import
-          if (completedImports.has(key)) {
-            return;
-          }
+        const targets = Array.from(
+          new Set(
+            [importId, ...(Array.isArray(importIds) ? importIds : [])]
+              .map((id) => String(id || '').trim())
+              .filter(Boolean)
+          )
+        );
+        if (targets.length > 0) {
+          for (const targetImportId of targets) {
+            const key = `${userId}:${targetImportId}`;
 
-          const { data, error } = await supabase
-            .from('imports')
-            .select('id, status, updated_at')
-            .eq('id', importId)
-            .single();
+            // Skip if we've already handled this import
+            if (completedImports.has(key)) {
+              continue;
+            }
 
-          if (error || !data) return;
+            const { data, error } = await supabase
+              .from('imports')
+              .select('id, status, updated_at')
+              .eq('id', targetImportId)
+              .single();
 
-          // When import status is 'parsed' or 'committed', normalization is complete
-          if (data.status === 'parsed' || data.status === 'committed') {
-            completedImports.add(key);
+            if (error || !data) continue;
 
-            // Emit BYTE_IMPORT_COMPLETED event
-            emitBus('BYTE_IMPORT_COMPLETED', {
-              importId,
-              userId,
-              timestamp: data.updated_at || new Date().toISOString(),
-            });
+            // When import status is 'parsed' or 'committed', normalization is complete
+            if (data.status === 'parsed' || data.status === 'committed') {
+              completedImports.add(key);
 
-            if (onImportCompleted) {
-              onImportCompleted(importId);
+              // Emit BYTE_IMPORT_COMPLETED event
+              emitBus('BYTE_IMPORT_COMPLETED', {
+                importId: targetImportId,
+                userId,
+                timestamp: data.updated_at || new Date().toISOString(),
+              });
+
+              if (onImportCompleted) {
+                onImportCompleted(targetImportId);
+              }
             }
           }
         } else {
-          // Monitor all recent imports (last 10, created in last hour)
-          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-          
-          const { data: imports, error } = await supabase
-            .from('imports')
-            .select('id, status, updated_at')
-            .eq('user_id', userId)
-            .in('status', ['parsed', 'committed'])
-            .gte('created_at', oneHourAgo)
-            .order('created_at', { ascending: false })
-            .limit(10);
-
-          if (error || !imports) return;
-
-          // Emit event for any imports we haven't seen yet
-          imports.forEach(imp => {
-            const key = `${userId}:${imp.id}`;
-            if (!completedImports.has(key)) {
-              completedImports.add(key);
-              emitBus('BYTE_IMPORT_COMPLETED', {
-                importId: imp.id,
-                userId,
-                timestamp: imp.updated_at || new Date().toISOString(),
-              });
-            }
-          });
+          // Safety guard: in Prime chat we only want completion for the active upload importId.
+          // When importId is absent, do not emit from historical imports.
+          return;
         }
       } catch (err) {
         console.error('[useByteImportCompletion] Error checking import status:', err);
@@ -112,6 +102,6 @@ export function useByteImportCompletion({
         checkIntervalRef.current = null;
       }
     };
-  }, [userId, importId, onImportCompleted]);
+  }, [userId, importId, importIds, enabled, onImportCompleted]);
 }
 

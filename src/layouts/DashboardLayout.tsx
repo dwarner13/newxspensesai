@@ -556,7 +556,9 @@ export default function DashboardLayout() {
       navigate('/dashboard/settings', { replace: true });
     }
     
-    if (import.meta.env.DEV) {
+    const wheelDiagnosticsEnabled =
+      import.meta.env.DEV && import.meta.env.VITE_WHEEL_DIAGNOSTICS === '1';
+    if (wheelDiagnosticsEnabled) {
       log('[DashboardLayout] Post-onboarding chooser: navigating to', destination);
     }
   };
@@ -933,9 +935,12 @@ export default function DashboardLayout() {
     }
   }, [location.pathname, isDashboardRoute, enableScrollDiagnostics]);
 
-  // Dev-only: Wheel event diagnostics for /dashboard/prime-chat to identify scroll capture
+  // Dev-only: Wheel event diagnostics for /dashboard/prime-chat to identify scroll capture.
+  // Strictly behind feature flag to avoid log storms impacting chat scroll behavior.
   useEffect(() => {
-    if (import.meta.env.DEV && location.pathname === '/dashboard/prime-chat') {
+    const wheelDiagnosticsEnabled =
+      import.meta.env.DEV && import.meta.env.VITE_WHEEL_DIAGNOSTICS === '1';
+    if (wheelDiagnosticsEnabled && location.pathname === '/dashboard/prime-chat') {
       const handleWheel = (e: WheelEvent) => {
         const target = e.target as HTMLElement;
         

@@ -13,15 +13,15 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Crown, Upload, Tags, LineChart, LayoutDashboard, History, Grid3X3, Activity } from 'lucide-react';
+import { Crown, Upload, Tags, LineChart, History, Grid3X3, Activity } from 'lucide-react';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { usePrimeOverlaySafe } from '../../context/PrimeOverlayContext';
 import { cn } from '../../lib/utils';
-import { EMPLOYEE_SLUGS } from '@/lib/ai/employeeSlugs';
 import { MiniWorkspacePanel, type MiniWorkspaceId, type MiniWorkspaceConfig } from './MiniWorkspacePanel';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 import { useJobsSystemStore } from '../../state/jobsSystemStore';
 import { useRightPanel } from '../../context/RightPanelContext';
+import { isRailRevampV1Enabled } from '../../lib/featureFlags';
 
 interface DesktopChatSideBarProps {
   onHistoryClick?: () => void; // Optional callback for History button click
@@ -31,6 +31,26 @@ interface DesktopChatSideBarProps {
 
 // Feature flag: Use new Prime rail button style (PrimeLogoBadge) vs Byte-style (standard Icon)
 const USE_NEW_PRIME_RAIL = false;
+
+export function triggerPrimeUpload(source: string = 'rail'): void {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  window.dispatchEvent(
+    new CustomEvent('prime:open-upload', {
+      detail: { source },
+    })
+  );
+
+  window.setTimeout(() => {
+    const statementInputs = Array.from(
+      document.querySelectorAll(
+        'input[type="file"][accept*=".pdf"][accept*=".csv"][accept*=".xlsx"][accept*=".xls"]'
+      )
+    ) as HTMLInputElement[];
+    const statementInput = statementInputs.find((input) => !input.disabled);
+    statementInput?.click();
+  }, 120);
+}
 
 // Mini workspace configuration
 const MINI_WORKSPACES: MiniWorkspaceConfig[] = [
@@ -104,6 +124,7 @@ export default function DesktopChatSideBar({
   
   // Check if right drawer is open (for AI tools paused badge)
   const [isRightDrawerOpen, setIsRightDrawerOpen] = useState(false);
+  const railRevampEnabled = isRailRevampV1Enabled();
   
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -132,6 +153,30 @@ export default function DesktopChatSideBar({
   const activeConfig = MINI_WORKSPACES.find(
     (w) => w.id === activeMiniWorkspace
   );
+
+  const triggerPrimeUploadFlow = () => {
+    openChat({
+      initialEmployeeSlug: 'prime-boss',
+      force: true,
+      context: {
+        data: { source: 'rail-upload', intent: 'upload' },
+      },
+      routeHint: '/dashboard/prime-chat',
+    });
+    triggerPrimeUpload('rail');
+  };
+
+  const triggerLegacyByteUploadFlow = () => {
+    navigate('/dashboard/smart-import-ai');
+    openChat({
+      initialEmployeeSlug: 'byte-docs',
+      force: true,
+      routeHint: '/dashboard/smart-import-ai',
+      context: {
+        data: { source: 'rail-byte-upload' },
+      },
+    });
+  };
 
   // Animation variants
   const buttonVariants = {
@@ -170,22 +215,11 @@ export default function DesktopChatSideBar({
     },
     {
       id: 'byte' as MiniWorkspaceId,
-      label: 'Smart Import',
-      slug: EMPLOYEE_SLUGS.BYTE,
+      label: 'Upload',
+      slug: 'prime-boss',
       Icon: Upload,
       accent: 'from-sky-400 via-cyan-400 to-emerald-400',
-      onClick: () => {
-        navigate('/dashboard/smart-import-ai');
-        setActiveMiniWorkspace(null);
-        setActiveId('byte');
-        openChat({
-          initialEmployeeSlug: EMPLOYEE_SLUGS.BYTE,
-          force: true,
-          context: {
-            data: { source: 'rail-byte' },
-          },
-        });
-      },
+      onClick: railRevampEnabled ? triggerPrimeUploadFlow : triggerLegacyByteUploadFlow,
     },
     {
       id: 'tag' as MiniWorkspaceId,
@@ -194,12 +228,15 @@ export default function DesktopChatSideBar({
       Icon: Tags,
       accent: 'from-yellow-300 via-amber-400 to-orange-500',
       onClick: () => {
-        navigate('/dashboard/smart-categories');
+        if (!railRevampEnabled) {
+          navigate('/dashboard/smart-categories');
+        }
         openChat({
           initialEmployeeSlug: 'tag-ai',
           force: true,
+          routeHint: '/dashboard/smart-categories',
           context: {
-            data: { source: 'rail-tag' },
+            data: { source: railRevampEnabled ? 'rail-tag-revamp' : 'rail-tag' },
           },
         });
       },
@@ -211,11 +248,15 @@ export default function DesktopChatSideBar({
       Icon: LineChart,
       accent: 'from-purple-400 via-indigo-400 to-sky-400',
       onClick: () => {
+        if (!railRevampEnabled) {
+          navigate('/dashboard/analytics-ai');
+        }
         openChat({
           initialEmployeeSlug: 'crystal-analytics',
           force: true,
+          routeHint: railRevampEnabled ? '/dashboard/smart-categories' : '/dashboard/analytics-ai',
           context: {
-            data: { source: 'rail-analytics' },
+            data: { source: railRevampEnabled ? 'rail-analytics-revamp' : 'rail-analytics' },
           },
         });
       },
@@ -233,17 +274,6 @@ export default function DesktopChatSideBar({
           window.dispatchEvent(new CustomEvent('openChatHistory'));
         }
         setActiveId('history');
-      },
-    },
-    {
-      id: 'workspace',
-      label: 'Prime Workspace',
-      slug: null,
-      Icon: LayoutDashboard,
-      accent: 'from-emerald-400 via-teal-400 to-cyan-400',
-      onClick: () => {
-        navigate('/dashboard/prime-chat');
-        setActiveId('workspace');
       },
     },
     {
@@ -511,3 +541,8 @@ export default function DesktopChatSideBar({
   const portalTarget = document.getElementById('portal-root') || document.body;
   return createPortal(railContent, portalTarget);
 }
+
+// QA CHECKLIST
+// - Flag OFF: all rail buttons behave exactly as legacy behavior.
+// - Flag ON: Upload opens Prime and triggers uploader, with no navigation to /dashboard/smart-import-ai.
+// - No dead buttons: Activity, Crown, Upload, Tags, Analytics, History, and Prime Tools all trigger actions.

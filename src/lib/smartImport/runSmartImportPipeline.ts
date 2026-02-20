@@ -16,8 +16,12 @@ export type SmartImportPipelineInput = {
 
 export type SmartImportPipelineResult = {
   docId: string;
+  importId?: string;
+  importIds?: string[];
   queued: boolean;
   via: 'ocr' | 'statement-parse' | 'vision-parse' | 'unsupported';
+  reused?: boolean;
+  reuseReason?: string;
   rejected?: boolean;
   reason?: string;
   pii_redacted?: boolean;
@@ -70,12 +74,74 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
     throw new Error(String(msg));
   }
 
-  const importId = String(uploadPayload?.importId || '').trim();
-  const documentId = String(uploadPayload?.documentId || '').trim();
-  if (!importId || !documentId) {
-    throw new Error('prime-router upload missing importId/documentId');
+  const importId = String(uploadPayload?.importId || uploadPayload?.import_id || '').trim();
+  const documentId = String(
+    uploadPayload?.documentId ||
+    uploadPayload?.document_id ||
+    uploadPayload?.docId ||
+    ''
+  ).trim();
+  if (!documentId) {
+    throw new Error('prime-router upload missing documentId');
   }
   input.onProgress?.(70);
+
+  // Some router responses do not have importId until OCR/sync has progressed.
+  // In that case, poll OCR status by docId and then run sync directly.
+  if (!importId) {
+    const ocrDeadline = Date.now() + 45000;
+    let bestProgressNoImport = 72;
+    while (Date.now() < ocrDeadline) {
+      const statusRes = await fetch('/.netlify/functions/ocr-job-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(input),
+        },
+        body: JSON.stringify({ userId: input.userId, docIds: [documentId] }),
+      });
+      if (statusRes.ok) {
+        const statusPayload = await statusRes.json().catch(() => ({}));
+        const item = Array.isArray(statusPayload?.items) ? statusPayload.items[0] : null;
+        const itemStatus = String(item?.status || '').toLowerCase();
+        if (itemStatus === 'error' || itemStatus === 'failed') {
+          const reason = item?.error || statusPayload?.error || 'OCR processing failed';
+          throw new Error(String(reason));
+        }
+        if (itemStatus === 'done') {
+          break;
+        }
+      }
+      bestProgressNoImport = Math.min(89, bestProgressNoImport + 1);
+      input.onProgress?.(bestProgressNoImport);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    const syncRes = await fetch('/.netlify/functions/smart-import-sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(input),
+      },
+      body: JSON.stringify({
+        userId: input.userId,
+        docIds: [documentId],
+        waitForOcrMs: 12000,
+        pollForOcrMs: 300,
+      }),
+    });
+    const syncPayload = syncRes.ok ? await syncRes.json().catch(() => ({})) : {};
+    const syncedImportId = String(syncPayload?.importIds?.[0] || '').trim() || undefined;
+    input.onProgress?.(100);
+    return {
+      docId: documentId,
+      importId: syncedImportId,
+      importIds: Array.isArray(syncPayload?.importIds) ? syncPayload.importIds : (syncedImportId ? [syncedImportId] : undefined),
+      queued: !syncedImportId,
+      via: 'ocr',
+      transactionCount: syncPayload?.transactionCount ?? syncPayload?.stats?.transactionCount,
+    };
+  }
 
   const pollDeadline = Date.now() + 45000;
   let bestProgress = 72;
@@ -99,6 +165,8 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
         input.onProgress?.(100);
         return {
           docId: documentId,
+          importId,
+          importIds: [importId],
           queued: false,
           via: 'ocr',
           transactionCount:
@@ -116,6 +184,8 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
   input.onProgress?.(90);
   return {
     docId: documentId,
+    importId,
+    importIds: [importId],
     queued: true,
     via: 'ocr',
   };
@@ -199,13 +269,73 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
         throw new Error(polled.error || 'OCR job failed');
       }
     }
-    input.onProgress?.(100);
-    return {
+    let syncImportIds: string[] = [];
+    let syncTransactionCount: number | undefined;
+    try {
+      const syncRes = await fetch('/.netlify/functions/smart-import-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          userId: input.userId,
+          docIds: [docId],
+          // Keep reuse path aligned with canonical flow so OCR has time to finish.
+          waitForOcrMs: 12000,
+          pollForOcrMs: 300,
+        }),
+      });
+      if (syncRes.ok) {
+        const syncData = await syncRes.json();
+        if (Array.isArray(syncData?.importIds)) {
+          syncImportIds = syncData.importIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0);
+        }
+        if (typeof syncData?.transactionCount === 'number') {
+          syncTransactionCount = syncData.transactionCount;
+        }
+      }
+    } catch {
+      // Best effort only - reused docs should still resolve without blocking on sync.
+    }
+    const hasReusableEvidence =
+      syncImportIds.length > 0 ||
+      typeof syncTransactionCount === 'number' ||
+      init?.ocrJobStatus === 'running' ||
+      init?.ocrJobStatus === 'done' ||
+      init?.alreadyProcessed === true ||
+      init?.processingStatus === 'parsed' ||
+      init?.processingStatus === 'committed';
+
+    if (hasReusableEvidence) {
+      input.onProgress?.(100);
+      return {
+        docId,
+        importId: syncImportIds[0],
+        importIds: syncImportIds,
+        queued: init?.ocrJobStatus === 'running',
+        via: 'ocr',
+        reused: true,
+        reuseReason: String(skipDecision.reason || 'reused'),
+        transactionCount:
+          syncTransactionCount ??
+          init?.transactionCount ??
+          init?.normalizedTransactionCount ??
+          init?.stats?.transactionCount,
+      };
+    }
+
+    // Safety: if reused-doc skip path cannot prove import/sync evidence,
+    // continue with full upload so we do not falsely report success.
+    logReuseDecision('REUSED_DOC_NOT_SAFE_UPLOAD_CONTINUES', {
       docId,
-      queued: init?.ocrJobStatus === 'running',
-      via: 'ocr',
-      transactionCount: init?.transactionCount ?? init?.normalizedTransactionCount ?? init?.stats?.transactionCount,
-    };
+      reason: 'reuse_without_sync_evidence',
+      ocrJobStatus: init?.ocrJobStatus || null,
+      hasFileRef: Boolean(init?.hasFileRef),
+      hasExtractedData: Boolean(init?.hasExtractedData),
+      syncImportIds: syncImportIds.length,
+      syncTransactionCount: syncTransactionCount ?? null,
+    });
   }
   if (forceRerunForPendingOcr) {
     logReuseDecision('REUSED_DOC_NOT_SAFE_UPLOAD_CONTINUES', {
@@ -249,6 +379,14 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
     throw new Error(`Finalize failed: ${err}`);
   }
   const finalized = await finalizeRes.json();
+  if (finalized?.pending === true) {
+    const pendingMessage = String(finalized?.message || finalized?.status || 'upload not complete');
+    throw new Error(`Upload pending for ${input.fileName}: ${pendingMessage}`);
+  }
+  if (finalized?.rejected === true) {
+    const rejectReason = String(finalized?.reason || finalized?.error || 'upload rejected');
+    throw new Error(`Upload rejected for ${input.fileName}: ${rejectReason}`);
+  }
   const ocrPollStartedAt = Date.now();
   let bestProgress = 72;
   let reachedTerminalOcrState = false;
@@ -304,15 +442,47 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
     body: JSON.stringify({
       userId: input.userId,
       docIds: [docId],
-      // Fast mode: don't block UI for long waits when OCR is still running.
-      waitForOcrMs: reachedTerminalOcrState ? 15000 : 1200,
-      pollForOcrMs: 250,
+      // Give OCR enough time to produce text so sync can actually normalize/import.
+      // Too-short waits cause "nothing happened" stalls in Prime narration.
+      waitForOcrMs: reachedTerminalOcrState ? 20000 : 12000,
+      pollForOcrMs: 300,
     }),
   });
-  const syncData = syncRes.ok ? await syncRes.json() : null;
+  let syncData = syncRes.ok ? await syncRes.json() : null;
+  const initialImportIds = Array.isArray(syncData?.importIds)
+    ? syncData.importIds.filter((id: unknown): id is string => typeof id === 'string' && id.length > 0)
+    : [];
+  // OCR can still be finishing right after finalize; retry sync once with a longer wait
+  // instead of returning an empty import result that looks like a silent/no-op upload.
+  if (initialImportIds.length === 0) {
+    try {
+      const retrySyncRes = await fetch('/.netlify/functions/smart-import-sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {}),
+        },
+        body: JSON.stringify({
+          userId: input.userId,
+          docIds: [docId],
+          waitForOcrMs: 30000,
+          pollForOcrMs: 400,
+        }),
+      });
+      if (retrySyncRes.ok) {
+        syncData = await retrySyncRes.json();
+      }
+    } catch {
+      // Best effort only; keep original sync result.
+    }
+  }
   input.onProgress?.(100);
   return {
     docId,
+    importId: syncData?.importIds?.[0],
+    importIds: syncData?.importIds,
+    reused: init?.status === 'reused',
+    reuseReason: init?.status === 'reused' ? String(skipDecision.reason || 'reused') : undefined,
     ...finalized,
     transactionCount:
       syncData?.transactionCount ??

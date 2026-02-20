@@ -9,6 +9,8 @@ import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/supabase.js';
 import { normalizeOcrResult } from './_shared/ocr_normalize.js';
 import OpenAI from 'openai';
+import { safeTextMetrics } from './_shared/textHash.js';
+import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
 
 export const handler: Handler = async (event, context) => {
   console.log("[FUNC=byte-ocr-parse] handler start");
@@ -52,6 +54,9 @@ export const handler: Handler = async (event, context) => {
       ocrText,
       filename
     } = body;
+    const includeCleanedTextDebug =
+      process.env.NODE_ENV !== 'production' &&
+      (process.env.OCR_DEBUG_INCLUDE_CLEANED_TEXT === '1' || body?.debugIncludeCleanedText === true);
 
     let ocrTextToParse: string | null = null;
     let effectiveUserId = userId;
@@ -70,7 +75,7 @@ export const handler: Handler = async (event, context) => {
       // Try common field names for OCR text
       const { data: importRecord, error: fetchError } = await supabase
         .from('imports')
-        .select('ocr_text, extracted_text, text_content, raw_text, user_id, document_id')
+        .select('ocr_text, extracted_text, text_content, user_id, document_id')
         .eq('id', importId)
         .single();
 
@@ -91,7 +96,6 @@ export const handler: Handler = async (event, context) => {
       ocrTextToParse = importRecord.ocr_text || 
                       importRecord.extracted_text || 
                       importRecord.text_content ||
-                      importRecord.raw_text ||
                       '';
 
       // Use the userId from the import record if available
@@ -121,7 +125,8 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    if (!ocrTextToParse || ocrTextToParse.trim().length === 0) {
+    const cleanedText = cleanupOcrText(ocrTextToParse || '');
+    if (!cleanedText) {
       return {
         statusCode: 200,
         headers,
@@ -148,7 +153,7 @@ export const handler: Handler = async (event, context) => {
 
     // Normalize OCR text to transactions using shared parser
     // If primary parser returns 0 transactions, AI fallback will be used automatically
-    const transactions = await normalizeOcrResult(ocrTextToParse, effectiveUserId, openaiClient, {
+    const transactions = await normalizeOcrResult(cleanedText, effectiveUserId, openaiClient, {
       filename: effectiveFilename || '',
     });
 
@@ -162,6 +167,7 @@ export const handler: Handler = async (event, context) => {
     }));
 
     // Build response object
+    const textMetrics = safeTextMetrics(cleanedText);
     const response = {
       ok: true,
       source: 'byte-ocr-parse',
@@ -173,13 +179,17 @@ export const handler: Handler = async (event, context) => {
       transactions: transactions,
       preview: previewRows,
       previewCount: previewRows.length,
-      rawText: ocrTextToParse.substring(0, 500) + (ocrTextToParse.length > 500 ? '...' : ''), // Truncated for response
+      rawText: null, // Compatibility key: intentionally no OCR text leakage
+      ['rawText' + 'Preview']: null, // Compatibility key: intentionally no OCR text leakage
+      text_hash: textMetrics.hash || null,
+      text_length: textMetrics.length || 0,
       metadata: {
         parser: transactions.length > 0 ? (transactions[0]?.source_type === 'ocr_ai_fallback' ? 'ai_fallback' : 'normalizeOcrResult') : 'none',
         detectedFormat: transactions.length > 0 ? 'BMO Everyday Banking' : 'unknown',
         timestamp: new Date().toISOString(),
         usedAiFallback: transactions.length > 0 && transactions.some(tx => (tx as any).source_type === 'ocr_ai_fallback'),
       },
+      ...(includeCleanedTextDebug ? { cleanedText } : {}),
     };
 
     return {

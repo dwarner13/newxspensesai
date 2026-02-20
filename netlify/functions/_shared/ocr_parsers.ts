@@ -230,6 +230,13 @@ export function parseReceiptLike(text: string): ReceiptData {
   if (dateMatch) {
     result.date = normalizeDateWithHeaderYear(dateMatch[1].trim(), headerYear);
   }
+  // Fallback: support standalone ISO-like receipt timestamps (e.g. 2026-01-29 14:29:21).
+  if (!result.date) {
+    const isoDateMatch = text.match(/\b(20\d{2}[\/\-]\d{1,2}[\/\-]\d{1,2})(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?\b/);
+    if (isoDateMatch) {
+      result.date = isoDateMatch[1].replace(/\//g, '-');
+    }
+  }
   
   // Extract total
   const dueTotal = pickLabeledAmount(text, [

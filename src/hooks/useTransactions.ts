@@ -4,7 +4,7 @@
  * Fetches all committed transactions with real-time updates
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getSupabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import type { CommittedTransaction } from '../types/transactions';
@@ -17,20 +17,37 @@ export interface UseTransactionsResult {
   refetch: () => Promise<void>;
 }
 
+const TRANSACTIONS_CACHE_TTL_MS = 90 * 1000;
+
 export function useTransactions(): UseTransactionsResult {
   const { userId } = useAuth();
   const [transactions, setTransactions] = useState<CommittedTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | undefined>();
+  const hasRenderedDataRef = useRef(false);
+  const fetchInFlightRef = useRef<Promise<void> | null>(null);
+  const lastFetchAtRef = useRef(0);
+  const realtimeRefetchTimerRef = useRef<number | null>(null);
 
   const fetchTransactions = useCallback(async () => {
     if (!userId) {
       setIsLoading(false);
       return;
     }
+    if (fetchInFlightRef.current) {
+      return fetchInFlightRef.current;
+    }
+    const hasRenderedData = hasRenderedDataRef.current;
+    const now = Date.now();
+    if (hasRenderedData && now - lastFetchAtRef.current < 1200) {
+      return;
+    }
 
-    setIsLoading(true);
+    const run = (async () => {
+    if (!hasRenderedData) {
+      setIsLoading(true);
+    }
     setIsError(false);
     setErrorMessage(undefined);
 
@@ -56,20 +73,58 @@ export function useTransactions(): UseTransactionsResult {
             (error.message?.includes('relation') && error.message?.includes('does not exist'))) {
           // Table doesn't exist - return empty array
           setTransactions([]);
+          hasRenderedDataRef.current = true;
           setIsError(false);
           return;
         }
         throw error;
       }
 
-      setTransactions((data as CommittedTransaction[]) || []);
+      const nextData = (data as CommittedTransaction[]) || [];
+      setTransactions(nextData);
+      hasRenderedDataRef.current = true;
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(
+          `xspenses:transactions-cache:${userId}`,
+          JSON.stringify({
+            ts: Date.now(),
+            data: nextData,
+          })
+        );
+      }
       setIsError(false);
     } catch (error: any) {
       console.error('[useTransactions] Error fetching transactions:', error);
       setIsError(true);
       setErrorMessage(error.message || 'Failed to load transactions');
     } finally {
+      lastFetchAtRef.current = Date.now();
+      if (!hasRenderedData) {
+        setIsLoading(false);
+      }
+    }
+    })();
+
+    fetchInFlightRef.current = run.finally(() => {
+      fetchInFlightRef.current = null;
+    });
+    return fetchInFlightRef.current;
+  }, [userId]);
+
+  // Fast cache hydration for smoother route transitions.
+  useEffect(() => {
+    if (!userId || typeof window === 'undefined') return;
+    try {
+      const raw = window.sessionStorage.getItem(`xspenses:transactions-cache:${userId}`);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { ts?: number; data?: CommittedTransaction[] };
+      if (!parsed?.ts || !Array.isArray(parsed?.data)) return;
+      if (Date.now() - parsed.ts > TRANSACTIONS_CACHE_TTL_MS) return;
+      setTransactions(parsed.data);
+      hasRenderedDataRef.current = true;
       setIsLoading(false);
+    } catch {
+      // Ignore cache parse errors.
     }
   }, [userId]);
 
@@ -97,13 +152,22 @@ export function useTransactions(): UseTransactionsResult {
         },
         (payload) => {
           console.log('[useTransactions] Real-time update:', payload.eventType);
-          // Refetch on any change
-          fetchTransactions();
+          if (realtimeRefetchTimerRef.current !== null) {
+            window.clearTimeout(realtimeRefetchTimerRef.current);
+          }
+          realtimeRefetchTimerRef.current = window.setTimeout(() => {
+            realtimeRefetchTimerRef.current = null;
+            void fetchTransactions();
+          }, 450);
         }
       )
       .subscribe();
 
     return () => {
+      if (realtimeRefetchTimerRef.current !== null) {
+        window.clearTimeout(realtimeRefetchTimerRef.current);
+        realtimeRefetchTimerRef.current = null;
+      }
       supabase.removeChannel(channel);
     };
   }, [userId, fetchTransactions]);

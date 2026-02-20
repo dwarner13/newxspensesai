@@ -59,7 +59,6 @@ export function ByteUploadPanel({
     extractedData?: any;
     processingStatus?: string;
     createdAt?: string;
-    ocrText?: string;
     redactedText?: string;
     redactionSummary?: string;
     ocrEngine?: string;
@@ -69,7 +68,6 @@ export function ByteUploadPanel({
   const [isRetryingOcr, setIsRetryingOcr] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showResetUpload, setShowResetUpload] = useState(false);
-  const [expandedRawByDoc, setExpandedRawByDoc] = useState<Record<string, boolean>>({});
   const [expandedParsedByDoc, setExpandedParsedByDoc] = useState<Record<string, boolean>>({});
   const [debugSearch, setDebugSearch] = useState('');
   const [includeAllAccounts, setIncludeAllAccounts] = useState(() => {
@@ -117,21 +115,6 @@ export function ByteUploadPanel({
     }, 3000);
     return () => window.clearInterval(timer);
   }, [debugEnabled, refreshDebugPayload, includeAllAccounts, isProcessing, uploadStatus.step]);
-
-  const escapeRegExp = useCallback((input: string) => input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), []);
-  const countMatches = useCallback((text: string, term: string) => {
-    if (!term) return 0;
-    const regex = new RegExp(escapeRegExp(term), 'gi');
-    return (text.match(regex) || []).length;
-  }, [escapeRegExp]);
-  const getSnippet = useCallback((text: string, term: string) => {
-    if (!term) return '';
-    const idx = text.toLowerCase().indexOf(term.toLowerCase());
-    if (idx === -1) return '';
-    const start = Math.max(0, idx - 80);
-    const end = Math.min(text.length, idx + term.length + 120);
-    return text.slice(start, end);
-  }, []);
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -449,7 +432,6 @@ export function ByteUploadPanel({
         extractedData: docData.extracted_data || null,
         processingStatus: docData.status || 'unknown',
         createdAt: docData.created_at,
-        ocrText: docData.ocr_text || null,
         redactedText: docData.redacted_text || null,
         redactionSummary: docData.redaction_summary || null,
         ocrEngine: docData.ocr_engine || null,
@@ -536,7 +518,7 @@ export function ByteUploadPanel({
             )}
           </div>
           <div className="text-[10px] text-slate-400 leading-tight">
-            PDF, CSV, JPG/PNG • Max 25MB
+            Any file type • Max 25MB
           </div>
           {showProgressBar && (
             <div className="mt-2">
@@ -692,9 +674,6 @@ export function ByteUploadPanel({
                   {item.importId && <span>Import: …{item.importId.slice(-6)}</span>}
                   {item.ocrEngineUsed && <span>OCR: {item.ocrEngineUsed}</span>}
                   <span>Text: {item.rawTextLength} chars</span>
-                  {debugSearch && (
-                    <span>Matches: {countMatches(item.rawTextPreview || '', debugSearch)}</span>
-                  )}
                 </div>
                 {item.parseWarnings?.length > 0 && (
                   <div className="mt-1 text-[10px] text-amber-300">
@@ -711,18 +690,6 @@ export function ByteUploadPanel({
                     type="button"
                     className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors"
                     onClick={() =>
-                      setExpandedRawByDoc((prev) => ({
-                        ...prev,
-                        [item.docId]: !prev[item.docId],
-                      }))
-                    }
-                  >
-                    {expandedRawByDoc[item.docId] ? 'Hide raw text' : 'Show raw text'}
-                  </button>
-                  <button
-                    type="button"
-                    className="text-[10px] px-2 py-1 rounded-md border border-amber-500/30 text-amber-200 hover:bg-amber-500/10 transition-colors"
-                    onClick={() =>
                       setExpandedParsedByDoc((prev) => ({
                         ...prev,
                         [item.docId]: !prev[item.docId],
@@ -732,22 +699,9 @@ export function ByteUploadPanel({
                     {expandedParsedByDoc[item.docId] ? 'Hide parsed JSON' : 'Show parsed JSON'}
                   </button>
                 </div>
-                {debugSearch && (
-                  <div className="mt-2 text-[10px] text-amber-200">
-                    Search snippet: {getSnippet(item.rawTextPreview || '', debugSearch) || 'No match'}
-                  </div>
-                )}
                 {Array.isArray(item.parsedTransactions) && (
                   <div className="mt-1 text-[10px] text-amber-200">
                     Low confidence: {item.parsedTransactions.filter((tx: any) => typeof tx?.confidence === 'number' && tx.confidence < 0.6).length}
-                  </div>
-                )}
-                {expandedRawByDoc[item.docId] && (
-                  <div className="mt-2">
-                    <div className="text-[10px] text-amber-200 mb-1">Raw text preview</div>
-                    <pre className="max-h-40 overflow-auto rounded-md bg-slate-950/70 p-2 text-[10px] text-slate-200 whitespace-pre-wrap">
-                      {item.rawTextPreview || '(empty)'}
-                    </pre>
                   </div>
                 )}
                 {expandedParsedByDoc[item.docId] && (
@@ -785,7 +739,7 @@ export function ByteUploadPanel({
             ref={fileInputRef}
             type="file"
             multiple
-            accept=".pdf,.csv,.xlsx,.xls,.txt,.jpg,.jpeg,.png,.heic"
+            accept="*/*"
             onChange={handleFileSelect}
             className="hidden"
           />
@@ -827,7 +781,7 @@ export function ByteUploadPanel({
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".pdf,.csv,.xlsx,.xls,.txt,.jpg,.jpeg,.png,.heic"
+          accept="*/*"
           onChange={handleFileSelect}
           className="hidden"
         />

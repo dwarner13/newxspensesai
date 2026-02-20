@@ -59,7 +59,14 @@ import { usePostImportHandoff } from '../../hooks/usePostImportHandoff';
 import { PrimeSummaryReadyStrip } from './PrimeSummaryReadyStrip';
 import { useByteImportCompletion } from '../../hooks/useByteImportCompletion';
 import { log, debug, warn, error as logError } from '../../lib/logger';
-import { isPostImportTriggersDisabled } from '../../lib/featureFlags';
+import { isPostImportTriggersDisabled, isPrimeUploadNarrationEnabled } from '../../lib/featureFlags';
+import { PrimeUploadProgressBlock, type PrimeUploadProgressStages } from './PrimeUploadProgressBlock';
+import {
+  buildProgressStagesFromTruth,
+  buildUnifiedRecapFromTruth,
+  getUploadActorLabels,
+  shouldShowEmployeeNames,
+} from './upload/progressTruth';
 import type { ChatHandoffPayload } from '../../types/chatHandoff';
 
 // Quick prompts are now defined in EMPLOYEE_DISPLAY_CONFIG
@@ -67,6 +74,10 @@ import type { ChatHandoffPayload } from '../../types/chatHandoff';
 // Reserved (post-MVP): keep usePrimeAutoGreet detached from this runtime.
 const MAX_CHAT_UPLOAD_FILES = 5;
 const PRIME_CHAT_WIDE_STORAGE_KEY = 'xspenses:prime_chat_wide';
+const PRIME_UPLOAD_NARRATION_STARTED_PREFIX = 'xspenses:prime_upload_narration_started:';
+const PRIME_UPLOAD_ACTIVE_BATCH_PREFIX = 'xspenses:prime_upload_active_batch:';
+const PRIME_UPLOAD_CLOSED_BATCHES_PREFIX = 'xspenses:prime_upload_closed_batches:';
+const SHOW_EMPLOYEE_NAMES_IN_UPLOAD = shouldShowEmployeeNames();
 
 interface UnifiedAssistantChatProps {
   /** Whether chat is open (required for slideout/overlay mode, ignored in inline mode) */
@@ -147,18 +158,6 @@ export default function UnifiedAssistantChat({
 }: UnifiedAssistantChatProps) {
   
   // ============================================================================
-  // DEVELOPMENT GUARDS - Prevent accidental hook reordering
-  // ============================================================================
-  if (import.meta.env.DEV) {
-    // Log render for debugging hook order issues
-    log('[UnifiedAssistantChat] 🔄 Render', {
-      pathname: typeof window !== 'undefined' ? window.location.pathname : 'SSR',
-      isOpen,
-      initialEmployeeSlug,
-    });
-  }
-  
-  // ============================================================================
   // CRITICAL: ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP
   // NO HOOKS AFTER ANY RETURN STATEMENTS
   // ============================================================================
@@ -228,11 +227,14 @@ export default function UnifiedAssistantChat({
   const [inputMessage, setInputMessage] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement | null>(null); // Points to wrapper (for drag handlers)
   const scrollElementRef = useRef<HTMLDivElement | null>(null); // Points to actual scroll container
+  const messageListContentRef = useRef<HTMLDivElement | null>(null); // Inner content that grows during typing/markdown layout
+  const inputFooterRef = useRef<HTMLDivElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const uploadedAttachmentKeysRef = useRef<Set<string>>(new Set());
   
   // CRITICAL: Track if user is near bottom for auto-scroll during streaming
   const [isNearBottomState, setIsNearBottomState] = useState(true);
+  const [chatBottomPaddingPx, setChatBottomPaddingPx] = useState(96);
   const scrollContainerElementRef = useRef<HTMLElement | null>(null); // Actual scroll container (found via DOM traversal)
   
   // Local state for UI-only injected messages
@@ -240,6 +242,9 @@ export default function UnifiedAssistantChat({
   const [summaryOverrides, setSummaryOverrides] = useState<Record<string, string>>({});
   const [categorizeStatusByImportId, setCategorizeStatusByImportId] = useState<Record<string, 'idle' | 'pending' | 'done' | 'error'>>({});
   const userJustSentRef = useRef(false);
+  const autoPinToBottomRef = useRef(true);
+  const forceAutoPinUntilRef = useRef(0);
+  const scrollDebugEnabled = String(import.meta.env.VITE_LOG_LEVEL || '').toLowerCase() === 'debug';
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isPrimeChatRevampEnabled = import.meta.env.VITE_PRIME_CHAT_REVAMP === '1';
   const isPrimeChatUiRefinementsEnabled = import.meta.env.VITE_PRIME_CHAT_UI_REFINEMENTS === '1';
@@ -271,10 +276,29 @@ export default function UnifiedAssistantChat({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDraggingOverChat, setIsDraggingOverChat] = useState(false);
   const [queuedUploadCount, setQueuedUploadCount] = useState(0);
+  const [isAssistantReplyPending, setIsAssistantReplyPending] = useState(false);
   const pendingUploadFilesRef = useRef<File[]>([]);
   const inFlightUploadKeysRef = useRef<Set<string>>(new Set());
   const primeNarrationStageRef = useRef<{ importKey: string; stage: string }>({ importKey: '', stage: '' });
   const primeNarrationClearTimerRef = useRef<number | null>(null);
+  const activePrimeUploadBatchKeyRef = useRef<string | null>(null);
+  const closedPrimeUploadBatchKeysRef = useRef<Set<string>>(new Set());
+  const uploadImportIdToBatchKeyRef = useRef<Map<string, string>>(new Map());
+  const primeBatchInstructionRef = useRef<Map<string, string>>(new Map());
+  const primeFinalStreamTimersRef = useRef<Map<string, number>>(new Map());
+  const primeNarrationFinalizedImportIdsRef = useRef<Set<string>>(new Set());
+  const primeFinalSummaryTextByImportRef = useRef<Record<string, string>>({});
+  const byteParseStatusSentRef = useRef<Set<string>>(new Set());
+  const tagCompleteStatusSentRef = useRef<Set<string>>(new Set());
+  const primeProcessingTimeoutRef = useRef<number | null>(null);
+  const primeProcessingTimeoutBatchKeyRef = useRef<string | null>(null);
+  const primeTimedOutBatchKeysRef = useRef<Set<string>>(new Set());
+  const clarificationCandidatesByImportIdRef = useRef<Record<string, Array<{
+    transactionId: string;
+    vendor: string;
+    amount: string;
+    date: string;
+  }>>>({});
   
   // Determine effective employee slug: prioritize override, then prop, then global activeEmployeeSlug, then fallback
   // PART 2: Route-aware override takes precedence (UI-only) - but only on initial mount
@@ -287,13 +311,6 @@ export default function UnifiedAssistantChat({
   // Calculate initial effectiveEmployeeSlug: default to Prime on Prime Chat page, otherwise use override/prop/global
   const initialEffectiveEmployeeSlug = activeEmployeeSlugOverride || initialEmployeeSlug || routeForcedEmployeeSlug || globalActiveEmployeeSlug || 'prime-boss';
 
-  console.log('[chat] effective slug', {
-    routeForcedEmployeeSlug,
-    activeEmployeeSlugOverride,
-    initialEmployeeSlug,
-    initialEffectiveEmployeeSlug,
-  });
-  
   // CRITICAL: Declare effectiveEmployeeSlug early so it's available for all useEffect hooks
   // Initially use initialEffectiveEmployeeSlug - it will be updated after engineResult is available
   // We'll use a state variable that gets updated when engineActiveEmployeeSlug changes
@@ -1109,14 +1126,16 @@ export default function UnifiedAssistantChat({
   }
 
   const primeUploadInChatEnabled = import.meta.env.VITE_PRIME_UPLOAD_IN_CHAT === '1';
-  const primeNarrationFlowEnabled = import.meta.env.VITE_PRIME_NARRATION_FLOW === '1';
+  const primeNarrationFlowEnabled = isPrimeUploadNarrationEnabled();
   const isByte = employeeId === 'byte-docs';
   const isPrimeUploadAssistant = employeeId === 'prime-boss' && primeUploadInChatEnabled;
-  const isPrimeNarrationEnabled = employeeId === 'prime-boss' && primeUploadInChatEnabled && primeNarrationFlowEnabled;
+  // Keep narration resilient even if narration flag is stale in a running dev session.
+  // As long as Prime in-chat upload is enabled, show Prime's stage narration.
+  const isPrimeNarrationEnabled = employeeId === 'prime-boss' && primeUploadInChatEnabled;
   const supportsChatUploads = isByte || isPrimeUploadAssistant;
   const uploadStep = smartImport.uploadStatus?.step;
   const showCenteredUploadIndicator =
-    supportsChatUploads &&
+    isByte &&
     (
       queuedUploadCount > 0 ||
       isUploadingAttachments ||
@@ -1147,14 +1166,6 @@ export default function UnifiedAssistantChat({
     setActiveEmployeeGlobal?.(employeeId);
   }, [employeeId, setActiveEmployeeGlobal]);
 
-  // DEBUG: Log the slug mapping
-  log('[UnifiedAssistantChat] Slug Debug:', {
-    normalizedSlug,
-    employeeId,
-    isByte,
-    currentEmployeeSlug
-  });
-  
   // Hook: Check if Tag is active
   const isTag = normalizedSlug === 'tag-ai';
   
@@ -1331,18 +1342,53 @@ export default function UnifiedAssistantChat({
     primeSummaryReady,
     getPrimeSummary,
     getPrimeSummaryMeta,
+    getImportTimeline,
     consumePrimeSummary,
-  } = usePostImportHandoff(userId || undefined, { bypassQuietMode: true });
+  } = usePostImportHandoff(userId || undefined, {
+    bypassQuietMode: true,
+    getBatchImportIds: () => {
+      const finishedAt = smartImport.lastUploadSummary?.finishedAt;
+      const isRecent =
+        typeof finishedAt === 'string' &&
+        Date.now() - Date.parse(finishedAt) < 5 * 60 * 1000;
+      if (!isRecent) return [];
+      return (smartImport.lastUploadSummary?.importIds || [])
+        .map((id) => String(id || '').trim())
+        .filter(Boolean);
+    },
+  });
   const lastUploadFinishedAt = smartImport.lastUploadSummary?.finishedAt;
   const isRecentUpload =
     typeof lastUploadFinishedAt === 'string' &&
     Date.now() - Date.parse(lastUploadFinishedAt) < 5 * 60 * 1000;
+  const recentImportIds = isRecentUpload
+    ? (smartImport.lastUploadSummary?.importIds || [])
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+    : [];
   const recentImportId = isRecentUpload ? smartImport.lastUploadSummary?.importId : undefined;
+  const recentPrimeSummariesReady =
+    recentImportIds.length > 0 &&
+    recentImportIds.every((id) => Boolean(getPrimeSummary(id)));
+  const hasUnfinalizedRecentImports =
+    recentImportIds.length > 0 &&
+    recentImportIds.some((id) => !primeNarrationFinalizedImportIdsRef.current.has(id));
+  const primeReadyIsRecent = recentImportIds.includes(String(primeSummaryReady || '').trim());
+  const isPrimeSummaryPending =
+    Boolean(isPrimeNarrationEnabled) &&
+    recentImportIds.length > 0 &&
+    !recentPrimeSummariesReady;
   const summaryForByte =
-    primeSummaryReady && recentImportId && recentImportId === primeSummaryReady
+    primeSummaryReady && primeReadyIsRecent
       ? getPrimeSummary(primeSummaryReady)
       : null;
-  const fallbackSummaryImportId = isRecentUpload ? smartImport.lastUploadSummary?.importId : undefined;
+  const fallbackSummaryImportId = primeReadyIsRecent
+    ? primeSummaryReady || undefined
+    : (isRecentUpload ? smartImport.lastUploadSummary?.importId : undefined);
+  const uploadActorLabels = useMemo(
+    () => getUploadActorLabels(SHOW_EMPLOYEE_NAMES_IN_UPLOAD),
+    []
+  );
 
   useEffect(() => {
     if (isRecentUpload) return;
@@ -1350,10 +1396,12 @@ export default function UnifiedAssistantChat({
   }, [isRecentUpload]);
 
   // Hook: Monitor import completion and emit BYTE_IMPORT_COMPLETED events
-  // This monitors all recent imports and emits events when they complete
+  // Only monitor the active upload importId to avoid false recaps from older imports.
   useByteImportCompletion({
     userId: userId || '',
     importId: recentImportId,
+    importIds: recentImportIds,
+    enabled: Boolean(recentImportId),
   });
   
   // Hook: Unified typing controller - MUST be called unconditionally before early return
@@ -1482,64 +1530,113 @@ export default function UnifiedAssistantChat({
   // are now declared above (before useEffect that uses them)
 
   const getActiveScrollEl = useCallback((): HTMLElement | null => {
-    if (typeof document !== 'undefined') {
-      const selectorMatch = document.querySelector('[data-scroll-container="true"]') as HTMLElement | null;
-      if (selectorMatch) {
-        scrollContainerElementRef.current = selectorMatch;
-        return selectorMatch;
-      }
-    }
-    if (scrollElementRef.current) {
+    const isUsable = (el: HTMLElement | null): el is HTMLElement => {
+      return !!el && el.isConnected;
+    };
+
+    if (isUsable(scrollElementRef.current)) {
       scrollContainerElementRef.current = scrollElementRef.current;
       return scrollElementRef.current;
     }
-    if (scrollContainerRef.current) {
+
+    // If wrapper exists, prefer the real nested message scroller.
+    if (scrollContainerRef.current && scrollContainerRef.current.isConnected) {
+      const nested = scrollContainerRef.current.querySelector('[data-scroll-container="true"]') as HTMLElement | null;
+      if (isUsable(nested)) {
+        scrollContainerElementRef.current = nested;
+        return nested;
+      }
+    }
+
+    if (isUsable(scrollContainerRef.current)) {
       scrollContainerElementRef.current = scrollContainerRef.current;
       return scrollContainerRef.current;
     }
-    if (scrollContainerElementRef.current) {
+
+    if (isUsable(scrollContainerElementRef.current)) {
       return scrollContainerElementRef.current;
     }
+
     const end = messagesEndRef.current;
     if (!end) return null;
     let scrollContainer: HTMLElement | null = end.parentElement;
-    while (scrollContainer &&
-           !scrollContainer.hasAttribute('data-scroll-container') &&
-           !scrollContainer.classList.contains('overflow-y-auto')) {
+    while (
+      scrollContainer &&
+      !scrollContainer.hasAttribute('data-scroll-container') &&
+      !scrollContainer.classList.contains('overflow-y-auto')
+    ) {
       scrollContainer = scrollContainer.parentElement;
     }
-    if (scrollContainer) {
+    if (isUsable(scrollContainer)) {
       scrollContainerElementRef.current = scrollContainer;
+      return scrollContainer;
     }
-    return scrollContainer;
+    return null;
   }, []);
+
+  const NEAR_BOTTOM_PX = 220;
 
   // Scroll-to-bottom helper (ChatGPT-style, uses scroll container + marker)
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const shouldFollowActiveTurn =
+      (isStreaming || isAssistantReplyPending || isUploadingAttachments || isPrimeSummaryPending) &&
+      (userIsNearBottomRef.current || autoPinToBottomRef.current);
+    const shouldAutoScrollNow =
+      userJustSentRef.current ||
+      shouldFollowActiveTurn ||
+      Date.now() < forceAutoPinUntilRef.current;
+    if (!shouldAutoScrollNow || userScrolledUpRef.current) return;
+    const scroller = getActiveScrollEl?.() || scrollElementRef.current;
     const end = messagesEndRef.current;
-    const container = getActiveScrollEl();
-    if (!end && !container) return;
+    if (!scroller && !end) return;
 
-    userScrolledUpRef.current = false;
     requestAnimationFrame(() => {
-      if (container) {
-        container.scrollTo({ top: container.scrollHeight, behavior });
-      }
-      if (end) {
-        end.scrollIntoView({ behavior, block: 'end' });
-      }
-      setTimeout(() => {
-        if (container) {
-          container.scrollTo({ top: container.scrollHeight, behavior });
-        }
-        if (end) {
+      requestAnimationFrame(() => {
+        if (scroller) {
+          scroller.scrollTo({ top: scroller.scrollHeight, behavior });
+        } else if (end) {
           end.scrollIntoView({ behavior, block: 'end' });
         }
         userIsNearBottomRef.current = true;
         setIsNearBottomState(true);
-      }, 0);
+      });
     });
-  }, [getActiveScrollEl, setIsNearBottomState]);
+  }, [
+    getActiveScrollEl,
+    isStreaming,
+    isAssistantReplyPending,
+    isUploadingAttachments,
+    isPrimeSummaryPending,
+    setIsNearBottomState,
+  ]);
+
+  // Keep message list bottom padding in sync with the sticky footer height.
+  // This prevents the newest message from getting visually stuck behind the input bar.
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const footer = inputFooterRef.current;
+    if (!footer) return;
+
+    const recomputePadding = () => {
+      const footerHeight = Math.ceil(footer.getBoundingClientRect().height || 0);
+      const next = Math.max(96, Math.min(300, footerHeight + 20));
+      setChatBottomPaddingPx(next);
+    };
+
+    recomputePadding();
+
+    let footerResizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      footerResizeObserver = new ResizeObserver(() => recomputePadding());
+      footerResizeObserver.observe(footer);
+    }
+
+    window.addEventListener('resize', recomputePadding);
+    return () => {
+      footerResizeObserver?.disconnect();
+      window.removeEventListener('resize', recomputePadding);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!summaryForByte || !isByte) return;
@@ -1644,13 +1741,13 @@ export default function UnifiedAssistantChat({
         {
           const baseQuery = supabase
             .from('user_documents')
-            .select('id, original_name, extracted_data, ocr_text, pii_types')
+            .select('id, original_name, extracted_data, ocr_text_hash, ocr_text_length, pii_types')
             .in('id', docIds);
           const { data, error } = await baseQuery;
           if (error && String(error.message || '').includes('extracted_data')) {
             const fallback = await supabase
               .from('user_documents')
-              .select('id, original_name, ocr_text, pii_types')
+              .select('id, original_name, ocr_text_hash, ocr_text_length, pii_types')
               .in('id', docIds);
             docs = fallback.data as any[] | null;
           } else {
@@ -1689,12 +1786,9 @@ export default function UnifiedAssistantChat({
               lines.push(`PII redacted: ${doc.pii_types.join(', ')}`);
             }
           }
-          if (lines.length === 0 && doc.ocr_text) {
-            const trimmed = String(doc.ocr_text || '').trim();
-            const preview = trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed;
-            if (preview) {
-              lines.push(`OCR: ${preview}`);
-            }
+          if (lines.length === 0 && (doc.ocr_text_hash || doc.ocr_text_length)) {
+            if (doc.ocr_text_length) lines.push(`Extracted text length: ${doc.ocr_text_length}`);
+            if (doc.ocr_text_hash) lines.push(`Extracted text hash: ${doc.ocr_text_hash}`);
           }
           if (lines.length > 0) {
             const title = doc.original_name ? `${doc.original_name}` : 'Upload';
@@ -1834,10 +1928,6 @@ export default function UnifiedAssistantChat({
     return () => clearTimeout(timeoutId);
   }, [isByte, isOpen, injectedMessages, scrollToBottom]);
 
-  function isNearBottom(el: HTMLElement) {
-    return (el.scrollHeight - el.scrollTop - el.clientHeight) < 120;
-  }
-
   // CRITICAL: Track scroll position to detect if user is near bottom
   const userIsNearBottomRef = useRef(true);
 
@@ -1852,10 +1942,29 @@ export default function UnifiedAssistantChat({
     if (!container) return;
 
     const handleScroll = () => {
-      const nearBottom = isNearBottom(container);
+      const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      const nearBottom = distanceFromBottom < NEAR_BOTTOM_PX;
       setIsNearBottomState(nearBottom);
       userIsNearBottomRef.current = nearBottom;
       userScrolledUpRef.current = !nearBottom;
+      if (scrollDebugEnabled) {
+        debug('[ChatScroll] onScroll', {
+          scrollTop: Math.round(container.scrollTop),
+          scrollHeight: Math.round(container.scrollHeight),
+          clientHeight: Math.round(container.clientHeight),
+          distanceFromBottom: Math.round(distanceFromBottom),
+          nearBottom,
+          scroller: container.getAttribute('data-scroll-container') ? 'data-scroll-container' : container.className,
+        });
+      }
+      // Keep chat pinned while actively sending/processing unless the user intentionally
+      // scrolls far away from the bottom.
+      if (nearBottom) {
+        autoPinToBottomRef.current = true;
+      } else {
+        // Respect manual scroll-up immediately; do not force pin during long processing states.
+        autoPinToBottomRef.current = false;
+      }
     };
 
     container.addEventListener('scroll', handleScroll, { passive: true });
@@ -1865,7 +1974,83 @@ export default function UnifiedAssistantChat({
     return () => {
       container.removeEventListener('scroll', handleScroll);
     };
-  }, [getActiveScrollEl, isOpen, messages.length]);
+  }, [getActiveScrollEl, isOpen, messages.length, isStreaming, isUploadingAttachments, isPrimeSummaryPending, isAssistantReplyPending]);
+
+  // Keep the chat anchored only when user just sent OR streaming while near-bottom.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (userScrolledUpRef.current) return;
+    const shouldLockBottom =
+      userJustSentRef.current ||
+      (isStreaming && userIsNearBottomRef.current);
+    if (!shouldLockBottom) return;
+    autoPinToBottomRef.current = true;
+
+    const container = getActiveScrollEl();
+    scrollToBottom('auto');
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        if (autoPinToBottomRef.current && !userScrolledUpRef.current) {
+          scrollToBottom('auto');
+        }
+      });
+      resizeObserver.observe(container);
+    }
+
+    const lockTimer = window.setInterval(() => {
+      if (autoPinToBottomRef.current && !userScrolledUpRef.current) {
+        scrollToBottom('auto');
+      }
+    }, 250);
+
+    return () => {
+      window.clearInterval(lockTimer);
+      resizeObserver?.disconnect();
+    };
+  }, [isOpen, isStreaming, getActiveScrollEl, scrollToBottom]);
+
+  // Keep anchored when rendered content expands after parent render
+  // (e.g., progressive TypingMessage reveal, markdown/code layout growth).
+  useEffect(() => {
+    if (!isOpen) return;
+    const contentEl = messageListContentRef.current;
+    if (!contentEl || typeof ResizeObserver === 'undefined') return;
+    const lastChild = contentEl.lastElementChild as Element | null;
+
+    const observer = new ResizeObserver(() => {
+      const shouldStick =
+        userJustSentRef.current ||
+        (isStreaming && userIsNearBottomRef.current);
+
+      if (!shouldStick) return;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scrollToBottom('auto');
+          if (scrollDebugEnabled) {
+            const container = getActiveScrollEl();
+            if (container) {
+              const distanceFromBottom =
+                container.scrollHeight - container.scrollTop - container.clientHeight;
+              debug('[ChatScroll] content resize -> pinned', {
+                scrollTop: Math.round(container.scrollTop),
+                scrollHeight: Math.round(container.scrollHeight),
+                clientHeight: Math.round(container.clientHeight),
+                distanceFromBottom: Math.round(distanceFromBottom),
+              });
+            }
+          }
+        });
+      });
+    });
+
+    observer.observe(contentEl);
+    if (lastChild) {
+      observer.observe(lastChild);
+    }
+    return () => observer.disconnect();
+  }, [isOpen, getActiveScrollEl, isStreaming, scrollToBottom, scrollDebugEnabled]);
 
   // CRITICAL: Auto-scroll during streaming when content updates (not just when messages.length changes)
   // Track last message content length to detect streaming updates
@@ -1889,27 +2074,28 @@ export default function UnifiedAssistantChat({
     const hasAnyMessages = messages.length > 0 || loadedHistoryMessages.length > 0;
     const historyReady = historyLoadCompleteRef.current || !isLoadingHistory;
     if (historyReady && hasAnyMessages && !didInitialScrollRef.current) {
+      // Do not auto-scroll on initial render. Respect current position.
       didInitialScrollRef.current = true;
-      scrollToBottom('auto');
-      userIsNearBottomRef.current = true;
-      setIsNearBottomState(true);
     }
 
     // Find last assistant message (streaming message) - use messages array directly
     const lastAssistantMessage = [...messages].reverse().find(m => m.role === 'assistant');
     const currentContentLength = lastAssistantMessage?.content?.length || 0;
     const contentChanged = currentContentLength !== lastMessageContentLengthRef.current;
-    const messagesLengthChanged = messages.length !== lastMessagesLengthRef.current;
+    const combinedMessageCount = messages.length + loadedHistoryMessages.length + injectedMessages.length;
+    const messagesLengthChanged = combinedMessageCount !== lastMessagesLengthRef.current;
     const streamingStarted = isStreaming && !lastStreamingStateRef.current;
     const streamingStopped = !isStreaming && lastStreamingStateRef.current;
     
     // Update refs
     lastMessageContentLengthRef.current = currentContentLength;
-    lastMessagesLengthRef.current = messages.length;
+    lastMessagesLengthRef.current = combinedMessageCount;
     lastStreamingStateRef.current = isStreaming;
     
     // Auto-scroll only if user is near bottom (ChatGPT-like).
-    const shouldAutoScroll = userIsNearBottomRef.current === true || userJustSentRef.current;
+    const shouldAutoScroll =
+      userJustSentRef.current ||
+      (isStreaming && userIsNearBottomRef.current === true);
     
     if (shouldAutoScroll && (contentChanged || streamingStarted || streamingStopped || messagesLengthChanged)) {
       // Throttle streaming scroll updates to every ~200ms to avoid jank
@@ -1938,28 +2124,39 @@ export default function UnifiedAssistantChat({
         scrollThrottleRef.current = null;
       }
     };
-  }, [messages, loadedHistoryMessages, isStreaming, scrollToBottom, getActiveScrollEl, isOpen, isLoadingHistory]);
+  }, [messages, loadedHistoryMessages, injectedMessages.length, isStreaming, scrollToBottom, getActiveScrollEl, isOpen, isLoadingHistory]);
 
   // No separate scrollIntoView effect — scroll is centralized in scrollToBottom()
 
-  // Scroll to bottom when chat opens OR when history loads
+  // Do not auto-scroll on open/history load.
   useEffect(() => {
     if (!isOpen) {
       didInitialScrollRef.current = false;
+      return;
     }
-  }, [isOpen]);
+    // On open, prevent eager auto-pin from snapping content to bottom
+    // before the initial top reset runs.
+    autoPinToBottomRef.current = false;
+    userScrolledUpRef.current = true;
+    // Prevent reopening at an arbitrary carried-over scroll offset.
+    const container = getActiveScrollEl();
+    if (container) {
+      requestAnimationFrame(() => {
+        container.scrollTop = 0;
+        const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+        const nearBottom = distanceFromBottom < NEAR_BOTTOM_PX;
+        userIsNearBottomRef.current = nearBottom;
+        userScrolledUpRef.current = !nearBottom;
+        setIsNearBottomState(nearBottom);
+      });
+    }
+  }, [getActiveScrollEl, isOpen]);
   
-  // CRITICAL: Scroll to bottom when employee switches (Prime -> Byte, etc.)
+  // Employee switch should not force scroll.
   useEffect(() => {
     if (isOpen && currentEmployeeSlug) {
       // Clear cached scroll container (may have changed)
       scrollContainerElementRef.current = null;
-      // Scroll to bottom after employee switch
-      const timeoutId = setTimeout(() => {
-        scrollToBottom('auto');
-      }, 100);
-      
-      return () => clearTimeout(timeoutId);
     }
   }, [currentEmployeeSlug, isOpen, scrollToBottom]);
   
@@ -1982,11 +2179,657 @@ export default function UnifiedAssistantChat({
     []
   );
 
+  const getPrimeBatchScope = useCallback(() => {
+    return `${userId || 'anon'}:${conversationId || 'default'}:prime-boss`;
+  }, [userId, conversationId]);
+
+  const persistPrimeBatchState = useCallback((nextActiveBatchKey: string | null) => {
+    if (typeof window === 'undefined') return;
+    const scope = getPrimeBatchScope();
+    const activeKey = `${PRIME_UPLOAD_ACTIVE_BATCH_PREFIX}${scope}`;
+    const closedKey = `${PRIME_UPLOAD_CLOSED_BATCHES_PREFIX}${scope}`;
+    try {
+      if (nextActiveBatchKey) {
+        window.sessionStorage.setItem(activeKey, nextActiveBatchKey);
+      } else {
+        window.sessionStorage.removeItem(activeKey);
+      }
+      window.sessionStorage.setItem(
+        closedKey,
+        JSON.stringify(Array.from(closedPrimeUploadBatchKeysRef.current))
+      );
+    } catch {
+      // Ignore storage failures (private mode / quota), runtime can continue in memory.
+    }
+  }, [getPrimeBatchScope]);
+
+  const mintPrimeBatchKey = useCallback(() => {
+    return `batch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  }, []);
+
+  const ensureActivePrimeBatchKey = useCallback(() => {
+    const current = activePrimeUploadBatchKeyRef.current;
+    if (current && !closedPrimeUploadBatchKeysRef.current.has(current)) {
+      return current;
+    }
+    const next = mintPrimeBatchKey();
+    activePrimeUploadBatchKeyRef.current = next;
+    persistPrimeBatchState(next);
+    return next;
+  }, [mintPrimeBatchKey, persistPrimeBatchState]);
+
+  const closeActivePrimeBatchKey = useCallback(() => {
+    const current = activePrimeUploadBatchKeyRef.current;
+    if (!current) return null;
+    closedPrimeUploadBatchKeysRef.current.add(current);
+    primeBatchInstructionRef.current.delete(current);
+    activePrimeUploadBatchKeyRef.current = null;
+    persistPrimeBatchState(null);
+    return current;
+  }, [persistPrimeBatchState]);
+
+  const isPrimeBatchCloseIntent = useCallback((value: string) => {
+    const text = value.trim().toLowerCase();
+    if (!text) return false;
+    return /(that'?s it|thats it|no more (docs|documents|files)|done uploading|finished uploading|all done uploading|close (the )?batch|nope that'?s it)/i.test(text);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const scope = getPrimeBatchScope();
+    const activeKey = `${PRIME_UPLOAD_ACTIVE_BATCH_PREFIX}${scope}`;
+    const closedKey = `${PRIME_UPLOAD_CLOSED_BATCHES_PREFIX}${scope}`;
+    try {
+      const active = window.sessionStorage.getItem(activeKey);
+      const closedRaw = window.sessionStorage.getItem(closedKey);
+      const closed = closedRaw ? JSON.parse(closedRaw) : [];
+      closedPrimeUploadBatchKeysRef.current = new Set(
+        Array.isArray(closed) ? closed.filter((item): item is string => typeof item === 'string') : []
+      );
+      if (active && !closedPrimeUploadBatchKeysRef.current.has(active)) {
+        activePrimeUploadBatchKeyRef.current = active;
+      } else {
+        activePrimeUploadBatchKeyRef.current = null;
+      }
+    } catch {
+      activePrimeUploadBatchKeyRef.current = null;
+      closedPrimeUploadBatchKeysRef.current = new Set();
+    }
+  }, [getPrimeBatchScope]);
+
+  const upsertPrimeUploadNarration = useCallback((params: {
+    batchKey: string;
+    text: string;
+    stages: PrimeUploadProgressStages;
+    importId?: string;
+    failed?: boolean;
+    done?: boolean;
+  }) => {
+    if (!isPrimeNarrationEnabled) return;
+    const messageId = `prime-upload-progress-${params.batchKey}`;
+    setInjectedMessages((prev) => {
+      const existingIndex = prev.findIndex((msg) => msg.id === messageId);
+      const existing = existingIndex >= 0 ? prev[existingIndex] : null;
+      const nextMessage: ChatMessage = {
+        id: messageId,
+        role: 'assistant',
+        content: params.text,
+        createdAt: existing?.createdAt || new Date().toISOString(),
+        meta: {
+          type: 'prime_upload_narration',
+          targetEmployeeSlug: 'prime-boss',
+          batchKey: params.batchKey,
+          importId: params.importId,
+          stages: params.stages,
+          failed: Boolean(params.failed),
+          done: Boolean(params.done),
+          hideTimestamp: true,
+        },
+      };
+      if (existingIndex === -1) {
+        return [...prev, nextMessage];
+      }
+      const sameContent = existing?.content === nextMessage.content;
+      const sameMeta = JSON.stringify(existing?.meta || {}) === JSON.stringify(nextMessage.meta || {});
+      if (sameContent && sameMeta) {
+        return prev;
+      }
+      const updated = [...prev];
+      updated[existingIndex] = nextMessage;
+      return updated;
+    });
+    if (!userScrolledUpRef.current) {
+      forceAutoPinUntilRef.current = Date.now() + 7000;
+      // Keep Prime narration visible as status advances (Step 1 -> Step 3).
+      autoPinToBottomRef.current = true;
+      requestAnimationFrame(() => {
+        scrollToBottom('auto');
+      });
+      window.setTimeout(() => {
+        scrollToBottom('auto');
+      }, 80);
+    }
+  }, [isPrimeNarrationEnabled, scrollToBottom]);
+
+  const upsertUploadActorStatus = useCallback((params: {
+    actor: 'byte' | 'tag';
+    importId: string;
+    batchKey?: string;
+    text: string;
+  }) => {
+    if (!isPrimeNarrationEnabled) return;
+    if (!params.importId) return;
+    const messageId = `upload-actor-status-${params.actor}-${params.importId}`;
+    setInjectedMessages((prev) => {
+      const existingIdx = prev.findIndex((msg) => msg.id === messageId);
+      const targetEmployeeSlug = params.actor === 'byte' ? 'byte-docs' : 'tag-categorizer';
+      const nextMsg: ChatMessage = {
+        id: messageId,
+        role: 'assistant',
+        content: params.text,
+        createdAt: existingIdx >= 0 ? prev[existingIdx].createdAt : new Date().toISOString(),
+        meta: {
+          type: 'upload_actor_status',
+          actor: params.actor,
+          importId: params.importId,
+          batchKey: params.batchKey,
+          targetEmployeeSlug,
+          hideTimestamp: true,
+        },
+      };
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        updated[existingIdx] = nextMsg;
+        return updated;
+      }
+      return [...prev, nextMsg];
+    });
+  }, [isPrimeNarrationEnabled]);
+
+  useEffect(() => {
+    return () => {
+      primeFinalStreamTimersRef.current.forEach((timerId) => {
+        window.clearInterval(timerId);
+      });
+      primeFinalStreamTimersRef.current.clear();
+    };
+  }, []);
+
+  const streamPrimeFinalMessage = useCallback((params: {
+    messageId: string;
+    content: string;
+    importId: string;
+    batchKey?: string;
+  }) => {
+    const fullLines = String(params.content || '').split('\n');
+    const chunkSize = 3;
+    const cadenceMs = 65;
+    const applySlice = (lineCount: number, done: boolean) => {
+      const nextContent = fullLines.slice(0, Math.max(1, lineCount)).join('\n');
+      setInjectedMessages((prev) => {
+        const existingIdx = prev.findIndex((msg) => msg.id === params.messageId);
+        const nextMsg: ChatMessage = {
+          id: params.messageId,
+          role: 'assistant',
+          content: nextContent,
+          createdAt: existingIdx >= 0 ? prev[existingIdx].createdAt : new Date().toISOString(),
+          meta: {
+            type: 'prime_upload_final',
+            importId: params.importId,
+            batchKey: params.batchKey,
+            targetEmployeeSlug: 'prime-boss',
+            is_streaming: !done,
+            ctas: [
+              { label: 'Review Transactions', to: `/dashboard/transactions?importId=${encodeURIComponent(params.importId)}` },
+              { label: 'Review Categories', to: '/dashboard/smart-categories' },
+            ],
+          },
+        };
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = nextMsg;
+          return updated;
+        }
+        return [...prev, nextMsg];
+      });
+      if (!userScrolledUpRef.current) {
+        autoPinToBottomRef.current = true;
+        requestAnimationFrame(() => scrollToBottom('auto'));
+      }
+    };
+
+    const existingTimer = primeFinalStreamTimersRef.current.get(params.messageId);
+    if (existingTimer) {
+      window.clearInterval(existingTimer);
+      primeFinalStreamTimersRef.current.delete(params.messageId);
+    }
+
+    let shown = Math.min(chunkSize, fullLines.length);
+    applySlice(shown, shown >= fullLines.length);
+    if (shown >= fullLines.length) return;
+
+    const timer = window.setInterval(() => {
+      shown = Math.min(fullLines.length, shown + chunkSize);
+      const done = shown >= fullLines.length;
+      applySlice(shown, done);
+      if (done) {
+        window.clearInterval(timer);
+        primeFinalStreamTimersRef.current.delete(params.messageId);
+      }
+    }, cadenceMs);
+    primeFinalStreamTimersRef.current.set(params.messageId, timer);
+  }, [scrollToBottom]);
+
+  const loadClarificationCandidates = useCallback(async (importId: string) => {
+    if (!importId) return [] as Array<{ transactionId: string; vendor: string; amount: string; date: string }>;
+    try {
+      const { getSupabase } = await import('../../lib/supabase');
+      const supabase = getSupabase();
+      if (!supabase) return [];
+      const { data } = await supabase
+        .from('transactions_staging')
+        .select('id, data_json, tag_status')
+        .eq('import_id', importId)
+        .eq('tag_status', 'needs_review')
+        .order('parsed_at', { ascending: false })
+        .limit(5);
+      const rows = Array.isArray(data) ? data : [];
+      return rows.map((row: any) => {
+        const payload = row?.data_json || {};
+        const vendor = String(
+          payload?.merchant ||
+          payload?.vendor ||
+          payload?.description ||
+          'Unlabeled transaction'
+        ).trim();
+        const amountRaw = Number(payload?.amount || 0);
+        const amount = Number.isFinite(amountRaw)
+          ? amountRaw.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '0.00';
+        const date = String(payload?.date || payload?.posted_at || payload?.transaction_date || 'unknown date').trim();
+        return {
+          transactionId: String(row?.id || ''),
+          vendor: vendor || 'Unlabeled transaction',
+          amount: `$${amount}`,
+          date: date || 'unknown date',
+        };
+      });
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const injectPrimeUploadFinalMessage = useCallback((params: {
+    importId: string;
+    summaryText: string;
+    transactionCount: number | null;
+    needsReviewCount: number | null;
+    autoCount: number | null;
+    aiCount: number | null;
+    clarificationItems?: Array<{ transactionId: string; vendor: string; amount: string; date: string }>;
+    batchKey?: string;
+    customInstruction?: string;
+  }) => {
+    if (!isPrimeNarrationEnabled) return;
+    const messageId = `prime-upload-final-${params.importId}`;
+    const txText = params.transactionCount !== null ? `${params.transactionCount}` : 'your';
+    const userLabel = (firstName || '').trim();
+    const intro = params.transactionCount !== null
+      ? `${userLabel ? `${userLabel}, ` : ''}all set. I imported ${txText} transaction${params.transactionCount === 1 ? '' : 's'} and categorized them.`
+      : `${userLabel ? `${userLabel}, ` : ''}all set. I imported your transactions and categorized them.`;
+    const cleanedSummary = (params.summaryText || '')
+      .replace(/\t+/g, ' ')
+      .replace(/[ \u00A0]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    const polishedSummary = cleanedSummary
+      // Keep the statement recap in chat; tag status is already conveyed above.
+      .replace(/\n+\s*Categorization status[\s\S]*$/i, '')
+      .trim();
+    const isStructuredOcrSummary =
+      /##\s*Summary/i.test(polishedSummary) &&
+      /##\s*Key details/i.test(polishedSummary) &&
+      /##\s*Transactions \(cleaned\)/i.test(polishedSummary) &&
+      /##\s*Issues \/ Uncertain lines/i.test(polishedSummary);
+    const requestedInstruction = String(params.customInstruction || '').trim();
+    const wantsCategoryBreakdown =
+      /categor(y|ies)|break\s*down|by\s+category|group/i.test(requestedInstruction.toLowerCase());
+    const extractCategoryBullets = (text: string): string[] => {
+      const rawLines = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const categoryLines = rawLines
+        .filter((line) =>
+          /top categor|category breakdown|categories:|software\/tools|subscription|merchant|retail|cash withdrawal|bank fee|transfers?/i.test(line)
+        )
+        .map((line) => `• ${line.replace(/^\-\s*/, '').trim()}`);
+      return Array.from(new Set(categoryLines)).slice(0, 6);
+    };
+    const categoryBullets = wantsCategoryBreakdown ? extractCategoryBullets(polishedSummary) : [];
+    const tagAuto = params.autoCount ?? null;
+    const tagAi = params.aiCount ?? null;
+    const needsReview = params.needsReviewCount ?? null;
+    const tagNarrative = [
+      typeof tagAuto === 'number' ? `${tagAuto} auto-categorized` : null,
+      typeof tagAi === 'number' ? `${tagAi} AI-assisted` : null,
+      typeof needsReview === 'number' ? `${needsReview} need review` : null,
+    ].filter(Boolean).join(', ');
+    const tagSummary = tagNarrative
+      ? `${uploadActorLabels.categorizer} results: ${tagNarrative}.`
+      : `${uploadActorLabels.categorizer} finished categorization and your categories are ready to review.`;
+    const unifiedRecap = buildUnifiedRecapFromTruth(
+      {
+        phase: 'summary_ready',
+        summaryReady: true,
+        needsReviewCount: params.needsReviewCount ?? null,
+      },
+      {
+        showEmployeeNames: SHOW_EMPLOYEE_NAMES_IN_UPLOAD,
+        summaryText: polishedSummary,
+      }
+    );
+    const clarificationLines = unifiedRecap.showClarificationPack
+      ? [
+          '',
+          'CLARIFICATION NEEDED',
+          ...(Array.isArray(params.clarificationItems) && params.clarificationItems.length > 0
+            ? [
+                'Uncertain items:',
+                ...params.clarificationItems.slice(0, 5).map((item) => `• ${item.vendor} — ${item.amount} on ${item.date}`),
+              ]
+            : unifiedRecap.uncertainVendors.length > 0
+            ? [
+                'Uncertain items:',
+                ...unifiedRecap.uncertainVendors.slice(0, 5).map((vendor) => `• ${vendor}`),
+              ]
+            : []),
+          ...unifiedRecap.questions.map((q) => `• ${q}`),
+          '• You can reply here, or open Smart Categories to confirm each one.',
+        ]
+      : [];
+    const personalClose = userLabel
+      ? `${userLabel}, I can now walk you through spending habits, category trends, and what to clean up first.`
+      : 'I can now walk you through spending habits, category trends, and what to clean up first.';
+    const isMultiDocumentRecap =
+      /what i see in your documents/i.test(polishedSummary) ||
+      /i read \d+\s+file/i.test(polishedSummary);
+    const clearLegacyImportRecap = () => {
+      setInjectedMessages((prev) =>
+        prev.filter((msg) => !(msg.meta?.type === 'import_recap' && msg.meta?.importId === params.importId))
+      );
+    };
+    const upsertPrimeAutoInsights = () => {
+      const insightsMessageId = `prime-upload-insights-${params.importId}`;
+      const parsedCount =
+        params.transactionCount ??
+        Number(polishedSummary.match(/captured\s+(\d+)\s+transaction/i)?.[1] || polishedSummary.match(/Parsed transactions:\s*(\d+)/i)?.[1] || NaN);
+      const reviewCount =
+        params.needsReviewCount ??
+        Number(polishedSummary.match(/(\d+)\s+need a quick review/i)?.[1] || polishedSummary.match(/Flagged for review:\s*(\d+)/i)?.[1] || NaN);
+      const biggestSignalsLine = String(
+        polishedSummary.match(/Biggest spend signals this period:\s*(.+)/i)?.[1] || ''
+      ).trim();
+      const firstSignal = biggestSignalsLine ? biggestSignalsLine.split(',')[0]?.trim() : '';
+      const nextBestStep = String(polishedSummary.match(/Next best step:\s*(.+)/i)?.[1] || '').trim();
+      const insightsLines = [
+        'Insights now available',
+        Number.isFinite(parsedCount) ? `- Transactions analyzed: ${parsedCount}` : null,
+        Number.isFinite(reviewCount) ? `- Needs review: ${reviewCount}` : null,
+        firstSignal ? `- Top spend signal: ${firstSignal}` : null,
+        nextBestStep ? `- Suggested next action: ${nextBestStep}` : '- Suggested next action: ask for category trends, top merchants, or unusual charges.',
+      ].filter(Boolean);
+      setInjectedMessages((prev) => {
+        const existingIdx = prev.findIndex((msg) => msg.id === insightsMessageId);
+        const nextMsg: ChatMessage = {
+          id: insightsMessageId,
+          role: 'assistant',
+          content: insightsLines.join('\n'),
+          createdAt: existingIdx >= 0 ? prev[existingIdx].createdAt : new Date().toISOString(),
+          meta: {
+            type: 'prime_upload_insights_auto',
+            importId: params.importId,
+            batchKey: params.batchKey,
+            targetEmployeeSlug: 'prime-boss',
+            hideTimestamp: true,
+          },
+        };
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = nextMsg;
+          return updated;
+        }
+        return [...prev, nextMsg];
+      });
+    };
+    const clearNarrationNoiseForImport = () => {
+      setInjectedMessages((prev) =>
+        prev.filter((msg) => {
+          const metaAny = (msg.meta || {}) as any;
+          const sameImport = metaAny?.importId === params.importId;
+          const sameBatch = params.batchKey && metaAny?.batchKey === params.batchKey;
+          if (metaAny?.type === 'upload_actor_status' && sameImport) return false;
+          if (metaAny?.type === 'prime_upload_narration' && (sameImport || sameBatch)) return false;
+          return true;
+        })
+      );
+    };
+    if (isStructuredOcrSummary) {
+      clearLegacyImportRecap();
+      clearNarrationNoiseForImport();
+      setInjectedMessages((prev) => {
+        const existingIdx = prev.findIndex((msg) => msg.id === messageId);
+        const nextMsg: ChatMessage = {
+          id: messageId,
+          role: 'assistant',
+          content: polishedSummary,
+          createdAt: existingIdx >= 0 ? prev[existingIdx].createdAt : new Date().toISOString(),
+          meta: {
+            type: 'prime_upload_final',
+            importId: params.importId,
+            batchKey: params.batchKey,
+            targetEmployeeSlug: 'prime-boss',
+            is_streaming: false,
+            ctas: [
+              { label: 'Review Transactions', to: `/dashboard/transactions?importId=${encodeURIComponent(params.importId)}` },
+              { label: 'Review Categories', to: '/dashboard/smart-categories' },
+            ],
+          },
+        };
+        if (existingIdx >= 0) {
+          const updated = [...prev];
+          updated[existingIdx] = nextMsg;
+          return updated;
+        }
+        return [...prev, nextMsg];
+      });
+      upsertPrimeAutoInsights();
+      forceAutoPinUntilRef.current = Date.now() + 10000;
+      autoPinToBottomRef.current = true;
+      requestAnimationFrame(() => {
+        scrollToBottom('auto');
+      });
+      window.setTimeout(() => {
+        scrollToBottom('auto');
+      }, 120);
+      return;
+    }
+    if (isMultiDocumentRecap) {
+      const content = [
+        'Summary Ready',
+        unifiedRecap.recapText,
+        intro,
+        tagSummary,
+        personalClose,
+        ...(requestedInstruction
+          ? ['', 'REQUEST APPLIED', `• ${requestedInstruction}`]
+          : []),
+        ...(wantsCategoryBreakdown
+          ? ['', 'CATEGORY FOCUS', ...(categoryBullets.length > 0
+            ? categoryBullets
+            : ['• I prioritized a category-first breakdown across documents and in the combined view.'])]
+          : []),
+        '',
+        polishedSummary,
+        ...clarificationLines,
+        '',
+        'NEXT ACTIONS',
+        '• Review transactions',
+        '• Review categories',
+        '• Upload another file',
+        '• Reply "that\'s it" when this batch is complete',
+      ].join('\n');
+      clearLegacyImportRecap();
+      streamPrimeFinalMessage({
+        messageId,
+        content,
+        importId: params.importId,
+        batchKey: params.batchKey,
+      });
+      forceAutoPinUntilRef.current = Date.now() + 10000;
+      autoPinToBottomRef.current = true;
+      requestAnimationFrame(() => {
+        scrollToBottom('auto');
+      });
+      window.setTimeout(() => {
+        scrollToBottom('auto');
+      }, 120);
+      return;
+    }
+    const summaryLines = polishedSummary
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    const statementHeader = summaryLines[0] || 'Statement summary';
+    const snapshotLines = summaryLines
+      .filter((line) =>
+        /^Account:/i.test(line) ||
+        /^Statement period:/i.test(line) ||
+        /^Opening balance:/i.test(line) ||
+        /^Total withdrawals:/i.test(line) ||
+        /^Total deposits:/i.test(line) ||
+        /^Net change:/i.test(line),
+      )
+      .slice(0, 5);
+    const toBullet = (line: string) => `• ${line.replace(/^\-\s*/, '').trim()}`;
+    const plainTermBullets = summaryLines
+      .filter((line) => line.startsWith('- '))
+      .map(toBullet)
+      .slice(0, 4);
+    const quickInsightBullets = summaryLines
+      .filter((line) => line.startsWith('- ') && /insight|drivers|balance|cash movement/i.test(line))
+      .map(toBullet)
+      .filter((line) => !plainTermBullets.includes(line))
+      .slice(0, 2);
+    const isSnapshotLine = (line: string) =>
+      /^Account:/i.test(line) ||
+      /^Statement period:/i.test(line) ||
+      /^Opening balance:/i.test(line) ||
+      /^Total withdrawals:/i.test(line) ||
+      /^Total deposits:/i.test(line) ||
+      /^Net change:/i.test(line);
+    const nonSnapshotLines = summaryLines.filter(
+      (line) =>
+        !isSnapshotLine(line) &&
+        line !== statementHeader &&
+        !/^Categorization status/i.test(line) &&
+        !/^What happened:?$/i.test(line) &&
+        !/^Quick insight:?$/i.test(line),
+    );
+    const fallbackPlainBullets = nonSnapshotLines
+      .filter((line) => line.length > 0)
+      .slice(0, 4)
+      .map((line) => `• ${line.replace(/^\-\s*/, '')}`);
+    const fallbackQuickBullets = nonSnapshotLines
+      .filter((line) => /insight|driver|pattern|trend|balance|cash movement|spend/i.test(line))
+      .slice(0, 2)
+      .map((line) => `• ${line.replace(/^\-\s*/, '')}`);
+    const finalPlainBullets =
+      plainTermBullets.length > 0
+        ? plainTermBullets
+        : fallbackPlainBullets.length > 0
+          ? fallbackPlainBullets
+          : ['• Transactions imported and categorized successfully.'];
+    const finalQuickBullets =
+      quickInsightBullets.length > 0
+        ? quickInsightBullets
+        : fallbackQuickBullets.length > 0
+          ? fallbackQuickBullets
+          : ['• Ask me for top merchants, unusual charges, and category trends for this period.'];
+    const snapshotBullets =
+      snapshotLines.length > 0
+        ? snapshotLines.map((line) => `• ${line}`)
+        : [`• ${statementHeader}`, '• Summary is preparing. I will update this message when it is ready.'];
+    const lines = [
+      'Summary Ready',
+      unifiedRecap.recapText,
+      intro,
+      tagSummary,
+      personalClose,
+      ...(requestedInstruction
+        ? ['', 'REQUEST APPLIED', `• ${requestedInstruction}`]
+        : []),
+      ...(wantsCategoryBreakdown
+        ? ['', 'CATEGORY BREAKDOWN', ...(categoryBullets.length > 0 ? categoryBullets : finalPlainBullets)]
+        : []),
+      '',
+      'STATEMENT SNAPSHOT',
+      ...snapshotBullets,
+      '',
+      'WHAT HAPPENED',
+      ...finalPlainBullets,
+      '',
+      'QUICK INSIGHT',
+      ...finalQuickBullets,
+      ...clarificationLines,
+      '',
+      'NEXT ACTIONS',
+      '• Review transactions',
+      '• Review categories',
+      '• Upload another file',
+      '• Reply "that\'s it" when this batch is complete',
+    ];
+    clearLegacyImportRecap();
+    streamPrimeFinalMessage({
+      messageId,
+      content: lines.join('\n'),
+      importId: params.importId,
+      batchKey: params.batchKey,
+    });
+    forceAutoPinUntilRef.current = Date.now() + 10000;
+    // Force-follow the final Prime summary bubble so the user lands on newest output.
+    autoPinToBottomRef.current = true;
+    requestAnimationFrame(() => {
+      scrollToBottom('auto');
+    });
+    window.setTimeout(() => {
+      scrollToBottom('auto');
+    }, 120);
+    window.setTimeout(() => {
+      scrollToBottom('auto');
+    }, 320);
+    window.setTimeout(() => {
+      scrollToBottom('auto');
+    }, 700);
+  }, [isPrimeNarrationEnabled, firstName, scrollToBottom, streamPrimeFinalMessage]);
+
   const processByteUploads = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return false;
     if (!userId) {
       toast.error('Please log in to upload files');
       return false;
+    }
+    // Safety: clear stale in-flight keys when uploader is idle so a prior interrupted
+    // batch cannot silently suppress new files.
+    if (!isUploadingAttachments && inFlightUploadKeysRef.current.size > 0) {
+      inFlightUploadKeysRef.current.clear();
+    }
+    const skippedFiles = files.filter((file) => inFlightUploadKeysRef.current.has(getAttachmentKey(file)));
+    if (skippedFiles.length > 0) {
+      const preview = skippedFiles.slice(0, 3).map((f) => f.name).join(', ');
+      toast(
+        `Skipped ${skippedFiles.length} file${skippedFiles.length === 1 ? '' : 's'} already processing: ${preview}${skippedFiles.length > 3 ? ', ...' : ''}`
+      );
     }
     const eligibleFiles = files.filter((file) => !inFlightUploadKeysRef.current.has(getAttachmentKey(file)));
     if (eligibleFiles.length === 0) {
@@ -1995,17 +2838,100 @@ export default function UnifiedAssistantChat({
     }
     eligibleFiles.forEach((file) => inFlightUploadKeysRef.current.add(getAttachmentKey(file)));
     try {
+      const inferUploadKindHint = (list: File[]): string => {
+        if (!Array.isArray(list) || list.length === 0) return 'document';
+        const first = list[0];
+        const name = String(first?.name || '').toLowerCase();
+        const type = String(first?.type || '').toLowerCase();
+        const hasCardSignals = /visa|mastercard|amex|capital one|statement|card/.test(name);
+        const hasBankSignals = /bank|chequing|checking|account statement/.test(name);
+        const isPdf = type.includes('pdf') || name.endsWith('.pdf');
+        const isImage = type.startsWith('image/') || /\.(jpg|jpeg|png|webp|heic)$/i.test(name);
+        const isCsvSheet = /\.(csv|xlsx|xls)$/i.test(name) || type.includes('csv') || type.includes('spreadsheet');
+        if (isCsvSheet) return 'statement file';
+        if (hasCardSignals) return 'credit card statement';
+        if (hasBankSignals) return 'bank statement';
+        if (isImage) return 'receipt image';
+        if (isPdf) return 'statement PDF';
+        return 'document';
+      };
+      const uploadKindHint = inferUploadKindHint(eligibleFiles);
+      const batchKey = ensureActivePrimeBatchKey();
+      activePrimeUploadBatchKeyRef.current = batchKey;
+      primeTimedOutBatchKeysRef.current.delete(batchKey);
+      if (isPrimeNarrationEnabled && typeof window !== 'undefined') {
+        const latchKey = `${PRIME_UPLOAD_NARRATION_STARTED_PREFIX}${batchKey}`;
+        const alreadyStarted = window.sessionStorage.getItem(latchKey) === '1';
+        if (!alreadyStarted) {
+          upsertPrimeUploadNarration({
+            batchKey,
+            text: `Prime handoff: Upload received. This looks like a ${uploadKindHint}. Handing this to ${uploadActorLabels.reader} now.`,
+            stages: {
+              byte: 'active',
+              tag: 'pending',
+              saving: 'pending',
+            },
+          });
+          window.sessionStorage.setItem(latchKey, '1');
+        }
+      }
       setIsUploadingAttachments(true);
+      autoPinToBottomRef.current = true;
       setUploadError(null);
       setUploadStatus('uploading');
       setUploadStatusMessage('Uploading your document...');
       setShowUploadCard(true);
-      await smartImport.uploadFiles(userId, eligibleFiles, 'chat');
+      const uploadResults = await smartImport.uploadFiles(userId, eligibleFiles, 'chat');
+      const reusedCount = (Array.isArray(uploadResults) ? uploadResults : []).filter((r: any) => r?.reused === true).length;
+      if (reusedCount > 0) {
+        const total = Array.isArray(uploadResults) ? uploadResults.length : reusedCount;
+        toast(
+          reusedCount === total
+            ? `Duplicate detected: reused ${reusedCount} existing file${reusedCount === 1 ? '' : 's'} (cached processing).`
+            : `Duplicate detected: reused ${reusedCount} of ${total} file${total === 1 ? '' : 's'} (cached processing).`
+        );
+      }
+      const importId = String(smartImport.lastUploadSummary?.importId || '').trim();
+      if (importId) {
+        // Re-uploads can reuse the same importId. Reset per-import finalization latches so
+        // final summary/insights are posted again for this run.
+        primeNarrationFinalizedImportIdsRef.current.delete(importId);
+        delete primeFinalSummaryTextByImportRef.current[importId];
+        byteParseStatusSentRef.current.delete(importId);
+        tagCompleteStatusSentRef.current.delete(importId);
+        setInjectedMessages((prev) =>
+          prev.filter((msg) => {
+            const metaAny = (msg.meta || {}) as any;
+            if (metaAny?.importId !== importId) return true;
+            return ![
+              'prime_upload_final',
+              'prime_upload_insights_auto',
+              'upload_actor_status',
+            ].includes(String(metaAny?.type || ''));
+          })
+        );
+        uploadImportIdToBatchKeyRef.current.set(importId, batchKey);
+      }
       setUploadStatus('processing');
-      setUploadStatusMessage('Analyzing transactions...');
+      setUploadStatusMessage(`${uploadActorLabels.reader} is extracting transactions...`);
+      if (isPrimeNarrationEnabled && batchKey) {
+        upsertPrimeUploadNarration({
+          batchKey,
+          importId: smartImport.lastUploadSummary?.importId,
+          text: `Step 2 of 3: Processing statement. ${uploadActorLabels.reader} import is complete and ${uploadActorLabels.categorizer} is categorizing expenses.`,
+          stages: {
+            byte: 'done',
+            tag: 'active',
+            saving: 'pending',
+          },
+        });
+      }
       setTimeout(() => {
-        setUploadStatusMessage('Preparing your summary...');
+        setUploadStatusMessage(`${uploadActorLabels.categorizer} is categorizing expenses...`);
       }, 500);
+      setTimeout(() => {
+        setUploadStatusMessage('Saving transactions to your account...');
+      }, 900);
       setTimeout(() => {
         setUploadStatus(null);
         setUploadStatusMessage(null);
@@ -2016,14 +2942,468 @@ export default function UnifiedAssistantChat({
       setUploadError(err?.message || 'Upload failed');
       setUploadStatus(null);
       setUploadStatusMessage(null);
+      if (isPrimeNarrationEnabled && activePrimeUploadBatchKeyRef.current) {
+        upsertPrimeUploadNarration({
+          batchKey: activePrimeUploadBatchKeyRef.current,
+          importId: smartImport.lastUploadSummary?.importId,
+          text: "I couldn't finish reading this file. Try uploading again with a clearer PDF.",
+          stages: {
+            byte: 'error',
+            tag: 'pending',
+            saving: 'pending',
+          },
+          failed: true,
+        });
+      }
       toast.error(err?.message || 'Upload failed');
+      if (import.meta.env.DEV) {
+        warn('[UnifiedAssistantChat] upload failed for batch', { batchKey: activePrimeUploadBatchKeyRef.current });
+      }
       return false;
     } finally {
       setIsUploadingAttachments(false);
       eligibleFiles.forEach((file) => inFlightUploadKeysRef.current.delete(getAttachmentKey(file)));
       uploadedAttachmentKeysRef.current.clear();
     }
-  }, [smartImport, userId, getAttachmentKey]);
+  }, [
+    smartImport,
+    userId,
+    isUploadingAttachments,
+    getAttachmentKey,
+    ensureActivePrimeBatchKey,
+    isPrimeNarrationEnabled,
+    uploadActorLabels,
+    upsertPrimeUploadNarration,
+  ]);
+
+  useEffect(() => {
+    if (!isPrimeNarrationEnabled) return;
+
+    const importId = String(smartImport.lastUploadSummary?.importId || '').trim();
+    const batchKey =
+      (importId ? uploadImportIdToBatchKeyRef.current.get(importId) : undefined) ||
+      activePrimeUploadBatchKeyRef.current ||
+      importId;
+    if (!batchKey) return;
+
+    const timeline = importId ? getImportTimeline(importId) : null;
+    const timelineTruth = timeline?.truth || null;
+    const summaryReadyFromTruth = timelineTruth?.phase === 'summary_ready';
+    const summaryReady = Boolean(
+      primeSummaryReady &&
+      importId &&
+      String(primeSummaryReady).trim() === importId
+    ) || summaryReadyFromTruth;
+    const hasError = Boolean(uploadError || smartImport.uploadStatus?.error) || uploadStep === 'error';
+    const isProcessingLike =
+      isUploadingAttachments ||
+      uploadStep === 'uploading' ||
+      uploadStep === 'processing' ||
+      (uploadStep === 'completed' && !summaryReady);
+
+    const clearTimer = () => {
+      if (primeProcessingTimeoutRef.current !== null) {
+        window.clearTimeout(primeProcessingTimeoutRef.current);
+        primeProcessingTimeoutRef.current = null;
+      }
+      primeProcessingTimeoutBatchKeyRef.current = null;
+    };
+
+    // Authoritative path: when router timeline truth exists, avoid heuristic timer drift.
+    if (timelineTruth) {
+      clearTimer();
+      return;
+    }
+
+    if (!isProcessingLike || hasError || summaryReady) {
+      clearTimer();
+      return;
+    }
+
+    if (primeTimedOutBatchKeysRef.current.has(batchKey)) {
+      clearTimer();
+      return;
+    }
+
+    if (
+      primeProcessingTimeoutRef.current !== null &&
+      primeProcessingTimeoutBatchKeyRef.current === batchKey
+    ) {
+      return;
+    }
+
+    clearTimer();
+    primeProcessingTimeoutBatchKeyRef.current = batchKey;
+    primeProcessingTimeoutRef.current = window.setTimeout(() => {
+      primeProcessingTimeoutRef.current = null;
+      primeProcessingTimeoutBatchKeyRef.current = null;
+      if (primeTimedOutBatchKeysRef.current.has(batchKey)) return;
+      primeTimedOutBatchKeysRef.current.add(batchKey);
+      upsertPrimeUploadNarration({
+        batchKey,
+        importId: importId || undefined,
+        text: "Step 2 of 3: Still processing in background. I’ll notify you automatically when Step 3 (summary ready) is complete.",
+        stages: { byte: 'done', tag: 'active', saving: 'active' },
+      });
+    }, 60000);
+
+    return clearTimer;
+  }, [
+    isPrimeNarrationEnabled,
+    smartImport.lastUploadSummary?.importId,
+    smartImport.uploadStatus?.error,
+    uploadStep,
+    uploadError,
+    isUploadingAttachments,
+    primeSummaryReady,
+    getImportTimeline,
+    upsertPrimeUploadNarration,
+  ]);
+
+  useEffect(() => {
+    if (!isPrimeNarrationEnabled) return;
+    const importId = String(smartImport.lastUploadSummary?.importId || '').trim();
+    const batchKey =
+      (importId ? uploadImportIdToBatchKeyRef.current.get(importId) : undefined) ||
+      activePrimeUploadBatchKeyRef.current ||
+      importId;
+    if (!batchKey) return;
+    const timeline = importId ? getImportTimeline(importId) : null;
+    const timelineTruth = timeline?.truth || null;
+    const hasError = uploadStep === 'error' || Boolean(uploadError || smartImport.uploadStatus?.error);
+
+    let stages: PrimeUploadProgressStages | null = null;
+    let text = `Step 1 of 3: Upload received. Step 2 of 3: ${uploadActorLabels.reader} is extracting transactions from your files.`;
+    let done = false;
+    let failed = false;
+
+    if (hasError) {
+      stages = { byte: 'error', tag: 'pending', saving: 'pending' };
+      text = "I couldn't finish reading this file. Try uploading again with a clearer PDF.";
+      failed = true;
+    } else if (timelineTruth) {
+      const txCountFromTruth =
+        typeof timelineTruth.transactionCount === 'number'
+          ? timelineTruth.transactionCount
+          : null;
+      const needsReviewFromTruth =
+        typeof timelineTruth.needsReviewCount === 'number'
+          ? timelineTruth.needsReviewCount
+          : null;
+      stages = buildProgressStagesFromTruth(timelineTruth);
+      if (timelineTruth.phase === 'error') {
+        const statusLower = String(timelineTruth.status || '').toLowerCase();
+        if (statusLower.includes('needs_review_no_input')) {
+          text = "No OCR text was detected from this file. I marked it for review so it doesn't keep processing.";
+        } else {
+          text = "I couldn't finish reading this file. Try uploading again with a clearer PDF.";
+        }
+        failed = true;
+      }
+      if (
+        importId &&
+        !byteParseStatusSentRef.current.has(importId) &&
+        (timelineTruth.phase === 'categorizing' || timelineTruth.phase === 'saving' || timelineTruth.phase === 'summary_ready')
+      ) {
+        const byteText = txCountFromTruth !== null
+          ? `${uploadActorLabels.reader} parse complete: ${txCountFromTruth} transaction${txCountFromTruth === 1 ? '' : 's'} extracted.`
+          : `${uploadActorLabels.reader} parse complete.`;
+        upsertUploadActorStatus({
+          actor: 'byte',
+          importId,
+          batchKey,
+          text: byteText,
+        });
+        byteParseStatusSentRef.current.add(importId);
+      }
+      if (
+        importId &&
+        !tagCompleteStatusSentRef.current.has(importId) &&
+        (timelineTruth.phase === 'saving' || timelineTruth.phase === 'summary_ready')
+      ) {
+        const taggedCount = txCountFromTruth !== null
+          ? Math.max(txCountFromTruth - Math.max(needsReviewFromTruth || 0, 0), 0)
+          : null;
+        const tagText = [
+          `${uploadActorLabels.categorizer} categorization complete.`,
+          taggedCount !== null ? `Tagged: ${taggedCount}.` : null,
+          needsReviewFromTruth !== null ? `Flagged for review: ${needsReviewFromTruth}.` : null,
+        ].filter(Boolean).join(' ');
+        upsertUploadActorStatus({
+          actor: 'tag',
+          importId,
+          batchKey,
+          text: tagText,
+        });
+        tagCompleteStatusSentRef.current.add(importId);
+      }
+      if (timelineTruth.phase === 'summary_ready') {
+        text = 'Prime finalizing: structured summary markdown is ready.';
+        done = true;
+      } else if (timelineTruth.phase === 'error') {
+        // keep text set above
+      } else if (timelineTruth.phase === 'saving' || timelineTruth.phase === 'normalizing') {
+        text = `Prime update: ${uploadActorLabels.categorizer} finished categorization. Preparing final structured summary markdown.`;
+      } else if (timelineTruth.phase === 'categorizing') {
+        text = `Step 2 of 3: ${uploadActorLabels.categorizer} is categorizing transactions.`;
+      } else {
+        text = `Step 2 of 3: ${uploadActorLabels.reader} is reading documents and building your draft breakdown.`;
+      }
+    } else if (uploadStep === 'completed') {
+      const summaryReady = Boolean(
+        primeSummaryReady &&
+        String(smartImport.lastUploadSummary?.importId || '').trim() === String(primeSummaryReady).trim()
+      );
+      if (summaryReady) {
+        stages = { byte: 'done', tag: 'done', saving: 'done' };
+        text = 'Step 3 of 3: Summary ready. I’m preparing your summary now.';
+        done = true;
+      } else {
+        // Do not claim "finished" until the summary handshake is actually ready.
+        stages = { byte: 'done', tag: 'active', saving: 'active' };
+        text = `Step 2 of 3: Processing in background. ${uploadActorLabels.categorizer} is assigning categories and I will post your full breakdown when complete.`;
+      }
+    } else if (uploadStep === 'processing' || uploadStep === 'uploading' || isUploadingAttachments) {
+      stages = { byte: 'active', tag: 'pending', saving: 'pending' };
+      text = `Step 2 of 3: ${uploadActorLabels.reader} is reading documents and building your draft breakdown.`;
+    }
+
+    if (!stages) return;
+    upsertPrimeUploadNarration({
+      batchKey,
+      importId: importId || undefined,
+      text,
+      stages,
+      done,
+      failed,
+    });
+    if ((done || failed) && typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(`${PRIME_UPLOAD_NARRATION_STARTED_PREFIX}${batchKey}`);
+    }
+  }, [
+    isPrimeNarrationEnabled,
+    smartImport.lastUploadSummary?.importId,
+    primeSummaryReady,
+    smartImport.uploadStatus?.error,
+    uploadStep,
+    uploadError,
+    isUploadingAttachments,
+    getImportTimeline,
+    uploadActorLabels,
+    upsertUploadActorStatus,
+    upsertPrimeUploadNarration,
+  ]);
+
+  useEffect(() => {
+    if (!isPrimeNarrationEnabled) return;
+    if (currentEmployeeSlug !== 'prime-boss') return;
+    if (!primeSummaryReady) return;
+    let cancelled = false;
+    void (async () => {
+      const summary = getPrimeSummary(primeSummaryReady);
+      const summaryMeta = getPrimeSummaryMeta(primeSummaryReady);
+      const summaryText = String(summary?.content || 'Your categorized results and insights are available.').trim();
+      const isGenericSummaryText =
+        summaryText.includes('ready for your review') ||
+        summaryText.includes('categorized results and insights are available');
+      const previouslyFinalized = primeNarrationFinalizedImportIdsRef.current.has(primeSummaryReady);
+      const previouslyPostedSummary = primeFinalSummaryTextByImportRef.current[primeSummaryReady] || '';
+      if (previouslyFinalized && previouslyPostedSummary === summaryText) return;
+      if (previouslyFinalized && isGenericSummaryText) return;
+      const clarificationItems = await loadClarificationCandidates(primeSummaryReady);
+      clarificationCandidatesByImportIdRef.current[primeSummaryReady] = clarificationItems;
+      if (cancelled) return;
+
+      const parseCount = (pattern: RegExp): number | null => {
+        const match = summaryText.match(pattern);
+        if (!match?.[1]) return null;
+        const value = Number(match[1]);
+        return Number.isFinite(value) ? value : null;
+      };
+
+      const transactionCount = parseCount(/(\d+)\s+transactions?\s+processed/i) ??
+        parseCount(/transactions:\s*(\d+)/i) ??
+        null;
+      const needsReviewCount = summaryMeta?.needsReviewCount ?? null;
+      const autoCount = summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? null;
+      if (!byteParseStatusSentRef.current.has(primeSummaryReady)) {
+        const byteText = transactionCount !== null
+          ? `${uploadActorLabels.reader} parse complete: ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} extracted.`
+          : `${uploadActorLabels.reader} parse complete.`;
+        upsertUploadActorStatus({
+          actor: 'byte',
+          importId: primeSummaryReady,
+          text: byteText,
+        });
+        byteParseStatusSentRef.current.add(primeSummaryReady);
+      }
+      if (!tagCompleteStatusSentRef.current.has(primeSummaryReady)) {
+        const tagText = [
+          `${uploadActorLabels.categorizer} categorization complete.`,
+          typeof autoCount === 'number' ? `Tagged: ${autoCount}.` : null,
+          typeof needsReviewCount === 'number' ? `Flagged for review: ${needsReviewCount}.` : null,
+        ].filter(Boolean).join(' ');
+        upsertUploadActorStatus({
+          actor: 'tag',
+          importId: primeSummaryReady,
+          text: tagText,
+        });
+        tagCompleteStatusSentRef.current.add(primeSummaryReady);
+      }
+      const activeBatchKey =
+        uploadImportIdToBatchKeyRef.current.get(primeSummaryReady) ||
+        activePrimeUploadBatchKeyRef.current ||
+        primeSummaryReady;
+      const queuedInstruction =
+        primeBatchInstructionRef.current.get(activeBatchKey) ||
+        primeBatchInstructionRef.current.get(primeSummaryReady) ||
+        primeBatchInstructionRef.current.get('pending') ||
+        undefined;
+      injectPrimeUploadFinalMessage({
+        importId: primeSummaryReady,
+        summaryText,
+        transactionCount,
+        needsReviewCount,
+        autoCount,
+        aiCount: summaryMeta?.aiCount ?? null,
+        clarificationItems,
+        batchKey: activeBatchKey,
+        customInstruction: queuedInstruction,
+      });
+
+      const activeKey = activeBatchKey;
+      // Replace in-flight workflow/status bubbles with the final summary bubble.
+      setInjectedMessages((prev) =>
+        prev.filter((msg) => {
+          if (msg.id === `prime-upload-progress-${activeKey}`) return false;
+          const metaAny = (msg.meta || {}) as any;
+          if (metaAny?.type === 'upload_actor_status' && metaAny?.importId === primeSummaryReady) return false;
+          if (metaAny?.type === 'prime_upload_narration' && (metaAny?.importId === primeSummaryReady || metaAny?.batchKey === activeKey)) return false;
+          return true;
+        })
+      );
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(`${PRIME_UPLOAD_NARRATION_STARTED_PREFIX}${activeKey}`);
+      }
+      primeBatchInstructionRef.current.delete(activeKey);
+      primeBatchInstructionRef.current.delete(primeSummaryReady);
+      primeBatchInstructionRef.current.delete('pending');
+      primeNarrationFinalizedImportIdsRef.current.add(primeSummaryReady);
+      primeFinalSummaryTextByImportRef.current[primeSummaryReady] = summaryText;
+      // After replacing/removing progress bubbles, force one more bottom lock.
+      autoPinToBottomRef.current = true;
+      requestAnimationFrame(() => scrollToBottom('auto'));
+      window.setTimeout(() => scrollToBottom('auto'), 250);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isPrimeNarrationEnabled,
+    currentEmployeeSlug,
+    primeSummaryReady,
+    getPrimeSummary,
+    getPrimeSummaryMeta,
+    loadClarificationCandidates,
+    injectPrimeUploadFinalMessage,
+    uploadActorLabels,
+    upsertUploadActorStatus,
+    upsertPrimeUploadNarration,
+  ]);
+
+  useEffect(() => {
+    if (!isPrimeNarrationEnabled) return;
+    if (currentEmployeeSlug !== 'prime-boss') return;
+    if (!recentImportId) return;
+    const timeline = getImportTimeline(recentImportId);
+    if (!timeline?.truth || timeline.truth.phase !== 'summary_ready') return;
+    const summary = getPrimeSummary(recentImportId);
+    const summaryMeta = getPrimeSummaryMeta(recentImportId);
+    const summaryText = String(summary?.content || 'Your categorized results and insights are available.').trim();
+    const isGenericSummaryText =
+      summaryText.includes('ready for your review') ||
+      summaryText.includes('categorized results and insights are available');
+    const previouslyFinalized = primeNarrationFinalizedImportIdsRef.current.has(recentImportId);
+    const previouslyPostedSummary = primeFinalSummaryTextByImportRef.current[recentImportId] || '';
+    if (previouslyFinalized && previouslyPostedSummary === summaryText) return;
+    if (previouslyFinalized && isGenericSummaryText) return;
+    const fallbackBatchKey =
+      uploadImportIdToBatchKeyRef.current.get(recentImportId) ||
+      activePrimeUploadBatchKeyRef.current ||
+      recentImportId;
+    injectPrimeUploadFinalMessage({
+      importId: recentImportId,
+      summaryText,
+      transactionCount: null,
+      needsReviewCount: summaryMeta?.needsReviewCount ?? timeline.truth.needsReviewCount ?? null,
+      autoCount: summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? null,
+      aiCount: summaryMeta?.aiCount ?? null,
+      clarificationItems: clarificationCandidatesByImportIdRef.current[recentImportId] || [],
+      batchKey: fallbackBatchKey,
+    });
+    primeNarrationFinalizedImportIdsRef.current.add(recentImportId);
+    primeFinalSummaryTextByImportRef.current[recentImportId] = summaryText;
+  }, [
+    isPrimeNarrationEnabled,
+    currentEmployeeSlug,
+    recentImportId,
+    getImportTimeline,
+    getPrimeSummary,
+    getPrimeSummaryMeta,
+    injectPrimeUploadFinalMessage,
+  ]);
+
+  const routeClarificationFeedback = useCallback(async (messageText: string) => {
+    if (!userId) return 0;
+    const selectedImportId =
+      (recentImportId && clarificationCandidatesByImportIdRef.current[recentImportId]?.length
+        ? recentImportId
+        : Object.keys(clarificationCandidatesByImportIdRef.current).find(
+            (id) => clarificationCandidatesByImportIdRef.current[id]?.length
+          )) || '';
+    if (!selectedImportId) return 0;
+    const candidates = clarificationCandidatesByImportIdRef.current[selectedImportId] || [];
+    if (!candidates.length) return 0;
+
+    const lines = String(messageText || '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+    const parsed = lines
+      .map((line) => line.match(/^(.+?)\s*->\s*([a-zA-Z][a-zA-Z/&\-\s]{1,40})$/))
+      .filter((m): m is RegExpMatchArray => Boolean(m));
+    if (!parsed.length) return 0;
+
+    let learned = 0;
+    for (const match of parsed.slice(0, 5)) {
+      const vendorHint = String(match[1] || '').trim().toLowerCase();
+      const newCategory = String(match[2] || '').trim();
+      if (!vendorHint || !newCategory) continue;
+      const hit = candidates.find((item) => item.vendor.toLowerCase().includes(vendorHint));
+      if (!hit?.transactionId) continue;
+      try {
+        const response = await fetch('/.netlify/functions/tag-learn', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': userId,
+          },
+          body: JSON.stringify({
+            userId,
+            transactionId: hit.transactionId,
+            merchant: hit.vendor || null,
+            description: hit.vendor || null,
+            oldCategory: 'Uncategorized',
+            newCategory,
+          }),
+        });
+        if (response.ok) learned += 1;
+      } catch {
+        // Best effort only; keep main chat flow uninterrupted.
+      }
+    }
+    return learned;
+  }, [userId, recentImportId]);
 
   const normalizeUploadFiles = useCallback((files: File[]): File[] => {
     if (!files || files.length === 0) return [];
@@ -2099,6 +3479,33 @@ export default function UnifiedAssistantChat({
     const attachments = options?.attachments ?? [];
     const hasAttachments = attachments.length > 0;
     const trimmedMessage = inputMessage.trim();
+    const isPrimeUploadInstructionTurn =
+      Boolean(trimmedMessage) &&
+      hasAttachments &&
+      isPrimeNarrationEnabled &&
+      currentEmployeeSlug === 'prime-boss';
+    const hasActivePrimeNarration = injectedMessages.some(
+      (msg) =>
+        msg.meta?.type === 'prime_upload_narration' &&
+        !msg.meta?.done &&
+        !msg.meta?.failed
+    );
+    const recentUploadStillSettling =
+      isRecentUpload &&
+      (!recentPrimeSummariesReady || hasUnfinalizedRecentImports || uploadStep === 'processing' || uploadStep === 'uploading');
+    const isPrimeUploadFlowActiveTurn =
+      isPrimeNarrationEnabled &&
+      currentEmployeeSlug === 'prime-boss' &&
+      (
+        hasActivePrimeNarration ||
+        isUploadingAttachments ||
+        uploadStep === 'uploading' ||
+        uploadStep === 'processing' ||
+        isPrimeSummaryPending ||
+        hasUnfinalizedRecentImports ||
+        recentUploadStillSettling ||
+        (uploadStep === 'completed' && !recentPrimeSummariesReady)
+      );
 
     if (!trimmedMessage && !hasAttachments) return;
 
@@ -2116,8 +3523,69 @@ export default function UnifiedAssistantChat({
       }
       return;
     }
+
+    if (!hasAttachments && isPrimeNarrationEnabled && currentEmployeeSlug === 'prime-boss' && isPrimeBatchCloseIntent(trimmedMessage)) {
+      const closedBatchKey = closeActivePrimeBatchKey();
+      if (closedBatchKey) {
+        const closeMessageId = `prime-upload-batch-closed-${closedBatchKey}`;
+        setInjectedMessages((prev) => {
+          if (prev.some((msg) => msg.id === closeMessageId)) return prev;
+          return [
+            ...prev,
+            {
+              id: closeMessageId,
+              role: 'assistant',
+              content: 'Batch closed. If you upload more documents later, I will start a new batch and keep your previous batch summary unchanged.',
+              createdAt: new Date().toISOString(),
+              meta: {
+                type: 'prime_upload_batch_closed',
+                targetEmployeeSlug: 'prime-boss',
+                batchKey: closedBatchKey,
+                hideTimestamp: true,
+              },
+            },
+          ];
+        });
+      }
+    }
     
     if (hasAttachments) {
+      let queuedInstructionAcked = false;
+      if (isPrimeUploadInstructionTurn) {
+        const pendingBatchKey = ensureActivePrimeBatchKey();
+        primeBatchInstructionRef.current.set(pendingBatchKey, trimmedMessage);
+        if (recentImportId) {
+          primeBatchInstructionRef.current.set(recentImportId, trimmedMessage);
+        } else {
+          primeBatchInstructionRef.current.set('pending', trimmedMessage);
+        }
+        const instructionPreview =
+          trimmedMessage.length > 160 ? `${trimmedMessage.slice(0, 157)}...` : trimmedMessage;
+        const holdAckId = `prime-upload-queued-ack-${pendingBatchKey}-${Date.now()}`;
+        setInjectedMessages((prev) => {
+          if (prev.some((msg) => msg.id === holdAckId)) return prev;
+          return [
+            ...prev,
+            {
+              id: holdAckId,
+              role: 'assistant',
+              content: `Understood. You asked: "${instructionPreview}"\n\nUpload started. I will apply this request and return findings as soon as processing completes.`,
+              createdAt: new Date().toISOString(),
+              meta: {
+                type: 'prime_upload_hold_ack',
+                importId: recentImportId,
+                batchKey: pendingBatchKey,
+                targetEmployeeSlug: 'prime-boss',
+                hideTimestamp: true,
+              },
+            },
+          ];
+        });
+        setInputMessage('');
+        queuedInstructionAcked = true;
+        autoPinToBottomRef.current = true;
+        requestAnimationFrame(() => scrollToBottom('auto'));
+      }
       if (!supportsChatUploads) {
         toast.error('File uploads are not available in this chat.');
         return;
@@ -2131,7 +3599,7 @@ export default function UnifiedAssistantChat({
         if (isStreaming || inFlightTurnRef.current) {
           enqueueUploads(pendingFiles);
           toast('Prime queued your upload and will start it right after this response.');
-          if (!trimmedMessage) return;
+          if (!trimmedMessage || isPrimeUploadInstructionTurn) return;
         } else {
           const uploaded = await processByteUploads(pendingFiles);
           if (!uploaded) return;
@@ -2140,11 +3608,54 @@ export default function UnifiedAssistantChat({
           });
         }
       }
+      if (queuedInstructionAcked) {
+        return;
+      }
       if (!trimmedMessage) return;
+    }
+
+    // Prime-specific UX: while upload summary is still processing, do not send
+    // "break this down" prompts to LLM (it lacks fresh import context yet).
+    if (trimmedMessage && isPrimeUploadFlowActiveTurn) {
+      setInputMessage('');
+      const pendingBatchKey =
+        (recentImportId ? uploadImportIdToBatchKeyRef.current.get(recentImportId) : undefined) ||
+        activePrimeUploadBatchKeyRef.current ||
+        recentImportId ||
+        'pending';
+      primeBatchInstructionRef.current.set(pendingBatchKey, trimmedMessage);
+      if (recentImportId) {
+        primeBatchInstructionRef.current.set(recentImportId, trimmedMessage);
+      }
+      const instructionPreview =
+        trimmedMessage.length > 160 ? `${trimmedMessage.slice(0, 157)}...` : trimmedMessage;
+      const holdAckId = `prime-upload-hold-ack-${recentImportId || 'pending'}-${Date.now()}`;
+      setInjectedMessages((prev) => {
+        if (prev.some((msg) => msg.id === holdAckId)) return prev;
+        return [
+          ...prev,
+          {
+            id: holdAckId,
+            role: 'assistant',
+            content: `Understood. You asked: "${instructionPreview}"\n\nI am applying that request while this upload finishes. I will keep posting progress, then deliver one combined findings breakdown in Step 3.`,
+            createdAt: new Date().toISOString(),
+            meta: {
+              type: 'prime_upload_hold_ack',
+              importId: recentImportId,
+              targetEmployeeSlug: 'prime-boss',
+              hideTimestamp: true,
+            },
+          },
+        ];
+      });
+      autoPinToBottomRef.current = true;
+      requestAnimationFrame(() => scrollToBottom('auto'));
+      return;
     }
     
     try {
       inFlightTurnRef.current = true;
+      setIsAssistantReplyPending(true);
       
       // CRITICAL: Mark that user has sent a message - this prevents greeting typing from ever showing again
       hasUserSentMessageRef.current = true;
@@ -2168,9 +3679,34 @@ export default function UnifiedAssistantChat({
       
       // Mark that user just sent a message and scroll immediately so their bubble is fully visible
       userJustSentRef.current = true;
+      autoPinToBottomRef.current = true;
       // Scroll will happen automatically via the auto-scroll effect when message is added
       
       let finalMessage = trimmedMessage;
+      if (finalMessage) {
+        const routedCount = await routeClarificationFeedback(finalMessage);
+        if (routedCount > 0) {
+          const feedbackAckId = `prime-clarification-feedback-${Date.now()}`;
+          setInjectedMessages((prev) => {
+            if (prev.some((msg) => msg.id === feedbackAckId)) return prev;
+            return [
+              ...prev,
+              {
+                id: feedbackAckId,
+                role: 'assistant',
+                content: `Thanks - I recorded ${routedCount} clarification update${routedCount === 1 ? '' : 's'} and will use this to improve your categories.`,
+                createdAt: new Date().toISOString(),
+                meta: {
+                  type: 'prime_clarification_ack',
+                  importId: recentImportId || undefined,
+                  targetEmployeeSlug: 'prime-boss',
+                  hideTimestamp: true,
+                },
+              },
+            ];
+          });
+        }
+      }
       
       // If the global active employee differs from engine's internal state,
       // we need to ensure the message goes to the correct employee
@@ -2196,6 +3732,8 @@ export default function UnifiedAssistantChat({
     } catch (err) {
       // Error is handled by useUnifiedChatEngine and displayed in UI
       console.error('[UnifiedAssistantChat] Send failed:', err);
+    } finally {
+      setIsAssistantReplyPending(false);
     }
   };
   
@@ -2371,6 +3909,7 @@ export default function UnifiedAssistantChat({
 
   // STEP 2: Lock Byte's final message - ensure only one closing message is sent
   const byteImportCloseoutSentRef = useRef<Set<string>>(new Set());
+  const postImportDisabledNoticeSentRef = useRef<Set<string>>(new Set());
   
   useEffect(() => {
     if (disableRuntime || !userId) return;
@@ -2379,7 +3918,37 @@ export default function UnifiedAssistantChat({
       // QUIET MODE GATE: Skip post-import triggers if disabled
       const disabled = isPostImportTriggersDisabled();
       if (disabled) {
-        // skip silently
+        const noticeKey = `${userId}:${payload.importId}:post-import-disabled`;
+        if (postImportDisabledNoticeSentRef.current.has(noticeKey)) {
+          return;
+        }
+        postImportDisabledNoticeSentRef.current.add(noticeKey);
+
+        setInjectedMessages((prev) => {
+          if (prev.some((msg) => msg.meta?.isPostImportDisabledNotice && msg.meta?.importId === payload.importId)) {
+            return prev;
+          }
+          return [
+            ...prev.filter((msg) => !msg.meta?.isSummaryPending),
+            {
+              id: `post-import-disabled-${payload.importId}`,
+              role: 'assistant',
+              content:
+                "Upload complete. Auto follow-up is disabled in this environment (`VITE_DISABLE_POST_IMPORT_TRIGGERS=true`). Your file is uploaded, but Prime won't post the next summary step until that flag is turned off.",
+              createdAt: new Date().toISOString(),
+              meta: {
+                isSummary: true,
+                isPostImportDisabledNotice: true,
+                importId: payload.importId,
+                targetEmployeeSlug: currentEmployeeSlug,
+              },
+            },
+          ];
+        });
+
+        setTimeout(() => {
+          scrollToBottom('smooth');
+        }, 100);
         return;
       }
       
@@ -2411,7 +3980,7 @@ export default function UnifiedAssistantChat({
 
     const unsubscribe = onBus('BYTE_IMPORT_COMPLETED', handleByteImportCompleted);
     return unsubscribe;
-  }, [isByte, currentEmployeeSlug, userId, disableRuntime, sendMessage]);
+  }, [isByte, currentEmployeeSlug, userId, disableRuntime, sendMessage, scrollToBottom]);
 
   // Handle Escape key to close (only for slideout/overlay mode)
   useEffect(() => {
@@ -2945,8 +4514,10 @@ export default function UnifiedAssistantChat({
     if (aTime && bTime) {
       return aTime - bTime;
     }
-    if (aTime && !bTime) return 1;
-    if (!aTime && bTime) return -1;
+    // Keep untimed optimistic/placeholder messages at the end so
+    // streaming/typing visuals appear below the existing conversation.
+    if (aTime && !bTime) return -1;
+    if (!aTime && bTime) return 1;
     return 0;
   });
   
@@ -2973,7 +4544,6 @@ export default function UnifiedAssistantChat({
   
   const recentMessages = orderedMessages.slice(-80); // Last 80 messages for window check
   const dedupeMap = new Map<string, typeof filteredMessages[0]>();
-  const contentKeyMap = new Map<string, typeof filteredMessages[0]>();
   const dedupeStats = {
     byId: 0,
     byClientId: 0,
@@ -2983,16 +4553,7 @@ export default function UnifiedAssistantChat({
   
   orderedMessages.forEach(msg => {
     if (!msg) return;
-    
-    // Content-level dedupe to prevent double-render of identical messages
-    const contentKey = `${msg.role}|${normalizeText(msg.content || '')}`;
-    const existingContent = contentKeyMap.get(contentKey);
-    if (existingContent && isWithinDedupeWindow(existingContent, msg)) {
-      dedupeStats.dropped++;
-      return;
-    }
-    contentKeyMap.set(contentKey, msg);
-    
+
     const stableKey = getStableKey(msg);
     if (!stableKey) {
       // No stable key - keep non-assistant message (system messages, etc.)
@@ -3050,8 +4611,16 @@ export default function UnifiedAssistantChat({
   };
   // Post-dedupe guard: prevent brief double-render of identical assistant responses.
   const renderMessages = displayMessages.filter((msg) => Boolean(msg));
-  // Post-dedupe guard: remove any overlapping duplicate bubbles by content.
-  const contentKeyToMessage = new Map<string, (typeof renderMessages)[0]>();
+
+  // During upload/summary lifecycle, always follow newest message updates.
+  useEffect(() => {
+    if (!isOpen) return;
+    if (userScrolledUpRef.current) return;
+    if (!(Date.now() < forceAutoPinUntilRef.current || autoPinToBottomRef.current || isStreaming || isUploadingAttachments || isPrimeSummaryPending || isAssistantReplyPending)) return;
+    requestAnimationFrame(() => {
+      scrollToBottom('auto');
+    });
+  }, [isOpen, renderMessages.length, isStreaming, isUploadingAttachments, isPrimeSummaryPending, isAssistantReplyPending, scrollToBottom]);
   const shouldPrefer = (current: (typeof renderMessages)[0], candidate: (typeof renderMessages)[0]) => {
     const currentStreaming = current?.meta?.is_streaming === true;
     const candidateStreaming = candidate?.meta?.is_streaming === true;
@@ -3070,27 +4639,9 @@ export default function UnifiedAssistantChat({
     }
     return false;
   };
-  renderMessages.forEach((msg) => {
-    if (!msg) return;
-    const text = normalizedMessageText(msg.content);
-    if (!text) return;
-    const contentKey = `${msg.role}|${text}`;
-    const existing = contentKeyToMessage.get(contentKey);
-    if (!existing) {
-      contentKeyToMessage.set(contentKey, msg);
-      return;
-    }
-    if (shouldPrefer(existing, msg)) {
-      contentKeyToMessage.set(contentKey, msg);
-    }
-  });
-  const contentDedupedMessages = renderMessages.filter((msg) => {
-    if (!msg) return false;
-    const text = normalizedMessageText(msg.content);
-    if (!text) return true;
-    const contentKey = `${msg.role}|${text}`;
-    return contentKeyToMessage.get(contentKey)?.id === msg.id;
-  });
+  // Keep all rendered messages from the primary dedupe pass.
+  // A second global text-equality dedupe was hiding legitimate repeated replies.
+  const contentDedupedMessages = renderMessages;
   // Prefix dedupe: collapse partial streaming echoes vs final response.
   const streamingCollapsedMessages: typeof contentDedupedMessages = [];
   let lastAssistantIndex = -1;
@@ -3281,8 +4832,9 @@ export default function UnifiedAssistantChat({
   const getDeliveredRecapKey = (importId: string) => `xspenses:import_recap_delivered:${importId}`;
   const tryInjectImportRecap = useCallback(() => {
     if (typeof window === 'undefined') return;
+    if (isPrimeNarrationEnabled) return;
     if (currentEmployeeSlug !== 'prime-boss') return;
-    if (isStreaming || inFlightTurnRef.current || hasStreamingAssistantBubble) return;
+    if (isStreaming || hasStreamingAssistantBubble) return;
 
     let pending: any = null;
     try {
@@ -3305,7 +4857,11 @@ export default function UnifiedAssistantChat({
 
     const recapAlreadyInMessages =
       [...messages, ...loadedHistoryMessages, ...injectedMessages].some((msg) => (
-        msg?.meta?.type === 'import_recap' && msg?.meta?.importId === importId
+        (
+          msg?.meta?.type === 'import_recap' ||
+          msg?.meta?.type === 'prime_upload_final'
+        ) &&
+        msg?.meta?.importId === importId
       ));
     if (recapAlreadyInMessages) {
       window.localStorage.setItem(deliveredKey, '1');
@@ -3342,6 +4898,7 @@ export default function UnifiedAssistantChat({
       scrollToBottom('smooth');
     }, 120);
   }, [
+    isPrimeNarrationEnabled,
     currentEmployeeSlug,
     isStreaming,
     hasStreamingAssistantBubble,
@@ -3421,6 +4978,7 @@ export default function UnifiedAssistantChat({
   useEffect(() => {
     if (isStreaming) {
       streamStartedRef.current = true;
+      setIsAssistantReplyPending(true);
       if (typingStallTimeoutRef.current !== null) {
         clearTimeout(typingStallTimeoutRef.current);
         typingStallTimeoutRef.current = null;
@@ -3430,6 +4988,7 @@ export default function UnifiedAssistantChat({
     if (streamStartedRef.current) {
       inFlightTurnRef.current = false;
       streamStartedRef.current = false;
+      setIsAssistantReplyPending(false);
     }
   }, [isStreaming]);
 
@@ -3443,6 +5002,7 @@ export default function UnifiedAssistantChat({
         cancelStream();
         inFlightTurnRef.current = false;
         streamStartedRef.current = false;
+        setIsAssistantReplyPending(false);
         toast.error('No response yet. Please try again.');
       }
       typingStallTimeoutRef.current = null;
@@ -3452,6 +5012,7 @@ export default function UnifiedAssistantChat({
   useEffect(() => {
     inFlightTurnRef.current = false;
     streamStartedRef.current = false;
+    setIsAssistantReplyPending(false);
     if (typingStallTimeoutRef.current !== null) {
       clearTimeout(typingStallTimeoutRef.current);
       typingStallTimeoutRef.current = null;
@@ -3763,12 +5324,12 @@ export default function UnifiedAssistantChat({
   };
 
   const inputFooter = (
-    <div className="w-full max-w-full mx-0 min-w-0 shrink-0 flex flex-col">
+    <div ref={inputFooterRef} className="w-full max-w-full mx-0 min-w-0 shrink-0 flex flex-col">
       <ChatInputBar
         value={inputMessage}
         onChange={setInputMessage}
         onSubmit={handleSend}
-        onAttachmentsChange={supportsChatUploads ? handleAttachmentsChange : undefined}
+        onAttachmentsChange={isByte ? handleAttachmentsChange : undefined}
         placeholder={
           normalizedSlug === 'prime-boss'
             ? 'Ask Prime anything... Try: Import statement, Show insights, Review categories'
@@ -3790,7 +5351,15 @@ export default function UnifiedAssistantChat({
         showPlusIcon={isByte || normalizedSlug === 'prime-boss'}
         attachmentsEnabled={supportsChatUploads}
         showAttachmentChips={!isByte}
+        isAttachmentUploading={
+          isUploadingAttachments ||
+          smartImport.uploadStatus?.step === 'uploading' ||
+          smartImport.uploadStatus?.step === 'processing'
+        }
+        attachmentUploadProgress={uploadProgressValue}
         allowAttachmentsWhileStreaming={supportsChatUploads}
+        // Prime users expect statement uploads to begin immediately after file selection.
+        autoSubmitOnAttachmentSelect={normalizedSlug === 'prime-boss'}
         onStop={cancelStream}
         onInputFocus={isInlinePrime ? handleInlinePrimeInputFocus : undefined}
         onInputMouseDown={isInlinePrime ? handleInlinePrimeInputMouseDown : undefined}
@@ -4150,13 +5719,20 @@ export default function UnifiedAssistantChat({
               expandedViewportRatio={normalizedSlug === 'prime-boss' ? 0.93 : 0.68}
               minExpandedWidthPx={normalizedSlug === 'prime-boss' ? 980 : 760}
               maxExpandedWidthPx={normalizedSlug === 'prime-boss' ? 1920 : 1180}
+              freezeResizeRecompute={
+                isStreaming ||
+                isUploadingAttachments ||
+                isPrimeSummaryPending ||
+                isAssistantReplyPending ||
+                Date.now() < forceAutoPinUntilRef.current
+              }
               align={panelPlacement}
             >
               {/* MESSAGES AREA - Message list container is the scroll owner */}
               {/* CRITICAL: This wrapper provides padding and flex structure - must have flex flex-col h-full min-h-0 */}
               {/* The message list container inside will be the actual scroll owner with capture handlers */}
                   <div 
-                    className={`relative px-4 ${normalizedSlug === 'prime-boss' ? 'pt-1 pb-3' : (isPrimeChatRevampEnabled ? 'pt-2 pb-3' : 'pt-4 pb-4')} min-w-0 flex flex-col h-full min-h-0 overflow-hidden`} 
+                    className={`relative px-4 ${normalizedSlug === 'prime-boss' ? 'pt-1 pb-3' : (isPrimeChatRevampEnabled ? 'pt-2 pb-3' : 'pt-4 pb-4')} min-w-0 flex flex-col h-full min-h-0`} 
                 ref={scrollContainerRef}
                 onDragOver={(e) => {
                   if (supportsChatUploads && e.dataTransfer.types.includes('Files')) {
@@ -4249,9 +5825,18 @@ export default function UnifiedAssistantChat({
                   {/* This container wraps the messages and should have scroll capture to prevent DashboardLayout from capturing wheel events */}
                   <div 
                     ref={scrollElementRef}
-                    className="flex-1 min-h-0 h-full max-h-full overflow-y-auto hide-scrollbar scrollbar-hide overscroll-contain pointer-events-auto"
+                    className="flex-1 min-h-0 overflow-y-auto hide-scrollbar scrollbar-hide overscroll-contain pointer-events-auto"
                     data-scroll-container="true"
-                    style={{ WebkitOverflowScrolling: 'touch', paddingBottom: 96 }}
+                    style={{
+                      WebkitOverflowScrolling: 'touch',
+                      scrollBehavior: 'smooth',
+                      paddingBottom: chatBottomPaddingPx,
+                      scrollPaddingBottom: chatBottomPaddingPx + 32,
+                    }}
+                    onWheelCapture={(e) => {
+                      // Prevent dashboard-level wheel handlers from hijacking chat scrolling.
+                      e.stopPropagation();
+                    }}
                     onWheel={(e) => {
                       // Keep wheel events scoped to the chat container.
                       e.stopPropagation();
@@ -4262,7 +5847,7 @@ export default function UnifiedAssistantChat({
                     }}
                   >
                     {/* Messages list wrapper with spacing */}
-                    <div className="w-full max-w-full mx-0 min-w-0 space-y-3">
+                    <div ref={messageListContentRef} className="w-full max-w-full mx-0 min-w-0 flex flex-col gap-3">
                       {/* Byte upload panel lives in the scroll area (ChatGPT-style) */}
                       {isByte && (
                         <div className="shrink-0">
@@ -4536,6 +6121,52 @@ export default function UnifiedAssistantChat({
                                           <span className="whitespace-pre-wrap break-words">{message.content}</span>
                                         )}
                                       </div>
+                                      {metaAny?.type === 'prime_upload_narration' && metaAny?.stages && !metaAny?.done && !metaAny?.failed && (
+                                        <PrimeUploadProgressBlock stages={metaAny.stages as PrimeUploadProgressStages} />
+                                      )}
+                                      {(metaAny?.type === 'prime_upload_final' || metaAny?.type === 'import_recap') && (
+                                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                                          {(() => {
+                                            const recapImportId = typeof metaAny?.importId === 'string' ? metaAny.importId : '';
+                                            const reviewTransactionsTo = recapImportId
+                                              ? `/dashboard/transactions?importId=${encodeURIComponent(recapImportId)}`
+                                              : '/dashboard/transactions';
+                                            const ctas = (Array.isArray(metaAny?.ctas)
+                                              ? metaAny.ctas
+                                              : [
+                                                  { label: 'Review Transactions', to: reviewTransactionsTo },
+                                                  { label: 'Review Categories', to: '/dashboard/smart-categories' },
+                                                ]).map((cta: any) => {
+                                              // Backfill old recap messages that still point to /dashboard/transactions
+                                              // by injecting importId context at render-time.
+                                              const rawLabel = typeof cta?.label === 'string' ? cta.label : '';
+                                              const rawTo = typeof cta?.to === 'string' ? cta.to : '';
+                                              const shouldRewriteReviewTransactions =
+                                                !!recapImportId &&
+                                                rawLabel.toLowerCase().includes('review transactions') &&
+                                                rawTo.startsWith('/dashboard/transactions');
+                                              return {
+                                                ...cta,
+                                                to: shouldRewriteReviewTransactions ? reviewTransactionsTo : rawTo,
+                                              };
+                                            });
+                                            return ctas.map((cta: any) => (
+                                              <button
+                                                key={`${message.id}-${String(cta?.to || cta?.label || '')}`}
+                                                type="button"
+                                                className="px-3 py-1.5 rounded-md bg-emerald-600/80 hover:bg-emerald-600 text-white transition-colors"
+                                                onClick={() => {
+                                                  const to = typeof cta?.to === 'string' ? cta.to : '';
+                                                  if (!to) return;
+                                                  navigate(to);
+                                                }}
+                                              >
+                                                {typeof cta?.label === 'string' ? cta.label : 'Open'}
+                                              </button>
+                                            ));
+                                          })()}
+                                        </div>
+                                      )}
                                       {isByte && metaAny?.isSummary && metaAny?.importId && (
                                         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                                           {categorizeStatusByImportId[metaAny.importId] === 'done' ? (

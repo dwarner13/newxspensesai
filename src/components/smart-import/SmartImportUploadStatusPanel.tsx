@@ -6,6 +6,7 @@ import type { UploadQueueItem, UploadQueueProgress } from '../../lib/upload/uplo
 import { UploadQueuePanel } from '../upload/UploadQueuePanel';
 import { DocumentViewerModal } from '../ui/DocumentViewerModal';
 import { getSupabase } from '../../lib/supabase';
+import { isSmartImportOpsDashboardV1Enabled } from '../../lib/featureFlags';
 
 interface SmartImportUploadStatusPanelProps {
   stats?: DocumentStats | null;
@@ -33,6 +34,7 @@ export function SmartImportUploadStatusPanel({
   refreshDebugPayload,
   uploadQueue,
 }: SmartImportUploadStatusPanelProps) {
+  const opsDashboardEnabled = isSmartImportOpsDashboardV1Enabled();
   const [viewerDoc, setViewerDoc] = useState<{
     id: string;
     imageUrl?: string;
@@ -53,6 +55,8 @@ export function SmartImportUploadStatusPanel({
   const debugEnabled = import.meta.env.VITE_OCR_DEBUG === '1';
   const importIdForView = lastUploadSummary?.importId || lastUploadSummary?.importIds?.[0];
   const [debugSearch, setDebugSearch] = useState('');
+  const [summaryMarkdown, setSummaryMarkdown] = useState<string>('');
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [includeAllAccounts, setIncludeAllAccounts] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem('ocr_debug_include_all_accounts') === '1';
@@ -65,6 +69,35 @@ export function SmartImportUploadStatusPanel({
       refreshDebugPayload({ includeAllAccounts });
     }
   }, [includeAllAccounts, debugEnabled, refreshDebugPayload]);
+
+  useEffect(() => {
+    if (!debugEnabled || !importIdForView) {
+      setSummaryMarkdown('');
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setSummaryLoading(true);
+      try {
+        const res = await fetch('/.netlify/functions/prime-summary', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ importId: importIdForView }),
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        setSummaryMarkdown(typeof payload?.summary === 'string' ? payload.summary : '');
+      } catch {
+        if (!cancelled) setSummaryMarkdown('');
+      } finally {
+        if (!cancelled) setSummaryLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [debugEnabled, importIdForView]);
 
   const escapeRegExp = useCallback((input: string) => input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), []);
   const countMatches = useCallback((text: string, term: string) => {
@@ -311,6 +344,11 @@ export function SmartImportUploadStatusPanel({
               Queue
             </span>
           </div>
+          {opsDashboardEnabled && (
+            <p className="mb-3 text-[11px] text-slate-400">
+              For guided imports and insights, upload directly through Prime chat.
+            </p>
+          )}
           {uploadQueue.items.length === 0 ? (
             <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 px-4 py-6 text-center text-xs text-slate-400">
               No active uploads
@@ -339,6 +377,31 @@ export function SmartImportUploadStatusPanel({
       {debugEnabled && debugItems && debugItems.length > 0 && (
         <div className="mt-6 rounded-2xl border border-amber-500/20 bg-amber-500/5 backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,193,7,0.08)] p-4">
           <div className="mb-3 text-sm font-semibold text-amber-200">Import Debug Panel</div>
+          <details className="mb-4 rounded-xl border border-amber-500/20 bg-slate-900/60 p-3">
+            <summary className="cursor-pointer text-xs font-medium text-amber-200">
+              OCR Debug Output
+            </summary>
+            <div className="mt-3 space-y-3">
+              <div>
+                <div className="text-xs text-amber-200 mb-1">Final summary markdown</div>
+                <pre className="max-h-56 overflow-auto rounded-lg bg-slate-950/70 p-2 text-[11px] text-slate-200 whitespace-pre-wrap">
+                  {summaryLoading ? 'Loading summary...' : (summaryMarkdown || '(not available)')}
+                </pre>
+              </div>
+              <div>
+                <div className="text-xs text-amber-200 mb-1">Cleaned OCR text</div>
+                <pre className="max-h-56 overflow-auto rounded-lg bg-slate-950/70 p-2 text-[11px] text-slate-200 whitespace-pre-wrap">
+                  {debugItems.find((item) => item.cleanedText)?.cleanedText || '(not provided by backend)'}
+                </pre>
+              </div>
+              <div>
+                <div className="text-xs text-amber-200 mb-1">Raw OCR text (if provided by backend)</div>
+                <pre className="max-h-56 overflow-auto rounded-lg bg-slate-950/70 p-2 text-[11px] text-slate-200 whitespace-pre-wrap">
+                  {debugItems.find((item) => item.rawText)?.rawText || '(not provided by backend)'}
+                </pre>
+              </div>
+            </div>
+          </details>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <input
               value={debugSearch}

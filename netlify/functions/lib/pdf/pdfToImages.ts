@@ -1,4 +1,6 @@
 import sharp from 'sharp';
+let warnedMissingPdfPolyfills = false;
+let loggedPdfPolyfillStatus = false;
 
 export type PdfPageImage = {
   pageIndex: number;
@@ -71,7 +73,6 @@ export async function pdfToImages(
   const scale = Number.isFinite(options.scale) ? Math.max(1, Number(options.scale)) : 2;
   const maxImageBytes = Number.isFinite(options.maxImageBytes) ? Math.max(300_000, Number(options.maxImageBytes)) : 950 * 1024;
 
-  const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
   // Keep native canvas package runtime-resolved so bundlers don't try to inline .node binaries.
   const runtimeImport = new Function('m', 'return import(m)') as (m: string) => Promise<any>;
   const canvasPkg = process.env.OCR_CANVAS_PACKAGE || '@napi-rs/canvas';
@@ -80,6 +81,33 @@ export async function pdfToImages(
   if (typeof createCanvas !== 'function') {
     throw new Error('Missing @napi-rs/canvas createCanvas');
   }
+  // pdfjs in Node still expects browser-like globals for matrix/path APIs.
+  if (typeof (globalThis as any).DOMMatrix === 'undefined' && canvasMod?.DOMMatrix) {
+    (globalThis as any).DOMMatrix = canvasMod.DOMMatrix;
+  }
+  if (typeof (globalThis as any).ImageData === 'undefined' && canvasMod?.ImageData) {
+    (globalThis as any).ImageData = canvasMod.ImageData;
+  }
+  if (typeof (globalThis as any).Path2D === 'undefined' && canvasMod?.Path2D) {
+    (globalThis as any).Path2D = canvasMod.Path2D;
+  }
+  const polyfillsReady = {
+    DOMMatrix: typeof (globalThis as any).DOMMatrix !== 'undefined',
+    ImageData: typeof (globalThis as any).ImageData !== 'undefined',
+    Path2D: typeof (globalThis as any).Path2D !== 'undefined',
+  };
+  if ((!polyfillsReady.DOMMatrix || !polyfillsReady.ImageData || !polyfillsReady.Path2D) && !warnedMissingPdfPolyfills) {
+    console.warn('[OCR] PDF polyfill missing — scanned rendering may degrade');
+    warnedMissingPdfPolyfills = true;
+  }
+  if (!loggedPdfPolyfillStatus) {
+    console.log('[OCR] pdfjs polyfills ready', {
+      ...polyfillsReady,
+      runtime: process.env.NETLIFY === 'true' ? 'node/netlify' : 'node',
+    });
+    loggedPdfPolyfillStatus = true;
+  }
+  const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
 
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(pdfBuffer),

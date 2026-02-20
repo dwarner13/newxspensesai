@@ -37,6 +37,10 @@ export type UsePrimeLiveStatsResult = {
 };
 
 const REFRESH_INTERVAL_MS = 30000; // 30 seconds
+const DEDUPE_WINDOW_MS = 5000;
+let sharedInFlightFetch: Promise<PrimeLiveStats | null> | null = null;
+let sharedLastFetchAt = 0;
+let sharedLastData: PrimeLiveStats | null = null;
 
 export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
   const { userId, isDemoUser, ready } = useAuth();
@@ -48,7 +52,7 @@ export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
   // Track if function is disabled (404 detected) - persists across renders
   const isFunctionDisabledRef = useRef(false);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (force = false) => {
     // Only fetch when auth is ready AND userId exists AND is NOT a demo user
     if (!ready || !userId || isDemoUser) {
       setIsLoading(false);
@@ -63,55 +67,88 @@ export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
       return;
     }
 
+    const now = Date.now();
+    if (!force && sharedLastData && now - sharedLastFetchAt < DEDUPE_WINDOW_MS) {
+      setData(sharedLastData);
+      setIsLoading(false);
+      setIsError(false);
+      setErrorMessage(undefined);
+      return;
+    }
+
+    if (sharedInFlightFetch) {
+      try {
+        const shared = await sharedInFlightFetch;
+        if (shared) {
+          setData(shared);
+        }
+        setIsLoading(false);
+        setIsError(false);
+        setErrorMessage(undefined);
+      } catch (error: any) {
+        setIsError(true);
+        setErrorMessage(error?.message || 'Failed to load Prime stats');
+      }
+      return;
+    }
+
     setIsLoading(true);
     setIsError(false);
     setErrorMessage(undefined);
 
     try {
-      // Get Supabase session token for Authorization header
-      const supabase = getSupabase();
-      if (!supabase) {
-        console.warn('[usePrimeLiveStats] Supabase client not available, skipping fetch');
-        setIsLoading(false);
-        setIsError(false);
-        return;
+      sharedInFlightFetch = (async () => {
+        // Get Supabase session token for Authorization header
+        const supabase = getSupabase();
+        if (!supabase) {
+          console.warn('[usePrimeLiveStats] Supabase client not available, skipping fetch');
+          return null;
+        }
+
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !session?.access_token) {
+          console.warn('[usePrimeLiveStats] No session token available, skipping fetch');
+          return null;
+        }
+
+        const url = `/.netlify/functions/prime-live-stats?userId=${encodeURIComponent(userId)}`;
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.status === 404) {
+          // Function doesn't exist - disable silently
+          isFunctionDisabledRef.current = true;
+          if (import.meta.env.DEV) {
+            console.info('[usePrimeLiveStats] Function not found (404), disabling quietly');
+          }
+          return null;
+        }
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch Prime stats: ${response.status} ${response.statusText}`);
+        }
+
+        const result: PrimeLiveStats = await response.json();
+        return result;
+      })();
+
+      const result = await sharedInFlightFetch;
+      sharedLastFetchAt = Date.now();
+      if (result) {
+        sharedLastData = result;
       }
-
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !session?.access_token) {
-        console.warn('[usePrimeLiveStats] No session token available, skipping fetch');
-        setIsLoading(false);
-        setIsError(false);
-        return;
-      }
-
-      const url = `/.netlify/functions/prime-live-stats?userId=${encodeURIComponent(userId)}`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.status === 404) {
-        // Function doesn't exist - disable silently
-        isFunctionDisabledRef.current = true;
+      if (!result) {
         setIsLoading(false);
         setIsError(false);
         setErrorMessage(undefined);
-        if (import.meta.env.DEV) {
-          console.info('[usePrimeLiveStats] Function not found (404), disabling quietly');
-        }
         return;
       }
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch Prime stats: ${response.status} ${response.statusText}`);
-      }
-
-      const result: PrimeLiveStats = await response.json();
       setData(result);
       setIsError(false);
       setErrorMessage(undefined);
@@ -133,6 +170,7 @@ export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
       }
       // Keep existing data on error (don't clear it)
     } finally {
+      sharedInFlightFetch = null;
       setIsLoading(false);
     }
   }, [ready, userId, isDemoUser]);
@@ -160,7 +198,7 @@ export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
     isLoading,
     isError,
     errorMessage,
-    refetch: fetchStats,
+    refetch: () => fetchStats(true),
   };
 }
 
