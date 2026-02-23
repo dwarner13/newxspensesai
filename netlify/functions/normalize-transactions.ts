@@ -13,6 +13,8 @@ import { admin } from './_shared/supabase.js';
 import { normalizeOcrResult } from './_shared/ocr_normalize.js';
 import { parseInvoiceLike, parseReceiptLike } from './_shared/ocr_parsers.js';
 import { safeTextMetrics } from './_shared/textHash.js';
+import { runGuardrailsForText } from './_shared/guardrails-unified.js';
+import { maskPII as maskPiiFallback } from './_shared/pii.js';
 
 type ExtractedSummary = Record<string, any> | null;
 type UserDocumentRow = {
@@ -113,6 +115,215 @@ function parseStatementSummary(text: string): ExtractedSummary {
     available_credit: availableCreditMatch ? availableCreditMatch[1] : undefined,
   };
 }
+
+async function sanitizePreCategorizationText(
+  text: string,
+  userId: string,
+  documentId: string
+): Promise<{ text: string; piiTypes: string[]; blockedReasons: string[] }> {
+  const original = String(text || '');
+  if (!original.trim()) {
+    return { text: original, piiTypes: [], blockedReasons: [] };
+  }
+
+  try {
+    const result = await runGuardrailsForText(original, userId, 'ingestion_ocr');
+    let sanitized = String(result.text || '');
+    const piiTypes = Array.isArray(result.signals?.piiTypes) ? result.signals.piiTypes : [];
+    const blockedReasons = Array.isArray(result.reasons) ? result.reasons : [];
+
+    // Keep categorization resilient: never pass empty text forward.
+    if (!sanitized.trim()) {
+      const fallback = maskPiiFallback(original, 'last4');
+      sanitized = String(fallback.masked || '');
+      console.warn('[normalize-transactions] Guardrails returned empty text; applied fallback redaction', {
+        documentId,
+        fallbackTypes: fallback.found.map((f) => f.type),
+      });
+    }
+
+    if (!result.ok) {
+      console.warn('[normalize-transactions] Pre-categorization guardrail signaled block; continuing with sanitized text', {
+        documentId,
+        reasons: blockedReasons,
+      });
+    }
+
+    return {
+      text: sanitized.trim() ? sanitized : original,
+      piiTypes,
+      blockedReasons,
+    };
+  } catch (error: any) {
+    console.warn('[normalize-transactions] Pre-categorization guardrails failed; continuing with source text', {
+      documentId,
+      error: error?.message || String(error),
+    });
+    return { text: original, piiTypes: [], blockedReasons: [] };
+  }
+}
+
+function parseIsoDate(value: unknown): string | null {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const iso = raw.match(/^\d{4}-\d{2}-\d{2}/);
+  if (iso) return iso[0];
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function parsePeriodRange(value: unknown): { periodStart: string | null; periodEnd: string | null } {
+  const raw = String(value || '').trim();
+  if (!raw) return { periodStart: null, periodEnd: null };
+  const matches = raw.match(/\d{4}-\d{2}-\d{2}/g);
+  if (matches && matches.length >= 2) {
+    return { periodStart: matches[0], periodEnd: matches[1] };
+  }
+  return { periodStart: null, periodEnd: null };
+}
+
+function extractStatementMetaFromDoc(doc: UserDocumentRow, ocrInputText: string): {
+  periodStart: string | null;
+  periodEnd: string | null;
+  accountLast4: string | null;
+  issuer: string | null;
+} {
+  const extracted = doc?.extracted_data && typeof doc.extracted_data === 'object' ? doc.extracted_data : {};
+  const statementSummary = parseStatementSummary(ocrInputText) || {};
+  const parsedPeriod = parsePeriodRange(extracted?.statement_period || statementSummary?.statement_period || null);
+  const periodStart =
+    parseIsoDate(extracted?.statement_period_start || extracted?.period_start || parsedPeriod.periodStart) || null;
+  const periodEnd =
+    parseIsoDate(extracted?.statement_period_end || extracted?.period_end || parsedPeriod.periodEnd) || null;
+  const accountRaw = String(
+    extracted?.account_last4 ||
+      extracted?.account_last_4 ||
+      extracted?.last4 ||
+      extracted?.last_4 ||
+      ''
+  ).trim();
+  const accountDigits = accountRaw.replace(/\D/g, '');
+  const accountLast4 = accountDigits ? accountDigits.slice(-4) : null;
+  const issuerCandidate = String(
+    extracted?.issuer || extracted?.institution || extracted?.bank || extracted?.card || extracted?.card_name || ''
+  ).trim();
+  return {
+    periodStart,
+    periodEnd,
+    accountLast4,
+    issuer: issuerCandidate || null,
+  };
+}
+
+async function loadCommittedImportsForOverlap(sb: any, userId: string): Promise<any[]> {
+  const selectAttempts = [
+    'id, statement_breakdown_json, statement_breakdown, metadata, created_at',
+    'id, statement_breakdown_json, metadata, created_at',
+    'id, statement_breakdown, metadata, created_at',
+    'id, metadata, created_at',
+  ];
+  for (const clause of selectAttempts) {
+    const { data, error } = await sb
+      .from('imports')
+      .select(clause)
+      .eq('user_id', userId)
+      .eq('status', 'committed');
+    if (!error) return Array.isArray(data) ? data : [];
+  }
+  return [];
+}
+
+async function checkForOverlappingImport(
+  sb: any,
+  userId: string,
+  currentImportId: string,
+  periodStart: string | null,
+  periodEnd: string | null,
+  accountLast4: string | null,
+  issuer: string | null
+): Promise<{ overlap: boolean; overlapping_import_id: string | null; message: string | null }> {
+  if (!periodStart || !periodEnd) {
+    return { overlap: false, overlapping_import_id: null, message: null };
+  }
+
+  try {
+    const existingImports = await loadCommittedImportsForOverlap(sb, userId);
+    if (!existingImports.length) {
+      return { overlap: false, overlapping_import_id: null, message: null };
+    }
+
+    for (const imp of existingImports) {
+      if (String(imp?.id || '') === String(currentImportId)) continue;
+      const bd = imp?.statement_breakdown_json || imp?.statement_breakdown || imp?.metadata?.statement_breakdown || null;
+      if (!bd?.statement_meta?.period_start || !bd?.statement_meta?.period_end) continue;
+
+      const existStart = String(bd.statement_meta.period_start || '');
+      const existEnd = String(bd.statement_meta.period_end || '');
+      if (!existStart || !existEnd) continue;
+      const existIssuer = String(bd?.statement_meta?.issuer || '').trim() || null;
+      const existAccount = String(bd?.statement_meta?.account_last4 || '').trim() || null;
+
+      const sameAccount = (!accountLast4 && !existAccount) || Boolean(accountLast4 && existAccount && accountLast4 === existAccount);
+      const sameIssuer =
+        (!issuer && !existIssuer) ||
+        Boolean(issuer && existIssuer && issuer.toLowerCase() === existIssuer.toLowerCase());
+      const datesOverlap = periodStart <= existEnd && existStart <= periodEnd;
+
+      if (datesOverlap && (sameAccount || sameIssuer)) {
+        console.log(
+          `[OVERLAP] Import ${currentImportId} overlaps with ${imp.id}: ${existIssuer || 'unknown issuer'} ${existStart}-${existEnd}`
+        );
+        return {
+          overlap: true,
+          overlapping_import_id: String(imp.id),
+          message: `This statement (${periodStart} to ${periodEnd}) overlaps with an existing ${existIssuer || 'statement'} import from ${existStart} to ${existEnd}. This may be a duplicate.`,
+        };
+      }
+    }
+
+    return { overlap: false, overlapping_import_id: null, message: null };
+  } catch (err: any) {
+    console.error('[OVERLAP] Check error:', err);
+    return { overlap: false, overlapping_import_id: null, message: null };
+  }
+}
+
+async function stampImportOverlapWarning(
+  sb: any,
+  userId: string,
+  importId: string,
+  overlapResult: { overlap: boolean; overlapping_import_id: string | null; message: string | null }
+): Promise<void> {
+  if (!overlapResult.overlap || !overlapResult.message) return;
+  try {
+    const { data: importRow } = await sb
+      .from('imports')
+      .select('metadata')
+      .eq('id', importId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    const metadata =
+      importRow?.metadata && typeof importRow.metadata === 'object'
+        ? importRow.metadata
+        : {};
+    await sb
+      .from('imports')
+      .update({
+        metadata: {
+          ...metadata,
+          overlap_warning: overlapResult.message,
+          overlapping_import_id: overlapResult.overlapping_import_id,
+        },
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', importId)
+      .eq('user_id', userId);
+    console.log(`[OVERLAP WARNING] ${overlapResult.message}`);
+  } catch (err: any) {
+    console.error('[OVERLAP] Metadata stamp failed:', err);
+  }
+}
 import OpenAI from 'openai';
 import { visionStatementParser } from './_shared/visionStatementParser.js';
 
@@ -172,7 +383,9 @@ async function processNormalizationInBackground(
     const isImage = doc.mime_type?.startsWith('image/') || false;
     const transientText = String(options?.transientOcrText || '');
     const ocrInputText = transientText;
-    const hasOcrText = ocrInputText.trim().length > 0;
+    const guardrailedInput = await sanitizePreCategorizationText(ocrInputText, userIdText, documentId);
+    const guardedOcrInputText = guardrailedInput.text;
+    const hasOcrText = guardedOcrInputText.trim().length > 0;
     const docTextLengthValue =
       doc?.ocr_text_length ??
       doc?.extracted_text_length ??
@@ -206,7 +419,7 @@ async function processNormalizationInBackground(
       console.log('[normalize-transactions][debug] input source', {
         documentId,
         source: transientText ? 'transient_ocrText' : 'structured_only',
-        textLength: ocrInputText.length,
+        textLength: guardedOcrInputText.length,
         textHash: options?.transientOcrTextHash || docTextHash,
         structuredTextLength: docTextLength,
       });
@@ -232,7 +445,7 @@ async function processNormalizationInBackground(
     const textHash = ((doc as any)?.text_hash as string | null) || docTextHash || null;
     const transientTextLength = Number.isFinite(Number(options?.transientOcrTextLength))
       ? Number(options?.transientOcrTextLength)
-      : ocrInputText.length;
+      : guardedOcrInputText.length;
     const transientTextHash =
       typeof options?.transientOcrTextHash === 'string' && options.transientOcrTextHash.length > 0
         ? options.transientOcrTextHash
@@ -285,10 +498,32 @@ async function processNormalizationInBackground(
         .single();
 
       if (importError) {
-        console.error('[normalize-transactions] Error creating import:', importError);
-        return { ok: false, error: { code: 'import_create_failed', message: importError.message } };
+        // Idempotency: a concurrent normalize call may have won the INSERT race.
+        // Recover gracefully so this call can still acquire the normalizing lock.
+        if (importError.code === '23505' || String(importError.message || '').toLowerCase().includes('duplicate')) {
+          const { data: racedImport } = await sb
+            .from('imports')
+            .select('id, status, updated_at')
+            .eq('document_id', documentId)
+            .maybeSingle();
+          if (racedImport?.id) {
+            console.log('[normalize-transactions] stage=normalize_race_recovery', {
+              documentId,
+              importId: racedImport.id,
+              status: racedImport.status,
+            });
+            importRecord = racedImport;
+          } else {
+            console.error('[normalize-transactions] Error creating import (no winner found):', importError);
+            return { ok: false, error: { code: 'import_create_failed', message: importError.message } };
+          }
+        } else {
+          console.error('[normalize-transactions] Error creating import:', importError);
+          return { ok: false, error: { code: 'import_create_failed', message: importError.message } };
+        }
+      } else {
+        importRecord = newImport;
       }
-      importRecord = newImport;
     }
 
     const lockTimestamp = new Date().toISOString();
@@ -474,7 +709,7 @@ async function processNormalizationInBackground(
 
     // Try OCR text parsing first (if OCR text exists)
     if (hasOcrText) {
-      normalizedTransactions = await normalizeOcrResult(ocrInputText, userIdText, openaiClient, {
+      normalizedTransactions = await normalizeOcrResult(guardedOcrInputText, userIdText, openaiClient, {
         filename: doc.original_name || '',
         includeAllAccounts: options?.includeAllAccounts,
       });
@@ -527,18 +762,20 @@ async function processNormalizationInBackground(
       importId: importRecord.id,
       documentId,
       userId: userIdText,
-      extractedTextLength: Number(options?.transientOcrTextLength || ocrInputText.length || docTextLength || 0),
-      extractedTextHash: options?.transientOcrTextHash || safeTextMetrics(ocrInputText).hash || docTextHash,
+      extractedTextLength: Number(options?.transientOcrTextLength || guardedOcrInputText.length || docTextLength || 0),
+      extractedTextHash: options?.transientOcrTextHash || safeTextMetrics(guardedOcrInputText).hash || docTextHash,
       normalizedTransactionsLength: normalizedTransactions.length,
       viaMethod,
       source: transientText ? 'transient_ocrText' : (usedStructuredArtifacts ? 'structured_artifacts' : 'none'),
+      preCategorizationPiiTypes: guardrailedInput.piiTypes,
+      preCategorizationBlockedReasons: guardrailedInput.blockedReasons,
     });
 
     if (!normalizedTransactions || normalizedTransactions.length === 0) {
       const hasStructuredSignals = Boolean(
-        parseInvoiceLike(ocrInputText)?.total ||
-        parseReceiptLike(ocrInputText)?.total ||
-        parseStatementSummary(ocrInputText)
+        parseInvoiceLike(guardedOcrInputText)?.total ||
+        parseReceiptLike(guardedOcrInputText)?.total ||
+        parseStatementSummary(guardedOcrInputText)
       );
       await sb
         .from('imports')
@@ -640,6 +877,21 @@ async function processNormalizationInBackground(
         importId: importRecord.id,
         rowCount: stagingRows.length,
       });
+    }
+
+    // --- Overlapping statement detection (non-blocking) ---
+    const statementMeta = extractStatementMetaFromDoc(doc, guardedOcrInputText);
+    const overlapResult = await checkForOverlappingImport(
+      sb,
+      userIdText,
+      importRecord.id,
+      statementMeta.periodStart,
+      statementMeta.periodEnd,
+      statementMeta.accountLast4,
+      statementMeta.issuer
+    );
+    if (overlapResult.overlap) {
+      await stampImportOverlapWarning(sb, userIdText, importRecord.id, overlapResult);
     }
 
     // 6. Update import status
@@ -839,6 +1091,11 @@ export const handler: Handler = async (event, context) => {
       return respondError(400, 'invalid_document_id', 'documentId must be a valid UUID');
     }
 
+    console.log('[normalize-transactions] stage=normalize_start', {
+      traceId,
+      documentId,
+      importRunId: importRunId || null,
+    });
     const result = await processNormalizationInBackground(userId, documentId, importRunId, {
       includeAllAccounts: Boolean(includeAllAccounts),
       transientOcrText: typeof ocrText === 'string' ? ocrText : '',
@@ -847,8 +1104,11 @@ export const handler: Handler = async (event, context) => {
     });
     if (result.skipped) {
       const duration_ms = Date.now() - t0;
-      console.log('[normalize-transactions] done', {
+      console.log('[normalize-transactions] stage=normalize_done', {
         traceId,
+        documentId,
+        importId: result.importId || null,
+        stagedCount: result.stagedCount ?? 0,
         duration_ms,
         skipped: true,
         reason: result.reason || null,
@@ -891,8 +1151,11 @@ export const handler: Handler = async (event, context) => {
       return respondError(500, 'normalization_failed', 'Normalization failed', { documentId });
     }
     const duration_ms = Date.now() - t0;
-    console.log('[normalize-transactions] done', {
+    console.log('[normalize-transactions] stage=normalize_done', {
       traceId,
+      documentId,
+      importId: result.importId || null,
+      stagedCount: result.stagedCount ?? 0,
       duration_ms,
       skipped: Boolean(result.skipped),
       reason: result.reason || null,

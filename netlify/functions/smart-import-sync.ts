@@ -93,6 +93,57 @@ export function shouldBlockCachedNoInput(input: {
   return Boolean(input.readyForNormalize) && noInput && weakProofOnly;
 }
 
+type LatestOcrOutcome = {
+  status: string | null;
+  errorCode: string | null;
+  retryable: boolean;
+};
+
+function normalizeLatestOcrOutcome(row: any): LatestOcrOutcome {
+  const statusRaw = String(row?.status || '').toLowerCase();
+  const errorCodeRaw = String(row?.error_code || '').toLowerCase();
+  const errorText = String(row?.error || '').toLowerCase();
+  const status =
+    statusRaw === 'succeeded' || statusRaw === 'done'
+      ? 'succeeded'
+      : statusRaw === 'timed_out'
+        ? 'timed_out'
+        : statusRaw === 'failed' || statusRaw === 'error'
+          ? 'failed'
+          : statusRaw || null;
+  let errorCode = errorCodeRaw || null;
+  if (!errorCode) {
+    if (errorText.includes('timeout') || errorText.includes('aborted')) errorCode = 'timeout';
+    else if (errorText.includes('no provider returned text')) errorCode = 'no_provider_text';
+    else if (errorText) errorCode = 'provider_error';
+  }
+  const retryableErrorCode =
+    errorCode === 'ocr_empty' ||
+    errorCode === 'pdf_worker_missing' ||
+    errorCode === 'timeout';
+  const retryable = status === 'failed' || status === 'timed_out' || retryableErrorCode;
+  return { status, errorCode, retryable };
+}
+
+async function fetchLatestOcrOutcome(
+  sb: any,
+  docId: string
+): Promise<LatestOcrOutcome | null> {
+  try {
+    const { data } = await sb
+      .from('ocr_jobs')
+      .select('*')
+      .eq('document_id', docId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    return normalizeLatestOcrOutcome(data);
+  } catch {
+    return null;
+  }
+}
+
 async function waitForOcrReadyOrMetrics(
   sb: any,
   docId: string,
@@ -158,12 +209,29 @@ async function waitForOcrReadyOrMetrics(
       }
       const { data: ocrJob } = await sb
         .from('ocr_jobs')
-        .select('status')
+        .select('*')
         .eq('document_id', docId)
         .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
-      const ocrJobStatus = String(ocrJob?.status || '');
+      const ocrOutcome = normalizeLatestOcrOutcome(ocrJob || {});
+      const ocrJobStatus = String(ocrOutcome?.status || '');
+      if (ocrOutcome.retryable) {
+        console.warn('[smart-import-sync] stage=sync_check_latest_ocr', {
+          docId,
+          status: ocrOutcome.status,
+          errorCode: ocrOutcome.errorCode,
+        });
+        return {
+          ok: false,
+          len: textLength,
+          ocrStatus: ocrStatus || null,
+          textHash,
+          hasStructured,
+          metricsReady,
+          reason: `ocr_failed:${ocrOutcome.errorCode || ocrOutcome.status || 'provider_error'}`,
+        };
+      }
       const hasStructured = Boolean(data?.extracted_data) || Boolean(data?.normalized_json) || Boolean(data?.structured_extraction) || Boolean(data?.extraction_artifacts);
       const metricsReady = Boolean(textHash) || textLength > 0;
       const hasReadyMarker = Boolean(
@@ -175,7 +243,7 @@ async function waitForOcrReadyOrMetrics(
       );
       const hasImportRecord = Boolean(importRecord?.id);
       const hasStagingRows = stagingCount > 0;
-      const ocrJobDone = ocrJobStatus === 'done';
+      const ocrJobDone = ocrJobStatus === 'done' || ocrJobStatus === 'succeeded';
       const hasSafeProofs = metricsReady || hasStructured || hasStagingRows;
       const proofsFound = [
         metricsReady,
@@ -232,42 +300,17 @@ async function waitForOcrReadyOrMetrics(
         readyForNormalize,
       });
       if (shouldMarkNeedsReviewForNoInput) {
-        try {
-          const metadata = {
-            ...(data?.metadata && typeof data.metadata === 'object' ? data.metadata : {}),
-            import_block_reason: 'cached_no_input',
-            import_block_detail: {
-              textHash: textHash || null,
-              textLength,
-              hasExtractedData: Boolean(data?.extracted_data),
-              hasNormalizedJson: Boolean(data?.normalized_json),
-              hasStagingRows,
-              hasReadyMarker,
-            },
-          };
-          await sb
-            .from('user_documents')
-            .update({
-              ocr_status: 'needs_review',
-              status: 'needs_review',
-              metadata,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', docId);
-        } catch {
-          // Best effort; sync should still proceed with safe reason.
-        }
-        console.warn('[smart-import-sync] cached doc has no input; marking needs_review and skipping normalize', {
+        console.warn('[smart-import-sync] cached doc has no input; returning retryable OCR failure', {
           docId,
         });
         return {
-          ok: true,
+          ok: false,
           len: textLength,
-          ocrStatus: 'needs_review',
+          ocrStatus: 'failed',
           textHash,
           hasStructured,
           metricsReady,
-          reason: 'cached_no_input_needs_review',
+          reason: 'ocr_failed:ocr_empty',
         };
       }
 
@@ -288,26 +331,14 @@ async function waitForOcrReadyOrMetrics(
             proofs_found: proofsFound,
           });
         }
-        try {
-          await sb
-            .from('user_documents')
-            .update({
-              ocr_status: 'needs_review',
-              status: data?.status === 'ready' ? 'needs_review' : data?.status,
-            })
-            .eq('id', docId)
-            .eq('user_id', userId);
-        } catch {
-          // Best effort; continue without blocking sync.
-        }
         return {
-          ok: true,
+          ok: false,
           len: textLength,
-          ocrStatus: 'needs_review',
+          ocrStatus: 'failed',
           textHash,
           hasStructured,
           metricsReady,
-          reason: 'ocr_ready_empty_needs_review',
+          reason: 'ocr_failed:ocr_empty',
         };
       }
       if (readyForNormalize) {
@@ -379,7 +410,7 @@ async function ensureNormalized(
   documentId: string,
   userId: string,
   netlifyUrl: string,
-  payload?: { ocrText?: string; ocrTextHash?: string | null; ocrTextLength?: number | null }
+  payload?: { ocrText?: string; ocrTextHash?: string | null; ocrTextLength?: number | null; traceId?: string }
 ): Promise<{ ok: boolean; importId?: string }> {
   if (!documentId || !UUID_V4_RE.test(String(documentId))) {
     console.warn('[smart-import-sync] Skipping normalize-transactions due to invalid documentId', {
@@ -433,7 +464,10 @@ async function ensureNormalized(
     }
     const normalizeRes = await fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(payload?.traceId ? { 'x-trace-id': payload.traceId } : {}),
+      },
       body: JSON.stringify({
         userId,
         documentId,
@@ -596,6 +630,9 @@ export const handler: Handler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}');
     const { userId, docIds, includeAllAccounts } = body;
+    const autoCommit = body?.autoCommit !== false;
+    const traceId: string = body?.traceId || event.headers['x-trace-id'] || event.headers['X-Trace-Id'] || `trace_${Date.now()}`;
+    const syncDebug = process.env.SMART_IMPORT_SYNC_DEBUG === '1';
     const waitForOcrMsRaw = Number(body?.waitForOcrMs);
     const pollForOcrMsRaw = Number(body?.pollForOcrMs);
     const waitForOcrMs = Number.isFinite(waitForOcrMsRaw)
@@ -617,6 +654,14 @@ export const handler: Handler = async (event) => {
     const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
     
     console.log('[smart-import-sync] Starting sync', { userId: userId.substring(0, 8) + '...', docIds });
+    if (syncDebug) {
+      console.log('[smart-import-sync][debug] options', {
+        autoCommit,
+        includeAllAccounts: Boolean(includeAllAccounts),
+        waitForOcrMs,
+        pollForOcrMs,
+      });
+    }
 
     // 1. Find or ensure imports records exist for each docId
     // Note: normalize-transactions creates import records, so if import doesn't exist,
@@ -637,6 +682,29 @@ export const handler: Handler = async (event) => {
         console.log('[smart-import-sync] Import not found, triggering normalization for docId:', docId);
         const waitResult = await waitForOcrReadyOrMetrics(sb, docId, userId, waitForOcrMs, pollForOcrMs);
         if (!waitResult.ok) {
+          if (String(waitResult.reason || '').startsWith('ocr_failed:')) {
+            const errorCode = String(waitResult.reason || '').split(':')[1] || 'provider_error';
+            console.warn('[smart-import-sync] stage=sync_check_latest_ocr', {
+              docId,
+              status: 'failed',
+              errorCode,
+            });
+            return {
+              statusCode: 200,
+              headers,
+              body: JSON.stringify({
+                ok: false,
+                state: errorCode === 'timeout' ? 'ocr_timed_out_retry' : 'ocr_failed_retry',
+                error_code: errorCode,
+                retryable: true,
+                importId: null,
+                docId,
+                docIds,
+                importIds: [],
+                transactionCount: 0,
+              }),
+            };
+          }
           let docStatus = 'ocr_processing';
           let docTextLength: number | null = null;
           let docTextHash: string | null = null;
@@ -701,6 +769,7 @@ export const handler: Handler = async (event) => {
             ocrText: undefined,
             ocrTextHash: waitResult.textHash,
             ocrTextLength: waitResult.len,
+            traceId,
           });
         } else if (SYNC_DEBUG_ENABLED) {
           console.log('[smart-import-sync][debug] normalize trigger skipped', {
@@ -761,6 +830,7 @@ export const handler: Handler = async (event) => {
 
     // 2. Ensure all imports are normalized (status='parsed')
     const readyImportIds: string[] = [];
+    const blockedByLatestOcr: Array<{ importId: string; docId: string; errorCode: string }> = [];
     
     for (const importId of importIds) {
       // Get document_id for this import
@@ -775,6 +845,22 @@ export const handler: Handler = async (event) => {
         console.warn('[smart-import-sync] Import missing document_id:', importId);
         continue;
       }
+
+      const latestOcrOutcome = await fetchLatestOcrOutcome(sb, String(importRecord.document_id));
+      if (latestOcrOutcome?.retryable) {
+        console.warn('[smart-import-sync] stage=sync_check_latest_ocr', {
+          importId,
+          docId: String(importRecord.document_id),
+          status: latestOcrOutcome.status,
+          errorCode: latestOcrOutcome.errorCode,
+        });
+        blockedByLatestOcr.push({
+          importId,
+          docId: String(importRecord.document_id),
+          errorCode: latestOcrOutcome.errorCode || 'provider_error',
+        });
+        continue;
+      }
       
       // If already parsed or committed, we're good
       if (importRecord.status === 'parsed' || importRecord.status === 'committed') {
@@ -783,7 +869,7 @@ export const handler: Handler = async (event) => {
       }
       
       // Ensure normalized
-      const normalized = await ensureNormalized(sb, importRecord.document_id, userId, netlifyUrl);
+      const normalized = await ensureNormalized(sb, importRecord.document_id, userId, netlifyUrl, { traceId });
       
       if (normalized.ok && normalized.importId) {
         readyImportIds.push(normalized.importId);
@@ -797,11 +883,50 @@ export const handler: Handler = async (event) => {
     }
     
     console.log('[smart-import-sync] Ready imports', { readyImportIds });
+    if (readyImportIds.length === 0 && blockedByLatestOcr.length > 0) {
+      const firstBlocked = blockedByLatestOcr[0];
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: false,
+          state: firstBlocked.errorCode === 'timeout' ? 'ocr_timed_out_retry' : 'ocr_failed_retry',
+          error_code: firstBlocked.errorCode,
+          retryable: true,
+          importId: null,
+          blockedImportIds: blockedByLatestOcr.map((b) => b.importId),
+          docIds,
+          importIds: [],
+          transactionCount: 0,
+        }),
+      };
+    }
+
+    if (!autoCommit) {
+      if (syncDebug) {
+        console.log('[smart-import-sync][debug] autoCommit=false, returning ready imports only', { readyImportIds });
+      }
+      const noCommitResult: SmartImportSyncResult & Record<string, any> = {
+        docIds,
+        importIds: readyImportIds,
+        transactionCount: 0,
+        readyImportIds,
+        pendingApprovalImportIds: readyImportIds,
+        committedImportIds: [],
+        approvalRequired: readyImportIds.length > 0,
+      };
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(noCommitResult),
+      };
+    }
 
     // 3. Commit all ready imports
     let totalTransactionCount = 0;
     const summaries: Record<string, any> = {};
     const issuesByImport: Record<string, any> = {};
+    const committedImportIds: string[] = [];
     
     for (const importId of readyImportIds) {
       // Check if already committed
@@ -824,11 +949,30 @@ export const handler: Handler = async (event) => {
       
       // Commit this import
       try {
+        // Auto-commit path must persist approval server-side before commit gate.
+        const { data: approvalRow } = await sb
+          .from('imports')
+          .select('approved_at')
+          .eq('id', importId)
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (!approvalRow?.approved_at) {
+          const nowIso = new Date().toISOString();
+          await sb
+            .from('imports')
+            .update({ approved_at: nowIso, updated_at: nowIso })
+            .eq('id', importId)
+            .eq('user_id', userId)
+            .eq('status', 'parsed');
+          console.log('[APPROVAL] Auto-approved import for autoCommit', { importId, userId });
+        }
+
         const commitRes = await fetch(`${netlifyUrl}/.netlify/functions/commit-import`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-user-id': userId,
+            'x-trace-id': traceId,
           },
           body: JSON.stringify({ importId }),
         });
@@ -837,8 +981,12 @@ export const handler: Handler = async (event) => {
           const commitData = await commitRes.json();
           const committed = commitData.committed || commitData.insertedCount || 0;
           totalTransactionCount += committed;
+          committedImportIds.push(importId);
           if (commitData?.summary) {
-            summaries[importId] = commitData.summary;
+            // Tag as analytics-only data so consumers know this is NOT a display narrative.
+            // Display narratives are rendered exclusively by prime-summary (the sole renderer of
+            // StatementBreakdown written by commit-import). See: prime-summary.ts.
+            summaries[importId] = { ...commitData.summary, _source: 'commit_analytics' };
           }
           if (commitData?.issues) {
             issuesByImport[importId] = commitData.issues;
@@ -895,6 +1043,20 @@ export const handler: Handler = async (event) => {
       if (rejectedDocs && rejectedDocs.length > 0) {
         warnings.push(`${rejectedDocs.length} document(s) rejected`);
       }
+      // Include overlap warnings detected during normalization (non-blocking signal).
+      if (readyImportIds.length > 0) {
+        const { data: overlapRows } = await sb
+          .from('imports')
+          .select('id, metadata')
+          .in('id', readyImportIds)
+          .eq('user_id', userId);
+        for (const row of overlapRows || []) {
+          const overlapWarning = String(row?.metadata?.overlap_warning || '').trim();
+          if (overlapWarning) {
+            warnings.push(`[OVERLAP] import ${row.id}: ${overlapWarning}`);
+          }
+        }
+      }
 
       await logByteImportCompleted(authToken, {
         userId,
@@ -906,6 +1068,22 @@ export const handler: Handler = async (event) => {
         warnings: warnings.length > 0 ? warnings : undefined,
         durationMs,
       });
+
+      // --- Byte -> Prime announcement ---
+      // Uses the existing helper to convert unannounced byte.import.completed events
+      // into exactly-once chat_messages in Prime's thread.
+      try {
+        const { announceByteCompletionToPrime } = await import('./_shared/primeByteAnnouncement.js');
+        const announced = await announceByteCompletionToPrime(userId);
+        console.log('[BYTE ANNOUNCEMENT]', {
+          userId,
+          importRunId,
+          announced: announced?.announced === true,
+          reason: announced?.reason || null,
+        });
+      } catch (announceError: any) {
+        console.error('[BYTE ANNOUNCEMENT] Failed:', announceError);
+      }
 
       // ⚡ CUSTODIAN INTEGRITY CHECK: Verify upload completeness and processing integrity
       // ⚡ CUSTODIAN SILENCE ON SUCCESS: Only stores integrity payload, no chat messages
@@ -968,8 +1146,16 @@ export const handler: Handler = async (event) => {
       docIds,
       importIds: readyImportIds,
       transactionCount: totalTransactionCount,
+      readyImportIds,
+      pendingApprovalImportIds: [],
+      committedImportIds,
+      approvalRequired: false,
     };
     if (Object.keys(summaries).length > 0) {
+      // `summaries` / `summary` hold lightweight per-import analytics objects from commit-import
+      // (totals, top categories, date range).  These are NOT display narratives.
+      // Display narratives are rendered exclusively by prime-summary from StatementBreakdown in DB.
+      // Each entry is tagged with _source:'commit_analytics' to prevent misuse as narrative text.
       result.summaries = summaries;
       const firstImportId = readyImportIds[0];
       if (firstImportId && summaries[firstImportId]) {

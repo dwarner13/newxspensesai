@@ -27,12 +27,543 @@ import { safeLog } from './_shared/safeLog.js';
 import { categorizeTransactionWithLearning } from './_shared/categorize.js';
 import { detectAndUpsertRecurringObligations, type RecurringCandidate } from './_shared/recurringDetection.js';
 import { queueUpcomingPaymentNotifications } from './_shared/chimeNotifications.js';
+import { getFirstMoney } from './_shared/money.js';
 
 const STAGED_ROWS_WAIT_MS = 12000;
 const STAGED_ROWS_POLL_MS = 750;
 
+export interface StatementBreakdown {
+  version: 1;
+  import_id: string;
+  document_id: string | null;
+  user_id: string;
+  created_at: string;
+  statement_meta: {
+    issuer: string | null;
+    account_last4: string | null;
+    period_start: string | null;
+    period_end: string | null;
+    statement_type: 'bank' | 'credit_card' | 'unknown';
+  };
+  totals: {
+    total_debits: number;
+    total_credits: number;
+    net: number;
+    transaction_count: number;
+  };
+  category_totals: Array<{
+    category: string;
+    total: number;
+    count: number;
+    percentage: number;
+  }>;
+  top_merchants: Array<{
+    merchant: string;
+    total: number;
+    count: number;
+  }>;
+  flags: {
+    duplicate_count: number;
+    refund_count: number;
+    needs_review_count: number;
+    low_confidence_count: number;
+    missing_date_count: number;
+  };
+  read_completeness?: {
+    status: 'complete' | 'partial' | 'unknown';
+    pages_detected: number | null;
+    pages_read: number | null;
+    coverage_ratio: number | null;
+    signals: string[];
+  };
+  confidence: {
+    overall: 'high' | 'medium' | 'low';
+    ocr_confidence: number | null;
+    parse_confidence: number | null;
+    transaction_match_rate: number | null;
+    reconciled: boolean;
+    recon_method: 'direct_debits' | 'balance_equation' | 'direct_credits' | 'none';
+  };
+}
+
+function round2(n: number): number {
+  return Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
+}
+
+function toNum(value: unknown): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function normalizeDateOnly(value: unknown): string | null {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const iso = raw.match(/^\d{4}-\d{2}-\d{2}/);
+  if (iso) return iso[0];
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function deriveStatementType(meta: any): 'bank' | 'credit_card' | 'unknown' {
+  const source = `${String(meta?.statement_type || '')} ${String(meta?.docType || '')} ${String(meta?.document_type || '')} ${String(meta?.mime_type || '')}`.toLowerCase();
+  if (/credit[_\s-]?card|cardmember|visa|mastercard|amex/.test(source)) return 'credit_card';
+  if (/bank|statement|account/.test(source)) return 'bank';
+  return 'unknown';
+}
+
+function extractIssuer(meta: any): string | null {
+  const candidates = [
+    meta?.issuer,
+    meta?.institution,
+    meta?.bank,
+    meta?.card,
+    meta?.card_name,
+  ];
+  for (const candidate of candidates) {
+    const value = String(candidate || '').trim();
+    if (value) return value;
+  }
+  return null;
+}
+
+function extractAccountLast4(meta: any): string | null {
+  const direct = String(
+    meta?.account_last4 ||
+      meta?.account_last_4 ||
+      meta?.last4 ||
+      meta?.last_4 ||
+      ''
+  ).trim();
+  if (direct) return direct.slice(-4);
+  const accountNumber = String(meta?.account_number || '').replace(/\D/g, '');
+  return accountNumber.length >= 4 ? accountNumber.slice(-4) : null;
+}
+
+function extractPeriodRange(meta: any): { periodStart: string | null; periodEnd: string | null } {
+  const start = normalizeDateOnly(meta?.period_start || meta?.statement_period_start || null);
+  const end = normalizeDateOnly(meta?.period_end || meta?.statement_period_end || null);
+  if (start || end) return { periodStart: start, periodEnd: end };
+  const periodRaw = String(meta?.statement_period || '').trim();
+  if (!periodRaw) return { periodStart: null, periodEnd: null };
+  const matches = periodRaw.match(/\d{4}-\d{2}-\d{2}/g);
+  if (matches && matches.length >= 2) {
+    return { periodStart: matches[0], periodEnd: matches[1] };
+  }
+  return { periodStart: null, periodEnd: null };
+}
+
+function deriveReadCompleteness(args: {
+  docMeta: any;
+  transactionCount: number;
+  needsReviewCount: number;
+  matchRate: number | null;
+}): StatementBreakdown['read_completeness'] {
+  const { docMeta, transactionCount, needsReviewCount, matchRate } = args;
+  const metrics = docMeta?.debug?.metrics || {};
+  const pagesDetectedCandidate = [
+    docMeta?.pages,
+    metrics?.pagesTotal,
+    Array.isArray(docMeta?.pages_detected) ? docMeta.pages_detected.length : null,
+  ].map((n) => Number(n)).find((n) => Number.isFinite(n) && n > 0);
+  const pagesReadCandidate = [
+    metrics?.pagesProcessed,
+    docMeta?.pages_processed,
+    docMeta?.pages,
+  ].map((n) => Number(n)).find((n) => Number.isFinite(n) && n > 0);
+
+  const pagesDetected = Number.isFinite(Number(pagesDetectedCandidate)) ? Number(pagesDetectedCandidate) : null;
+  const pagesRead = Number.isFinite(Number(pagesReadCandidate)) ? Number(pagesReadCandidate) : null;
+  const coverageRatio =
+    pagesDetected && pagesRead
+      ? Math.max(0, Math.min(1, pagesRead / pagesDetected))
+      : null;
+
+  const signals: string[] = [];
+  if (coverageRatio !== null && coverageRatio < 1) signals.push('pages_partial');
+  if (transactionCount === 0) signals.push('no_transactions_extracted');
+  if (needsReviewCount > 0) signals.push('transactions_need_review');
+  if (matchRate !== null && matchRate < 0.95) signals.push('totals_not_fully_reconciled');
+
+  let status: 'complete' | 'partial' | 'unknown' = 'unknown';
+  if (coverageRatio !== null) {
+    status = coverageRatio >= 1 && transactionCount > 0 ? 'complete' : 'partial';
+  } else if (transactionCount > 0 && needsReviewCount === 0 && (matchRate === null || matchRate >= 0.95)) {
+    status = 'complete';
+  } else if (transactionCount > 0 || signals.length > 0) {
+    status = 'partial';
+  }
+
+  return {
+    status,
+    pages_detected: pagesDetected,
+    pages_read: pagesRead,
+    coverage_ratio: coverageRatio !== null ? round2(coverageRatio) : null,
+    signals,
+  };
+}
+
+async function loadCommittedRowsForBreakdown(
+  sb: any,
+  importId: string,
+  userIdText: string
+): Promise<any[]> {
+  const selectAttempts = [
+    'date,merchant,amount,category,type,description,confidence,needs_review,metadata',
+    'date,merchant,amount,category,type,description,metadata',
+    'date,merchant,amount,category,type,description',
+  ];
+  for (const selectClause of selectAttempts) {
+    const scoped = await sb
+      .from('transactions')
+      .select(selectClause)
+      .eq('import_id', importId)
+      .eq('user_id', userIdText);
+    if (!scoped.error) {
+      return Array.isArray(scoped.data) ? scoped.data : [];
+    }
+    if (!isMissingColumnError(scoped.error)) {
+      console.warn('[CommitImport] Breakdown transaction query failed', {
+        importId,
+        error: scoped.error.message,
+      });
+      return [];
+    }
+    const fallback = await sb
+      .from('transactions')
+      .select(selectClause)
+      .eq('import_id', importId);
+    if (!fallback.error) {
+      return Array.isArray(fallback.data) ? fallback.data : [];
+    }
+    if (!isMissingColumnError(fallback.error)) {
+      return [];
+    }
+  }
+  return [];
+}
+
+async function persistStatementBreakdown(
+  sb: any,
+  importId: string,
+  userIdText: string,
+  breakdown: StatementBreakdown
+): Promise<boolean> {
+  // Strategy A1: dedicated JSONB column statement_breakdown_json on imports.
+  let { error: updateError } = await sb
+    .from('imports')
+    .update({ statement_breakdown_json: breakdown })
+    .eq('id', importId)
+    .eq('user_id', userIdText);
+  if (!updateError) return true;
+
+  // Strategy A2: alternate direct column name.
+  if (isMissingColumnError(updateError)) {
+    ({ error: updateError } = await sb
+      .from('imports')
+      .update({ statement_breakdown: breakdown })
+      .eq('id', importId)
+      .eq('user_id', userIdText));
+    if (!updateError) return true;
+  }
+
+  // Strategy A3: merge into imports.metadata when available.
+  if (isMissingColumnError(updateError)) {
+    const { data: importRow } = await sb
+      .from('imports')
+      .select('metadata')
+      .eq('id', importId)
+      .eq('user_id', userIdText)
+      .maybeSingle();
+    const metadata = importRow?.metadata && typeof importRow.metadata === 'object'
+      ? importRow.metadata
+      : {};
+    ({ error: updateError } = await sb
+      .from('imports')
+      .update({
+        metadata: {
+          ...metadata,
+          statement_breakdown: breakdown,
+        },
+      })
+      .eq('id', importId)
+      .eq('user_id', userIdText));
+    if (!updateError) return true;
+  }
+
+  // Strategy B: try import_summaries json column if present.
+  if (isMissingColumnError(updateError)) {
+    const upsertPayload = {
+      import_id: importId,
+      user_id: userIdText,
+      statement_breakdown_json: breakdown,
+      employee: 'prime',
+      version: 1,
+    };
+    const { error: summaryError } = await sb
+      .from('import_summaries')
+      .upsert(upsertPayload, { onConflict: 'import_id,user_id,version' });
+    if (!summaryError) return true;
+  }
+
+  console.warn('[CommitImport] Failed to persist statement breakdown', {
+    importId,
+    error: updateError?.message || 'unknown_error',
+  });
+  return false;
+}
+
+async function buildStatementBreakdown(args: {
+  sb: any;
+  importId: string;
+  userIdText: string;
+  documentId: string | null;
+}): Promise<StatementBreakdown> {
+  const { sb, importId, userIdText, documentId } = args;
+  const committedRows = await loadCommittedRowsForBreakdown(sb, importId, userIdText);
+
+  let docMeta: any = {};
+  if (documentId) {
+    const { data: docRow } = await sb
+      .from('user_documents')
+      .select('extracted_data,mime_type,file_type')
+      .eq('id', documentId)
+      .eq('user_id', userIdText)
+      .maybeSingle();
+    docMeta = {
+      ...(docRow?.extracted_data && typeof docRow.extracted_data === 'object' ? docRow.extracted_data : {}),
+      mime_type: docRow?.mime_type || null,
+      file_type: docRow?.file_type || null,
+    };
+  }
+
+  let totalDebits = 0;
+  let totalCredits = 0;
+  let needsReviewCount = 0;
+  let lowConfidenceCount = 0;
+  let missingDateCount = 0;
+  let refundCount = 0;
+  const confidenceSamples: number[] = [];
+  const categoryMap = new Map<string, { total: number; count: number }>();
+  const merchantMap = new Map<string, { total: number; count: number }>();
+  const duplicateMap = new Map<string, number>();
+  const statementType = deriveStatementType(docMeta);
+
+  for (const row of committedRows) {
+    const amountNum = Number(row?.amount || 0);
+    const absAmount = Math.abs(amountNum);
+    const typeText = String(row?.type || '').toLowerCase();
+    const merchant = String(row?.merchant || row?.description || 'UNKNOWN-MERCHANT').trim() || 'UNKNOWN-MERCHANT';
+    const category = String(row?.category || 'Uncategorized').trim() || 'Uncategorized';
+    const dateValue = normalizeDateOnly(row?.date);
+    const needsReview = Boolean(row?.needs_review ?? row?.metadata?.needs_review ?? false);
+    const confidence = toNum(row?.confidence ?? row?.metadata?.confidence);
+
+    const isCredit = amountNum > 0 || typeText === 'income' || typeText === 'credit';
+    const isDebit = amountNum < 0 || typeText === 'expense' || typeText === 'debit';
+    if (isCredit) totalCredits += absAmount;
+    if (isDebit) totalDebits += absAmount;
+
+    if (needsReview) needsReviewCount += 1;
+    if (!dateValue) missingDateCount += 1;
+    if (confidence !== null) {
+      confidenceSamples.push(confidence);
+      if (confidence < 0.7) lowConfidenceCount += 1;
+    }
+    if (typeText === 'refund' || (statementType === 'credit_card' && amountNum > 0)) {
+      refundCount += 1;
+    }
+
+    const cat = categoryMap.get(category) || { total: 0, count: 0 };
+    cat.total += absAmount;
+    cat.count += 1;
+    categoryMap.set(category, cat);
+
+    const mer = merchantMap.get(merchant) || { total: 0, count: 0 };
+    mer.total += absAmount;
+    mer.count += 1;
+    merchantMap.set(merchant, mer);
+
+    const dupKey = `${dateValue || 'UNKNOWN-DATE'}|${merchant.toLowerCase()}|${absAmount.toFixed(2)}`;
+    duplicateMap.set(dupKey, (duplicateMap.get(dupKey) || 0) + 1);
+  }
+
+  const spendDenominator = Math.max(totalDebits, 0.000001);
+  const categoryTotals = Array.from(categoryMap.entries())
+    .map(([category, stats]) => ({
+      category,
+      total: round2(stats.total),
+      count: stats.count,
+      percentage: round2((stats.total / spendDenominator) * 100),
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  const topMerchants = Array.from(merchantMap.entries())
+    .map(([merchant, stats]) => ({
+      merchant,
+      total: round2(stats.total),
+      count: stats.count,
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 10);
+
+  const duplicateCount = Array.from(duplicateMap.values()).reduce((sum, groupSize) => {
+    if (groupSize <= 1) return sum;
+    return sum + (groupSize - 1);
+  }, 0);
+
+  const parseConfidence = confidenceSamples.length > 0
+    ? confidenceSamples.reduce((sum, n) => sum + n, 0) / confidenceSamples.length
+    : null;
+  const ocrConfidence = toNum(docMeta?.confidence?.overall);
+  const overall: StatementBreakdown['confidence']['overall'] =
+    (ocrConfidence !== null && ocrConfidence > 0.85 && needsReviewCount < 3)
+      ? 'high'
+      : ((ocrConfidence !== null && ocrConfidence < 0.6) || needsReviewCount > 10)
+        ? 'low'
+        : 'medium';
+  const { periodStart, periodEnd } = extractPeriodRange(docMeta);
+  const breakdown: StatementBreakdown = {
+    version: 1,
+    import_id: importId,
+    document_id: documentId || null,
+    user_id: userIdText,
+    created_at: new Date().toISOString(),
+    statement_meta: {
+      issuer: extractIssuer(docMeta),
+      account_last4: extractAccountLast4(docMeta),
+      period_start: periodStart,
+      period_end: periodEnd,
+      statement_type: statementType,
+    },
+    totals: {
+      total_debits: round2(totalDebits),
+      total_credits: round2(totalCredits),
+      net: round2(totalCredits - totalDebits),
+      transaction_count: committedRows.length,
+    },
+    category_totals: categoryTotals,
+    top_merchants: topMerchants,
+    flags: {
+      duplicate_count: duplicateCount,
+      refund_count: refundCount,
+      needs_review_count: needsReviewCount,
+      low_confidence_count: lowConfidenceCount,
+      missing_date_count: missingDateCount,
+    },
+    confidence: {
+      overall,
+      ocr_confidence: ocrConfidence,
+      parse_confidence: parseConfidence !== null ? round2(parseConfidence) : null,
+      transaction_match_rate: null,
+      reconciled: false,
+      recon_method: 'none',
+    },
+  };
+
+  // --- Reconciliation: compare extracted totals vs statement printed totals ---
+  const recon = await reconcileAgainstPrintedTotals(sb, documentId, breakdown.totals);
+  breakdown.confidence.transaction_match_rate = recon.match_rate;
+  breakdown.confidence.reconciled = recon.reconciled;
+  breakdown.confidence.recon_method = recon.recon_method;
+  breakdown.read_completeness = deriveReadCompleteness({
+    docMeta,
+    transactionCount: committedRows.length,
+    needsReviewCount,
+    matchRate: recon.match_rate,
+  });
+  if (recon.match_rate !== null && recon.match_rate < 0.95) {
+    breakdown.confidence.overall = recon.match_rate < 0.8 ? 'low' : 'medium';
+  }
+
+  return breakdown;
+}
+
+async function reconcileAgainstPrintedTotals(
+  sb: any,
+  documentId: string | null,
+  computedTotals: { total_debits: number; total_credits: number; net: number }
+): Promise<{
+  match_rate: number | null;
+  reconciled: boolean;
+  discrepancy: number | null;
+  recon_method: 'direct_debits' | 'balance_equation' | 'direct_credits' | 'none';
+}> {
+  if (!documentId) return { match_rate: null, reconciled: false, discrepancy: null, recon_method: 'none' };
+
+  try {
+    const selectAttempts = ['extracted_data', 'id'];
+    let doc: any = null;
+    for (const clause of selectAttempts) {
+      const { data, error } = await sb
+        .from('user_documents')
+        .select(clause)
+        .eq('id', documentId)
+        .maybeSingle();
+      if (!error) {
+        doc = data || null;
+        break;
+      }
+    }
+    if (!doc?.extracted_data || typeof doc.extracted_data !== 'object') {
+      return { match_rate: null, reconciled: false, discrepancy: null, recon_method: 'none' };
+    }
+
+    const ed = doc.extracted_data;
+    const printedDebits = getFirstMoney(ed, ['total_debits', 'transactions', 'total_charges']);
+    const printedCredits = getFirstMoney(ed, ['total_credits', 'payments', 'total_payments']);
+    const printedNewBalance = getFirstMoney(ed, ['new_balance', 'ending_balance', 'closing_balance']);
+    const printedPrevBalance = getFirstMoney(ed, ['previous_balance', 'opening_balance', 'beginning_balance']);
+
+    let discrepancy: number | null = null;
+    let reconMethod: 'direct_debits' | 'balance_equation' | 'direct_credits' | 'none' = 'none';
+    if ((printedDebits ?? 0) > 0) {
+      discrepancy = Math.abs(Math.abs(computedTotals.total_debits) - Math.abs(Number(printedDebits || 0)));
+      reconMethod = 'direct_debits';
+    } else if ((printedNewBalance ?? 0) !== 0 && (printedPrevBalance ?? 0) !== 0) {
+      const expectedNet = Number(printedNewBalance || 0) - Number(printedPrevBalance || 0);
+      discrepancy = Math.abs(computedTotals.net - expectedNet);
+      reconMethod = 'balance_equation';
+    } else if ((printedCredits ?? 0) > 0) {
+      discrepancy = Math.abs(Math.abs(computedTotals.total_credits) - Math.abs(Number(printedCredits || 0)));
+      reconMethod = 'direct_credits';
+    }
+
+    if (discrepancy === null) {
+      return { match_rate: null, reconciled: false, discrepancy: null, recon_method: 'none' };
+    }
+
+    const totalSpend = Math.abs(computedTotals.total_debits) || 1;
+    const matchRate = Math.max(0, Math.min(1, 1 - (discrepancy / totalSpend)));
+    const reconciled = discrepancy <= 1.0;
+    console.log(
+      `[RECONCILIATION] Discrepancy: $${discrepancy.toFixed(2)}, Match rate: ${(matchRate * 100).toFixed(1)}%, Reconciled: ${reconciled}`
+    );
+    return {
+      match_rate: round2(matchRate),
+      reconciled,
+      discrepancy: round2(discrepancy),
+      recon_method: reconMethod,
+    };
+  } catch (err: any) {
+    console.error('[RECONCILIATION] Error:', err);
+    return { match_rate: null, reconciled: false, discrepancy: null, recon_method: 'none' };
+  }
+}
+
 async function sleep(ms: number): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getNetlifyBaseUrl(): string {
+  const envUrl =
+    process.env.URL ||
+    process.env.DEPLOY_PRIME_URL ||
+    process.env.DEPLOY_URL ||
+    process.env.NETLIFY_URL;
+  if (envUrl) return String(envUrl).replace(/\/$/, '');
+  const port = process.env.NETLIFY_LOCAL_PORT || process.env.PORT || '8888';
+  return `http://localhost:${port}`;
 }
 
 function isMissingColumnError(error: any): boolean {
@@ -123,15 +654,25 @@ export const handler: Handler = async (event, context) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    const { importId } = body;
+    const importIdSingle = body?.importId ? String(body.importId).trim() : '';
+    const importIds = Array.isArray(body?.importIds)
+      ? Array.from(
+          new Set(
+            body.importIds
+              .map((id: any) => String(id || '').trim())
+              .filter((id: string) => id.length > 0)
+          )
+        )
+      : [];
 
     // SECURITY: Get userId from header, not from client body
     // This prevents users from importing other users' staging data
     const userId = event.headers['x-user-id'] || event.headers['X-User-Id'];
+    const traceId = event.headers['x-trace-id'] || event.headers['X-Trace-Id'] || `trace_${Date.now()}`;
     const userIdText = String(userId || '');
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userIdText);
     
-    if (!importId) {
+    if (!importIdSingle && importIds.length === 0) {
       return {
         statusCode: 400,
         headers,
@@ -154,14 +695,60 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
+    // Batch mode: reuse the proven single-import path with internal HTTP calls.
+    // This keeps the diff minimal and preserves single-import behavior.
+    if (!importIdSingle && importIds.length > 0) {
+      const base = getNetlifyBaseUrl();
+      const committed: Array<{ importId: string; transactionCount: number }> = [];
+      const failed: Array<{ importId: string; error: string }> = [];
+      for (const id of importIds) {
+        try {
+          const res = await fetch(`${base}/.netlify/functions/commit-import`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': userIdText,
+            },
+            body: JSON.stringify({ importId: id }),
+          });
+          const payload = await res.json().catch(() => ({} as any));
+          const txCount = Number(payload?.committed ?? payload?.insertedCount ?? 0);
+          if (res.ok && (payload?.ok === true || payload?.success === true || Number.isFinite(txCount))) {
+            committed.push({ importId: id, transactionCount: Number.isFinite(txCount) ? txCount : 0 });
+          } else {
+            failed.push({ importId: id, error: String(payload?.error || payload?.message || `status_${res.status}`) });
+          }
+        } catch (error: any) {
+          failed.push({ importId: id, error: String(error?.message || 'batch_commit_failed') });
+        }
+      }
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          success: failed.length === 0,
+          committed,
+          failed,
+        }),
+      };
+    }
+
+    const importId = importIdSingle;
+
     const sb = admin();
 
-    console.log('[CommitImport] Starting commit process', { importId, userId: userIdText.substring(0, 8) + '...' });
+    console.log('[CommitImport] stage=commit_start', {
+      traceId,
+      importId,
+      userId: userIdText.substring(0, 8) + '...',
+    });
 
     // 1. Get import record and verify it exists and is ready to commit
     const { data: importRecord, error: importError } = await sb
       .from('imports')
-      .select('id, user_id, document_id, file_url, file_type, status, created_at')
+      .select('id, user_id, document_id, file_url, file_type, status, created_at, approved_at')
       .eq('id', importId)
       .eq('user_id', userIdText)
       .maybeSingle();
@@ -173,6 +760,17 @@ export const handler: Handler = async (event, context) => {
     });
 
     if (importError) {
+      if (isMissingColumnError(importError) && String(importError.message || '').includes('approved_at')) {
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({
+            ok: false,
+            error: 'approval_schema_missing',
+            message: 'imports.approved_at is required. Run the approval migration first.',
+          }),
+        };
+      }
       console.error('[CommitImport] Error fetching import:', importError);
       return {
         statusCode: 500,
@@ -223,6 +821,25 @@ export const handler: Handler = async (event, context) => {
           success: false,
           error: 'import_not_ready',
           message: `Import status is '${importRecord.status}', expected 'parsed'` 
+        }),
+      };
+    }
+
+    // --- Approval gate ---
+    // Commit is allowed only after persisted backend approval.
+    if (!importRecord.approved_at) {
+      console.warn('[APPROVAL] Commit blocked, import not approved', {
+        importId,
+        userId: userIdText,
+      });
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({
+          ok: false,
+          success: false,
+          error: 'User approval required before committing transactions.',
+          code: 'APPROVAL_REQUIRED',
         }),
       };
     }
@@ -799,7 +1416,31 @@ export const handler: Handler = async (event, context) => {
       console.error('[CommitImport] Failed to compute summary', { error: summaryError.message });
     }
 
-    // Return success response with inserted transaction details, summary, and issues
+    let statementBreakdown: StatementBreakdown | null = null;
+    try {
+      statementBreakdown = await buildStatementBreakdown({
+        sb,
+        importId,
+        userIdText,
+        documentId: documentId || null,
+      });
+      console.log('[BREAKDOWN]', JSON.stringify(statementBreakdown, null, 2));
+      await persistStatementBreakdown(sb, importId, userIdText, statementBreakdown);
+    } catch (breakdownError: any) {
+      console.warn('[CommitImport] Failed to build/persist statement breakdown', {
+        importId,
+        error: breakdownError?.message || String(breakdownError),
+      });
+    }
+
+    console.log('[CommitImport] stage=commit_done', {
+      traceId,
+      importId,
+      documentId: documentId || null,
+      committedCount,
+    });
+
+    // Return success response with inserted transaction details, summary, issues, and deterministic breakdown
     return {
       statusCode: 200,
       headers,
@@ -815,6 +1456,7 @@ export const handler: Handler = async (event, context) => {
         userTransactionCount: userTransactionCount ?? null,
         summary: summary || undefined,
         issues: issues || undefined,
+        statement_breakdown: statementBreakdown || undefined,
       }),
     };
 

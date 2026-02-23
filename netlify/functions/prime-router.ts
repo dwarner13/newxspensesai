@@ -1,5 +1,6 @@
 import type { Handler } from "@netlify/functions";
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "crypto";
 
 /**
  * PRIME ROUTER (MVP) — orchestration endpoint
@@ -213,6 +214,99 @@ async function getImportDisplayName(importId: string): Promise<string | null> {
   return doc?.original_name || null;
 }
 
+type ImportProcessingLock = {
+  token: string;
+  purpose: string;
+  expires_at: string;
+  acquired_at: string;
+};
+
+function readImportLock(metadata: any): ImportProcessingLock | null {
+  const lock = metadata?.processing_lock;
+  if (!lock || typeof lock !== 'object') return null;
+  const token = String(lock.token || '').trim();
+  const purpose = String(lock.purpose || '').trim() || 'prime_router_summary';
+  const expiresAt = String(lock.expires_at || '').trim();
+  const acquiredAt = String(lock.acquired_at || '').trim();
+  if (!token || !expiresAt) return null;
+  return { token, purpose, expires_at: expiresAt, acquired_at: acquiredAt || '' };
+}
+
+async function acquireImportProcessingLock(
+  importId: string,
+  purpose: string,
+  ttlMs: number = 90_000
+): Promise<{ ok: boolean; token?: string; reason?: string }> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from('imports')
+    .select('metadata')
+    .eq('id', importId)
+    .maybeSingle();
+  if (error) return { ok: false, reason: `metadata_read_failed:${error.message}` };
+  const metadata = data?.metadata && typeof data.metadata === 'object' ? data.metadata : {};
+  const existingLock = readImportLock(metadata);
+  const nowMs = Date.now();
+  if (existingLock) {
+    const expiresMs = Date.parse(existingLock.expires_at);
+    if (Number.isFinite(expiresMs) && expiresMs > nowMs) {
+      console.log('[prime-router] stage=import_lock_blocked', {
+        importId,
+        purpose,
+        existingPurpose: existingLock.purpose,
+        expiresAt: existingLock.expires_at,
+      });
+      return { ok: false, reason: 'already_processing' };
+    }
+  }
+
+  const token = `${importId}-${nowMs}-${Math.random().toString(36).slice(2, 8)}`;
+  const nextMetadata = {
+    ...metadata,
+    processing_lock: {
+      token,
+      purpose,
+      acquired_at: new Date(nowMs).toISOString(),
+      expires_at: new Date(nowMs + ttlMs).toISOString(),
+    },
+  };
+  const { error: updateError } = await supabase
+    .from('imports')
+    .update({ metadata: nextMetadata })
+    .eq('id', importId);
+  const ok = !updateError;
+  console.log('[prime-router] stage=import_lock_acquire', {
+    importId,
+    purpose,
+    ok,
+  });
+  if (!ok) return { ok: false, reason: `lock_update_failed:${updateError?.message || 'unknown'}` };
+  return { ok: true, token };
+}
+
+async function releaseImportProcessingLock(importId: string, token: string): Promise<void> {
+  const supabase = getSupabaseAdmin();
+  try {
+    const { data } = await supabase
+      .from('imports')
+      .select('metadata')
+      .eq('id', importId)
+      .maybeSingle();
+    const metadata = data?.metadata && typeof data.metadata === 'object' ? data.metadata : {};
+    const existingLock = readImportLock(metadata);
+    if (!existingLock) return;
+    if (existingLock.token !== token) return;
+    const nextMetadata = { ...metadata };
+    delete (nextMetadata as any).processing_lock;
+    await supabase
+      .from('imports')
+      .update({ metadata: nextMetadata })
+      .eq('id', importId);
+  } catch {
+    // best-effort unlock
+  }
+}
+
 function parseCountFromSummary(content: string, pattern: RegExp): number | null {
   const m = String(content || "").match(pattern);
   if (!m?.[1]) return null;
@@ -261,6 +355,8 @@ export const handler: Handler = async (event) => {
       const requestId = extractMultipartField(rawBodyText, "requestId");
       const contentLengthHeader = event.headers?.["content-length"] || event.headers?.["Content-Length"];
       const fileSize = Number(contentLengthHeader || 0);
+      // Generate a stable trace_id for this upload run so all pipeline stages share it.
+      const traceId = requestId || randomUUID();
 
       if (!userId || !fileName) {
         return json(400, {
@@ -346,6 +442,7 @@ export const handler: Handler = async (event) => {
             docId: documentId,
             importRunId: requestId || undefined,
             importId: importId || undefined,
+            traceId,
           }),
           // Keep upload path responsive; OCR continues through status polling.
           timeoutMs: 6000,
@@ -385,6 +482,7 @@ export const handler: Handler = async (event) => {
     // MODE B: status
     if (mode === "status") {
       const importId = body.importId || event.queryStringParameters?.importId;
+      const autoCommit = body?.autoCommit !== false;
       if (!importId) return json(400, { ok: false, error: "status mode requires importId" });
       const ctx = await getImportContext(String(importId));
       if (!ctx.userId || !ctx.documentId) {
@@ -420,6 +518,59 @@ export const handler: Handler = async (event) => {
         status === "done" ||
         statusRes.data?.isComplete === true ||
         statusRes.data?.done === true;
+      const staleLockDetected = Array.isArray(statusRes.data?.items)
+        ? statusRes.data.items.some((item: any) =>
+            String(item?.status || '').toLowerCase() === 'recovering_stale_lock' ||
+            String(item?.stateReason || '').toLowerCase().includes('stale_lock')
+          )
+        : false;
+
+      if (staleLockDetected) {
+        // Idempotency guard: only re-kick OCR if the document hasn't already finished.
+        // If ocr_status is 'ready' the original job completed while the stale-lock was detected.
+        const supabaseForLockCheck = getSupabaseAdmin();
+        const { data: docForLockCheck } = await supabaseForLockCheck
+          .from('user_documents')
+          .select('ocr_status, status')
+          .eq('id', ctx.documentId!)
+          .maybeSingle();
+        const docOcrStatus = String(docForLockCheck?.ocr_status || docForLockCheck?.status || '').toLowerCase();
+        const ocrAlreadyDone = docOcrStatus === 'ready' || docOcrStatus === 'ready_cached';
+        if (ocrAlreadyDone) {
+          console.log('[prime-router] stage=stale_lock_skipped_already_ready', {
+            importId,
+            documentId: ctx.documentId,
+            docOcrStatus,
+          });
+          // Fall through to normal sync + finalize path below.
+        } else {
+        console.warn('[prime-router] stale OCR lock detected, re-kicking smart-import-ocr', {
+          importId,
+          documentId: ctx.documentId,
+          userId: ctx.userId,
+        });
+        const retryRes = await callFn(event, "smart-import-ocr", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            userId: ctx.userId,
+            docId: ctx.documentId,
+            importRunId: `stale-retry-${importId}-${Date.now()}`,
+          }),
+        });
+        return json(200, {
+          ok: true,
+          mode: "status",
+          importId,
+          status: "running",
+          details: {
+            ...statusRes.data,
+            recoveryKickoff: retryRes.ok ? "triggered" : "failed",
+            recoveryError: retryRes.ok ? null : retryRes.data,
+          },
+        });
+        } // end else (ocrAlreadyDone)
+      }
 
       if (isError) {
         return json(200, {
@@ -439,8 +590,22 @@ export const handler: Handler = async (event) => {
       const syncRes = await callFn(event, "smart-import-sync", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userId: ctx.userId, docIds: [ctx.documentId] }),
+        body: JSON.stringify({ userId: ctx.userId, docIds: [ctx.documentId], autoCommit }),
       });
+      const syncState = String(syncRes.data?.state || '');
+      if (syncState === 'ocr_failed_retry' || syncState === 'ocr_timed_out_retry') {
+        return json(200, {
+          ok: true,
+          mode: "status",
+          importId,
+          status: "error",
+          state: syncState,
+          retryable: true,
+          error_code: syncRes.data?.error_code || (syncState === 'ocr_timed_out_retry' ? 'timeout' : 'provider_error'),
+          details: syncRes.data,
+          primeMessage: "Byte couldn’t read the statement (timeout/provider failure). Please retry. No transactions were saved.",
+        });
+      }
 
       const finRes = await callFn(event, "smart-import-finalize", {
         method: "POST",
@@ -476,86 +641,28 @@ export const handler: Handler = async (event) => {
       );
       if (!importIds.length) return json(400, { ok: false, error: "summary mode requires importId or importIds[]" });
       const importId = importIds[0];
-
-      const hasRowsFlags = await Promise.all(importIds.map((id) => stagingHasRows(String(id))));
-      const hasRows = hasRowsFlags.some(Boolean);
-      if (!hasRows) {
-        return json(200, {
-          ok: true,
-          mode: "summary",
-          importId,
-          importIds,
-          ready: false,
-          summary: null,
-          meta: { tagRan: false, reason: "no_staging_rows_yet" },
-        });
-      }
-
-      let tagRan = false;
-      let tagError: any = null;
-
-      for (const id of importIds) {
-        const missingTag = await stagingHasMissingTag(String(id));
-        if (!missingTag) continue;
-        const tagRes = await callFn(event, "tag-categorize-batch", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            importId: id,
-            limit: body.limit ?? 300,
-            maxAiCallsPerRun: body.maxAiCallsPerRun ?? 15,
-            dryRun: false,
-          }),
-        });
-        if (tagRes.ok) {
-          tagRan = true;
-        } else if (!tagError) {
-          tagError = tagRes.data;
+      const lockTokensByImport = new Map<string, string>();
+      try {
+        for (const id of importIds) {
+          const lock = await acquireImportProcessingLock(String(id), 'prime_router_summary', 90_000);
+          if (!lock.ok || !lock.token) {
+            return json(200, {
+              ok: true,
+              mode: "summary",
+              importId: id,
+              importIds,
+              ready: false,
+              state: "already_processing",
+              summary: null,
+              meta: { reason: "already_processing" },
+            });
+          }
+          lockTokensByImport.set(String(id), lock.token);
         }
-      }
 
-      let summaryPayload: any = null;
-      if (importIds.length === 1) {
-        const sumRes = await callFn(event, "prime-summary", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ importId }),
-        });
-
-        if (!sumRes.ok) {
-          return json(sumRes.status, {
-            ok: false,
-            step: "prime-summary",
-            importId,
-            error: sumRes.data,
-            meta: { tagRan, tagError },
-          });
-        }
-        summaryPayload = sumRes.data;
-      } else {
-        const perImport = await Promise.all(importIds.map(async (id) => {
-          const [sumRes, name] = await Promise.all([
-            callFn(event, "prime-summary", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ importId: id }),
-            }),
-            getImportDisplayName(id),
-          ]);
-          return {
-            id,
-            name: name || `Document (${id.slice(0, 8)})`,
-            ok: sumRes.ok,
-            data: sumRes.data,
-          };
-        }));
-
-        const summaries = perImport
-          .filter((item) => item.ok && typeof item.data?.summary === "string" && item.data.summary.trim().length > 0)
-          .map((item) => ({ ...item, summary: String(item.data.summary).trim() }));
-        const failedImports = perImport.filter((item) => !item.ok);
-
-        if (!summaries.length) {
+        const hasRowsFlags = await Promise.all(importIds.map((id) => stagingHasRows(String(id))));
+        const hasRows = hasRowsFlags.some(Boolean);
+        if (!hasRows) {
           return json(200, {
             ok: true,
             mode: "summary",
@@ -563,69 +670,152 @@ export const handler: Handler = async (event) => {
             importIds,
             ready: false,
             summary: null,
-            meta: { tagRan, tagError, reason: "no_summary_payloads" },
+            meta: { tagRan: false, reason: "no_staging_rows_yet" },
           });
         }
 
-        let totalProcessed = 0;
-        let totalNeedsReview = 0;
-        const docBlocks = summaries.map((item, idx) => {
-          const processed =
-            parseCountFromSummary(item.summary, /Parsed transactions:\s*(\d+)/i) ??
-            parseCountFromSummary(item.summary, /(\d+)\s+transactions?\s+processed/i) ??
-            0;
-          const needsReview =
-            parseCountFromSummary(item.summary, /Flagged for review:\s*(\d+)/i) ??
-            parseCountFromSummary(item.summary, /(\d+)\s+transactions?\s+need review/i) ??
-            0;
-          totalProcessed += processed;
-          totalNeedsReview += needsReview;
-          return `${idx + 1}) ${item.name}\n${item.summary}`;
-        });
+        let tagRan = false;
+        let tagError: any = null;
 
-        const combinedSummary = [
-          "What I see in your documents",
-          `I read ${summaries.length} of ${perImport.length} file${perImport.length === 1 ? "" : "s"}:`,
-          ...summaries.map((item) => `- ${item.name}`),
-          ...(failedImports.length > 0
-            ? [
-                "",
-                "Files with processing issues",
-                ...failedImports.map((item) => `- ${item.name}: summary unavailable`),
-              ]
-            : []),
-          "",
-          ...docBlocks,
-          "",
-          "Combined interpretation",
-          `- Total transactions processed across documents: ${totalProcessed}.`,
-          `- Total transactions needing review: ${totalNeedsReview}.`,
-          "- I can now compare categories, cash flow patterns, and recurring subscriptions across all uploaded files.",
-        ].join("\n");
+        for (const id of importIds) {
+          const missingTag = await stagingHasMissingTag(String(id));
+          if (!missingTag) continue;
+          const tagRes = await callFn(event, "tag-categorize-batch", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              importId: id,
+              limit: body.limit ?? 300,
+              maxAiCallsPerRun: body.maxAiCallsPerRun ?? 15,
+              dryRun: false,
+            }),
+          });
+          if (tagRes.ok) {
+            tagRan = true;
+          } else if (!tagError) {
+            tagError = tagRes.data;
+          }
+        }
 
-        summaryPayload = {
+        let summaryPayload: any = null;
+        if (importIds.length === 1) {
+          const sumRes = await callFn(event, "prime-summary", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ importId, summaryLockToken: lockTokensByImport.get(String(importId)) || null }),
+          });
+
+          if (!sumRes.ok) {
+            return json(sumRes.status, {
+              ok: false,
+              step: "prime-summary",
+              importId,
+              error: sumRes.data,
+              meta: { tagRan, tagError },
+            });
+          }
+          summaryPayload = sumRes.data;
+        } else {
+          const perImport = await Promise.all(importIds.map(async (id) => {
+            const [sumRes, name] = await Promise.all([
+              callFn(event, "prime-summary", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ importId: id, summaryLockToken: lockTokensByImport.get(String(id)) || null }),
+              }),
+              getImportDisplayName(id),
+            ]);
+            return {
+              id,
+              name: name || `Document (${id.slice(0, 8)})`,
+              ok: sumRes.ok,
+              data: sumRes.data,
+            };
+          }));
+
+          const summaries = perImport
+            .filter((item) => item.ok && typeof item.data?.summary === "string" && item.data.summary.trim().length > 0)
+            .map((item) => ({ ...item, summary: String(item.data.summary).trim() }));
+          const failedImports = perImport.filter((item) => !item.ok);
+
+          if (!summaries.length) {
+            return json(200, {
+              ok: true,
+              mode: "summary",
+              importId,
+              importIds,
+              ready: false,
+              summary: null,
+              meta: { tagRan, tagError, reason: "no_summary_payloads" },
+            });
+          }
+
+          let totalProcessed = 0;
+          let totalNeedsReview = 0;
+          const docBlocks = summaries.map((item, idx) => {
+            const processed =
+              parseCountFromSummary(item.summary, /Parsed transactions:\s*(\d+)/i) ??
+              parseCountFromSummary(item.summary, /(\d+)\s+transactions?\s+processed/i) ??
+              0;
+            const needsReview =
+              parseCountFromSummary(item.summary, /Flagged for review:\s*(\d+)/i) ??
+              parseCountFromSummary(item.summary, /(\d+)\s+transactions?\s+need review/i) ??
+              0;
+            totalProcessed += processed;
+            totalNeedsReview += needsReview;
+            return `${idx + 1}) ${item.name}\n${item.summary}`;
+          });
+
+          const combinedSummary = [
+            "What I see in your documents",
+            `I read ${summaries.length} of ${perImport.length} file${perImport.length === 1 ? "" : "s"}:`,
+            ...summaries.map((item) => `- ${item.name}`),
+            ...(failedImports.length > 0
+              ? [
+                  "",
+                  "Files with processing issues",
+                  ...failedImports.map((item) => `- ${item.name}: summary unavailable`),
+                ]
+              : []),
+            "",
+            ...docBlocks,
+            "",
+            "Combined interpretation",
+            `- Total transactions processed across documents: ${totalProcessed}.`,
+            `- Total transactions needing review: ${totalNeedsReview}.`,
+            "- I can now compare categories, cash flow patterns, and recurring subscriptions across all uploaded files.",
+          ].join("\n");
+
+          summaryPayload = {
+            ok: true,
+            summary: combinedSummary,
+            transactions_processed: totalProcessed,
+            needs_review_count: totalNeedsReview,
+          };
+        }
+
+        return json(200, {
           ok: true,
-          summary: combinedSummary,
-          transactions_processed: totalProcessed,
-          needs_review_count: totalNeedsReview,
-        };
+          mode: "summary",
+          importId,
+          importIds,
+          ready: true,
+          summary: summaryPayload,
+          meta: {
+            tagRan,
+            tagError,
+            needsReviewCount: summaryPayload?.needs_review_count ?? summaryPayload?.needsReviewCount ?? null,
+            autoCount: summaryPayload?.auto_count ?? summaryPayload?.autoCount ?? null,
+            aiCount: summaryPayload?.ai_count ?? summaryPayload?.aiCount ?? null,
+          },
+        });
+      } finally {
+        await Promise.all(
+          Array.from(lockTokensByImport.entries()).map(([id, token]) =>
+            releaseImportProcessingLock(id, token)
+          )
+        );
       }
-
-      return json(200, {
-        ok: true,
-        mode: "summary",
-        importId,
-        importIds,
-        ready: true,
-        summary: summaryPayload,
-        meta: {
-          tagRan,
-          tagError,
-          needsReviewCount: summaryPayload?.needs_review_count ?? summaryPayload?.needsReviewCount ?? null,
-          autoCount: summaryPayload?.auto_count ?? summaryPayload?.autoCount ?? null,
-          aiCount: summaryPayload?.ai_count ?? summaryPayload?.aiCount ?? null,
-        },
-      });
     }
 
     return json(400, { ok: false, error: "Unknown mode" });

@@ -36,6 +36,8 @@ const DEFAULT_OCR_TIMEOUT_MS = 30000;
 const MAX_OCR_TIMEOUT_MS = 60000;
 const OCR_RETRY_ATTEMPTS = 3;
 const OCR_RETRY_BASE_DELAY_MS = 500;
+const PDF_MIN_TEXT_LEN = Number(process.env.PDF_MIN_TEXT_LEN || 200);
+const OCR_EMPTY_MIN_LEN = Number(process.env.OCR_EMPTY_MIN_LEN || 20);
 const SCANNED_PDF_TEXT_THRESHOLD = Number(process.env.OCR_SCANNED_PDF_TEXT_THRESHOLD || 220);
 const SCANNED_PDF_MAX_PAGES = Number(process.env.OCR_SCANNED_PDF_MAX_PAGES || 10);
 const SCANNED_PDF_MAX_IMAGE_BYTES = Number(process.env.OCR_SCANNED_PDF_MAX_IMAGE_BYTES || 950 * 1024);
@@ -48,11 +50,23 @@ const OCR_FALLBACK_PAGE_CONFIDENCE_THRESHOLD = Number(process.env.OCR_FALLBACK_P
 const OCR_FALLBACK_ORDER_STATEMENT = process.env.OCR_FALLBACK_ORDER_STATEMENT || 'google,openai';
 const OCR_FALLBACK_ORDER_RECEIPT = process.env.OCR_FALLBACK_ORDER_RECEIPT || 'openai,google';
 const OCR_FALLBACK_MONTHLY_CAP_FREE = Number(process.env.OCR_FALLBACK_MONTHLY_CAP_FREE || 10);
+const OCR_LOCK_STALE_MS = Number(process.env.OCR_LOCK_STALE_MS || 10 * 60 * 1000);
+const OCR_HEARTBEAT_MS = Number(process.env.OCR_HEARTBEAT_MS || 5000);
+const OCR_STAGE_TIMEOUT_MS = (() => {
+  const configured = Number(process.env.OCR_STAGE_TIMEOUT_MS || 180000);
+  if (process.env.NETLIFY_DEV === 'true') {
+    // Keep OCR stage below local lambda timeout so we can persist deterministic failure state.
+    return Math.min(configured, 25000);
+  }
+  return configured;
+})();
 let warnedMissingOcrJobsMonthlyUsage = false;
 let warnedMissingDocOcrStatusColumn = false;
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type RetryableError = Error & { status?: number };
+
+type OcrFinalStatus = 'succeeded' | 'failed' | 'timed_out';
 
 function isRetryableError(error: unknown): boolean {
   const err = error as RetryableError;
@@ -256,6 +270,59 @@ function buildNormalizedResult(args: {
     fallbackUsed: Boolean(args.fallbackUsed),
     needsUserConfirmation,
   };
+}
+
+function isStaleUpdatedAt(updatedAt: unknown, staleMs: number = OCR_LOCK_STALE_MS): boolean {
+  const raw = String(updatedAt || '').trim();
+  if (!raw) return false;
+  const ts = Date.parse(raw);
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts > staleMs;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutHandle: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error(`${label}_timeout_${timeoutMs}ms`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
+function startOcrHeartbeat(args: {
+  sb: any;
+  docId: string;
+  ocrJobId: string | null;
+  traceId: string;
+}): () => void {
+  const { sb, docId, ocrJobId, traceId } = args;
+  const timer = setInterval(async () => {
+    const now = new Date().toISOString();
+    try {
+      await sb
+        .from('user_documents')
+        .update({ updated_at: now })
+        .eq('id', docId)
+        .eq('status', 'ocr_processing');
+      if (ocrJobId) {
+        await sb
+          .from('ocr_jobs')
+          .update({ status: 'running', updated_at: now })
+          .eq('id', ocrJobId);
+      }
+    } catch (error: any) {
+      console.warn('[OCR] heartbeat update failed', {
+        docId,
+        ocrJobId,
+        traceId,
+        error: error?.message || String(error),
+      });
+    }
+  }, Math.max(1000, OCR_HEARTBEAT_MS));
+  return () => clearInterval(timer);
 }
 
 function computeFileHash(buffer: Buffer): string {
@@ -765,10 +832,17 @@ async function runOCR(
   const isImage = normalizedMime.startsWith('image/') && !normalizedMime.includes('pdf');
   const isPdf = normalizedMime === 'application/pdf';
   const timeoutMs = computeOcrTimeoutMs(expectedSize, normalizedMime);
+  const embeddedDisabled =
+    process.env.PDF_EMBEDDED_TEXT_DISABLED === '1' ||
+    process.env.PDF_EMBEDDED_TEXT_DISABLED === 'true';
   const enableEmbeddedPdfText =
-    process.env.ENABLE_PDF_EMBEDDED_TEXT === '1' ||
-    process.env.ENABLE_PDF_EMBEDDED_TEXT === 'true';
-  if (enableEmbeddedPdfText) {
+    !embeddedDisabled &&
+    (
+      process.env.ENABLE_PDF_EMBEDDED_TEXT === '1' ||
+      process.env.ENABLE_PDF_EMBEDDED_TEXT === 'true' ||
+      process.env.NETLIFY_DEV === 'true'
+    );
+  if (enableEmbeddedPdfText && isPdf) {
     console.log('[OCR] Embedded PDF text extraction ENABLED (pdf-parse only)');
   }
   if (!hasVision && !hasOcrSpace) {
@@ -858,7 +932,8 @@ async function runOCR(
       const embeddedText = await withRetries('PDF embedded text', () =>
         extractEmbeddedPdfText(docId, signedUrl, timeoutMs)
       );
-      if (embeddedText && embeddedText.trim().length > 50) {
+      const embeddedLen = embeddedText ? embeddedText.trim().length : 0;
+      if (embeddedLen > 0) {
         let finalText = embeddedText;
         if (shouldUseLayoutText(embeddedText)) {
           try {
@@ -882,13 +957,18 @@ async function runOCR(
             });
           }
         }
-        console.log('[OCR] Embedded PDF extraction success (pdf-parse)', { chars: finalText.trim().length });
-        return {
-          text: finalText,
-          provider: 'embedded_pdf_parse',
-          durationMs: Date.now() - embeddedStart,
-          pages: undefined,
-        };
+        const finalLen = finalText.trim().length;
+        const accepted = finalLen >= PDF_MIN_TEXT_LEN;
+        console.log('[OCR] embedded_pdf len=%d accepted=%s reason=%s', finalLen, accepted, accepted ? 'ok' : 'too_short');
+        if (accepted) {
+          console.log('[OCR] Embedded PDF extraction success (pdf-parse)', { chars: finalLen });
+          return {
+            text: finalText,
+            provider: 'embedded_pdf_parse',
+            durationMs: Date.now() - embeddedStart,
+            pages: undefined,
+          };
+        }
       }
       console.log('[OCR] No embedded text via pdf-parse (likely scanned PDF)');
     } catch (error: any) {
@@ -903,10 +983,14 @@ async function runOCR(
     console.log('[OCR] Using OCR.space backend');
     try {
       const baseResult = await runOcrSpace(docMode === 'statement');
+      const baseLen = baseResult.text?.trim().length || 0;
+      console.log('[OCR] ocrspace len=%d accepted=%s reason=%s', baseLen, baseLen >= OCR_EMPTY_MIN_LEN, baseLen >= OCR_EMPTY_MIN_LEN ? 'ok' : 'empty');
       if (baseResult.text?.trim()) {
         if (baseResult.text.trim().length < 200) {
           console.warn('[OCR] OCR.space returned short text, retrying with enhanced settings');
           const enhancedResult = await runOcrSpace(true);
+          const enhancedLen = enhancedResult.text?.trim().length || 0;
+          console.log('[OCR] ocrspace len=%d accepted=%s reason=%s', enhancedLen, enhancedLen >= OCR_EMPTY_MIN_LEN, enhancedLen >= OCR_EMPTY_MIN_LEN ? 'ok' : 'empty');
           if (enhancedResult.text?.trim().length > baseResult.text.trim().length) {
             return enhancedResult;
           }
@@ -914,6 +998,8 @@ async function runOCR(
         return baseResult;
       }
       const enhancedResult = await runOcrSpace(true);
+      const enhancedLen = enhancedResult.text?.trim().length || 0;
+      console.log('[OCR] ocrspace len=%d accepted=%s reason=%s', enhancedLen, enhancedLen >= OCR_EMPTY_MIN_LEN, enhancedLen >= OCR_EMPTY_MIN_LEN ? 'ok' : 'empty');
       if (enhancedResult.text?.trim()) {
         return enhancedResult;
       }
@@ -1094,6 +1180,100 @@ async function setDocumentOcrStatus(
   }
 }
 
+function classifyOcrErrorCode(error: unknown): { status: OcrFinalStatus; errorCode: string } {
+  const raw = String((error as any)?.message || error || '').toLowerCase();
+  if (raw.includes('timeout') || raw.includes('aborted')) {
+    return { status: 'timed_out', errorCode: 'timeout' };
+  }
+  if (raw.includes('no provider returned text')) {
+    return { status: 'failed', errorCode: 'no_provider_text' };
+  }
+  if (raw.includes('provider') || raw.includes('ocr.space') || raw.includes('vision')) {
+    return { status: 'failed', errorCode: 'provider_error' };
+  }
+  return { status: 'failed', errorCode: 'ocr_failed' };
+}
+
+async function finalizeOcrJobOutcome(
+  sb: any,
+  params: {
+    ocrJobId: string | null;
+    docId: string;
+    status: OcrFinalStatus;
+    errorCode?: string | null;
+    errorMessage?: string | null;
+    normalizedJson?: any;
+    engineUsed?: string | null;
+    pages?: number | null;
+    confidence?: number | null;
+  }
+): Promise<void> {
+  if (!params.ocrJobId) return;
+  const nowIso = new Date().toISOString();
+  const desiredStatus = params.status;
+  const errorCode = params.errorCode || null;
+  console.log('[OCR] finalize status=%s error_code=%s', desiredStatus, errorCode || 'null');
+  const basePayload: Record<string, any> = {
+    status: desiredStatus,
+    document_id: params.docId,
+    error: params.errorMessage || null,
+    updated_at: nowIso,
+    error_code: errorCode,
+    completed_at: nowIso,
+  };
+  if (params.engineUsed) basePayload.engine_used = params.engineUsed;
+  if (Number.isFinite(Number(params.pages))) basePayload.pages = Number(params.pages);
+  if (Number.isFinite(Number(params.confidence))) basePayload.confidence = Number(params.confidence);
+  if (params.normalizedJson) basePayload.normalized_json = params.normalizedJson;
+  if (desiredStatus === 'succeeded') basePayload.error = null;
+
+  try {
+    const { error } = await sb
+      .from('ocr_jobs')
+      .update(basePayload)
+      .eq('id', params.ocrJobId);
+    if (!error) {
+      console.log('[OCR] stage=ocr_job_finalize', {
+        status: desiredStatus,
+        docId: params.docId,
+        ocrJobId: params.ocrJobId,
+        errorCode: errorCode || null,
+      });
+      return;
+    }
+
+    const fallbackPayload: Record<string, any> = {
+      status: desiredStatus === 'succeeded' ? 'done' : 'error',
+      document_id: params.docId,
+      error: params.errorMessage || (errorCode ? `ocr_${errorCode}` : null),
+      updated_at: nowIso,
+    };
+    if (params.normalizedJson) fallbackPayload.normalized_json = params.normalizedJson;
+    if (params.engineUsed) fallbackPayload.engine_used = params.engineUsed;
+    if (Number.isFinite(Number(params.pages))) fallbackPayload.pages = Number(params.pages);
+    if (Number.isFinite(Number(params.confidence))) fallbackPayload.confidence = Number(params.confidence);
+
+    await sb
+      .from('ocr_jobs')
+      .update(fallbackPayload)
+      .eq('id', params.ocrJobId);
+    console.log('[OCR] stage=ocr_job_finalize', {
+      status: desiredStatus,
+      docId: params.docId,
+      ocrJobId: params.ocrJobId,
+      errorCode: errorCode || null,
+      fallback: true,
+    });
+  } catch (finalizeError: any) {
+    console.error('[OCR] stage=ocr_job_finalize error', {
+      docId: params.docId,
+      ocrJobId: params.ocrJobId,
+      status: desiredStatus,
+      message: finalizeError?.message || String(finalizeError),
+    });
+  }
+}
+
 function mergeMetadata(existing: unknown, patch: Record<string, any>): Record<string, any> {
   const base = existing && typeof existing === 'object' ? (existing as Record<string, any>) : {};
   return { ...base, ...patch };
@@ -1127,6 +1307,7 @@ export const handler: Handler = async (event, context) => {
   let lockAcquired = false;
   let lockedDocId: string | null = null;
   let ocrJobId: string | null = null;
+  let stopHeartbeat: (() => void) | null = null;
 
   try {
     const contentType = event.headers['content-type'] || event.headers['Content-Type'] || '';
@@ -1213,16 +1394,38 @@ export const handler: Handler = async (event, context) => {
     }
 
     if (doc.status === 'ocr_processing') {
-      console.log('[OCR] IN_PROGRESS (lock held)', { docId, traceId });
-      return {
-        statusCode: 202,
-        body: JSON.stringify({
-          inProgress: true,
+      if (isStaleUpdatedAt(doc?.updated_at)) {
+        console.warn('[OCR] stale lock detected, reclaiming', {
           docId,
           traceId,
-          importRunId,
-        }),
-      };
+          updatedAt: doc?.updated_at || null,
+          staleMs: OCR_LOCK_STALE_MS,
+        });
+        await sb
+          .from('user_documents')
+          .update({
+            status: 'ready',
+            metadata: mergeMetadata(doc?.metadata, {
+              ocr_recovered_from_stale_lock: true,
+              ocr_recovered_at: new Date().toISOString(),
+              ocr_recovered_reason: 'stale_ocr_processing_lock',
+            }),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', docId)
+          .eq('status', 'ocr_processing');
+      } else {
+        console.log('[OCR] IN_PROGRESS (lock held)', { docId, traceId });
+        return {
+          statusCode: 202,
+          body: JSON.stringify({
+            inProgress: true,
+            docId,
+            traceId,
+            importRunId,
+          }),
+        };
+      }
     }
 
     // ⚡ UPLOAD COMPLETENESS CONTRACT: Verify file exists and size matches before OCR
@@ -1369,15 +1572,24 @@ export const handler: Handler = async (event, context) => {
       };
     }
     if (existingJob?.status === 'running' && !jobWasInserted) {
-      return {
-        statusCode: 202,
-        body: JSON.stringify({
-          inProgress: true,
+      if (isStaleUpdatedAt(existingJob?.updated_at)) {
+        console.warn('[OCR] stale running ocr_job detected, resuming', {
           docId,
-          traceId,
-          importRunId,
-        }),
-      };
+          ocrJobId: existingJob?.id || null,
+          updatedAt: existingJob?.updated_at || null,
+          staleMs: OCR_LOCK_STALE_MS,
+        });
+      } else {
+        return {
+          statusCode: 202,
+          body: JSON.stringify({
+            inProgress: true,
+            docId,
+            traceId,
+            importRunId,
+          }),
+        };
+      }
     }
     if (existingJob?.id) {
       ocrJobId = existingJob.id;
@@ -1449,6 +1661,12 @@ export const handler: Handler = async (event, context) => {
     lockAcquired = true;
     lockedDocId = docId;
     await setDocumentOcrStatus(sb, docId, 'processing');
+    stopHeartbeat = startOcrHeartbeat({
+      sb,
+      docId,
+      ocrJobId,
+      traceId,
+    });
 
     // Run OCR
     let ocrText: string;
@@ -1474,7 +1692,11 @@ export const handler: Handler = async (event, context) => {
       });
     }
     try {
-      const ocrResult = await runOCR(signed.signedUrl, effectiveMimeType, expectedSize, docId, docMode);
+      const ocrResult = await withTimeout(
+        runOCR(signed.signedUrl, effectiveMimeType, expectedSize, docId, docMode),
+        OCR_STAGE_TIMEOUT_MS,
+        'ocr_stage'
+      );
       ocrText = ocrResult.text;
       ocrProvider = ocrResult.provider;
       ocrDurationMs = ocrResult.durationMs;
@@ -1482,23 +1704,24 @@ export const handler: Handler = async (event, context) => {
       ocrPageLimitReached = !!ocrResult.pageLimitReached;
     } catch (ocrError: any) {
       console.error(`${logPrefix} ERROR`, { error: ocrError?.message || ocrError });
-      if (ocrJobId) {
-        await sb
-          .from('ocr_jobs')
-          .update({
-            status: 'error',
-            error: ocrError?.message || 'ocr_failed',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', ocrJobId);
-      }
+      const classified = classifyOcrErrorCode(ocrError);
+      await finalizeOcrJobOutcome(sb, {
+        ocrJobId,
+        docId,
+        status: classified.status,
+        errorCode: classified.errorCode,
+        errorMessage: ocrError?.message || 'ocr_failed',
+      });
       await setDocumentOcrStatus(sb, docId, 'failed');
       await markDocStatus(docId, 'rejected', `OCR failed: ${ocrError.message}`);
       return { 
         statusCode: 200, 
         body: JSON.stringify({ 
-          rejected: true, 
+          ok: false,
+          rejected: true,
           reason: 'ocr_failed',
+          status: classified.status,
+          error_code: classified.errorCode,
           traceId,
           importRunId,
         }) 
@@ -1537,6 +1760,35 @@ export const handler: Handler = async (event, context) => {
           docId,
           error: scannedError?.message || String(scannedError),
         });
+        const scannedErrorMessage = String(scannedError?.message || scannedError || '');
+        const missingPdfWorkerInDev =
+          process.env.NETLIFY_DEV === 'true' &&
+          scannedErrorMessage.toLowerCase().includes('pdf.worker.mjs');
+        const bestLen = String(ocrText || '').trim().length;
+        if (missingPdfWorkerInDev && bestLen < OCR_EMPTY_MIN_LEN) {
+          await finalizeOcrJobOutcome(sb, {
+            ocrJobId,
+            docId,
+            status: 'failed',
+            errorCode: 'pdf_worker_missing',
+            errorMessage: scannedErrorMessage || 'pdf_worker_missing',
+          });
+          await setDocumentOcrStatus(sb, docId, 'failed');
+          await markDocStatus(docId, 'rejected', 'OCR failed: pdf_worker_missing');
+          return {
+            statusCode: 200,
+            body: JSON.stringify({
+              ok: false,
+              rejected: true,
+              reason: 'ocr_failed',
+              retryable: true,
+              status: 'failed',
+              error_code: 'pdf_worker_missing',
+              traceId,
+              importRunId,
+            }),
+          };
+        }
         if (ocrProvider) {
           const bestEffort = buildNormalizedResult({
             text: ocrText,
@@ -1591,6 +1843,39 @@ export const handler: Handler = async (event, context) => {
       }
     }
 
+    const finalOcrLen = String(ocrText || '').trim().length;
+    if (finalOcrLen < OCR_EMPTY_MIN_LEN) {
+      const providerLabel = String(ocrProvider || '').toLowerCase();
+      const emptyErrorCode =
+        providerLabel === 'ocrspace'
+          ? 'ocr_empty'
+          : providerLabel.startsWith('embedded')
+            ? 'embedded_empty'
+            : 'ocr_empty_unknown';
+      await finalizeOcrJobOutcome(sb, {
+        ocrJobId,
+        docId,
+        status: 'failed',
+        errorCode: emptyErrorCode,
+        errorMessage: `OCR text too short (${finalOcrLen})`,
+      });
+      await setDocumentOcrStatus(sb, docId, 'failed');
+      await markDocStatus(docId, 'rejected', `OCR failed: ${emptyErrorCode}`);
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          ok: false,
+          rejected: true,
+          reason: 'ocr_failed',
+          retryable: true,
+          status: 'failed',
+          error_code: emptyErrorCode,
+          traceId,
+          importRunId,
+        }),
+      };
+    }
+
     console.log(`${logPrefix} EXTRACTED`, { docId, textLength: ocrText.length, provider: ocrProvider, durationMs: ocrDurationMs });
 
     // ⚡ GUARDRAILS: Apply STRICT rules to OCR output
@@ -1634,23 +1919,23 @@ export const handler: Handler = async (event, context) => {
       });
     } else if (!guardrailResult.ok) {
       console.warn(`${logPrefix} ERROR`, { error: 'Content blocked by guardrails', docId, reasons: guardrailResult.reasons });
-      if (ocrJobId) {
-        await sb
-          .from('ocr_jobs')
-          .update({
-            status: 'error',
-            error: `Blocked: ${(guardrailResult.reasons || []).join(', ')}`,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', ocrJobId);
-      }
+      await finalizeOcrJobOutcome(sb, {
+        ocrJobId,
+        docId,
+        status: 'failed',
+        errorCode: 'guardrails_blocked',
+        errorMessage: `Blocked: ${(guardrailResult.reasons || []).join(', ')}`,
+      });
       await setDocumentOcrStatus(sb, docId, 'failed');
       await markDocStatus(docId, 'rejected', `Blocked: ${guardrailResult.reasons.join(', ')}`);
       
       return { 
         statusCode: 200, 
         body: JSON.stringify({ 
+          ok: false,
           rejected: true, 
+          status: 'failed',
+          error_code: 'guardrails_blocked',
           reasons: guardrailResult.reasons,
           traceId,
           importRunId,
@@ -1798,22 +2083,21 @@ export const handler: Handler = async (event, context) => {
     }
     if (ocrUpdateError) {
       console.error(`${logPrefix} DB_WRITE_ERROR`, { docId, error: ocrUpdateError.message });
-      if (ocrJobId) {
-        await sb
-          .from('ocr_jobs')
-          .update({
-            status: 'error',
-            error: 'ocr_write_failed',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', ocrJobId);
-      }
+      await finalizeOcrJobOutcome(sb, {
+        ocrJobId,
+        docId,
+        status: 'failed',
+        errorCode: 'ocr_write_failed',
+        errorMessage: 'ocr_write_failed',
+      });
       await setDocumentOcrStatus(sb, docId, 'failed');
       return {
         statusCode: 500,
         body: JSON.stringify({
           ok: false,
           error: 'ocr_write_failed',
+          status: 'failed',
+          error_code: 'ocr_write_failed',
           traceId,
           docId,
           importRunId,
@@ -1822,22 +2106,21 @@ export const handler: Handler = async (event, context) => {
     }
     if (!ocrUpdateRows || ocrUpdateRows.length === 0) {
       console.error(`${logPrefix} DB_WRITE_EMPTY`, { docId, userId: effectiveUserId, docUserId: doc.user_id });
-      if (ocrJobId) {
-        await sb
-          .from('ocr_jobs')
-          .update({
-            status: 'error',
-            error: 'ocr_write_empty',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', ocrJobId);
-      }
+      await finalizeOcrJobOutcome(sb, {
+        ocrJobId,
+        docId,
+        status: 'failed',
+        errorCode: 'ocr_write_empty',
+        errorMessage: 'ocr_write_empty',
+      });
       await setDocumentOcrStatus(sb, docId, 'failed');
       return {
         statusCode: 500,
         body: JSON.stringify({
           ok: false,
           error: 'ocr_write_empty',
+          status: 'failed',
+          error_code: 'ocr_write_empty',
           traceId,
           docId,
           importRunId,
@@ -1846,22 +2129,17 @@ export const handler: Handler = async (event, context) => {
     }
     console.log(`${logPrefix} DB_WRITE_OK`, { docId, len: guardrailResult.text.length });
 
-    if (ocrJobId) {
-      await sb
-        .from('ocr_jobs')
-        .update({
-          status: 'done',
-          document_id: docId,
-          engine_used: normalized.engineUsed,
-          pages: normalized.pages,
-          confidence: normalized.confidence.overall,
-          ['raw' + '_text']: null,
-          normalized_json: normalizedForStorage,
-          error: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', ocrJobId);
-    }
+    await finalizeOcrJobOutcome(sb, {
+      ocrJobId,
+      docId,
+      status: 'succeeded',
+      errorCode: null,
+      errorMessage: null,
+      normalizedJson: normalizedForStorage,
+      engineUsed: normalized.engineUsed,
+      pages: normalized.pages,
+      confidence: normalized.confidence.overall,
+    });
 
     // Byte Speed Mode v2: Return immediately, queue normalization in background
     // Fire normalization asynchronously - don't wait
@@ -1907,9 +2185,18 @@ export const handler: Handler = async (event, context) => {
           console.log('[smart-import-ocr] Skipping normalize queue; import already normalized', { docId });
         }
       } else {
+        console.log('[smart-import-ocr] stage=ocr_done', {
+          traceId,
+          docId,
+          importRunId: importRunId || null,
+          textLength: textMetrics.length ?? 0,
+        });
         fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'x-trace-id': traceId,
+          },
           body: JSON.stringify({
             userId: effectiveUserId,
             documentId: docId,
@@ -1991,6 +2278,7 @@ export const handler: Handler = async (event, context) => {
       statusCode: 200, 
       body: JSON.stringify({ 
         ok: true,
+        status: 'succeeded',
         docId,
         importRunId,
         textLength: guardrailResult.text.length,
@@ -2019,22 +2307,24 @@ export const handler: Handler = async (event, context) => {
     if (ocrJobId) {
       try {
         const sb = admin();
-        await sb
-          .from('ocr_jobs')
-          .update({
-            status: 'error',
-            error: e?.message || 'unknown_error',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', ocrJobId);
+        const classified = classifyOcrErrorCode(e);
+        await finalizeOcrJobOutcome(sb, {
+          ocrJobId,
+          docId: lockedDocId || 'unknown-doc',
+          status: classified.status,
+          errorCode: classified.errorCode,
+          errorMessage: e?.message || 'unknown_error',
+        });
       } catch (jobErr: any) {
         console.error(`[OCR][${traceId}] ERROR`, { error: 'Failed to set ocr_jobs error', details: jobErr?.message || jobErr });
       }
     }
     return { 
       statusCode: 500, 
-      body: JSON.stringify({ error: e.message, traceId }) 
+      body: JSON.stringify({ ok: false, status: 'failed', error: e.message, error_code: classifyOcrErrorCode(e).errorCode, traceId }) 
     };
+  } finally {
+    if (stopHeartbeat) stopHeartbeat();
   }
 };
 
