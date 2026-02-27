@@ -268,16 +268,14 @@ export function ByteUploadPanel({
       toast.error('Please log in to upload files');
       return;
     }
-    if (!uploadQueue.isUploading && uploadQueue.items?.length > 0) {
-      uploadQueue.clear?.();
-    } else {
-      uploadQueue.clearCompleted?.();
-    }
+    // Keep queue history visible between consecutive uploads so users can
+    // track how many files were uploaded in this chat session.
+    setIsCollapsed(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
     fileInputRef.current?.click();
-  }, [userId, uploadQueue]);
+  }, [userId]);
 
   const handleOpenFullConsole = useCallback(() => {
     navigate('/dashboard/smart-import-ai');
@@ -364,7 +362,9 @@ export function ByteUploadPanel({
     const hasActive = uploadQueue.items.some((item) => item.status === 'uploading' || item.status === 'pending');
     if (!hasActive) {
       setIsCollapsed(true);
+      return;
     }
+    setIsCollapsed(false);
   }, [compact, uploadQueue.items]);
 
   const handleViewDocument = useCallback(async (item: UploadQueueItem) => {
@@ -486,6 +486,16 @@ export function ByteUploadPanel({
     (typeof uploadProgress === 'number' && uploadProgress > 0 && uploadProgress < 100) ||
     uploadStatus.step === 'completed';
   const canDiscard = currentUploadIds.length > 0 && (isProcessing || uploadStatus.step === 'error');
+  const queueItemsForDisplay = (uploadQueue.items || []).map((item) => {
+    if (item.status !== 'completed') return item;
+    if (isProcessing || uploadStatus.step === 'processing') {
+      return { ...item, status: 'processing' as const };
+    }
+    if (uploadStatus.step === 'completed') {
+      return { ...item, status: 'summarized' as const };
+    }
+    return item;
+  });
 
   useEffect(() => {
     if (!isProcessing) {
@@ -601,7 +611,9 @@ export function ByteUploadPanel({
         <div className="mt-2">
           {compact && isCollapsed ? (
             <div className="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900/60 px-3 py-2 text-xs text-slate-200">
-              <span>{uploadQueue.items.length} upload{uploadQueue.items.length === 1 ? '' : 's'} completed</span>
+              <span>
+                {uploadQueue.items.length} upload{uploadQueue.items.length === 1 ? '' : 's'} in queue
+              </span>
               <div className="flex items-center gap-2">
                 {uploadQueue.items[0]?.result?.docId && (
                   <button
@@ -623,7 +635,7 @@ export function ByteUploadPanel({
             </div>
           ) : (
             <UploadQueuePanel
-              items={uploadQueue.items}
+              items={queueItemsForDisplay}
               progress={uploadQueue.progress}
               onCancel={uploadQueue.cancel}
               onRetry={uploadQueue.retry}

@@ -55,6 +55,7 @@ function getAuthHeaders(input: SmartImportPipelineInput): Record<string, string>
 async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<SmartImportPipelineResult | null> {
   // Prime Router mode A requires multipart/form-data; keep legacy path for base64 callers.
   if (!input.file) return null;
+  const autoCommit = input.source === 'chat' ? false : true;
 
   input.onProgress?.(10);
   const formData = new FormData();
@@ -128,6 +129,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
         docIds: [documentId],
         waitForOcrMs: 12000,
         pollForOcrMs: 300,
+        autoCommit,
       }),
     });
     const syncPayload = syncRes.ok ? await syncRes.json().catch(() => ({})) : {};
@@ -152,7 +154,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
         'Content-Type': 'application/json',
         ...getAuthHeaders(input),
       },
-      body: JSON.stringify({ mode: 'status', importId }),
+      body: JSON.stringify({ mode: 'status', importId, autoCommit }),
     });
     if (statusRes.ok) {
       const statusPayload = await statusRes.json().catch(() => ({}));
@@ -284,6 +286,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
           // Keep reuse path aligned with canonical flow so OCR has time to finish.
           waitForOcrMs: 12000,
           pollForOcrMs: 300,
+          autoCommit: input.source === 'chat' ? false : true,
         }),
       });
       if (syncRes.ok) {
@@ -446,6 +449,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
       // Too-short waits cause "nothing happened" stalls in Prime narration.
       waitForOcrMs: reachedTerminalOcrState ? 20000 : 12000,
       pollForOcrMs: 300,
+      autoCommit: input.source === 'chat' ? false : true,
     }),
   });
   let syncData = syncRes.ok ? await syncRes.json() : null;
@@ -467,6 +471,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
           docIds: [docId],
           waitForOcrMs: 30000,
           pollForOcrMs: 400,
+          autoCommit: input.source === 'chat' ? false : true,
         }),
       });
       if (retrySyncRes.ok) {

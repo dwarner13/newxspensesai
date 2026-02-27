@@ -15,7 +15,7 @@
 export interface UploadQueueItem {
   id: string; // Stable upload_id (file name + size + timestamp)
   file: File;
-  status: 'pending' | 'uploading' | 'completed' | 'error' | 'cancelled';
+  status: 'pending' | 'uploading' | 'processing' | 'summarized' | 'ready_for_approval' | 'committed' | 'completed' | 'error' | 'cancelled';
   progress: number; // 0-100
   speed: number; // Mbps
   eta: number; // seconds remaining

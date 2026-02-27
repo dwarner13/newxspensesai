@@ -360,7 +360,8 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
     setUploadFileCount({ current: 0, total: files.length });
     setError(null);
     
-    if (!uploadQueue.isUploading && uploadQueue.items.length > 0) {
+    // Keep prior queue rows visible in chat so users can see consecutive uploads.
+    if (sourceParam !== 'chat' && !uploadQueue.isUploading && uploadQueue.items.length > 0) {
       uploadQueue.clear();
     }
 
@@ -445,7 +446,9 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
               step: 'processing',
               error: null,
             });
-            uploadQueue.clearCompleted();
+            if (sourceParam !== 'chat') {
+              uploadQueue.clearCompleted();
+            }
             resolve(results);
             const totalTx = results.reduce((sum, item) => sum + (item.transactionCount || 0), 0);
             setLastUploadSummary({

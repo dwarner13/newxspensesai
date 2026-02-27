@@ -13,6 +13,7 @@ interface UseByteImportCompletionOptions {
   userId: string;
   importId?: string;
   importIds?: string[];
+  runId?: string;
   enabled?: boolean;
   onImportCompleted?: (importId: string) => void;
 }
@@ -27,6 +28,7 @@ export function useByteImportCompletion({
   userId,
   importId,
   importIds,
+  runId,
   enabled = true,
   onImportCompleted,
 }: UseByteImportCompletionOptions) {
@@ -51,7 +53,9 @@ export function useByteImportCompletion({
         );
         if (targets.length > 0) {
           for (const targetImportId of targets) {
-            const key = `${userId}:${targetImportId}`;
+            // Scope completion dedupe to the current upload run so reused importIds
+            // can emit completion again on a new upload attempt.
+            const key = `${userId}:${targetImportId}:${runId || 'default'}`;
 
             // Skip if we've already handled this import
             if (completedImports.has(key)) {
@@ -102,6 +106,6 @@ export function useByteImportCompletion({
         checkIntervalRef.current = null;
       }
     };
-  }, [userId, importId, importIds, enabled, onImportCompleted]);
+  }, [userId, importId, importIds, runId, enabled, onImportCompleted]);
 }
 

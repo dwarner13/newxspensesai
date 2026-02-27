@@ -7,6 +7,8 @@ export const inputSchema = z.object({
   target_slug: z.string().min(1, 'Target employee slug is required').describe('The slug of the employee to hand off to (e.g., "goalie-ai", "liberty-ai", "prime-boss")'),
   reason: z.string().optional().describe('Optional reason for the handoff (for logging and context)'),
   summary_for_next_employee: z.string().optional().describe('Short recap of what the user needs (helps the next employee understand context)'),
+  handoff_type: z.enum(['standard', 'plugin']).optional().describe('Use "plugin" when passing structured worker/plugin data between employees'),
+  plugin_payload: z.record(z.any()).optional().describe('Optional structured data payload to transfer to the next employee when handoff_type="plugin"'),
 });
 
 export const outputSchema = z.object({
@@ -16,6 +18,8 @@ export const outputSchema = z.object({
     target_slug: z.string(),
     reason: z.string().optional(),
     summary_for_next_employee: z.string().optional(),
+    handoff_type: z.enum(['standard', 'plugin']).optional(),
+    plugin_payload: z.record(z.any()).optional(),
   }),
 });
 
@@ -37,7 +41,7 @@ export async function execute(
   ctx: { userId: string; sessionId?: string }
 ): Promise<Result<Output>> {
   try {
-    const { target_slug, reason, summary_for_next_employee } = input;
+    const { target_slug, reason, summary_for_next_employee, handoff_type, plugin_payload } = input;
     
     // Validate that target_slug is not empty
     if (!target_slug || target_slug.trim().length === 0) {
@@ -51,6 +55,10 @@ export async function execute(
         target_slug: target_slug.trim(),
         reason: reason?.trim(),
         summary_for_next_employee: summary_for_next_employee?.trim(),
+        handoff_type: handoff_type || 'standard',
+        plugin_payload: handoff_type === 'plugin' && plugin_payload && typeof plugin_payload === 'object'
+          ? plugin_payload
+          : undefined,
       },
     });
   } catch (error) {

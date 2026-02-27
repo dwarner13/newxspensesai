@@ -39,6 +39,22 @@ export default function SmartImportAI() {
   const [fastMode, setFastMode] = useState(false);
   const isMobile = useMemo(() => /iPhone|Android|iPad/i.test(navigator.userAgent), []);
 
+  const buildAuthHeaders = async () => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-user-id': userId || '',
+    };
+    try {
+      const sb = getSupabase();
+      const { data } = sb ? await sb.auth.getSession() : { data: null as any };
+      const token = data?.session?.access_token;
+      if (token) headers.Authorization = `Bearer ${token}`;
+    } catch {
+      // best effort
+    }
+    return headers;
+  };
+
   // --- Tile handlers --------------------------------------------------------
 
   const openAny = () => emitBus("UPLOAD_REQUESTED", { source: "tile", accept: [ACCEPT.ANY] });
@@ -110,13 +126,21 @@ export default function SmartImportAI() {
     try {
       emitBus("IMPORT_COMMIT_REQUESTED", { importId: activeImportId });
 
-      // Commit staging -> final
+      // Persist approval, then commit staging -> final
+      const authHeaders = await buildAuthHeaders();
+      const approveResponse = await fetch('/.netlify/functions/approve-import', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ importId: activeImportId }),
+      });
+      const approvePayload = await approveResponse.json().catch(() => ({} as any));
+      if (!approveResponse.ok || approvePayload?.ok === false) {
+        throw new Error(approvePayload?.error || approvePayload?.message || 'Approval failed');
+      }
+
       const response = await fetch('/.netlify/functions/commit-import', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-user-id': userId || '',
-        },
+        headers: authHeaders,
         body: JSON.stringify({ userId, importId: activeImportId }),
       });
 
@@ -162,13 +186,21 @@ export default function SmartImportAI() {
     try {
       emitBus("IMPORT_COMMIT_REQUESTED", { importId: activeImportId });
 
-      // 1) Commit staging -> final
+      // 1) Persist approval, then commit staging -> final
+      const authHeaders = await buildAuthHeaders();
+      const approveResponse = await fetch('/.netlify/functions/approve-import', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ importId: activeImportId }),
+      });
+      const approvePayload = await approveResponse.json().catch(() => ({} as any));
+      if (!approveResponse.ok || approvePayload?.ok === false) {
+        throw new Error(approvePayload?.error || approvePayload?.message || 'Approval failed');
+      }
+
       const response = await fetch('/.netlify/functions/commit-import', {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'x-user-id': userId || '',
-        },
+        headers: authHeaders,
         body: JSON.stringify({ userId, importId: activeImportId }),
       });
 

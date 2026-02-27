@@ -128,8 +128,8 @@ export function PrimeSlideoutShell({
   }, []);
 
   // CRITICAL: Height constraints to prevent collapse
-  const MIN_H = 420; // Minimum height (desktop)
-  const MAX_H = 720; // Maximum height
+  const MIN_H = 520; // Minimum height (desktop) - keep chat comfortably tall
+  const MAX_H = 820; // Maximum height - restore larger pre-regression feel
   const MIN_SHELL_HEIGHT_MOBILE = 320; // Minimum height for mobile
   const MIN_SHELL_HEIGHT = isMobile ? MIN_SHELL_HEIGHT_MOBILE : MIN_H;
 
@@ -137,9 +137,9 @@ export function PrimeSlideoutShell({
     const vh = Math.max(0, window.innerHeight || 0);
     if (isExpanded) {
       // Max mode: near fullscreen while keeping chrome visible
-      return Math.max(MIN_SHELL_HEIGHT, Math.min(Math.round(vh * 0.85), vh - 24));
+      return Math.max(MIN_SHELL_HEIGHT, Math.min(Math.round(vh * 0.9), vh - 24));
     }
-    const topChromeOffset = 80;
+    const topChromeOffset = 56;
     return Math.max(MIN_SHELL_HEIGHT, Math.min(MAX_H, vh - topChromeOffset));
   };
 

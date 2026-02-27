@@ -5,7 +5,7 @@
  * - Manages "Prime Summary Ready" UI state
  */
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { onBus } from '../lib/bus';
 import { getSupabase } from '../lib/supabase';
 import { log, error } from '../lib/logger';
@@ -81,7 +81,7 @@ interface UsePostImportHandoffOptions {
 }
 
 export function usePostImportHandoff(userId: string | undefined, options: UsePostImportHandoffOptions = {}) {
-  const { bypassQuietMode = false, getBatchImportIds } = options;
+  const { bypassQuietMode = false } = options;
   const [primeSummaryReady, setPrimeSummaryReady] = useState<string | null>(null); // importId when ready
   const [latestSummary, setLatestSummary] = useState<PrimeSummary | null>(null);
   const [importTimelineById, setImportTimelineById] = useState<Record<string, ImportTimelineState>>({});
@@ -97,6 +97,16 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
         updatedAt: new Date().toISOString(),
       },
     }));
+  };
+
+  const publishPrimeSummaryReady = (importId: string) => {
+    if (!importId) return;
+    // Reused imports can resolve to the same importId across uploads.
+    // Pulse through null so listeners fire again for this run.
+    setPrimeSummaryReady(null);
+    window.setTimeout(() => {
+      setPrimeSummaryReady(importId);
+    }, 0);
   };
 
   useEffect(() => {
@@ -145,16 +155,11 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
           });
         }
 
-        const batchImportIds = Array.from(
-          new Set(
-            [payload.importId, ...((getBatchImportIds?.() || []).map((id) => String(id || "").trim()).filter(Boolean))]
-          )
-        );
         // STEP 4: Prepare Prime summary (store in memory, do NOT send yet)
         // Wrap in try/catch to ensure summary is always prepared even if preparePrimeSummary fails
         let prepared: { content: string; meta?: PrimeSummaryMeta };
         try {
-          prepared = await preparePrimeSummary(payload.importId, payload.userId, batchImportIds.length > 1 ? batchImportIds : undefined);
+          prepared = await preparePrimeSummary(payload.importId, payload.userId);
         } catch (err: any) {
           error('[usePostImportHandoff] Error preparing summary, using fallback:', err);
           prepared = { content: "Your categorized results and insights are available." };
@@ -170,10 +175,7 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
           if (import.meta.env.DEV) {
             log('[usePostImportHandoff] Summary already exists, skipping re-preparation', { importId: payload.importId });
           }
-          // Still show strip if not already shown
-          if (!primeSummaryReady) {
-            setPrimeSummaryReady(payload.importId);
-          }
+          publishPrimeSummaryReady(payload.importId);
           return;
         }
 
@@ -198,11 +200,11 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
         enqueueImportRecapIfReady(payload.importId, prepared.content, prepared.meta);
 
         // STEP 5: Show "Prime Summary Ready" strip
-        setPrimeSummaryReady(payload.importId);
+        publishPrimeSummaryReady(payload.importId);
 
         // If summary is generic, retry after OCR/normalization completes
         if (isGenericSummary(prepared.content)) {
-          scheduleSummaryRetry(payload.importId, payload.userId, batchImportIds.length > 1 ? batchImportIds : undefined);
+          scheduleSummaryRetry(payload.importId, payload.userId);
         }
       } catch (err: any) {
         error('[usePostImportHandoff] Error processing import completion:', err);
@@ -211,14 +213,15 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
           status: 'error',
           summaryReady: false,
         });
-        // Remove from processing set on error so it can retry
+      } finally {
+        // Allow same importId to be processed again on future upload runs.
         processingImportsRef.current.delete(payload.importId);
       }
     };
 
     const unsubscribe = onBus('BYTE_IMPORT_COMPLETED', handleByteImportCompleted);
     return unsubscribe;
-  }, [userId, bypassQuietMode, getBatchImportIds]);
+  }, [userId, bypassQuietMode]);
 
   const isGenericSummary = (content: string) => {
     return (
@@ -258,7 +261,7 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
           primeSummaryStore.set(importId, updatedSummary);
           primeSummaryMetaStore.set(importId, updated?.meta || {});
           setLatestSummary(updatedSummary);
-          setPrimeSummaryReady(importId);
+          publishPrimeSummaryReady(importId);
           enqueueImportRecapIfReady(importId, updatedContent, updated?.meta);
         } else if (isGenericSummary(updatedContent)) {
           scheduleSummaryRetry(importId, retryUserId);
@@ -303,22 +306,22 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
   /**
    * Get Prime summary for an import (if prepared)
    */
-  const getPrimeSummary = (importId: string): PrimeSummary | null => {
+  const getPrimeSummary = useCallback((importId: string): PrimeSummary | null => {
     return primeSummaryStore.get(importId) || null;
-  };
+  }, []);
 
-  const getPrimeSummaryMeta = (importId: string): PrimeSummaryMeta | null => {
+  const getPrimeSummaryMeta = useCallback((importId: string): PrimeSummaryMeta | null => {
     return primeSummaryMetaStore.get(importId) || null;
-  };
+  }, []);
 
-  const getImportTimeline = (importId: string): ImportTimelineState | null => {
+  const getImportTimeline = useCallback((importId: string): ImportTimelineState | null => {
     return importTimelineById[importId] || null;
-  };
+  }, [importTimelineById]);
 
   /**
    * Get the latest prepared summary (if any)
    */
-  const getLatestPrimeSummary = (): PrimeSummary | null => {
+  const getLatestPrimeSummary = useCallback((): PrimeSummary | null => {
     if (latestSummary) return latestSummary;
     let latest: PrimeSummary | null = null;
     primeSummaryStore.forEach((summary) => {
@@ -333,13 +336,13 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
       }
     });
     return latest;
-  };
+  }, [latestSummary]);
 
   /**
    * Mark summary as consumed (after handoff)
    * Ensures idempotency: can be called multiple times safely
    */
-  const consumePrimeSummary = (importId: string) => {
+  const consumePrimeSummary = useCallback((importId: string) => {
     const summary = primeSummaryStore.get(importId);
     if (summary) {
       if (summary.consumed) {
@@ -356,7 +359,7 @@ export function usePostImportHandoff(userId: string | undefined, options: UsePos
         log('[usePostImportHandoff] Summary consumed', { importId });
       }
     }
-  };
+  }, []);
 
   return {
     primeSummaryReady,
@@ -539,7 +542,7 @@ async function waitForPrimeRouterStatus(
       const response = await fetch('/.netlify/functions/prime-router', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
-        body: JSON.stringify({ mode: 'status', importId }),
+        body: JSON.stringify({ mode: 'status', importId, autoCommit: false }),
       });
       if (response.ok) {
         const payload = await response.json();

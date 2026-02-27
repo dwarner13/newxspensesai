@@ -106,12 +106,27 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
     
     setCommitting(importId);
     try {
+      const authHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-user-id': userId,
+      };
+      const session = await supabase.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      if (token) authHeaders.Authorization = `Bearer ${token}`;
+
+      const approveResponse = await fetch('/.netlify/functions/approve-import', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ importId }),
+      });
+      const approvePayload = await approveResponse.json().catch(() => ({} as any));
+      if (!approveResponse.ok || approvePayload?.ok === false) {
+        throw new Error(approvePayload?.error || approvePayload?.message || 'Approval failed');
+      }
+
       const response = await fetch('/.netlify/functions/commit-import', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-        },
+        headers: authHeaders,
         body: JSON.stringify({ userId, importId }),
       });
 

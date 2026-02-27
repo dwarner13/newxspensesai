@@ -84,14 +84,30 @@ const ImportAllButton: React.FC<ImportAllButtonProps> = ({ importId, transaction
     setIsImporting(true);
 
     try {
+      const session = await supabase.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      const authHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'x-user-id': userId,
+      };
+      if (token) authHeaders.Authorization = `Bearer ${token}`;
+
+      const approveResponse = await fetch('/.netlify/functions/approve-import', {
+        method: 'POST',
+        headers: authHeaders,
+        body: JSON.stringify({ importId }),
+      });
+      const approvePayload = await approveResponse.json().catch(() => ({} as any));
+      if (!approveResponse.ok || approvePayload?.ok === false) {
+        toast.error(approvePayload?.error || approvePayload?.message || 'Approval failed');
+        return;
+      }
+
       // SECURITY: Send userId in header, not in body
       // Backend will validate this matches the authenticated user
       const response = await fetch('/.netlify/functions/commit-import', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId, // Send userId in header for secure auth
-        },
+        headers: authHeaders,
         body: JSON.stringify({
           importId, // Only send importId in body
         }),

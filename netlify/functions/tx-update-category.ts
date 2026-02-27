@@ -9,6 +9,7 @@ type RequestBody = {
   subcategory?: string | null;
   applyToVendor?: boolean;
   vendor?: string | null;
+  disableLearning?: boolean;
 };
 
 type LearnedResult = { applied: boolean; method?: string; vendor?: string | null };
@@ -172,8 +173,10 @@ export const handler: Handler = async (event) => {
       if (updateError) throw updateError;
 
       const vendor = pickVendor(body.vendor, existing, table);
+      const shouldLearnVendor =
+        body.disableLearning === true ? false : body.applyToVendor !== false;
       const learned =
-        body.applyToVendor === true
+        shouldLearnVendor
           ? await tryVendorLearning({
               userId: auth.userId,
               txId: id,
@@ -186,7 +189,7 @@ export const handler: Handler = async (event) => {
               authHeader,
             })
         : { applied: false, vendor: null };
-      if (body.applyToVendor === true) {
+      if (shouldLearnVendor) {
         console.log('[tx-update-category] vendor learning', {
           applied: learned.applied,
           method: learned.method || null,
@@ -238,8 +241,10 @@ export const handler: Handler = async (event) => {
     if (updateError) throw updateError;
 
     const vendor = pickVendor(body.vendor, existing, table);
+    const shouldLearnVendor =
+      body.disableLearning === true ? false : body.applyToVendor !== false;
     const learned =
-      body.applyToVendor === true
+      shouldLearnVendor
         ? await tryVendorLearning({
             userId: auth.userId,
             txId: id,
@@ -250,7 +255,7 @@ export const handler: Handler = async (event) => {
             authHeader,
           })
         : { applied: false, vendor: null };
-    if (body.applyToVendor === true) {
+    if (shouldLearnVendor) {
       console.log('[tx-update-category] vendor learning', {
         applied: learned.applied,
         method: learned.method || null,

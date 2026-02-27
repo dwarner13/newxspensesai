@@ -108,6 +108,7 @@ import {
   buildPrimeHelpFastLaneAnswer,
   detectPrimeHelpFastLaneIntent,
 } from './_shared/primeHelpFastLane.js';
+import { renderStatementBreakdownMarkdown } from './_lib/renderStatementBreakdown.js';
 import { sanitizePrimeResponse } from './_shared/primeResponseSanitizer.js';
 import { detectRecurringTransactions } from './_shared/recurringDetector.js';
 import {
@@ -1170,6 +1171,9 @@ export function shouldUseMemoryV2(args: {
     /\bpayments?\b/i,
     /\bmerchant\b/i,
     /\bwhere is my money going\b/i,
+    /\bpaid for\b/i,
+    /\bspent for\b/i,
+    /\bspend for\b/i,
   ];
   if (recurringAnalysisPatterns.some((p) => p.test(text))) {
     return { need: true, reason: 'recurring_or_merchant_analysis' };
@@ -1184,9 +1188,20 @@ export function shouldUseMemoryV2(args: {
     /\btrend\b/i,
     /\bbudget\b/i,
     /\bcash\s*flow\b/i,
+    /\bhow much (did i )?(pay|paid)\b/i,
+    /\bhow much.*\bfor\b/i,
   ];
   if (dataQuestionPatterns.some((p) => p.test(text))) {
     return { need: true, reason: 'data_question' };
+  }
+
+  const correctionOrLearningPatterns = [
+    /\b(recategorize|re-categorize|change category|set category|move to category)\b/i,
+    /\b(this is wrong|that is wrong|fix this|correct this line)\b/i,
+    /\b(learn this|remember this merchant|save this correction)\b/i,
+  ];
+  if (correctionOrLearningPatterns.some((p) => p.test(text))) {
+    return { need: true, reason: 'correction_or_learning_intent' };
   }
 
   // Generic coaching should stay fast unless clearly data-grounded.
@@ -1195,7 +1210,12 @@ export function shouldUseMemoryV2(args: {
   }
 
   // Keep old behavior safety: Prime fast lane generally skips memory.
-  if (args.employeeSlug === 'prime-boss' && !args.pipelineSnapshotLoaded && text.length <= 40) {
+  if (
+    args.employeeSlug === 'prime-boss' &&
+    !args.pipelineSnapshotLoaded &&
+    text.length <= 40 &&
+    !/\b(statement|upload|import|merchant|cursor|payment|paid|spent|category|correct|fix)\b/i.test(text)
+  ) {
     return { need: false, reason: 'short_prime_turn' };
   }
 
@@ -1514,7 +1534,33 @@ function shouldIncludePendingInTxSearch(message: string): boolean {
 
 function mentionsStatementImportContext(message: string): boolean {
   const text = String(message || '').toLowerCase();
-  return /\b(statement|import|upload|this statement|that statement|latest statement|last upload)\b/.test(text);
+  return /\b(statement|import|upload|uploaded|this statement|that statement|latest statement|last upload|what i uploaded|which statement)\b/.test(text);
+}
+
+function isStatementBreakdownIntent(message: string): boolean {
+  const text = String(message || '').toLowerCase();
+  const explicitStatementContext = mentionsStatementImportContext(text)
+    || /\b(uploaded|uploaded statement|what i uploaded|which statement|that upload|that statement)\b/.test(text);
+  const breakdownAsks = /\b(break\s*down|breakdown|what'?s on|what is on|summar(?:y|ize)|summarise|what did you find|findings|show me|list|totals?|categories?)\b/.test(text);
+  const statementDetailAsks = /\b(due date|minimum payment|min payment|new balance|credit limit|available credit|account last[-\s]?4|last[-\s]?4|issuer|institution|card|visa|mastercard|credit card|bank statement|statement type|statement period|period start|period end)\b/.test(text);
+  return (explicitStatementContext && breakdownAsks) || statementDetailAsks;
+}
+
+function isStatementQaIntent(message: string): boolean {
+  const text = String(message || '').toLowerCase();
+  if (!text.trim()) return false;
+  const monthMentioned = /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|sept|october|oct|november|nov|december|dec|last month|this month)\b/.test(text);
+  const statementKeywords = /\b(statement|transactions?|charges?|spend|spent|total|totals|category|categories|merchant|deposits?|income|refunds?|balance|fees?|interest|largest|biggest|top\s+\d+)\b/.test(text);
+  const styleOnlyQuestion = /\b(visa|mastercard|bank statement|statement type|issuer|institution|due date|minimum payment|credit limit|available credit)\b/.test(text);
+  if (styleOnlyQuestion && !/\b(transactions?|charges?|spend|spent|total|category|merchant|income|deposits?|refunds?|fees?|interest|largest|biggest|top\s+\d+)\b/.test(text)) {
+    return false;
+  }
+  return statementKeywords || monthMentioned;
+}
+
+function asksForLatestStatement(message: string): boolean {
+  const text = String(message || '').toLowerCase();
+  return /\b(latest|last|most recent|previous|prior)\s+(statement|upload|import|document)\b/.test(text);
 }
 
 function extractImportIdFromMessage(message: string): string | null {
@@ -1592,6 +1638,38 @@ function parseToolResultContent(content: unknown): any {
   } catch {
     return null;
   }
+}
+
+function encodePluginPayloadForHandoff(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null;
+  try {
+    const json = JSON.stringify(payload);
+    if (!json || json === '{}') return null;
+    return Buffer.from(json, 'utf8').toString('base64');
+  } catch {
+    return null;
+  }
+}
+
+function decodePluginPayloadFromHandoffSummary(summary: string | null | undefined): Record<string, any> | null {
+  const raw = String(summary || '');
+  const marker = raw.match(/PLUGIN_CONTEXT_B64:([A-Za-z0-9+/=]+)/);
+  if (!marker?.[1]) return null;
+  try {
+    const decoded = Buffer.from(marker[1], 'base64').toString('utf8');
+    const parsed = JSON.parse(decoded);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    return parsed as Record<string, any>;
+  } catch {
+    return null;
+  }
+}
+
+function stripPluginMarkerFromSummary(summary: string | null | undefined): string | undefined {
+  const raw = String(summary || '');
+  if (!raw) return undefined;
+  const stripped = raw.replace(/\n?PLUGIN_CONTEXT_B64:[A-Za-z0-9+/=]+\s*$/m, '').trim();
+  return stripped || undefined;
 }
 
 function didLastTxUpdateCategorySucceed(toolCalls: any[], toolResults: any[]): boolean {
@@ -2731,6 +2809,10 @@ function isLastUploadRecallIntent(message: string): boolean {
 function isLastUploadDetailIntent(message: string): boolean {
   const text = String(message || '').toLowerCase();
   if (!text) return false;
+  const merchantNeedle = extractMerchantNeedleFromQuestion(text);
+  if (merchantNeedle && /\b(how much|amount|total|spend|spent|pay|paid)\b/.test(text)) {
+    return true;
+  }
   return /\b(how much|amount|total|when was it|what date|date|merchant|where was it|where did i|who was it)\b/.test(text)
     && /\b(it|that|receipt|upload|statement|last)\b/.test(text);
 }
@@ -2798,13 +2880,142 @@ type LatestImportFacts = {
   currency: string;
 };
 
+function extractMerchantNeedleFromQuestion(question: string): string | null {
+  const q = String(question || '').toLowerCase();
+  const connectorCapture = q.match(/\b(?:with|on|for|at)\s+([a-z0-9][a-z0-9&*'.,\-\s]{1,60})/i);
+  if (connectorCapture?.[1]) {
+    const cleanedConnector = String(connectorCapture[1])
+      .replace(/\?.*$/, '')
+      .replace(/\b(this month|last month|latest|statement|upload|did i|do i|can you|tell me|how much)\b/gi, '')
+      .replace(/^(a|an|the|my)\s+/i, '')
+      .trim();
+    if (cleanedConnector.length >= 2) return cleanedConnector;
+  }
+  const patterns = [
+    /\bspend with\s+([a-z0-9&*'.,\-\s]{2,})$/i,
+    /\bspent with\s+([a-z0-9&*'.,\-\s]{2,})$/i,
+    /\bpaid for\s+([a-z0-9&*'.,\-\s]{2,})$/i,
+    /\bspend for\s+([a-z0-9&*'.,\-\s]{2,})$/i,
+    /\bspent for\s+([a-z0-9&*'.,\-\s]{2,})$/i,
+    /\bfor\s+([a-z0-9&*'.,\-\s]{2,})$/i,
+    /\bwith\s+([a-z0-9&*'.,\-\s]{2,})$/i,
+    /\bon\s+([a-z0-9&*'.,\-\s]{2,})$/i,
+    /\bat\s+([a-z0-9&*'.,\-\s]{2,})$/i,
+  ];
+  for (const pattern of patterns) {
+    const m = q.match(pattern);
+    if (m?.[1]) {
+      const cleaned = String(m[1])
+        .replace(/\?+$/, '')
+        .replace(/\b(this month|last month|latest|statement|upload)\b/gi, '')
+        .replace(/^(a|an|the|my)\s+/i, '')
+        .trim();
+      if (cleaned.length >= 2) return cleaned;
+    }
+  }
+  return null;
+}
+
+async function loadMerchantSpendForLatestImportBestEffort(
+  sb: SupabaseClient,
+  userId: string,
+  importId: string,
+  merchantNeedle: string
+): Promise<{ total: number; count: number; matches: string[] }> {
+  const isMatch = (merchantValue: unknown, descriptionValue: unknown, needle: string, tokens: string[]) => {
+    const merchant = String(merchantValue || '').toLowerCase();
+    const description = String(descriptionValue || '').toLowerCase();
+    if (!needle) return false;
+    if (merchant.includes(needle) || description.includes(needle)) return true;
+    if (tokens.length === 0) return false;
+    return tokens.some((token) => merchant.includes(token) || description.includes(token));
+  };
+  try {
+    const { data } = await sb
+      .from('transactions')
+      .select('amount, merchant, description')
+      .eq('user_id', userId)
+      .eq('import_id', importId)
+      .limit(500);
+    const rows = Array.isArray(data) ? data : [];
+    const needle = String(merchantNeedle || '').toLowerCase().trim();
+    const needleTokens = needle
+      .split(/[^a-z0-9]+/g)
+      .map((t) => t.trim())
+      .filter((t) => t.length >= 3);
+    let matched = rows.filter((row: any) => isMatch(row?.merchant, row?.description, needle, needleTokens));
+    let total = matched.reduce((sum: number, row: any) => sum + Math.abs(Number(row?.amount || 0)), 0);
+    let matches = Array.from(
+      new Set(
+        matched
+          .map((row: any) => String(row?.merchant || row?.description || '').trim())
+          .filter(Boolean)
+      )
+    ).slice(0, 4);
+    if (matched.length === 0) {
+      const { data: staged } = await sb
+        .from('transactions_staging')
+        .select('data_json')
+        .eq('user_id', userId)
+        .eq('import_id', importId)
+        .limit(800);
+      const stagedRows = Array.isArray(staged) ? staged : [];
+      const stagedMatched = stagedRows.filter((row: any) =>
+        isMatch(
+          row?.data_json?.merchant || row?.data_json?.vendor || row?.data_json?.description,
+          row?.data_json?.description || row?.data_json?.memo,
+          needle,
+          needleTokens
+        )
+      );
+      if (stagedMatched.length > 0) {
+        matched = stagedMatched as any[];
+        total = stagedMatched.reduce((sum: number, row: any) => sum + Math.abs(Number(row?.data_json?.amount || 0)), 0);
+        matches = Array.from(
+          new Set(
+            stagedMatched
+              .map((row: any) =>
+                String(
+                  row?.data_json?.merchant ||
+                  row?.data_json?.vendor ||
+                  row?.data_json?.description ||
+                  row?.data_json?.memo ||
+                  ''
+                ).trim()
+              )
+              .filter(Boolean)
+          )
+        ).slice(0, 4);
+      }
+    }
+    return { total, count: matched.length, matches };
+  } catch {
+    return { total: 0, count: 0, matches: [] };
+  }
+}
+
 async function loadLatestImportFactsBestEffort(
   sb: SupabaseClient,
   userId: string
 ): Promise<LatestImportFacts | null> {
   try {
     const latest = await loadLatestImportSummaryBestEffort(sb, userId);
-    const importId = latest?.importId || null;
+    let importId = latest?.importId || null;
+    let latestCreatedAt = latest?.createdAt || null;
+    if (!importId) {
+      const { data: latestImport } = await sb
+        .from('imports')
+        .select('id,created_at')
+        .eq('user_id', userId)
+        .in('status', ['committed', 'parsed'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latestImport?.id) {
+        importId = String(latestImport.id);
+        latestCreatedAt = latestImport?.created_at ? String(latestImport.created_at) : latestCreatedAt;
+      }
+    }
     if (!importId) {
       return latest
         ? {
@@ -2836,7 +3047,7 @@ async function loadLatestImportFactsBestEffort(
 
     return {
       importId,
-      createdAt: latest?.createdAt || null,
+      createdAt: latestCreatedAt,
       summaryText: latest?.summaryText || null,
       transactionCount,
       totalAmount,
@@ -2894,6 +3105,616 @@ async function loadLatestImportSummaryBestEffort(
   } catch {
     return null;
   }
+}
+
+interface StatementBreakdown {
+  version: 1;
+  import_id: string;
+  document_id: string | null;
+  user_id: string;
+  created_at: string;
+  statement_meta: {
+    issuer: string | null;
+    account_last4: string | null;
+    period_start: string | null;
+    period_end: string | null;
+    statement_type: 'bank' | 'credit_card' | 'unknown';
+  };
+  totals: {
+    total_debits: number;
+    total_credits: number;
+    net: number;
+    transaction_count: number;
+  };
+  category_totals: Array<{
+    category: string;
+    total: number;
+    count: number;
+    percentage: number;
+  }>;
+  top_merchants: Array<{
+    merchant: string;
+    total: number;
+    count: number;
+  }>;
+  flags: {
+    duplicate_count: number;
+    refund_count: number;
+    needs_review_count: number;
+    low_confidence_count: number;
+    missing_date_count: number;
+  };
+  read_completeness?: {
+    status: 'complete' | 'partial' | 'unknown';
+    pages_detected: number | null;
+    pages_read: number | null;
+    coverage_ratio: number | null;
+    signals: string[];
+  };
+  confidence: {
+    overall: 'high' | 'medium' | 'low';
+    ocr_confidence: number | null;
+    parse_confidence: number | null;
+    transaction_match_rate: number | null;
+    reconciled: boolean;
+    recon_method: 'direct_debits' | 'balance_equation' | 'direct_credits' | 'none';
+  };
+}
+
+async function loadStatementBreakdown(
+  sb: SupabaseClient,
+  userId: string,
+  importId?: string | null
+): Promise<StatementBreakdown | null> {
+  const parseBreakdownCandidate = (candidate: any): any | null => {
+    if (candidate == null) return null;
+    if (typeof candidate === 'string') {
+      const raw = candidate.trim();
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : null;
+      } catch {
+        return null;
+      }
+    }
+    return typeof candidate === 'object' ? candidate : null;
+  };
+  const hasUsableStatementMetadata = (breakdown: any): boolean => {
+    if (!breakdown || typeof breakdown !== 'object') return false;
+    const meta = breakdown.statement_meta && typeof breakdown.statement_meta === 'object'
+      ? breakdown.statement_meta
+      : {};
+    return Boolean(
+      String(meta.issuer || breakdown.institution || breakdown.issuer || '').trim() ||
+      String(meta.account_last4 || breakdown.account_last4 || '').trim() ||
+      String(meta.period_start || breakdown.period_start || '').trim() ||
+      String(meta.period_end || breakdown.period_end || '').trim() ||
+      Number.isFinite(Number(breakdown.previous_balance)) ||
+      Number.isFinite(Number(breakdown.new_balance))
+    );
+  };
+  const normalizeFromRow = (row: any): StatementBreakdown | null => {
+    if (!row || typeof row !== 'object') return null;
+    const candidate =
+      parseBreakdownCandidate(row.statement_breakdown_json) ||
+      parseBreakdownCandidate(row.statement_breakdown) ||
+      parseBreakdownCandidate(row?.metadata?.statement_breakdown);
+    if (!candidate) return null;
+    const hasTransactions = Array.isArray(candidate.transactions) && candidate.transactions.length > 0;
+    if (Number(candidate.version || 1) !== 1 && !hasTransactions && !hasUsableStatementMetadata(candidate)) {
+      return null;
+    }
+    return candidate as StatementBreakdown;
+  };
+
+  const selectAttempts = [
+    'id,status,created_at,statement_breakdown_json,statement_breakdown,metadata',
+    'id,status,created_at,statement_breakdown_json,metadata',
+    'id,status,created_at,statement_breakdown,metadata',
+    'id,status,created_at,metadata',
+  ];
+
+  for (const selectClause of selectAttempts) {
+    try {
+      if (importId) {
+        const { data, error } = await sb
+          .from('imports')
+          .select(selectClause)
+          .eq('user_id', userId)
+          .eq('id', importId)
+          .limit(1)
+          .maybeSingle();
+        if (error) continue;
+        return normalizeFromRow(data);
+      }
+
+      const { data, error } = await sb
+        .from('imports')
+        .select(selectClause)
+        .eq('user_id', userId)
+        .eq('status', 'committed')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (error) continue;
+      const rows = Array.isArray(data) ? data : [];
+      for (const row of rows) {
+        const normalized = normalizeFromRow(row);
+        if (normalized) return normalized;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+async function listUserStatements(
+  sb: SupabaseClient,
+  userId: string,
+  limit: number = 10
+): Promise<Array<{
+  import_id: string;
+  document_id: string | null;
+  status: string;
+  created_at: string;
+  issuer: string | null;
+  account_last4: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  transaction_count: number | null;
+}>> {
+  const selectAttempts = [
+    'id, document_id, status, created_at, statement_breakdown_json, statement_breakdown, metadata',
+    'id, document_id, status, created_at, statement_breakdown_json, metadata',
+    'id, document_id, status, created_at, statement_breakdown, metadata',
+    'id, document_id, status, created_at, metadata',
+  ];
+  for (const clause of selectAttempts) {
+    try {
+      const { data, error } = await sb
+        .from('imports')
+        .select(clause)
+        .eq('user_id', userId)
+        .in('status', ['committed', 'parsed'])
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (error) continue;
+      const rows = Array.isArray(data) ? data : [];
+      return rows.map((imp: any) => {
+        const bd = imp?.statement_breakdown_json || imp?.statement_breakdown || imp?.metadata?.statement_breakdown || null;
+        return {
+          import_id: String(imp.id),
+          document_id: imp?.document_id ? String(imp.document_id) : null,
+          status: String(imp?.status || 'unknown'),
+          created_at: String(imp?.created_at || ''),
+          issuer: bd?.statement_meta?.issuer || null,
+          account_last4: bd?.statement_meta?.account_last4 || null,
+          period_start: bd?.statement_meta?.period_start || null,
+          period_end: bd?.statement_meta?.period_end || null,
+          transaction_count: Number.isFinite(Number(bd?.totals?.transaction_count))
+            ? Number(bd.totals.transaction_count)
+            : null,
+        };
+      });
+    } catch {
+      continue;
+    }
+  }
+  return [];
+}
+
+type ResolvedKeyDetails = {
+  issuer: string | null;
+  accountLast4: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  issuerReason?: string | null;
+  accountReason?: string | null;
+  periodReason?: string | null;
+};
+
+function inferInstitutionFromFileName(name: string): string | null {
+  const lower = String(name || '').toLowerCase();
+  if (!lower) return null;
+  if ((lower.includes('triangle') || lower.includes('ctfs')) && (lower.includes('mastercard') || lower.includes('worldelite'))) {
+    return 'Triangle World Elite Mastercard';
+  }
+  if (lower.includes('rbc') && lower.includes('visa')) return 'RBC Visa';
+  return null;
+}
+
+function inferLast4FromFileName(name: string): string | null {
+  const digits = String(name || '').match(/(\d{12,19})/);
+  if (!digits?.[1]) return null;
+  return digits[1].slice(-4);
+}
+
+function inferPeriodFromFileName(name: string): { start: string | null; end: string | null } {
+  const m = String(name || '').match(/(\d{4})[_-](\d{2})[_-](\d{2})[_-](\d{4})[_-](\d{2})[_-](\d{2})/);
+  if (!m) return { start: null, end: null };
+  return { start: `${m[1]}-${m[2]}-${m[3]}`, end: `${m[4]}-${m[5]}-${m[6]}` };
+}
+
+function normalizeIsoDate(value: unknown): string | null {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const m = raw.match(/^\d{4}-\d{2}-\d{2}/);
+  if (m) return m[0];
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+async function resolveBreakdownKeyDetails(
+  sb: SupabaseClient,
+  userId: string,
+  breakdown: StatementBreakdown
+): Promise<ResolvedKeyDetails> {
+  const baseIssuer = String(breakdown.statement_meta?.issuer || '').trim() || null;
+  const baseLast4 = String(breakdown.statement_meta?.account_last4 || '').trim() || null;
+  const basePeriodStart = normalizeIsoDate(breakdown.statement_meta?.period_start);
+  const basePeriodEnd = normalizeIsoDate(breakdown.statement_meta?.period_end);
+  if (baseIssuer && baseLast4 && basePeriodStart && basePeriodEnd) {
+    return { issuer: baseIssuer, accountLast4: baseLast4, periodStart: basePeriodStart, periodEnd: basePeriodEnd };
+  }
+
+  let fileName = '';
+  let extracted: any = null;
+  let importFileUrl = '';
+  try {
+    const { data: importRow } = await sb
+      .from('imports')
+      .select('document_id,file_url')
+      .eq('id', breakdown.import_id)
+      .eq('user_id', userId)
+      .maybeSingle();
+    const docId = importRow?.document_id ? String(importRow.document_id) : '';
+    importFileUrl = String(importRow?.file_url || '').trim();
+    if (docId) {
+      const selectAttempts = ['original_name,extracted_data', 'original_name', 'extracted_data'];
+      for (const clause of selectAttempts) {
+        const { data, error } = await sb
+          .from('user_documents')
+          .select(clause)
+          .eq('id', docId)
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (error) continue;
+        fileName = String(data?.original_name || fileName || '');
+        extracted = extracted || data?.extracted_data || null;
+        break;
+      }
+    }
+    if (!fileName && importFileUrl) {
+      const fromUrl = importFileUrl.split('/').filter(Boolean).pop() || '';
+      fileName = String(fromUrl || '').trim();
+    }
+  } catch {
+    // non-blocking fallback resolution
+  }
+
+  const issuer = baseIssuer ||
+    String(extracted?.issuer || extracted?.institution || extracted?.card || '').trim() ||
+    inferInstitutionFromFileName(fileName);
+  const accountLast4 = baseLast4 ||
+    String(extracted?.account_last4 || extracted?.last4 || '').trim() ||
+    inferLast4FromFileName(fileName);
+
+  let periodStart = basePeriodStart || normalizeIsoDate(extracted?.period_start || extracted?.statement_period_start);
+  let periodEnd = basePeriodEnd || normalizeIsoDate(extracted?.period_end || extracted?.statement_period_end);
+  if (!periodStart || !periodEnd) {
+    const byName = inferPeriodFromFileName(fileName);
+    periodStart = periodStart || byName.start;
+    periodEnd = periodEnd || byName.end;
+  }
+  if (!periodStart || !periodEnd) {
+    try {
+      const { data: txRows } = await sb
+        .from('transactions')
+        .select('date')
+        .eq('user_id', userId)
+        .eq('import_id', breakdown.import_id)
+        .order('date', { ascending: true })
+        .limit(500);
+      const dates = (Array.isArray(txRows) ? txRows : [])
+        .map((r: any) => normalizeIsoDate(r?.date))
+        .filter((d: string | null): d is string => Boolean(d));
+      if (dates.length > 0) {
+        periodStart = periodStart || dates[0];
+        periodEnd = periodEnd || dates[dates.length - 1];
+      }
+    } catch {
+      // ignore tx fallback failure
+    }
+  }
+
+  return {
+    issuer: issuer || null,
+    accountLast4: accountLast4 || null,
+    periodStart: periodStart || null,
+    periodEnd: periodEnd || null,
+    issuerReason: issuer ? null : 'structured metadata unavailable',
+    accountReason: accountLast4 ? null : 'account identifier not detected',
+    periodReason: periodStart && periodEnd ? null : 'no reliable date range parsed',
+  };
+}
+
+type StatementQaMode = 'general' | 'merchant' | 'largest' | 'income';
+
+type StatementQaRow = {
+  id: string;
+  date: string | null;
+  merchant: string;
+  description: string | null;
+  category: string | null;
+  amount: number;
+  importId: string | null;
+  documentId: string | null;
+  source: 'transactions' | 'transactions_staging';
+};
+
+type StatementQaRequest = {
+  importId: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  queryText: string | null;
+  includePending: boolean;
+  mode: StatementQaMode;
+  topN: number;
+};
+
+function toFiniteNumber(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const normalized = value.replace(/[^0-9.-]/g, '');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function normalizeStatementQaSignedAmount(rawAmount: unknown, row: any): number {
+  let amount = toFiniteNumber(rawAmount);
+  const type = String(row?.type || row?.tx_type || '').toLowerCase();
+  const direction = String(row?.direction || '').toLowerCase();
+  const isDebit = row?.is_debit === true || direction === 'debit' || direction === 'out' || type === 'debit' || type === 'expense';
+  const isCreditLike =
+    direction === 'credit' ||
+    direction === 'in' ||
+    type === 'credit' ||
+    type === 'income' ||
+    type === 'deposit' ||
+    type === 'payment' ||
+    type === 'refund';
+  if (isDebit && amount < 0) amount = Math.abs(amount);
+  if (isCreditLike && amount > 0) amount = -Math.abs(amount);
+  return amount;
+}
+
+function parseTopNHint(message: string): number {
+  const m = String(message || '').toLowerCase().match(/\btop\s+(\d{1,2})\b/);
+  if (!m?.[1]) return 5;
+  const parsed = Number(m[1]);
+  if (!Number.isFinite(parsed)) return 5;
+  return Math.max(1, Math.min(10, Math.floor(parsed)));
+}
+
+function inferStatementQaMode(message: string): StatementQaMode {
+  const text = String(message || '').toLowerCase();
+  if (/\b(largest|biggest|top\s+\d+)\b/.test(text)) return 'largest';
+  if (/\b(income|deposit|deposits|salary|payroll)\b/.test(text)) return 'income';
+  if (extractMerchantNeedleFromQuestion(text)) return 'merchant';
+  return 'general';
+}
+
+async function loadStatementQaRows(
+  sb: SupabaseClient,
+  userId: string,
+  req: StatementQaRequest
+): Promise<StatementQaRow[]> {
+  const matchText = (value: unknown, queryText: string): boolean => {
+    const hay = String(value || '').toLowerCase();
+    return hay.includes(queryText.toLowerCase());
+  };
+
+  const normalizeDate = (value: unknown): string | null => {
+    const normalized = normalizeIsoDate(value);
+    return normalized || null;
+  };
+
+  const rows: StatementQaRow[] = [];
+  try {
+    const { data, error } = await sb
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(800);
+    if (!error) {
+      for (const row of Array.isArray(data) ? data : []) {
+        const importId = row?.import_id ? String(row.import_id) : null;
+        const documentId = row?.document_id ? String(row.document_id) : null;
+        if (req.importId && importId !== req.importId) continue;
+        const date = normalizeDate(row?.date || row?.posted_at || row?.occurred_at);
+        if (req.startDate && (!date || date < req.startDate)) continue;
+        if (req.endDate && (!date || date > req.endDate)) continue;
+        const merchant = String(row?.merchant || row?.merchant_name || row?.vendor || row?.description || 'UNKNOWN-MERCHANT').trim();
+        const description = String(row?.description || row?.memo || '').trim() || null;
+        const category = String(row?.category || '').trim() || null;
+        const amount = normalizeStatementQaSignedAmount(row?.amount, row);
+        if (req.queryText) {
+          const q = req.queryText;
+          const textMatch =
+            matchText(merchant, q) ||
+            matchText(description, q) ||
+            matchText(category, q);
+          if (!textMatch) continue;
+        }
+        rows.push({
+          id: String(row?.id || `${importId || 'tx'}-${merchant}-${date || 'unknown'}`),
+          date,
+          merchant,
+          description,
+          category,
+          amount,
+          importId,
+          documentId,
+          source: 'transactions',
+        });
+      }
+    }
+  } catch {
+    // Non-blocking; fall through to staged rows if available.
+  }
+
+  if (req.includePending) {
+    try {
+      const { data: staged, error: stagedError } = await sb
+        .from('transactions_staging')
+        .select('id,import_id,data_json')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(800);
+      if (!stagedError) {
+        for (const row of Array.isArray(staged) ? staged : []) {
+          const data = row?.data_json && typeof row.data_json === 'object' ? row.data_json : {};
+          const importId = row?.import_id ? String(row.import_id) : null;
+          if (req.importId && importId !== req.importId) continue;
+          const date = normalizeDate(data?.date || data?.posted_at || data?.occurred_at);
+          if (req.startDate && (!date || date < req.startDate)) continue;
+          if (req.endDate && (!date || date > req.endDate)) continue;
+          const merchant = String(data?.merchant || data?.merchant_name || data?.vendor || data?.description || 'UNKNOWN-MERCHANT').trim();
+          const description = String(data?.description || data?.memo || '').trim() || null;
+          const category = String(data?.category || '').trim() || null;
+          const amount = normalizeStatementQaSignedAmount(data?.amount, data);
+          if (req.queryText) {
+            const q = req.queryText;
+            const textMatch =
+              matchText(merchant, q) ||
+              matchText(description, q) ||
+              matchText(category, q);
+            if (!textMatch) continue;
+          }
+          rows.push({
+            id: String(row?.id || `${importId || 'staged'}-${merchant}-${date || 'unknown'}`),
+            date,
+            merchant,
+            description,
+            category,
+            amount,
+            importId,
+            documentId: null,
+            source: 'transactions_staging',
+          });
+        }
+      }
+    } catch {
+      // ignore staged read failures
+    }
+  }
+
+  return rows;
+}
+
+function renderStatementQaAnswer(message: string, req: StatementQaRequest, rows: StatementQaRow[]): string {
+  const mode = req.mode;
+  const charges = rows.filter((r) => r.amount > 0);
+  const credits = rows.filter((r) => r.amount < 0);
+  const totalDebits = charges.reduce((sum, row) => sum + row.amount, 0);
+  const totalCredits = credits.reduce((sum, row) => sum + Math.abs(row.amount), 0);
+  const net = totalDebits - totalCredits;
+  const lowerMessage = String(message || '').toLowerCase();
+  const nLargest = req.topN;
+
+  const categoryAgg = new Map<string, { total: number; count: number }>();
+  for (const row of charges) {
+    const key = String(row.category || 'Uncategorized');
+    const existing = categoryAgg.get(key) || { total: 0, count: 0 };
+    existing.total += row.amount;
+    existing.count += 1;
+    categoryAgg.set(key, existing);
+  }
+  const categoryTotals = Array.from(categoryAgg.entries())
+    .map(([category, data]) => ({ category, total: data.total, count: data.count }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 6);
+
+  const merchantAgg = new Map<string, { total: number; count: number }>();
+  for (const row of charges) {
+    const key = String(row.merchant || 'UNKNOWN-MERCHANT').trim();
+    const existing = merchantAgg.get(key) || { total: 0, count: 0 };
+    existing.total += row.amount;
+    existing.count += 1;
+    merchantAgg.set(key, existing);
+  }
+  const topMerchants = Array.from(merchantAgg.entries())
+    .map(([merchant, data]) => ({ merchant, total: data.total, count: data.count }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 6);
+
+  const largest = [...charges]
+    .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+    .slice(0, nLargest);
+
+  const sample = [...rows]
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
+    .slice(0, 10);
+
+  const lines: string[] = [];
+  lines.push('## Summary');
+  if (mode === 'income') {
+    lines.push(`- Income/deposits found: $${totalCredits.toFixed(2)} across ${credits.length} transaction${credits.length === 1 ? '' : 's'}.`);
+  } else if (mode === 'largest') {
+    lines.push(`- Here are your top ${largest.length} largest charges from normalized transactions.`);
+  } else if (req.queryText) {
+    lines.push(`- Spend matching "${req.queryText}": $${totalDebits.toFixed(2)} across ${charges.length} transaction${charges.length === 1 ? '' : 's'}.`);
+  } else {
+    lines.push(`- I analyzed ${rows.length} normalized transaction${rows.length === 1 ? '' : 's'} for this statement query.`);
+  }
+  lines.push(`- Total debits: $${totalDebits.toFixed(2)} | total credits: $${totalCredits.toFixed(2)} | net: $${net.toFixed(2)}.`);
+  lines.push(`- Scope: ${req.startDate || 'unknown'} to ${req.endDate || 'unknown'}${req.importId ? ` | import ${req.importId.slice(0, 8)}` : ''}.`);
+  lines.push('');
+
+  lines.push('## Key details');
+  lines.push(`- Rows scanned: ${rows.length}`);
+  lines.push(`- Source: ${rows.some((r) => r.source === 'transactions_staging') ? 'committed + staged' : 'committed'}`);
+  if (req.queryText) lines.push(`- Query filter: ${req.queryText}`);
+  lines.push('');
+
+  if (mode === 'largest' && largest.length > 0) {
+    lines.push('## Largest transactions');
+    for (const row of largest) {
+      lines.push(`- ${row.date || 'UNKNOWN-DATE'} | ${row.merchant || 'UNKNOWN-MERCHANT'} | ${row.amount.toFixed(2)} | CAD`);
+    }
+    lines.push('');
+  }
+
+  if (categoryTotals.length > 0 && /\b(category|categories|restaurant|restaurants|dining|grocery|groceries|fuel|fees|interest)\b/.test(lowerMessage)) {
+    lines.push('## Category totals');
+    for (const cat of categoryTotals) {
+      lines.push(`- ${cat.category}: $${cat.total.toFixed(2)} (${cat.count} txns)`);
+    }
+    lines.push('');
+  }
+
+  if (topMerchants.length > 0 && /\b(merchant|merchants|top|spend|spent|with|at)\b/.test(lowerMessage)) {
+    lines.push('## Top merchants');
+    for (const merchant of topMerchants) {
+      lines.push(`- ${merchant.merchant}: $${merchant.total.toFixed(2)} (${merchant.count} txns)`);
+    }
+    lines.push('');
+  }
+
+  lines.push('## Transactions (sample)');
+  for (const row of sample) {
+    lines.push(`- ${row.date || 'UNKNOWN-DATE'} | ${row.merchant || 'UNKNOWN-MERCHANT'} | ${row.amount.toFixed(2)} | CAD | ${row.category || 'Uncategorized'}`);
+  }
+  lines.push('');
+  lines.push('## Issues / Uncertain lines');
+  lines.push('- No guessed values were used; totals are computed from stored transactions only.');
+  return lines.join('\n');
 }
 
 async function buildPayoffProjectionResponse(input: {
@@ -3767,6 +4588,9 @@ Return JSON format:
 // ============================================================================
 
 export const handler: Handler = async (event, context) => {
+  if (context && typeof context.callbackWaitsForEmptyEventLoop === 'boolean') {
+    context.callbackWaitsForEmptyEventLoop = false;
+  }
   let body: any = null;
   let employeeSlugForLog: string | null = null;
   let requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -4662,7 +5486,196 @@ export const handler: Handler = async (event, context) => {
     const recallLastUploadIntent = isLastUploadRecallIntent(masked);
     const recallLastUploadDetailIntent = isLastUploadDetailIntent(masked);
     const workspaceActivityIntent = isWorkspaceActivityIntent(masked);
+    const statementBreakdownIntent = isStatementBreakdownIntent(masked) || pipelineReuseIntent === 'tag_breakdown';
     let forcedPrimeDecision: PrimeRouteDecision | null = null;
+    if (!forcedPrimeDecision && statementBreakdownIntent && !hasAttachments) {
+      const explicitImportId = extractImportIdFromMessage(masked);
+      let resolvedImportId: string | null = explicitImportId;
+
+      if (!resolvedImportId) {
+        const allStatements = await listUserStatements(sb, userId, 10);
+        const latestRequested = asksForLatestStatement(masked);
+        if (!latestRequested && allStatements.length > 1) {
+          const stmtList = allStatements
+            .slice(0, 5)
+            .map((s, i) => {
+              const issuer = s.issuer || 'Unknown issuer';
+              const acct = s.account_last4 ? ` (****${s.account_last4})` : '';
+              const period = s.period_start && s.period_end ? ` - ${s.period_start} to ${s.period_end}` : '';
+              const count = s.transaction_count ? ` | ${s.transaction_count} transactions` : '';
+              return `${i + 1}. ${issuer}${acct}${period}${count}`;
+            })
+            .join('\n');
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_breakdown',
+            deterministic_intent: 'statement_breakdown_disambiguation',
+            assistantText: `You have ${allStatements.length} statements on file:\n\n${stmtList}\n\nWhich one should I break down?`,
+          };
+        } else if (allStatements.length === 1) {
+          resolvedImportId = allStatements[0].import_id;
+        } else {
+          resolvedImportId = await resolveImportIdContextForTurn(masked, sb, userId);
+        }
+      }
+
+      if (forcedPrimeDecision) {
+        // disambiguation response already prepared
+      } else {
+      const breakdown = await loadStatementBreakdown(sb, userId, resolvedImportId);
+      if (breakdown) {
+        const readStatus = String(breakdown.read_completeness?.status || 'unknown');
+        if (readStatus === 'partial') {
+          const pagesRead = Number(breakdown.read_completeness?.pages_read || 0);
+          const pagesDetected = Number(breakdown.read_completeness?.pages_detected || 0);
+          const signals = Array.isArray(breakdown.read_completeness?.signals)
+            ? breakdown.read_completeness!.signals.slice(0, 3).join(', ')
+            : '';
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_breakdown',
+            deterministic_intent: 'statement_breakdown_partial',
+            assistantText: `I can see this statement is only partially verified right now${pagesDetected > 0 ? ` (${pagesRead}/${pagesDetected} pages fully read)` : ''}. I can show what I extracted so far, but some items may be missing. ${signals ? `Signals: ${signals}. ` : ''}Would you like the partial breakdown now or should I re-run extraction first?`,
+          };
+        } else
+        if (breakdown.confidence.overall === 'low') {
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_breakdown',
+            deterministic_intent: 'statement_breakdown_low_confidence',
+            assistantText: `I extracted ${breakdown.totals.transaction_count} transactions from your statement, but my confidence in the extraction is low. Some items may be missing or incorrect. Would you like me to show what I have with that caveat, or would you prefer to re-upload a clearer image?`,
+          };
+        } else {
+          const keyDetails = await resolveBreakdownKeyDetails(sb, userId, breakdown);
+          const enrichedBreakdown: StatementBreakdown = {
+            ...breakdown,
+            statement_meta: {
+              ...breakdown.statement_meta,
+              issuer: keyDetails.issuer || breakdown.statement_meta?.issuer || null,
+              account_last4: keyDetails.accountLast4 || breakdown.statement_meta?.account_last4 || null,
+              period_start: keyDetails.periodStart || breakdown.statement_meta?.period_start || null,
+              period_end: keyDetails.periodEnd || breakdown.statement_meta?.period_end || null,
+            },
+          };
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_breakdown',
+            deterministic_intent: 'statement_breakdown',
+            assistantText: renderStatementBreakdownMarkdown(enrichedBreakdown, { includeNextActions: true }),
+          };
+        }
+      } else {
+        const { data: activeImport } = await sb
+          .from('imports')
+          .select('id,status,created_at')
+          .eq('user_id', userId)
+          .in('status', ['parsing', 'normalizing', 'parsed'])
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (Array.isArray(activeImport) && activeImport.length > 0) {
+          const latest = activeImport[0] as any;
+          const statusMessage = String(latest?.status || '') === 'parsed'
+            ? 'Your statement has been processed and is ready for review. Would you like me to commit these transactions so I can give you a full breakdown?'
+            : `Your statement is still being processed (status: ${String(latest?.status || 'processing')}). I can break it down once processing completes.`;
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_breakdown',
+            deterministic_intent: 'statement_breakdown_pending_commit',
+            assistantText: statusMessage,
+          };
+        } else {
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_breakdown',
+            deterministic_intent: 'statement_breakdown_missing',
+            assistantText: "Your statement breakdown is not ready yet. Your statement is still processing, and I'll notify you when it's ready.",
+          };
+        }
+      }
+      }
+    }
+    const statementQaIntent = isStatementQaIntent(masked);
+    if (!forcedPrimeDecision && statementQaIntent && !hasAttachments) {
+      const explicitImportId = extractImportIdFromMessage(masked);
+      const importIdForQa = explicitImportId || await resolveImportIdContextForTurn(masked, sb, userId);
+      const dateHint = extractDateRangeHint(masked);
+      const queryHint = extractQueryHint(masked) || extractMerchantNeedleFromQuestion(masked);
+      const includePending = shouldIncludePendingInTxSearch(masked);
+      const mode = inferStatementQaMode(masked);
+      const topN = parseTopNHint(masked);
+      const qaRequest: StatementQaRequest = {
+        importId: importIdForQa,
+        startDate: dateHint.startDate || null,
+        endDate: dateHint.endDate || null,
+        queryText: queryHint || null,
+        includePending,
+        mode,
+        topN,
+      };
+      const qaRows = await loadStatementQaRows(sb, userId, qaRequest);
+      const firstDocId = qaRows[0]?.documentId || 'none';
+      console.log(
+        `[Chat][statement_qa] stage=statement_qa rows_count=${qaRows.length} date_range=${qaRequest.startDate || 'none'}..${qaRequest.endDate || 'none'} doc_id=${firstDocId} import_id=${qaRequest.importId || 'none'}`
+      );
+      if (qaRows.length === 0) {
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'statement_qa',
+          deterministic_intent: 'statement_qa_missing_scope',
+          assistantText: 'Which month or which statement upload should I use?',
+        };
+      } else {
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'statement_qa',
+          deterministic_intent: `statement_qa_${mode}`,
+          assistantText: renderStatementQaAnswer(masked, qaRequest, qaRows),
+        };
+      }
+    }
+    const merchantNeedleForTurn = extractMerchantNeedleFromQuestion(masked);
+    const merchantSpendIntent =
+      Boolean(merchantNeedleForTurn) &&
+      /\b(how much|amount|total|spend|spent|pay|paid)\b/.test(String(masked || '').toLowerCase());
+    if (!forcedPrimeDecision && merchantSpendIntent && !hasAttachments) {
+      const facts = await loadLatestImportFactsBestEffort(sb, userId);
+      if (facts?.importId && merchantNeedleForTurn) {
+        const merchantSpend = await loadMerchantSpendForLatestImportBestEffort(
+          sb,
+          userId,
+          facts.importId,
+          merchantNeedleForTurn
+        );
+        if (merchantSpend.count > 0) {
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_merchant_spend',
+            deterministic_intent: 'latest_import_merchant_spend',
+            assistantText: [
+              `Here is what I found for **${merchantNeedleForTurn.toUpperCase()}** on your latest uploaded statement:`,
+              '',
+              `- Total spend: ${formatCurrency(merchantSpend.total, facts.currency)}`,
+              `- Transactions matched: ${merchantSpend.count}`,
+              ...(merchantSpend.matches.length > 0 ? [`- Merchant match: ${merchantSpend.matches.join(', ')}`] : []),
+            ].join('\n'),
+          };
+        } else {
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_merchant_spend',
+            deterministic_intent: 'latest_import_merchant_spend_none',
+            assistantText: `I checked your latest uploaded statement and found no transactions matching "${merchantNeedleForTurn}".`,
+          };
+        }
+      } else if (merchantNeedleForTurn) {
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'statement_merchant_spend',
+          deterministic_intent: 'latest_import_merchant_spend_missing_context',
+          assistantText: `I need your latest imported statement context to calculate spend for "${merchantNeedleForTurn}". Upload or finish processing a statement, then ask again.`,
+        };
+      }
+    }
     if (!forcedPrimeDecision && workspaceActivityIntent && !hasAttachments) {
       const displayName = await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
       const firstName = String(displayName).split(' ')[0] || 'there';
@@ -4713,8 +5726,22 @@ export const handler: Handler = async (event, context) => {
       const facts = await loadLatestImportFactsBestEffort(sb, userId);
       if (facts && facts.importId) {
         const q = String(masked || '').toLowerCase();
+        const merchantNeedle = extractMerchantNeedleFromQuestion(q);
         let assistantText = '';
-        if (/\b(how much|amount|total)\b/.test(q)) {
+        if (/\b(how much|amount|total)\b/.test(q) && merchantNeedle) {
+          const merchantSpend = await loadMerchantSpendForLatestImportBestEffort(sb, userId, facts.importId, merchantNeedle);
+          if (merchantSpend.count > 0) {
+            assistantText = [
+              `Here is what I found for **${merchantNeedle.toUpperCase()}** on your latest uploaded statement:`,
+              '',
+              `- Total spend: ${formatCurrency(merchantSpend.total, facts.currency)}`,
+              `- Transactions matched: ${merchantSpend.count}`,
+              ...(merchantSpend.matches.length > 0 ? [`- Merchant match: ${merchantSpend.matches.join(', ')}`] : []),
+            ].join('\n');
+          } else {
+            assistantText = `I checked your latest uploaded statement and found no transactions matching "${merchantNeedle}".`;
+          }
+        } else if (/\b(how much|amount|total)\b/.test(q)) {
           if (facts.transactionCount === 1) {
             assistantText = `Your last uploaded receipt was ${formatCurrency(facts.totalAmount, facts.currency)}${facts.topMerchant ? ` at ${facts.topMerchant}` : ''}${facts.topDate ? ` on ${facts.topDate}` : ''}.`;
           } else if (facts.transactionCount > 1) {
@@ -5039,12 +6066,27 @@ export const handler: Handler = async (event, context) => {
         let pagesHint = docs.length > 0 ? docs.length : 1;
         let sourceBlocks: string[] = [`User request: ${masked}`];
         if (docs.length > 0) {
-          const { data: userDocs } = await sb
-            .from('user_documents')
-            .select('*')
-            .in('id', docs)
-            .eq('user_id', userId)
-            .limit(10);
+          let userDocs: any[] | null = null;
+          try {
+            const docsLookup = await withTimeout(
+              sb
+                .from('user_documents')
+                .select('*')
+                .in('id', docs)
+                .eq('user_id', userId)
+                .limit(10),
+              process.env.NETLIFY_DEV === 'true' ? 3500 : 7000,
+              'worker_chain_user_docs_lookup',
+              orchCtx
+            );
+            if ((docsLookup as any)?.error) {
+              throw (docsLookup as any).error;
+            }
+            userDocs = Array.isArray((docsLookup as any)?.data) ? (docsLookup as any).data : null;
+          } catch (docsLookupError: any) {
+            console.warn('[Chat] Worker chain user document lookup timed out/failed; continuing with message-only context:', docsLookupError?.message || docsLookupError);
+            userDocs = null;
+          }
           if (Array.isArray(userDocs) && userDocs.length > 0) {
             pagesHint = userDocs.length;
             docs = userDocs.map((doc: any) => String(doc?.id || '')).filter(Boolean);
@@ -6345,6 +7387,8 @@ export const handler: Handler = async (event, context) => {
       context_summary?: string;
       key_facts?: string[];
       user_intent?: string;
+      handoff_type?: 'standard' | 'plugin';
+      plugin_payload?: Record<string, any>;
     } | null = null;
     
     try {
@@ -6362,12 +7406,15 @@ export const handler: Handler = async (event, context) => {
         .maybeSingle();
       
       if (handoffData) {
+        const pluginPayload = decodePluginPayloadFromHandoffSummary(handoffData.context_summary || null);
         handoffContext = {
           from_employee: handoffData.from_employee,
           reason: handoffData.reason || undefined,
-          context_summary: handoffData.context_summary || undefined,
+          context_summary: stripPluginMarkerFromSummary(handoffData.context_summary || undefined),
           key_facts: handoffData.key_facts || undefined,
           user_intent: handoffData.user_intent || undefined,
+          handoff_type: pluginPayload ? 'plugin' : 'standard',
+          plugin_payload: pluginPayload || undefined,
         };
         
         // Mark handoff as completed
@@ -6502,6 +7549,9 @@ export const handler: Handler = async (event, context) => {
         if (handoffContext.user_intent) handoffBits.push(`User question: ${handoffContext.user_intent}`);
         if (handoffContext.key_facts?.length) {
           handoffBits.push(`Key facts: ${handoffContext.key_facts.join('; ')}`);
+        }
+        if (handoffContext.handoff_type === 'plugin' && handoffContext.plugin_payload) {
+          handoffBits.push(`Plugin context: ${JSON.stringify(handoffContext.plugin_payload)}`);
         }
         systemMessages.push({ role: 'system', content: handoffBits.join('\n') });
       }
@@ -7763,6 +8813,16 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                         const targetSlug = handoffData.target_slug;
                         const reason = handoffData.reason || 'Better suited for this question';
                         const summary = handoffData.summary_for_next_employee;
+                        const handoffType: 'standard' | 'plugin' =
+                          handoffData.handoff_type === 'plugin' ? 'plugin' : 'standard';
+                        const pluginPayload =
+                          handoffType === 'plugin' && handoffData.plugin_payload && typeof handoffData.plugin_payload === 'object'
+                            ? handoffData.plugin_payload
+                            : null;
+                        const pluginMarker = encodePluginPayloadForHandoff(pluginPayload);
+                        const summaryForStorage = pluginMarker
+                          ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
+                          : (summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`);
                         
                         console.log(`[Chat] ✅ HANDOFF COMPLETE (streaming): ${originalEmployeeSlug} → ${targetSlug}`, {
                           reason,
@@ -7803,7 +8863,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                             from_employee: originalEmployeeSlug,
                             to_employee: targetSlug,
                             reason: reason,
-                            context_summary: summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`,
+                            context_summary: summaryForStorage,
                             key_facts: keyFacts,
                             recent_messages: recentMessages,
                             user_intent: masked.substring(0, 500), // Current user message
@@ -7870,7 +8930,9 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                           from: originalEmployeeSlug,
                           to: targetSlug,
                           reason,
-                          summary
+                          summary,
+                          handoff_type: handoffType,
+                          plugin_payload: pluginPayload,
                         };
                         writeSSE(handoffEvent);
                         writeSSE({ type: 'employee', employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug });
@@ -8586,6 +9648,16 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                   const targetSlug = handoffData.target_slug;
                   const reason = handoffData.reason || 'Better suited for this question';
                   const summary = handoffData.summary_for_next_employee;
+                  const handoffType: 'standard' | 'plugin' =
+                    handoffData.handoff_type === 'plugin' ? 'plugin' : 'standard';
+                  const pluginPayload =
+                    handoffType === 'plugin' && handoffData.plugin_payload && typeof handoffData.plugin_payload === 'object'
+                      ? handoffData.plugin_payload
+                      : null;
+                  const pluginMarker = encodePluginPayloadForHandoff(pluginPayload);
+                  const summaryForStorage = pluginMarker
+                    ? `${String(summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`)}\nPLUGIN_CONTEXT_B64:${pluginMarker}`
+                    : (summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`);
                   
                   console.log(`[Chat] ✅ HANDOFF COMPLETE (non-streaming): ${originalEmployeeSlug} → ${targetSlug}`, {
                     reason,
@@ -8626,7 +9698,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                       from_employee: originalEmployeeSlug,
                       to_employee: targetSlug,
                       reason: reason,
-                      context_summary: summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`,
+                      context_summary: summaryForStorage,
                       key_facts: keyFactsNonStream,
                       recent_messages: recentMessagesNonStream,
                       user_intent: masked.substring(0, 500),

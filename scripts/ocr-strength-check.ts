@@ -1,10 +1,44 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import pdfParse from 'pdf-parse';
 
 import { extractPdfTextWithLayout, extractPdfTextWithPdfParse } from '../netlify/functions/_lib/pdfText.ts';
-import { normalizeOcrResult, type NormalizedTransaction } from '../netlify/functions/_shared/ocr_normalize.ts';
+
+function loadLocalEnvFiles(): void {
+  const files = ['.env.local', '.envlocal', '.env'];
+  for (const file of files) {
+    const absPath = path.resolve(process.cwd(), file);
+    if (!fsSync.existsSync(absPath)) continue;
+    const text = fsSync.readFileSync(absPath, 'utf8');
+    for (const rawLine of text.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('#')) continue;
+      const match = line.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (!match) continue;
+      const key = match[1];
+      let value = match[2].trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      if (process.env[key] === undefined) process.env[key] = value;
+    }
+  }
+}
+
+loadLocalEnvFiles();
+
+type NormalizedTransaction = {
+  kind?: string;
+  date?: string;
+  amount?: number;
+  merchant?: string;
+  description?: string;
+};
 
 type QualitySummary = {
   fileName: string;
@@ -154,6 +188,7 @@ async function main(): Promise<void> {
   }
 
   const { text, pageCount } = await extractInputText(filePath);
+  const { normalizeOcrResult } = await import('../netlify/functions/_shared/ocr_normalize.ts');
   const txns = await normalizeOcrResult(text, 'local-ocr-check', undefined, {
     filename: path.basename(filePath),
     includeAllAccounts: false,

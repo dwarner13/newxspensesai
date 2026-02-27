@@ -46,6 +46,14 @@ function formatTime(seconds: number): string {
 
 function getStatusColor(status: UploadQueueItem['status']): string {
   switch (status) {
+    case 'committed':
+      return 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/40';
+    case 'ready_for_approval':
+      return 'bg-amber-500/15 text-amber-200 border border-amber-500/40';
+    case 'summarized':
+      return 'bg-indigo-500/15 text-indigo-200 border border-indigo-500/40';
+    case 'processing':
+      return 'bg-cyan-500/15 text-cyan-200 border border-cyan-500/40';
     case 'completed':
       return 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/40';
     case 'error':
@@ -63,6 +71,14 @@ function getStatusColor(status: UploadQueueItem['status']): string {
 
 function getStatusIcon(status: UploadQueueItem['status']) {
   switch (status) {
+    case 'committed':
+      return <CheckCircle className="w-4 h-4" />;
+    case 'ready_for_approval':
+      return <AlertCircle className="w-4 h-4" />;
+    case 'summarized':
+      return <CheckCircle className="w-4 h-4" />;
+    case 'processing':
+      return <Loader2 className="w-4 h-4 animate-spin" />;
     case 'completed':
       return <CheckCircle className="w-4 h-4" />;
     case 'error':
@@ -189,17 +205,17 @@ export function UploadQueuePanel({
                 </div>
 
                 {/* Progress Bar */}
-                {item.status === 'uploading' && (
+                {(item.status === 'uploading' || item.status === 'processing') && (
                   <div className="w-full bg-slate-800 rounded-full h-1.5 mb-2">
                     <div
-                      className="bg-sky-400 h-1.5 rounded-full transition-all duration-300"
+                      className={`${item.status === 'processing' ? 'bg-cyan-400' : 'bg-sky-400'} h-1.5 rounded-full transition-all duration-300`}
                       style={{ width: `${safeProgress}%` }}
                     />
                   </div>
                 )}
 
                 {/* Speed and ETA */}
-                {item.status === 'uploading' && item.speed > 0 && (
+                {(item.status === 'uploading' || item.status === 'processing') && item.speed > 0 && (
                   <div className="flex items-center gap-4 text-xs text-slate-400">
                     <span>{formatSpeed(item.speed)}</span>
                     {item.eta > 0 && <span>ETA: {formatTime(item.eta)}</span>}

@@ -2,6 +2,10 @@
  * Smart Import OCR - Extract text from images/PDFs
  * 
  * SECURITY: OCR output runs through STRICT guardrails before storage
+ *
+ * Manual test:
+ * - Upload PDF and confirm logs show stage=ocr_proof_write_result (ok=true OR ok=false with warning) while HTTP response is 200.
+ * - Confirm smart-import-sync no longer returns ocr_failed:ocr_empty when metadata proof markers exist.
  */
 
 import { Handler } from '@netlify/functions';
@@ -1125,7 +1129,6 @@ async function applyCachedOcrToDocument(sb: any, docId: string, cached: OcrResul
   };
   const fullUpdatePayload = {
     ...baseUpdatePayload,
-    ocr_engine: cached.engineUsed,
   };
   let { error } = await sb
     .from('user_documents')
@@ -1135,14 +1138,10 @@ async function applyCachedOcrToDocument(sb: any, docId: string, cached: OcrResul
     const { ocr_status, ...withoutOcrStatus } = fullUpdatePayload as any;
     ({ error } = await sb.from('user_documents').update(withoutOcrStatus).eq('id', docId));
   }
-  if (error && String(error.message || '').includes('ocr_engine')) {
-    ({ error } = await sb.from('user_documents').update(baseUpdatePayload).eq('id', docId));
-  }
   if (error && String(error.message || '').includes('extracted_data')) {
     const { extracted_data, ...withoutExtracted } = baseUpdatePayload;
     const fallbackPayload = {
       ...withoutExtracted,
-      ocr_engine: cached.engineUsed,
     };
     ({ error } = await sb.from('user_documents').update(fallbackPayload).eq('id', docId));
   }
@@ -1192,6 +1191,15 @@ function classifyOcrErrorCode(error: unknown): { status: OcrFinalStatus; errorCo
     return { status: 'failed', errorCode: 'provider_error' };
   }
   return { status: 'failed', errorCode: 'ocr_failed' };
+}
+
+function getMissingUserDocumentsColumn(error: unknown): string | null {
+  const msg = String((error as any)?.message || error || '');
+  if (!msg.includes("Could not find the '")) return null;
+  const strictMatch = msg.match(/Could not find the '([^']+)' column of 'user_documents' in the schema cache/i);
+  if (strictMatch?.[1]) return strictMatch[1];
+  const looseMatch = msg.match(/Could not find the '([^']+)'/i);
+  return looseMatch?.[1] || null;
 }
 
 async function finalizeOcrJobOutcome(
@@ -1277,6 +1285,32 @@ async function finalizeOcrJobOutcome(
 function mergeMetadata(existing: unknown, patch: Record<string, any>): Record<string, any> {
   const base = existing && typeof existing === 'object' ? (existing as Record<string, any>) : {};
   return { ...base, ...patch };
+}
+
+function buildOcrProofMetadata(existing: unknown, proof: {
+  textLength: number;
+  textHash: string | null;
+  provider: string | null;
+  status: 'ready' | 'ready_cached';
+  completedAt: string;
+}): Record<string, any> {
+  const base = existing && typeof existing === 'object' ? (existing as Record<string, any>) : {};
+  return {
+    ...base,
+    ocr_text_length: proof.textLength,
+    text_hash: proof.textHash,
+    ocr_provider: proof.provider,
+    ocr_status: proof.status,
+    ocr_completed_at: proof.completedAt,
+    ocr: {
+      ...(base.ocr && typeof base.ocr === 'object' ? base.ocr : {}),
+      text_length: proof.textLength,
+      text_hash: proof.textHash,
+      provider: proof.provider,
+      status: proof.status,
+      completed_at: proof.completedAt,
+    },
+  };
 }
 
 async function markCachedDocReady(sb: any, docId: string, metadata: unknown): Promise<void> {
@@ -1944,6 +1978,10 @@ export const handler: Handler = async (event, context) => {
     }
 
     let sanitizedText = sanitizeOcrText(guardrailResult.text);
+    const redactedTextLength = sanitizedText.length;
+    const redactedTextHash = redactedTextLength > 0
+      ? createHash('sha256').update(sanitizedText).digest('hex')
+      : null;
     const textMetrics = safeTextMetrics(sanitizedText);
     const normalized = scannedPdfMerged
       ? {
@@ -2038,96 +2076,123 @@ export const handler: Handler = async (event, context) => {
       );
 
     // Update document with OCR metadata
+    const proofCompletedAt = new Date().toISOString();
+    const proofMetadata = buildOcrProofMetadata(doc?.metadata, {
+      textLength: redactedTextLength,
+      textHash: redactedTextHash,
+      provider: ocrProvider || null,
+      status: 'ready',
+      completedAt: proofCompletedAt,
+    });
+    console.log('[OCR] stage=ocr_proof_write_prepare', {
+      docId,
+      textLength: redactedTextLength,
+      hasTextHash: Boolean(redactedTextHash),
+      provider: ocrProvider || null,
+      status: 'ready',
+    });
     const baseUpdatePayload: Record<string, any> = {
       ocr_text: null,
       ocr_status: 'ready',
-      ocr_completed_at: new Date().toISOString(),
+      ocr_completed_at: proofCompletedAt,
+      ocr_text_length: redactedTextLength,
+      ocr_text_hash: redactedTextHash,
+      text_hash: redactedTextHash,
+      ocr_provider: ocrProvider || null,
       pii_types: guardrailResult.signals?.piiTypes || [],
       extracted_data: normalizedForStorage,
+      metadata: proofMetadata,
       status: normalized.needsUserConfirmation ? 'needs_review' : (guardrailResult.ok ? 'ready' : 'needs_review'),
       updated_at: new Date().toISOString()
     };
     const fullUpdatePayload = {
       ...baseUpdatePayload,
-      ocr_engine: ocrProvider,
     };
-    let { data: ocrUpdateRows, error: ocrUpdateError } = await sb
-      .from('user_documents')
-      .update(fullUpdatePayload)
-      .eq('id', docId)
-      .select('id,user_id,status,ocr_completed_at');
-    if (ocrUpdateError && String(ocrUpdateError.message || '').includes('ocr_status')) {
-      const { ocr_status, ...withoutOcrStatus } = fullUpdatePayload as any;
-      ({ data: ocrUpdateRows, error: ocrUpdateError } = await sb
-        .from('user_documents')
-        .update(withoutOcrStatus)
-        .eq('id', docId)
-        .select('id,user_id,status,ocr_completed_at'));
-    }
-    if (ocrUpdateError && String(ocrUpdateError.message || '').includes('ocr_engine')) {
-      console.warn(`${logPrefix} DB_WRITE_RETRY`, { docId, reason: 'missing_ocr_engine_column' });
-      ({ data: ocrUpdateRows, error: ocrUpdateError } = await sb
-        .from('user_documents')
-        .update(baseUpdatePayload)
-        .eq('id', docId)
-        .select('id,user_id,status,ocr_completed_at'));
-    }
-    if (ocrUpdateError && String(ocrUpdateError.message || '').includes('extracted_data')) {
-      console.warn(`${logPrefix} DB_WRITE_RETRY`, { docId, reason: 'missing_extracted_data_column' });
-      const { extracted_data, ...withoutExtractedData } = baseUpdatePayload;
-      ({ data: ocrUpdateRows, error: ocrUpdateError } = await sb
-        .from('user_documents')
-        .update(withoutExtractedData)
-        .eq('id', docId)
-        .select('id,user_id,status,ocr_completed_at'));
+    const proofWriteWarnings: string[] = [];
+    let usedMetadataFallback = false;
+    let currentUpdatePayload: Record<string, any> = { ...fullUpdatePayload };
+    let ocrUpdateRows: any = null;
+    let ocrUpdateError: any = null;
+    for (let attempt = 0; attempt <= 6; attempt++) {
+      try {
+        ({ data: ocrUpdateRows, error: ocrUpdateError } = await sb
+          .from('user_documents')
+          .update(currentUpdatePayload)
+          .eq('id', docId)
+          .select('id,user_id,status,ocr_completed_at'));
+      } catch (writeEx: any) {
+        // Supabase client threw (e.g. network error, AbortError from stage timeout).
+        // Treat as a non-fatal write failure — fall through to metadata-only fallback.
+        ocrUpdateError = writeEx instanceof Error ? writeEx : new Error(String(writeEx?.message ?? writeEx));
+        proofWriteWarnings.push(`ocr_proof_write_throw:${String(writeEx?.message ?? writeEx)}`);
+        console.warn(`${logPrefix} DB_WRITE_THROW`, { docId, attempt, error: writeEx?.message ?? writeEx });
+        break;
+      }
+      if (!ocrUpdateError) break;
+      const missingColumn = getMissingUserDocumentsColumn(ocrUpdateError);
+      if (!missingColumn) break;
+      if (!Object.prototype.hasOwnProperty.call(currentUpdatePayload, missingColumn)) break;
+      const { [missingColumn]: _dropped, ...nextPayload } = currentUpdatePayload as any;
+      currentUpdatePayload = nextPayload;
+      usedMetadataFallback = true;
+      console.log('[OCR] stage=ocr_proof_write_retry', {
+        docId,
+        removedKey: missingColumn,
+        remainingKeys: Object.keys(currentUpdatePayload),
+      });
+      if (String(missingColumn) === 'extracted_data') {
+        console.warn(`${logPrefix} DB_WRITE_RETRY`, { docId, reason: 'missing_extracted_data_column' });
+      }
+      if (Object.keys(currentUpdatePayload).length === 0) break;
     }
     if (ocrUpdateError) {
-      console.error(`${logPrefix} DB_WRITE_ERROR`, { docId, error: ocrUpdateError.message });
-      await finalizeOcrJobOutcome(sb, {
-        ocrJobId,
-        docId,
-        status: 'failed',
-        errorCode: 'ocr_write_failed',
-        errorMessage: 'ocr_write_failed',
-      });
-      await setDocumentOcrStatus(sb, docId, 'failed');
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          ok: false,
-          error: 'ocr_write_failed',
-          status: 'failed',
-          error_code: 'ocr_write_failed',
-          traceId,
-          docId,
-          importRunId,
-        }),
+      const metadataOnlyPayload = {
+        metadata: proofMetadata,
+        updated_at: new Date().toISOString(),
       };
+      let metadataOnlyResult: { data: any; error: any } = { data: null, error: null };
+      try {
+        metadataOnlyResult = await sb
+          .from('user_documents')
+          .update(metadataOnlyPayload)
+          .eq('id', docId)
+          .select('id,user_id,status,ocr_completed_at');
+      } catch (metaEx: any) {
+        metadataOnlyResult = {
+          data: null,
+          error: metaEx instanceof Error ? metaEx : new Error(String(metaEx?.message ?? metaEx)),
+        };
+        proofWriteWarnings.push(`ocr_proof_write_meta_throw:${String(metaEx?.message ?? metaEx)}`);
+        console.warn(`${logPrefix} DB_WRITE_META_THROW`, { docId, error: metaEx?.message ?? metaEx });
+      }
+      if (!metadataOnlyResult.error) {
+        ocrUpdateRows = metadataOnlyResult.data;
+        ocrUpdateError = null;
+        usedMetadataFallback = true;
+      } else {
+        proofWriteWarnings.push(`ocr_proof_write_partial:${String(metadataOnlyResult.error.message || metadataOnlyResult.error)}`);
+      }
     }
     if (!ocrUpdateRows || ocrUpdateRows.length === 0) {
-      console.error(`${logPrefix} DB_WRITE_EMPTY`, { docId, userId: effectiveUserId, docUserId: doc.user_id });
-      await finalizeOcrJobOutcome(sb, {
-        ocrJobId,
-        docId,
-        status: 'failed',
-        errorCode: 'ocr_write_empty',
-        errorMessage: 'ocr_write_empty',
-      });
-      await setDocumentOcrStatus(sb, docId, 'failed');
-      return {
-        statusCode: 500,
-        body: JSON.stringify({
-          ok: false,
-          error: 'ocr_write_empty',
-          status: 'failed',
-          error_code: 'ocr_write_empty',
-          traceId,
-          docId,
-          importRunId,
-        }),
-      };
+      proofWriteWarnings.push('ocr_proof_write_empty');
     }
-    console.log(`${logPrefix} DB_WRITE_OK`, { docId, len: guardrailResult.text.length });
+    console.log('[OCR] stage=ocr_proof_write_result', {
+      docId,
+      ok: !ocrUpdateError,
+      textLength: redactedTextLength,
+      hasTextHash: Boolean(redactedTextHash),
+      provider: ocrProvider || null,
+      usedMetadataFallback,
+      error: ocrUpdateError ? String(ocrUpdateError.message || ocrUpdateError) : null,
+    });
+    if (ocrUpdateError) {
+      proofWriteWarnings.push(`ocr_proof_write_error:${String(ocrUpdateError.message || ocrUpdateError)}`);
+      console.warn(`${logPrefix} DB_WRITE_ERROR_NON_FATAL`, { docId, error: ocrUpdateError.message });
+    } else if (!ocrUpdateRows || ocrUpdateRows.length === 0) {
+      console.warn(`${logPrefix} DB_WRITE_EMPTY_NON_FATAL`, { docId, userId: effectiveUserId, docUserId: doc.user_id });
+    } else {
+      console.log(`${logPrefix} DB_WRITE_OK`, { docId, usedMetadataFallback, len: guardrailResult.text.length });
+    }
 
     await finalizeOcrJobOutcome(sb, {
       ocrJobId,
@@ -2282,6 +2347,7 @@ export const handler: Handler = async (event, context) => {
         docId,
         importRunId,
         textLength: guardrailResult.text.length,
+        warnings: proofWriteWarnings,
         piiDetected: guardrailResult.signals?.pii || false,
         provider: ocrProvider,
         durationMs: ocrDurationMs,

@@ -1,6 +1,16 @@
 import type { Handler } from '@netlify/functions';
 import { admin } from './_shared/upload.js';
 
+const OCR_LOCK_STALE_MS = Number(process.env.OCR_LOCK_STALE_MS || 10 * 60 * 1000);
+
+function isStaleUpdatedAt(updatedAt: unknown, staleMs: number = OCR_LOCK_STALE_MS): boolean {
+  const raw = String(updatedAt || '').trim();
+  if (!raw) return false;
+  const ts = Date.parse(raw);
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts > staleMs;
+}
+
 export const handler: Handler = async (event) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -26,7 +36,7 @@ export const handler: Handler = async (event) => {
     const sb = admin();
     let { data: docs, error: docsError } = await sb
       .from('user_documents')
-      .select('id, status, ocr_status, content_hash, extracted_data, ocr_engine, ocr_completed_at')
+      .select('id, status, ocr_status, content_hash, extracted_data, ocr_engine, ocr_completed_at, updated_at')
       .eq('user_id', userId)
       .in('id', docIds);
     if (docsError) {
@@ -36,7 +46,7 @@ export const handler: Handler = async (event) => {
       if (missingExtractedData || missingOcrEngine) {
         ({ data: docs, error: docsError } = await sb
           .from('user_documents')
-          .select('id, status, ocr_status, content_hash, ocr_completed_at')
+          .select('id, status, ocr_status, content_hash, ocr_completed_at, updated_at')
           .eq('user_id', userId)
           .in('id', docIds));
       }
@@ -93,9 +103,29 @@ export const handler: Handler = async (event) => {
         normalizedOcrStatus === 'needs_review' ||
         normalizedOcrStatus === 'rejected' ||
         doc.status === 'ready';
+      const jobStaleRunning = job?.status === 'running' && isStaleUpdatedAt(job?.updated_at);
+      const docStaleProcessing =
+        (doc.status === 'ocr_processing' || normalizedOcrStatus === 'processing') &&
+        isStaleUpdatedAt(doc?.updated_at || job?.updated_at);
+      const isError = job?.status === 'error' || doc.status === 'rejected';
+      const status = isError
+        ? 'error'
+        : (job?.status === 'done' || docLooksDone)
+          ? 'done'
+          : (jobStaleRunning || docStaleProcessing)
+            ? 'recovering_stale_lock'
+            : (job?.status || 'running');
+      const stateReason = isError
+        ? (job?.error ? 'ocr_job_error' : 'document_rejected')
+        : (job?.status === 'done' || docLooksDone)
+          ? 'complete'
+          : (jobStaleRunning || docStaleProcessing)
+            ? 'stale_lock_detected'
+            : 'processing';
       return {
         docId: doc.id,
-        status: job?.status || (docLooksDone ? 'done' : doc.status === 'rejected' ? 'error' : 'running'),
+        status,
+        stateReason,
         ocrStatus: doc?.ocr_status || null,
         engineUsed: job?.engine_used || doc.ocr_engine || null,
         confidence: job?.confidence || doc?.extracted_data?.confidence?.overall || null,
@@ -103,7 +133,8 @@ export const handler: Handler = async (event) => {
         progress: job?.normalized_json?.debug?.progress || null,
         metrics: job?.normalized_json?.debug?.metrics || null,
         error: job?.error || null,
-        updatedAt: job?.updated_at || doc.ocr_completed_at || null,
+        stale: jobStaleRunning || docStaleProcessing,
+        updatedAt: job?.updated_at || doc?.updated_at || doc.ocr_completed_at || null,
       };
     });
 

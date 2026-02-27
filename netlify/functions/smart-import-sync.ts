@@ -44,6 +44,7 @@ const SYNC_DEBUG_ENABLED =
   OCR_DEBUG_ENABLED ||
   String(process.env.VITE_LOG_LEVEL || '').toLowerCase() === 'debug';
 const PREFER_AI_STATEMENTS = process.env.OCR_PREFER_AI_STATEMENTS === '1';
+const OCR_EMPTY_MIN_LEN = Number(process.env.OCR_EMPTY_MIN_LEN || 20);
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function shouldProceedWithNormalize(input: {
@@ -79,7 +80,9 @@ export function shouldBlockCachedNoInput(input: {
   hasImportRecord?: boolean;
   ocrJobDone?: boolean;
   readyForNormalize?: boolean;
+  hasAnyProof?: boolean;
 }): boolean {
+  if (input.hasAnyProof) return false;
   const noInput =
     !input.textHash &&
     Number(input.textLength || 0) <= 0 &&
@@ -181,6 +184,32 @@ async function waitForOcrReadyOrMetrics(
       const textLengthValue = data?.ocr_text_length ?? data?.extracted_data?.text_length ?? null;
       const textLength = Number.isFinite(Number(textLengthValue)) ? Number(textLengthValue) : 0;
       const textHash = (data?.ocr_text_hash || data?.extracted_data?.text_hash || null) as string | null;
+      const ocrProvider = (data?.ocr_provider || data?.ocr_engine || null) as string | null;
+      const metadata = data?.metadata && typeof data.metadata === 'object'
+        ? (data.metadata as Record<string, any>)
+        : {};
+      const metadataOcr = metadata?.ocr && typeof metadata.ocr === 'object'
+        ? (metadata.ocr as Record<string, any>)
+        : {};
+      const metadataTextLengthRaw =
+        metadata?.ocr_text_length ??
+        metadata?.text_length ??
+        metadataOcr?.text_length ??
+        null;
+      const metadataTextLength = Number.isFinite(Number(metadataTextLengthRaw))
+        ? Number(metadataTextLengthRaw)
+        : 0;
+      const metadataTextHash =
+        metadata?.text_hash ||
+        metadata?.ocr_text_hash ||
+        metadataOcr?.text_hash ||
+        null;
+      const metadataProvider =
+        metadata?.ocr_provider ||
+        metadataOcr?.provider ||
+        null;
+      const metadataStatus =
+        String(metadata?.ocr_status || metadataOcr?.status || '').toLowerCase();
 
       if (mimeType === 'text/csv' || fileName.toLowerCase().endsWith('.csv')) {
         console.log('[smart-import-sync] waitForOcrReadyOrMetrics skip (CSV)', {
@@ -216,6 +245,8 @@ async function waitForOcrReadyOrMetrics(
         .maybeSingle();
       const ocrOutcome = normalizeLatestOcrOutcome(ocrJob || {});
       const ocrJobStatus = String(ocrOutcome?.status || '');
+      const hasStructured = Boolean(data?.extracted_data) || Boolean(data?.normalized_json) || Boolean(data?.structured_extraction) || Boolean(data?.extraction_artifacts);
+      const metricsReady = Boolean(textHash) || textLength >= OCR_EMPTY_MIN_LEN;
       if (ocrOutcome.retryable) {
         console.warn('[smart-import-sync] stage=sync_check_latest_ocr', {
           docId,
@@ -232,8 +263,6 @@ async function waitForOcrReadyOrMetrics(
           reason: `ocr_failed:${ocrOutcome.errorCode || ocrOutcome.status || 'provider_error'}`,
         };
       }
-      const hasStructured = Boolean(data?.extracted_data) || Boolean(data?.normalized_json) || Boolean(data?.structured_extraction) || Boolean(data?.extraction_artifacts);
-      const metricsReady = Boolean(textHash) || textLength > 0;
       const hasReadyMarker = Boolean(
         data?.ocr_completed_at ||
         data?.ocr_engine ||
@@ -244,22 +273,46 @@ async function waitForOcrReadyOrMetrics(
       const hasImportRecord = Boolean(importRecord?.id);
       const hasStagingRows = stagingCount > 0;
       const ocrJobDone = ocrJobStatus === 'done' || ocrJobStatus === 'succeeded';
-      const hasSafeProofs = metricsReady || hasStructured || hasStagingRows;
+      const normalizedStatus = String(ocrStatus || '').toLowerCase();
+      const statusLooksReady =
+        normalizedStatus === 'ready' ||
+        normalizedStatus === 'ready_cached' ||
+        normalizedStatus === 'needs_review' ||
+        normalizedStatus === 'rejected';
+      const metadataLooksReady =
+        metadataStatus === 'ready' ||
+        metadataStatus === 'ready_cached';
+      const hasStatusProof =
+        statusLooksReady &&
+        (textLength >= OCR_EMPTY_MIN_LEN || Boolean(textHash) || Boolean(ocrProvider));
+      const hasMetadataProof =
+        metadataLooksReady ||
+        metadataTextLength >= OCR_EMPTY_MIN_LEN ||
+        Boolean(metadataTextHash) ||
+        Boolean(metadataProvider);
+      const hasSafeProofs = metricsReady || hasStructured || hasStagingRows || hasStatusProof || hasMetadataProof;
       const proofsFound = [
         metricsReady,
         hasStructured,
         hasStagingRows,
+        hasStatusProof,
+        hasMetadataProof,
         hasImportRecord,
         hasReadyMarker,
         ocrJobDone,
       ];
+      const hasAnyProof = proofsFound.some(Boolean);
       const hasProofs = proofsFound.some(Boolean);
       if (SYNC_DEBUG_ENABLED) {
-        console.log('[smart-import-sync] OCR ready check with', {
+        console.log('[smart-import-sync] stage=ocr_proof_check', {
           docId,
           ocr_status: ocrStatus || null,
           ocr_text_length: Number.isFinite(Number(textLengthValue)) ? Number(textLengthValue) : null,
           text_hash_present: Boolean(textHash),
+          ocr_provider_present: Boolean(ocrProvider),
+          metadata_text_length: metadataTextLength || null,
+          metadata_text_hash_present: Boolean(metadataTextHash),
+          metadata_provider_present: Boolean(metadataProvider),
           proofs_found: proofsFound,
         });
       }
@@ -273,13 +326,6 @@ async function waitForOcrReadyOrMetrics(
         hasProofs: hasSafeProofs,
         ocrJobDone,
       });
-
-      const normalizedStatus = String(ocrStatus || '').toLowerCase();
-      const statusLooksReady =
-        normalizedStatus === 'ready' ||
-        normalizedStatus === 'ready_cached' ||
-        normalizedStatus === 'needs_review' ||
-        normalizedStatus === 'rejected';
       if (hasSafeProofs && !statusLooksReady) {
         console.log('[smart-import-sync] OCR ready via proofs (status ignored)', {
           docId,
@@ -298,6 +344,7 @@ async function waitForOcrReadyOrMetrics(
         hasImportRecord,
         ocrJobDone,
         readyForNormalize,
+        hasAnyProof,
       });
       if (shouldMarkNeedsReviewForNoInput) {
         console.warn('[smart-import-sync] cached doc has no input; returning retryable OCR failure', {
@@ -321,6 +368,17 @@ async function waitForOcrReadyOrMetrics(
         return { ok: true, len: textLength, ocrStatus: ocrStatus || null, textHash, hasStructured, metricsReady, reason: `import_exists:${importRecord.status}` };
       }
       if (String(ocrStatus).toLowerCase() === 'ready' && !readyForNormalize && Date.now() - start >= READY_EMPTY_GRACE_MS) {
+        if (hasAnyProof) {
+          return {
+            ok: true,
+            len: textLength,
+            ocrStatus: ocrStatus || null,
+            textHash,
+            hasStructured,
+            metricsReady,
+            reason: 'ready_with_proof',
+          };
+        }
         if (!warnedReadyEmpty) {
           warnedReadyEmpty = true;
           console.warn('[smart-import-sync] OCR ready but empty; marking needs_review', {
@@ -411,7 +469,7 @@ async function ensureNormalized(
   userId: string,
   netlifyUrl: string,
   payload?: { ocrText?: string; ocrTextHash?: string | null; ocrTextLength?: number | null; traceId?: string }
-): Promise<{ ok: boolean; importId?: string }> {
+): Promise<{ ok: boolean; importId?: string; processing?: boolean; reason?: string }> {
   if (!documentId || !UUID_V4_RE.test(String(documentId))) {
     console.warn('[smart-import-sync] Skipping normalize-transactions due to invalid documentId', {
       documentId,
@@ -485,6 +543,28 @@ async function ensureNormalized(
     
     const normalizeData = await normalizeRes.json();
     const importId = normalizeData.importId || existingImport?.id;
+    if (normalizeData?.reason === 'normalize_in_progress' || normalizeData?.processing === true) {
+      if (SYNC_DEBUG_ENABLED) {
+        console.log('[smart-import-sync] normalize-transactions still in progress', {
+          documentId,
+          importId: importId || null,
+        });
+      }
+      return { ok: false, importId, processing: true, reason: 'normalize_in_progress' };
+    }
+    if (normalizeData?.skipped === true && normalizeData?.reason === 'no_input') {
+      const status = String(existingImport?.status || '').toLowerCase();
+      if (status === 'parsing' || status === 'normalizing' || status === 'ocr_processing' || status === 'uploaded') {
+        if (SYNC_DEBUG_ENABLED) {
+          console.log('[smart-import-sync] normalize-transactions reported no_input while import still in-flight', {
+            documentId,
+            importId: importId || null,
+            status,
+          });
+        }
+        return { ok: false, importId, processing: true, reason: 'normalize_no_input_inflight' };
+      }
+    }
     
     // Wait for normalization to complete
     if (importId) {
@@ -668,6 +748,7 @@ export const handler: Handler = async (event) => {
     // we'll trigger normalization which will create it
     const importIds: string[] = [];
     
+    let anyNormalizeProcessing = false;
     for (const docId of docIds) {
       // Check if import exists
       let { data: importRecord } = await sb
@@ -763,7 +844,7 @@ export const handler: Handler = async (event) => {
           waitResult.reason === 'staging_rows_ready' ||
           waitResult.reason === 'ocr_ready_empty_needs_review' ||
           waitResult.reason === 'cached_no_input_needs_review';
-        let normalized: { ok: boolean; importId?: string } = { ok: false };
+        let normalized: { ok: boolean; importId?: string; processing?: boolean; reason?: string } = { ok: false };
         if (!shouldSkipNormalizeTrigger) {
           normalized = await ensureNormalized(sb, docId, userId, netlifyUrl, {
             ocrText: undefined,
@@ -771,6 +852,9 @@ export const handler: Handler = async (event) => {
             ocrTextLength: waitResult.len,
             traceId,
           });
+          if (normalized.processing) {
+            anyNormalizeProcessing = true;
+          }
         } else if (SYNC_DEBUG_ENABLED) {
           console.log('[smart-import-sync][debug] normalize trigger skipped', {
             docId,
@@ -870,6 +954,10 @@ export const handler: Handler = async (event) => {
       
       // Ensure normalized
       const normalized = await ensureNormalized(sb, importRecord.document_id, userId, netlifyUrl, { traceId });
+      if (normalized.processing) {
+        anyNormalizeProcessing = true;
+        continue;
+      }
       
       if (normalized.ok && normalized.importId) {
         readyImportIds.push(normalized.importId);
@@ -883,6 +971,20 @@ export const handler: Handler = async (event) => {
     }
     
     console.log('[smart-import-sync] Ready imports', { readyImportIds });
+    if (readyImportIds.length === 0 && anyNormalizeProcessing) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          processing: true,
+          reason: 'normalize_in_progress',
+          docIds,
+          importIds,
+          transactionCount: 0,
+        }),
+      };
+    }
     if (readyImportIds.length === 0 && blockedByLatestOcr.length > 0) {
       const firstBlocked = blockedByLatestOcr[0];
       return {

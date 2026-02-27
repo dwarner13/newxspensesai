@@ -107,7 +107,7 @@ Return a JSON object with a "transactions" array containing all extracted transa
       ],
       response_format: { type: 'json_object' }, // Force JSON mode (returns { "transactions": [...] })
       temperature: 0.1, // Low temperature for consistent parsing
-      max_tokens: 4000, // Enough for ~100 transactions
+      max_tokens: 8000, // gpt-4o-mini supports 16k; 4k was too low for large statements
     });
 
     const content = response.choices[0]?.message?.content;

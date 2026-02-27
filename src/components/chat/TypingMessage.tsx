@@ -25,6 +25,67 @@ interface TypingMessageProps {
   maxDuration?: number;
 }
 
+function renderInlineStrong(text: string): Array<string | JSX.Element> {
+  const chunks: Array<string | JSX.Element> = [];
+  const pattern = /\*\*(.+?)\*\*/g;
+  let lastIdx = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      chunks.push(text.slice(lastIdx, match.index));
+    }
+    chunks.push(<strong key={`strong-${key++}`} className="font-semibold text-slate-100">{match[1]}</strong>);
+    lastIdx = pattern.lastIndex;
+  }
+  if (lastIdx < text.length) {
+    chunks.push(text.slice(lastIdx));
+  }
+  return chunks;
+}
+
+export function FormattedMessageText({ text }: { text: string }) {
+  const lines = String(text || '').split('\n');
+  return (
+    <div className="break-words">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={`line-${idx}`} className="h-2" />;
+        }
+        if (trimmed.startsWith('## ')) {
+          return (
+            <div key={`line-${idx}`} className="mt-2 mb-1 font-semibold tracking-wide text-slate-100">
+              {renderInlineStrong(trimmed.slice(3))}
+            </div>
+          );
+        }
+        if (trimmed.startsWith('### ')) {
+          return (
+            <div key={`line-${idx}`} className="mt-2 mb-1 font-semibold text-slate-100">
+              {renderInlineStrong(trimmed.slice(4))}
+            </div>
+          );
+        }
+        if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+          const body = trimmed.replace(/^[-•]\s+/, '');
+          return (
+            <div key={`line-${idx}`} className="mb-1 flex items-start gap-2">
+              <span className="text-slate-300">•</span>
+              <span>{renderInlineStrong(body)}</span>
+            </div>
+          );
+        }
+        return (
+          <div key={`line-${idx}`} className="mb-1 whitespace-pre-wrap">
+            {renderInlineStrong(line)}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function TypingMessage({
   content,
   messageId,
@@ -35,7 +96,6 @@ export function TypingMessage({
   maxDuration = 3000, // Cap at 3 seconds for long messages
 }: TypingMessageProps) {
   const [displayedText, setDisplayedText] = useState('');
-  const [showCursor, setShowCursor] = useState(false);
   const animationRef = useRef<number | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const isTypingRef = useRef(false);
@@ -60,7 +120,6 @@ export function TypingMessage({
     // If streaming, render content immediately (no typing delay)
     if (isStreaming) {
       setDisplayedText(content);
-      setShowCursor(true);
       currentIndexRef.current = content.length;
       displayedLengthRef.current = content.length;
       return;
@@ -69,7 +128,6 @@ export function TypingMessage({
     // If already typed, show full content immediately
     if (isTyped) {
       setDisplayedText(content);
-      setShowCursor(false);
       currentIndexRef.current = content.length;
       displayedLengthRef.current = content.length;
       return;
@@ -78,7 +136,6 @@ export function TypingMessage({
     // If prefers-reduced-motion, show full content immediately
     if (prefersReducedMotion) {
       setDisplayedText(content);
-      setShowCursor(false);
       currentIndexRef.current = content.length;
       displayedLengthRef.current = content.length;
       onTyped(messageId); // Mark as typed immediately
@@ -111,7 +168,6 @@ export function TypingMessage({
       if (currentIndex >= totalChars) {
         // Typing complete
         setDisplayedText(content);
-        setShowCursor(isStreaming);
         isTypingRef.current = false;
         if (!isStreaming) {
           onTyped(messageId);
@@ -125,7 +181,6 @@ export function TypingMessage({
         if (elapsed >= maxDuration) {
           // Show remaining text immediately
           setDisplayedText(content);
-          setShowCursor(false);
           isTypingRef.current = false;
           onTyped(messageId);
           return;
@@ -135,7 +190,6 @@ export function TypingMessage({
       // Reveal next character
       currentIndexRef.current = currentIndex + 1;
       setDisplayedText(content.slice(0, currentIndexRef.current));
-      setShowCursor(true);
 
       // Schedule next character
       animationRef.current = window.setTimeout(typeNextChar, finalDelay);
@@ -143,13 +197,11 @@ export function TypingMessage({
 
     if (!isStreaming && totalChars === 0) {
       setDisplayedText('');
-      setShowCursor(false);
       return;
     }
 
     // If streaming, keep revealing new chars as they arrive
     if (isStreaming) {
-      setShowCursor(true);
       animationRef.current = window.setTimeout(typeNextChar, 12);
       return;
     }
@@ -167,25 +219,9 @@ export function TypingMessage({
     };
   }, [content, messageId, isStreaming, isTyped, charDelay, maxDuration, prefersReducedMotion, onTyped]);
 
-  // Cursor blink animation
-  useEffect(() => {
-    if (!showCursor) return;
-
-    const cursorInterval = setInterval(() => {
-      setShowCursor(prev => !prev);
-    }, 530); // Blink every ~530ms
-
-    return () => clearInterval(cursorInterval);
-  }, [showCursor]);
-
   return (
-    <span className="whitespace-pre-wrap break-words">
-      {displayedText}
-      {showCursor && (
-        <span className="inline-block w-0.5 h-4 bg-slate-400 ml-0.5 align-middle animate-pulse" aria-hidden="true">
-          ▍
-        </span>
-      )}
+    <span className="break-words">
+      <FormattedMessageText text={displayedText} />
     </span>
   );
 }

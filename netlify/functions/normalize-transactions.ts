@@ -51,6 +51,7 @@ const AUTO_PURGE_TEXT = process.env.OCR_AUTO_PURGE_TEXT === '1';
 const NORMALIZE_DEBUG_ENABLED =
   String(process.env.VITE_LOG_LEVEL || '').toLowerCase() === 'debug' ||
   String(process.env.PRIME_DEBUG || '').toLowerCase() === 'true';
+const NETLIFY_DEV_SOFT_TIMEOUT_MS = Number(process.env.NORMALIZE_DEV_SOFT_TIMEOUT_MS || 22000);
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isMissingColumnError(error: any): boolean {
@@ -382,6 +383,7 @@ async function processNormalizationInBackground(
     // Check if this is an image that might need Vision parsing
     const isImage = doc.mime_type?.startsWith('image/') || false;
     const transientText = String(options?.transientOcrText || '');
+    const transientTextPathActive = transientText.trim().length > 0;
     const ocrInputText = transientText;
     const guardrailedInput = await sanitizePreCategorizationText(ocrInputText, userIdText, documentId);
     const guardedOcrInputText = guardrailedInput.text;
@@ -414,6 +416,14 @@ async function processNormalizationInBackground(
       ocrTextLength: docTextLength,
       hasExtractedData,
       hasMetadataMarkers,
+      transientTextPathActive,
+    });
+    console.log('[normalize-transactions] stage=normalize_input_source', {
+      documentId,
+      source: transientTextPathActive ? 'transient_ocrText' : (hasExtractedData ? 'structured_artifacts' : 'none'),
+      transientLength: transientText.length,
+      persistedLength: docTextLength,
+      hasPersistedHash: Boolean(docTextHash),
     });
     if (NORMALIZE_DEBUG_ENABLED) {
       console.log('[normalize-transactions][debug] input source', {
@@ -465,7 +475,7 @@ async function processNormalizationInBackground(
       hasOcrText;
     const hasStructuredSignals = hasExtractedData || hasNormalizedJson || hasMetadataMarkers || hasMetadataReadyMarkers;
 
-    if (!hasOcrSignals && !hasStructuredSignals) {
+    if (!hasOcrSignals && !hasStructuredSignals && !transientTextPathActive) {
       console.warn('[normalize-transactions] no input; skipping normalization', {
         documentId,
         importId: importRecord?.id || null,
@@ -850,8 +860,19 @@ async function processNormalizationInBackground(
       };
     });
 
+    // Prevent ON CONFLICT 21000 by ensuring one row per upsert key in this batch.
+    const dedupedByConflictKey = new Map<string, (typeof stagingRows)[number]>();
+    for (const row of stagingRows) {
+      const key = `${row.import_id}:${row.hash}`;
+      if (!dedupedByConflictKey.has(key)) {
+        dedupedByConflictKey.set(key, row);
+      }
+    }
+    const dedupedStagingRows = Array.from(dedupedByConflictKey.values());
+
     console.log('[normalize-transactions] Staging rows built', {
       count: stagingRows.length,
+      dedupedCount: dedupedStagingRows.length,
       sample: stagingRows[0] ? {
         import_id: stagingRows[0].import_id,
         user_id: stagingRows[0].user_id,
@@ -860,10 +881,10 @@ async function processNormalizationInBackground(
     });
 
     // 5. Save to transactions_staging
-    if (stagingRows.length > 0) {
+    if (dedupedStagingRows.length > 0) {
       const { error: stagingError } = await sb
         .from('transactions_staging')
-        .upsert(stagingRows, { 
+        .upsert(dedupedStagingRows, {
           onConflict: 'import_id,hash',
           ignoreDuplicates: false 
         });
@@ -875,7 +896,7 @@ async function processNormalizationInBackground(
       }
       console.log('[normalize-transactions] staging upsert OK', {
         importId: importRecord.id,
-        rowCount: stagingRows.length,
+        rowCount: dedupedStagingRows.length,
       });
     }
 
@@ -1080,6 +1101,7 @@ export const handler: Handler = async (event, context) => {
   try {
     const body = JSON.parse(event.body || '{}');
     const { userId, documentId, importRunId, includeAllAccounts, ocrText, ocrTextHash, ocrTextLength } = body;
+    const isNetlifyDev = process.env.NETLIFY_DEV === 'true';
 
     if (!userId || !documentId) {
       if (documentId) {
@@ -1096,12 +1118,44 @@ export const handler: Handler = async (event, context) => {
       documentId,
       importRunId: importRunId || null,
     });
-    const result = await processNormalizationInBackground(userId, documentId, importRunId, {
+    const normalizePromise = processNormalizationInBackground(userId, documentId, importRunId, {
       includeAllAccounts: Boolean(includeAllAccounts),
       transientOcrText: typeof ocrText === 'string' ? ocrText : '',
       transientOcrTextHash: typeof ocrTextHash === 'string' ? ocrTextHash : null,
       transientOcrTextLength: Number.isFinite(Number(ocrTextLength)) ? Number(ocrTextLength) : undefined,
     });
+    const result = isNetlifyDev
+      ? await Promise.race<NormalizationResult>([
+          normalizePromise,
+          new Promise<NormalizationResult>((resolve) => {
+            setTimeout(() => {
+              resolve({
+                ok: true,
+                skipped: true,
+                reason: 'normalize_in_progress',
+                documentId,
+              });
+            }, Math.max(1000, NETLIFY_DEV_SOFT_TIMEOUT_MS));
+          }),
+        ])
+      : await normalizePromise;
+    if (isNetlifyDev && result.reason === 'normalize_in_progress') {
+      console.warn('[normalize-transactions] stage=normalize_soft_timeout', {
+        traceId,
+        documentId,
+        timeoutMs: Math.max(1000, NETLIFY_DEV_SOFT_TIMEOUT_MS),
+      });
+      return respond(200, {
+        ok: true,
+        skipped: true,
+        started: true,
+        processing: true,
+        completed: false,
+        retryable: true,
+        reason: 'normalize_in_progress',
+        documentId,
+      });
+    }
     if (result.skipped) {
       const duration_ms = Date.now() - t0;
       console.log('[normalize-transactions] stage=normalize_done', {

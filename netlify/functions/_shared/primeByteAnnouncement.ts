@@ -7,6 +7,7 @@
 
 import { admin } from './supabase';
 import { randomUUID } from 'crypto';
+import { isMissingColumnError } from './dbCompat.js';
 
 export interface PrimeAnnouncementResult {
   announced: boolean;
@@ -33,19 +34,46 @@ export async function announceByteCompletionToPrime(
 
   try {
     // Step 1: Find unannounced Byte completion event (most recent)
-    const { data: unannouncedEvent, error: eventError } = await sb
-      .from('ai_activity_events')
-      .select('id, details, created_at')
-      .eq('user_id', userId)
-      .eq('event_type', 'byte.import.completed')
-      .is('announced_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Primary query filters on announced_at IS NULL for exactly-once semantics.
+    // If announced_at column is missing from the schema cache we fall back to
+    // fetching the most-recent event without the filter; client_message_id
+    // idempotency on chat_messages prevents duplicate announcements.
+    let unannouncedEvent: any = null;
+    {
+      const { data: ev, error: eventError } = await sb
+        .from('ai_activity_events')
+        .select('id, details, created_at')
+        .eq('user_id', userId)
+        .eq('event_type', 'byte.import.completed')
+        .is('announced_at', null)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (eventError) {
-      console.error('[announceByteCompletionToPrime] Error fetching unannounced event:', eventError);
-      return { announced: false, reason: `Event fetch error: ${eventError.message}` };
+      if (eventError) {
+        if (isMissingColumnError(eventError)) {
+          // announced_at column not yet in schema — degrade gracefully.
+          console.warn('[announceByteCompletionToPrime] announced_at column missing; falling back to most-recent event');
+          const { data: fallback, error: fallbackErr } = await sb
+            .from('ai_activity_events')
+            .select('id, details, created_at')
+            .eq('user_id', userId)
+            .eq('event_type', 'byte.import.completed')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (fallbackErr) {
+            console.error('[announceByteCompletionToPrime] Fallback event fetch error:', fallbackErr);
+            return { announced: false, reason: `Event fetch error: ${fallbackErr.message}` };
+          }
+          unannouncedEvent = fallback;
+        } else {
+          console.error('[announceByteCompletionToPrime] Error fetching unannounced event:', eventError);
+          return { announced: false, reason: `Event fetch error: ${eventError.message}` };
+        }
+      } else {
+        unannouncedEvent = ev;
+      }
     }
 
     if (!unannouncedEvent) {
