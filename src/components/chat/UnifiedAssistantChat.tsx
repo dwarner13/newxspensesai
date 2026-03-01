@@ -4518,6 +4518,9 @@ export default function UnifiedAssistantChat({
     if (!isOpen) return null;
     if (isStreaming) return null;
     if (hasAnyMessages) return null;
+    // Don't flash the greeting while history is still hydrating — it will disappear
+    // the moment loadedHistoryMessages arrives, causing a visible "shoots up" glitch.
+    if (isLoadingHistory) return null;
     if (hasUserSentMessageRef.current) return null;
     const threadKey = `${currentEmployeeSlug}:${conversationId || 'default'}`;
     const shouldGreetAfterOnboarding = currentEmployeeSlug === 'prime-boss' && primeOnboardingCompleted && !hasAnyMessages;
