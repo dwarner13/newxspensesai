@@ -154,13 +154,42 @@ export function renderStatementBreakdownMarkdown(
       const postedDate = normalizeDate(tx.posted_date || tx.posting_date || tx.posted_at);
       const merchant = pickFirstString(tx, ['merchant', 'description', 'payee', 'memo']) || 'UNKNOWN-MERCHANT';
       const amount = pickFirstNumber(tx, ['amount', 'signed_amount']) || 0;
+      const category = String(tx.category || '').trim();
       const fx = summarizeFxInfo(tx);
       const postedPart = postedDate ? ` (posted ${postedDate})` : '';
+      const categoryPart = category ? ` [${category}]` : '';
       const fxPart = fx ? ` | FX: ${fx}` : '';
-      lines.push(`${idx + 1}. ${activityDate}${postedPart} | ${merchant} | ${formatSignedMoney(amount)} CAD${fxPart}`);
+      lines.push(`${idx + 1}. ${activityDate}${postedPart} | ${merchant} | ${formatSignedMoney(amount)}${categoryPart}${fxPart}`);
     }
   }
   lines.push('');
+
+  // Category breakdown
+  const categoryTotals = Array.isArray(b?.category_totals) ? b.category_totals : [];
+  if (categoryTotals.length > 0) {
+    lines.push('## Spending by category');
+    for (const cat of categoryTotals) {
+      const label = String(cat.category || 'Uncategorized');
+      const total = Number(cat.total || 0);
+      const count = Number(cat.count || 0);
+      const pct = Number(cat.percentage || 0);
+      lines.push(`- ${label}: ${formatSignedMoney(total)} (${count} transaction${count !== 1 ? 's' : ''}${pct > 0 ? `, ${pct.toFixed(1)}%` : ''})`);
+    }
+    lines.push('');
+  }
+
+  // Top merchants
+  const topMerchants = Array.isArray(b?.top_merchants) ? b.top_merchants : [];
+  if (topMerchants.length > 0) {
+    lines.push('## Top merchants');
+    for (const m of topMerchants.slice(0, 8)) {
+      const label = String(m.merchant || 'Unknown');
+      const total = Number(m.total || 0);
+      const count = Number(m.count || 0);
+      lines.push(`- ${label}: ${formatSignedMoney(total)} (${count}×)`);
+    }
+    lines.push('');
+  }
 
   let purchasesTotal = pickFirstNumber(b, ['totals.total_debits']);
   let creditsTotal = pickFirstNumber(b, ['totals.total_credits']);

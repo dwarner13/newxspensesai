@@ -3159,6 +3159,13 @@ interface StatementBreakdown {
     reconciled: boolean;
     recon_method: 'direct_debits' | 'balance_equation' | 'direct_credits' | 'none';
   };
+  transactions?: Array<{
+    date: string;
+    merchant: string;
+    amount: number;
+    category: string;
+    type: string;
+  }>;
 }
 
 async function loadStatementBreakdown(
@@ -3334,6 +3341,13 @@ async function loadStatementBreakdown(
         .slice(0, 10),
       flags: { duplicate_count: 0, refund_count: 0, needs_review_count: 0, low_confidence_count: 0, missing_date_count: 0 },
       confidence: { overall: 'medium', ocr_confidence: null, parse_confidence: null, transaction_match_rate: null, reconciled: false, recon_method: 'none' },
+      transactions: txRows.map((tx: any) => ({
+        date: String(tx.date || ''),
+        merchant: String(tx.merchant || tx.description || 'UNKNOWN'),
+        amount: Number(tx.amount || 0),
+        category: String(tx.category || 'Uncategorized'),
+        type: String(tx.type || 'expense'),
+      })),
     };
 
     return fallbackBreakdown;
