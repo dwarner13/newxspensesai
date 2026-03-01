@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Upload, TrendingUp, AlertCircle, FileText, MessageCircle } from 'lucide-react';
+import { Upload, TrendingUp, Search, BarChart2 } from 'lucide-react';
 
 export interface PrimeQuickAction {
   label: string;
@@ -20,22 +20,28 @@ export interface PrimeQuickAction {
 
 const DEFAULT_ACTIONS: PrimeQuickAction[] = [
   {
-    label: 'Review my latest imports',
-    message: 'Show me my latest imports',
-    icon: Upload,
-    sublabel: 'View recent uploads',
+    label: 'What did I spend last month?',
+    message: 'Give me a spending summary for last month',
+    icon: BarChart2,
+    sublabel: 'Monthly summary',
   },
   {
-    label: 'Open Smart Categories',
-    message: 'Open Smart Categories',
+    label: 'Show top spending categories',
+    message: 'What are my top spending categories?',
     icon: TrendingUp,
-    sublabel: 'View categories',
+    sublabel: 'Category breakdown',
   },
   {
-    label: 'Ask a question',
-    message: 'Ask a question',
-    icon: MessageCircle,
-    sublabel: 'Get help',
+    label: 'Any unusual charges?',
+    message: 'Flag any unusual or suspicious charges in my recent transactions',
+    icon: Search,
+    sublabel: 'Charge review',
+  },
+  {
+    label: 'Upload a statement',
+    message: 'I want to upload a bank statement or receipt',
+    icon: Upload,
+    sublabel: 'Add new document',
   },
 ];
 

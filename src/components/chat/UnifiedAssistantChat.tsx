@@ -6872,36 +6872,22 @@ export default function UnifiedAssistantChat({
                     })}
 
                       {/* Prime Quick Actions - Show in empty state (no messages, onboarding complete) */}
-                      {normalizedSlug === 'prime-boss' && 
-                       !showPrimeOnboarding && 
-                       primeOnboardingCompleted && 
-                       burstDedupedMessages.length === 0 && 
+                      {normalizedSlug === 'prime-boss' &&
+                       !showPrimeOnboarding &&
+                       primeOnboardingCompleted &&
+                       burstDedupedMessages.length === 0 &&
                        !isStreaming && (
                         <div className="px-4 pb-4">
                           <PrimeQuickActions
+                            actions={primeGreetingData?.chips?.length
+                              ? primeGreetingData.chips.map(chip => ({
+                                  label: chip.label,
+                                  message: chip.message,
+                                  icon: Upload,
+                                }))
+                              : undefined}
                             onActionClick={(action) => {
-                              // Prefill input with action message
                               setInputMessage(action.message);
-                              // Focus input
-                              inputRef.current?.focus();
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      {/* Prime Quick Actions - Show in empty state (no messages, onboarding complete, no greeting) */}
-                      {normalizedSlug === 'prime-boss' && 
-                       !showPrimeOnboarding && 
-                       primeOnboardingCompleted && 
-                       burstDedupedMessages.length === 0 &&
-                       !isStreaming && 
-                       !greetingMessage && (
-                        <div className="px-4 pb-4">
-                          <PrimeQuickActions
-                            onActionClick={(action) => {
-                              // Prefill input with action message
-                              setInputMessage(action.message);
-                              // Focus input
                               inputRef.current?.focus();
                             }}
                           />
