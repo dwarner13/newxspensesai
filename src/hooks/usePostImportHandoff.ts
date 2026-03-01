@@ -42,10 +42,10 @@ type ImportTimelineState = {
 const primeSummaryStore = new Map<string, PrimeSummary>();
 const primeSummaryMetaStore = new Map<string, PrimeSummaryMeta>();
 
-const PRIME_ROUTER_STATUS_MAX_POLLS = 8;
-const PRIME_ROUTER_STATUS_POLL_MS = 1500;
+const PRIME_ROUTER_STATUS_MAX_POLLS = 5;
+const PRIME_ROUTER_STATUS_POLL_MS = 2000;
 const PENDING_IMPORT_RECAP_KEY = 'xspenses:pending_import_recap';
-const SUMMARY_REQUEST_CACHE_TTL_MS = 2500;
+const SUMMARY_REQUEST_CACHE_TTL_MS = 10000;
 const primeSummaryRequestCache = new Map<string, { expiresAt: number; result: { content: string; meta?: PrimeSummaryMeta } }>();
 const primeSummaryRequestInflight = new Map<string, Promise<{ content: string; meta?: PrimeSummaryMeta }>>();
 

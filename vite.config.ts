@@ -45,7 +45,6 @@ export default defineConfig({
       '@radix-ui/react-tabs',
       '@radix-ui/react-tooltip'
     ],
-    force: true,
     esbuildOptions: {
       target: 'es2020'
     }

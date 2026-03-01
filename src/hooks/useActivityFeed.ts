@@ -10,6 +10,12 @@ const DEV_FORCE_USER_ID = '938a2e17-0e49-45ff-bb98-810db46e5e65';
 // Conditional logging: Only log if both DEV and VITE_DEBUG_ACTIVITY_FEED are true
 const shouldLog = import.meta.env.DEV && import.meta.env.VITE_DEBUG_ACTIVITY_FEED === 'true';
 
+// Module-level dedup: multiple hook instances with identical params share one fetch
+// Key: `${category}|${limit}|${unreadOnly}`
+const _moduleInflight = new Map<string, Promise<ActivityEvent[]>>();
+const _moduleCache = new Map<string, { events: ActivityEvent[]; expiresAt: number }>();
+const MODULE_CACHE_TTL_MS = 5000; // reuse result for 5s across instances
+
 export type ActivityEvent = {
   id: string;
   createdAt: string;
@@ -244,33 +250,77 @@ export function useActivityFeed(
       // URL format must be EXACTLY: "/.netlify/functions/activity-feed?userId=...&limit=...&category=...&unreadOnly=true"
       const url = `/.netlify/functions/activity-feed?userId=${encodeURIComponent(finalUserId)}&limit=${limit}${category ? `&category=${encodeURIComponent(category)}` : ''}${unreadOnly ? '&unreadOnly=true' : ''}`;
 
-      // AbortController: Cancel previous fetch if it exists
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        if (shouldLog) {
-          console.log('[useActivityFeed] Aborted previous fetch');
+      // Module-level dedup: share one HTTP request across all hook instances with same params
+      const dedupKey = `${category ?? ''}|${limit}|${unreadOnly}`;
+      const cached = _moduleCache.get(dedupKey);
+      if (cached && cached.expiresAt > Date.now()) {
+        setEvents(cached.events);
+        lastFetchFinishTimeRef.current = Date.now();
+        setIsLoading(false);
+        return;
+      }
+
+      let fetchPromise = _moduleInflight.get(dedupKey);
+      if (!fetchPromise) {
+        // AbortController: Cancel previous fetch if it exists
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
         }
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        fetchPromise = (async (): Promise<ActivityEvent[]> => {
+          let response: Response;
+          try {
+            response = await fetch(url, { method: 'GET', signal: controller.signal, headers });
+          } catch (err: any) {
+            _moduleInflight.delete(dedupKey);
+            throw err;
+          }
+
+          if (!response.ok) {
+            _moduleInflight.delete(dedupKey);
+            if (response.status === 400) {
+              if (shouldLog && !hasLogged400Ref.current) {
+                try {
+                  const errorBody = await response.clone().json();
+                  console.error('[useActivityFeed] 400 Bad Request Response Body:', errorBody);
+                } catch { /* ignore */ }
+                hasLogged400Ref.current = true;
+              }
+              isFunctionDisabledRef.current = true;
+              stopPolling();
+              failureCountRef.current = 0;
+              lastFetchFinishTimeRef.current = Date.now();
+              return [];
+            }
+            if (response.status === 404) {
+              isFunctionDisabledRef.current = true;
+              stopPolling();
+              failureCountRef.current = 0;
+              lastFetchFinishTimeRef.current = Date.now();
+              return [];
+            }
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Failed to fetch activity events (${response.status})`);
+          }
+
+          const responseData = await response.json();
+          const events: ActivityEvent[] = responseData.events || [];
+          _moduleCache.set(dedupKey, { events, expiresAt: Date.now() + MODULE_CACHE_TTL_MS });
+          _moduleInflight.delete(dedupKey);
+          return events;
+        })();
+
+        _moduleInflight.set(dedupKey, fetchPromise);
       }
-      
-      // Create new AbortController for this fetch
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-      
-      // Build headers - Keep Authorization header when token exists (server is dev-safe if missing)
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      let response: Response;
+
+      let fetchedEvents: ActivityEvent[];
       try {
-        response = await fetch(url, {
-          method: 'GET',
-          signal: controller.signal,
-          headers,
-        });
+        fetchedEvents = await fetchPromise;
       } catch (err: any) {
         if (err?.name === 'AbortError') {
           if (shouldLog) {
@@ -281,53 +331,12 @@ export function useActivityFeed(
         throw err;
       }
 
-      if (!response.ok) {
-        // Handle 400: Missing userId or invalid request - stop polling permanently
-        if (response.status === 400) {
-          // One-time logging of 400 response body (only if debug enabled)
-          if (shouldLog && !hasLogged400Ref.current) {
-            try {
-              const errorBody = await response.clone().json();
-              console.error('[useActivityFeed] 400 Bad Request Response Body:', errorBody);
-              hasLogged400Ref.current = true; // Mark as logged - won't log again this session
-            } catch {
-              // If response body can't be parsed, just log status
-              console.error('[useActivityFeed] 400 Bad Request - response body not parseable');
-              hasLogged400Ref.current = true;
-            }
-          }
-          
-          // Stop polling permanently and silence further requests
-          isFunctionDisabledRef.current = true;
-          stopPolling();
-          setIsLoading(false);
-          setIsError(false);
-          setEvents([]);
-          failureCountRef.current = 0;
-          lastFetchFinishTimeRef.current = Date.now();
-          return;
-        }
-        
-        // Handle 404 gracefully (function doesn't exist)
-        if (response.status === 404) {
-          isFunctionDisabledRef.current = true;
-          stopPolling();
-          setIsLoading(false);
-          setIsError(false);
-          setEvents([]);
-          failureCountRef.current = 0; // Reset failure count
-          lastFetchFinishTimeRef.current = Date.now();
-          // Don't log 404 errors - fail silently
-          return;
-        }
-
-        // Handle other errors
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to fetch activity events (${response.status})`);
+      setEvents(fetchedEvents);
+      if (isFunctionDisabledRef.current) {
+        setIsLoading(false);
+        setIsError(false);
+        return;
       }
-
-      const responseData = await response.json();
-      setEvents(responseData.events || []);
       
       // Reset failure count on success
       failureCountRef.current = 0;
@@ -335,7 +344,7 @@ export function useActivityFeed(
       lastFetchFinishTimeRef.current = Date.now(); // Track when fetch finished
       
       if (shouldLog) {
-        console.log('[useActivityFeed] ✅ Fetch successful, events:', responseData.events?.length || 0);
+        console.log('[useActivityFeed] ✅ Fetch successful, events:', fetchedEvents.length);
       }
     } catch (error: any) {
       // Ignore AbortError (no scary console noise)
