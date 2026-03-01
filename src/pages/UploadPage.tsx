@@ -80,7 +80,9 @@ const UploadPage = () => {
       }
 
       // Check if we should use the new orchestration system
-      const useOrchestration = files.length === 1 && (files[0].type.includes('pdf') || files[0].name.toLowerCase().endsWith('.csv'));
+      // Multi-file is supported — ByteProcessingModal accepts File[]
+      const allPdfsOrCsv = files.every(f => f.type.includes('pdf') || f.name.toLowerCase().endsWith('.csv') || f.type.includes('csv'));
+      const useOrchestration = allPdfsOrCsv;
       
       if (useOrchestration) {
         // Use the new Byte Processing Modal with Orchestration
@@ -347,7 +349,7 @@ const UploadPage = () => {
                   onFilesSelected={handleFileUpload} 
                   isUploading={isUploading} 
                   acceptedFileTypes={['.csv', '.pdf']}
-                  multiple={false}
+                  multiple={true}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center py-10 text-center">

@@ -17,7 +17,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
-import { CheckCircle, Clock, AlertCircle, FileText, Calendar, ArrowRight, Eye } from 'lucide-react';
+import { CheckCircle, Clock, AlertCircle, FileText, Calendar, ArrowRight, Eye, Layers } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { CommitImportResponse } from '@/types/smartImport';
 import { DocumentViewerModal } from '@/components/ui/DocumentViewerModal';
@@ -156,6 +156,60 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
     } finally {
       setCommitting(null);
     }
+  };
+
+  const handleCommitAll = async () => {
+    const parsedImports = imports.filter((imp) => imp.status === 'parsed');
+    if (parsedImports.length === 0) return;
+
+    setCommitting('__all__');
+    let totalCommitted = 0;
+    let failed = 0;
+
+    for (const imp of parsedImports) {
+      try {
+        const authHeaders: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'x-user-id': userId!,
+        };
+        const session = await supabase.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        if (token) authHeaders.Authorization = `Bearer ${token}`;
+
+        const approveResponse = await fetch('/.netlify/functions/approve-import', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ importId: imp.id }),
+        });
+        const approvePayload = await approveResponse.json().catch(() => ({} as any));
+        if (!approveResponse.ok || approvePayload?.ok === false) {
+          throw new Error(approvePayload?.error || 'Approval failed');
+        }
+
+        const response = await fetch('/.netlify/functions/commit-import', {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({ userId, importId: imp.id }),
+        });
+        const result: CommitImportResponse = await response.json();
+        if (!result.success && !result.ok && !result.committed) {
+          throw new Error(result.error || result.message || 'Commit failed');
+        }
+        totalCommitted += result.committed || 0;
+      } catch (err: any) {
+        console.error('[ImportList] Commit all error for', imp.id, err);
+        failed++;
+      }
+    }
+
+    setCommitting(null);
+    if (failed === 0) {
+      toast.success(`Committed ${totalCommitted} transaction${totalCommitted !== 1 ? 's' : ''} across ${parsedImports.length} import${parsedImports.length !== 1 ? 's' : ''}`);
+    } else {
+      toast.error(`${failed} import${failed !== 1 ? 's' : ''} failed — ${parsedImports.length - failed} succeeded`);
+    }
+    await fetchImports();
+    window.dispatchEvent(new CustomEvent('transactionsImported', { detail: { count: totalCommitted } }));
   };
 
   const handleViewDocument = async (importRecord: ImportRecord) => {
@@ -299,8 +353,35 @@ export default function ImportList({ onImportSelected }: ImportListProps) {
     );
   }
 
+  const parsedCount = imports.filter((imp) => imp.status === 'parsed').length;
+
   return (
     <div className="space-y-4">
+      {parsedCount >= 2 && (
+        <div className="flex items-center justify-between bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2 text-sm text-yellow-800">
+            <Layers size={16} />
+            <span><strong>{parsedCount} imports</strong> ready to commit</span>
+          </div>
+          <button
+            onClick={handleCommitAll}
+            disabled={committing === '__all__'}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+          >
+            {committing === '__all__' ? (
+              <>
+                <Clock className="h-4 w-4 animate-spin" />
+                Committing all…
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-4 w-4" />
+                Commit All ({parsedCount})
+              </>
+            )}
+          </button>
+        </div>
+      )}
       {imports.map((importRecord) => (
         <div
           key={importRecord.id}
