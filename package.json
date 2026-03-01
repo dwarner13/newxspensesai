@@ -70,7 +70,8 @@
     "worker:dev": "tsx watch worker/src/index.ts",
     "functions:build": "tsx scripts/build-functions.ts",
     "functions:dev": "cross-env FUNCTIONS_WATCH=true tsx watch scripts/build-functions.ts",
-    "dev:netlify": "netlify dev",
+    "dev:netlify": "concurrently --kill-others=false --raw \"netlify dev\" \"node scripts/prewarm-dev.mjs\"",
+    "prewarm": "node scripts/prewarm-dev.mjs",
     "backfill:statement": "tsx scripts/backfill-statement-summary.ts"
   },
   "dependencies": {

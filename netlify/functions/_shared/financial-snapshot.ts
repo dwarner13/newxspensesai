@@ -25,16 +25,24 @@ export async function buildFinancialSnapshot(
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   
-  // 1. BASIC FLAGS - Fetch all transactions
-  const { data: allTransactions, error: txError } = await supabase
-    .from('transactions')
-    .select('id, date, amount, category, merchant, type')
-    .eq('user_id', userId);
-  
+  // 1. Fetch transactions, debt, and goals in parallel
+  const [
+    { data: allTransactions, error: txError },
+    { data: debtDataParallel },
+    { data: goalsDataParallel },
+  ] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('id, date, amount, category, merchant, type')
+      .eq('user_id', userId),
+    supabase.from('debt').select('balance').eq('user_id', userId).then((r: any) => r).catch(() => ({ data: null })),
+    supabase.from('goals').select('id, status').eq('user_id', userId).eq('status', 'active').then((r: any) => r).catch(() => ({ data: null })),
+  ]);
+
   if (txError) {
     console.warn('[buildFinancialSnapshot] Error fetching transactions:', txError);
   }
-  
+
   const transactions = allTransactions || [];
   const hasTransactions = transactions.length > 0;
   const transactionCount = transactions.length;
@@ -117,53 +125,24 @@ export async function buildFinancialSnapshot(
   const firstTransactionDate = dates.length > 0 ? dates[0] : null;
   const lastTransactionDate = dates.length > 0 ? dates[dates.length - 1] : null;
   
-  // 7. DEBT STATE (if debt table exists)
+  // 7. DEBT STATE (fetched in parallel above)
   let hasDebt: 'yes' | 'no' | 'unknown' = 'unknown';
   let debtTotal: number | null = null;
-  
-  try {
-    const { data: debtData, error: debtError } = await supabase
-      .from('debt')
-      .select('balance')
-      .eq('user_id', userId);
-    
-    if (!debtError && debtData) {
-      if (debtData.length > 0) {
-        hasDebt = 'yes';
-        debtTotal = debtData.reduce((sum, d) => sum + (Number(d.balance) || 0), 0);
-      } else {
-        hasDebt = 'no';
-      }
+  if (debtDataParallel) {
+    if (debtDataParallel.length > 0) {
+      hasDebt = 'yes';
+      debtTotal = debtDataParallel.reduce((sum: number, d: any) => sum + (Number(d.balance) || 0), 0);
+    } else {
+      hasDebt = 'no';
     }
-  } catch (error: any) {
-    // Table doesn't exist or error - gracefully handle
-    if (error.code !== '42P01') { // 42P01 = table doesn't exist
-      console.warn('[buildFinancialSnapshot] Error checking debt:', error);
-    }
-    hasDebt = 'unknown';
   }
-  
-  // 8. GOALS STATE (if goals table exists)
+
+  // 8. GOALS STATE (fetched in parallel above)
   let hasGoals: 'yes' | 'no' | 'unknown' = 'unknown';
   let activeGoalCount: number | null = null;
-  
-  try {
-    const { data: goalsData, error: goalsError } = await supabase
-      .from('goals')
-      .select('id, status')
-      .eq('user_id', userId)
-      .eq('status', 'active');
-    
-    if (!goalsError && goalsData) {
-      activeGoalCount = goalsData.length;
-      hasGoals = activeGoalCount > 0 ? 'yes' : 'no';
-    }
-  } catch (error: any) {
-    // Table doesn't exist or error - gracefully handle
-    if (error.code !== '42P01') { // 42P01 = table doesn't exist
-      console.warn('[buildFinancialSnapshot] Error checking goals:', error);
-    }
-    hasGoals = 'unknown';
+  if (goalsDataParallel) {
+    activeGoalCount = goalsDataParallel.length;
+    hasGoals = activeGoalCount > 0 ? 'yes' : 'no';
   }
   
   // 9. STRESS SIGNALS (simple heuristics)

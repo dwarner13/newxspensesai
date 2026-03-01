@@ -30,11 +30,17 @@ async function getUserProfileSummary(
   userId: string
 ): Promise<UserProfileSummary | null> {
   try {
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('id, display_name, role, onboarding_completed, onboarding_status, currency, time_zone')
-      .eq('id', userId)
-      .maybeSingle();
+    // Run profile query and auth lookup in parallel
+    const [profileResult, authResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, display_name, role, onboarding_completed, onboarding_status, currency, time_zone')
+        .eq('id', userId)
+        .maybeSingle(),
+      supabase.auth.admin.getUserById(userId).catch(() => ({ data: { user: null } })),
+    ]);
+
+    const { data: profile, error } = profileResult;
 
     if (error && error.code !== 'PGRST116') {
       warn('[prime-state] Error fetching profile:', error);
@@ -45,14 +51,7 @@ async function getUserProfileSummary(
       return null;
     }
 
-    // Get email from auth user (use admin client)
-    let email: string | null = null;
-    try {
-      const { data: { user } } = await supabase.auth.admin.getUserById(userId);
-      email = user?.email || null;
-    } catch (error: any) {
-      warn('[prime-state] Could not fetch email from auth:', error.message);
-    }
+    const email: string | null = (authResult as any)?.data?.user?.email || null;
 
     return {
       userId: profile.id,
@@ -80,19 +79,34 @@ async function buildMemorySummary(
   userId: string
 ): Promise<MemorySummary> {
   try {
-    // Get user facts (high confidence only)
-    const { data: factsData, error: factsError } = await supabase
-      .from('user_memory_facts')
-      .select('fact, confidence')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50);
+    // Run all three queries in parallel
+    const [factsResult, sessionsResult, tasksResult] = await Promise.all([
+      supabase
+        .from('user_memory_facts')
+        .select('fact, confidence')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50),
+      supabase
+        .from('chat_sessions')
+        .select('id, employee_slug, updated_at')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('user_tasks')
+        .select('id, priority')
+        .eq('user_id', userId)
+        .eq('completed', false)
+        .limit(10)
+        .then((r: any) => r)
+        .catch(() => ({ data: null })),
+    ]);
 
-    const facts = factsData || [];
+    const facts = factsResult.data || [];
     const highConfidenceFacts = facts
       .filter((f: any) => Number(f.confidence || 0) > 0.85)
       .map((f: any) => {
-        // Parse fact string (format: "key:value" or "pref:key=value")
         const factStr = f.fact || '';
         const colonIndex = factStr.indexOf(':');
         if (colonIndex > 0) {
@@ -102,52 +116,22 @@ async function buildMemorySummary(
             confidence: Number(f.confidence || 0),
           };
         }
-        return {
-          key: 'fact',
-          value: factStr,
-          confidence: Number(f.confidence || 0),
-        };
+        return { key: 'fact', value: factStr, confidence: Number(f.confidence || 0) };
       });
 
-    // Get recent conversations (last 5 sessions)
-    const { data: sessionsData, error: sessionsError } = await supabase
-      .from('chat_sessions')
-      .select('id, employee_slug, updated_at')
-      .eq('user_id', userId)
-      .order('updated_at', { ascending: false })
-      .limit(5);
-
-    const recentConversations = (sessionsData || []).map((s: any) => ({
+    const recentConversations = (sessionsResult.data || []).map((s: any) => ({
       sessionId: s.id,
       employeeSlug: s.employee_slug || 'prime-boss',
       lastMessageAt: s.updated_at || s.created_at || new Date().toISOString(),
-      summary: undefined, // Not available in M0
+      summary: undefined,
     }));
 
-    // Get pending tasks (if user_tasks table exists)
-    // NOTE: Only select columns that exist (description column may not exist)
-    let pendingTasks: Array<{ id: string; description: string; priority: 'low' | 'medium' | 'high' }> = [];
-    try {
-      const { data: tasksData } = await supabase
-        .from('user_tasks')
-        .select('id, priority')
-        .eq('user_id', userId)
-        .eq('completed', false)
-        .limit(10);
-
-      if (tasksData) {
-        pendingTasks = tasksData.map((t: any) => ({
-          id: t.id,
-          description: 'Task', // Use default since description column doesn't exist
-          priority: (t.priority || 'medium') as 'low' | 'medium' | 'high',
-        }));
-      }
-    } catch (error: any) {
-      // Table doesn't exist or column missing - gracefully handle
-      if (error.code !== '42P01' && error.code !== '42703') {
-        warn('[prime-state] Error fetching tasks:', error);
-      }
-    }
+    const pendingTasks: Array<{ id: string; description: string; priority: 'low' | 'medium' | 'high' }> =
+      (tasksResult.data || []).map((t: any) => ({
+        id: t.id,
+        description: 'Task',
+        priority: (t.priority || 'medium') as 'low' | 'medium' | 'high',
+      }));
 
     return {
       factCount: facts.length,
@@ -370,10 +354,12 @@ export const handler: Handler = async (event) => {
 
     const supabase = admin();
 
-    // Build all components of PrimeState
-    const profileSummary = await getUserProfileSummary(supabase, userId);
-    const financialSnapshot = await buildFinancialSnapshot(supabase, userId);
-    const memorySummary = await buildMemorySummary(supabase, userId);
+    // Build all components of PrimeState in parallel (all queries are independent)
+    const [profileSummary, financialSnapshot, memorySummary] = await Promise.all([
+      getUserProfileSummary(supabase, userId),
+      buildFinancialSnapshot(supabase, userId),
+      buildMemorySummary(supabase, userId),
+    ]);
     const currentStage = determineCurrentStage(profileSummary, financialSnapshot);
     const featureVisibilityMap = buildFeatureVisibilityMap(profileSummary);
     const suggestedNextAction = buildSuggestedNextAction(financialSnapshot, currentStage);
