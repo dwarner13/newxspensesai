@@ -70,7 +70,8 @@
     "worker:dev": "tsx watch worker/src/index.ts",
     "functions:build": "tsx scripts/build-functions.ts",
     "functions:dev": "cross-env FUNCTIONS_WATCH=true tsx watch scripts/build-functions.ts",
-    "dev:netlify": "netlify dev"
+    "dev:netlify": "netlify dev",
+    "backfill:statement": "tsx scripts/backfill-statement-summary.ts"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.2",

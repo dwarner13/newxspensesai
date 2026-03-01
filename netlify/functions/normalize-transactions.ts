@@ -438,7 +438,7 @@ async function processNormalizationInBackground(
     // 2) Find existing import (if any) BEFORE creating one.
     let { data: importRecord, error: importFetchError } = await sb
       .from('imports')
-      .select('id, status, updated_at, metadata')
+      .select('id, status, updated_at')
       .eq('document_id', documentId)
       .maybeSingle();
 
@@ -915,8 +915,9 @@ async function processNormalizationInBackground(
       await stampImportOverlapWarning(sb, userIdText, importRecord.id, overlapResult);
     }
 
-    // Parse balance/payment fields from OCR text and store in imports.metadata.statement_summary
+    // Parse balance/payment fields from OCR text and store in user_documents.metadata.statement_summary
     // so commit-import.ts and the chat live fallback can include them in the breakdown.
+    // NOTE: imports.metadata column does not exist — user_documents.metadata is used instead.
     const toMoney = (val: string | undefined): number | null => {
       if (!val) return null;
       const n = parseFloat(String(val).replace(/,/g, ''));
@@ -933,26 +934,44 @@ async function processNormalizationInBackground(
     };
     const hasParsedAccountData = Object.values(parsedAccountSummary).some((v) => v !== null);
 
-    // 6. Update import status — merge statement_summary into existing metadata if found
-    const currentMetadata =
-      importRecord?.metadata && typeof importRecord.metadata === 'object'
-        ? (importRecord.metadata as Record<string, unknown>)
-        : {};
+    // 6. Update import status
     const importStatusPayload: Record<string, unknown> = {
       status: 'parsed',
       updated_at: new Date().toISOString(),
     };
-    if (hasParsedAccountData) {
-      importStatusPayload.metadata = { ...currentMetadata, statement_summary: parsedAccountSummary };
-      console.log('[normalize-transactions] Storing account_summary in import metadata', {
-        importId: importRecord.id,
-        fields: Object.entries(parsedAccountSummary).filter(([, v]) => v !== null).map(([k]) => k),
-      });
-    }
     await sb
       .from('imports')
       .update(importStatusPayload)
       .eq('id', importRecord.id);
+
+    // Store account_summary in user_documents.metadata so commit-import can read it.
+    if (hasParsedAccountData) {
+      try {
+        const { data: docMetaRow } = await sb
+          .from('user_documents')
+          .select('metadata')
+          .eq('id', documentId)
+          .maybeSingle();
+        const existingDocMeta =
+          docMetaRow?.metadata && typeof docMetaRow.metadata === 'object'
+            ? (docMetaRow.metadata as Record<string, unknown>)
+            : {};
+        await sb
+          .from('user_documents')
+          .update({ metadata: { ...existingDocMeta, statement_summary: parsedAccountSummary } })
+          .eq('id', documentId);
+        console.log('[normalize-transactions] Stored account_summary in user_documents.metadata', {
+          importId: importRecord.id,
+          documentId,
+          fields: Object.entries(parsedAccountSummary).filter(([, v]) => v !== null).map(([k]) => k),
+        });
+      } catch (docMetaErr: any) {
+        console.warn('[normalize-transactions] Failed to store account_summary in user_documents.metadata', {
+          documentId,
+          error: docMetaErr?.message,
+        });
+      }
+    }
 
     // 7. Optional: purge source document + OCR text after normalization
     if (documentId && (AUTO_PURGE_SOURCE || AUTO_PURGE_TEXT)) {

@@ -3295,8 +3295,9 @@ async function loadStatementBreakdown(
 
     if (!targetImportId) return null;
 
-    // Fetch transactions and import metadata in parallel
-    const [txResult, importMetaResult] = await Promise.all([
+    // Fetch transactions and import document_id in parallel
+    // NOTE: imports.metadata column does not exist; account_summary lives in user_documents.metadata
+    const [txResult, importDocResult] = await Promise.all([
       sb
         .from('transactions')
         .select('date,merchant,amount,category,type,description,confidence')
@@ -3305,25 +3306,39 @@ async function loadStatementBreakdown(
         .limit(500),
       sb
         .from('imports')
-        .select('metadata')
+        .select('document_id')
         .eq('id', targetImportId)
         .eq('user_id', userId)
         .maybeSingle(),
     ]);
     const txRows = txResult.data;
-    // account_summary from imports.metadata.statement_summary (stored by normalize-transactions)
-    const storedSummary = importMetaResult.data?.metadata?.statement_summary;
+    // account_summary from user_documents.metadata.statement_summary (stored by normalize-transactions)
     const toFinite = (v: unknown): number | null => { const n = Number(v); return Number.isFinite(n) ? n : null; };
-    const fallbackAccountSummary = storedSummary && typeof storedSummary === 'object'
-      ? {
+    let fallbackAccountSummary: {
+      previous_balance: number | null; new_balance: number | null;
+      minimum_payment_due: number | null; due_date: string | null;
+      credit_limit: number | null; available_credit: number | null;
+    } | undefined;
+    const liveDocumentId = importDocResult.data?.document_id;
+    if (liveDocumentId) {
+      const { data: docMetaRow } = await sb
+        .from('user_documents')
+        .select('metadata')
+        .eq('id', liveDocumentId)
+        .eq('user_id', userId)
+        .maybeSingle();
+      const storedSummary = docMetaRow?.metadata?.statement_summary;
+      if (storedSummary && typeof storedSummary === 'object') {
+        fallbackAccountSummary = {
           previous_balance: toFinite(storedSummary.previous_balance),
           new_balance: toFinite(storedSummary.new_balance),
           minimum_payment_due: toFinite(storedSummary.minimum_payment_due),
           due_date: String(storedSummary.due_date || '') || null,
           credit_limit: toFinite(storedSummary.credit_limit),
           available_credit: toFinite(storedSummary.available_credit),
-        }
-      : undefined;
+        };
+      }
+    }
 
     if (!Array.isArray(txRows) || txRows.length === 0) return null;
 

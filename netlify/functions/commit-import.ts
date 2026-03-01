@@ -361,29 +361,33 @@ async function buildStatementBreakdown(args: {
   }
 
   // Load account_summary (balances, due date, min payment) stored by normalize-transactions
-  // in imports.metadata.statement_summary during the OCR/normalization phase.
+  // in user_documents.metadata.statement_summary during the OCR/normalization phase.
+  // NOTE: imports.metadata column does not exist — user_documents.metadata is used instead.
   const toN = (v: unknown): number | null => { const n = Number(v); return Number.isFinite(n) ? n : null; };
   let accountSummary: StatementBreakdown['account_summary'] | undefined;
-  const { data: importMetaRow } = await sb
-    .from('imports')
-    .select('metadata')
-    .eq('id', importId)
-    .eq('user_id', userIdText)
-    .maybeSingle();
-  const storedSummary = importMetaRow?.metadata?.statement_summary;
-  if (storedSummary && typeof storedSummary === 'object') {
-    accountSummary = {
-      previous_balance: toN(storedSummary.previous_balance),
-      new_balance: toN(storedSummary.new_balance),
-      minimum_payment_due: toN(storedSummary.minimum_payment_due),
-      due_date: String(storedSummary.due_date || '') || null,
-      credit_limit: toN(storedSummary.credit_limit),
-      available_credit: toN(storedSummary.available_credit),
-    };
-    console.log('[CommitImport] Loaded account_summary from import metadata', {
-      importId,
-      fields: Object.entries(accountSummary).filter(([, v]) => v !== null).map(([k]) => k),
-    });
+  if (documentId) {
+    const { data: docMetaRow } = await sb
+      .from('user_documents')
+      .select('metadata')
+      .eq('id', documentId)
+      .eq('user_id', userIdText)
+      .maybeSingle();
+    const storedSummary = docMetaRow?.metadata?.statement_summary;
+    if (storedSummary && typeof storedSummary === 'object') {
+      accountSummary = {
+        previous_balance: toN(storedSummary.previous_balance),
+        new_balance: toN(storedSummary.new_balance),
+        minimum_payment_due: toN(storedSummary.minimum_payment_due),
+        due_date: String(storedSummary.due_date || '') || null,
+        credit_limit: toN(storedSummary.credit_limit),
+        available_credit: toN(storedSummary.available_credit),
+      };
+      console.log('[CommitImport] Loaded account_summary from user_documents.metadata', {
+        importId,
+        documentId,
+        fields: Object.entries(accountSummary).filter(([, v]) => v !== null).map(([k]) => k),
+      });
+    }
   }
 
   let totalDebits = 0;
