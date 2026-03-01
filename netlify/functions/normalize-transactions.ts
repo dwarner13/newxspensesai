@@ -438,7 +438,7 @@ async function processNormalizationInBackground(
     // 2) Find existing import (if any) BEFORE creating one.
     let { data: importRecord, error: importFetchError } = await sb
       .from('imports')
-      .select('id, status, updated_at')
+      .select('id, status, updated_at, metadata')
       .eq('document_id', documentId)
       .maybeSingle();
 
@@ -915,13 +915,43 @@ async function processNormalizationInBackground(
       await stampImportOverlapWarning(sb, userIdText, importRecord.id, overlapResult);
     }
 
-    // 6. Update import status
+    // Parse balance/payment fields from OCR text and store in imports.metadata.statement_summary
+    // so commit-import.ts and the chat live fallback can include them in the breakdown.
+    const toMoney = (val: string | undefined): number | null => {
+      if (!val) return null;
+      const n = parseFloat(String(val).replace(/,/g, ''));
+      return Number.isFinite(n) ? n : null;
+    };
+    const rawSummary = parseStatementSummary(guardedOcrInputText) || {};
+    const parsedAccountSummary = {
+      previous_balance: toMoney(rawSummary.previous_balance),
+      new_balance: toMoney(rawSummary.new_balance),
+      minimum_payment_due: toMoney(rawSummary.minimum_payment_due),
+      due_date: rawSummary.due_date || null,
+      credit_limit: toMoney(rawSummary.credit_limit),
+      available_credit: toMoney(rawSummary.available_credit),
+    };
+    const hasParsedAccountData = Object.values(parsedAccountSummary).some((v) => v !== null);
+
+    // 6. Update import status — merge statement_summary into existing metadata if found
+    const currentMetadata =
+      importRecord?.metadata && typeof importRecord.metadata === 'object'
+        ? (importRecord.metadata as Record<string, unknown>)
+        : {};
+    const importStatusPayload: Record<string, unknown> = {
+      status: 'parsed',
+      updated_at: new Date().toISOString(),
+    };
+    if (hasParsedAccountData) {
+      importStatusPayload.metadata = { ...currentMetadata, statement_summary: parsedAccountSummary };
+      console.log('[normalize-transactions] Storing account_summary in import metadata', {
+        importId: importRecord.id,
+        fields: Object.entries(parsedAccountSummary).filter(([, v]) => v !== null).map(([k]) => k),
+      });
+    }
     await sb
       .from('imports')
-      .update({ 
-        status: 'parsed', 
-        updated_at: new Date().toISOString() 
-      })
+      .update(importStatusPayload)
       .eq('id', importRecord.id);
 
     // 7. Optional: purge source document + OCR text after normalization

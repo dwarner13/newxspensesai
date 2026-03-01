@@ -3166,6 +3166,14 @@ interface StatementBreakdown {
     category: string;
     type: string;
   }>;
+  account_summary?: {
+    previous_balance: number | null;
+    new_balance: number | null;
+    minimum_payment_due: number | null;
+    due_date: string | null;
+    credit_limit: number | null;
+    available_credit: number | null;
+  };
 }
 
 async function loadStatementBreakdown(
@@ -3287,12 +3295,35 @@ async function loadStatementBreakdown(
 
     if (!targetImportId) return null;
 
-    const { data: txRows } = await sb
-      .from('transactions')
-      .select('date,merchant,amount,category,type,description,confidence')
-      .eq('import_id', targetImportId)
-      .eq('user_id', userId)
-      .limit(500);
+    // Fetch transactions and import metadata in parallel
+    const [txResult, importMetaResult] = await Promise.all([
+      sb
+        .from('transactions')
+        .select('date,merchant,amount,category,type,description,confidence')
+        .eq('import_id', targetImportId)
+        .eq('user_id', userId)
+        .limit(500),
+      sb
+        .from('imports')
+        .select('metadata')
+        .eq('id', targetImportId)
+        .eq('user_id', userId)
+        .maybeSingle(),
+    ]);
+    const txRows = txResult.data;
+    // account_summary from imports.metadata.statement_summary (stored by normalize-transactions)
+    const storedSummary = importMetaResult.data?.metadata?.statement_summary;
+    const toFinite = (v: unknown): number | null => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+    const fallbackAccountSummary = storedSummary && typeof storedSummary === 'object'
+      ? {
+          previous_balance: toFinite(storedSummary.previous_balance),
+          new_balance: toFinite(storedSummary.new_balance),
+          minimum_payment_due: toFinite(storedSummary.minimum_payment_due),
+          due_date: String(storedSummary.due_date || '') || null,
+          credit_limit: toFinite(storedSummary.credit_limit),
+          available_credit: toFinite(storedSummary.available_credit),
+        }
+      : undefined;
 
     if (!Array.isArray(txRows) || txRows.length === 0) return null;
 
@@ -3348,6 +3379,7 @@ async function loadStatementBreakdown(
         category: String(tx.category || 'Uncategorized'),
         type: String(tx.type || 'expense'),
       })),
+      ...(fallbackAccountSummary ? { account_summary: fallbackAccountSummary } : {}),
     };
 
     return fallbackBreakdown;

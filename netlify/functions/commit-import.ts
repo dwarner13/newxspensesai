@@ -84,6 +84,14 @@ export interface StatementBreakdown {
     reconciled: boolean;
     recon_method: 'direct_debits' | 'balance_equation' | 'direct_credits' | 'none';
   };
+  account_summary?: {
+    previous_balance: number | null;
+    new_balance: number | null;
+    minimum_payment_due: number | null;
+    due_date: string | null;
+    credit_limit: number | null;
+    available_credit: number | null;
+  };
 }
 
 function round2(n: number): number {
@@ -250,12 +258,27 @@ async function persistStatementBreakdown(
   breakdown: StatementBreakdown
 ): Promise<boolean> {
   // Strategy A1: dedicated JSONB column statement_breakdown_json on imports.
-  let { error: updateError } = await sb
+  // Use .select('id') so we can detect 0-row updates — Supabase returns no error when WHERE matches nothing.
+  let { data: a1Rows, error: updateError } = await sb
     .from('imports')
     .update({ statement_breakdown_json: breakdown })
     .eq('id', importId)
-    .eq('user_id', userIdText);
-  if (!updateError) return true;
+    .eq('user_id', userIdText)
+    .select('id');
+  if (!updateError && Array.isArray(a1Rows) && a1Rows.length > 0) return true;
+  if (!updateError && (!a1Rows || a1Rows.length === 0)) {
+    // Column exists but WHERE matched 0 rows — skip remaining column-name variants and go straight to import_summaries
+    console.warn('[CommitImport] persistStatementBreakdown A1: 0 rows updated (WHERE matched nothing)', { importId });
+    const { error: summaryError } = await sb
+      .from('import_summaries')
+      .upsert(
+        { import_id: importId, user_id: userIdText, statement_breakdown_json: breakdown, employee: 'prime', version: 1 },
+        { onConflict: 'import_id,user_id,version' }
+      );
+    if (!summaryError) return true;
+    console.warn('[CommitImport] persistStatementBreakdown A1 fallback to import_summaries also failed', { importId });
+    return false;
+  }
 
   // Strategy A2: alternate direct column name.
   if (isMissingColumnError(updateError)) {
@@ -335,6 +358,32 @@ async function buildStatementBreakdown(args: {
       mime_type: docRow?.mime_type || null,
       file_type: docRow?.file_type || null,
     };
+  }
+
+  // Load account_summary (balances, due date, min payment) stored by normalize-transactions
+  // in imports.metadata.statement_summary during the OCR/normalization phase.
+  const toN = (v: unknown): number | null => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+  let accountSummary: StatementBreakdown['account_summary'] | undefined;
+  const { data: importMetaRow } = await sb
+    .from('imports')
+    .select('metadata')
+    .eq('id', importId)
+    .eq('user_id', userIdText)
+    .maybeSingle();
+  const storedSummary = importMetaRow?.metadata?.statement_summary;
+  if (storedSummary && typeof storedSummary === 'object') {
+    accountSummary = {
+      previous_balance: toN(storedSummary.previous_balance),
+      new_balance: toN(storedSummary.new_balance),
+      minimum_payment_due: toN(storedSummary.minimum_payment_due),
+      due_date: String(storedSummary.due_date || '') || null,
+      credit_limit: toN(storedSummary.credit_limit),
+      available_credit: toN(storedSummary.available_credit),
+    };
+    console.log('[CommitImport] Loaded account_summary from import metadata', {
+      importId,
+      fields: Object.entries(accountSummary).filter(([, v]) => v !== null).map(([k]) => k),
+    });
   }
 
   let totalDebits = 0;
@@ -459,6 +508,7 @@ async function buildStatementBreakdown(args: {
       reconciled: false,
       recon_method: 'none',
     },
+    ...(accountSummary ? { account_summary: accountSummary } : {}),
   };
 
   // --- Reconciliation: compare extracted totals vs statement printed totals ---
