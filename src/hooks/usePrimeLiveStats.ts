@@ -37,7 +37,9 @@ export type UsePrimeLiveStatsResult = {
 };
 
 const REFRESH_INTERVAL_MS = 30000; // 30 seconds
-const DEDUPE_WINDOW_MS = 5000;
+// Dedup window matches the refresh interval so staggered component intervals
+// all share the same fetch rather than producing N requests per 30-second cycle.
+const DEDUPE_WINDOW_MS = 28000;
 let sharedInFlightFetch: Promise<PrimeLiveStats | null> | null = null;
 let sharedLastFetchAt = 0;
 let sharedLastData: PrimeLiveStats | null = null;
