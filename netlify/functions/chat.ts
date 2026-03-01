@@ -3252,6 +3252,20 @@ async function loadStatementBreakdown(
   try {
     let targetImportId: string | null = importId || null;
 
+    // If a specific importId was given, verify it is committed before using it.
+    // import_summaries may point to a parsed/normalizing import which has no transactions yet.
+    if (targetImportId) {
+      const { data: importCheck } = await sb
+        .from('imports')
+        .select('id,status')
+        .eq('user_id', userId)
+        .eq('id', targetImportId)
+        .maybeSingle();
+      if (!importCheck || String(importCheck.status || '') !== 'committed') {
+        targetImportId = null; // not committed — fall through to most-recent-committed
+      }
+    }
+
     if (!targetImportId) {
       const { data: latestImport } = await sb
         .from('imports')
@@ -3285,7 +3299,10 @@ async function loadStatementBreakdown(
       const abs = Math.abs(amount);
       const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
       const merchant = String(tx.merchant || tx.description || 'UNKNOWN').trim() || 'UNKNOWN';
-      if (amount >= 0) totalCredits += abs; else totalDebits += abs;
+      // Use type field to distinguish income vs expense (amounts are stored as positive)
+      const txType = String(tx.type || '').toLowerCase();
+      if (txType === 'income' || txType === 'credit' || amount < 0) totalCredits += abs;
+      else totalDebits += abs;
       const ce = categoryMap.get(cat) || { total: 0, count: 0 };
       ce.total += abs; ce.count += 1; categoryMap.set(cat, ce);
       const me = merchantMap.get(merchant) || { total: 0, count: 0 };
@@ -3352,7 +3369,7 @@ async function listUserStatements(
         .from('imports')
         .select(clause)
         .eq('user_id', userId)
-        .in('status', ['committed', 'parsed'])
+        .eq('status', 'committed')
         .order('created_at', { ascending: false })
         .limit(limit);
       if (error) continue;
