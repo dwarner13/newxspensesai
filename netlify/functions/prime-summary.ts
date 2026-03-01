@@ -1295,13 +1295,14 @@ export const handler: Handler = async (event) => {
       };
     }
 
+    const txLabel = transactionCount === 1 ? ‘1 transaction’ : `${transactionCount} transactions`;
     const fallbackSummary = [
-      "I imported your statement, but the breakdown data isn’t available yet.",
-      `Import ID: ${String(importId)}`,
-      `Transaction count: ${transactionCount}`,
-      'Try again in a moment.',
-      'If it stays at 0, the statement parser didn’t produce transactions.',
-    ].join('\n');
+      `${txLabel} imported from ${docName}`,
+      `- ${txLabel} imported and categorized.`,
+      ‘- Ask me which merchants appeared most often this period.’,
+      ‘- Ask me for a spending breakdown by category.’,
+      ‘- Flag any unfamiliar charges and I can help you review them.’,
+    ].join(‘\n’);
     const summary = await sanitizeSummaryForOutput(fallbackSummary, String(importData?.user_id || '') || null);
     console.log('[prime-summary] stage=prime_summary_rendered', {
       importId,

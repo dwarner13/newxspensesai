@@ -2776,10 +2776,12 @@ export default function UnifiedAssistantChat({
     const tagNarrative = [
       typeof tagAuto === 'number' ? `${tagAuto} auto-categorized` : null,
       typeof tagAi === 'number' ? `${tagAi} AI-assisted` : null,
-      typeof needsReview === 'number' ? `${needsReview} need review` : null,
+      typeof needsReview === 'number' && needsReview > 0 ? `${needsReview} need review` : null,
     ].filter(Boolean).join(', ');
     const tagSummary = tagNarrative
       ? `${uploadActorLabels.categorizer} results: ${tagNarrative}.`
+      : needsReview === 0
+      ? 'All transactions categorized — nothing needs review.'
       : `${uploadActorLabels.categorizer} finished categorization and your categories are ready to review.`;
     const unifiedRecap = buildUnifiedRecapFromTruth(
       {
@@ -3022,7 +3024,7 @@ export default function UnifiedAssistantChat({
     const snapshotBullets =
       snapshotLines.length > 0
         ? snapshotLines.map((line) => `• ${line}`)
-        : [`• ${statementHeader}`, '• Summary is preparing. I will update this message when it is ready.'];
+        : [`• ${statementHeader}`, '• Ask me for top merchants, spending trends, or category totals.'];
     const lines = [
       'Summary Ready',
       intro,

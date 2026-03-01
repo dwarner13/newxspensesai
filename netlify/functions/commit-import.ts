@@ -257,6 +257,34 @@ async function persistStatementBreakdown(
   userIdText: string,
   breakdown: StatementBreakdown
 ): Promise<boolean> {
+  // Pre-flight: verify the row exists with this WHERE clause to distinguish
+  // "column missing" vs "row not found" vs "write succeeded" in downstream logs.
+  const { data: preCheck, error: preCheckErr } = await sb
+    .from('imports')
+    .select('id, user_id, status')
+    .eq('id', importId)
+    .eq('user_id', userIdText)
+    .maybeSingle();
+  console.log('[CommitImport] persistStatementBreakdown pre-flight', {
+    importId,
+    rowFound: !!preCheck,
+    status: preCheck?.status ?? null,
+    preCheckError: preCheckErr?.message ?? null,
+  });
+  if (!preCheck) {
+    // Row not found with this user_id — go straight to import_summaries fallback.
+    console.warn('[CommitImport] persistStatementBreakdown: import row not found for this user_id, skipping imports UPDATE', { importId });
+    const { error: summaryError } = await sb
+      .from('import_summaries')
+      .upsert(
+        { import_id: importId, user_id: userIdText, statement_breakdown_json: breakdown, employee: 'prime', version: 1 },
+        { onConflict: 'import_id,user_id,version' }
+      );
+    if (!summaryError) return true;
+    console.warn('[CommitImport] persistStatementBreakdown: import_summaries also failed (row-not-found path)', { importId, error: summaryError.message });
+    return false;
+  }
+
   // Strategy A1: dedicated JSONB column statement_breakdown_json on imports.
   // Use .select('id') so we can detect 0-row updates — Supabase returns no error when WHERE matches nothing.
   let { data: a1Rows, error: updateError } = await sb
@@ -265,33 +293,35 @@ async function persistStatementBreakdown(
     .eq('id', importId)
     .eq('user_id', userIdText)
     .select('id');
-  if (!updateError && Array.isArray(a1Rows) && a1Rows.length > 0) return true;
+  if (!updateError && Array.isArray(a1Rows) && a1Rows.length > 0) {
+    console.log('[CommitImport] persistStatementBreakdown A1: wrote statement_breakdown_json to imports', { importId });
+    return true;
+  }
   if (!updateError && (!a1Rows || a1Rows.length === 0)) {
-    // Column exists but WHERE matched 0 rows — skip remaining column-name variants and go straight to import_summaries
-    console.warn('[CommitImport] persistStatementBreakdown A1: 0 rows updated (WHERE matched nothing)', { importId });
-    const { error: summaryError } = await sb
-      .from('import_summaries')
-      .upsert(
-        { import_id: importId, user_id: userIdText, statement_breakdown_json: breakdown, employee: 'prime', version: 1 },
-        { onConflict: 'import_id,user_id,version' }
-      );
-    if (!summaryError) return true;
-    console.warn('[CommitImport] persistStatementBreakdown A1 fallback to import_summaries also failed', { importId });
-    return false;
+    // Pre-flight confirmed the row exists but update still matched 0 rows.
+    // This means statement_breakdown_json column is missing — run migration
+    // sql/migrations/20260301_imports_statement_breakdown.sql to add it.
+    console.warn('[CommitImport] persistStatementBreakdown A1: 0 rows updated — column likely missing. Run migration 20260301_imports_statement_breakdown.sql', { importId });
   }
 
   // Strategy A2: alternate direct column name.
-  if (isMissingColumnError(updateError)) {
-    ({ error: updateError } = await sb
+  if (isMissingColumnError(updateError) || (!updateError && (!a1Rows || a1Rows.length === 0))) {
+    const { data: a2Rows, error: a2Err } = await sb
       .from('imports')
       .update({ statement_breakdown: breakdown })
       .eq('id', importId)
-      .eq('user_id', userIdText));
-    if (!updateError) return true;
+      .eq('user_id', userIdText)
+      .select('id');
+    if (!a2Err && Array.isArray(a2Rows) && a2Rows.length > 0) {
+      console.log('[CommitImport] persistStatementBreakdown A2: wrote statement_breakdown to imports', { importId });
+      return true;
+    }
+    if (!a2Err) updateError = null; // keep falling through
+    else updateError = a2Err;
   }
 
   // Strategy A3: merge into imports.metadata when available.
-  if (isMissingColumnError(updateError)) {
+  if (isMissingColumnError(updateError) || (!updateError && (!a1Rows || a1Rows.length === 0))) {
     const { data: importRow } = await sb
       .from('imports')
       .select('metadata')
@@ -301,7 +331,7 @@ async function persistStatementBreakdown(
     const metadata = importRow?.metadata && typeof importRow.metadata === 'object'
       ? importRow.metadata
       : {};
-    ({ error: updateError } = await sb
+    const { data: a3Rows, error: a3Err } = await sb
       .from('imports')
       .update({
         metadata: {
@@ -310,23 +340,29 @@ async function persistStatementBreakdown(
         },
       })
       .eq('id', importId)
-      .eq('user_id', userIdText));
-    if (!updateError) return true;
+      .eq('user_id', userIdText)
+      .select('id');
+    if (!a3Err && Array.isArray(a3Rows) && a3Rows.length > 0) {
+      console.log('[CommitImport] persistStatementBreakdown A3: merged into imports.metadata', { importId });
+      return true;
+    }
+    if (!a3Err) updateError = null;
+    else updateError = a3Err;
   }
 
-  // Strategy B: try import_summaries json column if present.
-  if (isMissingColumnError(updateError)) {
-    const upsertPayload = {
-      import_id: importId,
-      user_id: userIdText,
-      statement_breakdown_json: breakdown,
-      employee: 'prime',
-      version: 1,
-    };
+  // Strategy B: import_summaries table (created by migration 20260301_imports_statement_breakdown.sql).
+  {
     const { error: summaryError } = await sb
       .from('import_summaries')
-      .upsert(upsertPayload, { onConflict: 'import_id,user_id,version' });
-    if (!summaryError) return true;
+      .upsert(
+        { import_id: importId, user_id: userIdText, statement_breakdown_json: breakdown, employee: 'prime', version: 1 },
+        { onConflict: 'import_id,user_id,version' }
+      );
+    if (!summaryError) {
+      console.log('[CommitImport] persistStatementBreakdown B: wrote to import_summaries', { importId });
+      return true;
+    }
+    console.warn('[CommitImport] persistStatementBreakdown B: import_summaries also failed', { importId, error: summaryError.message });
   }
 
   console.warn('[CommitImport] Failed to persist statement breakdown', {
