@@ -15,8 +15,8 @@
  */
 
 const BASE = 'http://localhost:8888';
-const MAX_WAIT_MS = 90_000;
-const POLL_INTERVAL_MS = 1000;
+const MAX_WAIT_MS = 180_000;
+const POLL_INTERVAL_MS = 2000;
 
 async function waitForServer() {
   const start = Date.now();
@@ -28,7 +28,7 @@ async function waitForServer() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(60000),
       });
       // Any HTTP response (even 401/400) means the server + function are up
       if (res.status < 600) {
