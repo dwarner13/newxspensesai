@@ -1540,8 +1540,8 @@ function mentionsStatementImportContext(message: string): boolean {
 function isStatementBreakdownIntent(message: string): boolean {
   const text = String(message || '').toLowerCase();
   const explicitStatementContext = mentionsStatementImportContext(text)
-    || /\b(uploaded|uploaded statement|what i uploaded|which statement|that upload|that statement)\b/.test(text);
-  const breakdownAsks = /\b(break\s*down|breakdown|what'?s on|what is on|summar(?:y|ize)|summarise|what did you find|findings|show me|list|totals?|categories?)\b/.test(text);
+    || /\b(uploaded|uploaded statement|what i uploaded|which statement|that upload|that statement|my statement|my document|the file|the document|the statement|this document|this statement|my import|the import)\b/.test(text);
+  const breakdownAsks = /\b(break\s*down|breakdown|what'?s on|what is on|summar(?:y|ize)|summarise|what did you find|findings|show me|list|totals?|categories?|tell me|what'?s in|analyz[e|is]|analys[e|is]|review|overview|explain|describe|walk me|give me)\b/.test(text);
   const statementDetailAsks = /\b(due date|minimum payment|min payment|new balance|credit limit|available credit|account last[-\s]?4|last[-\s]?4|issuer|institution|card|visa|mastercard|credit card|bank statement|statement type|statement period|period start|period end)\b/.test(text);
   return (explicitStatementContext && breakdownAsks) || statementDetailAsks;
 }
@@ -3247,7 +3247,82 @@ async function loadStatementBreakdown(
     }
   }
 
-  return null;
+  // Fallback: build breakdown on-the-fly from the transactions table
+  // when statement_breakdown_json was never written (older imports or pipeline gap)
+  try {
+    let targetImportId: string | null = importId || null;
+
+    if (!targetImportId) {
+      const { data: latestImport } = await sb
+        .from('imports')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('status', 'committed')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      targetImportId = latestImport?.id ? String(latestImport.id) : null;
+    }
+
+    if (!targetImportId) return null;
+
+    const { data: txRows } = await sb
+      .from('transactions')
+      .select('date,merchant,amount,category,type,description,confidence')
+      .eq('import_id', targetImportId)
+      .eq('user_id', userId)
+      .limit(500);
+
+    if (!Array.isArray(txRows) || txRows.length === 0) return null;
+
+    let totalDebits = 0;
+    let totalCredits = 0;
+    const categoryMap = new Map<string, { total: number; count: number }>();
+    const merchantMap = new Map<string, { total: number; count: number }>();
+
+    for (const tx of txRows) {
+      const amount = Number(tx.amount || 0);
+      const abs = Math.abs(amount);
+      const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
+      const merchant = String(tx.merchant || tx.description || 'UNKNOWN').trim() || 'UNKNOWN';
+      if (amount >= 0) totalCredits += abs; else totalDebits += abs;
+      const ce = categoryMap.get(cat) || { total: 0, count: 0 };
+      ce.total += abs; ce.count += 1; categoryMap.set(cat, ce);
+      const me = merchantMap.get(merchant) || { total: 0, count: 0 };
+      me.total += abs; me.count += 1; merchantMap.set(merchant, me);
+    }
+
+    const denom = Math.max(totalDebits, 0.000001);
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+
+    const fallbackBreakdown: StatementBreakdown = {
+      version: 1,
+      import_id: targetImportId,
+      document_id: null,
+      user_id: userId,
+      created_at: new Date().toISOString(),
+      statement_meta: { issuer: null, account_last4: null, period_start: null, period_end: null, statement_type: 'unknown' },
+      totals: {
+        total_debits: r2(totalDebits),
+        total_credits: r2(totalCredits),
+        net: r2(totalCredits - totalDebits),
+        transaction_count: txRows.length,
+      },
+      category_totals: Array.from(categoryMap.entries())
+        .map(([category, s]) => ({ category, total: r2(s.total), count: s.count, percentage: r2((s.total / denom) * 100) }))
+        .sort((a, b) => b.total - a.total),
+      top_merchants: Array.from(merchantMap.entries())
+        .map(([merchant, s]) => ({ merchant, total: r2(s.total), count: s.count }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 10),
+      flags: { duplicate_count: 0, refund_count: 0, needs_review_count: 0, low_confidence_count: 0, missing_date_count: 0 },
+      confidence: { overall: 'medium', ocr_confidence: null, parse_confidence: null, transaction_match_rate: null, reconciled: false, recon_method: 'none' },
+    };
+
+    return fallbackBreakdown;
+  } catch {
+    return null;
+  }
 }
 
 async function listUserStatements(
@@ -4185,6 +4260,26 @@ async function buildAttachmentContext(
       return null;
     }
 
+    // Pre-fetch matching imports so we can enrich each document with real financial data
+    let importsByDocId: Record<string, any> = {};
+    try {
+      const { data: importRows } = await sb
+        .from('imports')
+        .select('id, document_id, status, statement_breakdown_json, statement_breakdown, metadata')
+        .in('document_id', documentIds)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(documentIds.length * 3);
+      if (Array.isArray(importRows)) {
+        for (const imp of importRows) {
+          const dId = String(imp.document_id || '');
+          if (dId && !importsByDocId[dId]) importsByDocId[dId] = imp;
+        }
+      }
+    } catch {
+      // Non-fatal — proceed without import enrichment
+    }
+
     const contextParts: string[] = [];
     const processingDocs: string[] = [];
 
@@ -4203,7 +4298,7 @@ async function buildAttachmentContext(
       // Build context for each document
       const docContext: string[] = [];
       docContext.push(`Document: ${doc.original_name || 'Untitled'}`);
-      
+
       if (doc.mime_type) {
         docContext.push(`Type: ${doc.mime_type}`);
       }
@@ -4214,6 +4309,62 @@ async function buildAttachmentContext(
         docContext.push(`Extraction metrics: length=${textLength}, hash=${textHash || 'n/a'}, type=${docType}, confidence=${typeof quality === 'number' ? Number(quality).toFixed(3) : 'n/a'}`);
       } else if (isProcessing) {
         docContext.push('Status: Still processing (OCR/parsing in progress)');
+      }
+
+      // Enrich with real financial data from the matching import record
+      const matchingImport = importsByDocId[String(doc.id || '')];
+      if (matchingImport) {
+        const breakdownRaw =
+          matchingImport.statement_breakdown_json ||
+          matchingImport.statement_breakdown ||
+          matchingImport?.metadata?.statement_breakdown;
+        if (breakdownRaw) {
+          try {
+            const bd = typeof breakdownRaw === 'string' ? JSON.parse(breakdownRaw) : breakdownRaw;
+            if (bd && typeof bd === 'object') {
+              docContext.push('');
+              docContext.push('STATEMENT FINANCIAL DATA:');
+              const meta = bd.statement_meta || {};
+              if (meta.issuer) docContext.push(`  Institution: ${meta.issuer}`);
+              if (meta.account_last4) docContext.push(`  Account: ****${meta.account_last4}`);
+              if (meta.period_start && meta.period_end) docContext.push(`  Period: ${meta.period_start} to ${meta.period_end}`);
+              if (meta.statement_type) docContext.push(`  Type: ${meta.statement_type}`);
+
+              const totals = bd.totals || {};
+              if (Object.keys(totals).length > 0) {
+                docContext.push('  Totals:');
+                if (totals.total_credits != null) docContext.push(`    Money in (credits): $${Number(totals.total_credits).toFixed(2)}`);
+                if (totals.total_debits != null) docContext.push(`    Money out (debits): $${Number(totals.total_debits).toFixed(2)}`);
+                if (totals.net != null) docContext.push(`    Net: $${Number(totals.net).toFixed(2)}`);
+                if (totals.transaction_count != null) docContext.push(`    Transactions: ${totals.transaction_count}`);
+              }
+
+              const categories: any[] = Array.isArray(bd.category_totals) ? bd.category_totals : [];
+              if (categories.length > 0) {
+                docContext.push('  Spending by category:');
+                for (const cat of categories.slice(0, 12)) {
+                  docContext.push(`    - ${cat.category}: $${Number(cat.total || 0).toFixed(2)} (${cat.count || 0} transactions)`);
+                }
+              }
+
+              const merchants: any[] = Array.isArray(bd.top_merchants) ? bd.top_merchants : [];
+              if (merchants.length > 0) {
+                docContext.push('  Top merchants:');
+                for (const m of merchants.slice(0, 8)) {
+                  docContext.push(`    - ${m.merchant}: $${Number(m.total || 0).toFixed(2)} (${m.count || 0} visits)`);
+                }
+              }
+
+              const flags = bd.flags || {};
+              const flagParts: string[] = [];
+              if (Number(flags.duplicate_count || 0) > 0) flagParts.push(`${flags.duplicate_count} potential duplicates`);
+              if (Number(flags.needs_review_count || 0) > 0) flagParts.push(`${flags.needs_review_count} need review`);
+              if (flagParts.length > 0) docContext.push(`  Flags: ${flagParts.join(', ')}`);
+            }
+          } catch {
+            // Non-fatal — breakdown parse failed; context has metadata only
+          }
+        }
       }
 
       contextParts.push(docContext.join('\n'));
@@ -4764,6 +4915,7 @@ export const handler: Handler = async (event, context) => {
     // Parse request body (userId now comes from JWT, not body)
     const requestBody = (body || JSON.parse(event.body || '{}')) as ChatRequest;
     let { employeeSlug, message, sessionId, threadId: requestThreadId, stream = true, systemPromptOverride, documentIds, client_message_id, request_id } = requestBody;
+    const ocrText: string | null = (body.ocrText as string) || null;
     let effectivePrimeContext: ChatRequest['prime_context'] = requestBody?.prime_context || null;
     employeeSlugForLog = employeeSlug || null;
     const userForcedEmployee = !!body.employeeSlug;
@@ -7801,6 +7953,9 @@ CUSTODIAN CONTEXT (Account Security & Settings):
     let userMessageContent = masked;
     if (attachmentContext) {
       userMessageContent = `${masked}${attachmentContext}`;
+    }
+    if (ocrText && ocrText.trim().length > 0) {
+      userMessageContent = `${userMessageContent}\n\n---\nFINANCIAL DOCUMENT (OCR extracted text):\n${ocrText}`;
     }
 
     const txSearchAvailable = toolsAllowedThisTurn && employeeTools.includes('tx_search');

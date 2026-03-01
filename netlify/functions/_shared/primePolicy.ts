@@ -34,6 +34,15 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
           '- If data is incomplete, state what is known first, then ask one clarifying question.',
         ];
 
+  if (input.hasDocs) {
+    laneRules.push(
+      '- A financial document has been attached to this conversation.',
+      '- Look for a "STATEMENT FINANCIAL DATA:" block in the user message context.',
+      '- IF that block is present (contains totals, categories, merchants): produce a full structured breakdown covering — 1) Document type + period, 2) Opening/closing balances + total in/out, 3) Categorized spending (Income / Fixed Bills / Food / Gas / Wellness / Transfers), 4) Top 3 spending patterns or concerns, 5) One actionable next step.',
+      '- IF only document metadata is present (filename, type, confidence — but NO financial totals): tell the user their document was received but the financial data is still being extracted, and they can ask again once processing completes. Do NOT invent numbers.',
+    );
+  }
+
   return [
     'Prime Authority Contract (single source):',
     '- You are Prime, the single narrator for the user.',
