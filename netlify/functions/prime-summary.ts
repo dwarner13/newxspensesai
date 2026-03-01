@@ -1041,7 +1041,7 @@ function buildFallbackSummary(docData: any): string | null {
   }
 
   if (lines.length > 0) {
-    return `I read your document (${docData.original_name || 'upload'}). Here’s what I found:\n${lines
+    return `I read your document (${docData.original_name || 'upload'}). Here's what I found:\n${lines
       .map((l) => `• ${l}`)
       .join('\n')}`;
   }
@@ -1049,7 +1049,7 @@ function buildFallbackSummary(docData: any): string | null {
   const textLength = Number(docData?.ocr_text_length ?? docData?.extracted_data?.text_length ?? 0);
   const textHash = String(docData?.ocr_text_hash || docData?.extracted_data?.text_hash || '');
   if (textLength > 0 || textHash) {
-    return `I read your document (${docData.original_name || 'upload'}) but couldn’t extract transactions yet. OCR metrics: length=${textLength || 0}, hash=${textHash || 'n/a'}.`;
+    return `I read your document (${docData.original_name || 'upload'}) but couldn't extract transactions yet. OCR metrics: length=${textLength || 0}, hash=${textHash || 'n/a'}.`;
   }
 
   return null;
@@ -1295,14 +1295,14 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const txLabel = transactionCount === 1 ? ‘1 transaction’ : `${transactionCount} transactions`;
+    const txLabel = transactionCount === 1 ? '1 transaction' : `${transactionCount} transactions`;
     const fallbackSummary = [
       `${txLabel} imported from ${docName}`,
       `- ${txLabel} imported and categorized.`,
-      ‘- Ask me which merchants appeared most often this period.’,
-      ‘- Ask me for a spending breakdown by category.’,
-      ‘- Flag any unfamiliar charges and I can help you review them.’,
-    ].join(‘\n’);
+      '- Ask me which merchants appeared most often this period.',
+      '- Ask me for a spending breakdown by category.',
+      '- Flag any unfamiliar charges and I can help you review them.',
+    ].join('\n');
     const summary = await sanitizeSummaryForOutput(fallbackSummary, String(importData?.user_id || '') || null);
     console.log('[prime-summary] stage=prime_summary_rendered', {
       importId,
