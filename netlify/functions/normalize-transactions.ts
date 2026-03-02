@@ -117,6 +117,40 @@ function parseStatementSummary(text: string): ExtractedSummary {
   };
 }
 
+/**
+ * Extract BMO bank statement-level closing totals from raw OCR text.
+ * Returns authoritative totalDeducted/totalAdded values that bypass
+ * individual transaction parsing errors and dedup collisions.
+ *
+ * Handles two BMO layouts:
+ *   - "Closing totals 11,525.46 11,627.36"  (deducted first, added second)
+ *   - Separate "Total amounts deducted X" and "Total amounts added Y" lines
+ */
+function parseBmoStatementTotals(text: string): { totalDeducted: number; totalAdded: number; source: string } | null {
+  const parse = (s: string) => parseFloat(s.replace(/,/g, ''));
+
+  const closingMatch = text.match(/closing\s+totals\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})/i);
+  if (closingMatch) {
+    const totalDeducted = parse(closingMatch[1]);
+    const totalAdded = parse(closingMatch[2]);
+    if (Number.isFinite(totalDeducted) && Number.isFinite(totalAdded)) {
+      return { totalDeducted, totalAdded, source: 'closing_totals' };
+    }
+  }
+
+  const deductedMatch = text.match(/total\s+amounts?\s+deducted[:\s]+([\d,]+\.\d{2})/i);
+  const addedMatch = text.match(/total\s+amounts?\s+added[:\s]+([\d,]+\.\d{2})/i);
+  if (deductedMatch && addedMatch) {
+    const totalDeducted = parse(deductedMatch[1]);
+    const totalAdded = parse(addedMatch[1]);
+    if (Number.isFinite(totalDeducted) && Number.isFinite(totalAdded)) {
+      return { totalDeducted, totalAdded, source: 'separate_totals_lines' };
+    }
+  }
+
+  return null;
+}
+
 async function sanitizePreCategorizationText(
   text: string,
   userId: string,
@@ -943,6 +977,44 @@ async function processNormalizationInBackground(
       .from('imports')
       .update(importStatusPayload)
       .eq('id', importRecord.id);
+
+    // Store BMO statement-level closing totals in imports.statement_breakdown_json for accurate
+    // STATEMENT SNAPSHOT display. These come directly from the "Closing totals" line — authoritative
+    // and independent of staging row amounts (which can be inflated by OCR parsing errors or
+    // SHA-256 dedup collisions on same-day same-amount entries).
+    // Uses the existing statement_breakdown_json JSONB column (added in 20260301 migration).
+    const bmoTotals = parseBmoStatementTotals(guardedOcrInputText);
+    if (bmoTotals) {
+      try {
+        const { data: importSbdRow } = await sb
+          .from('imports')
+          .select('statement_breakdown_json')
+          .eq('id', importRecord.id)
+          .maybeSingle();
+        const existingSbd =
+          importSbdRow?.statement_breakdown_json && typeof importSbdRow.statement_breakdown_json === 'object'
+            ? (importSbdRow.statement_breakdown_json as Record<string, unknown>)
+            : {};
+        await sb
+          .from('imports')
+          .update({
+            statement_breakdown_json: { ...existingSbd, statementTotals: bmoTotals },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', importRecord.id);
+        console.log('[normalize-transactions] Stored BMO statement totals in imports.statement_breakdown_json', {
+          importId: importRecord.id,
+          totalDeducted: bmoTotals.totalDeducted,
+          totalAdded: bmoTotals.totalAdded,
+          source: bmoTotals.source,
+        });
+      } catch (totalsErr: any) {
+        console.warn('[normalize-transactions] Failed to store BMO statement totals', {
+          importId: importRecord.id,
+          error: totalsErr?.message,
+        });
+      }
+    }
 
     // Store account_summary in user_documents.metadata so commit-import can read it.
     if (hasParsedAccountData) {

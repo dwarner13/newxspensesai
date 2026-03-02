@@ -877,13 +877,12 @@ function parseBmoEverydayStatement(text: string): Array<{
 }> {
   const lines = text
     .split(/\r?\n/)
-    .map(l => l.trim())
-    .filter(l => l.length > 0);
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
 
-  // 1) Detect year from "For the period ending ... 2025"
   let year = new Date().getFullYear();
   for (const line of lines) {
-    const m = /For the period ending .*?(\d{4})$/.exec(line);
+    const m = /For the period ending .*?(\d{4})$/i.exec(line);
     if (m) {
       year = Number(m[1]);
       break;
@@ -891,21 +890,36 @@ function parseBmoEverydayStatement(text: string): Array<{
   }
 
   const monthMap: Record<string, string> = {
-    Jan: "01", Feb: "02", Mar: "03", Apr: "04",
-    May: "05", Jun: "06", Jul: "07", Aug: "08",
-    Sep: "09", Oct: "10", Nov: "11", Dec: "12",
+    Jan: '01', Feb: '02', Mar: '03', Apr: '04',
+    May: '05', Jun: '06', Jul: '07', Aug: '08',
+    Sep: '09', Oct: '10', Nov: '11', Dec: '12',
+  };
+  const dateHeadRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\b/i;
+  const amountRegex = /\d{1,3}(?:,\d{3})*(?:\.\d{2})/g;
+  const parseAmount = (raw: string): number => Number(raw.replace(/,/g, ''));
+
+  const skipLine = (line: string): boolean =>
+    /opening balance|closing totals|closing balance|summary of your account|account balance|amounts deducted|amounts added|here's what happened|continued|page \d+ of \d+|-- \d+ of \d+ --/i.test(line);
+
+  const extractTxFromBody = (body: string): { description: string; amount: number; balance: number } | null => {
+    const amounts = body.match(amountRegex) || [];
+    if (amounts.length < 2) return null;
+
+    const amount = parseAmount(amounts[amounts.length - 2]);
+    const balance = parseAmount(amounts[amounts.length - 1]);
+    if (!isFinite(amount) || !isFinite(balance)) return null;
+
+    // Remove trailing amount columns from the description part.
+    const description = body
+      .replace(/\d{1,3}(?:,\d{3})*(?:\.\d{2})(?:\s+\d{1,3}(?:,\d{3})*(?:\.\d{2}))+$/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!description) return null;
+
+    return { description, amount, balance };
   };
 
-  const monthRegex = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})(?=\b|[A-Z])/i;
-  const moneyRegex = /^-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?$/;
-
-  const normalizeMoney = (raw: string): number | null => {
-    const cleaned = raw.replace(/[\$,]/g, "");
-    if (!/^-?\d+(\.\d{2})?$/.test(cleaned)) return null;
-    return Number(cleaned);
-  };
-
-  const transactions: Array<{
+  const out: Array<{
     date?: string;
     merchant?: string;
     description?: string;
@@ -914,97 +928,65 @@ function parseBmoEverydayStatement(text: string): Array<{
     raw_line_text?: string;
   }> = [];
 
-  let i = 0;
+  let lastBalance: number | null = null;
 
-  while (i < lines.length) {
+  for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const m = monthRegex.exec(line);
-    
-    if (!m) {
-      i++;
-      continue;
-    }
+    if (skipLine(line)) continue;
 
-    const monthAbbr = m[1];
-    const day = m[2].padStart(2, "0");
-    const month = monthMap[monthAbbr] ?? "01";
+    const dateMatch = line.match(dateHeadRegex);
+    if (!dateMatch) continue;
+
+    const month = monthMap[dateMatch[1]] || '01';
+    const day = dateMatch[2].padStart(2, '0');
     const isoDate = `${year}-${month}-${day}`;
+    let body = line.replace(dateHeadRegex, '').trim();
+    let rawLineText = line;
 
-    // Collect description lines until we hit an amount line
-    const descLines: string[] = [];
-    i++; // move past the date line
-
-    while (i < lines.length && !moneyRegex.test(lines[i])) {
-      // Stop if we accidentally hit another date (safety guard)
-      if (monthRegex.test(lines[i])) break;
-      descLines.push(lines[i]);
+    // Some BMO rows wrap to next line before amount/balance columns.
+    if ((body.match(amountRegex) || []).length < 2 && i + 1 < lines.length && !lines[i + 1].match(dateHeadRegex)) {
+      body = `${body} ${lines[i + 1]}`.replace(/\s+/g, ' ').trim();
+      rawLineText = `${line} | ${lines[i + 1]}`;
       i++;
     }
 
-    if (i >= lines.length) break;
+    const parsed = extractTxFromBody(body);
+    if (!parsed) continue;
 
-    const amountLine = lines[i];
-    if (!moneyRegex.test(amountLine)) {
-      // Not a valid amount, skip this candidate and continue
-      i++;
+    if (/opening balance|closing totals|closing balance/i.test(parsed.description)) {
+      lastBalance = parsed.balance;
       continue;
     }
-    
-    const amount = normalizeMoney(amountLine);
-    if (amount === null) {
-      i++;
-      continue;
-    }
-    
-    i++;
 
-    // Check for balance line (optional)
-    if (i < lines.length && moneyRegex.test(lines[i])) {
-      i++; // consume balance line
-    }
+    const deltaBasedAmount =
+      lastBalance !== null && isFinite(lastBalance)
+        ? parsed.balance - lastBalance
+        : null;
+    lastBalance = parsed.balance;
 
-    const description = descLines.join(" ").replace(/\s+/g, " ").trim();
-    
-    // Skip if description is empty
-    if (!description || description.length === 0) {
-      continue;
-    }
-    
-    // Extract merchant from description (remove common prefixes)
-    let merchant = description;
-    merchant = merchant.replace(/^(Debit Card Purchase|Credit Card Purchase|ATM Withdrawal|Online Transfer|Bill Payment|Deposit|Withdrawal)[,\s]+/i, '');
-    
-    // Take first part as merchant name
-    const merchantParts = merchant.split(/\s+/);
-    const merchantName = merchantParts[0] || merchant.substring(0, 50);
-    const signedAmount = isIncomeDescription(description)
-      ? Math.abs(amount)
-      : -Math.abs(amount);
+    const signedAmountFromDesc = isIncomeDescription(parsed.description)
+      ? Math.abs(parsed.amount)
+      : -Math.abs(parsed.amount);
 
-    // Combine all lines for raw_line_text
-    const rawLines = [line, ...descLines, amountLine];
-    const rawLineText = rawLines.join(' | ');
+    const signedAmount =
+      deltaBasedAmount !== null && deltaBasedAmount !== 0
+        ? (deltaBasedAmount > 0 ? Math.abs(parsed.amount) : -Math.abs(parsed.amount))
+        : signedAmountFromDesc;
 
-    const confidenceData = buildStatementConfidence({
+    const cleanedDesc = cleanDescription(parsed.description);
+    if (!cleanedDesc) continue;
+
+    out.push({
       date: isoDate,
-      description,
+      merchant: extractMerchant(cleanedDesc),
+      description: cleanedDesc,
       amount: signedAmount,
-      rawLineText: rawLineText,
-    });
-
-    transactions.push({
-      date: isoDate,
-      merchant: merchantName,
-      description: description,
-      amount: signedAmount,
-      category: categorizeTransactionSync(description), // Sync fallback - will be re-categorized with learning later
+      category: categorizeTransactionSync(cleanedDesc),
       raw_line_text: rawLineText,
-      confidence: confidenceData.confidence,
-      confidenceFlags: confidenceData.flags,
     });
   }
 
-  return transactions;
+  return out;
 }
 
 /**
@@ -2330,22 +2312,39 @@ function cleanDescription(description: string): string {
 }
 
 /**
- * Extract merchant name from description
+ * Extract merchant name from description.
+ * Strips BMO/Canadian-bank transaction-type prefixes so the actual payee name is returned.
+ * e.g. "Debit Card Purchase, 7-ELEVEN STORE 33535" → "7-ELEVEN STORE"
+ *      "Bill Payment - ROGERS"                      → "ROGERS"
+ *      "Interac e-Transfer Sent - John Smith"        → "John Smith"
  */
 function extractMerchant(description: string): string {
-  // Remove common suffixes
-  const cleaned = description
-    .replace(/\s+(INC|LLC|CORP|LTD|CO)\.?$/i, '')
-    .replace(/\s+#\d+.*$/, '') // Remove transaction IDs
-    .trim();
-  
-  // Take first part (usually merchant name)
-  const parts = cleaned.split(/\s+/);
-  if (parts.length > 0) {
-    return parts[0].substring(0, 100);
+  const prefixPatterns = [
+    /^(?:debit\s+card\s+purchase|point\s+of\s+sale(?:\s+purchase)?)[,\s-]+/i,
+    /^interac\s+e[- ]?transfer\s+(?:sent|received)[,\s-]+/i,
+    /^bill\s+payment[,\s-]+/i,
+    /^pre-?authorized\s+(?:debit|credit|payment)[,\s-]+/i,
+    /^online\s+(?:transfer|payment|banking)[,\s-]+/i,
+    /^atm\s+(?:withdrawal|deposit)[,\s-]+/i,
+  ];
+
+  let merchant = description.trim();
+  for (const pat of prefixPatterns) {
+    const stripped = merchant.replace(pat, '').trim();
+    if (stripped) {
+      merchant = stripped;
+      break;
+    }
   }
-  
-  return cleaned.substring(0, 100);
+
+  // Remove store numbers and trailing numeric IDs, then corporate suffixes
+  merchant = merchant
+    .replace(/\s+#\d+\S*$/, '')
+    .replace(/\s+\d{5,}$/, '')
+    .replace(/\s+(INC|LLC|CORP|LTD|CO)\.?$/i, '')
+    .trim();
+
+  return merchant.substring(0, 100);
 }
 
 /**

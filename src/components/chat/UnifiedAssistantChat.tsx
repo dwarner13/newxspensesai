@@ -2737,15 +2737,29 @@ export default function UnifiedAssistantChat({
       const supabase = getSupabase();
       if (!supabase) return null;
 
-      // Chat uploads use autoCommit:false — data lives in transactions_staging until the user
-      // clicks "Approve". Query staging first (always populated when primeSummaryReady fires),
-      // then fall back to committed transactions for non-chat import paths.
-      const { data: staged, error: stagingError } = await supabase
-        .from('transactions_staging')
-        .select('data_json, tag_category, tag_status')
-        .eq('import_id', importId)
-        .eq('user_id', userId)
-        .limit(500);
+      // Run staging query and imports.metadata query in parallel.
+      // imports.metadata.statementTotals holds authoritative closing totals (e.g., BMO "Closing totals X Y")
+      // extracted at normalization time — these are independent of potentially-inflated staging row amounts.
+      const [stagingResult, importMetaResult] = await Promise.all([
+        supabase
+          .from('transactions_staging')
+          .select('data_json, tag_category, tag_status')
+          .eq('import_id', importId)
+          .eq('user_id', userId)
+          .limit(500),
+        supabase
+          .from('imports')
+          .select('statement_breakdown_json')
+          .eq('id', importId)
+          .eq('user_id', userId)
+          .maybeSingle(),
+      ]);
+      const { data: staged } = stagingResult;
+      const storedTotals = ((importMetaResult.data?.statement_breakdown_json as any)?.statementTotals) ?? null;
+      const hasStoredTotals =
+        storedTotals &&
+        typeof storedTotals.totalDeducted === 'number' &&
+        typeof storedTotals.totalAdded === 'number';
 
       const rows = Array.isArray(staged) && staged.length > 0 ? staged : null;
 
@@ -2801,7 +2815,14 @@ export default function UnifiedAssistantChat({
       }
       const topCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([cat, amt]) => ({ cat, amt }));
       const topMerchants = Object.entries(merchantMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([merchant, amt]) => ({ merchant, amt }));
-      return { txCount: rows.length, totalSpend, totalIncome, topCategories, topMerchants, fmt };
+      return {
+        txCount: rows.length,
+        totalSpend: hasStoredTotals ? storedTotals.totalDeducted : totalSpend,
+        totalIncome: hasStoredTotals ? storedTotals.totalAdded : totalIncome,
+        topCategories,
+        topMerchants,
+        fmt,
+      };
     } catch {
       return null;
     }
