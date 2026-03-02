@@ -2730,7 +2730,6 @@ export default function UnifiedAssistantChat({
     topMerchants: Array<{ merchant: string; amt: number }>;
     fmt: (n: number) => string;
   } | null> => {
-    console.log('[loadImportBreakdown] START', { importId, userId });
     if (!importId || !userId) return null;
     const fmt = (n: number) => n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     try {
@@ -2747,8 +2746,6 @@ export default function UnifiedAssistantChat({
         .eq('import_id', importId)
         .eq('user_id', userId)
         .limit(500);
-
-      console.log('[loadImportBreakdown] staging query', { importId, userId, count: staged?.length ?? 0, stagingError: stagingError?.message });
 
       const rows = Array.isArray(staged) && staged.length > 0 ? staged : null;
 
@@ -2788,9 +2785,10 @@ export default function UnifiedAssistantChat({
         const dj = (row.data_json || {}) as Record<string, any>;
         const raw = Number(dj.amount ?? 0);
         const amt = Math.abs(raw);
-        // Detect credit: negative amount OR explicit type/credit flags in data_json
+        // Detect credit/income: normalize-transactions stores type as 'income'|'expense'
+        // amount is always Math.abs(rawAmount) so raw < 0 never fires for staging rows
         const typeStr = String(dj.type || dj.transaction_type || '').toLowerCase();
-        const isCredit = raw < 0 || typeStr === 'credit' || typeStr === 'payment' || typeStr === 'deposit';
+        const isCredit = raw < 0 || typeStr === 'income' || typeStr === 'credit' || typeStr === 'payment' || typeStr === 'deposit';
         if (isCredit) {
           totalIncome += amt;
         } else {
@@ -3626,12 +3624,10 @@ export default function UnifiedAssistantChat({
       const alreadyVisible = hasVisiblePrimeFinalForImport(primeSummaryReady);
       if (previouslyFinalized && previouslyPostedSummary === summaryText && alreadyVisible) return;
       if (previouslyFinalized && isGenericSummaryText && alreadyVisible) return;
-      console.log('[primeSummaryReady] about to call loadImportBreakdown', { importId: primeSummaryReady });
       const [clarificationItems, breakdown] = await Promise.all([
         loadClarificationCandidates(primeSummaryReady),
         loadImportBreakdown(primeSummaryReady),
       ]);
-      console.log('[primeSummaryReady] breakdown result', { importId: primeSummaryReady, breakdown: breakdown ? { txCount: breakdown.txCount, totalSpend: breakdown.totalSpend, catCount: breakdown.topCategories.length, merchantCount: breakdown.topMerchants.length } : null });
       clarificationCandidatesByImportIdRef.current[primeSummaryReady] = clarificationItems;
       if (cancelled) return;
 
