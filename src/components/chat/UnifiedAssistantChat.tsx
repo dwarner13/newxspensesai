@@ -2732,28 +2732,39 @@ export default function UnifiedAssistantChat({
   } | null> => {
     if (!importId || !userId) return null;
     const fmt = (n: number) => n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const attemptQuery = async () => {
-      try {
-        const { getSupabase } = await import('../../lib/supabase');
-        const supabase = getSupabase();
-        if (!supabase) return null;
-        const { data: txs } = await supabase
+    try {
+      const { getSupabase } = await import('../../lib/supabase');
+      const supabase = getSupabase();
+      if (!supabase) return null;
+
+      // Chat uploads use autoCommit:false — data lives in transactions_staging until the user
+      // clicks "Approve". Query staging first (always populated when primeSummaryReady fires),
+      // then fall back to committed transactions for non-chat import paths.
+      const { data: staged } = await supabase
+        .from('transactions_staging')
+        .select('data_json, tag_category, tag_status')
+        .eq('import_id', importId)
+        .eq('user_id', userId)
+        .limit(500);
+
+      const rows = Array.isArray(staged) && staged.length > 0 ? staged : null;
+
+      // Fallback: committed transactions (autoCommit:true path or already approved)
+      if (!rows) {
+        const { data: committed } = await supabase
           .from('transactions')
           .select('amount, type, category, merchant_name, description')
           .eq('import_id', importId)
           .eq('user_id', userId)
           .limit(500);
-        if (!Array.isArray(txs) || txs.length === 0) return null;
-        let totalSpend = 0;
-        let totalIncome = 0;
+        if (!Array.isArray(committed) || committed.length === 0) return null;
+        let totalSpend = 0, totalIncome = 0;
         const categoryMap: Record<string, number> = {};
         const merchantMap: Record<string, number> = {};
-        for (const tx of txs) {
+        for (const tx of committed) {
           const amt = Math.abs(Number(tx.amount) || 0);
           const isCredit = String(tx.type || '').toLowerCase() === 'credit';
-          if (isCredit) {
-            totalIncome += amt;
-          } else {
+          if (isCredit) { totalIncome += amt; } else {
             totalSpend += amt;
             const cat = String(tx.category || 'Uncategorized').trim();
             categoryMap[cat] = (categoryMap[cat] || 0) + amt;
@@ -2761,31 +2772,38 @@ export default function UnifiedAssistantChat({
             merchantMap[merchant] = (merchantMap[merchant] || 0) + amt;
           }
         }
-        const topCategories = Object.entries(categoryMap)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([cat, amt]) => ({ cat, amt }));
-        const topMerchants = Object.entries(merchantMap)
-          .sort((a, b) => b[1] - a[1])
-          .slice(0, 5)
-          .map(([merchant, amt]) => ({ merchant, amt }));
-        return { txCount: txs.length, totalSpend, totalIncome, topCategories, topMerchants, fmt };
-      } catch {
-        return null;
+        const topCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([cat, amt]) => ({ cat, amt }));
+        const topMerchants = Object.entries(merchantMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([merchant, amt]) => ({ merchant, amt }));
+        return { txCount: committed.length, totalSpend, totalIncome, topCategories, topMerchants, fmt };
       }
-    };
-    // Retry up to 6 times with 3s delays — transactions may not be committed yet
-    // when primeSummaryReady fires (approve-import runs async after prime-router returns)
-    const MAX_RETRIES = 6;
-    const RETRY_DELAY_MS = 3000;
-    for (let i = 0; i < MAX_RETRIES; i++) {
-      const result = await attemptQuery();
-      if (result !== null) return result;
-      if (i < MAX_RETRIES - 1) {
-        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+
+      // Build breakdown from staging rows
+      let totalSpend = 0, totalIncome = 0;
+      const categoryMap: Record<string, number> = {};
+      const merchantMap: Record<string, number> = {};
+      for (const row of rows) {
+        const dj = (row.data_json || {}) as Record<string, any>;
+        const raw = Number(dj.amount ?? 0);
+        const amt = Math.abs(raw);
+        // Detect credit: negative amount OR explicit type/credit flags in data_json
+        const typeStr = String(dj.type || dj.transaction_type || '').toLowerCase();
+        const isCredit = raw < 0 || typeStr === 'credit' || typeStr === 'payment' || typeStr === 'deposit';
+        if (isCredit) {
+          totalIncome += amt;
+        } else {
+          totalSpend += amt;
+          const cat = String(row.tag_category || dj.category || dj.suggested_category || 'Uncategorized').trim();
+          categoryMap[cat] = (categoryMap[cat] || 0) + amt;
+          const merchant = String(dj.merchant || dj.vendor || dj.description || 'Unknown').trim().slice(0, 40);
+          merchantMap[merchant] = (merchantMap[merchant] || 0) + amt;
+        }
       }
+      const topCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([cat, amt]) => ({ cat, amt }));
+      const topMerchants = Object.entries(merchantMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([merchant, amt]) => ({ merchant, amt }));
+      return { txCount: rows.length, totalSpend, totalIncome, topCategories, topMerchants, fmt };
+    } catch {
+      return null;
     }
-    return null;
   }, [userId]);
 
   const injectPrimeUploadFinalMessage = useCallback((params: {
