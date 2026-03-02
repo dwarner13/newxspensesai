@@ -6399,7 +6399,6 @@ export default function UnifiedAssistantChat({
                     data-scroll-container="true"
                     style={{
                       WebkitOverflowScrolling: 'touch',
-                      scrollBehavior: 'smooth',
                       paddingBottom: chatBottomPaddingPx,
                       scrollPaddingBottom: chatBottomPaddingPx + 32,
                     }}
@@ -6874,11 +6873,13 @@ export default function UnifiedAssistantChat({
                       );
                     })}
 
-                      {/* Prime Quick Actions - Show in empty state (no messages, onboarding complete) */}
+                      {/* Prime Quick Actions - Show in empty state (no real backend messages).
+                          Use !hasAnyMessages so chips appear even when the greeting is the
+                          only message in burstDedupedMessages (it's synthetic/UI-only). */}
                       {normalizedSlug === 'prime-boss' &&
                        !showPrimeOnboarding &&
                        primeOnboardingCompleted &&
-                       burstDedupedMessages.length === 0 &&
+                       !hasAnyMessages &&
                        !isStreaming && (
                         <div className="px-4 pb-4">
                           <PrimeQuickActions
