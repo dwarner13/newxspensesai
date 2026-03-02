@@ -27,6 +27,9 @@ export interface UnifiedChatEngineOptions {
   
   /** Error callback */
   onError?: (error: Error) => void;
+
+  /** Additional fields merged into prime_context on each send (e.g. recentImportSummary) */
+  additionalPrimeContext?: Record<string, unknown>;
 }
 
 export interface UnifiedChatEngineReturn {
@@ -232,7 +235,8 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
     canRun ? options.conversationId : undefined,
     canRun ? employeeOverride : undefined,
     canRun ? options.systemPromptOverride : null,
-    canRun ? options.initialMessages : undefined
+    canRun ? options.initialMessages : undefined,
+    canRun ? options.additionalPrimeContext : undefined
   );
   
   // Return disabled engine stub when userId is missing

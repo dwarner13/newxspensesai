@@ -237,6 +237,9 @@ export default function UnifiedAssistantChat({
   const [chatBottomPaddingPx, setChatBottomPaddingPx] = useState(96);
   const scrollContainerElementRef = useRef<HTMLElement | null>(null); // Actual scroll container (found via DOM traversal)
   
+  // Most recent import summary — passed to prime_context so Prime can answer follow-up questions
+  const [importSummaryForPrime, setImportSummaryForPrime] = useState<Record<string, unknown> | null>(null);
+
   // Local state for UI-only injected messages
   const [injectedMessages, setInjectedMessages] = useState<ChatMessage[]>([]);
   const [summaryOverrides, setSummaryOverrides] = useState<Record<string, string>>({});
@@ -906,6 +909,7 @@ export default function UnifiedAssistantChat({
     employeeSlug: engineEmployeeSlug,
     conversationId: disableRuntime ? undefined : conversationId,
     initialMessages: deduplicatedInitialMessages,
+    additionalPrimeContext: importSummaryForPrime ?? undefined,
   });
   
   // Extract engineActiveEmployeeSlug and update refs for next render (handoffs update this)
@@ -2072,9 +2076,10 @@ export default function UnifiedAssistantChat({
     const observer = new ResizeObserver(() => {
       const shouldStick =
         userJustSentRef.current ||
-        (isStreaming && userIsNearBottomRef.current);
+        (isStreaming && userIsNearBottomRef.current) ||
+        Date.now() < forceAutoPinUntilRef.current;
 
-      if (!shouldStick) return;
+      if (!shouldStick || userScrolledUpRef.current) return;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           scrollToBottom('auto');
@@ -2624,64 +2629,44 @@ export default function UnifiedAssistantChat({
     importId: string;
     batchKey?: string;
   }) => {
-    const fullLines = String(params.content || '').split('\n');
-    const chunkSize = 3;
-    const cadenceMs = 65;
-    const applySlice = (lineCount: number, done: boolean) => {
-      const nextContent = fullLines.slice(0, Math.max(1, lineCount)).join('\n');
-      setInjectedMessages((prev) => {
-        const existingIdx = prev.findIndex((msg) => msg.id === params.messageId);
-        const nextMsg: ChatMessage = {
-          id: params.messageId,
-          role: 'assistant',
-          content: nextContent,
-          createdAt: existingIdx >= 0 ? prev[existingIdx].createdAt : new Date().toISOString(),
-          meta: {
-            type: 'prime_upload_final',
-            importId: params.importId,
-            batchKey: params.batchKey,
-            targetEmployeeSlug: 'prime-boss',
-            is_streaming: !done,
-            ctas: [
-              { label: 'Review Transactions', to: `/dashboard/transactions?importId=${encodeURIComponent(params.importId)}` },
-              { label: 'Review Categories', to: '/dashboard/smart-categories' },
-            ],
-          },
-        };
-        if (existingIdx >= 0) {
-          const updated = [...prev];
-          updated[existingIdx] = nextMsg;
-          return updated;
-        }
-        return [...prev, nextMsg];
-      });
-      if (!userScrolledUpRef.current) {
-        autoPinToBottomRef.current = true;
-        requestAnimationFrame(() => scrollToBottom('auto'));
-      }
-    };
-
+    // Clear any stale interval for this message.
     const existingTimer = primeFinalStreamTimersRef.current.get(params.messageId);
     if (existingTimer) {
       window.clearInterval(existingTimer);
       primeFinalStreamTimersRef.current.delete(params.messageId);
     }
 
-    let shown = Math.min(chunkSize, fullLines.length);
-    applySlice(shown, shown >= fullLines.length);
-    if (shown >= fullLines.length) return;
-
-    const timer = window.setInterval(() => {
-      shown = Math.min(fullLines.length, shown + chunkSize);
-      const done = shown >= fullLines.length;
-      applySlice(shown, done);
-      if (done) {
-        window.clearInterval(timer);
-        primeFinalStreamTimersRef.current.delete(params.messageId);
+    // Inject the full content in one shot. The old 3-lines-per-65ms interval was cancelling
+    // TypingMessage's animation on every chunk (the content dep fires, clears the timeout,
+    // adds a 40ms restart delay) — at 12ms/char that left only ~2 chars typed per window,
+    // producing a jittery block-stepping effect. Single injection = one smooth animation.
+    setInjectedMessages((prev) => {
+      const existingIdx = prev.findIndex((msg) => msg.id === params.messageId);
+      const nextMsg: ChatMessage = {
+        id: params.messageId,
+        role: 'assistant',
+        content: params.content,
+        createdAt: existingIdx >= 0 ? prev[existingIdx].createdAt : new Date().toISOString(),
+        meta: {
+          type: 'prime_upload_final',
+          importId: params.importId,
+          batchKey: params.batchKey,
+          targetEmployeeSlug: 'prime-boss',
+          is_streaming: false,
+          ctas: [
+            { label: 'Review Transactions', to: `/dashboard/transactions?importId=${encodeURIComponent(params.importId)}` },
+            { label: 'Review Categories', to: '/dashboard/smart-categories' },
+          ],
+        },
+      };
+      if (existingIdx >= 0) {
+        const updated = [...prev];
+        updated[existingIdx] = nextMsg;
+        return updated;
       }
-    }, cadenceMs);
-    primeFinalStreamTimersRef.current.set(params.messageId, timer);
-  }, [scrollToBottom]);
+      return [...prev, nextMsg];
+    });
+  }, []);
 
   const loadClarificationCandidates = useCallback(async (importId: string) => {
     if (!importId) return [] as Array<{ transactionId: string; vendor: string; amount: string; date: string }>;
@@ -3066,12 +3051,10 @@ export default function UnifiedAssistantChat({
       });
       forceAutoPinUntilRef.current = Date.now() + 10000;
       autoPinToBottomRef.current = true;
-      requestAnimationFrame(() => {
-        scrollToBottom('auto');
-      });
-      window.setTimeout(() => {
-        scrollToBottom('auto');
-      }, 120);
+      userScrolledUpRef.current = false;
+      userIsNearBottomRef.current = true;
+      requestAnimationFrame(() => scrollToBottom('smooth'));
+      window.setTimeout(() => scrollToBottom('auto'), 150);
       return;
     }
     const summaryLines = polishedSummary
@@ -3181,6 +3164,19 @@ export default function UnifiedAssistantChat({
       '• Upload another file',
       '• Reply "that\'s it" when this batch is complete',
     ];
+    // Store breakdown for Prime context so follow-up questions can reference the summary
+    if (bd) {
+      setImportSummaryForPrime({
+        recentImportSummary: {
+          totalSpend: bd.totalSpend,
+          totalIncome: bd.totalIncome,
+          txCount: bd.txCount,
+          topCategories: bd.topCategories.map(({ cat, amt }) => ({ name: cat, amount: amt })),
+          topMerchants: bd.topMerchants.map(({ merchant, amt }) => ({ name: merchant, amount: amt })),
+          displayedAt: new Date().toISOString(),
+        },
+      });
+    }
     clearLegacyImportRecap();
     streamPrimeFinalMessage({
       messageId,
@@ -3188,22 +3184,15 @@ export default function UnifiedAssistantChat({
       importId: params.importId,
       batchKey: params.batchKey,
     });
+    // Force-pin scroll for the full typing duration (~8 s). Reset userScrolledUpRef so the
+    // summary is always visible even if the user scrolled up during the upload process.
     forceAutoPinUntilRef.current = Date.now() + 10000;
-    // Force-follow the final Prime summary bubble so the user lands on newest output.
     autoPinToBottomRef.current = true;
-    requestAnimationFrame(() => {
-      scrollToBottom('auto');
-    });
-    window.setTimeout(() => {
-      scrollToBottom('auto');
-    }, 120);
-    window.setTimeout(() => {
-      scrollToBottom('auto');
-    }, 320);
-    window.setTimeout(() => {
-      scrollToBottom('auto');
-    }, 700);
-  }, [isPrimeNarrationEnabled, firstName, scrollToBottom, streamPrimeFinalMessage]);
+    userScrolledUpRef.current = false;
+    userIsNearBottomRef.current = true;
+    requestAnimationFrame(() => scrollToBottom('smooth'));
+    window.setTimeout(() => scrollToBottom('auto'), 150);
+  }, [isPrimeNarrationEnabled, firstName, scrollToBottom, streamPrimeFinalMessage, setImportSummaryForPrime]);
 
   const processByteUploads = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return false;
@@ -6841,8 +6830,8 @@ export default function UnifiedAssistantChat({
                                               onTyped={(id) => {
                                                 typedMessageIdsRef.current.add(id);
                                               }}
-                                              charDelay={isGreetingMessage ? 20 : 12} // Faster for responses, still premium for greeting
-                                              maxDuration={isGreetingMessage ? 6000 : 2800} // Shorter cap for snappier replies
+                                              charDelay={isGreetingMessage ? 20 : metaAny?.type === 'prime_upload_final' ? 10 : 12}
+                                              maxDuration={isGreetingMessage ? 6000 : metaAny?.type === 'prime_upload_final' ? 8000 : 2800}
                                             />
                                           )
                                         ) : (

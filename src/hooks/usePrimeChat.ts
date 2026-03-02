@@ -72,11 +72,12 @@ export interface PendingConfirmation {
 type EmployeeOverride = 'prime' | 'byte' | 'tag' | 'crystal' | 'goalie' | 'automa' | 'blitz' | 'liberty' | 'chime' | 'roundtable' | 'serenity' | 'harmony' | 'wave' | 'ledger' | 'intelia' | 'dash' | 'custodian';
 
 export function usePrimeChat(
-  userId: string, 
+  userId: string,
   sessionId?: string,
   employeeOverride?: EmployeeOverride,
   systemPrompt?: string | null,
-  initialMessages?: ChatMessage[] // Optional initial messages to populate on mount
+  initialMessages?: ChatMessage[], // Optional initial messages to populate on mount
+  additionalPrimeContext?: Record<string, unknown> // Extra fields merged into prime_context per send
 ) {
   // Debug flag to control console logging
   const DEBUG_PRIME_CHAT = false;
@@ -1118,7 +1119,9 @@ export function usePrimeChat(
               factsCount: primeState.memorySummary.factCount || undefined,
               lastUpdatedAt: primeState.lastUpdated || undefined,
               recentFacts: primeState.memorySummary.highConfidenceFacts?.slice(0, 3).map(f => f.value || f.key) || undefined
-            } : null
+            } : null,
+            // Merge additional context (e.g. recent import summary for follow-up question support)
+            ...(additionalPrimeContext || {}),
           };
           
           // Dev logging (redacted preview)
@@ -1863,7 +1866,8 @@ export function usePrimeChat(
     activeEmployeeSlug,
     threadByEmployee,
     parseSSEEvent,
-    upsertAssistantMessage
+    upsertAssistantMessage,
+    additionalPrimeContext
   ]);
 
   const stop = useCallback(() => {

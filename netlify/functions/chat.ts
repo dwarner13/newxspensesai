@@ -166,6 +166,15 @@ interface ChatRequest {
       recentFacts?: string[];
     } | null;
     lastTagOutput?: any;
+    /** Most recent import summary displayed to the user — use this to answer follow-up questions */
+    recentImportSummary?: {
+      totalSpend: number;
+      totalIncome: number;
+      txCount: number;
+      topCategories: Array<{ name: string; amount: number }>;
+      topMerchants: Array<{ name: string; amount: number }>;
+      displayedAt: string; // ISO timestamp
+    } | null;
   } | null;
 }
 
@@ -7886,6 +7895,21 @@ export const handler: Handler = async (event, context) => {
         }
       }
       
+      // Recent import summary (displayed to user — use this for follow-up questions)
+      if (pc.recentImportSummary) {
+        const rs = pc.recentImportSummary;
+        primeContextMessage += `\nRECENT IMPORT SUMMARY (I just displayed this to the user — reference it for any follow-up questions):\n`;
+        primeContextMessage += `- Total spend: $${rs.totalSpend.toFixed(2)}\n`;
+        if (rs.totalIncome > 0) primeContextMessage += `- Total income: $${rs.totalIncome.toFixed(2)}\n`;
+        primeContextMessage += `- Transactions: ${rs.txCount}\n`;
+        if (rs.topCategories && rs.topCategories.length > 0) {
+          primeContextMessage += `- Top categories: ${rs.topCategories.slice(0, 5).map(c => `${c.name} ($${c.amount.toFixed(2)})`).join(', ')}\n`;
+        }
+        if (rs.topMerchants && rs.topMerchants.length > 0) {
+          primeContextMessage += `- Top merchants: ${rs.topMerchants.slice(0, 5).map(m => `${m.name} ($${m.amount.toFixed(2)})`).join(', ')}\n`;
+        }
+      }
+
       // Prepend Prime context BEFORE orchestration rule (so orchestration can reference context)
       systemMessages.push({ role: 'system', content: primeContextMessage });
       
