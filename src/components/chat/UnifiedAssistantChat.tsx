@@ -4518,9 +4518,6 @@ export default function UnifiedAssistantChat({
     if (!isOpen) return null;
     if (isStreaming) return null;
     if (hasAnyMessages) return null;
-    // Don't flash the greeting while history is still hydrating — it will disappear
-    // the moment loadedHistoryMessages arrives, causing a visible "shoots up" glitch.
-    if (isLoadingHistory) return null;
     if (hasUserSentMessageRef.current) return null;
     const threadKey = `${currentEmployeeSlug}:${conversationId || 'default'}`;
     const shouldGreetAfterOnboarding = currentEmployeeSlug === 'prime-boss' && primeOnboardingCompleted && !hasAnyMessages;
@@ -4655,7 +4652,7 @@ export default function UnifiedAssistantChat({
       timestamp: new Date().toISOString(),
       meta: { isGreeting: true, hideTimestamp: true },
     };
-  }, [isHandoff, isOpen, isLoadingHistory, isStreaming, hasAnyMessages, currentEmployeeSlug, resolvedThreadId, conversationId, profile, user, firstName, messages, loadedHistoryMessages, primeState, engineReadyLatched, primeOnboardingCompleted, userId, isPrimeChatRevampEnabled, isPrimeChatUiRefinementsEnabled]);
+  }, [isHandoff, isOpen, isStreaming, hasAnyMessages, currentEmployeeSlug, resolvedThreadId, conversationId, profile, user, firstName, messages, loadedHistoryMessages, primeState, engineReadyLatched, primeOnboardingCompleted, userId, isPrimeChatRevampEnabled, isPrimeChatUiRefinementsEnabled]);
 
   useEffect(() => {
     if (!greetingMessage || !currentEmployeeSlug) return;
