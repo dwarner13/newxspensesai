@@ -2730,6 +2730,7 @@ export default function UnifiedAssistantChat({
     topMerchants: Array<{ merchant: string; amt: number }>;
     fmt: (n: number) => string;
   } | null> => {
+    console.log('[loadImportBreakdown] START', { importId, userId });
     if (!importId || !userId) return null;
     const fmt = (n: number) => n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     try {
@@ -2740,12 +2741,14 @@ export default function UnifiedAssistantChat({
       // Chat uploads use autoCommit:false — data lives in transactions_staging until the user
       // clicks "Approve". Query staging first (always populated when primeSummaryReady fires),
       // then fall back to committed transactions for non-chat import paths.
-      const { data: staged } = await supabase
+      const { data: staged, error: stagingError } = await supabase
         .from('transactions_staging')
         .select('data_json, tag_category, tag_status')
         .eq('import_id', importId)
         .eq('user_id', userId)
         .limit(500);
+
+      console.log('[loadImportBreakdown] staging query', { importId, userId, count: staged?.length ?? 0, stagingError: stagingError?.message });
 
       const rows = Array.isArray(staged) && staged.length > 0 ? staged : null;
 
@@ -3623,10 +3626,12 @@ export default function UnifiedAssistantChat({
       const alreadyVisible = hasVisiblePrimeFinalForImport(primeSummaryReady);
       if (previouslyFinalized && previouslyPostedSummary === summaryText && alreadyVisible) return;
       if (previouslyFinalized && isGenericSummaryText && alreadyVisible) return;
+      console.log('[primeSummaryReady] about to call loadImportBreakdown', { importId: primeSummaryReady });
       const [clarificationItems, breakdown] = await Promise.all([
         loadClarificationCandidates(primeSummaryReady),
         loadImportBreakdown(primeSummaryReady),
       ]);
+      console.log('[primeSummaryReady] breakdown result', { importId: primeSummaryReady, breakdown: breakdown ? { txCount: breakdown.txCount, totalSpend: breakdown.totalSpend, catCount: breakdown.topCategories.length, merchantCount: breakdown.topMerchants.length } : null });
       clarificationCandidatesByImportIdRef.current[primeSummaryReady] = clarificationItems;
       if (cancelled) return;
 
@@ -3771,19 +3776,23 @@ export default function UnifiedAssistantChat({
       uploadImportIdToBatchKeyRef.current.get(recentImportId) ||
       activePrimeUploadBatchKeyRef.current ||
       recentImportId;
-    injectPrimeUploadFinalMessage({
-      importId: recentImportId,
-      summaryText,
-      transactionCount: null,
-      needsReviewCount: summaryMeta?.needsReviewCount ?? timeline.truth.needsReviewCount ?? null,
-      autoCount: summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? null,
-      aiCount: summaryMeta?.aiCount ?? null,
-      clarificationItems: clarificationCandidatesByImportIdRef.current[recentImportId] || [],
-      batchKey: fallbackBatchKey,
-      breakdown: null,
-    });
-    primeNarrationFinalizedImportIdsRef.current.add(recentImportId);
-    primeFinalSummaryTextByImportRef.current[recentImportId] = summaryText;
+    const capturedImportId = recentImportId;
+    void (async () => {
+      const breakdown = await loadImportBreakdown(capturedImportId);
+      injectPrimeUploadFinalMessage({
+        importId: capturedImportId,
+        summaryText,
+        transactionCount: null,
+        needsReviewCount: summaryMeta?.needsReviewCount ?? timeline.truth.needsReviewCount ?? null,
+        autoCount: summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? null,
+        aiCount: summaryMeta?.aiCount ?? null,
+        clarificationItems: clarificationCandidatesByImportIdRef.current[capturedImportId] || [],
+        batchKey: fallbackBatchKey,
+        breakdown,
+      });
+      primeNarrationFinalizedImportIdsRef.current.add(capturedImportId);
+      primeFinalSummaryTextByImportRef.current[capturedImportId] = summaryText;
+    })();
   }, [
     isPrimeNarrationEnabled,
     currentEmployeeSlug,
@@ -3793,6 +3802,7 @@ export default function UnifiedAssistantChat({
     getPrimeSummaryMeta,
     injectPrimeUploadFinalMessage,
     hasVisiblePrimeFinalForImport,
+    loadImportBreakdown,
   ]);
 
   // Fallback: if timeline reports summary_ready but primeSummaryReady signal is missed
@@ -3836,6 +3846,8 @@ export default function UnifiedAssistantChat({
         if (!summaryText) {
           summaryText = 'Your categorized results and insights are available.';
         }
+        const breakdown = await loadImportBreakdown(importId);
+        if (cancelled) continue;
         injectPrimeUploadFinalMessage({
           importId,
           summaryText,
@@ -3848,7 +3860,7 @@ export default function UnifiedAssistantChat({
             uploadImportIdToBatchKeyRef.current.get(importId) ||
             activePrimeUploadBatchKeyRef.current ||
             importId,
-          breakdown: null,
+          breakdown,
         });
         primeNarrationFinalizedImportIdsRef.current.add(importId);
         primeFinalSummaryTextByImportRef.current[importId] = summaryText;
@@ -3867,6 +3879,7 @@ export default function UnifiedAssistantChat({
     getPrimeSummaryMeta,
     injectPrimeUploadFinalMessage,
     hasVisiblePrimeFinalForImport,
+    loadImportBreakdown,
   ]);
 
   // Hard fallback: if summary-ready occurred but no final Prime bubble is visible,
@@ -3902,6 +3915,7 @@ export default function UnifiedAssistantChat({
         if (!summaryText) {
           summaryText = 'Your categorized results and insights are available.';
         }
+        const breakdown = await loadImportBreakdown(importId);
         injectPrimeUploadFinalMessage({
           importId,
           summaryText,
@@ -3914,7 +3928,7 @@ export default function UnifiedAssistantChat({
             uploadImportIdToBatchKeyRef.current.get(importId) ||
             activePrimeUploadBatchKeyRef.current ||
             importId,
-          breakdown: null,
+          breakdown,
         });
         primeNarrationFinalizedImportIdsRef.current.add(importId);
         primeFinalSummaryTextByImportRef.current[importId] = summaryText;
@@ -3932,6 +3946,7 @@ export default function UnifiedAssistantChat({
     getPrimeSummaryMeta,
     getImportTimeline,
     injectPrimeUploadFinalMessage,
+    loadImportBreakdown,
   ]);
 
   const routeClarificationFeedback = useCallback(async (messageText: string) => {
