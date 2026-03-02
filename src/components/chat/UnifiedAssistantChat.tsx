@@ -2722,6 +2722,58 @@ export default function UnifiedAssistantChat({
     }
   }, []);
 
+  const loadImportBreakdown = useCallback(async (importId: string): Promise<{
+    txCount: number;
+    totalSpend: number;
+    totalIncome: number;
+    topCategories: Array<{ cat: string; amt: number }>;
+    topMerchants: Array<{ merchant: string; amt: number }>;
+    fmt: (n: number) => string;
+  } | null> => {
+    if (!importId || !userId) return null;
+    try {
+      const { getSupabase } = await import('../../lib/supabase');
+      const supabase = getSupabase();
+      if (!supabase) return null;
+      const { data: txs } = await supabase
+        .from('transactions')
+        .select('amount, type, category, merchant_name, description')
+        .eq('import_id', importId)
+        .eq('user_id', userId)
+        .limit(500);
+      if (!Array.isArray(txs) || txs.length === 0) return null;
+      const fmt = (n: number) => n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      let totalSpend = 0;
+      let totalIncome = 0;
+      const categoryMap: Record<string, number> = {};
+      const merchantMap: Record<string, number> = {};
+      for (const tx of txs) {
+        const amt = Math.abs(Number(tx.amount) || 0);
+        const isCredit = String(tx.type || '').toLowerCase() === 'credit';
+        if (isCredit) {
+          totalIncome += amt;
+        } else {
+          totalSpend += amt;
+          const cat = String(tx.category || 'Uncategorized').trim();
+          categoryMap[cat] = (categoryMap[cat] || 0) + amt;
+          const merchant = String(tx.merchant_name || tx.description || 'Unknown').trim().slice(0, 40);
+          merchantMap[merchant] = (merchantMap[merchant] || 0) + amt;
+        }
+      }
+      const topCategories = Object.entries(categoryMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([cat, amt]) => ({ cat, amt }));
+      const topMerchants = Object.entries(merchantMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([merchant, amt]) => ({ merchant, amt }));
+      return { txCount: txs.length, totalSpend, totalIncome, topCategories, topMerchants, fmt };
+    } catch {
+      return null;
+    }
+  }, [userId]);
+
   const injectPrimeUploadFinalMessage = useCallback((params: {
     importId: string;
     summaryText: string;
@@ -2732,6 +2784,14 @@ export default function UnifiedAssistantChat({
     clarificationItems?: Array<{ transactionId: string; vendor: string; amount: string; date: string }>;
     batchKey?: string;
     customInstruction?: string;
+    breakdown?: {
+      txCount: number;
+      totalSpend: number;
+      totalIncome: number;
+      topCategories: Array<{ cat: string; amt: number }>;
+      topMerchants: Array<{ merchant: string; amt: number }>;
+      fmt: (n: number) => string;
+    } | null;
   }) => {
     if (!isPrimeNarrationEnabled) return;
     const messageId = `prime-upload-final-${params.importId}`;
@@ -3024,6 +3084,22 @@ export default function UnifiedAssistantChat({
       snapshotLines.length > 0
         ? snapshotLines.map((line) => `• ${line}`)
         : [`• ${statementHeader}`, '• Ask me for top merchants, spending trends, or category totals.'];
+    // Use real transaction breakdown when available
+    const bd = params.breakdown;
+    const fmtAmt = bd ? bd.fmt : (n: number) => n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const realSnapshotBullets: string[] = bd
+      ? [
+          `• Total spend: $${fmtAmt(bd.totalSpend)}`,
+          bd.totalIncome > 0 ? `• Total income: $${fmtAmt(bd.totalIncome)}` : null,
+          `• Transactions: ${bd.txCount}`,
+        ].filter(Boolean) as string[]
+      : snapshotBullets;
+    const realCategoryBullets: string[] = bd?.topCategories?.length
+      ? bd.topCategories.map(({ cat, amt }) => `• ${cat}: $${fmtAmt(amt)}`)
+      : finalPlainBullets;
+    const realMerchantBullets: string[] = bd?.topMerchants?.length
+      ? bd.topMerchants.map(({ merchant, amt }) => `• ${merchant}: $${fmtAmt(amt)}`)
+      : finalQuickBullets;
     const lines = [
       'Summary Ready',
       intro,
@@ -3033,17 +3109,17 @@ export default function UnifiedAssistantChat({
         ? ['', 'REQUEST APPLIED', `• ${requestedInstruction}`]
         : []),
       ...(wantsCategoryBreakdown
-        ? ['', 'CATEGORY BREAKDOWN', ...(categoryBullets.length > 0 ? categoryBullets : finalPlainBullets)]
+        ? ['', 'CATEGORY BREAKDOWN', ...(categoryBullets.length > 0 ? categoryBullets : realCategoryBullets)]
         : []),
       '',
       'STATEMENT SNAPSHOT',
-      ...snapshotBullets,
+      ...realSnapshotBullets,
       '',
-      'WHAT HAPPENED',
-      ...finalPlainBullets,
+      bd ? 'TOP CATEGORIES' : 'WHAT HAPPENED',
+      ...realCategoryBullets,
       '',
-      'QUICK INSIGHT',
-      ...finalQuickBullets,
+      bd ? 'TOP MERCHANTS' : 'QUICK INSIGHT',
+      ...realMerchantBullets,
       ...clarificationLines,
       '',
       'NEXT ACTIONS',
@@ -3515,7 +3591,10 @@ export default function UnifiedAssistantChat({
       const alreadyVisible = hasVisiblePrimeFinalForImport(primeSummaryReady);
       if (previouslyFinalized && previouslyPostedSummary === summaryText && alreadyVisible) return;
       if (previouslyFinalized && isGenericSummaryText && alreadyVisible) return;
-      const clarificationItems = await loadClarificationCandidates(primeSummaryReady);
+      const [clarificationItems, breakdown] = await Promise.all([
+        loadClarificationCandidates(primeSummaryReady),
+        loadImportBreakdown(primeSummaryReady),
+      ]);
       clarificationCandidatesByImportIdRef.current[primeSummaryReady] = clarificationItems;
       if (cancelled) return;
 
@@ -3574,6 +3653,7 @@ export default function UnifiedAssistantChat({
         clarificationItems,
         batchKey: activeBatchKey,
         customInstruction: queuedInstruction,
+        breakdown,
       });
 
       const activeKey = activeBatchKey;
@@ -3628,6 +3708,7 @@ export default function UnifiedAssistantChat({
     getPrimeSummary,
     getPrimeSummaryMeta,
     loadClarificationCandidates,
+    loadImportBreakdown,
     injectPrimeUploadFinalMessage,
     uploadActorLabels,
     upsertUploadActorStatus,
@@ -3667,6 +3748,7 @@ export default function UnifiedAssistantChat({
       aiCount: summaryMeta?.aiCount ?? null,
       clarificationItems: clarificationCandidatesByImportIdRef.current[recentImportId] || [],
       batchKey: fallbackBatchKey,
+      breakdown: null,
     });
     primeNarrationFinalizedImportIdsRef.current.add(recentImportId);
     primeFinalSummaryTextByImportRef.current[recentImportId] = summaryText;
@@ -3734,6 +3816,7 @@ export default function UnifiedAssistantChat({
             uploadImportIdToBatchKeyRef.current.get(importId) ||
             activePrimeUploadBatchKeyRef.current ||
             importId,
+          breakdown: null,
         });
         primeNarrationFinalizedImportIdsRef.current.add(importId);
         primeFinalSummaryTextByImportRef.current[importId] = summaryText;
@@ -3799,6 +3882,7 @@ export default function UnifiedAssistantChat({
             uploadImportIdToBatchKeyRef.current.get(importId) ||
             activePrimeUploadBatchKeyRef.current ||
             importId,
+          breakdown: null,
         });
         primeNarrationFinalizedImportIdsRef.current.add(importId);
         primeFinalSummaryTextByImportRef.current[importId] = summaryText;
@@ -4024,10 +4108,10 @@ export default function UnifiedAssistantChat({
     })();
   }, [supportsChatUploads, isStreaming, isUploadingAttachments, processByteUploads, getAttachmentKey]);
 
-  const handleSend = async (options?: { attachments?: File[] }) => {
+  const handleSend = async (options?: { attachments?: File[]; messageOverride?: string }) => {
     const attachments = options?.attachments ?? [];
     const hasAttachments = attachments.length > 0;
-    const trimmedMessage = inputMessage.trim();
+    const trimmedMessage = (options?.messageOverride ?? inputMessage).trim();
     const isPrimeUploadInstructionTurn =
       Boolean(trimmedMessage) &&
       hasAttachments &&
@@ -6886,8 +6970,7 @@ export default function UnifiedAssistantChat({
                                 }))
                               : undefined}
                             onActionClick={(action) => {
-                              setInputMessage(action.message);
-                              inputRef.current?.focus();
+                              void handleSend({ messageOverride: action.message });
                             }}
                           />
                         </div>
