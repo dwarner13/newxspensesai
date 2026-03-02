@@ -85,6 +85,21 @@ export default function TransactionsPage() {
   const [isImportLinkLoading, setIsImportLinkLoading] = useState(false);
   const attemptedImportLookupRef = useRef<Set<string>>(new Set());
 
+  // Declared before the useEffect below to avoid temporal dead zone error
+  const scopedPendingTransactions = useMemo(
+    () =>
+      importIdFilter
+        ? pendingTransactions.filter((ptx) => {
+            const record = ptx as unknown as Record<string, unknown>;
+            const importObject = record.import as Record<string, unknown> | undefined;
+            const nestedImportId = String(importObject?.id || '').trim();
+            const flatImportId = String(ptx.import_id || '').trim();
+            return nestedImportId === importIdFilter || flatImportId === importIdFilter;
+          })
+        : pendingTransactions,
+    [pendingTransactions, importIdFilter]
+  );
+
   useEffect(() => {
     let cancelled = false;
     if (!isStatementView) {
@@ -209,19 +224,6 @@ export default function TransactionsPage() {
     statementDocumentId,
     transactions,
   ]);
-  const scopedPendingTransactions = useMemo(
-    () =>
-      importIdFilter
-        ? pendingTransactions.filter((ptx) => {
-            const record = ptx as unknown as Record<string, unknown>;
-            const importObject = record.import as Record<string, unknown> | undefined;
-            const nestedImportId = String(importObject?.id || '').trim();
-            const flatImportId = String(ptx.import_id || '').trim();
-            return nestedImportId === importIdFilter || flatImportId === importIdFilter;
-          })
-        : pendingTransactions,
-    [pendingTransactions, importIdFilter]
-  );
   const { filters } = useTransactionFilters(scopedTransactions, scopedPendingTransactions);
 
   // State for selection and search
