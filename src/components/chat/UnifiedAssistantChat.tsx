@@ -237,8 +237,18 @@ export default function UnifiedAssistantChat({
   const [chatBottomPaddingPx, setChatBottomPaddingPx] = useState(96);
   const scrollContainerElementRef = useRef<HTMLElement | null>(null); // Actual scroll container (found via DOM traversal)
   
-  // Most recent import summary — passed to prime_context so Prime can answer follow-up questions
-  const [importSummaryForPrime, setImportSummaryForPrime] = useState<Record<string, unknown> | null>(null);
+  // Import summaries keyed by importId — accumulated across multiple uploads so Prime can
+  // discuss and compare each document independently in follow-up questions.
+  type ImportSummaryEntry = {
+    label: string; // e.g. "BMO February 2026"
+    totalSpend: number;
+    totalIncome: number;
+    txCount: number;
+    topCategories: Array<{ name: string; amount: number }>;
+    topMerchants: Array<{ name: string; amount: number }>;
+    displayedAt: string;
+  };
+  const [importSummariesForPrime, setImportSummariesForPrime] = useState<Record<string, ImportSummaryEntry>>({});
 
   // Local state for UI-only injected messages
   const [injectedMessages, setInjectedMessages] = useState<ChatMessage[]>([]);
@@ -905,11 +915,20 @@ export default function UnifiedAssistantChat({
 
   const engineEmployeeSlug = disableRuntime ? undefined : (userLockedSlug || engineEmployeeSlugRef.current);
   
+  // Build prime_context payload from all accumulated import summaries
+  const additionalPrimeContext = useMemo(() => {
+    const entries = Object.entries(importSummariesForPrime);
+    if (entries.length === 0) return undefined;
+    return {
+      recentImportSummaries: entries.map(([importId, data]) => ({ importId, ...data })),
+    };
+  }, [importSummariesForPrime]);
+
   const engineResult = useUnifiedChatEngine({
     employeeSlug: engineEmployeeSlug,
     conversationId: disableRuntime ? undefined : conversationId,
     initialMessages: deduplicatedInitialMessages,
-    additionalPrimeContext: importSummaryForPrime ?? undefined,
+    additionalPrimeContext,
   });
   
   // Extract engineActiveEmployeeSlug and update refs for next render (handoffs update this)
@@ -3164,10 +3183,13 @@ export default function UnifiedAssistantChat({
       '• Upload another file',
       '• Reply "that\'s it" when this batch is complete',
     ];
-    // Store breakdown for Prime context so follow-up questions can reference the summary
+    // Accumulate this document's breakdown into the per-importId map so Prime can discuss
+    // each uploaded statement independently in follow-up questions.
     if (bd) {
-      setImportSummaryForPrime({
-        recentImportSummary: {
+      setImportSummariesForPrime((prev) => ({
+        ...prev,
+        [params.importId]: {
+          label: statementHeader.substring(0, 80), // e.g. "BMO February 2026"
           totalSpend: bd.totalSpend,
           totalIncome: bd.totalIncome,
           txCount: bd.txCount,
@@ -3175,7 +3197,7 @@ export default function UnifiedAssistantChat({
           topMerchants: bd.topMerchants.map(({ merchant, amt }) => ({ name: merchant, amount: amt })),
           displayedAt: new Date().toISOString(),
         },
-      });
+      }));
     }
     clearLegacyImportRecap();
     streamPrimeFinalMessage({
@@ -3192,7 +3214,7 @@ export default function UnifiedAssistantChat({
     userIsNearBottomRef.current = true;
     requestAnimationFrame(() => scrollToBottom('smooth'));
     window.setTimeout(() => scrollToBottom('auto'), 150);
-  }, [isPrimeNarrationEnabled, firstName, scrollToBottom, streamPrimeFinalMessage, setImportSummaryForPrime]);
+  }, [isPrimeNarrationEnabled, firstName, scrollToBottom, streamPrimeFinalMessage, setImportSummariesForPrime]);
 
   const processByteUploads = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return false;

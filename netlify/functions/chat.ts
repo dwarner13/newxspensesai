@@ -166,15 +166,17 @@ interface ChatRequest {
       recentFacts?: string[];
     } | null;
     lastTagOutput?: any;
-    /** Most recent import summary displayed to the user — use this to answer follow-up questions */
-    recentImportSummary?: {
+    /** All import summaries displayed to the user this session — use these to answer follow-up questions */
+    recentImportSummaries?: Array<{
+      importId: string;
+      label: string; // e.g. "BMO February 2026"
       totalSpend: number;
       totalIncome: number;
       txCount: number;
       topCategories: Array<{ name: string; amount: number }>;
       topMerchants: Array<{ name: string; amount: number }>;
-      displayedAt: string; // ISO timestamp
-    } | null;
+      displayedAt: string;
+    }> | null;
   } | null;
 }
 
@@ -7895,18 +7897,32 @@ export const handler: Handler = async (event, context) => {
         }
       }
       
-      // Recent import summary (displayed to user — use this for follow-up questions)
-      if (pc.recentImportSummary) {
-        const rs = pc.recentImportSummary;
-        primeContextMessage += `\nRECENT IMPORT SUMMARY (I just displayed this to the user — reference it for any follow-up questions):\n`;
-        primeContextMessage += `- Total spend: $${rs.totalSpend.toFixed(2)}\n`;
-        if (rs.totalIncome > 0) primeContextMessage += `- Total income: $${rs.totalIncome.toFixed(2)}\n`;
-        primeContextMessage += `- Transactions: ${rs.txCount}\n`;
-        if (rs.topCategories && rs.topCategories.length > 0) {
-          primeContextMessage += `- Top categories: ${rs.topCategories.slice(0, 5).map(c => `${c.name} ($${c.amount.toFixed(2)})`).join(', ')}\n`;
-        }
-        if (rs.topMerchants && rs.topMerchants.length > 0) {
-          primeContextMessage += `- Top merchants: ${rs.topMerchants.slice(0, 5).map(m => `${m.name} ($${m.amount.toFixed(2)})`).join(', ')}\n`;
+      // Recent import summaries — all documents uploaded this session. Use these to answer
+      // follow-up questions and to compare documents when the user asks about specific statements.
+      if (pc.recentImportSummaries && pc.recentImportSummaries.length > 0) {
+        const summaries = pc.recentImportSummaries;
+        primeContextMessage += `\nRECENT IMPORT SUMMARIES (${summaries.length} document${summaries.length > 1 ? 's' : ''} I displayed this session — reference the correct one when answering follow-up questions):\n`;
+        summaries.forEach((rs, i) => {
+          primeContextMessage += `\n[Document ${i + 1}${rs.label ? `: ${rs.label}` : ''}]\n`;
+          primeContextMessage += `- Total spend: $${rs.totalSpend.toFixed(2)}\n`;
+          if (rs.totalIncome > 0) primeContextMessage += `- Total income: $${rs.totalIncome.toFixed(2)}\n`;
+          primeContextMessage += `- Transactions: ${rs.txCount}\n`;
+          if (rs.topCategories && rs.topCategories.length > 0) {
+            primeContextMessage += `- Top categories: ${rs.topCategories.slice(0, 5).map(c => `${c.name} ($${c.amount.toFixed(2)})`).join(', ')}\n`;
+          }
+          if (rs.topMerchants && rs.topMerchants.length > 0) {
+            primeContextMessage += `- Top merchants: ${rs.topMerchants.slice(0, 5).map(m => `${m.name} ($${m.amount.toFixed(2)})`).join(', ')}\n`;
+          }
+        });
+        // Aggregate totals across all documents if more than one
+        if (summaries.length > 1) {
+          const totalSpendAll = summaries.reduce((sum, s) => sum + s.totalSpend, 0);
+          const totalIncomeAll = summaries.reduce((sum, s) => sum + s.totalIncome, 0);
+          const totalTxAll = summaries.reduce((sum, s) => sum + s.txCount, 0);
+          primeContextMessage += `\n[Combined across all ${summaries.length} documents]\n`;
+          primeContextMessage += `- Total spend: $${totalSpendAll.toFixed(2)}\n`;
+          if (totalIncomeAll > 0) primeContextMessage += `- Total income: $${totalIncomeAll.toFixed(2)}\n`;
+          primeContextMessage += `- Total transactions: ${totalTxAll}\n`;
         }
       }
 
