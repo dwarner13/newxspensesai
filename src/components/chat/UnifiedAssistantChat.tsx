@@ -2731,47 +2731,61 @@ export default function UnifiedAssistantChat({
     fmt: (n: number) => string;
   } | null> => {
     if (!importId || !userId) return null;
-    try {
-      const { getSupabase } = await import('../../lib/supabase');
-      const supabase = getSupabase();
-      if (!supabase) return null;
-      const { data: txs } = await supabase
-        .from('transactions')
-        .select('amount, type, category, merchant_name, description')
-        .eq('import_id', importId)
-        .eq('user_id', userId)
-        .limit(500);
-      if (!Array.isArray(txs) || txs.length === 0) return null;
-      const fmt = (n: number) => n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      let totalSpend = 0;
-      let totalIncome = 0;
-      const categoryMap: Record<string, number> = {};
-      const merchantMap: Record<string, number> = {};
-      for (const tx of txs) {
-        const amt = Math.abs(Number(tx.amount) || 0);
-        const isCredit = String(tx.type || '').toLowerCase() === 'credit';
-        if (isCredit) {
-          totalIncome += amt;
-        } else {
-          totalSpend += amt;
-          const cat = String(tx.category || 'Uncategorized').trim();
-          categoryMap[cat] = (categoryMap[cat] || 0) + amt;
-          const merchant = String(tx.merchant_name || tx.description || 'Unknown').trim().slice(0, 40);
-          merchantMap[merchant] = (merchantMap[merchant] || 0) + amt;
+    const fmt = (n: number) => n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const attemptQuery = async () => {
+      try {
+        const { getSupabase } = await import('../../lib/supabase');
+        const supabase = getSupabase();
+        if (!supabase) return null;
+        const { data: txs } = await supabase
+          .from('transactions')
+          .select('amount, type, category, merchant_name, description')
+          .eq('import_id', importId)
+          .eq('user_id', userId)
+          .limit(500);
+        if (!Array.isArray(txs) || txs.length === 0) return null;
+        let totalSpend = 0;
+        let totalIncome = 0;
+        const categoryMap: Record<string, number> = {};
+        const merchantMap: Record<string, number> = {};
+        for (const tx of txs) {
+          const amt = Math.abs(Number(tx.amount) || 0);
+          const isCredit = String(tx.type || '').toLowerCase() === 'credit';
+          if (isCredit) {
+            totalIncome += amt;
+          } else {
+            totalSpend += amt;
+            const cat = String(tx.category || 'Uncategorized').trim();
+            categoryMap[cat] = (categoryMap[cat] || 0) + amt;
+            const merchant = String(tx.merchant_name || tx.description || 'Unknown').trim().slice(0, 40);
+            merchantMap[merchant] = (merchantMap[merchant] || 0) + amt;
+          }
         }
+        const topCategories = Object.entries(categoryMap)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([cat, amt]) => ({ cat, amt }));
+        const topMerchants = Object.entries(merchantMap)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 5)
+          .map(([merchant, amt]) => ({ merchant, amt }));
+        return { txCount: txs.length, totalSpend, totalIncome, topCategories, topMerchants, fmt };
+      } catch {
+        return null;
       }
-      const topCategories = Object.entries(categoryMap)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([cat, amt]) => ({ cat, amt }));
-      const topMerchants = Object.entries(merchantMap)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-        .map(([merchant, amt]) => ({ merchant, amt }));
-      return { txCount: txs.length, totalSpend, totalIncome, topCategories, topMerchants, fmt };
-    } catch {
-      return null;
+    };
+    // Retry up to 6 times with 3s delays — transactions may not be committed yet
+    // when primeSummaryReady fires (approve-import runs async after prime-router returns)
+    const MAX_RETRIES = 6;
+    const RETRY_DELAY_MS = 3000;
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      const result = await attemptQuery();
+      if (result !== null) return result;
+      if (i < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      }
     }
+    return null;
   }, [userId]);
 
   const injectPrimeUploadFinalMessage = useCallback((params: {
@@ -5940,41 +5954,39 @@ export default function UnifiedAssistantChat({
 
   const inputFooter = (
     <div ref={inputFooterRef} className="w-full max-w-full mx-0 min-w-0 shrink-0 flex flex-col">
-      {showPrimeUploadQueueCard && normalizedSlug === 'prime-boss' && (latestPrimeUploadHandoffText || primeNarrationStatusText) && (
-        <div className="mb-2 rounded-lg border border-purple-500/35 bg-slate-900/80 px-3 py-2">
-          <div className="text-[10px] uppercase tracking-wide text-purple-300/90">Latest update</div>
-          <div className="mt-1 text-[11px] leading-relaxed text-slate-100 line-clamp-2">
-            {latestPrimeUploadHandoffText || primeNarrationStatusText}
-          </div>
-        </div>
-      )}
       {showPrimeUploadQueueCard && normalizedSlug === 'prime-boss' && (
-        <div className="mb-2 rounded-lg border border-sky-500/35 bg-slate-900/75 px-3 py-2">
-          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-200">
-            <span>
-              Processing {primeUploadDisplayCount} document{primeUploadDisplayCount === 1 ? '' : 's'}
-            </span>
+        <div className="mb-2 rounded-lg border border-sky-500/30 bg-slate-900/80 px-3 py-2.5">
+          {/* Header row: doc count + progress */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+              <span className="text-[11px] font-medium text-slate-200">
+                Importing {primeUploadDisplayCount} document{primeUploadDisplayCount === 1 ? '' : 's'}
+              </span>
+            </div>
             {primeUploadTotalCount > 0 && (
-              <span className="text-slate-400">
+              <span className="text-[10px] text-slate-400 tabular-nums">
                 {Math.max(primeUploadCurrentCount, 0)}/{primeUploadTotalCount}
               </span>
             )}
           </div>
-          <div className="mt-1 text-[10px] text-slate-400">
-            Byte is extracting transactions. Prime will post the full summary when ready.
-          </div>
+          {/* File names */}
           {primeUploadNamesForCard.length > 0 && (
-            <div className="mt-1 max-h-20 overflow-y-auto space-y-1 pr-1">
+            <div className="mt-1.5 space-y-0.5">
               {primeUploadNamesForCard.map((fileName, idx) => (
                 <div key={`${fileName}-footer-${idx}`} className="flex items-center justify-between gap-2 text-[10px]">
-                  <span className="truncate text-slate-300">{fileName}</span>
-                  <span className="uppercase tracking-wide text-slate-400">
-                    {isPrimeUploadFlowActive ? 'in progress' : 'queued'}
+                  <span className="truncate text-slate-400">{fileName}</span>
+                  <span className="shrink-0 text-sky-400/70">
+                    {isPrimeUploadFlowActive ? 'processing…' : 'queued'}
                   </span>
                 </div>
               ))}
             </div>
           )}
+          {/* Single status line — latest update or default */}
+          <div className="mt-1.5 text-[10px] text-slate-400 line-clamp-2">
+            {latestPrimeUploadHandoffText || primeNarrationStatusText || 'Byte is extracting transactions. Prime will post the full summary when ready.'}
+          </div>
         </div>
       )}
       <ChatInputBar
