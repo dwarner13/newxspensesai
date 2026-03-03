@@ -394,7 +394,13 @@ export default function TransactionsPage() {
   }, []);
   const formatDate = useCallback((value: string | null) => {
     if (!value) return '—';
-    return new Date(value).toLocaleDateString('en-US', {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '—';
+    // Guard against OCR date-parsing artifacts that produce ancient years
+    // (e.g. "0119-12-31" parsed from a 2-digit year gets interpreted as 119 AD)
+    const year = d.getFullYear();
+    if (year < 1900 || year > 2100) return '—';
+    return d.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',

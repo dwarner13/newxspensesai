@@ -2319,6 +2319,18 @@ function cleanDescription(description: string): string {
  *      "Interac e-Transfer Sent - John Smith"        → "John Smith"
  */
 function extractMerchant(description: string): string {
+  const trimmed = description.trim();
+
+  // Reject OCR letter/document header lines that are not merchant names.
+  // These slip through when the parser picks up address-block or table-header
+  // text as a transaction description.
+  if (/^date of (mailing|issue|posting|statement)\b/i.test(trimmed)) return trimmed.substring(0, 100);
+  if (/^(account|statement|page|balance)\s+(number|no\.?|#|forward|brought)/i.test(trimmed)) return trimmed.substring(0, 100);
+
+  // Reject bare OCR column-header words
+  const columnHeaders = new Set(['description', 'merchant', 'memo', 'narration', 'particulars', 'payee', 'details', 'reference', 'transaction', 'type', 'date', 'amount', 'balance', 'credit', 'debit']);
+  if (columnHeaders.has(trimmed.toLowerCase())) return trimmed.substring(0, 100);
+
   const prefixPatterns = [
     /^(?:debit\s+card\s+purchase|point\s+of\s+sale(?:\s+purchase)?)[,\s-]+/i,
     /^interac\s+e[- ]?transfer\s+(?:sent|received)[,\s-]+/i,
@@ -2328,7 +2340,7 @@ function extractMerchant(description: string): string {
     /^atm\s+(?:withdrawal|deposit)[,\s-]+/i,
   ];
 
-  let merchant = description.trim();
+  let merchant = trimmed;
   for (const pat of prefixPatterns) {
     const stripped = merchant.replace(pat, '').trim();
     if (stripped) {

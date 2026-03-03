@@ -67,12 +67,20 @@ export function TransactionRow({
   const isGenericMerchantLabel = (value: string): boolean => {
     const normalized = value.toLowerCase().replace(/\s+/g, ' ').trim();
     if (!normalized) return true;
+    // Transaction-type words that carry no merchant information
     const genericPatterns = [
       /^withdrawal$/, /^e-?transfer$/, /^transfer$/, /^payment$/,
       /^purchase$/, /^debit$/, /^credit$/, /^pos$/, /^atm$/,
       /^card$/, /^bank fee$/, /^fee$/, /^deposit$/, /^misc$/, /^other$/,
+      // OCR column headers stored as merchant names
+      /^description$/, /^merchant$/, /^memo$/, /^narration$/, /^particulars$/,
+      /^payee$/, /^details$/, /^reference$/, /^transaction$/, /^type$/,
     ];
-    return genericPatterns.some((p) => p.test(normalized));
+    if (genericPatterns.some((p) => p.test(normalized))) return true;
+    // OCR letter/document header artifacts (e.g. "DATE OF MAILING: …")
+    if (/^date of (mailing|issue|posting|statement)\b/i.test(value)) return true;
+    if (/^(account|statement|page|balance)\s+(number|no\.?|#|forward|brought)/i.test(value)) return true;
+    return false;
   };
 
   const sanitizeMerchantFallback = (value: string): string =>
@@ -208,13 +216,7 @@ export function TransactionRow({
     if (pendingTransaction.possibleDuplicate) {
       statusBadge = (
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 whitespace-nowrap">
-          Duplicate
-        </span>
-      );
-    } else if (confidence >= 0.9) {
-      statusBadge = (
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 whitespace-nowrap">
-          Pending
+          Dupe
         </span>
       );
     } else if (confidence >= 0.75) {
@@ -226,14 +228,19 @@ export function TransactionRow({
     } else {
       statusBadge = (
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-300 whitespace-nowrap">
-          Needs review
+          Review
         </span>
       );
     }
   } else if (isCommitted) {
-    statusBadge = (
-      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-200 whitespace-nowrap">
-        Reviewed
+    const hasCategory = !!(localCategory && localCategory !== 'Uncategorized');
+    statusBadge = hasCategory ? (
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 whitespace-nowrap">
+        Tagged
+      </span>
+    ) : (
+      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 whitespace-nowrap">
+        Untagged
       </span>
     );
   }

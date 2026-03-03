@@ -1120,15 +1120,34 @@ export const handler: Handler = async (event, context) => {
           }
         }
         
+        // Preserve the sign set by ocr_normalize (negative = expense, positive = income).
+        // Do NOT call Math.abs() here — that was stripping all signs and making every
+        // transaction appear as income in the UI.
+        const signedAmount = amount;
+
+        const rawDate = tx.date || tx.posted_at || tx.occurred_at || new Date().toISOString().split('T')[0];
+        // Ensure posted_at is a full ISO timestamp so TransactionRow date rendering works.
+        const postedAt = rawDate.includes('T')
+          ? rawDate
+          : new Date(rawDate + 'T00:00:00.000Z').toISOString();
+        const dateOnly = rawDate.split('T')[0];
+
+        const merchantName = tx.merchant || tx.vendor || tx.vendor_normalized || null;
+
         return {
           id: randomUUID(),
           user_id: userIdText,
-          date: tx.date || tx.posted_at || tx.occurred_at || new Date().toISOString().split('T')[0],
-          merchant: tx.merchant || tx.vendor || tx.vendor_normalized || null,
-          amount: Math.abs(amount),
+          // posted_at is the primary date field read by useTransactions / TransactionRow.
+          // date is kept for backward compat with legacy queries in this file.
+          posted_at: postedAt,
+          date: dateOnly,
+          merchant_name: merchantName, // field read by TransactionRow for committed rows
+          merchant: merchantName,      // kept for legacy breakdown queries
+          amount: signedAmount,
           category: category || 'Uncategorized',
-          source_type: 'smart_import', // Use 'smart_import' to distinguish from manual entries
-          source: 'bank_statement', // Legacy field for compatibility
+          category_source: categorySource || (tx.category_source as string | null) || null,
+          source_type: 'smart_import',
+          source: 'bank_statement',
           import_id: importId,
           document_id: tx.documentId || tx.docId || null,
         };
