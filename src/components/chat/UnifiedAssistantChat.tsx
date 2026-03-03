@@ -3210,57 +3210,66 @@ export default function UnifiedAssistantChat({
     const uncatAmt = bd?.topCategories?.find(c => c.cat === 'Uncategorized')?.amt ?? 0;
     const allUncategorized = totalSpendForCat > 0 && uncatAmt / totalSpendForCat > 0.85;
 
-    const realCategoryBullets: string[] = (() => {
-      if (!bd?.topCategories?.length) return finalPlainBullets;
-      if (allUncategorized) return [
-        '• Pending categorization — head to Smart Categories to tag your transactions.',
-        '• Once tagged, I\'ll show you a full spending breakdown.',
-      ];
-      return bd.topCategories
-        .filter(({ cat }) => cat !== 'Uncategorized')
-        .slice(0, 5)
-        .map(({ cat, amt }) => `• ${cat}: $${fmtAmt(amt)}`);
-    })();
     const isGenericMerchant = (name: string) => {
       const n = name.trim().toLowerCase();
       return !n || n === 'unknown' || /^e-transfer\s*$/i.test(n) || /^interac\s*$/i.test(n);
     };
-    const realMerchantBullets: string[] = bd?.topMerchants?.length
-      ? bd.topMerchants
-          .filter(({ merchant }) => merchant && !isGenericMerchant(merchant))
-          .slice(0, 5)
-          .map(({ merchant, amt }) => `• ${merchant}: $${fmtAmt(amt)}`)
-      : finalQuickBullets;
 
-    // Adjust intro text when transactions aren't actually categorized
-    const effectiveIntro = allUncategorized
-      ? `${userLabel ? `${userLabel}, ` : ''}your statement is in. ${params.transactionCount ?? 'Your'} transactions are imported and ready to review.`
-      : intro;
-    const effectiveTagSummary = allUncategorized
-      ? 'Head to Smart Categories to tag your transactions — I\'ll give you a full breakdown once they\'re sorted.'
-      : tagSummary;
+    // Conversational inline merchant list (max 3, Oxford-comma style)
+    const cleanMerchants = (bd?.topMerchants ?? [])
+      .filter(({ merchant }) => merchant && !isGenericMerchant(merchant))
+      .slice(0, 3);
+    const merchantInline = cleanMerchants.length > 0
+      ? cleanMerchants
+          .map(({ merchant, amt }, i) => {
+            const part = `${merchant} ($${fmtAmt(amt)})`;
+            if (i === cleanMerchants.length - 1 && cleanMerchants.length > 1) return `and ${part}`;
+            return part;
+          })
+          .join(cleanMerchants.length > 2 ? ', ' : ' ')
+      : null;
 
+    // Snapshot sentence — numbers embedded inline
+    const txNum = params.transactionCount ?? bd?.txCount ?? null;
+    const spendSentence = bd
+      ? [
+          txNum !== null ? `${txNum} transaction${txNum === 1 ? '' : 's'} imported.` : 'Transactions imported.',
+          `You spent $${fmtAmt(bd.totalSpend)}`,
+          bd.totalIncome > 0 ? `and received $${fmtAmt(bd.totalIncome)} this statement.` : 'this statement.',
+        ].join(' ')
+      : null;
+
+    // Top-category sentence (only when actually categorized)
+    const categorizedCats = (bd?.topCategories ?? []).filter(({ cat }) => cat !== 'Uncategorized').slice(0, 3);
+    const catSentence = !allUncategorized && categorizedCats.length > 0
+      ? `Top spending: ${categorizedCats.map(({ cat, amt }) => `${cat} ($${fmtAmt(amt)})`).join(', ')}.`
+      : null;
+
+    // Build conversational prose lines (empty string = paragraph break → \n\n after join)
     const lines = [
-      'Summary Ready',
-      effectiveIntro,
-      effectiveTagSummary,
-      ...(requestedInstruction
-        ? ['', 'REQUEST APPLIED', `• ${requestedInstruction}`]
-        : []),
-      '',
-      'STATEMENT OVERVIEW',
-      ...realSnapshotBullets,
-      '',
-      allUncategorized ? 'PENDING CATEGORIZATION' : 'TOP CATEGORIES',
-      ...realCategoryBullets,
-      ...(realMerchantBullets.length > 0
-        ? ['', 'TOP PAYEES', ...realMerchantBullets]
-        : []),
-      ...clarificationLines,
+      // Opening: name + snapshot numbers inline
+      `${userLabel ? `${userLabel}, ` : ''}got it${spendSentence ? ` — ${spendSentence}` : '.'}`,
+
+      // Categorization status
       '',
       allUncategorized
-        ? 'What would you like to do next? I can help you set up auto-categorization rules, flag unusual charges, or walk you through what each payee is.'
-        : `${userLabel ? `${userLabel}, ` : ''}ask me about specific merchants, unusual charges, or category trends for this period.`,
+        ? "Everything's uncategorized right now. Head to Smart Categories to tag your transactions — once you do, I'll pull a full breakdown by category."
+        : tagSummary,
+
+      // Categories (categorized case only)
+      ...(catSentence ? ['', catSentence] : []),
+
+      // Merchants inline
+      ...(merchantInline ? ['', `Top payees this period: ${merchantInline}.`] : []),
+
+      // Custom instruction (if any)
+      ...(requestedInstruction ? ['', `Note: ${requestedInstruction}.`] : []),
+
+      // Closing question
+      '',
+      allUncategorized
+        ? 'What would you like to start with? I can walk you through the top payees, flag any unusual charges, or help set up auto-categorization rules.'
+        : `Ask me about any merchants, unusual charges, or spending trends for this period.`,
     ];
     // Accumulate this document's breakdown into the per-importId map so Prime can discuss
     // each uploaded statement independently in follow-up questions.
