@@ -20,6 +20,8 @@ import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useTransactions } from '../../hooks/useTransactions';
 import { usePendingTransactions } from '../../hooks/usePendingTransactions';
+import { useImportList } from '../../hooks/useImportList';
+import { MonthNavigator } from '../../components/transactions/MonthNavigator';
 import { useTransactionFilters } from '../../hooks/useTransactionFilters';
 import { TransactionList } from '../../components/transactions/TransactionList';
 import { StatementSummaryHeader } from '../../components/transactions/StatementSummaryHeader';
@@ -46,6 +48,23 @@ export default function TransactionsPage() {
   const importIdFilter = String(searchParams.get('importId') || '').trim();
   const isStatementView = importIdFilter.length > 0;
   
+  // Import list for MonthNavigator
+  const { imports: importList, isLoading: importListLoading } = useImportList();
+
+  const handleSelectMonth = useCallback((importId: string | null) => {
+    const params = new URLSearchParams(location.search);
+    if (importId) {
+      params.set('importId', importId);
+    } else {
+      params.delete('importId');
+    }
+    const nextSearch = params.toString();
+    navigate({
+      pathname: location.pathname,
+      search: nextSearch ? `?${nextSearch}` : '',
+    });
+  }, [location.pathname, location.search, navigate]);
+
   // Data hooks
   const {
     transactions,
@@ -322,6 +341,17 @@ export default function TransactionsPage() {
       lastTransaction: allDates[allDates.length - 1] || null,
     };
   }, [allTransactions]);
+
+  // Category breakdown for right panel — expenses only, grouped by category
+  const categoryBreakdown = useMemo(() => {
+    const map = new Map<string, number>();
+    scopedTransactions.forEach((tx) => {
+      if (tx.amount >= 0) return;
+      const cat = tx.category || 'Uncategorized';
+      map.set(cat, (map.get(cat) || 0) + Math.abs(tx.amount));
+    });
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [scopedTransactions]);
 
   const filteredSearchCommitted = useMemo(
     () => (searchResults ? searchResults.filter((tx): tx is CommittedTransaction => 'merchant_name' in tx) : []),
@@ -601,7 +631,7 @@ export default function TransactionsPage() {
       {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
       <DashboardPageShell
         center={
-          <div className="grid h-[calc(100vh-220px)] min-h-[520px] max-h-[780px] grid-cols-1 gap-4">
+          <div className="grid h-[calc(100vh-220px)] min-h-[520px] max-h-[780px] grid-cols-1 grid-rows-[auto_auto_1fr] gap-4">
             <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
               {isStatementView && (
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -672,6 +702,15 @@ export default function TransactionsPage() {
                   <div className="text-sm font-semibold text-slate-100">{uncategorizedCount}</div>
                 </div>
               </div>
+            </div>
+
+            {/* Month / Statement Navigator */}
+            <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+              <MonthNavigator
+                imports={importListLoading ? [] : importList}
+                currentImportId={importIdFilter || null}
+                onSelect={handleSelectMonth}
+              />
             </div>
 
             <div className="grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_290px]">
@@ -774,44 +813,43 @@ export default function TransactionsPage() {
               </div>
               </div>
 
-              <div className="hidden xl:flex min-h-0 flex-col rounded-xl border border-slate-800 bg-slate-900">
+              <div className="hidden xl:flex min-h-0 flex-col rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
               <div className="border-b border-slate-800 px-4 py-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Summary</div>
               </div>
-              <div className="space-y-3 p-4 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Total transactions</span>
-                  <span className="font-semibold text-slate-100">{transactionSummary.totalTransactions}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Largest transaction</span>
-                  <span className="font-semibold text-emerald-400">{formatMoney(transactionSummary.largestTransaction)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Largest expense</span>
-                  <span className="font-semibold text-red-400">{formatMoney(transactionSummary.largestExpense)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Average transaction</span>
-                  <span className="font-semibold text-emerald-400">{formatMoney(transactionSummary.averageTransaction)}</span>
-                </div>
-                <div className="h-px bg-slate-800" />
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Total income</span>
-                  <span className="font-semibold text-emerald-400">{formatMoney(transactionSummary.totalIncome)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Total spending</span>
-                  <span className="font-semibold text-red-400">{formatMoney(transactionSummary.totalSpending)}</span>
-                </div>
-                <div className="h-px bg-slate-800" />
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">First transaction</span>
-                  <span className="font-medium text-slate-200">{formatDate(transactionSummary.firstTransaction)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-400">Last transaction</span>
-                  <span className="font-medium text-slate-200">{formatDate(transactionSummary.lastTransaction)}</span>
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <div className="space-y-2 p-4 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Income</span>
+                    <span className="font-semibold text-emerald-400">{formatMoney(statementHeaderSummary.income)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Spending</span>
+                    <span className="font-semibold text-red-400">{formatMoney(statementHeaderSummary.spending)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Net</span>
+                    <span className={`font-semibold ${statementHeaderSummary.net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {statementHeaderSummary.net >= 0 ? '+' : ''}{formatMoney(statementHeaderSummary.net)}
+                    </span>
+                  </div>
+
+                  <div className="h-px bg-slate-800 my-1" />
+
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Categories</div>
+
+                  {categoryBreakdown.length === 0 ? (
+                    <div className="text-[11px] text-slate-500 py-1">
+                      {isStatementView ? 'No expense data' : 'Select a statement to see breakdown'}
+                    </div>
+                  ) : (
+                    categoryBreakdown.map(([cat, amount]) => (
+                      <div key={cat} className="flex items-center justify-between gap-2">
+                        <span className="truncate text-slate-400">{cat}</span>
+                        <span className="flex-shrink-0 font-medium text-slate-200">{formatMoney(amount)}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
               </div>
