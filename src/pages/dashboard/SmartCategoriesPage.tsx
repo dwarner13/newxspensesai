@@ -7,6 +7,7 @@ import { TagWorkspacePanel } from '../../components/workspace/employees/TagWorks
 import { TagUnifiedCard } from '../../components/workspace/employees/TagUnifiedCard';
 import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
+import { UncategorizedReviewQueue } from '../../components/transactions/UncategorizedReviewQueue';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
@@ -502,6 +503,11 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
                 });
               }}
             />
+        }
+        between={
+          <UncategorizedReviewQueue
+            categories={categorySummaries.map((s) => s.category)}
+          />
         }
         right={<ActivityFeedSidebar scope="smart-categories" />}
       />
