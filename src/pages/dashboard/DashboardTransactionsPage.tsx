@@ -891,8 +891,8 @@ const DashboardTransactionsPage: React.FC = () => {
     <div className="w-full pt-24 px-4 sm:px-6 lg:px-8">
           {/* Page Title */}
           <MobilePageTitle 
-            title="FinTech Entertainment Platform" 
-            subtitle="Welcome back, John! Here's your financial overview"
+            title="XspensesAI"
+            subtitle="Your financial command center."
           />
           
           {/* Header Section */}

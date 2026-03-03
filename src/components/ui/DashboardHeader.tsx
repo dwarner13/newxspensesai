@@ -29,9 +29,9 @@ interface DashboardHeaderProps {
 function getFallbackTitle(pathname: string): { title: string; subtitle: string } {
   // Exact route matches first
   if (pathname === '/dashboard') {
-    return { 
-      title: 'FinTech Entertainment Platform', 
-      subtitle: 'Welcome back! Here\'s your financial overview.' 
+    return {
+      title: 'XspensesAI',
+      subtitle: 'Your financial command center.'
     };
   }
   if (pathname.startsWith('/dashboard/smart-import-ai')) {
@@ -61,7 +61,8 @@ function getFallbackTitle(pathname: string): { title: string; subtitle: string }
 }
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  '/dashboard': { title: 'FinTech Entertainment Platform', subtitle: 'Welcome back! Here\'s your financial overview.' },
+  '/dashboard': { title: 'XspensesAI', subtitle: 'Your financial command center.' },
+  '/dashboard/smart-categories': { title: 'Smart Categories', subtitle: 'AI-powered transaction categorization by Tag.' },
   '/dashboard/overview': { title: 'Overview', subtitle: 'Preview shell for your financial overview. Coming soon: AI-powered trend analysis and insights.' },
   '/dashboard/planning': { title: 'Planning', subtitle: 'Plan ahead with AI-powered forecasts, goals, and what-if scenarios.' },
   '/dashboard/analytics': { title: 'Analytics', subtitle: 'Preview shell for comprehensive financial analytics. Coming soon: Interactive charts and AI-powered insights.' },
@@ -221,7 +222,7 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
     // Find matching route in pageTitles (longest match first)
     const match = Object.keys(pageTitles)
       .sort((a, b) => b.length - a.length)
-      .find(p => location.pathname.startsWith(p));
+      .find(p => location.pathname === p || location.pathname.startsWith(p + '/'));
     
     // Return matched route title or use fallback helper
     if (match && pageTitles[match]) {

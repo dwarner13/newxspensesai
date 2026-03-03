@@ -750,8 +750,8 @@ const MobileRevolution: React.FC<MobileRevolutionProps> = ({
             <div className="mobile-dashboard-content">
               {isDashboardRoot ? (
                 <>
-                  <h2 className="mobile-dashboard-title">FinTech Entertainment Platform</h2>
-                  <p className="mobile-welcome-text">Welcome back, John! Here's your financial overview.</p>
+                  <h2 className="mobile-dashboard-title">XspensesAI</h2>
+                  <p className="mobile-welcome-text">Your financial command center.</p>
                   <div className="mobile-dashboard-cards">
                 {/* AI WORKSPACE CARDS */}
                 <div className="mobile-card min-h-[120px] rounded-2xl bg-white/10 backdrop-blur-md">
