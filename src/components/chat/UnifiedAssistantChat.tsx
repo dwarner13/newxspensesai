@@ -2672,12 +2672,24 @@ export default function UnifiedAssistantChat({
     // adds a 40ms restart delay) — at 12ms/char that left only ~2 chars typed per window,
     // producing a jittery block-stepping effect. Single injection = one smooth animation.
     setInjectedMessages((prev) => {
-      const existingIdx = prev.findIndex((msg) => msg.id === params.messageId);
+      // Strip any in-progress upload narration / actor-status bubbles for this import
+      // so they never coexist with the finished summary, regardless of which code path
+      // (main effect or fallback) called streamPrimeFinalMessage.
+      const filtered = prev.filter((msg) => {
+        const metaAny = (msg?.meta || {}) as Record<string, unknown>;
+        if (metaAny?.type === 'upload_actor_status' && String(metaAny?.importId || '') === params.importId) return false;
+        if (metaAny?.type === 'prime_upload_narration' && (
+          String(metaAny?.importId || '') === params.importId ||
+          String(metaAny?.batchKey || '') === (params.batchKey || params.importId)
+        )) return false;
+        return true;
+      });
+      const existingIdx = filtered.findIndex((msg) => msg.id === params.messageId);
       const nextMsg: ChatMessage = {
         id: params.messageId,
         role: 'assistant',
         content: params.content,
-        createdAt: existingIdx >= 0 ? prev[existingIdx].createdAt : new Date().toISOString(),
+        createdAt: existingIdx >= 0 ? filtered[existingIdx].createdAt : new Date().toISOString(),
         meta: {
           type: 'prime_upload_final',
           importId: params.importId,
@@ -2691,11 +2703,11 @@ export default function UnifiedAssistantChat({
         },
       };
       if (existingIdx >= 0) {
-        const updated = [...prev];
+        const updated = [...filtered];
         updated[existingIdx] = nextMsg;
         return updated;
       }
-      return [...prev, nextMsg];
+      return [...filtered, nextMsg];
     });
   }, []);
 
@@ -2755,9 +2767,10 @@ export default function UnifiedAssistantChat({
     s = s.replace(/^ind\s+/i, '');
     s = s.replace(/^b\/m\s+/i, '');
     // Strip BMO trailing codes like "MSP/DIV", "PAYT/PAY", "MSP" at end
-    s = s.replace(/\s+MSP\/DIV$/i, '');
-    s = s.replace(/\s+PAYT\/PAY$/i, '');
-    s = s.replace(/\s+MSP$/i, '');
+    // Also handle standalone cases (e.g. "B/M " prefix already stripped → just "PAYT/PAY" left)
+    s = s.replace(/(?:^|\s+)MSP\/DIV$/i, '');
+    s = s.replace(/(?:^|\s+)PAYT\/PAY$/i, '');
+    s = s.replace(/(?:^|\s+)MSP$/i, '');
     // Strip store numbers and corporate suffixes
     s = s.replace(/\s+#\d+\S*$/, '');
     s = s.replace(/\s+\d{5,}$/, '');
@@ -3208,9 +3221,13 @@ export default function UnifiedAssistantChat({
         .slice(0, 5)
         .map(({ cat, amt }) => `• ${cat}: $${fmtAmt(amt)}`);
     })();
+    const isGenericMerchant = (name: string) => {
+      const n = name.trim().toLowerCase();
+      return !n || n === 'unknown' || /^e-transfer\s*$/i.test(n) || /^interac\s*$/i.test(n);
+    };
     const realMerchantBullets: string[] = bd?.topMerchants?.length
       ? bd.topMerchants
-          .filter(({ merchant }) => merchant && merchant.toLowerCase() !== 'unknown')
+          .filter(({ merchant }) => merchant && !isGenericMerchant(merchant))
           .slice(0, 5)
           .map(({ merchant, amt }) => `• ${merchant}: $${fmtAmt(amt)}`)
       : finalQuickBullets;
@@ -3830,10 +3847,15 @@ export default function UnifiedAssistantChat({
           importIds: batchImportIds,
         });
       }
-      // After replacing/removing progress bubbles, force one more bottom lock.
+      // After replacing/removing progress bubbles, force scroll to bottom.
+      // Reset userScrolledUpRef so a prior manual scroll-up doesn't block the pin.
+      // Hold the pin for the full TypingMessage animation duration (8 s).
+      userScrolledUpRef.current = false;
       autoPinToBottomRef.current = true;
+      forceAutoPinUntilRef.current = Date.now() + 9000;
       requestAnimationFrame(() => scrollToBottom('auto'));
-      window.setTimeout(() => scrollToBottom('auto'), 250);
+      window.setTimeout(() => scrollToBottom('auto'), 300);
+      window.setTimeout(() => scrollToBottom('auto'), 1000);
     })();
     return () => {
       cancelled = true;
