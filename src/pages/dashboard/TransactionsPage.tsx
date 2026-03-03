@@ -446,6 +446,54 @@ export default function TransactionsPage() {
     });
   }, [location.pathname, location.search, navigate]);
 
+  // Approve a single pending (staging) transaction → commits it to the transactions table
+  const handleApprove = useCallback(async (pendingId: string) => {
+    const pending = pendingTransactions.find((p) => p.id === pendingId);
+    if (!pending || !userId) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const dj = pending.data_json;
+    const now = new Date().toISOString();
+    const { error: insertError } = await supabase.from('transactions').insert({
+      user_id: userId,
+      posted_at: dj.date ? new Date(dj.date).toISOString() : now,
+      merchant_name: dj.merchant || 'Unknown merchant',
+      amount: dj.amount ?? 0,
+      category: (dj as Record<string, unknown>).category as string | undefined ?? null,
+      import_id: pending.import_id,
+      created_at: now,
+      updated_at: now,
+    });
+
+    if (insertError) {
+      toast.error(`Approve failed: ${insertError.message}`);
+      return;
+    }
+
+    await supabase.from('transactions_staging').delete().eq('id', pendingId).eq('user_id', userId);
+    toast.success('Transaction approved');
+  }, [pendingTransactions, userId]);
+
+  // Reject a single pending transaction → removes it from staging
+  const handleReject = useCallback(async (pendingId: string) => {
+    if (!userId) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    const { error } = await supabase
+      .from('transactions_staging')
+      .delete()
+      .eq('id', pendingId)
+      .eq('user_id', userId);
+
+    if (error) {
+      toast.error(`Reject failed: ${error.message}`);
+      return;
+    }
+    toast.success('Transaction rejected');
+  }, [userId]);
+
   // Handlers
   const handleBulkAction = useCallback((action: BulkActionType) => {
     const result = performBulkAction(action, allTransactions, selectedIds);
@@ -638,6 +686,8 @@ export default function TransactionsPage() {
                     pendingTransactions={displayPending}
                     filters={filters}
                     onTransactionClick={handleTransactionClick}
+                    onApprove={(id) => { void handleApprove(id); }}
+                    onReject={(id) => { void handleReject(id); }}
                     categories={categoryList.length > 0 ? categoryList : undefined}
                     onCategoryChange={handleCategoryChange}
                   />
