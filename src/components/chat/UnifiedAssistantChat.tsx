@@ -2738,18 +2738,37 @@ export default function UnifiedAssistantChat({
     }
   }, []);
 
-  // Strip common BMO/bank OCR prefixes from merchant description strings
-  const cleanMerchantName = (raw: string): string => raw
-    .replace(/^(?:debit\s+card\s+purchase|point\s+of\s+sale(?:\s+purchase)?)[,\s-]+/i, '')
-    .replace(/^interac\s+e[- ]?transfer\s+(?:sent|received)[,\s-]+/i, '')
-    .replace(/^bill\s+payment\s*[-,]?\s*/i, '')
-    .replace(/^pre-?authorized\s+payment\s+no\s+fee[,\s-]+/i, '')
-    .replace(/^pre-?authorized\s+(?:debit|credit|payment)[,\s-]+/i, '')
-    .replace(/^online\s+(?:transfer|payment|banking)[,\s-]+/i, '')
-    .replace(/^atm\s+(?:withdrawal|deposit)[,\s-]+/i, '')
-    .replace(/^ind\s+/i, '')
-    .trim()
-    .slice(0, 40);
+  // Strip common BMO/bank OCR prefixes and suffixes from merchant description strings
+  const cleanMerchantName = (raw: string): string => {
+    let s = raw.trim();
+    // Strip leading transaction-type prefixes (BMO, TD, RBC, etc.)
+    s = s.replace(/^(?:debit\s+card\s+purchase|point\s+of\s+sale(?:\s+purchase)?)[,\s-]+/i, '');
+    s = s.replace(/^pre-?authorized\s+payment\s+no\s+fee[,\s]+/i, '');
+    s = s.replace(/^pre-?authorized\s+(?:debit|credit|payment)[,\s]+/i, '');
+    s = s.replace(/^interac\s+e[- ]?transfer\s+(?:sent|received)[,\s]+/i, 'e-Transfer ');
+    s = s.replace(/^bill\s+payment[-\s,]+/i, '');
+    s = s.replace(/^online\s+(?:transfer|payment|banking)[,\s-]+/i, '');
+    s = s.replace(/^atm\s+(?:withdrawal|deposit)[,\s-]+/i, '');
+    s = s.replace(/^direct\s+deposit[,\s-]+/i, '');
+    s = s.replace(/^wire\s+transfer[,\s-]+/i, '');
+    // Strip BMO-specific prefixes like "IND ", "B/M "
+    s = s.replace(/^ind\s+/i, '');
+    s = s.replace(/^b\/m\s+/i, '');
+    // Strip BMO trailing codes like "MSP/DIV", "PAYT/PAY", "MSP" at end
+    s = s.replace(/\s+MSP\/DIV$/i, '');
+    s = s.replace(/\s+PAYT\/PAY$/i, '');
+    s = s.replace(/\s+MSP$/i, '');
+    // Strip store numbers and corporate suffixes
+    s = s.replace(/\s+#\d+\S*$/, '');
+    s = s.replace(/\s+\d{5,}$/, '');
+    s = s.replace(/\s+(INC|LLC|CORP|LTD|CO)\.?$/i, '');
+    // Title-case if all-caps (common in BMO exports)
+    s = s.trim();
+    if (s === s.toUpperCase() && s.length > 2) {
+      s = s.split(' ').map(w => w ? w.charAt(0) + w.slice(1).toLowerCase() : w).join(' ');
+    }
+    return s.slice(0, 40) || raw.slice(0, 40);
+  };
 
   const loadImportBreakdown = useCallback(async (importId: string): Promise<{
     txCount: number;
@@ -3173,38 +3192,58 @@ export default function UnifiedAssistantChat({
           `• Transactions: ${bd.txCount}`,
         ].filter(Boolean) as string[]
       : snapshotBullets;
-    const realCategoryBullets: string[] = bd?.topCategories?.length
-      ? bd.topCategories.map(({ cat, amt }) => `• ${cat}: $${fmtAmt(amt)}`)
-      : finalPlainBullets;
+    // Detect all-Uncategorized: >85% of spend is uncategorized
+    const totalSpendForCat = bd?.topCategories?.reduce((s, c) => s + c.amt, 0) ?? 0;
+    const uncatAmt = bd?.topCategories?.find(c => c.cat === 'Uncategorized')?.amt ?? 0;
+    const allUncategorized = totalSpendForCat > 0 && uncatAmt / totalSpendForCat > 0.85;
+
+    const realCategoryBullets: string[] = (() => {
+      if (!bd?.topCategories?.length) return finalPlainBullets;
+      if (allUncategorized) return [
+        '• Pending categorization — head to Smart Categories to tag your transactions.',
+        '• Once tagged, I\'ll show you a full spending breakdown.',
+      ];
+      return bd.topCategories
+        .filter(({ cat }) => cat !== 'Uncategorized')
+        .slice(0, 5)
+        .map(({ cat, amt }) => `• ${cat}: $${fmtAmt(amt)}`);
+    })();
     const realMerchantBullets: string[] = bd?.topMerchants?.length
-      ? bd.topMerchants.map(({ merchant, amt }) => `• ${merchant}: $${fmtAmt(amt)}`)
+      ? bd.topMerchants
+          .filter(({ merchant }) => merchant && merchant.toLowerCase() !== 'unknown')
+          .slice(0, 5)
+          .map(({ merchant, amt }) => `• ${merchant}: $${fmtAmt(amt)}`)
       : finalQuickBullets;
+
+    // Adjust intro text when transactions aren't actually categorized
+    const effectiveIntro = allUncategorized
+      ? `${userLabel ? `${userLabel}, ` : ''}your statement is in. ${params.transactionCount ?? 'Your'} transactions are imported and ready to review.`
+      : intro;
+    const effectiveTagSummary = allUncategorized
+      ? 'Head to Smart Categories to tag your transactions — I\'ll give you a full breakdown once they\'re sorted.'
+      : tagSummary;
+
     const lines = [
       'Summary Ready',
-      intro,
-      tagSummary,
-      personalClose,
+      effectiveIntro,
+      effectiveTagSummary,
       ...(requestedInstruction
         ? ['', 'REQUEST APPLIED', `• ${requestedInstruction}`]
         : []),
-      ...(wantsCategoryBreakdown
-        ? ['', 'CATEGORY BREAKDOWN', ...(categoryBullets.length > 0 ? categoryBullets : realCategoryBullets)]
-        : []),
       '',
-      'STATEMENT SNAPSHOT',
+      'STATEMENT OVERVIEW',
       ...realSnapshotBullets,
       '',
-      bd ? 'TOP CATEGORIES' : 'WHAT HAPPENED',
+      allUncategorized ? 'PENDING CATEGORIZATION' : 'TOP CATEGORIES',
       ...realCategoryBullets,
-      '',
-      bd ? 'TOP MERCHANTS' : 'QUICK INSIGHT',
-      ...realMerchantBullets,
+      ...(realMerchantBullets.length > 0
+        ? ['', 'TOP PAYEES', ...realMerchantBullets]
+        : []),
       ...clarificationLines,
       '',
-      'NEXT ACTIONS',
-      '• Review categories',
-      '• Upload another file',
-      '• Reply "that\'s it" when this batch is complete',
+      allUncategorized
+        ? 'What would you like to do next? I can help you set up auto-categorization rules, flag unusual charges, or walk you through what each payee is.'
+        : `${userLabel ? `${userLabel}, ` : ''}ask me about specific merchants, unusual charges, or category trends for this period.`,
     ];
     // Accumulate this document's breakdown into the per-importId map so Prime can discuss
     // each uploaded statement independently in follow-up questions.

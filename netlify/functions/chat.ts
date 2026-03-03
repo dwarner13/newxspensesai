@@ -4142,7 +4142,10 @@ async function getUserProfile(
     }
 
     // Preferred name: display_name → first_name → full_name → auth metadata/email
-    let preferredName = profile.display_name || profile.first_name || profile.full_name || 'there';
+    const rawPreferredName = profile.display_name || profile.first_name || profile.full_name || 'there';
+    // Capitalize each word (handles "darrell warner" → "Darrell Warner")
+    let preferredName = rawPreferredName === 'there' ? 'there'
+      : rawPreferredName.split(' ').map((w: string) => w ? w.charAt(0).toUpperCase() + w.slice(1) : w).join(' ');
     if (preferredName === 'there') {
       try {
         const { data: authUser } = await sb.auth.admin.getUserById(userId);
@@ -5919,7 +5922,8 @@ export const handler: Handler = async (event, context) => {
     }
     if (!forcedPrimeDecision && workspaceActivityIntent && !hasAttachments) {
       const displayName = await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
-      const firstName = String(displayName).split(' ')[0] || 'there';
+      const rawFirst5921 = String(displayName).split(' ')[0] || 'there';
+      const firstName = rawFirst5921 === 'there' ? 'there' : rawFirst5921.charAt(0).toUpperCase() + rawFirst5921.slice(1);
       const activity = await loadWorkspaceActivitySnapshotBestEffort(sb, userId);
       if (activity) {
         const latestUpload = activity.latestUploadAt ? new Date(activity.latestUploadAt).toLocaleString() : 'not yet';
@@ -5940,7 +5944,8 @@ export const handler: Handler = async (event, context) => {
     }
     if (!forcedPrimeDecision && recallLastUploadIntent && !hasAttachments) {
       const displayName = await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
-      const firstName = String(displayName).split(' ')[0] || 'there';
+      const rawFirst5947 = String(displayName).split(' ')[0] || 'there';
+      const firstName = rawFirst5947 === 'there' ? 'there' : rawFirst5947.charAt(0).toUpperCase() + rawFirst5947.slice(1);
       const latest = await loadLatestImportSummaryBestEffort(sb, userId);
       if (latest?.summaryText) {
         const timestampText = latest.createdAt ? new Date(latest.createdAt).toLocaleString() : 'recently';
@@ -7804,7 +7809,8 @@ export const handler: Handler = async (event, context) => {
     
     // Add user name context (CRITICAL: Never show email as name)
     if (userProfile?.preferredName) {
-      const firstName = userProfile.preferredName.split(' ')[0] || userProfile.preferredName;
+      const rawFirst7807 = userProfile.preferredName.split(' ')[0] || userProfile.preferredName;
+      const firstName = rawFirst7807 === 'there' ? 'there' : rawFirst7807.charAt(0).toUpperCase() + rawFirst7807.slice(1);
       mergedUserContext += `\n\n**User Name Context (IMPORTANT):**
 - User display name: ${userProfile.preferredName}
 - Address the user as "${firstName}" in greetings and responses
