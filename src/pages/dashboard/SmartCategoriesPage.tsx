@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Tag, Brain, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -247,9 +247,25 @@ const SmartCategoriesPage: React.FC = () => {
     };
   }, [categorySummaries]);
 
+  // O(1) lookup: category name → SmartCategorySummary (for learning metrics)
+  const summaryMap = useMemo(() => {
+    const map = new Map<string, SmartCategorySummary>();
+    for (const s of categorySummaries) {
+      map.set(s.category, s);
+    }
+    return map;
+  }, [categorySummaries]);
+
   // ── Month filter state ──────────────────────────────────────────────────────
   // selectedMonth: "2025-01" ISO year-month key, or null = All time
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  // Persisted in URL as ?month=2025-01 so it survives page refreshes.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedMonth = searchParams.get('month') || null;
+  const setSelectedMonth = (val: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (val) next.set('month', val); else next.delete('month');
+    setSearchParams(next, { replace: true });
+  };
 
   // Derive available months from transaction dates (most-recent first)
   const availableMonths = useMemo(() => {
@@ -297,19 +313,89 @@ const SmartCategoriesPage: React.FC = () => {
     });
   }, [transactions, selectedMonth]);
 
-  // Category spending breakdown for the selected month (expenses only, sorted desc)
-  const breakdownEntries = useMemo(() => {
+  // Previous month's per-category spending (for trend arrows on breakdown rows)
+  const prevMonthBreakdown = useMemo(() => {
+    if (!selectedMonth) return new Map<string, number>();
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const prevDate = new Date(y, m - 2, 1); // step back one month (month is 1-based, Date is 0-based)
+    const prevKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
     const map = new Map<string, number>();
+    for (const tx of transactions) {
+      const raw = tx.date || '';
+      if (!raw) continue;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) continue;
+      const txKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (txKey !== prevKey) continue;
+      const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
+      if (amt >= 0) continue;
+      const cat = tx.category || 'Uncategorized';
+      map.set(cat, (map.get(cat) || 0) + Math.abs(amt));
+    }
+    return map;
+  }, [selectedMonth, transactions]);
+
+  // Category spending breakdown (expenses only, sorted desc) — enriched with learning + trend
+  const breakdownEntries = useMemo(() => {
+    const map = new Map<string, { amount: number; count: number }>();
     for (const tx of monthFilteredTransactions) {
       const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
       if (amt >= 0) continue; // expenses only (negative amounts)
       const cat = tx.category || 'Uncategorized';
-      map.set(cat, (map.get(cat) || 0) + Math.abs(amt));
+      const prev = map.get(cat) || { amount: 0, count: 0 };
+      map.set(cat, { amount: prev.amount + Math.abs(amt), count: prev.count + 1 });
     }
     return [...map.entries()]
-      .map(([category, amount]) => ({ category, amount }))
+      .map(([category, { amount, count }]) => {
+        const summary = summaryMap.get(category);
+        const prevAmount = prevMonthBreakdown.get(category);
+        let trend: 'up' | 'down' | 'flat' = 'flat';
+        let trendPct: number | undefined;
+        if (selectedMonth && prevAmount !== undefined && prevAmount > 0) {
+          const delta = ((amount - prevAmount) / prevAmount) * 100;
+          if (Math.abs(delta) >= 5) { // only surface meaningful changes (≥5%)
+            trend = delta > 0 ? 'up' : 'down';
+            trendPct = Math.abs(Math.round(delta));
+          }
+        }
+        return {
+          category,
+          amount,
+          count,
+          learningDominance: summary?.learningDominance,
+          avgConfidence: summary?.avgConfidence ?? null,
+          trend,
+          trendPct,
+        };
+      })
       .sort((a, b) => b.amount - a.amount);
-  }, [monthFilteredTransactions]);
+  }, [monthFilteredTransactions, summaryMap, prevMonthBreakdown, selectedMonth]);
+
+  // Income breakdown (positive amounts only, sorted desc)
+  const incomeBreakdownEntries = useMemo(() => {
+    const map = new Map<string, { amount: number; count: number }>();
+    for (const tx of monthFilteredTransactions) {
+      const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
+      if (amt <= 0) continue;
+      const cat = tx.category || 'Uncategorized';
+      const prev = map.get(cat) || { amount: 0, count: 0 };
+      map.set(cat, { amount: prev.amount + amt, count: prev.count + 1 });
+    }
+    return [...map.entries()]
+      .map(([category, { amount, count }]) => {
+        const summary = summaryMap.get(category);
+        return {
+          category,
+          amount,
+          count,
+          learningDominance: summary?.learningDominance,
+          avgConfidence: summary?.avgConfidence ?? null,
+          trend: 'flat' as const,
+          trendPct: undefined,
+        };
+      })
+      .sort((a, b) => b.amount - a.amount);
+  }, [monthFilteredTransactions, summaryMap]);
   // ────────────────────────────────────────────────────────────────────────────
 
   const formatCurrency = (amount: number) => {
@@ -580,10 +666,18 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
           <div className="space-y-4">
             <CategoryBreakdownList
               entries={breakdownEntries}
+              incomeEntries={incomeBreakdownEntries}
               availableMonths={availableMonths}
               selectedMonth={selectedMonth}
               onSelectMonth={setSelectedMonth}
               isLoading={isLoading}
+              onUncategorizedClick={() =>
+                document.getElementById('uncategorized-queue')?.scrollIntoView({ behavior: 'smooth' })
+              }
+              onAskTag={(cat) => {
+                const summary = categorySummaries.find((s) => s.category === cat);
+                if (summary) handleAskTag(summary);
+              }}
             />
             <UncategorizedReviewQueue
               categories={categorySummaries.map((s) => s.category)}

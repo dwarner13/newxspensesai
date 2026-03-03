@@ -270,6 +270,9 @@ export default function TransactionsPage() {
   ]);
   const { filters } = useTransactionFilters(scopedTransactions, scopedPendingTransactions);
 
+  // Sort order for TransactionList
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+
   // State for selection and search
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [searchResults, setSearchResults] = useState<Transaction[] | null>(null);
@@ -781,9 +784,17 @@ export default function TransactionsPage() {
                         )}
                       </button>
                     )}
-                    <span className="rounded-md border border-slate-700 px-2 py-1">All transactions</span>
-                    <span className="rounded-md border border-slate-700 px-2 py-1">Sort newest</span>
-                    <span className="rounded-md border border-slate-700 px-2 py-1">Filters</span>
+                    <span className="rounded-md border border-slate-700 px-2 py-1">
+                      {urlFilteredCommitted.length} transaction{urlFilteredCommitted.length !== 1 ? 's' : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSortOrder((s) => (s === 'newest' ? 'oldest' : 'newest'))}
+                      className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:border-violet-500/40 hover:text-violet-300 transition-colors"
+                    >
+                      Sort {sortOrder === 'newest' ? '↓ newest' : '↑ oldest'}
+                    </button>
+                    <span className="rounded-md border border-slate-700 px-2 py-1 opacity-40 cursor-default select-none">Filters</span>
                     <button
                       type="button"
                       onClick={() => navigate('/dashboard/smart-categories')}
@@ -887,6 +898,7 @@ export default function TransactionsPage() {
                     onReject={(id) => { void handleReject(id); }}
                     categories={categoryList.length > 0 ? categoryList : undefined}
                     onCategoryChange={handleCategoryChange}
+                    sortOrder={sortOrder}
                   />
                 )}
               </div>

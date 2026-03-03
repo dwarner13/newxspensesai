@@ -18,6 +18,7 @@ interface TransactionListProps {
   onEdit?: (transaction: CommittedTransaction | PendingTransaction, isPending: boolean) => void;
   categories?: string[];
   onCategoryChange?: (txId: string, category: string) => void;
+  sortOrder?: 'newest' | 'oldest';
 }
 
 export function TransactionList({
@@ -30,6 +31,7 @@ export function TransactionList({
   onEdit,
   categories,
   onCategoryChange,
+  sortOrder = 'newest',
 }: TransactionListProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -61,13 +63,14 @@ export function TransactionList({
       });
     });
 
-    // Sort by date (newest first)
+    // Sort by date
     combined.sort((a, b) => {
-      return new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime();
+      const diff = new Date(b.sortDate).getTime() - new Date(a.sortDate).getTime();
+      return sortOrder === 'oldest' ? -diff : diff;
     });
 
     return combined;
-  }, [transactions, pendingTransactions]);
+  }, [transactions, pendingTransactions, sortOrder]);
 
   // Pagination
   const totalPages = Math.ceil(allItems.length / itemsPerPage);
