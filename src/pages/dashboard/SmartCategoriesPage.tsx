@@ -11,6 +11,7 @@ import { UncategorizedReviewQueue } from '../../components/transactions/Uncatego
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
+import { useCategoryRules } from '../../hooks/useCategoryRules';
 import type { EmployeeStat } from '../../config/employeeDisplayConfig';
 import { PageCinematicFade } from '../../components/ui/PageCinematicFade';
 
@@ -52,6 +53,7 @@ const SmartCategoriesPage: React.FC = () => {
 
   // Real stats from Supabase for Tag card + workspace panel
   const tagStats = useSmartCategoriesStats();
+  const categoryRules = useCategoryRules();
 
   // Build EmployeeStat[] for the Tag card hero — "—" when data is unavailable
   const tagCardStats: EmployeeStat[] = [
@@ -471,8 +473,12 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
             categoryCount={tagStats.categoryCount}
             taggedToday={tagStats.taggedToday}
             uncategorizedCount={tagStats.uncategorizedCount}
-            activeRulesCount={tagStats.activeRulesCount}
+            activeRulesCount={categoryRules.activeCount ?? tagStats.activeRulesCount}
             isLoading={tagStats.isLoading}
+            rules={categoryRules.rules}
+            totalTimesApplied={categoryRules.totalTimesApplied}
+            userCategories={categorySummaries.map((s) => s.category)}
+            onRefreshRules={categoryRules.refresh}
           />
         }
         center={

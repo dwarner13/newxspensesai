@@ -346,6 +346,48 @@ export const handler: Handler = async (event) => {
       memoryMap.set(row.vendor_key, row);
     }
 
+    // Fetch user-defined DB rules (applied between vendor memory and inline rules)
+    type DbCategoryRule = { match_type: string; match_value: string; category: string };
+    let userDbRules: DbCategoryRule[] = [];
+    try {
+      const { data: dbRuleRows } = await supabase
+        .from('category_rules')
+        .select('match_type, match_value, category')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+      const DB_RULE_PRIORITY: Record<string, number> = { exact: 0, starts_with: 1, contains: 2, regex: 3 };
+      userDbRules = ((dbRuleRows || []) as DbCategoryRule[]).sort(
+        (a, b) => (DB_RULE_PRIORITY[a.match_type] ?? 9) - (DB_RULE_PRIORITY[b.match_type] ?? 9)
+      );
+    } catch {
+      /* category_rules table may not exist yet — degrade gracefully */
+    }
+
+    function pickUserDbRule(text: string): CategorizeResult | null {
+      const lower = text.toLowerCase();
+      for (const rule of userDbRules) {
+        const val = rule.match_value.toLowerCase();
+        let matched = false;
+        if (rule.match_type === 'exact') matched = lower === val;
+        else if (rule.match_type === 'starts_with') matched = lower.startsWith(val);
+        else if (rule.match_type === 'contains') matched = lower.includes(val);
+        else if (rule.match_type === 'regex') {
+          try { matched = new RegExp(rule.match_value, 'i').test(text); } catch {}
+        }
+        if (matched) {
+          return {
+            category: rule.category,
+            subcategory: null,
+            confidence: 0.9,
+            reason: `Matched user rule (${rule.match_type}: ${rule.match_value})`,
+            source: 'rules',
+            model: null,
+          };
+        }
+      }
+      return null;
+    }
+
     const previewRows: Array<Record<string, any>> = [];
     let updatedCount = 0;
 
@@ -366,6 +408,11 @@ export const handler: Handler = async (event) => {
           model: null,
         };
       } else {
+        // Check user-defined DB rules before inline rules
+        const userRule = pickUserDbRule(normalizedVendorText);
+        if (userRule) {
+          result = userRule;
+        } else {
         const rule = pickRule(normalizedVendorText);
         if (rule) {
           result = rule;
@@ -404,6 +451,7 @@ export const handler: Handler = async (event) => {
             }
           }
         }
+        } // close else { for pickUserDbRule check
       }
 
       // Category consistency guardrail:

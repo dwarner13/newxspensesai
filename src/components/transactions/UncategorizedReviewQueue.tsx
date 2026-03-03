@@ -18,7 +18,9 @@ import { useNavigate } from 'react-router-dom';
 import { Check, ChevronRight, Loader2, Sparkles, Tag, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
+import { createCategoryRule } from '../../lib/categoryRules';
 import { useUncategorizedTransactions } from '../../hooks/useUncategorizedTransactions';
+import { useAuth } from '../../contexts/AuthContext';
 import type { UncategorizedTx } from '../../hooks/useUncategorizedTransactions';
 
 // Fallback categories (same list as TransactionRow, plus a few extra)
@@ -105,6 +107,7 @@ interface Props {
 
 export function UncategorizedReviewQueue({ categories }: Props) {
   const navigate = useNavigate();
+  const { userId } = useAuth();
   const { transactions, totalCount, isLoading, refresh } = useUncategorizedTransactions();
 
   // Deduplicate and combine user categories with defaults
@@ -149,13 +152,58 @@ export function UncategorizedReviewQueue({ categories }: Props) {
             return next;
           });
         }, 380);
+
+        // Offer rule creation for meaningful merchant names
+        const merchant = getMerchant(tx);
+        const isGeneric = !merchant || merchant === 'Unknown merchant';
+        if (!isGeneric && userId) {
+          toast.custom(
+            (t) => (
+              <div
+                className={`flex items-start gap-3 px-4 py-3 rounded-xl border border-violet-500/30 bg-slate-900 shadow-xl max-w-sm transition-opacity ${
+                  t.visible ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
+                <Sparkles className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-slate-100">
+                    Always tag &ldquo;{merchant}&rdquo; as {category}?
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Create a rule to auto-categorize future imports
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={async () => {
+                        toast.dismiss(t.id);
+                        const result = await createCategoryRule(userId, merchant, category, 'contains');
+                        if (result.ok) toast.success('Rule created');
+                        else toast.error('Failed to create rule');
+                      }}
+                      className="px-2.5 py-1 text-xs rounded-md bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 font-medium transition-colors"
+                    >
+                      Yes, create rule
+                    </button>
+                    <button
+                      onClick={() => toast.dismiss(t.id)}
+                      className="px-2 py-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ),
+            { duration: 10000, position: 'bottom-right' }
+          );
+        }
       } catch (err: any) {
         toast.error(`Save failed: ${err?.message ?? 'unknown error'}`);
       } finally {
         setSavingId(null);
       }
     },
-    [refresh]
+    [refresh, userId]
   );
 
   // ── Skip row locally ─────────────────────────────────────────────────────

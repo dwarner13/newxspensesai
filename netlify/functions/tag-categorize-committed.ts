@@ -112,7 +112,38 @@ export const handler: Handler = async (event) => {
     }
   }
 
-  // 4. Apply memory → rules for each tx
+  // 3b. Fetch user-defined DB rules (exact → starts_with → contains → regex priority)
+  type DbRule = { match_type: string; match_value: string; category: string };
+  let dbRules: DbRule[] = [];
+  try {
+    const { data: ruleRows } = await supabase
+      .from('category_rules')
+      .select('match_type, match_value, category')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+    const TYPE_PRIORITY: Record<string, number> = { exact: 0, starts_with: 1, contains: 2, regex: 3 };
+    dbRules = ((ruleRows || []) as DbRule[]).sort(
+      (a, b) => (TYPE_PRIORITY[a.match_type] ?? 9) - (TYPE_PRIORITY[b.match_type] ?? 9)
+    );
+  } catch {
+    /* table may not exist yet — skip */
+  }
+
+  function applyDbRules(merchant: string): string | null {
+    const lower = merchant.toLowerCase();
+    for (const rule of dbRules) {
+      const val = rule.match_value.toLowerCase();
+      if (rule.match_type === 'exact' && lower === val) return rule.category;
+      if (rule.match_type === 'starts_with' && lower.startsWith(val)) return rule.category;
+      if (rule.match_type === 'contains' && lower.includes(val)) return rule.category;
+      if (rule.match_type === 'regex') {
+        try { if (new RegExp(rule.match_value, 'i').test(merchant)) return rule.category; } catch {}
+      }
+    }
+    return null;
+  }
+
+  // 4. Apply memory → DB rules → inline rules for each tx
   const updates: Array<{ id: string; category: string; source: string }> = [];
   for (let i = 0; i < txs.length; i++) {
     const tx = txs[i];
@@ -125,6 +156,12 @@ export const handler: Handler = async (event) => {
     }
 
     const merchant = tx.merchant_name || tx.merchant || '';
+    const dbCat = applyDbRules(merchant);
+    if (dbCat) {
+      updates.push({ id: tx.id, category: dbCat, source: 'rule' });
+      continue;
+    }
+
     const ruleCat = applyRules(merchant);
     if (ruleCat) {
       updates.push({ id: tx.id, category: ruleCat, source: 'rule' });

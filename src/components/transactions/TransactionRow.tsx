@@ -8,10 +8,12 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, Loader2 } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ConfidenceBar } from './ConfidenceBar';
 import { getSupabase } from '../../lib/supabase';
+import { createCategoryRule } from '../../lib/categoryRules';
+import { useAuth } from '../../contexts/AuthContext';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
 
 // Fallback list used if DB categories haven't loaded yet
@@ -58,6 +60,7 @@ export function TransactionRow({
 }: TransactionRowProps) {
   const isPending = !!pendingTransaction;
   const isCommitted = !!transaction;
+  const { userId } = useAuth();
 
   const normalizeText = (value: unknown): string => {
     if (typeof value !== 'string') return '';
@@ -194,11 +197,57 @@ export function TransactionRow({
         if (!supabase) throw new Error('Supabase not available');
         const { error } = await supabase
           .from('transactions')
-          .update({ category: cat, updated_at: new Date().toISOString() })
+          .update({ category: cat, category_source: 'manual', updated_at: new Date().toISOString() })
           .eq('id', transaction.id);
         if (error) throw error;
         onCategoryChange?.(transaction.id, cat);
-        toast.success(`Category updated to ${cat}`, { duration: 1800 });
+
+        // Show rule-creation prompt for meaningful merchant names
+        const merchant = merchantResolved;
+        const isGeneric = !merchant || merchant === 'Unknown merchant' || isGenericMerchantLabel(merchant);
+        if (!isGeneric && userId) {
+          toast.custom(
+            (t) => (
+              <div
+                className={`flex items-start gap-3 px-4 py-3 rounded-xl border border-violet-500/30 bg-slate-900 shadow-xl max-w-sm transition-opacity ${
+                  t.visible ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
+                <Sparkles className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-slate-100">
+                    Always tag &ldquo;{merchant}&rdquo; as {cat}?
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Create a rule to auto-categorize future imports
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={async () => {
+                        toast.dismiss(t.id);
+                        const result = await createCategoryRule(userId, merchant, cat, 'contains');
+                        if (result.ok) toast.success('Rule created');
+                        else toast.error('Failed to create rule');
+                      }}
+                      className="px-2.5 py-1 text-xs rounded-md bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 font-medium transition-colors"
+                    >
+                      Yes, create rule
+                    </button>
+                    <button
+                      onClick={() => toast.dismiss(t.id)}
+                      className="px-2 py-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ),
+            { duration: 10000, position: 'bottom-right' }
+          );
+        } else {
+          toast.success(`Category updated to ${cat}`, { duration: 1800 });
+        }
       } catch (err: any) {
         setLocalCategory(prev); // revert
         toast.error(`Failed to save: ${err?.message || 'unknown error'}`);
@@ -206,7 +255,7 @@ export function TransactionRow({
         setIsSaving(false);
       }
     },
-    [transaction?.id, localCategory, closeDropdown, onCategoryChange]
+    [transaction?.id, localCategory, closeDropdown, onCategoryChange, merchantResolved, userId]
   );
 
   // ── Status badge ─────────────────────────────────────────────────────────
