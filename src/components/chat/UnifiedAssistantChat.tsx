@@ -2209,33 +2209,45 @@ export default function UnifiedAssistantChat({
       return;
     }
 
-    const container = getActiveScrollEl();
-    if (container) {
-      requestAnimationFrame(() => {
-        const hasAnyMessages =
-          messages.length + loadedHistoryMessages.length + injectedMessages.length > 0;
-        if (hasAnyMessages) {
-          autoPinToBottomRef.current = true;
-          userScrolledUpRef.current = false;
-          userIsNearBottomRef.current = true;
-          forceAutoPinUntilRef.current = Date.now() + 1600;
-          setIsNearBottomState(true);
-          container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
-          window.setTimeout(() => {
-            forceAutoPinUntilRef.current = Date.now() + 1200;
-            container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
-          }, 80);
-          return;
-        }
-        // While history is hydrating, avoid snapping to top.
-        if (isLoadingHistory) return;
-        // Empty thread fallback
-        container.scrollTop = 0;
-        userIsNearBottomRef.current = true;
+    const doScroll = (container: HTMLElement | null) => {
+      if (!container) return;
+      const hasAnyMessages =
+        messages.length + loadedHistoryMessages.length + injectedMessages.length > 0;
+      if (hasAnyMessages) {
+        autoPinToBottomRef.current = true;
         userScrolledUpRef.current = false;
+        userIsNearBottomRef.current = true;
+        forceAutoPinUntilRef.current = Date.now() + 1600;
         setIsNearBottomState(true);
-      });
-    }
+        container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+        return;
+      }
+      // While history is hydrating, avoid snapping to top.
+      if (isLoadingHistory) return;
+      // Empty thread fallback
+      container.scrollTop = 0;
+      userIsNearBottomRef.current = true;
+      userScrolledUpRef.current = false;
+      setIsNearBottomState(true);
+    };
+
+    requestAnimationFrame(() => {
+      const container = getActiveScrollEl();
+      if (container) {
+        doScroll(container);
+        window.setTimeout(() => {
+          // Second attempt: DOM may have grown after TypingMessage reveals content
+          const c2 = getActiveScrollEl();
+          if (c2) { forceAutoPinUntilRef.current = Date.now() + 1200; c2.scrollTo({ top: c2.scrollHeight, behavior: 'auto' }); }
+        }, 200);
+      } else {
+        // Container not yet in DOM — retry after a short delay
+        window.setTimeout(() => {
+          const c2 = getActiveScrollEl();
+          if (c2) doScroll(c2);
+        }, 300);
+      }
+    });
   }, [getActiveScrollEl, isOpen, messages.length, loadedHistoryMessages.length, injectedMessages.length, scrollToBottom, isLoadingHistory]);
   
   // Employee switch should not force scroll.
@@ -2726,6 +2738,19 @@ export default function UnifiedAssistantChat({
     }
   }, []);
 
+  // Strip common BMO/bank OCR prefixes from merchant description strings
+  const cleanMerchantName = (raw: string): string => raw
+    .replace(/^(?:debit\s+card\s+purchase|point\s+of\s+sale(?:\s+purchase)?)[,\s-]+/i, '')
+    .replace(/^interac\s+e[- ]?transfer\s+(?:sent|received)[,\s-]+/i, '')
+    .replace(/^bill\s+payment\s*[-,]?\s*/i, '')
+    .replace(/^pre-?authorized\s+payment\s+no\s+fee[,\s-]+/i, '')
+    .replace(/^pre-?authorized\s+(?:debit|credit|payment)[,\s-]+/i, '')
+    .replace(/^online\s+(?:transfer|payment|banking)[,\s-]+/i, '')
+    .replace(/^atm\s+(?:withdrawal|deposit)[,\s-]+/i, '')
+    .replace(/^ind\s+/i, '')
+    .trim()
+    .slice(0, 40);
+
   const loadImportBreakdown = useCallback(async (importId: string): Promise<{
     txCount: number;
     totalSpend: number;
@@ -2786,7 +2811,7 @@ export default function UnifiedAssistantChat({
             totalSpend += amt;
             const cat = String(tx.category || 'Uncategorized').trim();
             categoryMap[cat] = (categoryMap[cat] || 0) + amt;
-            const merchant = String(tx.merchant_name || tx.description || 'Unknown').trim().slice(0, 40);
+            const merchant = cleanMerchantName(String(tx.merchant_name || tx.description || 'Unknown'));
             merchantMap[merchant] = (merchantMap[merchant] || 0) + amt;
           }
         }
@@ -2813,7 +2838,7 @@ export default function UnifiedAssistantChat({
           totalSpend += amt;
           const cat = String(row.tag_category || dj.category || dj.suggested_category || 'Uncategorized').trim();
           categoryMap[cat] = (categoryMap[cat] || 0) + amt;
-          const merchant = String(dj.merchant || dj.vendor || dj.description || 'Unknown').trim().slice(0, 40);
+          const merchant = cleanMerchantName(String(dj.merchant || dj.vendor || dj.description || 'Unknown'));
           merchantMap[merchant] = (merchantMap[merchant] || 0) + amt;
         }
       }
@@ -2898,9 +2923,7 @@ export default function UnifiedAssistantChat({
     ].filter(Boolean).join(', ');
     const tagSummary = tagNarrative
       ? `${uploadActorLabels.categorizer} results: ${tagNarrative}.`
-      : needsReview === 0
-      ? 'All transactions categorized — nothing needs review.'
-      : `${uploadActorLabels.categorizer} finished categorization and your categories are ready to review.`;
+      : `Categories are ready — head to Smart Categories to review your spending.`;
     const unifiedRecap = buildUnifiedRecapFromTruth(
       {
         phase: 'summary_ready',
@@ -3741,17 +3764,23 @@ export default function UnifiedAssistantChat({
       primeNarrationFinalizedImportIdsRef.current.add(primeSummaryReady);
       primeFinalSummaryTextByImportRef.current[primeSummaryReady] = summaryText;
       const batchImportIds = getImportIdsForBatch(activeKey);
-      const batchTotal = batchImportIds.length > 0 ? batchImportIds.length : 1;
-      const batchCompleted = batchImportIds.filter((id) => primeNarrationFinalizedImportIdsRef.current.has(id)).length;
-      upsertPrimeUploadNarration({
-        batchKey: activeKey,
-        importId: primeSummaryReady,
-        text: `Byte is processing ${batchTotal} document${batchTotal === 1 ? '' : 's'} (${batchCompleted}/${batchTotal} completed).`,
-        stages: batchCompleted >= batchTotal
-          ? { byte: 'done', tag: 'done', saving: 'done' }
-          : { byte: 'done', tag: 'active', saving: 'pending' },
-        done: batchCompleted >= batchTotal,
-      });
+      // When batchImportIds is empty (e.g. repeat upload / re-test of same file),
+      // treat the current import as the sole batch member so 0/1 doesn't linger.
+      const effectiveBatchIds = batchImportIds.length > 0 ? batchImportIds : [primeSummaryReady];
+      const batchTotal = effectiveBatchIds.length;
+      const batchCompleted = effectiveBatchIds.filter((id) => primeNarrationFinalizedImportIdsRef.current.has(id)).length;
+      // Only show the in-progress narration bubble when more docs remain.
+      // When all docs are done (including the single-doc case), the
+      // injectPrimeUploadFinalMessage summary already shows — no "done" bubble needed.
+      if (batchCompleted < batchTotal) {
+        upsertPrimeUploadNarration({
+          batchKey: activeKey,
+          importId: primeSummaryReady,
+          text: `Byte is processing ${batchTotal} document${batchTotal === 1 ? '' : 's'} (${batchCompleted}/${batchTotal} completed).`,
+          stages: { byte: 'done', tag: 'active', saving: 'pending' },
+          done: false,
+        });
+      }
       if (batchImportIds.length > 1 && batchCompleted >= batchImportIds.length) {
         upsertPrimeApprovalCard({
           batchKey: activeKey,

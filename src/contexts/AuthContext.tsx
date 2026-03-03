@@ -84,7 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user?.email?.split('@')[0];
     
     if (!raw) return 'there';
-    return raw.split(' ')[0];
+    const part = raw.split(' ')[0];
+    return part.charAt(0).toUpperCase() + part.slice(1);
   }, [profile, user]);
 
   // Helper to get time-of-day greeting based on timezone
