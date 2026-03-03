@@ -1648,7 +1648,8 @@ export default function UnifiedAssistantChat({
       userJustSentRef.current ||
       shouldFollowActiveTurn ||
       Date.now() < forceAutoPinUntilRef.current;
-    if (!shouldAutoScrollNow || userScrolledUpRef.current) return;
+    const forcePin = Date.now() < forceAutoPinUntilRef.current;
+    if (!shouldAutoScrollNow || (userScrolledUpRef.current && !forcePin)) return;
     const scroller = getActiveScrollEl?.() || scrollElementRef.current;
     const end = messagesEndRef.current;
     if (!scroller && !end) return;
