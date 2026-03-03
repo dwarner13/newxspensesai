@@ -9,13 +9,16 @@ import React, { useCallback } from 'react';
 import { Sparkles, CheckCircle, Plus } from 'lucide-react';
 import { useUnifiedChatLauncher } from '../../../hooks/useUnifiedChatLauncher';
 import { EmployeeUnifiedCardBase, type SecondaryAction } from './EmployeeUnifiedCardBase';
+import type { EmployeeStat } from '../../../config/employeeDisplayConfig';
 
 interface TagUnifiedCardProps {
   onExpandClick?: () => void;
   onChatInputClick?: () => void;
+  /** Real stats from Supabase — overrides hardcoded config defaults when provided */
+  stats?: EmployeeStat[];
 }
 
-export function TagUnifiedCard({ onExpandClick, onChatInputClick }: TagUnifiedCardProps) {
+export function TagUnifiedCard({ onExpandClick, onChatInputClick, stats }: TagUnifiedCardProps) {
   // Use unified chat launcher instead of inline chat
   const { openChat } = useUnifiedChatLauncher();
   
@@ -60,6 +63,7 @@ export function TagUnifiedCard({ onExpandClick, onChatInputClick }: TagUnifiedCa
   return (
     <EmployeeUnifiedCardBase
       employeeSlug="tag-ai"
+      stats={stats}
       primaryActionLabel="Chat with Tag about your categories"
       onPrimaryActionClick={handleChatClick}
       secondaryActions={secondaryActions}

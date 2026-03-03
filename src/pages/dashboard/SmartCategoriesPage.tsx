@@ -9,6 +9,8 @@ import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
+import type { EmployeeStat } from '../../config/employeeDisplayConfig';
 import { PageCinematicFade } from '../../components/ui/PageCinematicFade';
 
 // Local Transaction type for Smart Categories page
@@ -46,6 +48,29 @@ const SmartCategoriesPage: React.FC = () => {
   const location = useLocation();
   const { userId } = useAuth();
   const { openChat } = useUnifiedChatLauncher();
+
+  // Real stats from Supabase for Tag card + workspace panel
+  const tagStats = useSmartCategoriesStats();
+
+  // Build EmployeeStat[] for the Tag card hero — "—" when data is unavailable
+  const tagCardStats: EmployeeStat[] = [
+    {
+      value: tagStats.isLoading ? '…' : tagStats.itemsTagged !== null ? tagStats.itemsTagged.toLocaleString() : '—',
+      label: 'Items Tagged',
+      colorClass: 'text-cyan-400',
+    },
+    {
+      value: tagStats.isLoading ? '…' : tagStats.autoTaggedPct !== null ? `${tagStats.autoTaggedPct}%` : '—',
+      label: 'Auto-Tagged',
+      colorClass: 'text-green-400',
+    },
+    {
+      value: tagStats.isLoading ? '…' : tagStats.categoryCount !== null ? String(tagStats.categoryCount) : '—',
+      label: 'Categories',
+      colorClass: 'text-purple-400',
+    },
+  ];
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -440,9 +465,18 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
     <PageCinematicFade>
       {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
       <DashboardPageShell
-        left={<TagWorkspacePanel />}
+        left={
+          <TagWorkspacePanel
+            categoryCount={tagStats.categoryCount}
+            taggedToday={tagStats.taggedToday}
+            uncategorizedCount={tagStats.uncategorizedCount}
+            activeRulesCount={tagStats.activeRulesCount}
+            isLoading={tagStats.isLoading}
+          />
+        }
         center={
-          <TagUnifiedCard 
+          <TagUnifiedCard
+              stats={tagCardStats}
               onExpandClick={() => {
                 openChat({
                   initialEmployeeSlug: 'tag-ai',
