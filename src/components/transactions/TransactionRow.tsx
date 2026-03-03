@@ -101,7 +101,7 @@ export function TransactionRow({
 
   const amount = isPending ? pendingTransaction.data_json.amount ?? 0 : transaction?.amount ?? 0;
   const pendingCategory = isPending
-    ? (pendingTransaction.data_json as { category?: string }).category
+    ? (pendingTransaction.tag_category || (pendingTransaction.data_json as { category?: string }).category)
     : undefined;
   const rawCategory = isCommitted ? transaction?.category : pendingCategory;
 
@@ -344,10 +344,28 @@ export function TransactionRow({
             </div>
           ) : localCategory ? (
             <span
-              className="inline-block max-w-[160px] truncate px-2 py-0.5 rounded bg-slate-800 text-slate-200"
+              className="inline-flex items-center gap-1 max-w-[160px] px-2 py-0.5 rounded bg-slate-800 text-slate-200"
               title={localCategory}
             >
-              {localCategory}
+              <span className="truncate">{localCategory}</span>
+              {isPending && pendingTransaction?.tag_rule_source && (
+                <span
+                  className={`shrink-0 text-[9px] font-semibold uppercase tracking-wide px-1 rounded ${
+                    pendingTransaction.tag_rule_source === 'vendor_memory'
+                      ? 'text-emerald-400'
+                      : pendingTransaction.tag_rule_source === 'rules'
+                      ? 'text-sky-400'
+                      : 'text-violet-400'
+                  }`}
+                  title={`Source: ${pendingTransaction.tag_rule_source}`}
+                >
+                  {pendingTransaction.tag_rule_source === 'vendor_memory'
+                    ? 'mem'
+                    : pendingTransaction.tag_rule_source === 'rules'
+                    ? 'rule'
+                    : 'ai'}
+                </span>
+              )}
             </span>
           ) : (
             <span className="text-slate-600">—</span>

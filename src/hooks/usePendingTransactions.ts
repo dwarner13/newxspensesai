@@ -109,6 +109,7 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
           // Check for duplicates
           const duplicates = await checkForDuplicates(dataJson, userId);
 
+          const raw = staging as Record<string, unknown>;
           return {
             id: staging.id,
             data_json: dataJson,
@@ -122,6 +123,11 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
                   similarity: duplicates[0].similarity,
                 }
               : undefined,
+            tag_category: (raw.tag_category as string | null) ?? null,
+            tag_subcategory: (raw.tag_subcategory as string | null) ?? null,
+            tag_confidence: (raw.tag_confidence as number | null) ?? null,
+            tag_status: (raw.tag_status as string | null) ?? null,
+            tag_rule_source: (raw.tag_rule_source as string | null) ?? null,
           };
         })
       );

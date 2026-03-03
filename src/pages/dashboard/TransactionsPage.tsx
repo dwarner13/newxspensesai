@@ -446,6 +446,61 @@ export default function TransactionsPage() {
     });
   }, [location.pathname, location.search, navigate]);
 
+  // Tag AI bulk categorization — calls tag-categorize-batch once per unique importId
+  const [isTagRunning, setIsTagRunning] = useState(false);
+  const handleCategorizeWithTagAI = useCallback(async () => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error('Session expired — please refresh');
+      return;
+    }
+
+    const uniqueImportIds = [...new Set(
+      scopedPendingTransactions.map((p) => p.import_id).filter(Boolean)
+    )];
+    if (uniqueImportIds.length === 0) {
+      toast('No pending transactions to categorize');
+      return;
+    }
+
+    setIsTagRunning(true);
+    let totalCategorized = 0;
+    let totalErrors = 0;
+
+    for (const importId of uniqueImportIds) {
+      try {
+        const res = await fetch('/.netlify/functions/tag-categorize-batch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ importId, limit: 200, maxAiCallsPerRun: 50 }),
+        });
+        const json = await res.json() as { ok: boolean; updated?: number };
+        if (json.ok) {
+          totalCategorized += json.updated ?? 0;
+        } else {
+          totalErrors++;
+        }
+      } catch {
+        totalErrors++;
+      }
+    }
+
+    setIsTagRunning(false);
+    if (totalErrors > 0 && totalCategorized === 0) {
+      toast.error('Tag AI categorization failed — check console');
+    } else if (totalErrors > 0) {
+      toast.success(`Tag AI categorized ${totalCategorized} transactions (${totalErrors} import(s) failed)`);
+    } else {
+      toast.success(`Tag AI categorized ${totalCategorized} transaction${totalCategorized !== 1 ? 's' : ''}`);
+    }
+    // Real-time subscription on usePendingTransactions handles the refresh
+  }, [scopedPendingTransactions]);
+
   // Approve a single pending (staging) transaction → commits it to the transactions table
   const handleApprove = useCallback(async (pendingId: string) => {
     const pending = pendingTransactions.find((p) => p.id === pendingId);
@@ -455,12 +510,16 @@ export default function TransactionsPage() {
 
     const dj = pending.data_json;
     const now = new Date().toISOString();
+    // Prefer Tag AI category over raw data_json category
+    const category = pending.tag_category
+      || (dj as Record<string, unknown>).category as string | undefined
+      || null;
     const { error: insertError } = await supabase.from('transactions').insert({
       user_id: userId,
       posted_at: dj.date ? new Date(dj.date).toISOString() : now,
       merchant_name: dj.merchant || 'Unknown merchant',
       amount: dj.amount ?? 0,
-      category: (dj as Record<string, unknown>).category as string | undefined ?? null,
+      category,
       import_id: pending.import_id,
       created_at: now,
       updated_at: now,
@@ -621,6 +680,26 @@ export default function TransactionsPage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-sm font-semibold text-slate-100">Transactions</div>
                   <div className="flex items-center gap-2 text-xs text-slate-400">
+                    {pendingCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => { void handleCategorizeWithTagAI(); }}
+                        disabled={isTagRunning}
+                        className="flex items-center gap-1.5 rounded-md border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-[11px] font-medium text-violet-300 hover:bg-violet-500/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isTagRunning ? (
+                          <>
+                            <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                            </svg>
+                            Categorizing…
+                          </>
+                        ) : (
+                          <>✦ Tag AI ({pendingCount})</>
+                        )}
+                      </button>
+                    )}
                     <span className="rounded-md border border-slate-700 px-2 py-1">All transactions</span>
                     <span className="rounded-md border border-slate-700 px-2 py-1">Sort newest</span>
                     <span className="rounded-md border border-slate-700 px-2 py-1">Filters</span>

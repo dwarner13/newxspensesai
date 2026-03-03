@@ -39,6 +39,12 @@ export interface PendingTransaction {
     transactionId: string;
     similarity: number;
   };
+  /** Tag AI categorization fields (populated after tag-categorize-batch runs) */
+  tag_category?: string | null;
+  tag_subcategory?: string | null;
+  tag_confidence?: number | null;
+  tag_status?: string | null;       // 'auto' | 'needs_review' | null
+  tag_rule_source?: string | null;  // 'vendor_memory' | 'rules' | 'ai' | null
 }
 
 export interface CommittedTransaction {
