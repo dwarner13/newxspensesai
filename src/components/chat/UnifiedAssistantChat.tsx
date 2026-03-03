@@ -2766,8 +2766,11 @@ export default function UnifiedAssistantChat({
     // Strip BMO-specific prefixes like "IND ", "B/M "
     s = s.replace(/^ind\s+/i, '');
     s = s.replace(/^b\/m\s+/i, '');
-    // Strip BMO trailing codes like "MSP/DIV", "PAYT/PAY", "MSP" at end
+    // BMO semantic codes → human-readable names (must run before generic stripping)
+    s = s.replace(/^PAYT\/PAY\s+MTG\/HYP$/i, 'Mortgage Payment');
+    // Strip BMO trailing codes like "MSP/DIV", "PAYT/PAY", "MTG/HYP", "MSP" at end
     // Also handle standalone cases (e.g. "B/M " prefix already stripped → just "PAYT/PAY" left)
+    s = s.replace(/(?:^|\s+)MTG\/HYP$/i, '');
     s = s.replace(/(?:^|\s+)MSP\/DIV$/i, '');
     s = s.replace(/(?:^|\s+)PAYT\/PAY$/i, '');
     s = s.replace(/(?:^|\s+)MSP$/i, '');
@@ -3136,75 +3139,9 @@ export default function UnifiedAssistantChat({
       .map((line) => line.trim())
       .filter((line) => line.length > 0);
     const statementHeader = summaryLines[0] || 'Statement summary';
-    const snapshotLines = summaryLines
-      .filter((line) =>
-        /^Account:/i.test(line) ||
-        /^Statement period:/i.test(line) ||
-        /^Opening balance:/i.test(line) ||
-        /^Total withdrawals:/i.test(line) ||
-        /^Total deposits:/i.test(line) ||
-        /^Net change:/i.test(line),
-      )
-      .slice(0, 5);
-    const toBullet = (line: string) => `• ${line.replace(/^\-\s*/, '').trim()}`;
-    const plainTermBullets = summaryLines
-      .filter((line) => line.startsWith('- '))
-      .map(toBullet)
-      .slice(0, 4);
-    const quickInsightBullets = summaryLines
-      .filter((line) => line.startsWith('- ') && /insight|drivers|balance|cash movement/i.test(line))
-      .map(toBullet)
-      .filter((line) => !plainTermBullets.includes(line))
-      .slice(0, 2);
-    const isSnapshotLine = (line: string) =>
-      /^Account:/i.test(line) ||
-      /^Statement period:/i.test(line) ||
-      /^Opening balance:/i.test(line) ||
-      /^Total withdrawals:/i.test(line) ||
-      /^Total deposits:/i.test(line) ||
-      /^Net change:/i.test(line);
-    const nonSnapshotLines = summaryLines.filter(
-      (line) =>
-        !isSnapshotLine(line) &&
-        line !== statementHeader &&
-        !/^Categorization status/i.test(line) &&
-        !/^What happened:?$/i.test(line) &&
-        !/^Quick insight:?$/i.test(line),
-    );
-    const fallbackPlainBullets = nonSnapshotLines
-      .filter((line) => line.length > 0)
-      .slice(0, 4)
-      .map((line) => `• ${line.replace(/^\-\s*/, '')}`);
-    const fallbackQuickBullets = nonSnapshotLines
-      .filter((line) => /insight|driver|pattern|trend|balance|cash movement|spend/i.test(line))
-      .slice(0, 2)
-      .map((line) => `• ${line.replace(/^\-\s*/, '')}`);
-    const finalPlainBullets =
-      plainTermBullets.length > 0
-        ? plainTermBullets
-        : fallbackPlainBullets.length > 0
-          ? fallbackPlainBullets
-          : ['• Transactions imported and categorized successfully.'];
-    const finalQuickBullets =
-      quickInsightBullets.length > 0
-        ? quickInsightBullets
-        : fallbackQuickBullets.length > 0
-          ? fallbackQuickBullets
-          : ['• Ask me for top merchants, unusual charges, and category trends for this period.'];
-    const snapshotBullets =
-      snapshotLines.length > 0
-        ? snapshotLines.map((line) => `• ${line}`)
-        : [`• ${statementHeader}`, '• Ask me for top merchants, spending trends, or category totals.'];
-    // Use real transaction breakdown when available
+    // Use real transaction breakdown for narrative summary
     const bd = params.breakdown;
     const fmtAmt = bd ? bd.fmt : (n: number) => n.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const realSnapshotBullets: string[] = bd
-      ? [
-          `• Total spend: $${fmtAmt(bd.totalSpend)}`,
-          bd.totalIncome > 0 ? `• Total income: $${fmtAmt(bd.totalIncome)}` : null,
-          `• Transactions: ${bd.txCount}`,
-        ].filter(Boolean) as string[]
-      : snapshotBullets;
     // Detect all-Uncategorized: >85% of spend is uncategorized
     const totalSpendForCat = bd?.topCategories?.reduce((s, c) => s + c.amt, 0) ?? 0;
     const uncatAmt = bd?.topCategories?.find(c => c.cat === 'Uncategorized')?.amt ?? 0;
@@ -3215,52 +3152,85 @@ export default function UnifiedAssistantChat({
       return !n || n === 'unknown' || /^e-transfer\s*$/i.test(n) || /^interac\s*$/i.test(n);
     };
 
-    // Conversational inline merchant list (max 3, Oxford-comma style)
+    const txNum = params.transactionCount ?? bd?.txCount ?? null;
+
+    // Opening sentence: "$X in, $X out — flat / net gain / down $X"
+    let netSentence: string;
+    if (bd && bd.totalIncome > 0) {
+      const net = bd.totalIncome - bd.totalSpend;
+      const absNet = Math.abs(net);
+      const pct = absNet / bd.totalIncome;
+      const txPart = txNum !== null ? `${txNum} transaction${txNum === 1 ? '' : 's'} — ` : '';
+      if (pct < 0.02) {
+        netSentence = `${txPart}$${fmtAmt(bd.totalIncome)} in, $${fmtAmt(bd.totalSpend)} out — essentially flat.`;
+      } else if (net > 0) {
+        netSentence = `${txPart}$${fmtAmt(bd.totalIncome)} in, $${fmtAmt(bd.totalSpend)} out — a $${fmtAmt(absNet)} net gain.`;
+      } else {
+        netSentence = `${txPart}$${fmtAmt(bd.totalIncome)} in, $${fmtAmt(bd.totalSpend)} out — down $${fmtAmt(absNet)} on the month.`;
+      }
+    } else if (bd) {
+      const txPart = txNum !== null ? `${txNum} transaction${txNum === 1 ? '' : 's'} imported. ` : 'Transactions imported. ';
+      netSentence = `${txPart}$${fmtAmt(bd.totalSpend)} in total spending.`;
+    } else {
+      netSentence = txNum !== null ? `${txNum} transaction${txNum === 1 ? '' : 's'} imported.` : 'Transactions imported.';
+    }
+
+    // Top obligations: biggest payees with running total + % of income
     const cleanMerchants = (bd?.topMerchants ?? [])
       .filter(({ merchant }) => merchant && !isGenericMerchant(merchant))
-      .slice(0, 3);
-    const merchantInline = cleanMerchants.length > 0
-      ? cleanMerchants
-          .map(({ merchant, amt }, i) => {
-            const part = `${merchant} ($${fmtAmt(amt)})`;
-            if (i === cleanMerchants.length - 1 && cleanMerchants.length > 1) return `and ${part}`;
-            return part;
-          })
-          .join(cleanMerchants.length > 2 ? ', ' : ' ')
-      : null;
-
-    // Snapshot sentence — numbers embedded inline
-    const txNum = params.transactionCount ?? bd?.txCount ?? null;
-    const spendSentence = bd
-      ? [
-          txNum !== null ? `${txNum} transaction${txNum === 1 ? '' : 's'} imported.` : 'Transactions imported.',
-          `You spent $${fmtAmt(bd.totalSpend)}`,
-          bd.totalIncome > 0 ? `and received $${fmtAmt(bd.totalIncome)} this statement.` : 'this statement.',
-        ].join(' ')
-      : null;
+      .slice(0, 5);
+    let obligationsSentence: string | null = null;
+    if (cleanMerchants.length >= 2 && bd && bd.totalIncome > 0) {
+      const obligationsTotal = cleanMerchants.reduce((s, { amt }) => s + amt, 0);
+      const pct = Math.round((obligationsTotal / bd.totalIncome) * 100);
+      const lastIdx = cleanMerchants.length - 1;
+      const merchantStr = cleanMerchants
+        .map(({ merchant, amt }, i) => {
+          const part = `${merchant} ($${fmtAmt(amt)})`;
+          if (i === lastIdx && cleanMerchants.length > 1) return `and ${part}`;
+          return part;
+        })
+        .join(cleanMerchants.length > 2 ? ', ' : ' ');
+      const pctPhrase = pct >= 45
+        ? 'nearly half your income'
+        : pct >= 30
+        ? 'about a third of your income'
+        : `${pct}% of your income`;
+      obligationsSentence = `Top payees: ${merchantStr} — $${fmtAmt(obligationsTotal)} total, ${pctPhrase} committed to these payments.`;
+    } else if (cleanMerchants.length > 0) {
+      const lastIdx = cleanMerchants.length - 1;
+      const merchantStr = cleanMerchants
+        .map(({ merchant, amt }, i) => {
+          const part = `${merchant} ($${fmtAmt(amt)})`;
+          if (i === lastIdx && cleanMerchants.length > 1) return `and ${part}`;
+          return part;
+        })
+        .join(cleanMerchants.length > 2 ? ', ' : ' ');
+      obligationsSentence = `Top payees this period: ${merchantStr}.`;
+    }
 
     // Top-category sentence (only when actually categorized)
     const categorizedCats = (bd?.topCategories ?? []).filter(({ cat }) => cat !== 'Uncategorized').slice(0, 3);
     const catSentence = !allUncategorized && categorizedCats.length > 0
-      ? `Top spending: ${categorizedCats.map(({ cat, amt }) => `${cat} ($${fmtAmt(amt)})`).join(', ')}.`
+      ? `Top categories: ${categorizedCats.map(({ cat, amt }) => `${cat} ($${fmtAmt(amt)})`).join(', ')}.`
       : null;
 
-    // Build conversational prose lines (empty string = paragraph break → \n\n after join)
+    // Build narrative prose (empty string = paragraph break)
     const lines = [
-      // Opening: name + snapshot numbers inline
-      `${userLabel ? `${userLabel}, ` : ''}got it${spendSentence ? ` — ${spendSentence}` : '.'}`,
+      // Opening: name + in/out/net
+      `${userLabel ? `${userLabel}, ` : ''}here's your statement${bd ? ` — ${netSentence}` : '.'}`,
 
-      // Categorization status
+      // Top obligations (biggest payees with total + %)
+      ...(obligationsSentence ? ['', obligationsSentence] : []),
+
+      // Categorization status or category breakdown
       '',
       allUncategorized
-        ? "Everything's uncategorized right now. Head to Smart Categories to tag your transactions — once you do, I'll pull a full breakdown by category."
+        ? "Everything's uncategorized right now. Head to Smart Categories to tag your transactions — once you do, I'll break down exactly where the rest went."
         : tagSummary,
 
       // Categories (categorized case only)
       ...(catSentence ? ['', catSentence] : []),
-
-      // Merchants inline
-      ...(merchantInline ? ['', `Top payees this period: ${merchantInline}.`] : []),
 
       // Custom instruction (if any)
       ...(requestedInstruction ? ['', `Note: ${requestedInstruction}.`] : []),
@@ -3268,8 +3238,8 @@ export default function UnifiedAssistantChat({
       // Closing question
       '',
       allUncategorized
-        ? 'What would you like to start with? I can walk you through the top payees, flag any unusual charges, or help set up auto-categorization rules.'
-        : `Ask me about any merchants, unusual charges, or spending trends for this period.`,
+        ? "Anything specific you'd like me to look into — unusual charges, the biggest payees, or anything else?"
+        : "Anything specific you'd like me to dig into?",
     ];
     // Accumulate this document's breakdown into the per-importId map so Prime can discuss
     // each uploaded statement independently in follow-up questions.
