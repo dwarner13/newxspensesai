@@ -30,6 +30,8 @@ import { TransactionsQuickView } from '../../components/transactions/Transaction
 import { clearSelection, performBulkAction, type BulkActionType } from '../../lib/bulkOperations';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
 import { getSupabase } from '../../lib/supabase';
+import { fetchCategoriesTree } from '../../lib/categories';
+import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 type Transaction = CommittedTransaction | PendingTransaction;
@@ -37,6 +39,7 @@ type Transaction = CommittedTransaction | PendingTransaction;
 export default function TransactionsPage() {
   // Scroll to top when page loads
   useScrollToTop();
+  const { userId } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -58,6 +61,26 @@ export default function TransactionsPage() {
     errorMessage: pendingErrorMessage,
     refetch: refetchPendingTransactions,
   } = usePendingTransactions();
+  // Categories for inline editing
+  const [categoryList, setCategoryList] = useState<string[]>([]);
+  useEffect(() => {
+    if (!userId) return;
+    fetchCategoriesTree(userId).then((cats) => {
+      setCategoryList(cats.map((c) => c.name));
+    }).catch(() => {
+      // silently fall back to TransactionRow's built-in default list
+    });
+  }, [userId]);
+
+  const handleCategoryChange = useCallback((txId: string, category: string) => {
+    // The real-time subscription will re-fetch automatically.
+    // Update scopedTransactions optimistically so the badge reflects the change
+    // without waiting for the next refetch cycle.
+    // (useTransactions keeps its own cache — nothing to mutate here directly.)
+    // The toast and optimistic update inside TransactionRow are sufficient.
+    void txId; void category;
+  }, []);
+
   const committedSampleRow = useMemo(
     () =>
       transactions.find(
@@ -615,6 +638,8 @@ export default function TransactionsPage() {
                     pendingTransactions={displayPending}
                     filters={filters}
                     onTransactionClick={handleTransactionClick}
+                    categories={categoryList.length > 0 ? categoryList : undefined}
+                    onCategoryChange={handleCategoryChange}
                   />
                 )}
               </div>

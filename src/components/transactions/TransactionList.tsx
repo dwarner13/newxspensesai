@@ -16,6 +16,8 @@ interface TransactionListProps {
   onApprove?: (pendingId: string) => void;
   onReject?: (pendingId: string) => void;
   onEdit?: (transaction: CommittedTransaction | PendingTransaction, isPending: boolean) => void;
+  categories?: string[];
+  onCategoryChange?: (txId: string, category: string) => void;
 }
 
 export function TransactionList({
@@ -26,6 +28,8 @@ export function TransactionList({
   onApprove,
   onReject,
   onEdit,
+  categories,
+  onCategoryChange,
 }: TransactionListProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
@@ -135,6 +139,8 @@ export function TransactionList({
                   : undefined
               }
               onEdit={() => handleEdit(item)}
+              categories={categories}
+              onCategoryChange={onCategoryChange}
             />
           ))
         )}
