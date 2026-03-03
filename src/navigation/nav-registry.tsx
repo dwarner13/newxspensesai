@@ -78,6 +78,7 @@ const REVAMP_PRIMARY_NAV_ITEMS: NavItem[] = [
   // MY FINANCES
   { label: "Import Operations", to: "/dashboard/smart-import-ai", icon: <Upload className="w-5 h-5" />, group: "MY FINANCES", description: "Monitor imports, processing status, and document health" },
   { label: "Transactions", to: resolveRoute("/dashboard/transactions", ["/dashboard/smart-categories"]), icon: <Receipt className="w-5 h-5" />, group: "MY FINANCES", description: "Track all your transactions" },
+  { label: "Smart Categories", to: "/dashboard/smart-categories", icon: <Tags className="w-5 h-5" />, group: "MY FINANCES", description: "AI-powered expense categorization" },
   { label: "Analytics", to: resolveRoute("/dashboard/analytics", ["/dashboard/analytics-ai"]), icon: <LineChart className="w-5 h-5" />, group: "MY FINANCES", description: "Financial analytics and insights" },
 
   // OPTIMIZE

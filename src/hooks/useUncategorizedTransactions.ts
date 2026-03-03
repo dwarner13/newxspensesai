@@ -19,6 +19,10 @@ export interface UncategorizedTx {
   import_id: string | null;
 }
 
+interface UseUncategorizedOptions {
+  monthRange?: { start: string; end: string };
+}
+
 interface UseUncategorizedResult {
   transactions: UncategorizedTx[];
   totalCount: number;
@@ -28,7 +32,9 @@ interface UseUncategorizedResult {
 
 const PAGE_SIZE = 5;
 
-export function useUncategorizedTransactions(): UseUncategorizedResult {
+export function useUncategorizedTransactions(
+  options?: UseUncategorizedOptions
+): UseUncategorizedResult {
   const { userId } = useAuth();
   const [transactions, setTransactions] = useState<UncategorizedTx[]>([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -36,6 +42,9 @@ export function useUncategorizedTransactions(): UseUncategorizedResult {
   const [tick, setTick] = useState(0);
 
   const refresh = useCallback(() => setTick((t) => t + 1), []);
+
+  const monthStart = options?.monthRange?.start;
+  const monthEnd = options?.monthRange?.end;
 
   useEffect(() => {
     if (!userId) {
@@ -53,23 +62,29 @@ export function useUncategorizedTransactions(): UseUncategorizedResult {
     async function load() {
       setIsLoading(true);
 
-      // Count total uncategorized
-      const { count } = await supabase!
+      // Count total uncategorized (with optional month filter)
+      let countQuery = supabase!
         .from('transactions')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId!)
         .or('category.is.null,category.eq.Uncategorized');
+      if (monthStart) countQuery = countQuery.gte('posted_at', monthStart);
+      if (monthEnd) countQuery = countQuery.lte('posted_at', monthEnd);
+      const { count } = await countQuery;
 
       if (!cancelled) setTotalCount(count ?? 0);
 
-      // Fetch first page
-      const { data } = await supabase!
+      // Fetch first page (with optional month filter)
+      let dataQuery = supabase!
         .from('transactions')
         .select('id, posted_at, date, merchant_name, merchant, amount, import_id')
         .eq('user_id', userId!)
         .or('category.is.null,category.eq.Uncategorized')
         .order('posted_at', { ascending: false })
         .limit(PAGE_SIZE);
+      if (monthStart) dataQuery = dataQuery.gte('posted_at', monthStart);
+      if (monthEnd) dataQuery = dataQuery.lte('posted_at', monthEnd);
+      const { data } = await dataQuery;
 
       if (!cancelled) {
         setTransactions((data as UncategorizedTx[]) || []);
@@ -81,7 +96,7 @@ export function useUncategorizedTransactions(): UseUncategorizedResult {
     return () => {
       cancelled = true;
     };
-  }, [userId, tick]);
+  }, [userId, tick, monthStart, monthEnd]);
 
   return { transactions, totalCount, isLoading, refresh };
 }

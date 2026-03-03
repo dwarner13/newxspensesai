@@ -103,12 +103,14 @@ function formatAmount(amount: number): string {
 interface Props {
   /** User's existing category names — merged with defaults for the dropdown */
   categories?: string[];
+  /** Optional date range from month chip selection */
+  monthRange?: { start: string; end: string };
 }
 
-export function UncategorizedReviewQueue({ categories }: Props) {
+export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
   const navigate = useNavigate();
   const { userId } = useAuth();
-  const { transactions, totalCount, isLoading, refresh } = useUncategorizedTransactions();
+  const { transactions, totalCount, isLoading, refresh } = useUncategorizedTransactions({ monthRange });
 
   // Deduplicate and combine user categories with defaults
   const categoryList = [...new Set([...(categories || []), ...DEFAULT_CATEGORIES])].filter(Boolean);
@@ -426,7 +428,7 @@ export function UncategorizedReviewQueue({ categories }: Props) {
             Showing {Math.min(5, visibleTransactions.length)} of {totalCount}
           </span>
           <button
-            onClick={() => navigate('/dashboard/transactions')}
+            onClick={() => navigate('/dashboard/transactions?status=uncategorized')}
             className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
           >
             Show all

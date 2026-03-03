@@ -8,6 +8,7 @@ import { TagUnifiedCard } from '../../components/workspace/employees/TagUnifiedC
 import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
 import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
 import { UncategorizedReviewQueue } from '../../components/transactions/UncategorizedReviewQueue';
+import { CategoryBreakdownList } from '../../components/transactions/CategoryBreakdownList';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
@@ -245,6 +246,71 @@ const SmartCategoriesPage: React.FC = () => {
       totalIncome,
     };
   }, [categorySummaries]);
+
+  // ── Month filter state ──────────────────────────────────────────────────────
+  // selectedMonth: "2025-01" ISO year-month key, or null = All time
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+
+  // Derive available months from transaction dates (most-recent first)
+  const availableMonths = useMemo(() => {
+    const seen = new Set<string>();
+    const months: Array<{ label: string; value: string }> = [];
+    for (const tx of transactions) {
+      const raw = tx.date || '';
+      if (!raw) continue;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        months.push({
+          value: key,
+          label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        });
+      }
+    }
+    return months;
+  }, [transactions]);
+
+  // Month range from selectedMonth key → ISO date strings for Supabase queries
+  const monthRange = useMemo(() => {
+    if (!selectedMonth) return undefined;
+    const [y, m] = selectedMonth.split('-').map(Number);
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 0, 23, 59, 59, 999); // last ms of month
+    return {
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10),
+    };
+  }, [selectedMonth]);
+
+  // Transactions filtered by selectedMonth
+  const monthFilteredTransactions = useMemo(() => {
+    if (!selectedMonth) return transactions;
+    return transactions.filter((tx) => {
+      const raw = tx.date || '';
+      if (!raw) return false;
+      const d = new Date(raw);
+      if (isNaN(d.getTime())) return false;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      return key === selectedMonth;
+    });
+  }, [transactions, selectedMonth]);
+
+  // Category spending breakdown for the selected month (expenses only, sorted desc)
+  const breakdownEntries = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const tx of monthFilteredTransactions) {
+      const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
+      if (amt >= 0) continue; // expenses only (negative amounts)
+      const cat = tx.category || 'Uncategorized';
+      map.set(cat, (map.get(cat) || 0) + Math.abs(amt));
+    }
+    return [...map.entries()]
+      .map(([category, amount]) => ({ category, amount }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [monthFilteredTransactions]);
+  // ────────────────────────────────────────────────────────────────────────────
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -511,9 +577,19 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
             />
         }
         between={
-          <UncategorizedReviewQueue
-            categories={categorySummaries.map((s) => s.category)}
-          />
+          <div className="space-y-4">
+            <CategoryBreakdownList
+              entries={breakdownEntries}
+              availableMonths={availableMonths}
+              selectedMonth={selectedMonth}
+              onSelectMonth={setSelectedMonth}
+              isLoading={isLoading}
+            />
+            <UncategorizedReviewQueue
+              categories={categorySummaries.map((s) => s.category)}
+              monthRange={monthRange}
+            />
+          </div>
         }
         right={<ActivityFeedSidebar scope="smart-categories" />}
       />

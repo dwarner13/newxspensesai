@@ -47,6 +47,8 @@ export default function TransactionsPage() {
   const [searchParams] = useSearchParams();
   const importIdFilter = String(searchParams.get('importId') || '').trim();
   const isStatementView = importIdFilter.length > 0;
+  const categoryFilter = String(searchParams.get('category') || '').trim();
+  const statusFilter = String(searchParams.get('status') || '').trim();
   
   // Import list for MonthNavigator
   const { imports: importList, isLoading: importListLoading } = useImportList();
@@ -365,6 +367,40 @@ export default function TransactionsPage() {
   // Use search results if available, otherwise use all transactions
   const displayTransactions = searchResults ? filteredSearchCommitted : scopedTransactions;
   const displayPending = searchResults ? filteredSearchPending : scopedPendingTransactions;
+
+  // URL-param filters: ?category=X and ?status=uncategorized
+  const urlFilteredCommitted = useMemo(() => {
+    let result = displayTransactions;
+    if (categoryFilter) {
+      result = result.filter(
+        (tx) => (tx.category || '').toLowerCase() === categoryFilter.toLowerCase()
+      );
+    }
+    if (statusFilter === 'uncategorized') {
+      result = result.filter(
+        (tx) => !tx.category || tx.category === 'Uncategorized'
+      );
+    }
+    return result;
+  }, [displayTransactions, categoryFilter, statusFilter]);
+
+  const urlFilteredPending = useMemo(() => {
+    // Pending transactions don't have category yet — only apply status filter
+    if (statusFilter === 'uncategorized') return displayPending;
+    return displayPending;
+  }, [displayPending, statusFilter]);
+
+  const clearCategoryFilter = useCallback(() => {
+    const params = new URLSearchParams(location.search);
+    params.delete('category');
+    navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : '' });
+  }, [location.pathname, location.search, navigate]);
+
+  const clearStatusFilter = useCallback(() => {
+    const params = new URLSearchParams(location.search);
+    params.delete('status');
+    navigate({ pathname: location.pathname, search: params.toString() ? `?${params.toString()}` : '' });
+  }, [location.pathname, location.search, navigate]);
   const showCommittedNotLinkableNote = useMemo(() => {
     if (!isStatementView || hasCommittedImportIdField || transactions.length === 0) {
       return false;
@@ -748,6 +784,13 @@ export default function TransactionsPage() {
                     <span className="rounded-md border border-slate-700 px-2 py-1">All transactions</span>
                     <span className="rounded-md border border-slate-700 px-2 py-1">Sort newest</span>
                     <span className="rounded-md border border-slate-700 px-2 py-1">Filters</span>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/dashboard/smart-categories')}
+                      className="flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-400 hover:border-violet-500/50 hover:text-violet-300 transition-colors"
+                    >
+                      Smart Categories ↗
+                    </button>
                   </div>
                 </div>
               </div>
@@ -768,6 +811,36 @@ export default function TransactionsPage() {
                     type="button"
                     onClick={clearImportFilter}
                     className="shrink-0 rounded-md border border-cyan-300/40 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-400/20 transition-colors"
+                  >
+                    Clear filter
+                  </button>
+                </div>
+              )}
+              {categoryFilter && (
+                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
+                  <div className="min-w-0 truncate">
+                    Category: <span className="font-semibold">{categoryFilter}</span>
+                    {‘ ‘}({urlFilteredCommitted.length} records)
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearCategoryFilter}
+                    className="shrink-0 rounded-md border border-violet-300/40 px-2 py-1 text-[11px] text-violet-100 hover:bg-violet-400/20 transition-colors"
+                  >
+                    Clear filter
+                  </button>
+                </div>
+              )}
+              {statusFilter === ‘uncategorized’ && (
+                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                  <div className="min-w-0 truncate">
+                    Showing <span className="font-semibold">uncategorized</span> transactions
+                    {‘ ‘}({urlFilteredCommitted.length} records)
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearStatusFilter}
+                    className="shrink-0 rounded-md border border-amber-300/40 px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-400/20 transition-colors"
                   >
                     Clear filter
                   </button>
@@ -806,8 +879,8 @@ export default function TransactionsPage() {
                   </div>
                 ) : (
                   <TransactionList
-                    transactions={displayTransactions}
-                    pendingTransactions={displayPending}
+                    transactions={urlFilteredCommitted}
+                    pendingTransactions={urlFilteredPending}
                     filters={filters}
                     onTransactionClick={handleTransactionClick}
                     onApprove={(id) => { void handleApprove(id); }}
