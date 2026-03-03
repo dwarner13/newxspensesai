@@ -1,27 +1,24 @@
 /**
- * Desktop Sidebar Component
- * Uses NAV_ITEMS from nav-registry.tsx as single source of truth
- * Supports collapsed/expanded states with tooltips
+ * Desktop Sidebar
+ * Uses NAV_ITEMS from nav-registry.tsx as single source of truth.
+ * Supports collapsed/expanded with tooltips.
+ *
+ * Special behaviours:
+ * - PRIME group renders without a section label and uses violet accent styling
+ * - "Upload statement" quick-action appears below Prime when expanded
+ * - 'new' badge → violet chip    'soon' badge → grey chip
  */
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, NavLink } from 'react-router-dom';
 import NAV_ITEMS from '../../navigation/nav-registry';
+import type { NavItem } from '../../navigation/nav-registry';
 import { isActivePath } from '../../navigation/is-active';
 import { EMPLOYEES } from '../../data/aiEmployees';
-
-type NavItem = {
-  label: string;
-  to: string;
-  icon: React.ReactElement;
-  group: string;
-  description?: string;
-};
 import { ScrollArea } from '../ui/scroll-area';
 import { Separator } from '../ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import Logo from '../common/Logo';
+import { ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import { PrimeLogoBadge } from '../branding/PrimeLogoBadge';
 import clsx from 'clsx';
 import { useAccountCenterPanel } from '../settings/AccountCenterPanel';
@@ -34,257 +31,247 @@ interface DesktopSidebarProps {
   onToggleCollapse?: (collapsed: boolean) => void;
 }
 
-// Map routes to AI employees
-const getAIEmployeeForRoute = (route: string) => {
-  const routeToEmployee: Record<string, string> = {
-    '/dashboard': 'prime',
-    '/dashboard/prime-chat': 'prime',
-    '/dashboard/chat-history': 'prime',
-    '/dashboard/smart-import-ai': 'byte',
-    '/dashboard/ai-chat-assistant': 'finley',
-    '/dashboard/ai-financial-assistant': 'finley',
-    '/dashboard/smart-categories': 'tag',
-    '/dashboard/analytics-ai': 'dash',
-    '/dashboard/transactions': 'byte',
-    '/dashboard/goal-concierge': 'goalie',
-    '/dashboard/smart-automation': 'automa',
-    '/dashboard/spending-predictions': 'crystal',
-    '/dashboard/debt-payoff-planner': 'liberty',
-    '/dashboard/ai-financial-freedom': 'liberty',
-    '/dashboard/bill-reminders': 'chime',
-    '/dashboard/personal-podcast': 'roundtable',
-    '/dashboard/financial-story': 'roundtable',
-    '/dashboard/financial-therapist': 'harmony',
-    '/dashboard/wellness-studio': 'harmony',
-    '/dashboard/spotify': 'wave',
-    '/dashboard/tax-assistant': 'ledger',
-    '/dashboard/business-intelligence': 'intelia',
-    '/dashboard/analytics': 'dash',
-    '/dashboard/settings': 'prime',
-    '/dashboard/custodian': 'custodian',
-    '/dashboard/reports': 'prism'
+// Route → AI employee key (for the micro-badge on each nav item)
+const getAIEmployeeForRoute = (route: string): string => {
+  const map: Record<string, string> = {
+    '/dashboard':                    'prime',
+    '/dashboard/prime-chat':         'prime',
+    '/dashboard/transactions':       'byte',
+    '/dashboard/bank-accounts':      'prime',
+    '/dashboard/smart-categories':   'tag',
+    '/dashboard/analytics-ai':       'dash',
+    '/dashboard/analytics':          'dash',
+    '/dashboard/reports':            'prism',
+    '/dashboard/goal-concierge':     'goalie',
+    '/dashboard/bill-reminders':     'chime',
+    '/dashboard/personal-podcast':   'roundtable',
+    '/dashboard/tax-assistant':      'ledger',
+    '/dashboard/settings':           'prime',
   };
-  
-  return routeToEmployee[route] || 'prime';
+  return map[route] || 'prime';
 };
 
-export default function DesktopSidebar({ 
-  collapsed = false, 
-  onToggleCollapse 
+export default function DesktopSidebar({
+  collapsed = false,
+  onToggleCollapse,
 }: DesktopSidebarProps) {
   const location = useLocation();
   const [internalCollapsed, setInternalCollapsed] = useState(collapsed);
   const { openPanel } = useAccountCenterPanel();
   const profile = useProfile();
   const primeState = usePrimeState();
-  
-  // Track warned feature keys to avoid spam
   const warnedKeysRef = useRef<Set<string>>(new Set());
 
-  // Use external collapsed state if provided, otherwise use internal
   const isCollapsed = onToggleCollapse ? collapsed : internalCollapsed;
   const setCollapsed = onToggleCollapse ? onToggleCollapse : setInternalCollapsed;
 
-  // Load collapsed state from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem('sidebar:collapsed');
-    if (saved !== null) {
-      const collapsedState = saved === 'true';
-      setCollapsed(collapsedState);
-    }
+    if (saved !== null) setCollapsed(saved === 'true');
   }, [setCollapsed]);
 
-  // Save collapsed state to localStorage
   useEffect(() => {
     localStorage.setItem('sidebar:collapsed', isCollapsed.toString());
   }, [isCollapsed]);
 
-  // Only show sidebar on dashboard routes
-  if (!location.pathname.startsWith('/dashboard')) {
-    return null;
-  }
+  if (!location.pathname.startsWith('/dashboard')) return null;
 
-  // Filter items by Prime visibility map (fail-open: show all if Prime state unavailable)
+  // Feature-visibility filter (fail-open)
   const visibleItems = NAV_ITEMS.filter((item) => {
     const featureKey = getFeatureKeyForRoute(item.to);
-    
-    // If no feature key mapping, show item (fail-open)
     if (!featureKey) {
       if (import.meta.env.DEV && !warnedKeysRef.current.has(item.to)) {
-        console.warn(
-          `[DesktopSidebar] Nav item "${item.label}" (${item.to}) has no FeatureKey mapping. ` +
-          `Add it to ROUTE_TO_FEATURE_KEY in navigation/feature-keys.ts`
-        );
+        console.warn(`[DesktopSidebar] "${item.label}" (${item.to}) has no FeatureKey mapping.`);
         warnedKeysRef.current.add(item.to);
       }
-      return true; // Fail-open: show item if no mapping
-    }
-    
-    // If Prime state unavailable, show item (fail-open)
-    if (!primeState) {
       return true;
     }
-    
-    // Check visibility from Prime state
-    const visibility = primeState.featureVisibilityMap[featureKey];
-    const visible = visibility?.visible ?? true; // Fail-open: default visible
-    
-    // Dev warning if Prime map missing key
-    if (import.meta.env.DEV && visibility === undefined && !warnedKeysRef.current.has(featureKey)) {
-      console.warn(
-        `[DesktopSidebar] FeatureKey "${featureKey}" not found in Prime featureVisibilityMap. ` +
-        `Add it to buildFeatureVisibilityMap() in netlify/functions/prime-state.ts`
-      );
-      warnedKeysRef.current.add(featureKey);
-    }
-    
-    return visible;
+    if (!primeState) return true;
+    return primeState.featureVisibilityMap[featureKey]?.visible ?? true;
   });
-  
-  // Group filtered items by their group property
+
+  // Group items preserving insertion order
   const groups = Object.entries(
     visibleItems.reduce((acc, item) => {
-      const group = item.group ?? 'GENERAL';
-      if (!acc[group]) {
-        acc[group] = [];
-      }
-      acc[group].push(item);
+      const g = item.group ?? 'GENERAL';
+      if (!acc[g]) acc[g] = [];
+      acc[g].push(item);
       return acc;
     }, {} as Record<string, NavItem[]>)
   );
 
-  const handleToggleCollapse = () => {
-    const newCollapsed = !isCollapsed;
-    setCollapsed(newCollapsed);
-  };
+  const handleToggleCollapse = () => setCollapsed(!isCollapsed);
 
   return (
     <aside
       data-testid="desktop-sidebar"
       className={clsx(
-        "hidden md:flex flex-col border-r border-zinc-800 bg-zinc-950/40 backdrop-blur transition-all duration-300 h-screen relative z-[100]",
-        isCollapsed ? "w-[68px]" : "w-56"
+        'hidden md:flex flex-col border-r border-zinc-800 bg-zinc-950/40 backdrop-blur transition-all duration-300 h-screen relative z-[100]',
+        isCollapsed ? 'w-[68px]' : 'w-56'
       )}
-      style={{ pointerEvents: 'auto', position: 'relative' }}
     >
-      {/* Header with Logo and Toggle Button */}
+      {/* ── Header ── */}
       <div className="h-14 flex items-center justify-between px-3 border-b border-zinc-800">
         {isCollapsed ? (
           <div className="flex items-center justify-center flex-1">
-            <PrimeLogoBadge size={32} showGlow={true} />
+            <PrimeLogoBadge size={32} showGlow />
           </div>
         ) : (
           <div className="flex items-center gap-2 px-4 pt-4 pb-3 flex-1">
-            <PrimeLogoBadge size={32} showGlow={true} />
-            <span className="font-bold tracking-wide text-sm text-slate-50">
-              XspensesAI
-            </span>
+            <PrimeLogoBadge size={32} showGlow />
+            <span className="font-bold tracking-wide text-sm text-slate-50">XspensesAI</span>
           </div>
         )}
-        
         <button
           onClick={handleToggleCollapse}
           className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-all duration-200"
-          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
         </button>
       </div>
 
-      <ScrollArea className="flex-1 overflow-y-auto" style={{ pointerEvents: 'auto' }}>
-        <div className="py-2" style={{ pointerEvents: 'auto' }}>
-          {groups.map(([groupName, groupItems], groupIndex) => (
-            <div key={groupName}>
-              {!isCollapsed && (
-                <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wide text-zinc-500 font-semibold">
-                  {groupName}
-                </div>
-              )}
-              <div className="px-2 space-y-1">
-                {groupItems.map((item) => {
-                  const active = isActivePath(location.pathname, item.to);
-                  const employeeKey = getAIEmployeeForRoute(item.to);
-                  const employee = EMPLOYEES.find(emp => emp.key === employeeKey);
-                  
-                  // Check if item is enabled (fail-open: default enabled)
-                  const featureKey = getFeatureKeyForRoute(item.to);
-                  const visibility = featureKey && primeState?.featureVisibilityMap[featureKey];
-                  const enabled = visibility?.enabled ?? true;
-                  
-                  const NavLinkContent = (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      onClick={(e) => {
-                        // Prevent navigation if disabled
-                        if (!enabled) {
-                          e.preventDefault();
-                          if (import.meta.env.DEV) {
-                            console.warn(`[DesktopSidebar] Feature "${featureKey}" is disabled. Reason: ${visibility?.reason || 'Unknown'}`);
-                          }
-                        }
-                      }}
-                      className={({ isActive }) => clsx(
-                        "w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 group relative",
-                        enabled ? "hover:bg-zinc-900/60 active:scale-95 cursor-pointer" : "cursor-not-allowed opacity-50",
-                        (isActive || active)
-                          ? "bg-zinc-900 text-white" 
-                          : "text-zinc-300 hover:text-white"
-                      )}
-                      style={{ pointerEvents: 'auto', position: 'relative', zIndex: 101 }}
-                    >
-                      <span className="w-5 h-5 shrink-0 relative pointer-events-none">
-                        {item.icon}
-                        {/* AI Employee Badge */}
-                        {employee && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xs opacity-80 group-hover:opacity-100 transition-opacity pointer-events-none">
-                            {employee.emoji}
-                          </div>
-                        )}
-                      </span>
-                      {!isCollapsed && (
-                        <span className="truncate font-medium pointer-events-none">{item.label}</span>
-                      )}
-                    </NavLink>
-                  );
+      {/* ── Nav items ── */}
+      <ScrollArea className="flex-1 overflow-y-auto">
+        <div className="py-2">
+          {groups.map(([groupName, groupItems], groupIndex) => {
+            const isPrimeGroup = groupName === 'PRIME';
 
-                  return isCollapsed ? (
-                    <TooltipProvider key={item.to}>
-                      <Tooltip delayDuration={150}>
-                        <TooltipTrigger asChild>
-                          {NavLinkContent}
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="text-xs">
-                          {item.label}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  ) : (
-                    NavLinkContent
-                  );
-                })}
-              </div>
-              {groupIndex < groups.length - 1 && (
-                <div className="my-2">
-                  <Separator className="bg-zinc-900/60" />
+            return (
+              <div key={groupName}>
+                {/* Section label — hidden for PRIME group */}
+                {!isCollapsed && !isPrimeGroup && (
+                  <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wide text-zinc-500 font-semibold">
+                    {groupName}
+                  </div>
+                )}
+
+                <div className="px-2 space-y-0.5">
+                  {groupItems.map((item) => {
+                    const active = isActivePath(location.pathname, item.to);
+                    const employeeKey = getAIEmployeeForRoute(item.to);
+                    const employee = EMPLOYEES.find((e) => e.key === employeeKey);
+                    const featureKey = getFeatureKeyForRoute(item.to);
+                    const visibility = featureKey && primeState?.featureVisibilityMap[featureKey];
+                    const enabled = visibility?.enabled ?? true;
+
+                    const navLinkContent = (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        onClick={(e) => {
+                          if (!enabled) {
+                            e.preventDefault();
+                          }
+                        }}
+                        className={({ isActive }) => {
+                          const isCurrentActive = isActive || active;
+                          if (isPrimeGroup) {
+                            return clsx(
+                              'w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200 group relative border',
+                              isCurrentActive
+                                ? 'bg-violet-500/15 border-violet-500/40 text-violet-200'
+                                : 'border-violet-500/20 text-violet-300 hover:bg-violet-500/10 hover:border-violet-500/35 hover:text-violet-200',
+                              !enabled && 'cursor-not-allowed opacity-50'
+                            );
+                          }
+                          return clsx(
+                            'w-full flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-all duration-200 group relative',
+                            enabled
+                              ? 'hover:bg-zinc-900/60 active:scale-95 cursor-pointer'
+                              : 'cursor-not-allowed opacity-50',
+                            isCurrentActive
+                              ? 'bg-zinc-900 text-white'
+                              : 'text-zinc-300 hover:text-white'
+                          );
+                        }}
+                        style={{ pointerEvents: 'auto', position: 'relative', zIndex: 101 }}
+                      >
+                        {/* Icon + employee micro-badge */}
+                        <span className="w-5 h-5 shrink-0 relative pointer-events-none">
+                          {item.icon}
+                          {employee && !isPrimeGroup && (
+                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-xs opacity-80 group-hover:opacity-100 transition-opacity pointer-events-none">
+                              {employee.emoji}
+                            </div>
+                          )}
+                        </span>
+
+                        {/* Label + badge */}
+                        {!isCollapsed && (
+                          <>
+                            <span className="truncate font-medium pointer-events-none flex-1">
+                              {item.label}
+                            </span>
+                            {item.badge === 'new' && (
+                              <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 tracking-wide uppercase">
+                                New
+                              </span>
+                            )}
+                            {item.badge === 'soon' && (
+                              <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-zinc-800 text-zinc-500 border border-zinc-700 tracking-wide uppercase">
+                                Soon
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </NavLink>
+                    );
+
+                    return isCollapsed ? (
+                      <TooltipProvider key={item.to}>
+                        <Tooltip delayDuration={150}>
+                          <TooltipTrigger asChild>{navLinkContent}</TooltipTrigger>
+                          <TooltipContent side="right" className="text-xs">
+                            <span>{item.label}</span>
+                            {item.badge && (
+                              <span className="ml-1.5 opacity-60 capitalize">({item.badge})</span>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    ) : (
+                      navLinkContent
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-          ))}
+
+                {/* Import quick-action — appears below Prime when expanded */}
+                {isPrimeGroup && !isCollapsed && (
+                  <div className="px-2 pt-1 pb-2">
+                    <NavLink
+                      to="/dashboard/smart-import-ai"
+                      className={({ isActive }) =>
+                        clsx(
+                          'flex items-center gap-2 w-full px-3 py-1.5 rounded-lg text-xs font-medium transition-all border border-dashed',
+                          isActive
+                            ? 'border-violet-500/50 text-violet-300 bg-violet-500/5'
+                            : 'border-zinc-700 text-zinc-500 hover:border-violet-500/30 hover:text-violet-400'
+                        )
+                      }
+                    >
+                      <Upload className="w-3.5 h-3.5 shrink-0" />
+                      Upload statement
+                    </NavLink>
+                  </div>
+                )}
+
+                {groupIndex < groups.length - 1 && (
+                  <div className="my-2">
+                    <Separator className="bg-zinc-900/60" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </ScrollArea>
 
-      {/* Footer with Identity Card */}
+      {/* ── Footer: identity card ── */}
       <div className="border-t border-zinc-800 p-3">
         {isCollapsed ? (
           <button
             onClick={() => openPanel('account')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                openPanel('account');
-              }
-            }}
             className="flex justify-center w-full p-2 rounded-lg hover:bg-zinc-800/50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50"
             aria-label="Open Account Center"
           >
@@ -295,16 +282,10 @@ export default function DesktopSidebar({
         ) : (
           <button
             onClick={() => openPanel('account')}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                openPanel('account');
-              }
-            }}
             className="w-full p-3 rounded-xl border border-white/10 bg-gradient-to-br from-white/5 via-white/3 to-transparent backdrop-blur-sm hover:from-white/10 hover:via-white/5 hover:border-white/20 transition-all duration-200 hover:shadow-lg hover:shadow-purple-500/10 cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500/50 group"
             aria-label="Open Account Center"
           >
-              <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center ring-2 ring-white/10 group-hover:ring-white/20 transition-all">
                 {profile.avatarUrl ? (
                   <img src={profile.avatarUrl} alt={profile.displayName} className="w-full h-full rounded-full object-cover" />

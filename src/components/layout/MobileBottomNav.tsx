@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Home, Upload, Mic, Bot, Settings, Bell, MessageCircle } from 'lucide-react';
+import { Crown, Receipt, Tags, Mic, Settings } from 'lucide-react';
 import { EMPLOYEES } from '../../data/aiEmployees';
 // Legacy ByteDocumentChat removed - now using unified chat
 // import { ByteDocumentChat } from '../chat/_legacy/ByteDocumentChat';
@@ -100,17 +100,17 @@ export default function MobileBottomNav({
   };
 
   const navItems = [
-    { icon: Home, label: "Dashboard", to: "/dashboard" },
-    { icon: Upload, label: "Import", to: "/dashboard/smart-import-ai", isByteChat: true },
-    { icon: Mic, label: "Podcast", to: "/dashboard/podcast" },
-    { 
-      icon: MessageCircle, 
-      label: currentEmployee ? currentEmployee.name : "AI Chat", 
+    {
+      icon: Crown,
+      label: "Prime",
       to: "/dashboard/prime-chat",
+      isChatbot: true,
       employee: currentEmployee,
-      isChatbot: true
     },
-    { icon: Bell, label: "Alerts", to: "/dashboard/settings" }
+    { icon: Receipt, label: "Money", to: "/dashboard/transactions" },
+    { icon: Tags, label: "Categories", to: "/dashboard/smart-categories" },
+    { icon: Mic, label: "Recap", to: "/dashboard/personal-podcast" },
+    { icon: Settings, label: "Settings", to: "/dashboard/settings" },
   ];
 
   return (
