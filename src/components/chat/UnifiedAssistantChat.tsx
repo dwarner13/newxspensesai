@@ -10,7 +10,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, Send, User, ArrowRight, X, Upload, TrendingUp, MessageCircle, UploadCloud, Maximize2, Minimize2 } from 'lucide-react';
+import { Loader2, Send, User, ArrowRight, X, Upload, TrendingUp, MessageCircle, UploadCloud, Maximize2, Minimize2, Receipt, Tags } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 // Migration: Using unified chat engine instead of useStreamChat
 import { useUnifiedChatEngine } from '../../hooks/useUnifiedChatEngine';
@@ -2008,7 +2008,8 @@ export default function UnifiedAssistantChat({
       const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
       const nearBottom = distanceFromBottom < NEAR_BOTTOM_PX;
       const shouldHardPinToBottom =
-        isUploadingAttachments || isPrimeSummaryPending || isAssistantReplyPending || isStreaming;
+        isUploadingAttachments || isPrimeSummaryPending || isAssistantReplyPending || isStreaming ||
+        Date.now() < forceAutoPinUntilRef.current;
       if (shouldHardPinToBottom && !nearBottom) {
         autoPinToBottomRef.current = true;
         userScrolledUpRef.current = false;
@@ -2093,12 +2094,13 @@ export default function UnifiedAssistantChat({
     const lastChild = contentEl.lastElementChild as Element | null;
 
     const observer = new ResizeObserver(() => {
+      const forcePin = Date.now() < forceAutoPinUntilRef.current;
       const shouldStick =
         userJustSentRef.current ||
         (isStreaming && userIsNearBottomRef.current) ||
-        Date.now() < forceAutoPinUntilRef.current;
+        forcePin;
 
-      if (!shouldStick || userScrolledUpRef.current) return;
+      if (!shouldStick || (userScrolledUpRef.current && !forcePin)) return;
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           scrollToBottom('auto');
@@ -6967,20 +6969,27 @@ export default function UnifiedAssistantChat({
                                                 to: shouldRewriteReviewTransactions ? reviewTransactionsTo : rawTo,
                                               };
                                             });
-                                            return ctas.map((cta: any) => (
-                                              <button
-                                                key={`${message.id}-${String(cta?.to || cta?.label || '')}`}
-                                                type="button"
-                                                className="px-3 py-1.5 rounded-md bg-emerald-600/80 hover:bg-emerald-600 text-white transition-colors"
-                                                onClick={() => {
-                                                  const to = typeof cta?.to === 'string' ? cta.to : '';
-                                                  if (!to) return;
-                                                  navigate(to);
-                                                }}
-                                              >
-                                                {typeof cta?.label === 'string' ? cta.label : 'Open'}
-                                              </button>
-                                            ));
+                                            return ctas.map((cta: any) => {
+                                              const label = typeof cta?.label === 'string' ? cta.label : 'Open';
+                                              const to = typeof cta?.to === 'string' ? cta.to : '';
+                                              const isTransactions = label.toLowerCase().includes('transaction');
+                                              const CtaIcon = isTransactions ? Receipt : Tags;
+                                              return (
+                                                <button
+                                                  key={`${message.id}-${String(to || label)}`}
+                                                  type="button"
+                                                  className="flex items-center gap-2 px-3 py-2 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 hover:border-violet-500/50 text-violet-200 text-xs font-medium transition-all duration-150 group"
+                                                  onClick={() => {
+                                                    if (!to) return;
+                                                    navigate(to);
+                                                  }}
+                                                >
+                                                  <CtaIcon className="w-3.5 h-3.5 shrink-0 opacity-70 group-hover:opacity-100" />
+                                                  <span>{label}</span>
+                                                  <ArrowRight className="w-3 h-3 shrink-0 opacity-40 group-hover:opacity-80 group-hover:translate-x-0.5 transition-transform" />
+                                                </button>
+                                              );
+                                            });
                                           })()}
                                         </div>
                                       )}

@@ -831,7 +831,7 @@ export default function TransactionsPage() {
                 <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-100">
                   <div className="min-w-0 truncate">
                     Category: <span className="font-semibold">{categoryFilter}</span>
-                    {‘ ‘}({urlFilteredCommitted.length} records)
+                    {' '}({urlFilteredCommitted.length} records)
                   </div>
                   <button
                     type="button"
@@ -842,11 +842,11 @@ export default function TransactionsPage() {
                   </button>
                 </div>
               )}
-              {statusFilter === ‘uncategorized’ && (
+              {statusFilter === 'uncategorized' && (
                 <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
                   <div className="min-w-0 truncate">
                     Showing <span className="font-semibold">uncategorized</span> transactions
-                    {‘ ‘}({urlFilteredCommitted.length} records)
+                    {' '}({urlFilteredCommitted.length} records)
                   </div>
                   <button
                     type="button"
@@ -859,7 +859,7 @@ export default function TransactionsPage() {
               )}
               {showCommittedNotLinkableNote && (
                 <div className="mx-4 mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-                  Committed transactions can’t be linked to this import in this environment yet. Showing pending only.
+                  Committed transactions can't be linked to this import in this environment yet. Showing pending only.
                 </div>
               )}
 
