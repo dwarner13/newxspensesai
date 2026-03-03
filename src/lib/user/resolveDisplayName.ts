@@ -23,11 +23,14 @@ export interface ResolvedName {
 /**
  * Extract first name from display name
  * Returns first token if displayName exists, else null
+ * Capitalizes the first letter so DB values like "darrell" render as "Darrell"
  */
 function extractFirstName(displayName: string | null): string | null {
   if (!displayName || !displayName.trim()) return null;
   const tokens = displayName.trim().split(/\s+/);
-  return tokens[0] || null;
+  const first = tokens[0] || null;
+  if (!first) return null;
+  return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
 /**
