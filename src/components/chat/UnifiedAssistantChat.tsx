@@ -2760,8 +2760,9 @@ export default function UnifiedAssistantChat({
     s = s.replace(/^(?:debit\s+card\s+purchase|point\s+of\s+sale(?:\s+purchase)?)[,\s-]+/i, '');
     s = s.replace(/^pre-?authorized\s+payment\s+no\s+fee[,\s]+/i, '');
     s = s.replace(/^pre-?authorized\s+(?:debit|credit|payment)[,\s]+/i, '');
-    s = s.replace(/^interac\s+e[- ]?transfer\s+(?:sent|received)[,\s]+/i, 'e-Transfer ');
+    s = s.replace(/^interac\s+e[- ]?transfer\s+(?:sent|received)(?:[,\s]+|$)/i, 'e-Transfer ');
     s = s.replace(/^bill\s+payment[-\s,]+/i, '');
+    s = s.replace(/^online\s+bill\s+payment[,\s-]*/i, '');
     s = s.replace(/^online\s+(?:transfer|payment|banking)[,\s-]+/i, '');
     s = s.replace(/^atm\s+(?:withdrawal|deposit)[,\s-]+/i, '');
     s = s.replace(/^direct\s+deposit[,\s-]+/i, '');
@@ -2769,14 +2770,17 @@ export default function UnifiedAssistantChat({
     // Strip BMO-specific prefixes like "IND ", "B/M "
     s = s.replace(/^ind\s+/i, '');
     s = s.replace(/^b\/m\s+/i, '');
-    // BMO semantic codes → human-readable names (must run before generic stripping)
-    s = s.replace(/^PAYT\/PAY\s+MTG\/HYP$/i, 'Mortgage Payment');
-    // Strip BMO trailing codes like "MSP/DIV", "PAYT/PAY", "MTG/HYP", "MSP" at end
-    // Also handle standalone cases (e.g. "B/M " prefix already stripped → just "PAYT/PAY" left)
-    s = s.replace(/(?:^|\s+)MTG\/HYP$/i, '');
-    s = s.replace(/(?:^|\s+)MSP\/DIV$/i, '');
-    s = s.replace(/(?:^|\s+)PAYT\/PAY$/i, '');
-    s = s.replace(/(?:^|\s+)MSP$/i, '');
+    // BMO semantic codes → human-readable names (run BEFORE generic stripping)
+    // PAYT/PAY alone or with MTG/HYP = Mortgage Payment
+    if (/^PAYT\/PAY(\s+MTG\/HYP)?$/i.test(s.trim())) {
+      s = 'Mortgage Payment';
+    } else {
+      // Strip trailing payment / dividend codes
+      s = s.replace(/\s+PAYT\/PAY(\s+MTG\/HYP)?$/i, '');
+      s = s.replace(/\s+MTG\/HYP$/i, '');
+      s = s.replace(/\s+MSP\/DIV$/i, '');
+      s = s.replace(/\s+MSP$/i, '');
+    }
     // Strip store numbers and corporate suffixes
     s = s.replace(/\s+#\d+\S*$/, '');
     s = s.replace(/\s+\d{5,}$/, '');
@@ -3164,7 +3168,12 @@ export default function UnifiedAssistantChat({
 
     const isGenericMerchant = (name: string) => {
       const n = name.trim().toLowerCase();
-      return !n || n === 'unknown' || /^e-transfer\s*$/i.test(n) || /^interac\s*$/i.test(n);
+      return (
+        !n || n === 'unknown' ||
+        /^e-transfer\s*$/i.test(n) ||
+        /^interac\s*$/i.test(n) ||
+        /^interac\s+e[- ]?transfer/i.test(n)  // "INTERAC e-Transfer Sent" etc
+      );
     };
 
     const txNum = params.transactionCount ?? bd?.txCount ?? null;
