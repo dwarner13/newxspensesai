@@ -14,13 +14,32 @@
  *   chat          — largest file (426KB), 10-30s cold start without pre-warm
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Fix: root package.json has "type":"module" but netlify dev generates CJS shim
+// files (.js) in .netlify/functions-serve/. Without this override, Node treats
+// the CJS shims as ESM and throws "module is not defined in ES module scope".
+const fnServeDir = path.join(__dirname, '..', '.netlify', 'functions-serve');
+const fnServePkg = path.join(fnServeDir, 'package.json');
+try {
+  fs.mkdirSync(fnServeDir, { recursive: true });
+  fs.writeFileSync(fnServePkg, '{"type":"commonjs"}\n', { flag: 'w' });
+} catch {
+  // Non-fatal — dev server will still start, just might have module errors
+}
+
 const BASE = 'http://localhost:8888';
-const MAX_WAIT_MS = 180_000;
+const MAX_WAIT_MS = 45_000;
 const POLL_INTERVAL_MS = 2000;
 
 async function waitForServer() {
   const start = Date.now();
   process.stdout.write('[prewarm] Waiting for dev server on :8888');
+  let lastLogAt = 0;
   while (Date.now() - start < MAX_WAIT_MS) {
     try {
       // Ping an actual function endpoint — the SPA catch-all proxy can hang on HEAD /
@@ -41,7 +60,11 @@ async function waitForServer() {
         process.stdout.write(`(${err?.code ?? err?.name})`);
       }
     }
-    process.stdout.write('.');
+    const elapsed = Date.now() - start;
+    if (elapsed - lastLogAt >= 10_000) {
+      process.stdout.write(` ${Math.floor(elapsed / 1000)}s`);
+      lastLogAt = elapsed;
+    }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
   console.log('\n[prewarm] Timed out waiting for server.');

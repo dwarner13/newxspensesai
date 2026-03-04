@@ -5448,6 +5448,28 @@ export default function UnifiedAssistantChat({
   });
   
   const displayMessages = Array.from(dedupeMap.values());
+
+  // Persistent CTA strip: extract CTAs from the latest prime_upload_final message.
+  // Rendered in the footer strip (above input), NOT inside the message bubble.
+  const finalUploadMsg = [...displayMessages].reverse().find(
+    (m) => (m?.meta as Record<string, unknown>)?.type === 'prime_upload_final'
+  );
+  const finalUploadImportId =
+    finalUploadMsg ? String((finalUploadMsg.meta as Record<string, unknown>)?.importId || '') : '';
+  const finalUploadCtas: Array<{ label: string; to: string }> | null = finalUploadMsg
+    ? (Array.isArray((finalUploadMsg.meta as Record<string, unknown>)?.ctas)
+        ? ((finalUploadMsg.meta as Record<string, unknown>).ctas as Array<{ label: string; to: string }>)
+        : [
+            {
+              label: 'Review Transactions',
+              to: finalUploadImportId
+                ? `/dashboard/transactions?importId=${encodeURIComponent(finalUploadImportId)}`
+                : '/dashboard/transactions',
+            },
+            { label: 'Review Categories', to: '/dashboard/smart-categories' },
+          ])
+    : null;
+
   const normalizedMessageText = (value: string | undefined) => normalizeText(value || '');
   const getMessageTimeMs = (msg: (typeof displayMessages)[0]) => {
     if (!msg) return 0;
@@ -6197,6 +6219,27 @@ export default function UnifiedAssistantChat({
 
   const inputFooter = (
     <div ref={inputFooterRef} className="w-full max-w-full mx-0 min-w-0 shrink-0 flex flex-col">
+      {/* Persistent CTA strip — appears above input after a statement import completes */}
+      {finalUploadCtas && !isStreaming && !showPrimeUploadQueueCard && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-white/5 pb-2">
+          {finalUploadCtas.map((cta) => {
+            const isTransactions = cta.label.toLowerCase().includes('transaction');
+            const CtaIcon = isTransactions ? Receipt : Tags;
+            return (
+              <button
+                key={cta.to || cta.label}
+                type="button"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 hover:border-violet-500/50 text-violet-200 text-xs font-medium transition-all duration-150 group"
+                onClick={() => { if (cta.to) navigate(cta.to); }}
+              >
+                <CtaIcon className="w-3 h-3 shrink-0 opacity-70 group-hover:opacity-100" />
+                <span>{cta.label}</span>
+                <ArrowRight className="w-3 h-3 shrink-0 opacity-40 group-hover:opacity-80 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            );
+          })}
+        </div>
+      )}
       {showPrimeUploadQueueCard && normalizedSlug === 'prime-boss' && (
         <div className="mb-2 rounded-lg border border-sky-500/30 bg-slate-900/80 px-3 py-2.5">
           {/* Header row: doc count + progress */}
@@ -6997,7 +7040,7 @@ export default function UnifiedAssistantChat({
                               <div
                                 className={
                                   metaAny?.type === 'prime_upload_final'
-                                    ? 'text-sm text-slate-100'
+                                    ? 'w-full text-sm text-slate-100 text-left'
                                     : `px-4 py-2 text-sm rounded-2xl ${
                                         message.role === 'user'
                                           ? 'border border-amber-400/70 bg-slate-900/90 text-slate-50 shadow-[0_0_24px_rgba(251,191,36,0.60)]'
@@ -7046,7 +7089,7 @@ export default function UnifiedAssistantChat({
                                           <FormattedMessageText text={message.content} />
                                         )}
                                       </div>
-                                      {(metaAny?.type === 'prime_upload_final' || metaAny?.type === 'import_recap') && (
+                                      {metaAny?.type === 'import_recap' && (
                                         <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
                                           {(() => {
                                             const recapImportId = typeof metaAny?.importId === 'string' ? metaAny.importId : '';
