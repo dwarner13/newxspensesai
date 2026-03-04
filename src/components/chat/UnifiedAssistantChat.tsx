@@ -2799,6 +2799,7 @@ export default function UnifiedAssistantChat({
     totalIncome: number;
     topCategories: Array<{ cat: string; amt: number }>;
     topMerchants: Array<{ merchant: string; amt: number }>;
+    topIncomeSources: Array<{ merchant: string; amt: number; count: number }>;
     fmt: (n: number) => string;
   } | null> => {
     if (!importId || !userId) return null;
@@ -2846,10 +2847,19 @@ export default function UnifiedAssistantChat({
         let totalSpend = 0, totalIncome = 0;
         const categoryMap: Record<string, number> = {};
         const merchantMap: Record<string, number> = {};
+        const incomeMerchantMap: Record<string, { amt: number; count: number }> = {};
         for (const tx of committed) {
           const amt = Math.abs(Number(tx.amount) || 0);
           const isCredit = String(tx.type || '').toLowerCase() === 'credit';
-          if (isCredit) { totalIncome += amt; } else {
+          if (isCredit) {
+            totalIncome += amt;
+            const src = cleanMerchantName(String(tx.merchant_name || tx.description || 'Unknown'));
+            if (src && src !== 'Unknown') {
+              if (!incomeMerchantMap[src]) incomeMerchantMap[src] = { amt: 0, count: 0 };
+              incomeMerchantMap[src].amt += amt;
+              incomeMerchantMap[src].count++;
+            }
+          } else {
             totalSpend += amt;
             const cat = String(tx.category || 'Uncategorized').trim();
             categoryMap[cat] = (categoryMap[cat] || 0) + amt;
@@ -2859,13 +2869,15 @@ export default function UnifiedAssistantChat({
         }
         const topCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([cat, amt]) => ({ cat, amt }));
         const topMerchants = Object.entries(merchantMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([merchant, amt]) => ({ merchant, amt }));
-        return { txCount: committed.length, totalSpend, totalIncome, topCategories, topMerchants, fmt };
+        const topIncomeSources = Object.entries(incomeMerchantMap).sort((a, b) => b[1].amt - a[1].amt).slice(0, 4).map(([merchant, { amt, count }]) => ({ merchant, amt, count }));
+        return { txCount: committed.length, totalSpend, totalIncome, topCategories, topMerchants, topIncomeSources, fmt };
       }
 
       // Build breakdown from staging rows
       let totalSpend = 0, totalIncome = 0;
       const categoryMap: Record<string, number> = {};
       const merchantMap: Record<string, number> = {};
+      const incomeMerchantMap: Record<string, { amt: number; count: number }> = {};
       for (const row of rows) {
         const dj = (row.data_json || {}) as Record<string, any>;
         const raw = Number(dj.amount ?? 0);
@@ -2876,6 +2888,12 @@ export default function UnifiedAssistantChat({
         const isCredit = raw < 0 || typeStr === 'income' || typeStr === 'credit' || typeStr === 'payment' || typeStr === 'deposit';
         if (isCredit) {
           totalIncome += amt;
+          const src = cleanMerchantName(String(dj.merchant || dj.vendor || dj.description || 'Unknown'));
+          if (src && src !== 'Unknown') {
+            if (!incomeMerchantMap[src]) incomeMerchantMap[src] = { amt: 0, count: 0 };
+            incomeMerchantMap[src].amt += amt;
+            incomeMerchantMap[src].count++;
+          }
         } else {
           totalSpend += amt;
           const cat = String(row.tag_category || dj.category || dj.suggested_category || 'Uncategorized').trim();
@@ -2886,12 +2904,14 @@ export default function UnifiedAssistantChat({
       }
       const topCategories = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([cat, amt]) => ({ cat, amt }));
       const topMerchants = Object.entries(merchantMap).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([merchant, amt]) => ({ merchant, amt }));
+      const topIncomeSources = Object.entries(incomeMerchantMap).sort((a, b) => b[1].amt - a[1].amt).slice(0, 4).map(([merchant, { amt, count }]) => ({ merchant, amt, count }));
       return {
         txCount: rows.length,
         totalSpend: hasStoredTotals ? storedTotals.totalDeducted : totalSpend,
         totalIncome: hasStoredTotals ? storedTotals.totalAdded : totalIncome,
         topCategories,
         topMerchants,
+        topIncomeSources,
         fmt,
       };
     } catch {
@@ -2915,6 +2935,7 @@ export default function UnifiedAssistantChat({
       totalIncome: number;
       topCategories: Array<{ cat: string; amt: number }>;
       topMerchants: Array<{ merchant: string; amt: number }>;
+      topIncomeSources: Array<{ merchant: string; amt: number; count: number }>;
       fmt: (n: number) => string;
     } | null;
   }) => {
@@ -3181,26 +3202,40 @@ export default function UnifiedAssistantChat({
     };
 
     const txNum = params.transactionCount ?? bd?.txCount ?? null;
+    const txCountNote = txNum !== null ? `${txNum} transaction${txNum === 1 ? '' : 's'}, ` : '';
 
     // Opening sentence: "$X in, $X out — flat / net gain / down $X"
+    // txCountNote uses ", " so it sits cleanly before the amounts (avoids triple em-dash)
     let netSentence: string;
     if (bd && bd.totalIncome > 0) {
       const net = bd.totalIncome - bd.totalSpend;
       const absNet = Math.abs(net);
       const pct = absNet / bd.totalIncome;
-      const txPart = txNum !== null ? `${txNum} transaction${txNum === 1 ? '' : 's'} — ` : '';
       if (pct < 0.02) {
-        netSentence = `${txPart}$${fmtAmt(bd.totalIncome)} in, $${fmtAmt(bd.totalSpend)} out — essentially flat.`;
+        netSentence = `${txCountNote}$${fmtAmt(bd.totalIncome)} in, $${fmtAmt(bd.totalSpend)} out — essentially flat.`;
       } else if (net > 0) {
-        netSentence = `${txPart}$${fmtAmt(bd.totalIncome)} in, $${fmtAmt(bd.totalSpend)} out — a $${fmtAmt(absNet)} net gain.`;
+        netSentence = `${txCountNote}$${fmtAmt(bd.totalIncome)} in, $${fmtAmt(bd.totalSpend)} out — a $${fmtAmt(absNet)} net gain.`;
       } else {
-        netSentence = `${txPart}$${fmtAmt(bd.totalIncome)} in, $${fmtAmt(bd.totalSpend)} out — down $${fmtAmt(absNet)} on the month.`;
+        netSentence = `${txCountNote}$${fmtAmt(bd.totalIncome)} in, $${fmtAmt(bd.totalSpend)} out — down $${fmtAmt(absNet)} on the month.`;
       }
     } else if (bd) {
-      const txPart = txNum !== null ? `${txNum} transaction${txNum === 1 ? '' : 's'} imported. ` : 'Transactions imported. ';
-      netSentence = `${txPart}$${fmtAmt(bd.totalSpend)} in total spending.`;
+      netSentence = `${txCountNote}$${fmtAmt(bd.totalSpend)} in total spending.`;
     } else {
       netSentence = txNum !== null ? `${txNum} transaction${txNum === 1 ? '' : 's'} imported.` : 'Transactions imported.';
+    }
+
+    // Income sources sentence (where the money came from)
+    const topIncomeSources = bd?.topIncomeSources ?? [];
+    let incomeSentence: string | null = null;
+    if (topIncomeSources.length > 0 && bd && bd.totalIncome > 0) {
+      const parts = topIncomeSources.map(({ merchant, amt, count }) => {
+        // Label repeated deposits with their count (e.g. "Gordon Food Ser (4×)")
+        const countNote = count > 1 ? ` (${count}×)` : '';
+        // "e-Transfer" cleaned name → display as "e-Transfers received"
+        const label = /^e-transfer$/i.test(merchant.trim()) ? 'e-Transfers received' : merchant;
+        return `${label}${countNote} $${fmtAmt(amt)}`;
+      });
+      incomeSentence = `Income: ${parts.join(', ')}.`;
     }
 
     // Top obligations: biggest payees with running total + % of income
@@ -3243,19 +3278,34 @@ export default function UnifiedAssistantChat({
       ? `Top categories: ${categorizedCats.map(({ cat, amt }) => `${cat} ($${fmtAmt(amt)})`).join(', ')}.`
       : null;
 
+    // Spending pattern teaser for uncategorized case — detect recognisable categories from merchant names
+    let spendingTeaserPatterns: string[] = [];
+    if (allUncategorized && cleanMerchants.length > 0) {
+      const allMerchantNames = (bd?.topMerchants ?? []).map(m => m.merchant.toLowerCase()).join(' ');
+      if (/restaurant|mcdonald|tim\s*horton|pizza|noodle|breakfast|lounge|halong|anejo|kosmos|beijing|saratoga|ufopizza|tutti/i.test(allMerchantNames)) spendingTeaserPatterns.push('dining');
+      if (/massage|spa|wellness|health\s*c(entre|enter)|ting\s*ting|royal\s*massage|lewis\s*massage|tulip|yo\s*yo/i.test(allMerchantNames)) spendingTeaserPatterns.push('massage & wellness');
+      if (/petro.canada|esso|petroleum|husky|shell|chevron|campbell.*park/i.test(allMerchantNames)) spendingTeaserPatterns.push('fuel');
+      if (/save\s*on|sobeys|loblaws|safeway|superstore|walmart|grocery|market/i.test(allMerchantNames)) spendingTeaserPatterns.push('groceries');
+      if (/salon|nails|shadified|beauty|hair/i.test(allMerchantNames)) spendingTeaserPatterns.push('salon & beauty');
+    }
+    const spendingTeaser = spendingTeaserPatterns.length > 0
+      ? `Everything's uncategorized right now — but I can already spot ${spendingTeaserPatterns.join(', ')} in your merchants. Head to Smart Categories to tag your transactions and I'll show you the full breakdown.`
+      : "Everything's uncategorized right now. Head to Smart Categories to tag your transactions — once you do, I'll break down exactly where the rest went.";
+
     // Build narrative prose (empty string = paragraph break)
     const lines = [
       // Opening: name + in/out/net
       `${userLabel ? `${userLabel}, ` : ''}here's your statement${bd ? ` — ${netSentence}` : '.'}`,
+
+      // Income sources (where the money came from)
+      ...(incomeSentence ? ['', incomeSentence] : []),
 
       // Top obligations (biggest payees with total + %)
       ...(obligationsSentence ? ['', obligationsSentence] : []),
 
       // Categorization status or category breakdown
       '',
-      allUncategorized
-        ? "Everything's uncategorized right now. Head to Smart Categories to tag your transactions — once you do, I'll break down exactly where the rest went."
-        : tagSummary,
+      allUncategorized ? spendingTeaser : tagSummary,
 
       // Categories (categorized case only)
       ...(catSentence ? ['', catSentence] : []),
@@ -3266,7 +3316,7 @@ export default function UnifiedAssistantChat({
       // Closing question
       '',
       allUncategorized
-        ? "Anything specific you'd like me to look into — unusual charges, the biggest payees, or anything else?"
+        ? "Anything specific you'd like me to dig into — the debt picture, those outgoing transfers, or the wellness spend?"
         : "Anything specific you'd like me to dig into?",
     ];
     // Accumulate this document's breakdown into the per-importId map so Prime can discuss
