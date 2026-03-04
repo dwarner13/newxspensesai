@@ -2099,6 +2099,8 @@ export default function UnifiedAssistantChat({
       const shouldStick =
         userJustSentRef.current ||
         (isStreaming && userIsNearBottomRef.current) ||
+        isPrimeSummaryPending ||
+        isUploadingAttachments ||
         forcePin;
 
       if (!shouldStick || (userScrolledUpRef.current && !forcePin)) return;
@@ -2127,7 +2129,7 @@ export default function UnifiedAssistantChat({
       observer.observe(lastChild);
     }
     return () => observer.disconnect();
-  }, [isOpen, getActiveScrollEl, isStreaming, scrollToBottom, scrollDebugEnabled]);
+  }, [isOpen, getActiveScrollEl, isStreaming, isPrimeSummaryPending, isUploadingAttachments, scrollToBottom, scrollDebugEnabled]);
 
   // CRITICAL: Auto-scroll during streaming when content updates (not just when messages.length changes)
   // Track last message content length to detect streaming updates
@@ -2220,7 +2222,9 @@ export default function UnifiedAssistantChat({
         autoPinToBottomRef.current = true;
         userScrolledUpRef.current = false;
         userIsNearBottomRef.current = true;
-        forceAutoPinUntilRef.current = Date.now() + 1600;
+        // Use Math.max so we never shorten a longer timer already set by
+        // upsertPrimeUploadNarration (7 000 ms) or streamPrimeFinalMessage (10 000 ms).
+        forceAutoPinUntilRef.current = Math.max(forceAutoPinUntilRef.current, Date.now() + 6000);
         setIsNearBottomState(true);
         container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
         return;
@@ -2241,7 +2245,10 @@ export default function UnifiedAssistantChat({
         window.setTimeout(() => {
           // Second attempt: DOM may have grown after TypingMessage reveals content
           const c2 = getActiveScrollEl();
-          if (c2) { forceAutoPinUntilRef.current = Date.now() + 1200; c2.scrollTo({ top: c2.scrollHeight, behavior: 'auto' }); }
+          if (c2) {
+            forceAutoPinUntilRef.current = Math.max(forceAutoPinUntilRef.current, Date.now() + 5000);
+            c2.scrollTo({ top: c2.scrollHeight, behavior: 'auto' });
+          }
         }, 200);
       } else {
         // Container not yet in DOM — retry after a short delay
