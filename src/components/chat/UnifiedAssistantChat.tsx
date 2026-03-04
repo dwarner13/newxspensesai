@@ -2777,6 +2777,8 @@ export default function UnifiedAssistantChat({
     } else {
       // Strip trailing payment / dividend codes
       s = s.replace(/\s+PAYT\/PAY(\s+MTG\/HYP)?$/i, '');
+      s = s.replace(/\s+PAY\/PAY$/i, '');   // GFS payroll suffix e.g. "GORDON FOOD SER PAY/PAY"
+      s = s.replace(/\s+LNS\/PRE$/i, '');   // Loan pre-auth code e.g. "TD LOAN PAYMNT LNS/PRE"
       s = s.replace(/\s+MTG\/HYP$/i, '');
       s = s.replace(/\s+MSP\/DIV$/i, '');
       s = s.replace(/\s+MSP$/i, '');
@@ -6633,8 +6635,8 @@ export default function UnifiedAssistantChat({
               {/* MESSAGES AREA - Message list container is the scroll owner */}
               {/* CRITICAL: This wrapper provides padding and flex structure - must have flex flex-col h-full min-h-0 */}
               {/* The message list container inside will be the actual scroll owner with capture handlers */}
-                  <div 
-                    className={`relative px-4 ${normalizedSlug === 'prime-boss' ? 'pt-4 pb-3' : (isPrimeChatRevampEnabled ? 'pt-2 pb-3' : 'pt-4 pb-4')} min-w-0 flex flex-col h-full min-h-0`} 
+                  <div
+                    className={`relative px-4 ${normalizedSlug === 'prime-boss' ? 'pt-4 pb-3' : (isPrimeChatRevampEnabled ? 'pt-2 pb-3' : 'pt-4 pb-4')} min-w-0 flex flex-col flex-1 min-h-0`}
                 ref={scrollContainerRef}
                 onDragOver={(e) => {
                   if (supportsChatUploads && e.dataTransfer.types.includes('Files')) {
@@ -6759,7 +6761,7 @@ export default function UnifiedAssistantChat({
                     }}
                   >
                     {/* Messages list wrapper with spacing */}
-                    <div ref={messageListContentRef} className="w-full max-w-full mx-0 min-w-0 flex flex-col gap-3">
+                    <div ref={messageListContentRef} className="w-full max-w-full mx-0 min-w-0 flex flex-col justify-start items-stretch gap-3">
                       {/* Byte upload panel lives in the scroll area (ChatGPT-style) */}
                       {isByte && (
                         <div className="shrink-0">
@@ -6993,15 +6995,19 @@ export default function UnifiedAssistantChat({
 
                               {/* Message bubble */}
                               <div
-                                className={`px-4 py-2 text-sm rounded-2xl ${
-                                  message.role === 'user'
-                                    ? 'border border-amber-400/70 bg-slate-900/90 text-slate-50 shadow-[0_0_24px_rgba(251,191,36,0.60)]'
-                                    : message.role === 'system'
-                                    ? 'bg-slate-900/35 border border-white/10 text-slate-300 italic'
-                                    : isHandoffMessage
-                                    ? 'bg-purple-900/40 border border-purple-500/30 text-slate-100'
-                                    : 'bg-slate-900/45 text-slate-100 border border-white/10'
-                                }`}
+                                className={
+                                  metaAny?.type === 'prime_upload_final'
+                                    ? 'text-sm text-slate-100'
+                                    : `px-4 py-2 text-sm rounded-2xl ${
+                                        message.role === 'user'
+                                          ? 'border border-amber-400/70 bg-slate-900/90 text-slate-50 shadow-[0_0_24px_rgba(251,191,36,0.60)]'
+                                          : message.role === 'system'
+                                          ? 'bg-slate-900/35 border border-white/10 text-slate-300 italic'
+                                          : isHandoffMessage
+                                          ? 'bg-purple-900/40 border border-purple-500/30 text-slate-100'
+                                          : 'bg-slate-900/45 text-slate-100 border border-white/10'
+                                      }`
+                                }
                               >
                                       {isHandoffMessage && (
                                         <div className="flex items-center gap-1.5 mb-2 text-purple-300 text-xs">
