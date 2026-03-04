@@ -3139,8 +3139,12 @@ export default function UnifiedAssistantChat({
       userScrolledUpRef.current = false;
       userIsNearBottomRef.current = true;
       const hardScrollMulti = () => {
-        const container = getActiveScrollEl?.() || scrollElementRef.current;
-        if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+        } else {
+          const container = getActiveScrollEl?.() || scrollElementRef.current;
+          if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+        }
       };
       requestAnimationFrame(hardScrollMulti);
       requestAnimationFrame(() => requestAnimationFrame(hardScrollMulti));
@@ -3297,8 +3301,14 @@ export default function UnifiedAssistantChat({
     userScrolledUpRef.current = false;
     userIsNearBottomRef.current = true;
     const hardScroll = () => {
-      const container = getActiveScrollEl?.() || scrollElementRef.current;
-      if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+      // scrollIntoView lets the browser find the scrollable ancestor — more
+      // reliable than scrollTo on a specific container ref.
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+      } else {
+        const container = getActiveScrollEl?.() || scrollElementRef.current;
+        if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+      }
     };
     // Fire immediately (before and after React commit)
     requestAnimationFrame(hardScroll);
