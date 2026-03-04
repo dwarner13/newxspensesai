@@ -3129,12 +3129,24 @@ export default function UnifiedAssistantChat({
         importId: params.importId,
         batchKey: params.batchKey,
       });
-      forceAutoPinUntilRef.current = Date.now() + 10000;
+      const scrollEndTimeMulti = Date.now() + 10000;
+      forceAutoPinUntilRef.current = scrollEndTimeMulti;
       autoPinToBottomRef.current = true;
       userScrolledUpRef.current = false;
       userIsNearBottomRef.current = true;
-      requestAnimationFrame(() => scrollToBottom('smooth'));
-      window.setTimeout(() => scrollToBottom('auto'), 150);
+      const hardScrollMulti = () => {
+        const container = getActiveScrollEl?.() || scrollElementRef.current;
+        if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+      };
+      requestAnimationFrame(hardScrollMulti);
+      requestAnimationFrame(() => requestAnimationFrame(hardScrollMulti));
+      const scrollIntervalMulti = window.setInterval(() => {
+        if (Date.now() > scrollEndTimeMulti || forceAutoPinUntilRef.current === 0) {
+          window.clearInterval(scrollIntervalMulti);
+          return;
+        }
+        hardScrollMulti();
+      }, 80);
       return;
     }
     const summaryLines = polishedSummary
@@ -3267,15 +3279,30 @@ export default function UnifiedAssistantChat({
       importId: params.importId,
       batchKey: params.batchKey,
     });
-    // Force-pin scroll for the full typing duration (~8 s). Reset userScrolledUpRef so the
-    // summary is always visible even if the user scrolled up during the upload process.
-    forceAutoPinUntilRef.current = Date.now() + 10000;
+    // Hard-pin scroll for the typing animation (~8-10 s).
+    // Direct interval bypasses every conditional guard in scrollToBottom —
+    // the only way to reliably follow TypingMessage as it grows.
+    const scrollEndTime = Date.now() + 10000;
+    forceAutoPinUntilRef.current = scrollEndTime;
     autoPinToBottomRef.current = true;
     userScrolledUpRef.current = false;
     userIsNearBottomRef.current = true;
-    requestAnimationFrame(() => scrollToBottom('smooth'));
-    window.setTimeout(() => scrollToBottom('auto'), 150);
-  }, [isPrimeNarrationEnabled, firstName, scrollToBottom, streamPrimeFinalMessage, setImportSummariesForPrime]);
+    const hardScroll = () => {
+      const container = getActiveScrollEl?.() || scrollElementRef.current;
+      if (container) container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
+    };
+    // Fire immediately (before and after React commit)
+    requestAnimationFrame(hardScroll);
+    requestAnimationFrame(() => requestAnimationFrame(hardScroll));
+    // Keep scrolling every 80 ms while the typing animation runs
+    const scrollInterval = window.setInterval(() => {
+      if (Date.now() > scrollEndTime || forceAutoPinUntilRef.current === 0) {
+        window.clearInterval(scrollInterval);
+        return;
+      }
+      hardScroll();
+    }, 80);
+  }, [isPrimeNarrationEnabled, firstName, streamPrimeFinalMessage, setImportSummariesForPrime, getActiveScrollEl]);
 
   const processByteUploads = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return false;
