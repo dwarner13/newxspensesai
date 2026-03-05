@@ -2243,12 +2243,21 @@ export default function UnifiedAssistantChat({
       if (container) {
         doScroll(container);
         window.setTimeout(() => {
-          // Second attempt: DOM may have grown after TypingMessage reveals content
+          // Second attempt: DOM may have grown after TypingMessage reveals content.
+          // ONLY scroll to bottom when there are real messages — otherwise the
+          // greeting + quick-action chips push scrollHeight above clientHeight and
+          // the view snaps to the middle of the greeting (centering bug).
           const c2 = getActiveScrollEl();
-          if (c2) {
-            forceAutoPinUntilRef.current = Math.max(forceAutoPinUntilRef.current, Date.now() + 5000);
-            c2.scrollTo({ top: c2.scrollHeight, behavior: 'auto' });
+          if (!c2) return;
+          const hasRealMessages =
+            messages.length + loadedHistoryMessages.length + injectedMessages.length > 0;
+          if (!hasRealMessages) {
+            // Greeting-only: keep top of greeting visible.
+            c2.scrollTop = 0;
+            return;
           }
+          forceAutoPinUntilRef.current = Math.max(forceAutoPinUntilRef.current, Date.now() + 5000);
+          c2.scrollTo({ top: c2.scrollHeight, behavior: 'auto' });
         }, 200);
       } else {
         // Container not yet in DOM — retry after a short delay
@@ -6777,7 +6786,7 @@ export default function UnifiedAssistantChat({
                   )}
                   {/* CRITICAL: Message list container - must be the scroll owner with capture handlers */}
                   {/* This container wraps the messages and should have scroll capture to prevent DashboardLayout from capturing wheel events */}
-                  <div 
+                  <div
                     ref={scrollElementRef}
                     className="flex-1 min-h-0 overflow-y-auto hide-scrollbar scrollbar-hide overscroll-contain pointer-events-auto"
                     data-scroll-container="true"
@@ -6810,8 +6819,8 @@ export default function UnifiedAssistantChat({
                       e.stopPropagation();
                     }}
                   >
-                    {/* Messages list wrapper with spacing */}
-                    <div ref={messageListContentRef} className="w-full max-w-full mx-0 min-w-0 flex flex-col justify-start items-stretch gap-3">
+                    {/* Messages list wrapper — top-aligned, grows with content */}
+                    <div ref={messageListContentRef} className="w-full max-w-full mx-0 min-w-0 flex flex-col items-stretch gap-3">
                       {/* Byte upload panel lives in the scroll area (ChatGPT-style) */}
                       {isByte && (
                         <div className="shrink-0">
