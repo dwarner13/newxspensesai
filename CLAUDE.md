@@ -140,3 +140,14 @@ Migrations go in `sql/migrations/` with timestamp prefix (e.g., `20260220_name.s
 - **Publish:** `dist/`
 - **Functions:** `netlify/functions/` (bundled by esbuild at deploy time)
 - **Local full-stack dev:** `npm run dev:netlify` (port 8888 proxies Vite on 5174)
+
+## OCR Pipeline
+- Primary OCR: Google Vision via /netlify/functions/
+- Fallback OCR: Claude Vision API (claude-sonnet-4-20250514)
+- Fallback triggers when confidence score is below 85%
+- All extractions go to staging table first — never direct to transactions
+- import_summaries table stores raw_ocr_text, confidence_score, file_name, status
+- Byte announces all OCR completions to Prime chat thread
+- Claude Vision must return clean JSON: ISO dates, clean merchant names, inferred categories
+- Low confidence rows flagged with status = 'needs_review'
+- Source column tracks whether Google Vision or Claude Vision was used
