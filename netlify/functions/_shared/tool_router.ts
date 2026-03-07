@@ -8,7 +8,7 @@
 
 import { CAPABILITIES } from './capabilities';
 import { parseBank } from './bank_parsers';
-import { normalizeVendor } from './vendor_normalize';
+import { normalizeMerchantName } from './merchantNormalize.js';
 import { autoCategorize } from './tx_pipeline';
 import { findAnomalies } from './anomaly_engine';
 import { makePrimeStory, makeTherapistTips } from './story_therapist';
@@ -33,8 +33,12 @@ export async function runTool(employee: string, tool: string, input: any, userId
     case 'bank_parse':
       return parseBank(input);
     
-    case 'vendor_normalize':
-      return normalizeVendor(input);
+    case 'merchant_normalize':
+      return { 
+        vendor: normalizeMerchantName(input.description),
+        hints: [],
+        confidence: 0.8
+      };
     
     case 'categorize':
       // Pass userId to autoCategorize for Tag learning

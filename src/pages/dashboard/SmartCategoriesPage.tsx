@@ -13,8 +13,10 @@ import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
 import { useCategoryRules } from '../../hooks/useCategoryRules';
+import { createCategoryRule } from '../../lib/categoryRules';
 import type { EmployeeStat } from '../../config/employeeDisplayConfig';
 import { PageCinematicFade } from '../../components/ui/PageCinematicFade';
+import toast from 'react-hot-toast';
 
 // Local Transaction type for Smart Categories page
 interface Transaction {
@@ -81,6 +83,7 @@ const SmartCategoriesPage: React.FC = () => {
   
   // Removed workspace overlay state - now using unified chat slideout
   const [selectedCategoryForChat, setSelectedCategoryForChat] = useState<SmartCategorySummary | null>(null);
+  const [isGeneratingStarterRules, setIsGeneratingStarterRules] = useState(false);
 
   // Fetch transactions with Tag learning data
   // Use requestIdleCallback or setTimeout to avoid blocking initial render
@@ -487,6 +490,67 @@ const SmartCategoriesPage: React.FC = () => {
     });
   };
 
+  const inferStarterCategory = (merchant: string): string => {
+    const label = String(merchant || '').toLowerCase();
+    if (/(sobeys|walmart|costco|superstore|metro|nofrills|loblaws|grocery)/i.test(label)) return 'Groceries';
+    if (/(netflix|spotify|disney|prime video|youtube|subscription|audible|apple music)/i.test(label)) return 'Subscriptions';
+    if (/(shell|petro|esso|gas|fuel|chevron|mobil|husky)/i.test(label)) return 'Transportation';
+    if (/(tim hortons|starbucks|restaurant|cafe|coffee|pizza|food|uber eats|doordash|skip)/i.test(label)) return 'Food & Dining';
+    if (/(uber|lyft|taxi|transit|bus|train|parking)/i.test(label)) return 'Transportation';
+    if (/(rent|mortgage|lease|property)/i.test(label)) return 'Housing';
+    return 'Other';
+  };
+  const starterRuleSuggestions = useMemo(() => {
+    const activeRuleValues = new Set(
+      categoryRules.rules
+        .filter((rule) => rule.is_active)
+        .map((rule) => String(rule.match_value || '').toLowerCase().trim())
+        .filter(Boolean)
+    );
+    const counts = new Map<string, number>();
+    for (const tx of transactions) {
+      const merchant = String(tx.merchant || tx.description || '').trim();
+      if (!merchant) continue;
+      const key = merchant.toLowerCase();
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .filter(([merchantKey, count]) => count >= 2 && !activeRuleValues.has(merchantKey))
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([merchantKey, count]) => ({
+        merchant: merchantKey.replace(/\b\w/g, (c) => c.toUpperCase()),
+        category: inferStarterCategory(merchantKey),
+        count,
+      }));
+  }, [categoryRules.rules, transactions]);
+  const handleGenerateStarterRules = async () => {
+    if (!userId) {
+      toast.error('Sign in required');
+      return;
+    }
+    if (starterRuleSuggestions.length === 0) {
+      toast('No starter rules available right now');
+      return;
+    }
+    setIsGeneratingStarterRules(true);
+    try {
+      let created = 0;
+      for (const suggestion of starterRuleSuggestions) {
+        const result = await createCategoryRule(userId, suggestion.merchant, suggestion.category, 'contains');
+        if (result.ok) created += 1;
+      }
+      if (created > 0) {
+        toast.success(`Created ${created} starter rule${created === 1 ? '' : 's'}`);
+        categoryRules.refresh();
+      } else {
+        toast('No new starter rules were created');
+      }
+    } finally {
+      setIsGeneratingStarterRules(false);
+    }
+  };
+
   // Build category context for workspace overlay (matches EmployeeChatPage format)
   const chatContext = useMemo(() => {
     if (!selectedCategoryForChat) return null;
@@ -631,6 +695,9 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
             totalTimesApplied={categoryRules.totalTimesApplied}
             userCategories={categorySummaries.map((s) => s.category)}
             onRefreshRules={categoryRules.refresh}
+            starterRuleSuggestions={starterRuleSuggestions}
+            onGenerateStarterRules={handleGenerateStarterRules}
+            isGeneratingStarterRules={isGeneratingStarterRules}
           />
         }
         center={

@@ -53,6 +53,7 @@ import * as getTransactionsByDocument from './impl/get_transactions_by_document'
 import * as txSearch from './impl/tx_search';
 import * as txGet from './impl/tx_get';
 import * as txUpdateCategory from './impl/tx_update_category';
+import * as summarizeImport from './impl/summarize_import';
 import { OpenAIToolDef } from '../../server/ai/openai';
 
 export interface ToolModule {
@@ -190,16 +191,22 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['manage_billing', {
     id: 'manage_billing',
-    description: 'Handle billing operations like upgrades, downgrades, cancellations, and payment retries',
+    description: 'Provide secure redirect link to manage subscription and billing details',
     inputSchema: manageBilling.inputSchema,
     outputSchema: manageBilling.outputSchema,
     run: manageBilling.execute,
     meta: {
-      requiresConfirm: true,
-      mutates: true,
-      dangerous: true,
-      timeout: 30000,
       rateLimit: { perMinute: 5 },
+    },
+  }],
+  ['summarize_import', {
+    id: 'summarize_import',
+    description: 'Fetch the user\'s most recent import and provide a summary of transactions, top category, and total spend.',
+    inputSchema: summarizeImport.inputSchema,
+    outputSchema: summarizeImport.outputSchema,
+    run: summarizeImport.execute,
+    meta: {
+      rateLimit: { perMinute: 10 },
     },
   }],
   ['search_docs', {
@@ -667,7 +674,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['tx_search', {
     id: 'tx_search',
-    description: 'Search already-imported transactions by statement scope, text, date, amount, category, and optional pending rows. Use this for user chat questions about imported transaction history.',
+    description: 'Search structured transactions. MUST CALL BEFORE ANSWERING transaction questions. Guidelines: 1) Prefer passing importId if context exists. 2) If asked about pending/review, use includePending=true. 3) For uncategorized, use uncategorizedOnly=true and offer categorization. 4) For comparisons/top-merchants, use relevant date filters first. 5) If user provides a vendor rule ("all Amazon=Office"), run tx_search first then tx_update_category. Ground answers entirely in tool results.',
     inputSchema: txSearch.inputSchema,
     outputSchema: txSearch.outputSchema,
     run: txSearch.execute,
@@ -678,7 +685,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['tx_get', {
     id: 'tx_get',
-    description: 'Fetch one specific transaction by id from committed or staging tables. Use this when user refers to a specific matched row like "the 2nd one" or "that one" and an id is available.',
+    description: 'Fetch one specific transaction by id. Use this when the user refers to a specific matched row like "the 2nd one" or "this charge" and a candidate id from tx_search is available.',
     inputSchema: txGet.inputSchema,
     outputSchema: txGet.outputSchema,
     run: txGet.execute,
@@ -689,7 +696,7 @@ const toolModules: Map<string, ToolModule> = new Map([
   }],
   ['tx_update_category', {
     id: 'tx_update_category',
-    description: 'Update category for one committed or pending transaction. Optionally apply vendor learning for future categorization.',
+    description: 'Update category for a transaction. MUST CALL for category changes. Rules: 1) If id is known, call directly. If not, call tx_search -> tx_get -> tx_update_category. 2) After updating, confirm and ask: "Apply this category to this vendor going forward?" (If yes, call again with applyToVendor=true).',
     inputSchema: txUpdateCategory.inputSchema,
     outputSchema: txUpdateCategory.outputSchema,
     run: txUpdateCategory.execute,

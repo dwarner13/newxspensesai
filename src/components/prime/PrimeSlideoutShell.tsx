@@ -145,6 +145,10 @@ export function PrimeSlideoutShell({
 
   const computePanelWidthPx = () => {
     const viewportWidth = Math.max(0, window.innerWidth || 0);
+    // On mobile, take up 100% width
+    if (window.innerWidth < 768) {
+      return viewportWidth;
+    }
     const reservedRightGutter = isExpanded ? 104 : 56; // keep rail visible + breathing room
     const maxAvailable = Math.max(320, viewportWidth - reservedRightGutter);
     const targetWidth = isExpanded
@@ -337,7 +341,7 @@ export function PrimeSlideoutShell({
         className={`
           flex flex-col
           ${lockedWidth ? "" : `w-full ${CHAT_SHEET_WIDTH}`}
-          rounded-3xl border border-slate-800/80 bg-gradient-to-b
+          ${isMobile ? "rounded-none border-slate-800/80 border-t" : "rounded-3xl border border-slate-800/80"} bg-gradient-to-b
           from-slate-900/80 via-slate-950 to-slate-950
           shadow-[0_0_0_1px_rgba(15,23,42,0.9),-18px_0_40px_rgba(56,189,248,0.25)]
           overflow-hidden transform-gpu

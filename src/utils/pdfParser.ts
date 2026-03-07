@@ -11,16 +11,18 @@ interface OpenAITransaction {
   type: 'credit' | 'debit';
 }
 
-export const parsePDF = async (file: File): Promise<Partial<Transaction>[]> => {
+export const parsePDF = async (file: File, onProgress?: (message: string, progress: number) => void): Promise<Partial<Transaction>[]> => {
   try {
     // Step 1: Extract text from PDF using pdf-parse
-    const pdfText = await extractTextFromPDF(file);
+    if (onProgress) onProgress('🧠 AI is reading your PDF statement...', 20);
+    const pdfText = await extractTextFromPDF(file, onProgress);
     
     if (!pdfText || pdfText.trim().length < 50) {
       throw new Error('Could not extract sufficient text from PDF. The file may be image-based or corrupted.');
     }
 
     // Step 2: Send to OpenAI for intelligent parsing
+    if (onProgress) onProgress('🤖 AI is identifying transactions...', 60);
     const transactions = await parseTransactionsWithAI(pdfText);
     
     if (!transactions || transactions.length === 0) {
@@ -50,7 +52,7 @@ export const parsePDF = async (file: File): Promise<Partial<Transaction>[]> => {
   }
 };
 
-async function extractTextFromPDF(file: File): Promise<string> {
+async function extractTextFromPDF(file: File, onProgress?: (msg: string, progress: number) => void): Promise<string> {
   try {
     // Convert file to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
@@ -59,18 +61,26 @@ async function extractTextFromPDF(file: File): Promise<string> {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
     let fullText = '';
+    const BATCH_SIZE = 3;
     
-    // Extract text from all pages
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
+    // Extract text from all pages in batches
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += BATCH_SIZE) {
+      const endPage = Math.min(pageNum + BATCH_SIZE - 1, pdf.numPages);
       
-      // Combine all text items from the page
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
+      if (onProgress) {
+        onProgress(`🔍 Byte is scanning pages ${pageNum}-${endPage} in parallel...`, 20 + Math.floor((pageNum / pdf.numPages) * 35));
+      }
       
-      fullText += pageText + '\n';
+      const batchPromises = [];
+      for (let i = pageNum; i <= endPage; i++) {
+        batchPromises.push(pdf.getPage(i).then(async (page) => {
+          const textContent = await page.getTextContent();
+          return textContent.items.map((item: any) => item.str).join(' ');
+        }));
+      }
+      
+      const batchResults = await Promise.all(batchPromises);
+      fullText += batchResults.join('\n') + '\n';
     }
     
     // Clean up the text

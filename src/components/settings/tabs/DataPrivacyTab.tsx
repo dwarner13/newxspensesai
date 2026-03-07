@@ -12,11 +12,15 @@ import { Button } from '../../ui/button';
 import { isDemoMode } from '../../../lib/demoAuth';
 import { clearGuestSession } from '../../../lib/demoAuth';
 import { useNavigate } from 'react-router-dom';
+import { DangerZoneModal } from '../DangerZoneModal';
+import { useNotifications } from '../../../hooks/useNotifications';
 
 export function DataPrivacyTab() {
   const { isDemoUser, signOut } = useAuth();
   const navigate = useNavigate();
+  const { addNotification } = useNotifications();
   const [clearing, setClearing] = useState(false);
+  const [showDangerZone, setShowDangerZone] = useState(false);
 
   const handleClearGuestData = async () => {
     if (!confirm('This will clear all local guest data. Are you sure?')) {
@@ -108,6 +112,30 @@ export function DataPrivacyTab() {
         </div>
       )}
 
+      {/* Danger Zone (Data Cleanup) */}
+      {!isDemoUser && (
+        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2 text-red-500">
+            <AlertTriangle className="w-4 h-4" />
+            Danger Zone
+          </h3>
+
+          <div className="space-y-3">
+            <p className="text-xs text-slate-400">
+              Surgically remove all test data (imports and transactions) from your account. This is permanently destructive.
+            </p>
+            <Button
+              onClick={() => setShowDangerZone(true)}
+              variant="secondary"
+              className="w-full bg-slate-800 hover:bg-red-500/10 text-red-500 border border-slate-700 hover:border-red-500/30 transition-all"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Nuke Test Data
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Guest Data Management */}
       {isDemoMode() && isDemoUser && (
         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
@@ -146,6 +174,22 @@ export function DataPrivacyTab() {
           </div>
         </div>
       </div>
+
+      <DangerZoneModal 
+        isOpen={showDangerZone}
+        onClose={() => setShowDangerZone(false)}
+        onSuccess={() => {
+          setShowDangerZone(false);
+          addNotification({
+            type: 'success',
+            title: 'Surgical Strike Complete',
+            message: 'All specified test data has been successfully removed.',
+            duration: 5000
+          });
+          // Dispatch a custom event so other components (like charts/tables) can refresh
+          window.dispatchEvent(new CustomEvent('xai_data_cleared'));
+        }}
+      />
     </div>
   );
 }

@@ -19,11 +19,11 @@ import { useMemo } from 'react';
 export function AnimatedOutlet() {
   const location = useLocation();
   
-  // Use pathname as key to trigger animations on route change
-  // Include search params if needed for query-based routes
+  // Animate only on route path changes.
+  // Query-string updates (filters/sorting) should not replay full page transitions.
   const key = useMemo(() => {
-    return location.pathname + location.search;
-  }, [location.pathname, location.search]);
+    return location.pathname;
+  }, [location.pathname]);
 
   // Check for reduced motion preference
   const prefersReducedMotion = useMemo(() => {

@@ -59,6 +59,8 @@ export function ActivityFeedSidebar({
   variant = 'column'
 }: ActivityFeedSidebarProps) {
   const opsDashboardEnabled = isSmartImportOpsDashboardV1Enabled();
+  const normalizedScope = (scope || '').toLowerCase();
+  const isMiniLogScope = normalizedScope === 'transactions' || normalizedScope === 'smart-categories';
   const [localEvents, setLocalEvents] = useState<Array<{
     id: string;
     type: 'upload';
@@ -109,14 +111,17 @@ export function ActivityFeedSidebar({
         {/* CRITICAL: No height constraints - part of main scroll flow */}
         <div className="w-full">
           <ActivityFeed 
-            title="ACTIVITY FEED"
-            limit={limit}
+            title={isMiniLogScope ? 'RECENT EVENTS' : 'ACTIVITY FEED'}
+            limit={isMiniLogScope ? Math.max(limit, 6) : limit}
             category={scope}
             localEvents={localEvents}
             variant={variant}
             maxHeight={maxHeight}
             scrollable={scrollable}
             hideScrollbar={hideScrollbar}
+            resultOnly={isMiniLogScope}
+            showOptimizedStatus={isMiniLogScope}
+            mono={isMiniLogScope}
           />
         </div>
       </div>

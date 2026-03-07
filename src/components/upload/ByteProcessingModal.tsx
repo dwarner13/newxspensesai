@@ -145,6 +145,7 @@ const ByteProcessingModal: React.FC<ByteProcessingModalProps> = ({
     const discoveryTemplates = [
       { icon: '☕', text: 'Starbucks visits detected... that\'s a lot of caffeine!', employee: 'Byte' },
       { icon: '🎮', text: 'Gaming expense found: Steam purchase detected', employee: 'Byte' },
+      { icon: '⚡', text: 'Scanning up to 3 pages in parallel for speed!', employee: 'Byte' },
       { icon: '💡', text: 'Multiple Netflix subscriptions detected!', employee: 'Tag' },
       { icon: '🚨', text: 'Amazon spending alert: Midnight purchases detected!', employee: 'Crystal' },
       { icon: '💰', text: 'Tax deduction found: Office supplies = savings!', employee: 'Ledger' },

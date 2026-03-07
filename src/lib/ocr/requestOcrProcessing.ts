@@ -1,15 +1,11 @@
 /**
  * Canonical OCR Processing Entrypoint
- * 
- * This is the SINGLE entrypoint for all OCR requests from the frontend.
- * All OCR processing MUST go through the backend smart-import-ocr pipeline
- * which applies guardrails and PII masking.
- * 
- * DO NOT use deprecated ocrService.ts functions - they bypass guardrails.
+ *
+ * Routes all OCR requests to the process-statement backend endpoint,
+ * which applies PII scrubbing and writes to staging tables.
  */
 
 import { getSupabase } from '../supabase';
-import { runSmartImportPipeline } from '../smartImport/runSmartImportPipeline';
 
 export interface OCRProcessingRequest {
   file: File;
@@ -29,44 +25,59 @@ export interface OCRProcessingResult {
 }
 
 /**
- * Request OCR processing via the canonical backend pipeline
- * 
- * Pipeline (canonical frontend wrapper):
- * runSmartImportPipeline() → init/upload/finalize/poll/sync
- * 
+ * Request OCR processing via the process-statement backend endpoint.
+ *
+ * Converts the file to base64 and POSTs to /.netlify/functions/process-statement,
+ * which runs Google Vision / Claude Vision extraction, writes staging rows, and
+ * triggers the Byte announcement to Prime.
+ *
  * @param request OCR processing request with file and userId
- * @returns Processing result with docId and status
+ * @returns Processing result with importSummaryId and status
  */
 export async function requestOcrProcessing(
   request: OCRProcessingRequest
 ): Promise<OCRProcessingResult> {
   const { file, userId, requestId } = request;
-  const traceId = `ocr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const importRunId = requestId || `import_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const shouldTrace = import.meta.env.VITE_OCR_TRACE === '1';
-
-  if (shouldTrace) {
-    console.log(`[OCR][${traceId}] start`, { importRunId });
-  }
 
   try {
-    const result = await runSmartImportPipeline({
-      userId,
-      source: 'upload',
-      file,
-      fileName: file.name,
-      mimeType: file.type,
-      fileSize: file.size,
-      lastModified: file.lastModified || 0,
-      requestId,
-      onProgress: undefined,
+    // Convert File → base64
+    const arrayBuffer = await file.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
+
+    const resp = await fetch('/.netlify/functions/process-statement', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        base64,
+        fileName: file.name,
+        mimeType: file.type,
+        userId,
+        importId: importRunId,
+      }),
     });
+
+    if (!resp.ok) {
+      return {
+        ok: false,
+        importRunId,
+        status: 'error',
+        error: `process-statement returned ${resp.status}`,
+      };
+    }
+
+    const result = await resp.json();
     return {
-      ok: !result.rejected,
+      ok: result.ok,
       importRunId,
-      documentId: result.docId,
-      status: result.rejected ? 'rejected' : (result.queued ? 'pending' : 'ready'),
-      error: result.rejected ? result.reason || 'Document rejected' : undefined,
+      documentId: result.importSummaryId,
+      status: result.ok ? 'ready' : 'error',
+      error: result.error,
     };
 
   } catch (error: any) {
@@ -77,10 +88,6 @@ export async function requestOcrProcessing(
       status: 'error',
       error: error?.message || 'OCR request failed',
     };
-  } finally {
-    if (shouldTrace) {
-      console.log(`[OCR][${traceId}] end`, { importRunId });
-    }
   }
 }
 

@@ -84,10 +84,14 @@ export async function announceByteCompletionToPrime(
     const eventDetails = unannouncedEvent.details || {};
     const docCount = (eventDetails.doc_count as number) || 0;
     const txnCount = (eventDetails.txn_count as number) || 0;
+    const debitCount = (eventDetails.debit_count as number) || 0;
+    const creditCount = (eventDetails.credit_count as number) || 0;
     const pages = (eventDetails.pages as number) || 0;
     const warnings = (eventDetails.warnings as string[]) || [];
     const integrityVerified = eventDetails.integrity_verified as boolean | undefined;
     const importRunId = eventDetails.import_run_id as string;
+    const flaggedCount = (eventDetails.flagged_count as number) || 0;
+    const source = (eventDetails.source as string) || '';
 
     // Step 2: Ensure Prime thread exists
     let finalThreadId = threadId;
@@ -99,12 +103,17 @@ export async function announceByteCompletionToPrime(
     }
 
     // Step 3: Build announcement message
-    const txnText = txnCount > 0 ? ` and created ${txnCount} transaction${txnCount > 1 ? 's' : ''}` : '';
-    const pagesText = pages > 0 ? ` (${pages} page${pages > 1 ? 's' : ''})` : '';
+    const lineCountText = (debitCount > 0 || creditCount > 0)
+      ? ` (${debitCount} debit${debitCount !== 1 ? 's' : ''} + ${creditCount} credit${creditCount !== 1 ? 's' : ''})`
+      : '';
+    const txnText = txnCount > 0 ? ` and extracted **${txnCount} transaction${txnCount > 1 ? 's' : ''}**${lineCountText}` : '';
+    const pagesText = pages > 0 ? ` from ${pages} page${pages > 1 ? 's' : ''}` : '';
     const warningText = warnings.length > 0 ? ` ⚠️ Note: ${warnings.join(', ')}` : '';
     const integrityText = integrityVerified === false ? ' ⚠️ Integrity check failed' : integrityVerified === true ? ' ✅ Verified' : '';
+    const sourceText = source ? ` via ${source.replace(/_/g, ' ')}` : '';
+    const flaggedText = flaggedCount > 0 ? ` ⚠️ ${flaggedCount} row${flaggedCount !== 1 ? 's' : ''} flagged for review.` : '';
 
-    const announcementMessage = `Byte finished importing ${docCount} document${docCount > 1 ? 's' : ''}${txnText}${pagesText}${integrityText}${warningText}. View results in Smart Import.`;
+    const announcementMessage = `Byte finished importing ${docCount} document${docCount > 1 ? 's' : ''}${txnText}${pagesText}${integrityText}${sourceText}.${flaggedText}${warningText} View results in Smart Import.`;
 
     // Step 4: Generate stable message ID for idempotency
     const messageId = randomUUID();

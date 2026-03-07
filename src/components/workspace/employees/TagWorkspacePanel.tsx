@@ -6,7 +6,7 @@
  */
 
 import React, { useState } from 'react';
-import { Tag, CheckCircle, ChevronRight, Plus, Zap } from 'lucide-react';
+import { Tag, CheckCircle, ChevronRight, Plus, Zap, Loader2 } from 'lucide-react';
 import { CategoryRulesModal } from '../../transactions/CategoryRulesModal';
 import type { CategoryRule } from '../../../lib/categoryRules';
 
@@ -24,6 +24,12 @@ interface TagWorkspacePanelProps {
   userCategories?: string[];
   /** Called when rules are created/toggled/deleted so parent can refresh counts */
   onRefreshRules?: () => void;
+  /** Suggested starter rules for quick generation */
+  starterRuleSuggestions?: Array<{ merchant: string; category: string; count: number }>;
+  /** Generate starter rules callback */
+  onGenerateStarterRules?: () => void;
+  /** Loading state for starter rule generation */
+  isGeneratingStarterRules?: boolean;
 }
 
 function fmt(value: number | null, isLoading?: boolean): string {
@@ -49,6 +55,9 @@ export function TagWorkspacePanel({
   totalTimesApplied = 0,
   userCategories,
   onRefreshRules,
+  starterRuleSuggestions = [],
+  onGenerateStarterRules,
+  isGeneratingStarterRules = false,
 }: TagWorkspacePanelProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const activeCategories = fmt(categoryCount, isLoading);
@@ -191,6 +200,34 @@ export function TagWorkspacePanel({
               ) : topRules.length === 0 ? (
                 <div className="text-center py-3">
                   <p className="text-[11px] text-slate-600">No rules yet</p>
+                  {starterRuleSuggestions.length > 0 && (
+                    <div className="mt-2 space-y-1.5 text-left">
+                      {starterRuleSuggestions.slice(0, 3).map((row) => (
+                        <div
+                          key={`${row.merchant}-${row.category}`}
+                          className="rounded-lg border border-violet-500/20 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-200"
+                        >
+                          {row.merchant} → {row.category} ({row.count})
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {onGenerateStarterRules && (
+                    <button
+                      onClick={onGenerateStarterRules}
+                      disabled={isGeneratingStarterRules}
+                      className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-violet-500/30 bg-violet-500/15 px-2.5 py-1 text-[11px] text-violet-300 hover:bg-violet-500/25 disabled:opacity-60"
+                    >
+                      {isGeneratingStarterRules ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Generating…
+                        </>
+                      ) : (
+                        <>✨ Generate 3 starter rules</>
+                      )}
+                    </button>
+                  )}
                   <button
                     onClick={() => setIsModalOpen(true)}
                     className="mt-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"

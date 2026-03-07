@@ -10,7 +10,7 @@ async function loadPdfParse(): Promise<(buf: Buffer) => Promise<{ text?: string 
 }
 
 async function loadPdfJs(): Promise<any> {
-  const mod: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const mod: any = await import("pdfjs-dist/legacy/build/pdf.js");
   return mod?.default ?? mod;
 }
 

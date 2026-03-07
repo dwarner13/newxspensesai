@@ -24,6 +24,9 @@ type ActivityFeedProps = {
   maxHeight?: number;
   scrollable?: boolean;
   hideScrollbar?: boolean;
+  resultOnly?: boolean;
+  showOptimizedStatus?: boolean;
+  mono?: boolean;
 };
 
 /**
@@ -99,6 +102,9 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
   maxHeight,
   scrollable = false,
   hideScrollbar = false,
+  resultOnly = false,
+  showOptimizedStatus = false,
+  mono = false,
 }) => {
   const opsDashboardEnabled = isSmartImportOpsDashboardV1Enabled();
   const { events, isLoading, isError, errorMessage } = useActivityFeed({
@@ -163,6 +169,23 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
     })),
     ...events,
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const displayedEvents: ActivityEvent[] = resultOnly
+    ? mergedEvents.filter((event) => {
+        const text = `${event.title || ''} ${event.description || ''}`.toLowerCase();
+        const evt = String((event as any).eventType || '').toLowerCase();
+        const looksLikeNoise =
+          /user sent message|message sent|opened chat|typing|viewed/i.test(text) ||
+          evt.includes('chat.message');
+        if (looksLikeNoise) return false;
+        const looksLikeResult =
+          /parsed|import|uploaded|tag|categor|rule|approved|committed|completed|processed|summary|verified|anomal/i.test(text) ||
+          /import|ocr|categor|tag|rule|commit|approve|summary|analytics/.test(evt) ||
+          event.severity === 'success' ||
+          event.severity === 'warning' ||
+          event.severity === 'error';
+        return looksLikeResult;
+      })
+    : mergedEvents;
 
   // Variant styling: 'column' = standalone card, 'embedded' = integrated into parent grid
   const isEmbedded = variant === 'embedded';
@@ -194,8 +217,14 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
           {title}
         </h3>
         <span className="text-[10px] text-slate-500 truncate">
-          {opsDashboardEnabled ? 'Recent import and processing activity' : 'Recent AI team activity'}
+          {resultOnly ? 'Outcome log only' : (opsDashboardEnabled ? 'Recent import and processing activity' : 'Recent AI team activity')}
         </span>
+        {showOptimizedStatus && (
+          <div className="mt-1 inline-flex w-fit items-center gap-1.5 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+            System Status: Optimized
+          </div>
+        )}
       </div>
 
       {/* Body - Tighter vertical spacing */}
@@ -205,7 +234,8 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
           "flex-1 min-h-0 space-y-2",
           isEmbedded && "px-4 pb-4",
           scrollable && "overflow-y-auto",
-          hideScrollbar && "hide-scrollbar"
+          hideScrollbar && "hide-scrollbar",
+          mono && "font-mono"
         )}
         style={scrollable && maxHeight ? { maxHeight } : undefined}
       >
@@ -235,19 +265,28 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({
               <p className="text-[10px] text-slate-500 mt-1">{errorMessage}</p>
             )}
           </div>
-        ) : mergedEvents.length === 0 ? (
+        ) : displayedEvents.length === 0 ? (
           // Empty State - Compact
           <div className="flex-1 flex flex-col items-center justify-center text-center p-2">
-            <p className="text-[11px] text-slate-500 leading-relaxed">
-              No recent activity yet.
-            </p>
-            <p className="text-[10px] text-slate-600 mt-0.5 leading-relaxed">
-              {opsDashboardEnabled ? 'Start by uploading a document.' : 'Start by uploading or chatting.'}
-            </p>
+            {showOptimizedStatus ? (
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+                System Status: Optimized
+              </div>
+            ) : (
+              <>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  No recent activity yet.
+                </p>
+                <p className="text-[10px] text-slate-600 mt-0.5 leading-relaxed">
+                  {opsDashboardEnabled ? 'Start by uploading a document.' : 'Start by uploading or chatting.'}
+                </p>
+              </>
+            )}
           </div>
         ) : (
           // Events list - Compact styling
-          mergedEvents.map((event) => {
+          displayedEvents.map((event) => {
             // Special handling for Byte import completion events
             if (event.eventType === 'byte.import.completed' || (event.actorSlug === 'byte-docs' && event.title.includes('finished importing'))) {
               return (

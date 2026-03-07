@@ -19,6 +19,8 @@ interface TransactionListProps {
   categories?: string[];
   onCategoryChange?: (txId: string, category: string) => void;
   sortOrder?: 'newest' | 'oldest';
+  showRowActions?: boolean;
+  highlightTransactionIds?: Set<string>;
 }
 
 export function TransactionList({
@@ -32,9 +34,12 @@ export function TransactionList({
   categories,
   onCategoryChange,
   sortOrder = 'newest',
+  showRowActions = true,
+  highlightTransactionIds,
 }: TransactionListProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 50;
+  const useDateGroupedView = true;
 
   // Combine and sort all transactions
   const allItems = useMemo(() => {
@@ -77,6 +82,39 @@ export function TransactionList({
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedItems = allItems.slice(startIndex, startIndex + itemsPerPage);
 
+  const groupedByDay = useMemo(() => {
+    const sections: Array<{ key: string; label: string; items: typeof paginatedItems }> = [];
+
+    const toDayKey = (rawDate: string): string => {
+      const d = new Date(rawDate);
+      if (Number.isNaN(d.getTime())) return 'unknown-date';
+      return d.toISOString().slice(0, 10);
+    };
+
+    const toDayLabel = (key: string): string => {
+      if (key === 'unknown-date') return 'Unknown date';
+      const d = new Date(`${key}T00:00:00`);
+      if (Number.isNaN(d.getTime())) return 'Unknown date';
+      return d.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+      });
+    };
+
+    for (const item of paginatedItems) {
+      const key = toDayKey(item.sortDate);
+      const current = sections[sections.length - 1];
+      if (!current || current.key !== key) {
+        sections.push({ key, label: toDayLabel(key), items: [item] });
+      } else {
+        current.items.push(item);
+      }
+    }
+
+    return sections;
+  }, [paginatedItems]);
+
   const handleRowClick = (item: typeof allItems[0]) => {
     if (item.type === 'committed' && item.transaction) {
       onTransactionClick(item.transaction, false);
@@ -104,13 +142,25 @@ export function TransactionList({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="grid grid-cols-[88px_minmax(180px,1.4fr)_120px_minmax(150px,1fr)_130px_auto] gap-2 items-center px-4 py-2 bg-slate-900 border-b border-slate-800">
-        <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Date</div>
+      <div
+        className={`grid ${
+          useDateGroupedView
+            ? (showRowActions
+              ? 'grid-cols-[minmax(220px,1.6fr)_120px_minmax(150px,1fr)_130px_auto]'
+              : 'grid-cols-[minmax(220px,1.8fr)_120px_minmax(150px,1fr)_130px]')
+            : (showRowActions
+              ? 'grid-cols-[88px_minmax(180px,1.4fr)_120px_minmax(150px,1fr)_130px_auto]'
+              : 'grid-cols-[88px_minmax(200px,1.6fr)_120px_minmax(150px,1fr)_130px]')
+        } gap-2 items-center px-4 py-2 bg-slate-900 border-b border-slate-800`}
+      >
+        {!useDateGroupedView ? (
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Date</div>
+        ) : null}
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Merchant</div>
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide text-right">Amount</div>
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Category</div>
         <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Status</div>
-        <div></div>
+        {showRowActions ? <div></div> : null}
       </div>
 
       {/* List */}
@@ -124,6 +174,40 @@ export function TransactionList({
                 : 'Try adjusting your filters'}
             </p>
           </div>
+        ) : useDateGroupedView ? (
+          groupedByDay.map((section) => (
+            <div key={section.key}>
+              <div className="px-4 py-2 text-xs font-semibold text-slate-300 bg-slate-950/80 border-b border-slate-800/70 sticky top-0 z-[1]">
+                {section.label}
+              </div>
+              {section.items.map((item) => (
+                <TransactionRow
+                  key={item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id}
+                  transaction={item.transaction}
+                  pendingTransaction={item.pendingTransaction}
+                  onClick={() => handleRowClick(item)}
+                  onApprove={
+                    item.type === 'pending' && item.pendingTransaction
+                      ? () => handleApprove(item.pendingTransaction!.id)
+                      : undefined
+                  }
+                  onReject={
+                    item.type === 'pending' && item.pendingTransaction
+                      ? () => handleReject(item.pendingTransaction!.id)
+                      : undefined
+                  }
+                  onEdit={() => handleEdit(item)}
+                  categories={categories}
+                  onCategoryChange={onCategoryChange}
+                  showDate={false}
+                  showActions={showRowActions}
+                  isHighlighted={highlightTransactionIds?.has(
+                    item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id
+                  ) || false}
+                />
+              ))}
+            </div>
+          ))
         ) : (
           paginatedItems.map((item) => (
             <TransactionRow
@@ -144,6 +228,11 @@ export function TransactionList({
               onEdit={() => handleEdit(item)}
               categories={categories}
               onCategoryChange={onCategoryChange}
+              showDate
+              showActions={showRowActions}
+              isHighlighted={highlightTransactionIds?.has(
+                item.type === 'committed' ? item.transaction!.id : item.pendingTransaction!.id
+              ) || false}
             />
           ))
         )}

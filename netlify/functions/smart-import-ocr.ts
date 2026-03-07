@@ -357,6 +357,7 @@ async function runScannedPdfFallback(params: {
   ocrJobId?: string | null;
   allowPaidFallback: boolean;
   sb: any;
+  userId?: string;
 }): Promise<{
   merged: OcrResult;
   warning?: string;
@@ -367,6 +368,19 @@ async function runScannedPdfFallback(params: {
   const includeDebug = process.env.OCR_DEBUG === '1' || process.env.OCR_DEBUG === 'true';
   const startedAt = Date.now();
   const updateProgress = async (processedPages: number, totalPages: number) => {
+    if (params.userId) {
+      try {
+        const percent = Math.round((processedPages / totalPages) * 100);
+        await params.sb.channel(`chat-progress-${params.userId}`).send({
+          type: 'broadcast',
+          event: 'progress',
+          payload: { message: `Byte is scanning... [${percent}% Complete]` }
+        });
+      } catch (e) {
+        console.warn('[OCR] Failed to broadcast progress', e);
+      }
+    }
+
     if (!params.ocrJobId) return;
     const progressJson = {
       debug: {
@@ -425,29 +439,55 @@ async function runScannedPdfFallback(params: {
     fallbackSkippedByBudget: false,
   };
   let earlyStopReason: string | null = null;
+  const BATCH_SIZE = 3;
+  const extractionStartTime = performance.now();
 
-  for (let idx = 0; idx < rendered.pages.length; idx += 1) {
-    const page = rendered.pages[idx];
-    const pageResult = await ocrPageImage({
-      pageIndex: page.pageIndex,
-      imageBuffer: page.imageBuffer,
-      statementMode: params.docMode === 'statement',
-      confidenceThreshold: OCR_CONFIDENCE_THRESHOLD,
-      disableFallback: true,
-    });
-    pageResults.push(pageResult);
-    if (includeDebug) {
-      console.log('[OCR] scanned-pdf page OCR provider', {
-        pageIndex: page.pageIndex,
-        provider: pageResult.provider,
-        confidence: pageResult.confidence,
-        imageBytes: page.imageBuffer.length,
-      });
+  for (let batchStart = 0; batchStart < rendered.pages.length; batchStart += BATCH_SIZE) {
+    const batchPages = rendered.pages.slice(batchStart, batchStart + BATCH_SIZE);
+    
+    // Process batch in parallel
+    const batchResults = await Promise.all(
+      batchPages.map(async (page) => {
+        try {
+          const result = await ocrPageImage({
+            pageIndex: page.pageIndex,
+            imageBuffer: page.imageBuffer,
+            statementMode: params.docMode === 'statement',
+            confidenceThreshold: OCR_CONFIDENCE_THRESHOLD,
+            disableFallback: true,
+          });
+          return { success: true, pageIndex: page.pageIndex, result, imageBuffer: page.imageBuffer };
+        } catch (error) {
+          console.error(`[OCR] Failed to extract page ${page.pageIndex}`, error);
+          // Return a structured error to allow other pages in batch to succeed
+          return { success: false, pageIndex: page.pageIndex, error, imageBuffer: page.imageBuffer };
+        }
+      })
+    );
+
+    // Collect successful results
+    for (const item of batchResults) {
+      if (item.success && item.result) {
+        pageResults.push(item.result);
+        if (includeDebug) {
+          console.log('[OCR] scanned-pdf page OCR provider', {
+            pageIndex: item.pageIndex,
+            provider: item.result.provider,
+            confidence: item.result.confidence,
+            imageBytes: item.imageBuffer.length,
+          });
+        }
+        metrics.primaryEngineCalls += 1;
+      }
     }
-    metrics.primaryEngineCalls += 1;
-    metrics.pagesProcessed = pageResults.length;
-    await updateProgress(idx + 1, rendered.totalPages);
 
+    // Sort pageResults by pageIndex in case they arrived out of order (though map array should be ordered)
+    pageResults.sort((a, b) => a.pageIndex - b.pageIndex);
+    
+    metrics.pagesProcessed = pageResults.length;
+    await updateProgress(Math.min(batchStart + batchPages.length, rendered.totalPages), rendered.totalPages);
+
+    // Check early stopping criteria after this batch
     const mergedSoFar = mergeOcrPages(pageResults, {
       originalName: params.originalName || '',
       confidenceThreshold: OCR_CONFIDENCE_THRESHOLD,
@@ -469,12 +509,16 @@ async function runScannedPdfFallback(params: {
       statementMaxPages: OCR_STATEMENT_EARLY_STOP_MAX_PAGES,
       lowConfidenceFloor: OCR_FALLBACK_PAGE_CONFIDENCE_THRESHOLD,
     });
+    
     if (decision.stop) {
       earlyStopReason = decision.reason;
       metrics.earlyStopTriggered = { triggered: true, reason: earlyStopReason };
       break;
     }
   }
+  
+  const extractionEndTime = performance.now();
+  console.log('[OCR] Parallel extraction time (ms):', extractionEndTime - extractionStartTime);
 
   let fallbackSkippedByBudget = false;
   const eligibleWorstPages = selectWorstPagesForFallback({
@@ -1403,6 +1447,17 @@ export const handler: Handler = async (event, context) => {
     if (alreadyProcessed && hasUsableCachedEvidence) {
       const existingMetrics = existingTextLength;
       await markCachedDocReady(sb, docId, doc?.metadata);
+      
+      try {
+        await sb.channel(`chat-progress-${effectiveUserId}`).send({
+          type: 'broadcast',
+          event: 'progress',
+          payload: { message: "Byte: I've seen this one before! Pulling your existing records from the vault now..." }
+        });
+      } catch (broadcastErr) {
+        console.warn(`${logPrefix} Failed to broadcast already seen message`, broadcastErr);
+      }
+      
       console.log(`${logPrefix} SKIP`, { docId, reason: 'already_processed' });
       return {
         statusCode: 200,
@@ -1777,6 +1832,7 @@ export const handler: Handler = async (event, context) => {
           allowPaidFallback,
           sb,
           ocrJobId,
+          userId: effectiveUserId,
         });
         scannedPdfMerged = scannedFallback.merged;
         scannedMetrics = scannedFallback.metrics;

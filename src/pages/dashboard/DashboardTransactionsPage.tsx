@@ -188,13 +188,19 @@ const DashboardTransactionsPage: React.FC = () => {
           return;
         }
         
-        const TEST_USER_ID = "00000000-0000-4000-8000-000000000001";
+        if (!userId) {
+          setTransactions([]);
+          setFilteredTransactions([]);
+          setAiInsights([]);
+          setIsLoading(false);
+          return;
+        }
         
         // Fetch transactions from Supabase for TEST user
         let query = supabase
           .from('transactions')
           .select('*')
-          .eq('user_id', TEST_USER_ID);
+          .eq('user_id', userId);
 
         if (importIdFilter) {
           query = query.eq('import_id', importIdFilter);
@@ -611,8 +617,9 @@ const DashboardTransactionsPage: React.FC = () => {
         throw new Error('Database connection not available');
       }
 
-      const TEST_USER_ID = "00000000-0000-4000-8000-000000000001";
-      const userId = TEST_USER_ID;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
 
       // Update transaction in Supabase
       const { error: updateError } = await supabase
@@ -680,8 +687,9 @@ const DashboardTransactionsPage: React.FC = () => {
         throw new Error('Database connection not available');
       }
 
-      const TEST_USER_ID = "00000000-0000-4000-8000-000000000001";
-      const userId = TEST_USER_ID;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
 
       // Prepare update payload
       const updatePayload: any = {};
@@ -771,8 +779,9 @@ const DashboardTransactionsPage: React.FC = () => {
         throw new Error('Database connection not available');
       }
 
-      const TEST_USER_ID = "00000000-0000-4000-8000-000000000001";
-      const userId = TEST_USER_ID;
+      if (!userId) {
+        throw new Error('User not authenticated');
+      }
 
       // Prepare transaction payload
       const transactionAmount = newTransactionForm.type === 'expense' ? -amount : amount;

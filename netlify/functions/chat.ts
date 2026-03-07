@@ -6168,7 +6168,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: client_message_id ? { client_message_id } : undefined,
+          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
         });
 
         await sb.from('chat_messages').insert({
@@ -6671,7 +6671,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: client_message_id ? { client_message_id } : undefined,
+          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
         });
 
         await sb.from('chat_messages').insert({
@@ -6773,7 +6773,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: client_message_id ? { client_message_id } : undefined,
+          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
         });
 
         await sb.from('chat_messages').insert({
@@ -6869,7 +6869,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: client_message_id ? { client_message_id } : undefined,
+          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
         });
 
         await sb.from('chat_messages').insert({
@@ -6963,7 +6963,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: client_message_id ? { client_message_id } : undefined,
+          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
         });
 
         await sb.from('chat_messages').insert({
@@ -7059,7 +7059,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: client_message_id ? { client_message_id } : undefined,
+          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
         });
 
         await sb.from('chat_messages').insert({
@@ -7155,7 +7155,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: client_message_id ? { client_message_id } : undefined,
+          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
         });
 
         await sb.from('chat_messages').insert({
@@ -7251,7 +7251,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: client_message_id ? { client_message_id } : undefined,
+          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
         });
 
         await sb.from('chat_messages').insert({
@@ -7347,7 +7347,7 @@ export const handler: Handler = async (event, context) => {
           content: masked,
           tokens: estimateTokens(masked),
           thread_id: threadId,
-          metadata: client_message_id ? { client_message_id } : undefined,
+          metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
         });
 
         await sb.from('chat_messages').insert({
@@ -8079,183 +8079,35 @@ CUSTODIAN CONTEXT (Account Security & Settings):
       userMessageContent = `${masked}${attachmentContext}`;
     }
     if (ocrText && ocrText.trim().length > 0) {
-      userMessageContent = `${userMessageContent}\n\n---\nFINANCIAL DOCUMENT (OCR extracted text):\n${ocrText}`;
+      // TASK 1: Run Guardrails on OCR Text (Fail-Closed)
+      const ocrGuardResult = await runInputGuardrails(ocrText);
+      if (!ocrGuardResult.isValid) {
+        console.warn(`[Chat Security] Blocked response due to PII/Guardrails on OCR Text. Reason: ${ocrGuardResult.reason}`);
+        
+        let blockedMessage = "PII Detected";
+        if (ocrGuardResult.reason === 'pii') {
+          blockedMessage = "PII Detected";
+        } else if (ocrGuardResult.reason === 'jailbreak') {
+          blockedMessage = "Jailbreak Detected";
+        } else if (ocrGuardResult.reason === 'moderation') {
+          blockedMessage = "Moderation Detected";
+        }
+        
+        return {
+          statusCode: 403,
+          headers: {
+            ...baseHeaders,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ error: 'SECURITY_BLOCK', message: blockedMessage })
+        };
+      }
+      userMessageContent = `${userMessageContent}\n\n---\nFINANCIAL DOCUMENT (OCR extracted text):\n${ocrGuardResult.maskedText || ocrText}`;
     }
 
     const txSearchAvailable = toolsAllowedThisTurn && employeeTools.includes('tx_search');
     const importIdContextForTurn = await resolveImportIdContextForTurn(masked, sb, userId);
-    const txSearchIntent = txSearchAvailable && isTransactionQuestionForTxSearch(masked);
-    if (txSearchIntent) {
-      const txArgsHint: Record<string, any> = { limit: 25 };
-      const pendingHint = shouldIncludePendingInTxSearch(masked);
-      if (pendingHint) txArgsHint.includePending = true;
 
-      const amountHint = extractAmountRangeHint(masked);
-      const asksAboutAmount =
-        masked.includes('$') ||
-        /\b(charge|charged|amount|cost|spent)\b/i.test(masked) ||
-        false;
-      const shouldApplyAmountHint =
-        asksAboutAmount &&
-        (amountHint._hasDollar === true || (typeof amountHint._raw === 'number' && amountHint._raw < 1000));
-      if (shouldApplyAmountHint) {
-        if (typeof amountHint.minAmount === 'number') txArgsHint.minAmount = amountHint.minAmount;
-        if (typeof amountHint.maxAmount === 'number') txArgsHint.maxAmount = amountHint.maxAmount;
-      }
-
-      const dateHint = extractDateRangeHint(masked);
-      if (dateHint.startDate) txArgsHint.startDate = dateHint.startDate;
-      if (dateHint.endDate) txArgsHint.endDate = dateHint.endDate;
-
-      const queryHint = extractQueryHint(masked);
-      if (queryHint) txArgsHint.q = queryHint;
-
-      let importIdHint = importIdContextForTurn;
-      if (importIdHint) txArgsHint.importId = importIdHint;
-
-      systemMessages.push({
-        role: 'system',
-        content: [
-          'TX_SEARCH TOOL RULE (transaction questions):',
-          `- Do not answer from memory. If tool not called, respond: 'I need to search your transactions first' and call the tool.`,
-          '- For transaction/spending/merchant/category/amount questions, call `tx_search` before answering.',
-          '- Prefer passing `importId` when statement/import context is present and an import id is available.',
-          '- Use `includePending=true` when user asks about pending/needs review/not committed.',
-          '- If tx_search returns multiple candidates and user says "the 2nd one", "that one", or "this charge", call `tx_get` with the selected transaction id before answering.',
-          '- For category changes on a specific transaction: if id is known call `tx_update_category`; otherwise call `tx_search` -> `tx_get` -> `tx_update_category`.',
-          '- After successful update, confirm the change and ask: "Apply this category to this vendor going forward?" (yes/no).',
-          `- Suggested tx_search args for this turn: ${JSON.stringify(txArgsHint)}`,
-          '- Ground answer in tool results only. Show up to 5 matches as: YYYY-MM-DD | Merchant | Amount | Category.',
-          '- If multiple plausible matches remain, ask one concise follow-up question.',
-        ].join('\n'),
-      });
-    }
-    if (txSearchAvailable && isCategoryChangeIntent(masked)) {
-      systemMessages.push({
-        role: 'system',
-        content: [
-          'TX_UPDATE_CATEGORY TOOL RULE (category changes):',
-          `- Do not answer from memory. If tool not called, respond: 'I need to search your transactions first' and call the tool.`,
-          '- If a specific transaction id is available, call `tx_update_category` directly.',
-          '- If id is not available, call `tx_search` -> `tx_get` -> `tx_update_category`.',
-          '- After update, confirm the change and ask: "Apply this category to this vendor going forward?"',
-          '- If user says yes, call `tx_update_category` again with `applyToVendor=true` and vendor from `tx_get` row.',
-        ].join('\n'),
-      });
-    }
-    if (txSearchAvailable && finalSessionId) {
-      const ordinalSelection = parseOrdinalSelection(masked);
-      if (ordinalSelection !== null) {
-        const cachedIds = readLastTxSearchIds(finalSessionId);
-        const selectedId = cachedIds?.[ordinalSelection - 1] || null;
-        if (selectedId) {
-          systemMessages.push({
-            role: 'system',
-            content: `Selected transaction id: ${selectedId}. Call tx_get(id) now.`,
-          });
-        }
-      }
-    }
-    if (txSearchAvailable && isUncategorizedIntent(masked)) {
-      const uncategorizedArgs: Record<string, any> = {
-        uncategorizedOnly: true,
-        includePending: true,
-        limit: 50,
-      };
-      if (importIdContextForTurn) uncategorizedArgs.importId = importIdContextForTurn;
-      systemMessages.push({
-        role: 'system',
-        content: [
-          'TX_UNCATEGORIZED TOOL RULE:',
-          `- Do not answer from memory. If tool not called, respond: 'I need to search your transactions first' and call the tool.`,
-          `- Call tx_search with ${JSON.stringify(uncategorizedArgs)}.`,
-          '- Show up to 10 results as: YYYY-MM-DD | Merchant | Amount | Category',
-          '- Then ask:',
-          '- "Want me to categorize these now? If yes, tell me:',
-          '- (A) category per item, OR',
-          '- (B) a vendor rule like \'All Amazon = Office Supplies\'."',
-        ].join('\n'),
-      });
-    }
-    if (txSearchAvailable && isCompareIntent(masked)) {
-      systemMessages.push({
-        role: 'system',
-        content: [
-          'TX_COMPARE TOOL RULE:',
-          `- Do not answer from memory. If tool not called, respond: 'I need to search your transactions first' and call the tool.`,
-          '- For comparison questions, call tx_search for period A and period B before answering.',
-          '- Keep both calls scoped to importId when available.',
-          '- Then respond with: Period A total, Period B total, Delta amount, Delta %, and one narrative line explaining the biggest driver.',
-        ].join('\n'),
-      });
-    }
-    if (txSearchAvailable && isTopCategoryIntent(masked)) {
-      systemMessages.push({
-        role: 'system',
-        content: [
-          'TX_TOP_CATEGORY TOOL RULE:',
-          `- Do not answer from memory. If tool not called, respond: 'I need to search your transactions first' and call the tool.`,
-          '- Call tx_search with relevant timeframe filters first.',
-          '- Return top categories by spend with amounts, then one short narrative insight.',
-        ].join('\n'),
-      });
-    }
-    if (txSearchAvailable && isTopMerchantIntent(masked)) {
-      systemMessages.push({
-        role: 'system',
-        content: [
-          'TX_TOP_MERCHANT TOOL RULE:',
-          `- Do not answer from memory. If tool not called, respond: 'I need to search your transactions first' and call the tool.`,
-          '- Call tx_search with relevant timeframe filters first.',
-          '- Return top merchants by spend with amounts, then one short narrative insight.',
-        ].join('\n'),
-      });
-    }
-    if (txSearchAvailable && isLikelyDeductibleIntent(masked)) {
-      systemMessages.push({
-        role: 'system',
-        content: [
-          'TX_DEDUCTIBLE TOOL RULE:',
-          `- Do not answer from memory. If tool not called, respond: 'I need to search your transactions first' and call the tool.`,
-          '- Call tx_search first, then flag only likely deductible transactions using rule-based reasoning from category/merchant/description.',
-          '- Label output as "likely" and ask for confirmation before any category changes.',
-        ].join('\n'),
-      });
-    }
-    if (txSearchAvailable && isPolicyCheckIntent(masked)) {
-      systemMessages.push({
-        role: 'system',
-        content: [
-          'TX_POLICY TOOL RULE:',
-          `- Do not answer from memory. If tool not called, respond: 'I need to search your transactions first' and call the tool.`,
-          '- Call tx_search first, then produce warning-only policy checks (no automatic writes).',
-          '- Example format: item, amount, rule triggered.',
-        ].join('\n'),
-      });
-    }
-    if (txSearchAvailable) {
-      const txFormatHint = buildTxDeterministicFormatHint(masked);
-      if (txFormatHint) {
-        systemMessages.push({
-          role: 'system',
-          content: txFormatHint,
-        });
-      }
-    }
-    const vendorRule = txSearchAvailable ? extractVendorCategoryRule(masked) : null;
-    if (vendorRule) {
-      systemMessages.push({
-        role: 'system',
-        content: [
-          'TX_VENDOR_RULE TOOL RULE:',
-          `- User rule detected: all ${vendorRule.vendor} = ${vendorRule.category}.`,
-          `- Run tx_search with {"q":"${vendorRule.vendor}","includePending":true,"limit":25}.`,
-          '- Then call tx_update_category using the TOP match id from tx_search as `id`, with applyToVendor=true, vendor, and category.',
-          '- If tx_search returns multiple plausible vendors/merchants or no id is available, ask one quick follow-up or call tx_get first.',
-          '- Confirm and offer to apply more vendor rules.',
-        ].join('\n'),
-      });
-    }
 
     const hasPrimeSnapshotData =
       Boolean(effectivePrimeContext?.financialSnapshot?.hasTransactions) ||
@@ -8311,189 +8163,6 @@ CUSTODIAN CONTEXT (Account Security & Settings):
       });
     }
 
-    // ========================================================================
-    // 8.4. PRIME→BYTE HANDOFF TRIGGER (Explicit confirmation only)
-    // ========================================================================
-    // Prime-only: Only trigger handoff on explicit confirmation, not hypothetical questions
-    // Handoff should happen ONLY when:
-    // 1. User explicitly confirms ("yes, let's upload/import", "go ahead", "yes", "ok")
-    // 2. User clicks Upload button (handled by frontend)
-    // 3. Prime explicitly calls request_employee_handoff tool (handled by tool execution)
-    // REMOVED: Automatic keyword-based handoff to prevent stickiness on hypothetical questions
-    if (!userForcedEmployee && isPrime && finalEmployeeSlug === 'prime-boss') {
-      // Only trigger on explicit confirmation, not just keywords
-      const confirmationPattern = /\b(yes|ok|okay|go ahead|let's do it|let's upload|let's import|proceed|start|begin|ready)\b/i;
-      const uploadIntentPattern = /\b(upload|import|statement|bank statement|receipt|pdf|transactions|document|file|scan|ocr|parse)\b/i;
-      
-      // Require BOTH confirmation AND upload intent (explicit user intent)
-      const hasConfirmation = confirmationPattern.test(userMessageContent);
-      const hasUploadIntent = uploadIntentPattern.test(userMessageContent);
-      
-      if (hasConfirmation && hasUploadIntent) {
-        console.log(`[Chat] 🔄 PRIME→BYTE HANDOFF: User explicitly confirmed upload/import intent`);
-        
-        // CRITICAL: Ensure we have a valid sessionId before proceeding with handoff
-        if (!finalSessionId) {
-          console.error('[Chat] ❌ HANDOFF FAILED: No valid sessionId available.');
-        } else {
-          // Simulate handoff tool result to reuse existing handoff processing logic
-          const simulatedHandoffResult = {
-            ok: true,
-            data: {
-              requested_handoff: true,
-              target_slug: 'byte-docs',
-              reason: 'Smart Import',
-              summary_for_next_employee: 'User wants to upload a statement/receipt. Ask for the file and run OCR/parse pipeline. Summarize results and offer handback to Prime.',
-            },
-          };
-          
-          // Process handoff immediately (reuse existing logic from tool execution)
-          try {
-            const handoffData = simulatedHandoffResult.data;
-            const targetSlug = handoffData.target_slug;
-            const reason = handoffData.reason || 'Smart Import';
-            const summary = handoffData.summary_for_next_employee;
-            
-            console.log(`[Chat] ✅ AUTO-HANDOFF COMPLETE: ${originalEmployeeSlug} → ${targetSlug}`, {
-              reason,
-              summary: summary?.substring(0, 100),
-              sessionId: finalSessionId,
-            });
-            
-            // Gather handoff context
-            let handoffRecentMessages: any[] = [];
-            let keyFacts: string[] = [];
-            
-            try {
-              // Get recent messages (last 10)
-              const { data: messagesData } = await sb
-                .from('chat_messages')
-                .select('role, content, created_at')
-                .eq('session_id', finalSessionId)
-                .order('created_at', { ascending: false })
-                .limit(10);
-              
-              if (messagesData) {
-                handoffRecentMessages = messagesData.reverse(); // Oldest first
-              }
-              
-              // Extract key facts from memory
-              if (memoryFacts && memoryFacts.length > 0) {
-                keyFacts = memoryFacts.slice(0, 5).map(f => f.fact);
-              }
-            } catch (error: any) {
-              console.warn('[Chat] Failed to gather handoff context:', error);
-            }
-            
-            // Store handoff context in database
-            try {
-              await sb.from('handoffs').insert({
-                user_id: userId,
-                session_id: finalSessionId,
-                from_employee: originalEmployeeSlug,
-                to_employee: targetSlug,
-                reason: reason,
-                context_summary: summary || `Handoff from ${originalEmployeeSlug} to ${targetSlug}`,
-                key_facts: keyFacts,
-                recent_messages: handoffRecentMessages,
-                user_intent: masked.substring(0, 500),
-                status: 'initiated',
-              });
-              
-              console.log(`[Chat] Stored auto-handoff context for session ${finalSessionId}`);
-            } catch (error: any) {
-              console.warn('[Chat] Failed to store auto-handoff context:', error);
-            }
-            
-            // Update session's employee_slug ONLY if this is a confirmed handoff (not hypothetical)
-            // CRITICAL: Only persist handoff if user explicitly confirmed (hasConfirmation && hasUploadIntent)
-            // This prevents session from becoming "sticky" after hypothetical questions
-            // Note: This handoff path only runs when hasConfirmation && hasUploadIntent is true (see line ~1591)
-            try {
-              await sb
-                .from('chat_sessions')
-                .update({ employee_slug: targetSlug })
-                .eq('id', finalSessionId);
-              
-              console.log(`[Chat] Session ${finalSessionId} updated to employee: ${targetSlug} (confirmed handoff)`);
-            } catch (error: any) {
-              console.warn('[Chat] Failed to update session employee_slug:', error);
-            }
-            
-            // Insert system message about handoff
-            try {
-              const handoffMessage = summary 
-                ? `Handoff: Conversation moved to ${targetSlug}. Context: ${summary}`
-                : `Handoff: Conversation moved to ${targetSlug}.`;
-              
-              await sb.from('chat_messages').insert({
-                session_id: finalSessionId,
-                user_id: userId,
-                role: 'system',
-                content: handoffMessage,
-                tokens: estimateTokens(handoffMessage),
-                thread_id: threadId,
-              });
-              
-              console.log(`[Chat] Inserted auto-handoff system message for session ${finalSessionId}`);
-            } catch (error: any) {
-              console.warn('[Chat] Failed to insert auto-handoff system message:', error);
-            }
-            
-            // CRITICAL: Return early with silent handoff - do NOT continue processing
-            // Prime must NOT produce a full answer when handing off
-            // Return only a short handoff message, then Byte will produce the substantive answer
-            const handoffConfirmation = "Got it — handing this to Byte.";
-            const isStreaming = stream !== false;
-            
-            // Log handoff for debugging
-            console.log(`[Chat] 🔄 HANDOFF: ${originalEmployeeSlug} → ${targetSlug}`, {
-              requestId: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-              responder: targetSlug,
-              handoffOccurred: true,
-            });
-            
-            if (isStreaming) {
-              return {
-                statusCode: 200,
-                headers: {
-                  ...baseHeaders,
-                  'Content-Type': 'text/event-stream',
-                  'Cache-Control': 'no-cache',
-                  'Connection': 'keep-alive',
-                  'X-Employee': targetSlug,
-                  'X-Handoff': `${originalEmployeeSlug}-to-${targetSlug}`,
-                },
-                body: `data: ${JSON.stringify({ role: 'assistant', content: handoffConfirmation })}\n\ndata: ${JSON.stringify({ type: 'handoff', from: originalEmployeeSlug, to: targetSlug })}\n\ndata: ${JSON.stringify({ type: 'done', thread_id: threadId })}\n\n`,
-              };
-            } else {
-              return {
-                statusCode: 200,
-                headers: {
-                  ...baseHeaders,
-                  'Content-Type': 'application/json',
-                  'X-Employee': targetSlug,
-                  'X-Handoff': `${originalEmployeeSlug}-to-${targetSlug}`,
-                },
-                body: JSON.stringify({
-                  ok: true,
-                  content: handoffConfirmation,
-                  handoff: {
-                    from: originalEmployeeSlug,
-                    to: targetSlug,
-                    reason: reason,
-                  },
-                  thread_id: threadId,
-                }),
-              };
-            }
-          } catch (error: any) {
-            console.error('[Chat] Failed to process auto-handoff:', error);
-            // Continue with normal Prime processing if handoff fails
-          }
-        }
-      }
-    }
 
     // Log context summary (skip detailed logging in fast path)
     if (!isFastPath) {
@@ -8714,7 +8383,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         content: masked, // Store masked version
         tokens: estimateTokens(masked),
         thread_id: threadId, // CRITICAL: thread_id is always required
-        metadata: client_message_id ? { client_message_id } : undefined,
+        metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
       };
       console.log(`[Chat] Inserting user message with thread_id: ${threadId}`);
       await sb.from('chat_messages').insert(messageData);
@@ -9007,6 +8676,19 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                   // Parse args once for logging and execution
                   const args = JSON.parse(toolCall.function.arguments || '{}');
                   
+                  // Inject Tone Profile for summarize_import
+                  if (toolName === 'summarize_import') {
+                    if (finalEmployeeSlug === 'roast-master') {
+                      args.tone_profile = 'BRUTAL_ROAST';
+                    } else if (finalEmployeeSlug === 'serenity-therapist') {
+                      args.tone_profile = 'MINDFUL_THERAPIST';
+                    } else if (finalEmployeeSlug === 'hype-man' || finalEmployeeSlug === 'blitz-debt') {
+                      args.tone_profile = 'HYPE_MAN';
+                    } else {
+                      args.tone_profile = 'PROFESSIONAL_CEO';
+                    }
+                  }
+                  
                   // Enhanced logging for all tools
                   console.log(`[Chat] Executing tool: ${toolName}`, {
                     employee: finalEmployeeSlug,
@@ -9215,6 +8897,15 @@ CUSTODIAN CONTEXT (Account Security & Settings):
                         };
                         writeSSE(handoffEvent);
                         writeSSE({ type: 'employee', employee: finalEmployeeSlug, employeeSlug: finalEmployeeSlug });
+                        
+                        // Emit thought stream for Byte
+                        if (targetSlug === 'byte-docs') {
+                          writeSSE({
+                            type: 'specialist_thought',
+                            employee: 'byte-docs',
+                            content: 'Byte is scanning...',
+                          });
+                        }
                         
                         // Enhanced logging for debugging (guarded by env flag)
                         if (process.env.NETLIFY_DEV === 'true' || process.env.DEBUG_HANDOFF === 'true') {

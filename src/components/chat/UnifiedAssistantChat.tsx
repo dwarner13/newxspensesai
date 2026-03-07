@@ -254,6 +254,8 @@ export default function UnifiedAssistantChat({
   const [injectedMessages, setInjectedMessages] = useState<ChatMessage[]>([]);
   const [summaryOverrides, setSummaryOverrides] = useState<Record<string, string>>({});
   const [categorizeStatusByImportId, setCategorizeStatusByImportId] = useState<Record<string, 'idle' | 'pending' | 'done' | 'error'>>({});
+  const [showAutoTagPreview, setShowAutoTagPreview] = useState(false);
+  const [isFooterAutoTagRunning, setIsFooterAutoTagRunning] = useState(false);
   const userJustSentRef = useRef(false);
   const autoPinToBottomRef = useRef(true);
   const forceAutoPinUntilRef = useRef(0);
@@ -655,7 +657,7 @@ export default function UnifiedAssistantChat({
         
         if (data && data.length > 0) {
           const historyMessages: ChatMessage[] = data
-            .filter(m => m.role !== 'system')
+            .filter(m => m.role !== 'system' && !(m as any).metadata?.hidden && !(m as any).meta?.hidden)
             .map(m => ({
               id: m.id,
               role: m.role as 'user' | 'assistant',
@@ -1640,7 +1642,7 @@ export default function UnifiedAssistantChat({
   const NEAR_BOTTOM_PX = 220;
 
   // Scroll-to-bottom helper (ChatGPT-style, uses scroll container + marker)
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto', force = false) => {
     const shouldFollowActiveTurn =
       (isStreaming || isAssistantReplyPending || isUploadingAttachments || isPrimeSummaryPending) &&
       (userIsNearBottomRef.current || autoPinToBottomRef.current);
@@ -1649,7 +1651,7 @@ export default function UnifiedAssistantChat({
       shouldFollowActiveTurn ||
       Date.now() < forceAutoPinUntilRef.current;
     const forcePin = Date.now() < forceAutoPinUntilRef.current;
-    if (!shouldAutoScrollNow || (userScrolledUpRef.current && !forcePin)) return;
+    if (!force && (!shouldAutoScrollNow || (userScrolledUpRef.current && !forcePin))) return;
     const scroller = getActiveScrollEl?.() || scrollElementRef.current;
     const end = messagesEndRef.current;
     if (!scroller && !end) return;
@@ -1739,7 +1741,7 @@ export default function UnifiedAssistantChat({
       return [...cleaned, nextMessage];
     });
     setTimeout(() => {
-      scrollToBottom('smooth');
+      scrollToBottom('smooth', true);
     }, 100);
   }, [summaryForByte?.importId, summaryForByte?.content, summaryOverrides, isByte, smartImport.lastUploadSummary?.transactionCount, scrollToBottom]);
 
@@ -1891,7 +1893,7 @@ export default function UnifiedAssistantChat({
           ];
         });
         setTimeout(() => {
-          scrollToBottom('smooth');
+          scrollToBottom('smooth', true);
         }, 100);
       } catch {
         // no-op
@@ -1907,9 +1909,9 @@ export default function UnifiedAssistantChat({
   useLayoutEffect(() => {
     if (!isByte || !isOpen) return;
     if (!summaryForByte && injectedMessages.length === 0) return;
-    scrollToBottom('auto');
+    scrollToBottom('auto', true);
     requestAnimationFrame(() => {
-      scrollToBottom('auto');
+      scrollToBottom('auto', true);
     });
   }, [isByte, isOpen, summaryForByte?.content, summaryOverrides[summaryForByte?.importId || ''], injectedMessages.length, scrollToBottom]);
 
@@ -1944,7 +1946,7 @@ export default function UnifiedAssistantChat({
       ];
     });
     setTimeout(() => {
-      scrollToBottom('smooth');
+      scrollToBottom('smooth', true);
     }, 100);
   }, [fallbackSummaryImportId, summaryForByte, isByte, smartImport.lastUploadSummary?.transactionCount, scrollToBottom]);
 
@@ -1975,7 +1977,7 @@ export default function UnifiedAssistantChat({
       ];
     });
     setTimeout(() => {
-      scrollToBottom('smooth');
+      scrollToBottom('smooth', true);
     }, 100);
   }, [isByte, isUploadingAttachments, smartImport.uploadStatus?.step, scrollToBottom]);
 
@@ -1987,7 +1989,7 @@ export default function UnifiedAssistantChat({
     );
     if (!hasInjectedSummary) return;
     const timeoutId = setTimeout(() => {
-      scrollToBottom('smooth');
+      scrollToBottom('smooth', true);
     }, 150);
     return () => clearTimeout(timeoutId);
   }, [isByte, isOpen, injectedMessages, scrollToBottom]);
@@ -2673,11 +2675,49 @@ export default function UnifiedAssistantChat({
     };
   }, []);
 
+  const buildPrimeUploadCtas = useCallback((params: {
+    importId: string;
+    transactionCount?: number | null;
+    needsReviewCount?: number | null;
+    focusMerchants?: string[];
+  }) => {
+    const txCount = typeof params.transactionCount === 'number' ? params.transactionCount : null;
+    const reviewCount = typeof params.needsReviewCount === 'number' ? params.needsReviewCount : null;
+    const candidateCount = reviewCount && reviewCount > 0 ? reviewCount : txCount;
+    const autoTagLabel = candidateCount && candidateCount > 0
+      ? `✨ Auto-Tag & Verify ${candidateCount} Item${candidateCount === 1 ? '' : 's'}`
+      : '✨ Auto-Tag & Verify';
+    const cleanMerchants = (params.focusMerchants || []).map((m) => String(m || '').trim()).filter(Boolean).slice(0, 4);
+    const focusList = cleanMerchants.length > 0 ? encodeURIComponent(cleanMerchants.join('|')) : '';
+    const manualReviewTo =
+      `/dashboard/transactions?importId=${encodeURIComponent(params.importId)}${
+        focusList ? `&focusList=${focusList}&highImpact=1` : ''
+      }`;
+    return [
+      {
+        label: autoTagLabel,
+        intent: 'autotag',
+        variant: 'primary',
+        importId: params.importId,
+        to: '',
+      },
+      {
+        label: 'Manual Review',
+        intent: 'manual-review',
+        variant: 'secondary',
+        to: manualReviewTo,
+      },
+    ];
+  }, []);
+
   const streamPrimeFinalMessage = useCallback((params: {
     messageId: string;
     content: string;
     importId: string;
     batchKey?: string;
+    transactionCount?: number | null;
+    needsReviewCount?: number | null;
+    focusMerchants?: string[];
   }) => {
     // Clear any stale interval for this message.
     const existingTimer = primeFinalStreamTimersRef.current.get(params.messageId);
@@ -2715,10 +2755,15 @@ export default function UnifiedAssistantChat({
           batchKey: params.batchKey,
           targetEmployeeSlug: 'prime-boss',
           is_streaming: false,
-          ctas: [
-            { label: 'Review Transactions', to: `/dashboard/transactions?importId=${encodeURIComponent(params.importId)}` },
-            { label: 'Review Categories', to: '/dashboard/smart-categories' },
-          ],
+          transactionCount: params.transactionCount ?? null,
+          needsReviewCount: params.needsReviewCount ?? null,
+          focusMerchants: params.focusMerchants || [],
+          ctas: buildPrimeUploadCtas({
+            importId: params.importId,
+            transactionCount: params.transactionCount,
+            needsReviewCount: params.needsReviewCount,
+            focusMerchants: params.focusMerchants,
+          }),
         },
       };
       if (existingIdx >= 0) {
@@ -2728,7 +2773,7 @@ export default function UnifiedAssistantChat({
       }
       return [...filtered, nextMsg];
     });
-  }, []);
+  }, [buildPrimeUploadCtas]);
 
   const loadClarificationCandidates = useCallback(async (importId: string) => {
     if (!importId) return [] as Array<{ transactionId: string; vendor: string; amount: string; date: string }>;
@@ -3118,10 +3163,15 @@ export default function UnifiedAssistantChat({
             batchKey: params.batchKey,
             targetEmployeeSlug: 'prime-boss',
             is_streaming: false,
-            ctas: [
-              { label: 'Review Transactions', to: `/dashboard/transactions?importId=${encodeURIComponent(params.importId)}` },
-              { label: 'Review Categories', to: '/dashboard/smart-categories' },
-            ],
+            transactionCount: params.transactionCount,
+            needsReviewCount: params.needsReviewCount,
+            focusMerchants: (params.breakdown?.topMerchants || []).slice(0, 4).map((row) => row.merchant),
+            ctas: buildPrimeUploadCtas({
+              importId: params.importId,
+              transactionCount: params.transactionCount,
+              needsReviewCount: params.needsReviewCount,
+              focusMerchants: (params.breakdown?.topMerchants || []).slice(0, 4).map((row) => row.merchant),
+            }),
           },
         };
         if (existingIdx >= 0) {
@@ -3135,10 +3185,10 @@ export default function UnifiedAssistantChat({
       forceAutoPinUntilRef.current = Date.now() + 10000;
       autoPinToBottomRef.current = true;
       requestAnimationFrame(() => {
-        scrollToBottom('auto');
+        scrollToBottom('auto', true);
       });
       window.setTimeout(() => {
-        scrollToBottom('auto');
+        scrollToBottom('auto', true);
       }, 120);
       return;
     }
@@ -3171,6 +3221,9 @@ export default function UnifiedAssistantChat({
         content,
         importId: params.importId,
         batchKey: params.batchKey,
+        transactionCount: params.transactionCount,
+        needsReviewCount: params.needsReviewCount,
+        focusMerchants: (params.breakdown?.topMerchants || []).slice(0, 4).map((row) => row.merchant),
       });
       const scrollEndTimeMulti = Date.now() + 10000;
       forceAutoPinUntilRef.current = scrollEndTimeMulti;
@@ -3359,6 +3412,9 @@ export default function UnifiedAssistantChat({
       content: lines.join('\n'),
       importId: params.importId,
       batchKey: params.batchKey,
+      transactionCount: params.transactionCount ?? bd?.txCount ?? null,
+      needsReviewCount: params.needsReviewCount ?? null,
+      focusMerchants: cleanMerchants.slice(0, 4).map((row) => row.merchant),
     });
     // Hard-pin scroll for the typing animation (~8-10 s).
     // Direct interval bypasses every conditional guard in scrollToBottom —
@@ -3389,7 +3445,7 @@ export default function UnifiedAssistantChat({
       }
       hardScroll();
     }, 80);
-  }, [isPrimeNarrationEnabled, firstName, streamPrimeFinalMessage, setImportSummariesForPrime, getActiveScrollEl]);
+  }, [isPrimeNarrationEnabled, firstName, buildPrimeUploadCtas, streamPrimeFinalMessage, setImportSummariesForPrime, getActiveScrollEl]);
 
   const processByteUploads = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return false;
@@ -3949,9 +4005,9 @@ export default function UnifiedAssistantChat({
       userScrolledUpRef.current = false;
       autoPinToBottomRef.current = true;
       forceAutoPinUntilRef.current = Date.now() + 9000;
-      requestAnimationFrame(() => scrollToBottom('auto'));
-      window.setTimeout(() => scrollToBottom('auto'), 300);
-      window.setTimeout(() => scrollToBottom('auto'), 1000);
+      requestAnimationFrame(() => scrollToBottom('auto', true));
+      window.setTimeout(() => scrollToBottom('auto', true), 300);
+      window.setTimeout(() => scrollToBottom('auto', true), 1000);
     })();
     return () => {
       cancelled = true;
@@ -4291,10 +4347,11 @@ export default function UnifiedAssistantChat({
             batchKey,
             importId: uniqueImportIds[0],
             targetEmployeeSlug: 'prime-boss',
-            ctas: [
-              { label: 'Review Transactions', to: '/dashboard/transactions' },
-              { label: 'Review Categories', to: '/dashboard/smart-categories' },
-            ],
+            transactionCount: committedCount,
+            ctas: buildPrimeUploadCtas({
+              importId: uniqueImportIds[0],
+              transactionCount: committedCount,
+            }),
             hideTimestamp: true,
           },
         },
@@ -4305,7 +4362,7 @@ export default function UnifiedAssistantChat({
     } finally {
       setApprovingBatchKey(null);
     }
-  }, [buildAuthHeaders, userId]);
+  }, [buildAuthHeaders, buildPrimeUploadCtas, userId]);
 
   const handlePrimeBatchReviewSummaries = useCallback(() => {
     autoPinToBottomRef.current = true;
@@ -5472,19 +5529,38 @@ export default function UnifiedAssistantChat({
   );
   const finalUploadImportId =
     finalUploadMsg ? String((finalUploadMsg.meta as Record<string, unknown>)?.importId || '') : '';
-  const finalUploadCtas: Array<{ label: string; to: string }> | null = finalUploadMsg
-    ? (Array.isArray((finalUploadMsg.meta as Record<string, unknown>)?.ctas)
-        ? ((finalUploadMsg.meta as Record<string, unknown>).ctas as Array<{ label: string; to: string }>)
-        : [
-            {
-              label: 'Review Transactions',
-              to: finalUploadImportId
-                ? `/dashboard/transactions?importId=${encodeURIComponent(finalUploadImportId)}`
-                : '/dashboard/transactions',
-            },
-            { label: 'Review Categories', to: '/dashboard/smart-categories' },
-          ])
+  type UploadFinalCta = {
+    label: string;
+    to?: string;
+    intent?: 'autotag' | 'manual-review';
+    variant?: 'primary' | 'secondary';
+    importId?: string;
+  };
+  const finalUploadMeta = (finalUploadMsg?.meta || {}) as Record<string, unknown>;
+  const finalUploadNeedsReview =
+    Number.isFinite(Number(finalUploadMeta?.needsReviewCount))
+      ? Number(finalUploadMeta.needsReviewCount)
+      : null;
+  const finalUploadTxCount =
+    Number.isFinite(Number(finalUploadMeta?.transactionCount))
+      ? Number(finalUploadMeta.transactionCount)
+      : null;
+  const finalUploadFocusMerchants = Array.isArray(finalUploadMeta?.focusMerchants)
+    ? finalUploadMeta.focusMerchants.map((value) => String(value || '').trim()).filter(Boolean)
+    : [];
+  const finalUploadCtas: UploadFinalCta[] | null = finalUploadMsg
+    ? (Array.isArray(finalUploadMeta?.ctas)
+        ? (finalUploadMeta.ctas as UploadFinalCta[])
+        : buildPrimeUploadCtas({
+            importId: finalUploadImportId,
+            transactionCount: finalUploadTxCount,
+            needsReviewCount: finalUploadNeedsReview,
+            focusMerchants: finalUploadFocusMerchants,
+          }))
     : null;
+  useEffect(() => {
+    setShowAutoTagPreview(false);
+  }, [finalUploadImportId]);
 
   const normalizedMessageText = (value: string | undefined) => normalizeText(value || '');
   const getMessageTimeMs = (msg: (typeof displayMessages)[0]) => {
@@ -5805,7 +5881,7 @@ export default function UnifiedAssistantChat({
       debug('[UnifiedAssistantChat] import recap injected', { importId });
     }
     setTimeout(() => {
-      scrollToBottom('smooth');
+      scrollToBottom('smooth', true);
     }, 120);
   }, [
     isPrimeNarrationEnabled,
@@ -6233,20 +6309,62 @@ export default function UnifiedAssistantChat({
     openPrimeSlideoutAndFocus();
   };
 
+  const runFooterAutoTag = useCallback(async (importId: string) => {
+    if (!importId || isFooterAutoTagRunning) return;
+    setIsFooterAutoTagRunning(true);
+    try {
+      const response = await fetch('/.netlify/functions/categorize-transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ importId }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to start Tag auto-categorization');
+      }
+      toast.success('Tag AI is running. Review low-confidence items after it finishes.');
+      setShowAutoTagPreview(false);
+      navigate(`/dashboard/transactions?importId=${encodeURIComponent(importId)}&highImpact=1`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not start auto-tag');
+    } finally {
+      setIsFooterAutoTagRunning(false);
+    }
+  }, [isFooterAutoTagRunning, navigate]);
+  const handleFinalUploadCtaClick = useCallback((cta: {
+    intent?: string;
+    to?: string;
+    importId?: string;
+  }) => {
+    if (cta.intent === 'autotag') {
+      setShowAutoTagPreview((prev) => !prev);
+      return;
+    }
+    if (cta.to) {
+      setShowAutoTagPreview(false);
+      navigate(cta.to);
+    }
+  }, [navigate]);
+
   const inputFooter = (
     <div ref={inputFooterRef} className="w-full max-w-full mx-0 min-w-0 shrink-0 flex flex-col">
       {/* Persistent CTA strip — appears above input after a statement import completes */}
       {finalUploadCtas && !isStreaming && !showPrimeUploadQueueCard && (
-        <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-white/5 pb-2">
+        <div className="mb-2 border-b border-white/5 pb-2">
+          <div className="flex flex-wrap items-center gap-2">
           {finalUploadCtas.map((cta) => {
-            const isTransactions = cta.label.toLowerCase().includes('transaction');
+            const isPrimary = cta.variant === 'primary' || cta.intent === 'autotag';
+            const isTransactions = (cta.intent === 'manual-review') || cta.label.toLowerCase().includes('review');
             const CtaIcon = isTransactions ? Receipt : Tags;
             return (
               <button
                 key={cta.to || cta.label}
                 type="button"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 hover:border-violet-500/50 text-violet-200 text-xs font-medium transition-all duration-150 group"
-                onClick={() => { if (cta.to) navigate(cta.to); }}
+                className={
+                  isPrimary
+                    ? 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300/50 bg-amber-400/15 hover:bg-amber-400/25 hover:border-amber-200/70 text-amber-100 text-xs font-semibold transition-all duration-150 group'
+                    : 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 hover:border-violet-500/50 text-violet-200 text-xs font-medium transition-all duration-150 group'
+                }
+                onClick={() => handleFinalUploadCtaClick(cta)}
               >
                 <CtaIcon className="w-3 h-3 shrink-0 opacity-70 group-hover:opacity-100" />
                 <span>{cta.label}</span>
@@ -6254,6 +6372,61 @@ export default function UnifiedAssistantChat({
               </button>
             );
           })}
+          </div>
+          {showAutoTagPreview && (
+            <div className="mt-2 rounded-lg border border-amber-400/30 bg-slate-900/80 p-2.5">
+              <div className="text-[11px] text-slate-300">
+                <div className="font-semibold text-amber-100">Tag AI preview</div>
+                <div className="mt-0.5 text-slate-400">
+                  {finalUploadNeedsReview !== null
+                    ? `${finalUploadNeedsReview} items need verification after auto-tag.`
+                    : finalUploadTxCount !== null
+                    ? `Drafting categories for ${finalUploadTxCount} imported transactions.`
+                    : 'Drafting categories for your imported transactions.'}
+                </div>
+                {finalUploadFocusMerchants.length > 0 ? (
+                  <div className="mt-1 truncate text-slate-500">
+                    High-impact merchants: {finalUploadFocusMerchants.slice(0, 3).join(', ')}
+                  </div>
+                ) : null}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  className="rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-medium text-emerald-200 hover:bg-emerald-500/25 disabled:opacity-60"
+                  disabled={!finalUploadImportId || isFooterAutoTagRunning}
+                  onClick={() => {
+                    if (finalUploadImportId) void runFooterAutoTag(finalUploadImportId);
+                  }}
+                >
+                  {isFooterAutoTagRunning ? 'Running Tag AI…' : 'Apply High Confidence'}
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-amber-400/40 bg-amber-500/15 px-2.5 py-1 text-[10px] font-medium text-amber-100 hover:bg-amber-500/25 disabled:opacity-60"
+                  disabled={!finalUploadImportId || isFooterAutoTagRunning}
+                  onClick={() => {
+                    if (finalUploadImportId) void runFooterAutoTag(finalUploadImportId);
+                  }}
+                >
+                  Apply All Drafts
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-700 px-2.5 py-1 text-[10px] text-slate-300 hover:bg-slate-800"
+                  onClick={() => {
+                    setShowAutoTagPreview(false);
+                    const target = finalUploadImportId
+                      ? `/dashboard/transactions?importId=${encodeURIComponent(finalUploadImportId)}`
+                      : '/dashboard/transactions';
+                    navigate(target);
+                  }}
+                >
+                  Manual Review
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {showPrimeUploadQueueCard && normalizedSlug === 'prime-boss' && (
@@ -6534,10 +6707,8 @@ export default function UnifiedAssistantChat({
                         setActiveEmployeeSlugOverride('tag-ai');
                         setActiveEmployeeGlobal('tag-ai');
 
-                        // Navigate to Smart Categories page
-                        setTimeout(() => {
-                          navigate('/dashboard/smart-categories');
-                        }, 120);
+                        // This is an explicit button click, so navigate intentionally.
+                        navigate('/dashboard/smart-categories');
 
                         // Do not inject recap messages into chat history.
                         if (import.meta.env.DEV) {
@@ -7115,8 +7286,8 @@ export default function UnifiedAssistantChat({
                                             const ctas = (Array.isArray(metaAny?.ctas)
                                               ? metaAny.ctas
                                               : [
-                                                  { label: 'Review Transactions', to: reviewTransactionsTo },
-                                                  { label: 'Review Categories', to: '/dashboard/smart-categories' },
+                                                  { label: '✨ Auto-Tag & Verify', intent: 'autotag', importId: recapImportId },
+                                                  { label: 'Manual Review', to: reviewTransactionsTo, intent: 'manual-review' },
                                                 ]).map((cta: any) => {
                                               // Backfill old recap messages that still point to /dashboard/transactions
                                               // by injecting importId context at render-time.
@@ -7134,7 +7305,9 @@ export default function UnifiedAssistantChat({
                                             return ctas.map((cta: any) => {
                                               const label = typeof cta?.label === 'string' ? cta.label : 'Open';
                                               const to = typeof cta?.to === 'string' ? cta.to : '';
-                                              const isTransactions = label.toLowerCase().includes('transaction');
+                                              const isTransactions =
+                                                label.toLowerCase().includes('review') ||
+                                                String(cta?.intent || '').toLowerCase().includes('manual');
                                               const CtaIcon = isTransactions ? Receipt : Tags;
                                               return (
                                                 <button
@@ -7142,6 +7315,10 @@ export default function UnifiedAssistantChat({
                                                   type="button"
                                                   className="flex items-center gap-2 px-3 py-2 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 hover:border-violet-500/50 text-violet-200 text-xs font-medium transition-all duration-150 group"
                                                   onClick={() => {
+                                                    if (String(cta?.intent || '') === 'autotag') {
+                                                      setShowAutoTagPreview(true);
+                                                      return;
+                                                    }
                                                     if (!to) return;
                                                     navigate(to);
                                                   }}

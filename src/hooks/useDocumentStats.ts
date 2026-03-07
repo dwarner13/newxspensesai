@@ -42,10 +42,11 @@ export function useDocumentStats() {
         const lastDoc = docs?.[0];
         const lastProcessedAt = lastDoc?.ocr_completed_at || lastDoc?.created_at;
 
+        const stuckProcessing = docs?.filter(d => !d.ocr_completed_at && d.status !== 'rejected' && new Date(d.created_at) < new Date(now.getTime() - 300000)).length || 0;
         setData({
           queue: { pending: 0, processing, completed: recentlyCompleted },
           monthly: { totalThisMonth: thisMonth, totalLastMonth: lastMonth, deltaPercent: lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : 0 },
-          health: { status: lastProcessedAt && new Date(lastProcessedAt) > oneHourAgo ? 'good' : 'degraded', lastProcessedAt }
+          health: { status: stuckProcessing > 0 ? 'degraded' : 'good', lastProcessedAt }
         });
       } catch (error) {
         console.error('[useDocumentStats]', error);

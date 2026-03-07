@@ -259,10 +259,12 @@ export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
   // ── Celebration state ────────────────────────────────────────────────────
   if (!isLoading && totalCount === 0) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)] px-6 py-8 text-center">
-        <div className="mb-3 text-4xl">🎉</div>
-        <h3 className="text-sm font-semibold text-slate-100 mb-1">All caught up!</h3>
-        <p className="text-xs text-slate-400">Tag has categorized all your transactions.</p>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-xl shadow-[0_0_0_1px_rgba(255,255,255,0.04)] px-4 py-3">
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-300">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+          System Status: Optimized
+        </div>
+        <p className="mt-2 text-xs text-slate-400">Tag has categorized all uncategorized transactions.</p>
       </div>
     );
   }

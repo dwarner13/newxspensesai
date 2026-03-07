@@ -7,7 +7,7 @@
  * Includes reflection/retry logic for low-confidence results.
  */
 
-import { normalizeVendor } from './vendor_normalize';
+import { normalizeMerchantName } from './merchantNormalize.js';
 import { categorizeTransactionWithLearning } from './categorize';
 
 export interface CategorizedRow {
@@ -42,12 +42,14 @@ export async function autoCategorize(
 ): Promise<CategorizeResult> {
   // Stage A: Normalize vendors
   const items = input.rows.map((r, i) => {
-    const normalized = normalizeVendor(r.description);
+    const normalizedVendor = normalizeMerchantName(r.description);
+    
+    // (Deprecated) Run categorization,
     return {
       id: i,
       ...r,
-      vendor: normalized.vendor,
-      vendorConfidence: normalized.confidence
+      vendor: normalizedVendor.vendor,
+      vendorConfidence: normalizedVendor.confidence
     };
   });
   

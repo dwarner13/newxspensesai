@@ -26,7 +26,7 @@ type SmartImportHook = ReturnType<typeof useSmartImport>;
 
 export interface ByteUploadPanelProps {
   /** Optional callback when upload completes */
-  onUploadCompleted?: () => void;
+  onUploadCompleted?: (importId?: string) => void;
   /** Compact mode - hide drag area, show only header */
   compact?: boolean;
   /** Callback when drag state changes (for overlay coordination) */
@@ -355,7 +355,10 @@ export function ByteUploadPanel({
     if (uploadStatus.step !== 'completed' || !lastUploadSummary?.id) return;
     if (lastSummaryId === lastUploadSummary.id) return;
     setLastSummaryId(lastUploadSummary.id);
-  }, [uploadStatus.step, lastUploadSummary?.id, lastSummaryId]);
+    if (onUploadCompleted) {
+      onUploadCompleted(lastUploadSummary.id);
+    }
+  }, [uploadStatus.step, lastUploadSummary?.id, lastSummaryId, onUploadCompleted]);
 
   useEffect(() => {
     if (!compact || uploadQueue.items.length === 0) return;

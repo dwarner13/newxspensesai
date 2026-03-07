@@ -9,7 +9,7 @@
  * - Desktop-only (hidden on mobile)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -117,7 +117,7 @@ export default function DesktopChatSideBar({
   const { setPrimeToolsOpen } = usePrimeOverlaySafe();
   
   // Get jobs system state for AI Pulse button
-  const { runningCount, needsUserCount, unreadAiCount, setDrawerOpen } = useJobsSystemStore();
+  const { jobs, runningCount, needsUserCount, unreadAiCount, setDrawerOpen } = useJobsSystemStore();
   
   // Check if any right-side panel is open (for fade effect)
   const { isAnyPanelOpen } = useRightPanel();
@@ -125,6 +125,61 @@ export default function DesktopChatSideBar({
   // Check if right drawer is open (for AI tools paused badge)
   const [isRightDrawerOpen, setIsRightDrawerOpen] = useState(false);
   const railRevampEnabled = isRailRevampV1Enabled();
+
+  const inferUploadStageText = (title: string, progress: number, status: string): string => {
+    const lower = (title || '').toLowerCase();
+    if (status === 'queued') return 'Queued for Byte processing...';
+    if (/scan|scanning|page/.test(lower)) return 'Scanning pages...';
+    if (/ocr|extract|parse|read/.test(lower)) return 'Extracting text with OCR...';
+    if (/normalize|clean|map/.test(lower)) return 'Normalizing transaction fields...';
+    if (/match|vendor|merchant/.test(lower)) return 'Matching recurring vendors...';
+    if (/categor|tag|classif/.test(lower)) return 'Drafting category assignments...';
+    if (/anomal|flag|review|uncertain/.test(lower)) return 'Flagging uncertain lines...';
+    if (progress < 15) return 'Preparing import pipeline...';
+    if (progress < 35) return 'Scanning statement data...';
+    if (progress < 60) return 'Extracting and structuring rows...';
+    if (progress < 85) return 'Matching merchants and categories...';
+    return 'Finalizing import results...';
+  };
+
+  const uploadHud = useMemo(() => {
+    const activeUploadJobs = (jobs || []).filter((job) => {
+      const statusActive = job.status === 'running' || job.status === 'queued';
+      if (!statusActive) return false;
+      const title = String(job.title || '').toLowerCase();
+      const assigned = String(job.assigned_to_employee || '').toLowerCase();
+      const createdBy = String(job.created_by_employee || '').toLowerCase();
+      const looksLikeUpload =
+        /import|upload|ocr|statement|receipt|parse|document/.test(title) ||
+        assigned.includes('byte') ||
+        createdBy.includes('byte');
+      return looksLikeUpload;
+    });
+
+    const progress =
+      activeUploadJobs.length > 0
+        ? Math.max(
+            5,
+            Math.min(
+              100,
+              Math.round(
+                activeUploadJobs.reduce((sum, job) => sum + Number(job.progress || 0), 0) /
+                  activeUploadJobs.length
+              )
+            )
+          )
+        : 0;
+    const leadJob = activeUploadJobs[0];
+    const leadTitle = leadJob?.title ? String(leadJob.title) : '';
+    const stageText = inferUploadStageText(leadTitle, progress, String(leadJob?.status || 'running'));
+    return {
+      count: activeUploadJobs.length,
+      progress,
+      leadTitle: leadTitle.length > 46 ? `${leadTitle.slice(0, 45)}…` : leadTitle,
+      isActive: activeUploadJobs.length > 0,
+      stageText: activeUploadJobs.length > 0 ? stageText : 'Upload a statement to start OCR + categorization.',
+    };
+  }, [jobs]);
   
   useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -300,6 +355,69 @@ export default function DesktopChatSideBar({
       return isOpen && activeEmployeeSlug === action.slug;
     }
     return activeId === action.id;
+  };
+
+  const getHudForAction = (actionId: string) => {
+    if (actionId === 'byte') {
+      return {
+        title: 'Byte Import HUD',
+        subtitle: uploadHud.isActive
+          ? `${uploadHud.count} import job${uploadHud.count === 1 ? '' : 's'} running`
+          : 'No active import jobs',
+        showProgress: true,
+        progress: uploadHud.progress,
+        detail: uploadHud.leadTitle || 'Waiting for a new statement upload.',
+        ticker: uploadHud.stageText,
+      };
+    }
+    if (actionId === 'ai-pulse') {
+      return {
+        title: 'AI Pulse HUD',
+        subtitle: `${runningCount} running • ${needsUserCount} needs input`,
+        showProgress: false,
+        progress: 0,
+        detail: unreadAiCount > 0 ? `${unreadAiCount} unread AI alert${unreadAiCount === 1 ? '' : 's'}` : 'No pending AI alerts.',
+        ticker: '',
+      };
+    }
+    if (actionId === 'prime') {
+      return {
+        title: 'Prime Command HUD',
+        subtitle: runningCount > 0 ? `${runningCount} active task${runningCount === 1 ? '' : 's'} across team` : 'Team is synced and ready',
+        showProgress: false,
+        progress: 0,
+        detail: 'Open Prime to review routing and assign new tasks.',
+        ticker: '',
+      };
+    }
+    if (actionId === 'tag') {
+      return {
+        title: 'Tag HUD',
+        subtitle: needsUserCount > 0 ? `${needsUserCount} items need review` : 'Categorization queue is stable',
+        showProgress: false,
+        progress: 0,
+        detail: 'Jump into Smart Categories for quick verification.',
+        ticker: '',
+      };
+    }
+    if (actionId === 'analytics') {
+      return {
+        title: 'Crystal HUD',
+        subtitle: 'Insights engine ready',
+        showProgress: false,
+        progress: 0,
+        detail: 'Open analytics to inspect anomalies and trend shifts.',
+        ticker: '',
+      };
+    }
+    return {
+      title: 'Quick HUD',
+      subtitle: 'Ready',
+      showProgress: false,
+      progress: 0,
+      detail: 'Open this workspace.',
+      ticker: '',
+    };
   };
 
   // If docked to panel, use simpler styling
@@ -503,22 +621,59 @@ export default function DesktopChatSideBar({
                   </div>
                 )}
 
-                {/* Tooltip label */}
-                <span
-                  className="
-                    pointer-events-none absolute left-[-0.5rem] top-1/2 z-50
-                    -translate-x-full -translate-y-1/2
-                    whitespace-nowrap rounded-full bg-slate-900/95 px-2.5 py-1
-                    text-[10px] font-medium text-slate-100 opacity-0
-                    shadow-[0_12px_30px_rgba(15,23,42,0.9)]
-                    ring-1 ring-slate-700/80
-                    transition-all duration-150
-                    group-hover:opacity-100 group-hover:text-amber-200 group-hover:ring-amber-400/60
-                  "
-                >
-                  {action.label}
-                  {isAiPulse && hasUnreadAi && ` (${unreadAiCount})`}
-                </span>
+                {/* Expandable Quick HUD on hover */}
+                {(() => {
+                  const hud = getHudForAction(action.id);
+                  const circumference = 2 * Math.PI * 10;
+                  const clamped = Math.max(0, Math.min(100, hud.progress));
+                  const offset = circumference - (clamped / 100) * circumference;
+                  return (
+                    <div
+                      className="
+                        pointer-events-none absolute left-[-0.75rem] top-1/2 z-50 w-56
+                        -translate-x-full -translate-y-1/2 opacity-0
+                        transition-all duration-150 group-hover:opacity-100
+                      "
+                    >
+                      <div className="rounded-xl border border-slate-700/80 bg-slate-900/95 p-2.5 shadow-[0_12px_30px_rgba(15,23,42,0.9)]">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-300">{hud.title}</div>
+                            <div className="mt-0.5 text-[11px] text-slate-100">{hud.subtitle}</div>
+                          </div>
+                          {hud.showProgress && (
+                            <div className="relative h-8 w-8 shrink-0">
+                              <svg viewBox="0 0 24 24" className="h-8 w-8 -rotate-90">
+                                <circle cx="12" cy="12" r="10" stroke="rgba(148,163,184,0.28)" strokeWidth="2.5" fill="none" />
+                                <circle
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="rgba(56,189,248,0.95)"
+                                  strokeWidth="2.5"
+                                  fill="none"
+                                  strokeDasharray={circumference}
+                                  strokeDashoffset={offset}
+                                  strokeLinecap="round"
+                                />
+                              </svg>
+                              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold text-cyan-300">
+                                {clamped}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-1.5 text-[10px] text-slate-400">{hud.detail}</div>
+                        {hud.ticker && (
+                          <div className="mt-1.5 rounded-md border border-cyan-400/30 bg-cyan-500/10 px-2 py-1 text-[10px] text-cyan-200">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-300 animate-pulse mr-1.5 align-middle" />
+                            <span className="align-middle">{hud.ticker}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </motion.button>
             );
           })}

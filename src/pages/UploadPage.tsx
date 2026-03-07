@@ -157,7 +157,7 @@ const UploadPage = () => {
           setParseProgress(20);
           
           await new Promise(resolve => setTimeout(resolve, 1000));
-          setProcessingMessage('🔍 Extracting text from PDF...');
+          setProcessingMessage('🔍 Byte is scanning up to 3 pages in parallel for speed...');
           setParseProgress(40);
           
           await new Promise(resolve => setTimeout(resolve, 1500));

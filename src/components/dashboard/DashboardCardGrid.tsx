@@ -21,7 +21,7 @@ interface DashboardCardGridProps {
 export function DashboardCardGrid({ children, className }: DashboardCardGridProps) {
   return (
     <div className={cn(
-      'grid gap-6 md:grid-cols-2 xl:grid-cols-3 items-stretch',
+      'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 items-stretch',
       className
     )}>
       {children}

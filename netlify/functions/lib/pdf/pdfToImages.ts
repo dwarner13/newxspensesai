@@ -107,7 +107,7 @@ export async function pdfToImages(
     });
     loggedPdfPolyfillStatus = true;
   }
-  const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const pdfjs: any = await import('pdfjs-dist/legacy/build/pdf.js');
 
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(pdfBuffer),

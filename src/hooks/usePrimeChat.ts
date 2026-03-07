@@ -4,6 +4,7 @@ import { useEventTap } from './useEventTap';
 import { CHAT_ENDPOINT } from '../lib/chatEndpoint';
 import { usePrimeState } from '../contexts/usePrimeState';
 import { log, warn } from '../lib/logger';
+import { getSupabase } from '../lib/supabase';
 
 type ChatRole = 'user' | 'assistant' | 'system';
 
@@ -33,6 +34,7 @@ interface SendOptions {
   files?: UploadItem[];
   documentIds?: string[]; // Document IDs from Smart Import uploads
   employeeSlug?: string;
+  hidden?: boolean;
 }
 
 interface AssistantUpsertParams {
@@ -282,6 +284,77 @@ export function usePrimeChat(
       allowNextHandoffTimeoutRef.current = null;
     }, 12_000);
   }
+  
+  // Listen for broadcast progress events from OCR
+  useEffect(() => {
+    if (!safeUserId) return;
+    
+    let isSubscribed = true;
+    
+    const setupChannel = async () => {
+      // Must dynamically import or wait for supabase init if not ready
+      // usePrimeChat is a high-level hook so Supabase should be ready
+      const supabase = getSupabase();
+      if (!supabase) return;
+
+      const channel = supabase
+        .channel(`chat-progress-${safeUserId}`)
+        .on('broadcast', { event: 'progress' }, (payload) => {
+          if (!isSubscribed) return;
+          const message = payload.payload?.message;
+          if (message) {
+            log(`[usePrimeChat] Broadcast progress received: ${message}`);
+            setMessages((prev) => {
+              // Upate existing thought bubble if present
+              const existingIdx = prev.findIndex(
+                (m) =>
+                  m.role === 'assistant' &&
+                  m.meta?.employee_key === 'byte-docs' &&
+                  m.meta?.is_thought === true
+              );
+
+              if (existingIdx !== -1) {
+                const next = [...prev];
+                next[existingIdx] = {
+                  ...next[existingIdx],
+                  content: `_${message}_ 🔍`,
+                };
+                return next;
+              } else {
+                return [
+                  ...prev,
+                  {
+                    id: `thought-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                    role: 'assistant',
+                    content: `_${message}_ 🔍`,
+                    createdAt: new Date().toISOString(),
+                    meta: {
+                      employee_key: 'byte-docs',
+                      employee_slug: 'byte-docs',
+                      is_thought: true,
+                    },
+                  },
+                ];
+              }
+            });
+          }
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+
+    let cleanupPromise = setupChannel();
+
+    return () => {
+      isSubscribed = false;
+      cleanupPromise.then((cleanup) => {
+        if (cleanup) cleanup();
+      });
+    };
+  }, [safeUserId]);
   
   // PART A: Hard dedupe key (no time component)
   const normalizeText = (s: string) => {
@@ -750,6 +823,23 @@ export function usePrimeChat(
             return { aiText, hasContent };
           }
           
+          // Handle specialist_thought events to display temporary progress bubbles
+          if (j.type === 'specialist_thought' && j.employee && j.content) {
+            log(`[usePrimeChat] Specialist thought from ${j.employee}: ${j.content}`);
+            setMessages(prev => [...prev, {
+              id: `thought-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+              role: 'assistant',
+              content: `_${j.content}_ 🔍`,
+              createdAt: new Date().toISOString(),
+              meta: {
+                employee_key: j.employee,
+                employee_slug: j.employee,
+                is_thought: true,
+              }
+            }]);
+            return { aiText, hasContent: true };
+          }
+          
           // Handle tool_executing events (dev mode)
           // QUIET MODE GATE: VITE_DISABLE_AUTO_HANDOFFS prevents request_employee_handoff tool execution
           // Purpose: Suppress handoff storms during OCR/Smart Import debugging
@@ -944,11 +1034,18 @@ export function usePrimeChat(
     };
     
     // Add optimistic message (deduplication happens at merge point in UnifiedAssistantChat)
-    setMessages(prev => [...prev, localUserMsg]);
-    
-    // Dev log: optimistic message added
-    if (import.meta.env.DEV) {
-      log(`[usePrimeChat] ✅ Added optimistic user message (client_message_id: ${clientMessageId})`);
+    if (!opts?.hidden) {
+      setMessages(prev => [...prev, localUserMsg]);
+      
+      // Dev log: optimistic message added
+      if (import.meta.env.DEV) {
+        log(`[usePrimeChat] ✅ Added optimistic user message (client_message_id: ${clientMessageId})`);
+      }
+    } else {
+      // For hidden messages, we still need to track it for deduplication but don't show it
+      if (import.meta.env.DEV) {
+        log(`[usePrimeChat] 👻 Sent hidden user message (client_message_id: ${clientMessageId})`);
+      }
     }
     setInput('');
 
@@ -1221,6 +1318,7 @@ export function usePrimeChat(
           stream: true,
           ...(safeSystemPrompt ? { systemPromptOverride: safeSystemPrompt } : {}), // Use safe systemPrompt
           ...(opts?.documentIds && opts.documentIds.length > 0 ? { documentIds: opts.documentIds } : {}), // Include document IDs if provided
+          ...(opts?.hidden ? { hidden: true } : {}), // Add hidden flag so backend skips storing user prompt
           ...(primeContext ? { prime_context: primeContext } : {}), // Include PrimeState snapshot for Prime only
         };
         

@@ -8,8 +8,8 @@
  */
 
 export const CAPABILITIES: Record<string, string[]> = {
-  prime: ['bank_parse', 'vendor_normalize', 'categorize', 'anomaly_detect', 'story', 'therapist'],
-  byte: ['bank_parse', 'vendor_normalize'],
+  prime: ['bank_parse', 'merchant_normalize', 'categorize', 'anomaly_detect', 'story', 'therapist'],
+  byte: ['bank_parse', 'merchant_normalize'],
   tag: ['categorize'],
   crystal: ['anomaly_detect', 'bank_parse', 'categorize'], // Allow CSV parsing for anomaly analysis
   goalie: ['create_goal', 'update_goal', 'set_reminder'],

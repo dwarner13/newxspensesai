@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { ConfidenceBar } from './ConfidenceBar';
 import { getSupabase } from '../../lib/supabase';
 import { createCategoryRule } from '../../lib/categoryRules';
+import { resolveMerchantAlias } from '../../lib/merchantAliases';
 import { useAuth } from '../../contexts/AuthContext';
 import type { CommittedTransaction, PendingTransaction } from '../../types/transactions';
 
@@ -46,6 +47,9 @@ interface TransactionRowProps {
   onEdit?: () => void;
   categories?: string[];
   onCategoryChange?: (txId: string, category: string) => void;
+  showDate?: boolean;
+  showActions?: boolean;
+  isHighlighted?: boolean;
 }
 
 export function TransactionRow({
@@ -57,6 +61,9 @@ export function TransactionRow({
   onEdit,
   categories,
   onCategoryChange,
+  showDate = true,
+  showActions = true,
+  isHighlighted = false,
 }: TransactionRowProps) {
   const isPending = !!pendingTransaction;
   const isCommitted = !!transaction;
@@ -92,6 +99,43 @@ export function TransactionRow({
       .replace(/\s{2,}/g, ' ')
       .trim();
 
+  const looksLikeFileArtifact = (value: string): boolean => {
+    const lower = value.toLowerCase().trim();
+    return (
+      /\.(jpe?g|png|webp|gif|pdf|heic|heif)$/i.test(lower) ||
+      /\b(img|dsc|scan|screenshot|invoice|receipt)[-_ ]?\d{2,}/i.test(lower) ||
+      /^invoice\s*[-_:]/i.test(lower)
+    );
+  };
+
+  const toTitleCase = (value: string): string =>
+    value
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+
+  const prettifyMerchant = (value: string): string => {
+    if (!value) return 'Unknown merchant';
+    const compact = value.replace(/[_\-]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    // If value is mostly uppercase/noisy OCR tokens, normalize to title case.
+    const hasLowercase = /[a-z]/.test(compact);
+    const normalized = hasLowercase ? compact : toTitleCase(compact);
+    return normalized;
+  };
+
+  const merchantEmoji = (merchant: string): string => {
+    const m = merchant.toLowerCase();
+    if (m.includes('apple')) return '🍎';
+    if (m.includes('amazon')) return '📦';
+    if (m.includes('uber') || m.includes('lyft')) return '🚗';
+    if (m.includes('tim hortons') || m.includes('starbucks') || m.includes('coffee') || m.includes('cafe')) return '☕';
+    if (m.includes('walmart') || m.includes('costco') || m.includes('grocery') || m.includes('supermarket')) return '🛒';
+    if (m.includes('shell') || m.includes('esso') || m.includes('petro') || m.includes('gas')) return '⛽';
+    return '';
+  };
+
   // ── Display data ─────────────────────────────────────────────────────────
   const date = isPending ? pendingTransaction.data_json.date : transaction?.posted_at;
   const committedMerchant = normalizeText(transaction?.merchant_name);
@@ -109,6 +153,32 @@ export function TransactionRow({
     if (cleaned && !isGenericMerchantLabel(cleaned)) return cleaned;
     return merchantCandidate || 'Unknown merchant';
   })();
+  const aliasMatch =
+    resolveMerchantAlias(merchantCandidate) ||
+    resolveMerchantAlias(merchantFallback) ||
+    resolveMerchantAlias(committedDescription) ||
+    resolveMerchantAlias(committedMemo) ||
+    resolveMerchantAlias(pendingDescription);
+
+  const pendingItems = Array.isArray((pendingTransaction?.data_json as any)?.items)
+    ? ((pendingTransaction?.data_json as any)?.items as Array<{ name?: string }>)
+    : [];
+  const candidateItemHint = normalizeText(pendingItems[0]?.name) || merchantFallback;
+  const cleanedItemHint = candidateItemHint
+    .replace(/^invoice\s*[-:]\s*/i, '')
+    .replace(/\.(jpe?g|png|webp|gif|pdf|heic|heif)$/i, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  const showItemHint =
+    Boolean(cleanedItemHint) &&
+    !looksLikeFileArtifact(cleanedItemHint) &&
+    cleanedItemHint.toLowerCase() !== merchantResolved.toLowerCase() &&
+    !isGenericMerchantLabel(cleanedItemHint);
+  const merchantTitle = aliasMatch?.label || prettifyMerchant(merchantResolved);
+  const icon = merchantEmoji(merchantTitle);
+  const merchantDisplay = icon ? `${icon} ${merchantTitle}` : merchantTitle;
+  const merchantSubtext = showItemHint ? cleanedItemHint : (aliasMatch?.itemHint || '');
+  const merchantForRule = aliasMatch?.label || merchantResolved;
 
   const amount = isPending ? pendingTransaction.data_json.amount ?? 0 : transaction?.amount ?? 0;
   const pendingCategory = isPending
@@ -203,7 +273,7 @@ export function TransactionRow({
         onCategoryChange?.(transaction.id, cat);
 
         // Show rule-creation prompt for meaningful merchant names
-        const merchant = merchantResolved;
+        const merchant = merchantForRule;
         const isGeneric = !merchant || merchant === 'Unknown merchant' || isGenericMerchantLabel(merchant);
         if (!isGeneric && userId) {
           toast.custom(
@@ -255,7 +325,7 @@ export function TransactionRow({
         setIsSaving(false);
       }
     },
-    [transaction?.id, localCategory, closeDropdown, onCategoryChange, merchantResolved, userId]
+    [transaction?.id, localCategory, closeDropdown, onCategoryChange, merchantForRule, userId]
   );
 
   // ── Status badge ─────────────────────────────────────────────────────────
@@ -350,24 +420,44 @@ export function TransactionRow({
         )
       : null;
 
+  const gridClass = (() => {
+    if (showDate && showActions) return 'grid-cols-[88px_minmax(180px,1.4fr)_120px_minmax(150px,1fr)_130px_auto]';
+    if (showDate && !showActions) return 'grid-cols-[88px_minmax(200px,1.6fr)_120px_minmax(150px,1fr)_130px]';
+    if (!showDate && showActions) return 'grid-cols-[minmax(220px,1.6fr)_120px_minmax(150px,1fr)_130px_auto]';
+    return 'grid-cols-[minmax(220px,1.8fr)_120px_minmax(150px,1fr)_130px]';
+  })();
+
+  const rowId = transaction?.id || pendingTransaction?.id || '';
+
   return (
     <>
       <div
-        className="grid grid-cols-[88px_minmax(180px,1.4fr)_120px_minmax(150px,1fr)_130px_auto] gap-2 items-center px-4 py-3 bg-slate-900/50 border-b border-slate-800 hover:bg-slate-900 transition-colors cursor-pointer group"
+        id={rowId ? `tx-row-${rowId}` : undefined}
+        className={`grid ${gridClass} gap-2 items-center px-4 py-3 border-b transition-colors cursor-pointer group ${
+          isHighlighted
+            ? 'bg-amber-500/10 border-amber-400/40 ring-1 ring-amber-400/40 animate-pulse'
+            : 'bg-slate-900/50 border-slate-800 hover:bg-slate-900'
+        }`}
         onClick={onClick}
       >
-        {/* Date */}
-        <div className="text-xs text-slate-400">
-          {date
-            ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-            : '—'}
-        </div>
+        {showDate ? (
+          <div className="text-xs text-slate-400">
+            {date
+              ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              : '—'}
+          </div>
+        ) : null}
 
         {/* Merchant */}
         <div className="min-w-0">
-          <div className="text-sm font-medium text-slate-100 truncate" title={merchantResolved}>
-            {merchantResolved}
+          <div className="text-sm font-medium text-slate-100 truncate" title={merchantDisplay}>
+            {merchantDisplay}
           </div>
+          {merchantSubtext ? (
+            <div className="text-[11px] text-slate-400 truncate" title={merchantSubtext}>
+              {merchantSubtext}
+            </div>
+          ) : null}
           {isPending && (
             <ConfidenceBar score={pendingTransaction.confidence.overall} showPercentage={false} />
           )}
@@ -431,33 +521,34 @@ export function TransactionRow({
         {/* Status */}
         <div className="flex items-center">{statusBadge}</div>
 
-        {/* Hover actions */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          {isPending && onApprove && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onApprove(); }}
-              className="px-2 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors"
-            >
-              Approve
-            </button>
-          )}
-          {onEdit && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onEdit(); }}
-              className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition-colors"
-            >
-              Edit
-            </button>
-          )}
-          {isPending && onReject && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onReject(); }}
-              className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
-            >
-              Reject
-            </button>
-          )}
-        </div>
+        {showActions ? (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {isPending && onApprove && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onApprove(); }}
+                className="px-2 py-1 text-xs bg-emerald-500/20 text-emerald-400 rounded hover:bg-emerald-500/30 transition-colors"
+              >
+                Approve
+              </button>
+            )}
+            {onEdit && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition-colors"
+              >
+                Edit
+              </button>
+            )}
+            {isPending && onReject && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onReject(); }}
+                className="px-2 py-1 text-xs bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition-colors"
+              >
+                Reject
+              </button>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {dropdown}

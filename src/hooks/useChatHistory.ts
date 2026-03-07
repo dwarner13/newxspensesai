@@ -77,7 +77,7 @@ export function useChatHistory({
       // Fetch messages from chat_messages table
       const { data, error: fetchError } = await supabase
         .from('chat_messages')
-        .select('id, role, content, created_at')
+        .select('id, role, content, created_at, metadata')
         .eq('session_id', sessionId)
         .eq('user_id', userId)
         .order('created_at', { ascending: true })
@@ -92,9 +92,8 @@ export function useChatHistory({
 
       if (data && data.length > 0) {
         // Convert database messages to ChatMessage format
-        // Filter out system messages (they're handled separately)
         const loadedMessages: ChatMessage[] = data
-          .filter(m => m.role !== 'system')
+          .filter(m => m.role !== 'system' && !(m as any).metadata?.hidden)
           .map(m => ({
             id: m.id,
             role: m.role as 'user' | 'assistant',

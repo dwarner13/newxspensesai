@@ -5,7 +5,7 @@
  * Now uses live data from usePrimeLiveStats hook
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Crown, Settings, Users, RefreshCw, Brain, PlugZap } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../ui/card';
@@ -149,6 +149,71 @@ export function PrimeWorkspacePanel({ onEmployeeClick, className }: PrimeWorkspa
     return { name: employeeInfo.name, role: employeeInfo.role };
   };
 
+  const normalizeKey = (value: string): string =>
+    String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+
+  const getActorKeysForSlug = (slug: string): string[] => {
+    const normalized = normalizeKey(slug);
+    const aliasMap: Record<string, string[]> = {
+      primeboss: ['primeboss', 'prime'],
+      bytedocs: ['bytedocs', 'byte'],
+      tagai: ['tagai', 'tag'],
+      crystalanalytics: ['crystalanalytics', 'crystal'],
+      ledgertax: ['ledgertax', 'ledger'],
+      goaliegoals: ['goaliegoals', 'goalie'],
+      libertyfreedom: ['libertyfreedom', 'liberty'],
+      chimebills: ['chimebills', 'chime'],
+      blitzdebt: ['blitzdebt', 'blitz'],
+      automaautomation: ['automaautomation', 'automa'],
+    };
+    return aliasMap[normalized] || [normalized];
+  };
+
+  const normalizeTaskText = (value: string): string => {
+    const compact = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!compact) return '';
+    // Keep task text compact and readable in a single line.
+    return compact.length > 56 ? `${compact.slice(0, 55)}…` : compact;
+  };
+
+  const currentTaskByEmployeeKey = useMemo(() => {
+    const map = new Map<string, string>();
+    const events = Array.isArray(activityFeed.events) ? activityFeed.events : [];
+
+    for (const event of events) {
+      const actorKey = normalizeKey(event.actorSlug || '');
+      if (!actorKey || map.has(actorKey)) continue;
+      const title = String(event.title || '').trim();
+      const description = String(event.description || '').trim();
+      const raw = description || title;
+      if (!raw) continue;
+      if (/user sent message|message sent|opened chat|typing/i.test(raw)) continue;
+      const task = normalizeTaskText(raw);
+      if (task) {
+        map.set(actorKey, task);
+      }
+    }
+    return map;
+  }, [activityFeed.events]);
+
+  const getCurrentTaskForEmployee = (slug: string, status: 'online' | 'idle' | 'offline'): string => {
+    const keys = getActorKeysForSlug(slug);
+    for (const key of keys) {
+      const exact = currentTaskByEmployeeKey.get(key);
+      if (exact) return exact;
+      for (const [eventKey, task] of currentTaskByEmployeeKey.entries()) {
+        if (eventKey.includes(key) || key.includes(eventKey)) {
+          return task;
+        }
+      }
+    }
+    if (status === 'online') return 'Ready for the next command';
+    if (status === 'idle') return 'Standing by';
+    return 'Offline';
+  };
+
   // Build list of employees to display (use liveStats if available, otherwise fallback list)
   const aiAgents = React.useMemo(() => {
     if (liveStats && liveStats.employees.length > 0) {
@@ -283,6 +348,7 @@ export function PrimeWorkspacePanel({ onEmployeeClick, className }: PrimeWorkspa
                 const status = agent.status || 'offline';
                 const isOnline = status === 'online';
                 const isIdle = status === 'idle';
+                const currentTask = getCurrentTaskForEmployee(agent.slug, status);
                 
                 const employee: PrimeEmployee = {
                   slug: agent.slug,
@@ -308,6 +374,18 @@ export function PrimeWorkspacePanel({ onEmployeeClick, className }: PrimeWorkspa
                     <div className="flex-1 min-w-0">
                       <p className="text-[11px] font-medium text-white truncate">{agent.name}</p>
                       <p className="text-[9px] text-slate-400 truncate">{agent.role}</p>
+                      <p
+                        className={`text-[9px] truncate ${
+                          status === 'online'
+                            ? 'text-cyan-300/90'
+                            : status === 'idle'
+                              ? 'text-amber-300/90'
+                              : 'text-slate-500'
+                        }`}
+                        title={currentTask}
+                      >
+                        {currentTask}
+                      </p>
                     </div>
                     
                     {/* Status - fixed width, short text */}
