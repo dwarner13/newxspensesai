@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react';
+import { renderInlineStrong } from './TypingMessage';
 
 export type PrimeUploadStageState = 'pending' | 'active' | 'done' | 'error';
 
@@ -13,7 +14,7 @@ interface PrimeUploadProgressBlockProps {
   stages: PrimeUploadProgressStages;
 }
 
-function StageRow(props: { label: string; state: PrimeUploadStageState }) {
+function StageRow(props: { label: React.ReactNode; state: PrimeUploadStageState }) {
   const { label, state } = props;
   if (state === 'done') {
     return (
@@ -49,15 +50,13 @@ function StageRow(props: { label: string; state: PrimeUploadStageState }) {
 
 export function PrimeUploadProgressBlock({ stages }: PrimeUploadProgressBlockProps) {
   return (
-    <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/45 p-3">
-      <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-300">Workflow (3 steps)</div>
-      <div className="mb-2 text-[11px] text-slate-400">1) Uploaded  2) Processing statement  3) Summary ready</div>
+    <div className="mt-3 rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-lg">
+      <div className="mb-2 text-xs font-medium text-slate-200">Processing Document</div>
       <div className="space-y-1.5">
-        <StageRow label="Extracting transactions" state={stages.byte} />
+        <StageRow label="Byte is auditing entries..." state={stages.byte} />
         <StageRow label="Categorizing expenses" state={stages.tag} />
         <StageRow label="Saving to your account" state={stages.saving} />
       </div>
     </div>
   );
 }
-

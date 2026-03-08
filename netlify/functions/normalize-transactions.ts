@@ -595,7 +595,7 @@ async function processNormalizationInBackground(
       const latestStatus = String(latestImport?.status || importRecord.status || '').toLowerCase();
       const updatedAtMs = latestImport?.updated_at ? Date.parse(String(latestImport.updated_at)) : NaN;
       const staleMs = Number.isFinite(updatedAtMs) ? Date.now() - updatedAtMs : Number.POSITIVE_INFINITY;
-      const STALE_NORMALIZING_MS = 120000;
+      const STALE_NORMALIZING_MS = 10000;
 
       if (latestStatus === 'parsed' || latestStatus === 'committed') {
         const { count: parsedCount } = await sb

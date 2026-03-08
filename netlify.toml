@@ -34,3 +34,9 @@
   format = "cjs"
   external = ["xhr-sync-worker.js", "@napi-rs/canvas", "@napi-rs/canvas-win32-x64-msvc"]
 
+[functions."prime-router"]
+  timeout = 60
+
+[functions."smart-import-sync"]
+  timeout = 60
+

@@ -364,7 +364,7 @@ export function PrimeSlideoutShell({
             style={{ minHeight: 0 }} // Explicit min-h-0 to ensure flex chain works
           >
             {/* HEADER */}
-            <div className="sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-6 pt-3 pb-2 backdrop-blur-sm flex-shrink-0 min-h-0">
+            <div className="sticky top-0 z-[50] border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-6 pt-3 pb-2 backdrop-blur-md flex-shrink-0 min-h-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-3">

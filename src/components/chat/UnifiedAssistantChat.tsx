@@ -52,7 +52,7 @@ import { buildPrimeGreeting, type PrimeGreetingData, type PrimeGreetingChip } fr
 // Keep import for now; do not activate in MVP path.
 import { PrimeGreetingCard } from './PrimeGreetingCard';
 import { PrimeQuickActions } from './PrimeQuickActions';
-import { TypingMessage, FormattedMessageText } from './TypingMessage';
+import { TypingMessage, FormattedMessageText, renderInlineStrong } from './TypingMessage';
 import type { ChatMessage } from '../../hooks/usePrimeChat';
 import { onBus, emitBus } from '../../lib/bus';
 import { usePostImportHandoff } from '../../hooks/usePostImportHandoff';
@@ -2548,35 +2548,7 @@ export default function UnifiedAssistantChat({
     return /(that'?s it|thats it|no more (docs|documents|files)|done uploading|finished uploading|all done uploading|close (the )?batch|nope that'?s it)/i.test(text);
   }, []);
 
-  const showTestingResetAction =
-    import.meta.env.DEV ||
-    import.meta.env.VITE_ENABLE_TEST_RESET_UPLOADS === '1' ||
-    import.meta.env.VITE_TEST_MODE === '1';
-
-  const utilityActions = normalizedSlug === 'prime-boss' ? (
-    <div className="inline-flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => void handleClearChat()}
-        disabled={isClearingChat || isStreaming}
-        className="inline-flex h-8 items-center rounded-lg border border-slate-700/80 bg-slate-900/70 px-2.5 text-xs text-slate-300 transition-colors hover:bg-slate-800 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-        title="Clear chat history"
-      >
-        {isClearingChat ? 'Clearing…' : 'Clear Chat'}
-      </button>
-      {showTestingResetAction && (
-        <button
-          type="button"
-          onClick={() => void handleResetTestUploads()}
-          disabled={isResettingUploads}
-          className="inline-flex h-8 items-center rounded-lg border border-amber-500/50 bg-amber-900/25 px-2.5 text-xs text-amber-100 transition-colors hover:bg-amber-800/35 disabled:cursor-not-allowed disabled:opacity-60"
-          title="Advanced / Testing"
-        >
-          {isResettingUploads ? 'Resetting…' : 'Reset Test Uploads'}
-        </button>
-      )}
-    </div>
-  ) : null;
+  const utilityActions = null;
 
   const getImportIdsForBatch = useCallback((batchKey: string): string[] => {
     if (!batchKey) return [];
@@ -6494,7 +6466,7 @@ export default function UnifiedAssistantChat({
         </div>
       )}
       {showPrimeUploadQueueCard && normalizedSlug === 'prime-boss' && (
-        <div className="mb-2 rounded-2xl bg-sky-500/10 px-3 py-2.5 backdrop-blur-sm">
+        <div className="mb-2 rounded-2xl bg-white/10 border border-white/10 px-3 py-2.5 backdrop-blur-lg shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
@@ -6515,14 +6487,14 @@ export default function UnifiedAssistantChat({
               {primeUploadNamesForCard.map((fileName, idx) => (
                 <div
                   key={`${fileName}-footer-${idx}`}
-                  className="min-w-[220px] max-w-[220px] rounded-xl bg-white/8 px-2.5 py-2 text-[10px] backdrop-blur-sm"
+                  className="min-w-[220px] max-w-[220px] rounded-xl bg-white/10 border border-white/[0.05] px-2.5 py-2 text-[10px] backdrop-blur-md"
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="text-sky-300">📄</span>
-                    <span className="truncate font-semibold text-slate-100">{fileName}</span>
+                    <span className="truncate font-semibold text-slate-100">{renderInlineStrong(fileName)}</span>
                   </div>
-                  <span className="mt-1 inline-block text-cyan-200/90">
-                    Byte is scanning...
+                  <span className="mt-1 inline-block text-cyan-200/90 text-[11px]">
+                    {renderInlineStrong("Byte is auditing entries...")}
                   </span>
                 </div>
               ))}
@@ -6530,7 +6502,7 @@ export default function UnifiedAssistantChat({
             </div>
           )}
           <div className="mt-1.5 text-[10px] text-slate-400 line-clamp-2">
-            {latestPrimeUploadHandoffText || primeNarrationStatusText || 'Byte is extracting transactions. Prime will post the full summary when ready.'}
+            {renderInlineStrong(latestPrimeUploadHandoffText || primeNarrationStatusText || 'Byte is auditing entries. Prime will post the full summary when ready.')}
           </div>
         </div>
       )}
@@ -6611,7 +6583,7 @@ export default function UnifiedAssistantChat({
           ref={scrollContainerRef}
           className="flex-1 min-h-0"
         >
-            <div className={(compact ? "px-4 pt-3 pb-3" : "px-4 pt-4 pb-4") + " relative"}>
+            <div className={(compact ? "px-4 pt-6 pb-3" : "px-4 pt-24 pb-4") + " relative"}>
             {showCenteredUploadIndicator && (
               <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
                 <div className="rounded-2xl bg-sky-500/10 px-5 py-4 backdrop-blur-sm">
@@ -6936,7 +6908,7 @@ export default function UnifiedAssistantChat({
               {/* CRITICAL: This wrapper provides padding and flex structure - must have flex flex-col h-full min-h-0 */}
               {/* The message list container inside will be the actual scroll owner with capture handlers */}
                   <div
-                    className={`relative px-4 ${normalizedSlug === 'prime-boss' ? 'pt-4 pb-3' : (isPrimeChatRevampEnabled ? 'pt-2 pb-3' : 'pt-4 pb-4')} min-w-0 flex flex-col flex-1 min-h-0`}
+                    className={`relative px-4 ${normalizedSlug === 'prime-boss' ? 'pt-6 pb-3' : (isPrimeChatRevampEnabled ? 'pt-6 pb-3' : 'pt-24 pb-4')} min-w-0 flex flex-col flex-1 min-h-0`}
                 ref={scrollContainerRef}
                 onDragOver={(e) => {
                   if (supportsChatUploads && e.dataTransfer.types.includes('Files')) {
@@ -7223,7 +7195,7 @@ export default function UnifiedAssistantChat({
                         return (
                           <React.Fragment key={message.id}>
                             <div
-                              className={`flex scroll-mt-10 ${
+                              className={`flex scroll-mt-24 ${
                                 message.role === 'user' ? 'justify-end' : 'justify-start'
                               }`}
                             >
@@ -7316,6 +7288,8 @@ export default function UnifiedAssistantChat({
                                           ? 'text-slate-400 italic'
                                           : isHandoffMessage
                                           ? 'bg-purple-500/12 text-slate-100 px-3 py-2'
+                                          : isGreetingMessage
+                                          ? 'text-slate-100'
                                           : `${aura.tint} text-slate-100 px-3 py-2`
                                       }`
                                 }
@@ -7593,3 +7567,5 @@ export default function UnifiedAssistantChat({
       </div>
   );
 }
+
+// Forced save to trigger editor reload

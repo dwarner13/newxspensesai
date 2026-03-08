@@ -26,7 +26,7 @@ interface TypingMessageProps {
   maxDuration?: number;
 }
 
-function renderInlineStrong(text: string): Array<string | JSX.Element> {
+export function renderInlineStrong(text: string): Array<string | JSX.Element> {
   const chunks: Array<string | JSX.Element> = [];
     // Matches explicit bold (**text**), currency ($1,234.56), percentages (45%), and common dates
   const pattern = /\*\*(.+?)\*\*|((?:C\$|CA\$|US\$|\$|€|£)\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)|(\b\d+(?:\.\d+)?%)|(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?,? \d{4}\b|\b\d{4}-\d{2}-\d{2}\b)/gi;

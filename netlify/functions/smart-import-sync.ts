@@ -846,8 +846,14 @@ export const handler: Handler = async (event) => {
           waitResult.reason === 'cached_no_input_needs_review';
         let normalized: { ok: boolean; importId?: string; processing?: boolean; reason?: string } = { ok: false };
         if (!shouldSkipNormalizeTrigger) {
+          const { data: docWithText } = await sb
+            .from('user_documents')
+            .select('ocr_text')
+            .eq('id', docId)
+            .maybeSingle();
+            
           normalized = await ensureNormalized(sb, docId, userId, netlifyUrl, {
-            ocrText: undefined,
+            ocrText: docWithText?.ocr_text || undefined,
             ocrTextHash: waitResult.textHash,
             ocrTextLength: waitResult.len,
             traceId,
