@@ -108,6 +108,32 @@ export const EMPLOYEE_DISPLAY_CONFIG: Record<string, EmployeeDisplayConfig> = {
       'Go through my transactions and clean up the categories.',
     ],
   },
+  // Alias for backend streaming events that use 'tag-agent' instead of 'tag-ai'
+  'tag-agent': {
+    emoji: '🏷️',
+    displayName: 'Tag',
+    title: 'Tag — Smart Categories AI',
+    subtitle: 'Intelligent categorization · Auto-organize your transactions',
+    gradient: 'from-yellow-300 via-amber-400 to-orange-500',
+    accentGlow: 'bg-teal-500/10',
+    accentShadow: 'shadow-[0_0_40px_rgba(20,184,166,0.7)]',
+    accentColor: 'teal-500',
+    primaryButtonGradient: 'from-teal-400 via-emerald-500 to-green-500',
+    primaryButtonShadow: 'shadow-teal-900/60',
+    stats: [
+      { value: '1,247', label: 'Items Tagged', colorClass: 'text-cyan-400' },
+      { value: '98.5%', label: 'Accuracy', colorClass: 'text-green-400' },
+      { value: '45', label: 'Categories', colorClass: 'text-purple-400' },
+    ],
+    chatTitle: 'Tag — Chat',
+    chatSubtitle: 'Smart Categories & Rules Engine',
+    chatQuickPrompts: [
+      'Show me all uncategorized transactions from the last 30 days.',
+      'Fix any obvious category mistakes from restaurants vs groceries.',
+      'Create a rule so Uber rides always go into \'Transportation\'.',
+      'Go through my transactions and clean up the categories.',
+    ],
+  },
   'finley-forecasts': {
     emoji: '💰',
     displayName: 'Finley',

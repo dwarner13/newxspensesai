@@ -5006,7 +5006,7 @@ export const handler: Handler = async (event, context) => {
 
     // Parse request body (userId now comes from JWT, not body)
     const requestBody = (body || JSON.parse(event.body || '{}')) as ChatRequest;
-    let { employeeSlug, message, sessionId, threadId: requestThreadId, stream = true, systemPromptOverride, documentIds, client_message_id, request_id } = requestBody;
+    let { employeeSlug, message, sessionId, threadId: requestThreadId, stream = true, systemPromptOverride, documentIds, client_message_id, request_id, hidden } = requestBody as any;
     const ocrText: string | null = (body.ocrText as string) || null;
     let effectivePrimeContext: ChatRequest['prime_context'] = requestBody?.prime_context || null;
     employeeSlugForLog = employeeSlug || null;
@@ -8376,6 +8376,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
 
     // Save user message to database (masked) - non-blocking
     try {
+      const safeHidden = hidden || false;
       const messageData: any = {
         session_id: finalSessionId, // Keep for backward compatibility
         user_id: userId,
@@ -8383,7 +8384,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         content: masked, // Store masked version
         tokens: estimateTokens(masked),
         thread_id: threadId, // CRITICAL: thread_id is always required
-        metadata: (client_message_id || hidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(hidden ? { hidden: true } : {}) } : undefined,
+        metadata: (client_message_id || safeHidden) ? { ...(client_message_id ? { client_message_id } : {}), ...(safeHidden ? { hidden: true } : {}) } : undefined,
       };
       console.log(`[Chat] Inserting user message with thread_id: ${threadId}`);
       await sb.from('chat_messages').insert(messageData);

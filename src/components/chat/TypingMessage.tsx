@@ -28,7 +28,8 @@ interface TypingMessageProps {
 
 function renderInlineStrong(text: string): Array<string | JSX.Element> {
   const chunks: Array<string | JSX.Element> = [];
-  const pattern = /\*\*(.+?)\*\*/g;
+    // Matches explicit bold (**text**), currency ($1,234.56), percentages (45%), and common dates
+  const pattern = /\*\*(.+?)\*\*|((?:C\$|CA\$|US\$|\$|€|£)\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)|(\b\d+(?:\.\d+)?%)|(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?,? \d{4}\b|\b\d{4}-\d{2}-\d{2}\b)/gi;
   let lastIdx = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -36,7 +37,15 @@ function renderInlineStrong(text: string): Array<string | JSX.Element> {
     if (match.index > lastIdx) {
       chunks.push(text.slice(lastIdx, match.index));
     }
-    chunks.push(<strong key={`strong-${key++}`} className="font-semibold text-slate-100">{match[1]}</strong>);
+    const content = match[1] || match[2] || match[3] || match[4];
+    chunks.push(
+      <strong
+        key={`strong-${key++}`}
+        className="font-extrabold tracking-tight text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.14)]"
+      >
+        {content}
+      </strong>
+    );
     lastIdx = pattern.lastIndex;
   }
   if (lastIdx < text.length) {

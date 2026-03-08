@@ -9,13 +9,12 @@
 
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, Loader2, ExternalLink, Trash2 } from 'lucide-react';
+import { UploadCloud, Loader2, ExternalLink, Trash2, FileText } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSmartImport } from '../../hooks/useSmartImport';
 import { GuardrailsActivePill } from '../upload/GuardrailsActivePill';
 import { emitSecurityMessage } from '../../lib/primeSecurityMessages';
 import { getSupabase } from '../../lib/supabase';
-import { UploadQueuePanel } from '../upload/UploadQueuePanel';
 import { DocumentViewerModal } from '../ui/DocumentViewerModal';
 import type { UploadQueueItem } from '../../lib/upload/uploadQueue';
 import toast from 'react-hot-toast';
@@ -499,6 +498,20 @@ export function ByteUploadPanel({
     }
     return item;
   });
+  const activeSlotCount = queueItemsForDisplay.filter(
+    (item) => item.status === 'pending' || item.status === 'uploading' || item.status === 'processing'
+  ).length;
+  const slotLimit = 5;
+  const getQueueStatusLabel = (status: UploadQueueItem['status']) => {
+    if (status === 'pending') return 'Queued';
+    if (status === 'uploading') return 'Uploading';
+    if (status === 'processing') return 'Byte is scanning...';
+    if (status === 'summarized') return 'Summary ready';
+    if (status === 'completed') return 'Completed';
+    if (status === 'error') return 'Needs retry';
+    if (status === 'cancelled') return 'Cancelled';
+    return 'In progress';
+  };
 
   useEffect(() => {
     if (!isProcessing) {
@@ -518,7 +531,7 @@ export function ByteUploadPanel({
   }, [isProcessing, uploadQueue.isUploading]);
 
   return (
-    <div className="rounded-xl bg-slate-900/40 border border-dashed border-sky-500/30 px-3 py-2.5 backdrop-blur-sm">
+    <div className="rounded-2xl bg-white/5 px-3 py-2.5 backdrop-blur-md">
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
@@ -532,6 +545,9 @@ export function ByteUploadPanel({
           </div>
           <div className="text-[10px] text-slate-400 leading-tight">
             Any file type • Max 25MB
+          </div>
+          <div className="mt-1 text-[10px] text-cyan-200/85 tabular-nums">
+            Batch Status · Slots: {Math.min(activeSlotCount, slotLimit)}/{slotLimit}
           </div>
           {showProgressBar && (
             <div className="mt-2">
@@ -613,7 +629,7 @@ export function ByteUploadPanel({
       {isQueueOwner && uploadQueue.items.length > 0 && (
         <div className="mt-2">
           {compact && isCollapsed ? (
-            <div className="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900/60 px-3 py-2 text-xs text-slate-200">
+            <div className="flex items-center justify-between rounded-xl bg-white/6 px-3 py-2 text-xs text-slate-200 backdrop-blur-sm">
               <span>
                 {uploadQueue.items.length} upload{uploadQueue.items.length === 1 ? '' : 's'} in queue
               </span>
@@ -637,15 +653,39 @@ export function ByteUploadPanel({
               </div>
             </div>
           ) : (
-            <UploadQueuePanel
-              items={queueItemsForDisplay}
-              progress={uploadQueue.progress}
-              onCancel={uploadQueue.cancel}
-              onRetry={uploadQueue.retry}
-              onViewDocument={handleViewDocument}
-              showIntegrityBadge={false}
-              showHeader={false}
-            />
+            <div className="overflow-x-auto pb-1">
+              <div className="flex min-w-max gap-2">
+                {queueItemsForDisplay.map((item) => (
+                  <div
+                    key={item.id}
+                    className="min-w-[220px] max-w-[220px] rounded-xl bg-white/8 px-2.5 py-2 backdrop-blur-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <FileText className="h-3.5 w-3.5 text-sky-300" />
+                          <div className="truncate text-[11px] font-semibold text-slate-100">
+                            {item.file?.name || 'Document'}
+                          </div>
+                        </div>
+                        <div className="mt-1 text-[10px] text-cyan-200/90">
+                          {getQueueStatusLabel(item.status)}
+                        </div>
+                      </div>
+                      {item.status === 'error' ? (
+                        <button
+                          type="button"
+                          onClick={() => uploadQueue.retry(item.id)}
+                          className="shrink-0 rounded-md bg-amber-500/20 px-1.5 py-1 text-[9px] text-amber-100 hover:bg-amber-500/30"
+                        >
+                          Retry
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}

@@ -79,6 +79,26 @@ const PRIME_UPLOAD_CLOSED_BATCHES_PREFIX = 'xspenses:prime_upload_closed_batches
 const SHOW_EMPLOYEE_NAMES_IN_UPLOAD = shouldShowEmployeeNames();
 const PRIME_MINIMAL_UPLOAD_CHAT = true;
 
+function getSpecialistAura(slug: string): { glow: string; tint: string } {
+  const normalized = String(slug || '').toLowerCase();
+  if (normalized.includes('tag')) {
+    return {
+      glow: 'bg-amber-400/35',
+      tint: 'bg-amber-500/10',
+    };
+  }
+  if (normalized.includes('byte')) {
+    return {
+      glow: 'bg-cyan-400/35',
+      tint: 'bg-cyan-500/10',
+    };
+  }
+  return {
+    glow: 'bg-indigo-400/35',
+    tint: 'bg-indigo-500/10',
+  };
+}
+
 interface UnifiedAssistantChatProps {
   /** Whether chat is open (required for slideout/overlay mode, ignored in inline mode) */
   isOpen?: boolean;
@@ -2152,6 +2172,30 @@ export default function UnifiedAssistantChat({
     const container = getActiveScrollEl();
     if (!container) return;
 
+    // --- NEW: Robust MutationObserver Auto-Scroll ---
+    // Instead of relying purely on React render cycles or arbitrary timers,
+    // we observe the actual DOM changes inside the message list.
+    // When text is streaming, the DOM mutates rapidly.
+    let mutationObserver: MutationObserver | null = null;
+    if (typeof MutationObserver !== 'undefined' && messageListContentRef.current) {
+      mutationObserver = new MutationObserver(() => {
+        // Magnetic mode: while streaming, keep pinning to the absolute bottom
+        // unless the user explicitly scrolled up.
+        if (isStreaming && !userScrolledUpRef.current) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              scrollToBottom('auto', true);
+            });
+          });
+        }
+      });
+      mutationObserver.observe(messageListContentRef.current, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+    }
+
     const hasAnyMessages = messages.length > 0 || loadedHistoryMessages.length > 0;
     const historyReady = historyLoadCompleteRef.current || !isLoadingHistory;
     if (historyReady && hasAnyMessages && !didInitialScrollRef.current) {
@@ -2198,14 +2242,17 @@ export default function UnifiedAssistantChat({
       userJustSentRef.current = false;
     }
     
-    // Cleanup throttle on unmount
+    // Cleanup throttle and mutation observer on unmount/re-run
     return () => {
       if (scrollThrottleRef.current !== null) {
         clearTimeout(scrollThrottleRef.current);
         scrollThrottleRef.current = null;
       }
+      if (mutationObserver) {
+        mutationObserver.disconnect();
+      }
     };
-  }, [messages, loadedHistoryMessages, injectedMessages.length, isStreaming, scrollToBottom, getActiveScrollEl, isOpen, isLoadingHistory]);
+  }, [messages, loadedHistoryMessages, injectedMessages.length, isStreaming, scrollToBottom, getActiveScrollEl, isOpen, isLoadingHistory, userScrolledUpRef, userIsNearBottomRef]);
 
   // No separate scrollIntoView effect — scroll is centralized in scrollToBottom()
 
@@ -2441,6 +2488,23 @@ export default function UnifiedAssistantChat({
       setIsClearingChat(false);
     }
   }, [buildAuthHeaders, clearPrimeUploadLocalState, isClearingChat, userId]);
+
+  useEffect(() => {
+    const handleExternalChatClear = () => {
+      clearPrimeUploadLocalState();
+      setInputMessage('');
+      userScrolledUpRef.current = false;
+      userIsNearBottomRef.current = true;
+      autoPinToBottomRef.current = true;
+      requestAnimationFrame(() => {
+        scrollToBottom('auto', true);
+      });
+    };
+    window.addEventListener('clear-chat-history', handleExternalChatClear);
+    return () => {
+      window.removeEventListener('clear-chat-history', handleExternalChatClear);
+    };
+  }, [clearPrimeUploadLocalState, scrollToBottom]);
 
   const handleResetTestUploads = useCallback(async () => {
     if (!userId || isResettingUploads) return;
@@ -3570,7 +3634,7 @@ export default function UnifiedAssistantChat({
         upsertPrimeUploadNarration({
           batchKey,
           importId: importIdsForBatch[0] || smartImport.lastUploadSummary?.importId,
-          text: `Byte is processing ${totalDocs || 1} document${(totalDocs || 1) === 1 ? '' : 's'} (${completedDocs}/${totalDocs || 1} completed).`,
+          text: `Byte pipeline active for ${totalDocs || 1} file${(totalDocs || 1) === 1 ? '' : 's'}. Completed ${completedDocs} of ${totalDocs || 1}.`,
           stages: {
             byte: 'done',
             tag: 'active',
@@ -3988,7 +4052,7 @@ export default function UnifiedAssistantChat({
         upsertPrimeUploadNarration({
           batchKey: activeKey,
           importId: primeSummaryReady,
-          text: `Byte is processing ${batchTotal} document${batchTotal === 1 ? '' : 's'} (${batchCompleted}/${batchTotal} completed).`,
+          text: `Byte pipeline active for ${batchTotal} file${batchTotal === 1 ? '' : 's'}. Completed ${batchCompleted} of ${batchTotal}.`,
           stages: { byte: 'done', tag: 'active', saving: 'pending' },
           done: false,
         });
@@ -6430,35 +6494,41 @@ export default function UnifiedAssistantChat({
         </div>
       )}
       {showPrimeUploadQueueCard && normalizedSlug === 'prime-boss' && (
-        <div className="mb-2 rounded-lg border border-sky-500/30 bg-slate-900/80 px-3 py-2.5">
-          {/* Header row: doc count + progress */}
+        <div className="mb-2 rounded-2xl bg-sky-500/10 px-3 py-2.5 backdrop-blur-sm">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
               <span className="text-[11px] font-medium text-slate-200">
-                Importing {primeUploadDisplayCount} document{primeUploadDisplayCount === 1 ? '' : 's'}
+                Batch in progress
               </span>
             </div>
-            {primeUploadTotalCount > 0 && (
-              <span className="text-[10px] text-slate-400 tabular-nums">
-                {Math.max(primeUploadCurrentCount, 0)}/{primeUploadTotalCount}
-              </span>
-            )}
+            <span className="text-[10px] text-slate-300 tabular-nums">
+              Files: {primeUploadDisplayCount}
+            </span>
           </div>
-          {/* File names */}
+          <div className="mt-1 text-[10px] text-slate-300 tabular-nums">
+            Slots: {Math.min(Math.max(primeQueueItemsForDisplay.length, isPrimeUploadFlowActive ? 1 : 0), 5)}/5
+          </div>
           {primeUploadNamesForCard.length > 0 && (
-            <div className="mt-1.5 space-y-0.5">
+            <div className="mt-2 overflow-x-auto pb-1">
+              <div className="flex min-w-max gap-2">
               {primeUploadNamesForCard.map((fileName, idx) => (
-                <div key={`${fileName}-footer-${idx}`} className="flex items-center justify-between gap-2 text-[10px]">
-                  <span className="truncate text-slate-400">{fileName}</span>
-                  <span className="shrink-0 text-sky-400/70">
-                    {isPrimeUploadFlowActive ? 'processing…' : 'queued'}
+                <div
+                  key={`${fileName}-footer-${idx}`}
+                  className="min-w-[220px] max-w-[220px] rounded-xl bg-white/8 px-2.5 py-2 text-[10px] backdrop-blur-sm"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sky-300">📄</span>
+                    <span className="truncate font-semibold text-slate-100">{fileName}</span>
+                  </div>
+                  <span className="mt-1 inline-block text-cyan-200/90">
+                    Byte is scanning...
                   </span>
                 </div>
               ))}
+              </div>
             </div>
           )}
-          {/* Single status line — latest update or default */}
           <div className="mt-1.5 text-[10px] text-slate-400 line-clamp-2">
             {latestPrimeUploadHandoffText || primeNarrationStatusText || 'Byte is extracting transactions. Prime will post the full summary when ready.'}
           </div>
@@ -6508,7 +6578,7 @@ export default function UnifiedAssistantChat({
     return (
       <div 
         data-unified-chat-mount={mountIdRef.current}
-        className="flex h-auto w-full min-w-0 flex-col min-h-0 rounded-3xl border border-slate-800/80 bg-gradient-to-b from-slate-900/80 via-slate-950 to-slate-950">
+        className="flex h-auto w-full min-w-0 flex-col min-h-0 bg-transparent">
         {/* HEADER */}
         <header className={compact ? "sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-5 pt-4 pb-3 backdrop-blur-sm shrink-0" : "sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-6 pt-5 pb-4 backdrop-blur-sm shrink-0"}>
           <div className="flex items-start justify-between gap-3">
@@ -6544,7 +6614,7 @@ export default function UnifiedAssistantChat({
             <div className={(compact ? "px-4 pt-3 pb-3" : "px-4 pt-4 pb-4") + " relative"}>
             {showCenteredUploadIndicator && (
               <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-                <div className="rounded-2xl border border-white/15 bg-slate-950/80 px-5 py-4 backdrop-blur-md shadow-2xl shadow-black/40">
+                <div className="rounded-2xl bg-sky-500/10 px-5 py-4 backdrop-blur-sm">
                   <div className="flex flex-col items-center gap-2">
                     <div className="relative h-16 w-16">
                       <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
@@ -6728,7 +6798,7 @@ export default function UnifiedAssistantChat({
         </div>
 
         {/* INPUT BAR */}
-        <div className="flex-none border-t border-white/10 bg-slate-950/95 px-6 py-4 backdrop-blur-sm shrink-0">
+        <div className="flex-none bg-slate-950/40 px-6 py-4 backdrop-blur-sm shrink-0">
           {inputFooter}
         </div>
       </div>
@@ -6927,7 +6997,7 @@ export default function UnifiedAssistantChat({
                   )}
                   {showCenteredUploadIndicator && (
                     <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
-                      <div className="rounded-2xl border border-white/15 bg-slate-950/80 px-5 py-4 backdrop-blur-md shadow-2xl shadow-black/40">
+                      <div className="rounded-2xl bg-sky-500/10 px-5 py-4 backdrop-blur-sm">
                         <div className="flex flex-col items-center gap-2">
                           <div className="relative h-16 w-16">
                             <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
@@ -7028,9 +7098,9 @@ export default function UnifiedAssistantChat({
                       {/* Tool Confirmation Panel */}
                       {pendingConfirmation && (
                       <div className="flex justify-center mb-4">
-                        <div className="w-full max-w-2xl bg-amber-900/20 border border-amber-500/30 rounded-xl p-4 backdrop-blur-sm">
+                        <div className="w-full max-w-2xl bg-amber-500/12 p-4 backdrop-blur-sm">
                           <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-amber-500/20 border border-amber-500/40">
+                            <div className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-amber-500/25">
                               <span className="text-lg">⚠️</span>
                             </div>
                             <div className="flex-1 min-w-0">
@@ -7145,6 +7215,11 @@ export default function UnifiedAssistantChat({
                           currentEmployeeSlug === 'prime-boss' &&
                           !isStreaming;
                         
+                        // Determine message-specific employee slug for icons
+                        const msgEmployeeSlug = metaAny?.employee_slug || metaAny?.employee_key || normalizedSlug;
+                        const msgDisplayConfig = getEmployeeDisplayConfig(msgEmployeeSlug);
+                        const aura = getSpecialistAura(msgEmployeeSlug);
+                        
                         return (
                           <React.Fragment key={message.id}>
                             <div
@@ -7215,11 +7290,17 @@ export default function UnifiedAssistantChat({
                                           </span>
                                         )}
                                       </div>
-                                    ) : normalizedSlug === 'prime-boss' ? (
-                                      <PrimeLogoBadge size={32} className="flex-shrink-0" />
+                                    ) : msgEmployeeSlug === 'prime-boss' || msgEmployeeSlug === 'prime' ? (
+                                      <div className="flex-shrink-0 relative">
+                                        <div className={`absolute inset-0 ${aura.glow} blur-xl rounded-full`} />
+                                        <PrimeLogoBadge size={32} className="relative z-10 drop-shadow-[0_0_12px_rgba(99,102,241,0.55)]" />
+                                      </div>
                                     ) : (
-                                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${displayConfig.gradient}`}>
-                                        <span className="text-sm">{displayConfig.emoji}</span>
+                                      <div className="flex-shrink-0 relative">
+                                        <div className={`absolute inset-0 ${aura.glow} opacity-90 blur-md rounded-full`} />
+                                        <div className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center bg-gradient-to-br ${msgDisplayConfig.gradient}`}>
+                                          <span className="text-sm">{msgDisplayConfig.emoji}</span>
+                                        </div>
                                       </div>
                                     )}
 
@@ -7228,14 +7309,14 @@ export default function UnifiedAssistantChat({
                                 className={
                                   metaAny?.type === 'prime_upload_final'
                                     ? 'w-full text-sm text-slate-100 text-left'
-                                    : `px-4 py-2 text-sm rounded-2xl ${
+                                    : `px-2 py-1.5 text-sm ${
                                         message.role === 'user'
-                                          ? 'border border-amber-400/70 bg-slate-900/90 text-slate-50 shadow-[0_0_24px_rgba(251,191,36,0.60)]'
+                                          ? 'text-slate-50 font-medium'
                                           : message.role === 'system'
-                                          ? 'bg-slate-900/35 border border-white/10 text-slate-300 italic'
+                                          ? 'text-slate-400 italic'
                                           : isHandoffMessage
-                                          ? 'bg-purple-900/40 border border-purple-500/30 text-slate-100'
-                                          : 'bg-slate-900/45 text-slate-100 border border-white/10'
+                                          ? 'bg-purple-500/12 text-slate-100 px-3 py-2'
+                                          : `${aura.tint} text-slate-100 px-3 py-2`
                                       }`
                                 }
                               >
@@ -7443,7 +7524,7 @@ export default function UnifiedAssistantChat({
                                     inputRef.current?.focus();
                                   }, 100);
                                 }}
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800/60 border border-slate-700/50 hover:bg-slate-700/60 text-sm text-slate-300 hover:text-white transition-colors"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700/35 hover:bg-slate-700/50 text-sm text-slate-300 hover:text-white transition-colors"
                               >
                                 <span>{getNextBestAction(detectedIntent!)}</span>
                                 <ArrowRight className="w-3 h-3" />
@@ -7493,7 +7574,7 @@ export default function UnifiedAssistantChat({
                       {/* Error message */}
                       {error && (
                       <div className="flex justify-center">
-                        <div className="bg-red-900/50 border border-red-500/30 rounded-lg px-4 py-3 text-sm text-red-300">
+                        <div className="bg-red-500/16 px-4 py-3 text-sm text-red-300">
                           ⚠️ {error.message}
                         </div>
                       </div>

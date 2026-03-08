@@ -186,6 +186,11 @@ export function DataPrivacyTab() {
             message: 'All specified test data has been successfully removed.',
             duration: 5000
           });
+          // Clear the chat history to ensure no residual context remains
+          fetch('/.netlify/functions/clear-chat-history', { method: 'POST' })
+            .catch(err => console.error('[DataPrivacy] Failed to clear chat history:', err));
+          window.dispatchEvent(new CustomEvent('clear-chat-history', { detail: { source: 'nuke' } }));
+            
           // Dispatch a custom event so other components (like charts/tables) can refresh
           window.dispatchEvent(new CustomEvent('xai_data_cleared'));
         }}

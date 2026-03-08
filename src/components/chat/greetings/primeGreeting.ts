@@ -126,8 +126,8 @@ function buildCEOGreeting(options: PrimeGreetingOptions): PrimeGreetingData {
   }
   // RETURNING USER - No transactions yet
   else if (!hasTransactions || transactionCount === 0) {
-    titleLine = `${timeGreeting}, ${displayName}. Prime is online.`;
-    subLine = `Drop in a receipt and I'll build the first snapshot.`;
+    titleLine = `${timeGreeting}, ${displayName}. Clean Canvas.`;
+    subLine = `Drop in a receipt or connect an account to get started.`;
   }
   // RETURNING USER - Has uncategorized transactions
   else if (uncategorizedCount > 0) {

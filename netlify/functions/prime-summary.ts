@@ -1295,14 +1295,25 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const txLabel = transactionCount === 1 ? '1 transaction' : `${transactionCount} transactions`;
-    const fallbackSummary = [
-      `${txLabel} imported from ${docName}`,
-      `- ${txLabel} imported and categorized.`,
-      '- Ask me which merchants appeared most often this period.',
-      '- Ask me for a spending breakdown by category.',
-      '- Flag any unfamiliar charges and I can help you review them.',
-    ].join('\n');
+    let fallbackSummary = '';
+    
+    if (transactionCount === 0) {
+      fallbackSummary = [
+        `Clean Canvas.`,
+        `You have 0 transactions imported from ${docName}.`,
+        `- Upload a receipt or connect an account to get started.`
+      ].join('\n');
+    } else {
+      const txLabel = transactionCount === 1 ? '1 transaction' : `${transactionCount} transactions`;
+      fallbackSummary = [
+        `${txLabel} imported from ${docName}`,
+        `- ${txLabel} imported and categorized.`,
+        '- Ask me which merchants appeared most often this period.',
+        '- Ask me for a spending breakdown by category.',
+        '- Flag any unfamiliar charges and I can help you review them.',
+      ].join('\n');
+    }
+    
     const summary = await sanitizeSummaryForOutput(fallbackSummary, String(importData?.user_id || '') || null);
     console.log('[prime-summary] stage=prime_summary_rendered', {
       importId,

@@ -272,7 +272,7 @@ export function AccountCenterPanel() {
 
             {/* Content - Scrollable content area only */}
             <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-              <div className="px-6 py-4 min-w-0 flex flex-col">
+              <div className="px-6 py-4 pb-28 min-w-0 flex flex-col">
                 {activeTab === 'account' && <AccountTab />}
                 {activeTab === 'billing' && <BillingTab />}
                 {activeTab === 'support' && <CustodianSupportTab />}

@@ -74,7 +74,8 @@
     "dev:netlify:warm": "concurrently --kill-others=false --raw \"netlify dev\" \"node scripts/prewarm-dev.mjs\"",
     "dev:netlify:alt": "netlify dev --port 8890 --target-port 5180 --command \"vite --port 5180 --host\"",
     "prewarm": "node scripts/prewarm-dev.mjs",
-    "backfill:statement": "tsx scripts/backfill-statement-summary.ts"
+    "backfill:statement": "tsx scripts/backfill-statement-summary.ts",
+    "test:e2e": "npx playwright test"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.2",
@@ -142,6 +143,7 @@
   "devDependencies": {
     "@mozilla/readability": "^0.4.4",
     "@netlify/functions": "^5.0.0",
+    "@playwright/test": "^1.58.2",
     "@types/jsdom": "^21.1.6",
     "@types/node": "^20.11.16",
     "@types/pdfkit": "^0.17.5",
