@@ -6,6 +6,7 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  timeout = 60
   # Mark dependencies as external to avoid bundling them into each function
   # External packages are resolved from node_modules at runtime — all listed packages provide CJS exports
   # @supabase/supabase-js: ~4MB total, has dist/main/index.js (CJS) — safe to externalize

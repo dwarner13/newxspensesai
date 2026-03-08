@@ -10,6 +10,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 type FinancialSnapshot = import('../../../src/types/prime-state').FinancialSnapshot;
 type StressSignal = import('../../../src/types/prime-state').StressSignal;
 
+// In-memory cache to prevent heavy re-fetches on every ping
+interface SnapshotCacheEntry {
+  snapshot: FinancialSnapshot;
+  count: number;
+  timestamp: number;
+}
+const snapshotCache = new Map<string, SnapshotCacheEntry>();
+
 /**
  * Build financial snapshot for a user
  * 
@@ -21,6 +29,20 @@ export async function buildFinancialSnapshot(
   supabase: SupabaseClient,
   userId: string
 ): Promise<FinancialSnapshot> {
+  // 1. Lightweight count check to determine if full fetch is needed
+  const { count } = await supabase
+    .from('transactions')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId);
+    
+  const currentCount = count || 0;
+  const cached = snapshotCache.get(userId);
+  
+  // Return cached if transaction count is the same and cache is < 5 mins old
+  if (cached && cached.count === currentCount && Date.now() - cached.timestamp < 5 * 60 * 1000) {
+    return cached.snapshot;
+  }
+
   const now = new Date();
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const currentMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -181,7 +203,7 @@ export async function buildFinancialSnapshot(
     });
   }
   
-  return {
+  const snapshot: FinancialSnapshot = {
     hasTransactions,
     transactionCount,
     uncategorizedCount,
@@ -200,5 +222,14 @@ export async function buildFinancialSnapshot(
     activeGoalCount,
     stressSignals,
   };
+
+  // Cache the result
+  snapshotCache.set(userId, {
+    snapshot,
+    count: currentCount,
+    timestamp: Date.now()
+  });
+
+  return snapshot;
 }
 
