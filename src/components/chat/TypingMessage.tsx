@@ -29,7 +29,7 @@ interface TypingMessageProps {
 export function renderInlineStrong(text: string): Array<string | JSX.Element> {
   const chunks: Array<string | JSX.Element> = [];
     // Matches explicit bold (**text**), currency ($1,234.56), percentages (45%), and common dates
-  const pattern = /\*\*(.+?)\*\*|((?:C\$|CA\$|US\$|\$|€|£)\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)|(\b\d+(?:\.\d+)?%)|(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?,? \d{4}\b|\b\d{4}-\d{2}-\d{2}\b)/gi;
+  const pattern = /\*\*(.+?)\*\*|((?:C\$|CA\$|US\$|\$|€|£)\s?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)|(\b\d+(?:\.\d+)?%)|(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?,? \d{4}\b|\b\d{4}-\d{2}-\d{2}\b)|(7-eleven)/gi;
   let lastIdx = 0;
   let match: RegExpExecArray | null;
   let key = 0;
@@ -37,7 +37,7 @@ export function renderInlineStrong(text: string): Array<string | JSX.Element> {
     if (match.index > lastIdx) {
       chunks.push(text.slice(lastIdx, match.index));
     }
-    const content = match[1] || match[2] || match[3] || match[4];
+    const content = match[1] || match[2] || match[3] || match[4] || match[5];
     chunks.push(
       <strong
         key={`strong-${key++}`}

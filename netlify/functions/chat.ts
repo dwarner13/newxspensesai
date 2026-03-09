@@ -1132,6 +1132,11 @@ export function shouldUseMemoryV2(args: {
   hasAttachments: boolean;
   pipelineSnapshotLoaded: boolean;
 }): MemoryNeed {
+  const isPrimeBoss = args.employeeSlug === 'prime-boss' || args.employeeSlug === 'prime';
+  if (isPrimeBoss) {
+    return { need: true, reason: 'prime_quality_mode_force_user_facts' };
+  }
+
   const text = String(args.messageText || '').trim().toLowerCase();
   if (!text) return { need: false, reason: 'empty_message' };
 
@@ -5403,13 +5408,11 @@ export const handler: Handler = async (event, context) => {
       isPrimeEmployee;
     // 2-lane architecture for Prime: force fast/deep from classifier.
     if (finalEmployeeSlug === 'prime-boss') {
-      isFastPath = isPrimeFastLane;
-      if (isPrimeDeepLane && process.env.NETLIFY_DEV === 'true') {
-        console.log('[Chat] PRIME QUALITY MODE: disabled fast path for deep/analysis Prime turn');
-      }
+      isFastPath = false; // FORCED OFF FOR PRIME QUALITY MODE
+      console.log('[Chat] PRIME QUALITY MODE: enabled');
       if (primeDebug) {
         console.log('[Chat][PRIME_DEBUG] lane selected', {
-          lane: primeLane,
+          lane: 'deep (forced)',
           hasAttachments,
           messageWords: messageTrimmed.split(/\s+/).filter(Boolean).length,
           employee: finalEmployeeSlug,
@@ -5476,6 +5479,11 @@ export const handler: Handler = async (event, context) => {
             employeeTools = [...employeeTools, 'tx_update_category'];
             toolModules = pickTools(employeeTools);
             console.log('[Chat] Prime tx_update_category tool enabled via runtime fallback');
+          }
+          if (!employeeTools.includes('finley_debt_payoff_forecast')) {
+            employeeTools = [...employeeTools, 'finley_debt_payoff_forecast', 'finley_loan_forecast', 'analytics_forecast'];
+            toolModules = pickTools(employeeTools);
+            console.log('[Chat] Prime Payoff Engine tools enabled via runtime fallback');
           }
         }
         

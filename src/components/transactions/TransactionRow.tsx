@@ -176,7 +176,25 @@ export function TransactionRow({
     !isGenericMerchantLabel(cleanedItemHint);
   const merchantTitle = aliasMatch?.label || prettifyMerchant(merchantResolved);
   const icon = merchantEmoji(merchantTitle);
-  const merchantDisplay = icon ? `${icon} ${merchantTitle}` : merchantTitle;
+  const baseMerchantDisplay = icon ? `${icon} ${merchantTitle}` : merchantTitle;
+  
+  // Apply semantic bolding for 7-Eleven
+  const renderMerchantDisplay = () => {
+    if (baseMerchantDisplay.toLowerCase().includes('7-eleven')) {
+      const parts = baseMerchantDisplay.split(/(7-eleven)/i);
+      return (
+        <>
+          {parts.map((part, i) => 
+            part.toLowerCase() === '7-eleven' 
+              ? <strong key={i} className="font-extrabold tracking-tight text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.14)]">{part}</strong> 
+              : part
+          )}
+        </>
+      );
+    }
+    return baseMerchantDisplay;
+  };
+
   const merchantSubtext = showItemHint ? cleanedItemHint : (aliasMatch?.itemHint || '');
   const merchantForRule = aliasMatch?.label || merchantResolved;
 
@@ -450,8 +468,8 @@ export function TransactionRow({
 
         {/* Merchant */}
         <div className="min-w-0">
-          <div className="text-sm font-medium text-slate-100 truncate" title={merchantDisplay}>
-            {merchantDisplay}
+          <div className="text-sm font-medium text-slate-100 truncate" title={baseMerchantDisplay}>
+            {renderMerchantDisplay()}
           </div>
           {merchantSubtext ? (
             <div className="text-[11px] text-slate-400 truncate" title={merchantSubtext}>
