@@ -40,3 +40,5 @@
 [functions."smart-import-sync"]
   timeout = 60
 
+[functions."chat"]
+  timeout = 60
