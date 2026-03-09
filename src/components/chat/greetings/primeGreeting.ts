@@ -124,20 +124,10 @@ function buildCEOGreeting(options: PrimeGreetingOptions): PrimeGreetingData {
     titleLine = `I'm Prime. Your AI financial CEO.`;
     subLine = `Want a fast, automated setup?`;
   }
-  // RETURNING USER - No transactions yet
-  else if (!hasTransactions || transactionCount === 0) {
-    titleLine = `${timeGreeting}, ${displayName}. Clean Canvas.`;
-    subLine = `Drop in a receipt or connect an account to get started.`;
-  }
-  // RETURNING USER - Has uncategorized transactions
-  else if (uncategorizedCount > 0) {
-    titleLine = `${timeGreeting}, ${displayName}. Prime is locked in.`;
-    subLine = `${uncategorizedCount} transaction${uncategorizedCount === 1 ? '' : 's'} need labels. Want me to handle ${uncategorizedCount === 1 ? 'it' : 'them'}?`;
-  }
-  // RETURNING USER - Normal state
+  // RETURNING USER
   else {
-    titleLine = `${timeGreeting}, ${displayName}. Prime is locked in.`;
-    subLine = `Quick snapshot or deep dive?`;
+    titleLine = `The boardroom is clear, CEO.`;
+    subLine = `Your current net worth is $0.00. Ready for a new import?`;
   }
 
   // Vibe tag
