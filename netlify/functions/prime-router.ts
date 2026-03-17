@@ -73,6 +73,43 @@ function getMultipartBoundary(contentType: string | undefined): string | null {
   return raw || null;
 }
 
+function inferMimeTypeFromFileName(fileName: string | null | undefined): string | null {
+  const lower = String(fileName || "").trim().toLowerCase();
+  if (!lower) return null;
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  if (lower.endsWith(".png")) return "image/png";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".webp")) return "image/webp";
+  if (lower.endsWith(".heic")) return "image/heic";
+  if (lower.endsWith(".csv")) return "text/csv";
+  return null;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function bytesToAscii(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : "."))
+    .join("");
+}
+
+function probePdfBytes(buffer: Buffer) {
+  const first16 = buffer.subarray(0, Math.min(16, buffer.length));
+  const first8 = buffer.subarray(0, Math.min(8, buffer.length));
+  const last32 = buffer.subarray(Math.max(0, buffer.length - 32));
+  const tailWindow = buffer.subarray(Math.max(0, buffer.length - 256));
+  const tailAscii = tailWindow.toString("latin1").replace(/[^\x20-\x7E]/g, ".");
+  return {
+    bytes: buffer.length,
+    first16Hex: bytesToHex(first16),
+    first8Ascii: bytesToAscii(first8),
+    last32Hex: bytesToHex(last32),
+    tailHasEof: tailAscii.includes("%%EOF"),
+  };
+}
+
 function extractMultipartFilePart(rawBody: Buffer, contentType: string | undefined): {
   fileBuffer: Buffer;
   mimeType: string | null;
@@ -196,6 +233,83 @@ async function getImportContext(importId: string): Promise<{ userId: string | nu
     userId: data?.user_id ?? null,
     documentId: data?.document_id ?? null,
   };
+}
+
+async function getImportTerminalOcrState(importId: string): Promise<{
+  terminal: boolean;
+  errorCode?: string;
+  shortReason?: string;
+  userMessage?: string;
+}> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data: imp } = await supabase
+      .from('imports')
+      .select('document_id,status')
+      .eq('id', importId)
+      .maybeSingle();
+    const importStatus = String(imp?.status || '').toLowerCase();
+    const documentId = String(imp?.document_id || '').trim();
+    if (!documentId) {
+      return { terminal: importStatus === 'rejected', errorCode: importStatus === 'rejected' ? 'malformed_pdf' : undefined };
+    }
+    const { data: doc } = await supabase
+      .from('user_documents')
+      .select('status,ocr_status,error,metadata')
+      .eq('id', documentId)
+      .maybeSingle();
+    const docStatus = String(doc?.status || '').toLowerCase();
+    const docOcrStatus = String(doc?.ocr_status || '').toLowerCase();
+    const docError = String(doc?.error || '').toLowerCase();
+    const meta = doc?.metadata && typeof doc.metadata === 'object' ? doc.metadata : {};
+    const metaErrorCode = String(
+      (meta as any)?.error_code ||
+      (meta as any)?.ocr_error_code ||
+      (meta as any)?.ocr?.error_code ||
+      ''
+    ).toLowerCase();
+    const malformed =
+      metaErrorCode === 'malformed_pdf' ||
+      metaErrorCode === 'unusable_ocr_text' ||
+      docError.includes('malformed_pdf') ||
+      docError.includes('unusable_ocr_text') ||
+      docError.includes('unable to extract any text') ||
+      docError.includes('appears to be blank or empty') ||
+      docError.includes('invalid pdf structure') ||
+      docError.includes('bad fcheck') ||
+      docError.includes('flate stream') ||
+      docError.includes('error e301') ||
+      docError.includes('input file corrupted') ||
+      docError.includes('unreadable pdf structure');
+    const unusable =
+      metaErrorCode === 'unusable_ocr_text' ||
+      docError.includes('unusable_ocr_text') ||
+      docError.includes('unable to extract any text') ||
+      docError.includes('appears to be blank or empty') ||
+      docError.includes('no readable text found');
+    const terminal =
+      docStatus === 'rejected' ||
+      docOcrStatus === 'failed' ||
+      docOcrStatus === 'rejected' ||
+      importStatus === 'rejected' ||
+      malformed ||
+      unusable;
+    if (!terminal) return { terminal: false };
+    const errorCode = malformed
+      ? 'malformed_pdf'
+      : (unusable ? 'unusable_ocr_text' : (metaErrorCode || 'ocr_rejected'));
+    const shortReason = malformed
+      ? 'Unreadable PDF structure'
+      : (unusable ? 'Scanned PDF text could not be recognized' : 'OCR processing rejected');
+    const userMessage = malformed
+      ? 'Unreadable PDF structure. We could not safely read this PDF. Please open it, print/save as a new PDF, and upload the new copy.'
+      : (unusable
+          ? 'Scanned PDF text could not be recognized. Please re-save or upload a clearer PDF.'
+          : 'This document could not be processed. Please re-save the PDF and upload the new copy.');
+    return { terminal: true, errorCode, shortReason, userMessage };
+  } catch {
+    return { terminal: false };
+  }
 }
 
 async function getImportDisplayName(importId: string): Promise<string | null> {
@@ -347,12 +461,20 @@ export const handler: Handler = async (event) => {
       if (!isMultipart(event)) return json(400, { ok: false, error: "upload mode requires multipart/form-data" });
 
       const contentType = event.headers?.["content-type"] || event.headers?.["Content-Type"];
-      const rawBody = event.isBase64Encoded ? Buffer.from(event.body || "", "base64") : Buffer.from(event.body || "");
+      const rawBody = event.isBase64Encoded
+        ? Buffer.from(event.body || "", "base64")
+        : Buffer.from(event.body || "", "latin1");
       const rawBodyText = rawBody.toString("utf8");
       const userId = extractMultipartField(rawBodyText, "userId");
       const fileName = extractMultipartFilename(rawBodyText);
       const source = extractMultipartField(rawBodyText, "source") || "upload";
       const requestId = extractMultipartField(rawBodyText, "requestId");
+      const extractedFilePart = extractMultipartFilePart(rawBody, contentType);
+      const inferredMimeFromName = inferMimeTypeFromFileName(fileName);
+      const uploadMimeType =
+        inferredMimeFromName === 'application/pdf'
+          ? 'application/pdf'
+          : (extractedFilePart?.mimeType || inferredMimeFromName || "application/octet-stream");
       const contentLengthHeader = event.headers?.["content-length"] || event.headers?.["Content-Length"];
       const fileSize = Number(contentLengthHeader || 0);
       // Generate a stable trace_id for this upload run so all pipeline stages share it.
@@ -375,6 +497,8 @@ export const handler: Handler = async (event) => {
           userId,
           fileName,
           fileSize: Number.isFinite(fileSize) ? fileSize : 0,
+          mimeType: uploadMimeType,
+          mime: uploadMimeType,
           source,
           requestId: requestId || undefined,
         }),
@@ -400,7 +524,7 @@ export const handler: Handler = async (event) => {
       let uploadMeta: any = { ok: true, via: "reused-doc-no-upload" };
       if (uploadUrl) {
         // 2) upload directly to signed URL (prevents router->/upload 404 loop)
-        const filePart = extractMultipartFilePart(rawBody, contentType);
+        const filePart = extractedFilePart || extractMultipartFilePart(rawBody, contentType);
         if (!filePart?.fileBuffer || filePart.fileBuffer.length === 0) {
           return json(400, {
             ok: false,
@@ -410,11 +534,19 @@ export const handler: Handler = async (event) => {
             error: "Could not extract file bytes from multipart payload",
           });
         }
+        if ((filePart.mimeType || "").toLowerCase() === "application/pdf" || String(fileName).toLowerCase().endsWith(".pdf")) {
+          console.log("[upload-pdf-debug] router_received_pdf", {
+            userId,
+            fileName,
+            mimeType: filePart.mimeType || "application/octet-stream",
+            ...probePdfBytes(filePart.fileBuffer),
+          });
+        }
 
         const signedUploadRes = await fetch(String(uploadUrl), {
           method: "PUT",
           headers: {
-            "content-type": filePart.mimeType || "application/octet-stream",
+            "content-type": uploadMimeType,
           },
           body: filePart.fileBuffer,
         });
@@ -440,9 +572,13 @@ export const handler: Handler = async (event) => {
           body: JSON.stringify({
             userId,
             docId: documentId,
-            importRunId: requestId || undefined,
+            importRunId: requestId || `upload-${documentId}-${Date.now()}`,
             importId: importId || undefined,
             traceId,
+            source: 'prime-router',
+            caller: 'prime-router:upload',
+            isRetry: false,
+            explicitRecovery: false,
           }),
           // Keep upload path responsive; OCR continues through status polling.
           timeoutMs: 6000,
@@ -482,6 +618,7 @@ export const handler: Handler = async (event) => {
     // MODE B: status
     if (mode === "status") {
       const importId = body.importId || event.queryStringParameters?.importId;
+      const statusImportRunId = String(body?.importRunId || body?.requestId || `status-${importId || Date.now()}`);
       const autoCommit = body?.autoCommit !== false;
       if (!importId) return json(400, { ok: false, error: "status mode requires importId" });
       const ctx = await getImportContext(String(importId));
@@ -506,12 +643,54 @@ export const handler: Handler = async (event) => {
       const itemStatuses = Array.isArray(statusRes.data?.items)
         ? statusRes.data.items.map((item: any) => String(item?.status || "").toLowerCase())
         : [];
+      const hasTerminalMalformedOcrSignal = Array.isArray(statusRes.data?.items)
+        ? statusRes.data.items.some((item: any) => {
+            const msg = String(item?.error || "").toLowerCase();
+            return (
+              String(item?.error_code || '').toLowerCase() === 'unusable_ocr_text' ||
+              msg.includes('malformed_pdf') ||
+              msg.includes('unusable_ocr_text') ||
+              msg.includes('invalid pdf structure') ||
+              msg.includes('bad fcheck') ||
+              msg.includes('flate stream') ||
+              msg.includes('error e301') ||
+              msg.includes('input file corrupted') ||
+              msg.includes('no provider returned text') ||
+              msg.includes('unable to extract any text') ||
+              msg.includes('appears to be blank or empty') ||
+              msg.includes('no readable text found')
+            );
+          })
+        : false;
       const hasItemError = itemStatuses.includes("error") || itemStatuses.includes("failed");
       const hasTopLevelError =
         String(status).toLowerCase() === "error" ||
         String(status).toLowerCase() === "failed" ||
         statusRes.data?.ok === false;
-      const isError = hasItemError || hasTopLevelError;
+      const isError = hasItemError || hasTopLevelError || hasTerminalMalformedOcrSignal;
+      const terminalOcrErrorCode = Array.isArray(statusRes.data?.items)
+        ? String(
+            statusRes.data.items.find((item: any) => {
+              const code = String(item?.error_code || '').toLowerCase();
+              const msg = String(item?.error || '').toLowerCase();
+              return (
+                code === 'unusable_ocr_text' ||
+                code === 'malformed_pdf' ||
+                msg.includes('unusable_ocr_text') ||
+                msg.includes('malformed_pdf') ||
+                msg.includes('invalid pdf structure') ||
+                msg.includes('bad fcheck') ||
+                msg.includes('flate stream') ||
+                msg.includes('error e301') ||
+                msg.includes('input file corrupted')
+              );
+            })?.error_code || ''
+          ).toLowerCase()
+        : '';
+      const isTerminalOcrError =
+        hasTerminalMalformedOcrSignal ||
+        terminalOcrErrorCode === 'unusable_ocr_text' ||
+        terminalOcrErrorCode === 'malformed_pdf';
       const isComplete =
         status === "complete" ||
         status === "completed" ||
@@ -524,6 +703,30 @@ export const handler: Handler = async (event) => {
             String(item?.stateReason || '').toLowerCase().includes('stale_lock')
           )
         : false;
+
+      if (isTerminalOcrError) {
+        console.warn('[prime-router] Terminal OCR result — halting pipeline', {
+          importId,
+          documentId: ctx.documentId,
+          traceId,
+          errorCode: terminalOcrErrorCode || (hasTerminalMalformedOcrSignal ? 'malformed_pdf' : 'provider_error'),
+        });
+        return json(200, {
+          ok: true,
+          mode: "status",
+          importId,
+          status: "error",
+          terminal: true,
+          retryable: false,
+          error_code: terminalOcrErrorCode || 'malformed_pdf',
+          details: statusRes.data,
+          error:
+            statusRes.data?.error ||
+            (terminalOcrErrorCode === 'unusable_ocr_text'
+              ? 'Scanned PDF text could not be recognized. Please re-save or upload a clearer PDF.'
+              : 'Unreadable PDF structure. Please re-save this PDF and upload the new copy.'),
+        });
+      }
 
       if (staleLockDetected) {
         // Idempotency guard: only re-kick OCR if the document hasn't already finished.
@@ -556,6 +759,10 @@ export const handler: Handler = async (event) => {
             userId: ctx.userId,
             docId: ctx.documentId,
             importRunId: `stale-retry-${importId}-${Date.now()}`,
+            source: 'prime-router',
+            caller: 'prime-router:stale-lock-retry',
+            isRetry: true,
+            explicitRecovery: true,
           }),
         });
         return json(200, {
@@ -573,13 +780,24 @@ export const handler: Handler = async (event) => {
       }
 
       if (isError) {
+        if (ctx.documentId && importId) {
+          console.log('[prime-router] status_error_context', {
+            importId,
+            documentId: ctx.documentId,
+            traceId,
+            state: status,
+            hasTerminalMalformedOcrSignal,
+          });
+        }
         return json(200, {
           ok: true,
           mode: "status",
           importId,
           status: "error",
           details: statusRes.data,
-          error: statusRes.data?.error || "ocr_status_error",
+          error:
+            statusRes.data?.error ||
+            (hasTerminalMalformedOcrSignal ? "parser_incompatible_pdf" : "ocr_status_error"),
         });
       }
 
@@ -590,9 +808,54 @@ export const handler: Handler = async (event) => {
       const syncRes = await callFn(event, "smart-import-sync", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userId: ctx.userId, docIds: [ctx.documentId], autoCommit }),
+        body: JSON.stringify({
+          userId: ctx.userId,
+          docIds: [ctx.documentId],
+          autoCommit,
+          importRunId: statusImportRunId,
+        }),
       });
       const syncState = String(syncRes.data?.state || '');
+      if (syncState === 'ocr_unusable' || String(syncRes.data?.error_code || '').toLowerCase() === 'unusable_ocr_text') {
+        console.warn('[prime-router] Terminal OCR result — halting pipeline', {
+          importId,
+          documentId: ctx.documentId,
+          traceId,
+          errorCode: 'unusable_ocr_text',
+        });
+        return json(200, {
+          ok: true,
+          mode: "status",
+          importId,
+          status: "error",
+          terminal: true,
+          state: 'ocr_unusable',
+          retryable: false,
+          error_code: 'unusable_ocr_text',
+          details: syncRes.data,
+          primeMessage: "Scanned PDF text could not be recognized. Please re-save or upload a clearer PDF.",
+        });
+      }
+      if (syncState === 'ocr_rejected' || String(syncRes.data?.error_code || '').toLowerCase() === 'malformed_pdf') {
+        console.warn('[prime-router] Terminal OCR result — halting pipeline', {
+          importId,
+          documentId: ctx.documentId,
+          traceId,
+          errorCode: 'malformed_pdf',
+        });
+        return json(200, {
+          ok: true,
+          mode: "status",
+          importId,
+          status: "error",
+          terminal: true,
+          state: 'ocr_rejected',
+          retryable: false,
+          error_code: 'malformed_pdf',
+          details: syncRes.data,
+          primeMessage: "Unreadable PDF structure. Please re-save this PDF and upload the new copy.",
+        });
+      }
       if (syncState === 'ocr_failed_retry' || syncState === 'ocr_timed_out_retry') {
         return json(200, {
           ok: true,
@@ -663,6 +926,28 @@ export const handler: Handler = async (event) => {
         const hasRowsFlags = await Promise.all(importIds.map((id) => stagingHasRows(String(id))));
         const hasRows = hasRowsFlags.some(Boolean);
         if (!hasRows) {
+          const terminalState = importIds.length === 1
+            ? await getImportTerminalOcrState(importId)
+            : { terminal: false };
+          if (terminalState.terminal) {
+            return json(200, {
+              ok: true,
+              mode: "summary",
+              importId,
+              importIds,
+              ready: false,
+              state: "terminal_ocr_rejected",
+              summary: {
+                summary: terminalState.userMessage,
+                error_code: terminalState.errorCode || 'ocr_rejected',
+              },
+              meta: {
+                tagRan: false,
+                reason: terminalState.errorCode || 'ocr_rejected',
+                shortReason: terminalState.shortReason || 'OCR processing rejected',
+              },
+            });
+          }
           return json(200, {
             ok: true,
             mode: "summary",

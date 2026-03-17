@@ -74,6 +74,10 @@ export async function createUserDocumentRow(
       // Continue with insert if check fails (don't block upload)
     } else if (existingDoc) {
       // Duplicate found - return existing document info
+      console.log('[upload] doc_row_reused', {
+        docId: existingDoc.id,
+        sourcePath: 'createUserDocumentRow:content_hash_reuse',
+      });
       return {
         document: existingDoc,
         isDuplicate: true,
@@ -99,6 +103,10 @@ export async function createUserDocumentRow(
     console.error('[createUserDocumentRow] Supabase error inserting into user_documents:', error);
     throw new Error(`Failed to create user_documents record: ${error.message} (code: ${error.code || 'UNKNOWN'}). Hint: ${error.hint || 'The user_documents table may not exist. Run migrations to create it.'}`);
   }
+  console.log('[upload] doc_row_created', {
+    docId: data?.id || null,
+    sourcePath: 'createUserDocumentRow:insert',
+  });
   
   return {
     document: data,

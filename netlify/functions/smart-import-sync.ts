@@ -100,7 +100,20 @@ type LatestOcrOutcome = {
   status: string | null;
   errorCode: string | null;
   retryable: boolean;
+  pending: boolean;
+  recent: boolean;
+  updatedAtMs: number | null;
 };
+
+function mapOcrFailureState(errorCode: string): 'ocr_timed_out_retry' | 'ocr_failed_retry' | 'ocr_unusable' {
+  if (errorCode === 'timeout') return 'ocr_timed_out_retry';
+  if (errorCode === 'unusable_ocr_text') return 'ocr_unusable';
+  return 'ocr_failed_retry';
+}
+
+function isOcrFailureRetryable(errorCode: string): boolean {
+  return errorCode !== 'unusable_ocr_text';
+}
 
 function normalizeLatestOcrOutcome(row: any): LatestOcrOutcome {
   const statusRaw = String(row?.status || '').toLowerCase();
@@ -117,15 +130,58 @@ function normalizeLatestOcrOutcome(row: any): LatestOcrOutcome {
   let errorCode = errorCodeRaw || null;
   if (!errorCode) {
     if (errorText.includes('timeout') || errorText.includes('aborted')) errorCode = 'timeout';
+    else if (
+      errorText.includes('invalid pdf structure') ||
+      errorText.includes('bad fcheck') ||
+      errorText.includes('flate stream') ||
+      errorText.includes('error e301') ||
+      errorText.includes('input file corrupted') ||
+      errorText.includes('malformed pdf')
+    ) errorCode = 'malformed_pdf';
     else if (errorText.includes('no provider returned text')) errorCode = 'no_provider_text';
+    else if (
+      errorText.includes('unable to extract any text') ||
+      errorText.includes('appears to be blank or empty') ||
+      errorText.includes('no readable text found') ||
+      errorText.includes('unusable_ocr_text')
+    ) errorCode = 'unusable_ocr_text';
     else if (errorText) errorCode = 'provider_error';
   }
   const retryableErrorCode =
+    errorCode === 'malformed_pdf' ||
+    errorCode === 'unusable_ocr_text' ||
     errorCode === 'ocr_empty' ||
     errorCode === 'pdf_worker_missing' ||
     errorCode === 'timeout';
-  const retryable = status === 'failed' || status === 'timed_out' || retryableErrorCode;
-  return { status, errorCode, retryable };
+  const hasFailureText =
+    errorText.includes('invalid pdf structure') ||
+    errorText.includes('bad fcheck') ||
+    errorText.includes('flate stream') ||
+    errorText.includes('malformed pdf') ||
+    errorText.includes('no provider returned text') ||
+    errorText.includes('ocr failed') ||
+    errorText.includes('unable to extract any text') ||
+    errorText.includes('appears to be blank or empty') ||
+    errorText.includes('no readable text found') ||
+    errorText.includes('input file corrupted') ||
+    errorText.includes('provider') ||
+    errorText.includes('e301');
+  const retryable =
+    status === 'failed' ||
+    status === 'timed_out' ||
+    retryableErrorCode ||
+    hasFailureText;
+  const pending = statusRaw === 'running' || statusRaw === 'queued' || statusRaw === 'processing';
+  const updatedAtMs = Date.parse(String(row?.updated_at || row?.created_at || ''));
+  const recent = Number.isFinite(updatedAtMs) ? (Date.now() - updatedAtMs) < 10 * 60 * 1000 : false;
+  return {
+    status,
+    errorCode,
+    retryable,
+    pending,
+    recent,
+    updatedAtMs: Number.isFinite(updatedAtMs) ? updatedAtMs : null,
+  };
 }
 
 async function fetchLatestOcrOutcome(
@@ -144,6 +200,43 @@ async function fetchLatestOcrOutcome(
     return normalizeLatestOcrOutcome(data);
   } catch {
     return null;
+  }
+}
+
+async function fetchRecentOcrGuardOutcome(
+  sb: any,
+  docId: string
+): Promise<LatestOcrOutcome | null> {
+  try {
+    const { data } = await sb
+      .from('ocr_jobs')
+      .select('status, error_code, error, updated_at, created_at')
+      .eq('document_id', docId)
+      .order('updated_at', { ascending: false })
+      .limit(6);
+    const rows = Array.isArray(data) ? data : [];
+    if (rows.length === 0) return null;
+    const normalized = rows.map((row) => normalizeLatestOcrOutcome(row));
+    const latest = normalized[0];
+    const latestFailureTs = normalized
+      .filter((o) => o.retryable && o.updatedAtMs !== null)
+      .reduce((max, o) => Math.max(max, Number(o.updatedAtMs || 0)), 0);
+    const latestSuccessTs = normalized
+      .filter((o) => o.status === 'succeeded' && o.updatedAtMs !== null)
+      .reduce((max, o) => Math.max(max, Number(o.updatedAtMs || 0)), 0);
+    // Block when the newest failure is newer than any success in the recent OCR window.
+    // This prevents stale parsed imports from being reused right after a failed re-read.
+    if (latestFailureTs > 0 && latestFailureTs >= latestSuccessTs) {
+      const latestFailure = normalized.find((o) => o.retryable && Number(o.updatedAtMs || 0) === latestFailureTs) || latest;
+      return {
+        ...latestFailure,
+        retryable: true,
+        pending: false,
+      };
+    }
+    return latest;
+  } catch {
+    return fetchLatestOcrOutcome(sb, docId);
   }
 }
 
@@ -168,6 +261,25 @@ async function waitForOcrReadyOrMetrics(
   console.log('[smart-import-sync] waitForOcrReadyOrMetrics start', { docId, maxMs, pollMs });
 
   while (Date.now() - start < maxMs) {
+    const recentGuard = await fetchRecentOcrGuardOutcome(sb, docId);
+    if (recentGuard?.retryable) {
+      const code = recentGuard.errorCode || (recentGuard.status === 'timed_out' ? 'timeout' : 'provider_error');
+      console.warn('[smart-import-sync] fast-fail from recent OCR guard', {
+        docId,
+        status: recentGuard.status,
+        errorCode: code,
+      });
+      return {
+        ok: false,
+        len: 0,
+        ocrStatus: recentGuard.status || null,
+        textHash: null,
+        hasStructured: false,
+        metricsReady: false,
+        reason: `ocr_failed:${code}`,
+      };
+    }
+
     const { data, error } = await sb
       .from('user_documents')
       .select('*')
@@ -210,6 +322,62 @@ async function waitForOcrReadyOrMetrics(
         null;
       const metadataStatus =
         String(metadata?.ocr_status || metadataOcr?.status || '').toLowerCase();
+      const metadataErrorCode =
+        String(metadataOcr?.error_code || metadata?.ocr_error_code || metadata?.error_code || '').toLowerCase();
+      const metadataErrorText =
+        String(metadataOcr?.error || metadata?.ocr_error || metadata?.error || '').toLowerCase();
+      const ocrStatusLower = String(ocrStatus || '').toLowerCase();
+      const docStatusLower = String(data?.status || '').toLowerCase();
+      const docShowsFailure =
+        docStatusLower === 'rejected' ||
+        docStatusLower === 'failed' ||
+        ocrStatusLower === 'failed' ||
+        ocrStatusLower === 'timed_out' ||
+        metadataStatus === 'failed' ||
+        metadataStatus === 'timed_out' ||
+        metadataErrorCode === 'malformed_pdf' ||
+        metadataErrorCode === 'unusable_ocr_text' ||
+        metadataErrorCode === 'timeout' ||
+        metadataErrorCode === 'ocr_empty' ||
+        metadataErrorCode === 'no_provider_text' ||
+        metadataErrorCode === 'provider_error' ||
+        metadataErrorText.includes('invalid pdf structure') ||
+        metadataErrorText.includes('bad fcheck') ||
+        metadataErrorText.includes('flate stream') ||
+        metadataErrorText.includes('malformed pdf') ||
+        metadataErrorText.includes('no provider returned text') ||
+        metadataErrorText.includes('unable to extract any text') ||
+        metadataErrorText.includes('appears to be blank or empty') ||
+        metadataErrorText.includes('no readable text found') ||
+        metadataErrorText.includes('ocr failed') ||
+        metadataErrorText.includes('input file corrupted') ||
+        metadataErrorText.includes('e301') ||
+        metadataErrorText.includes('timeout');
+      if (docShowsFailure) {
+        const failCode =
+          metadataErrorCode ||
+          (metadataErrorText.includes('invalid pdf structure') ||
+            metadataErrorText.includes('bad fcheck') ||
+            metadataErrorText.includes('flate stream') ||
+            metadataErrorText.includes('malformed pdf') ||
+            metadataErrorText.includes('input file corrupted') ||
+            metadataErrorText.includes('e301')
+            ? 'malformed_pdf'
+            : null) ||
+          (ocrStatusLower === 'timed_out' || metadataStatus === 'timed_out' ? 'timeout' : 'provider_error');
+        if (failCode === 'unusable_ocr_text') {
+          console.log('[smart-import-sync] Skipping normalize; OCR unusable', { docId, reason: `ocr_failed:${failCode}` });
+        }
+        return {
+          ok: false,
+          len: textLength,
+          ocrStatus: ocrStatus || null,
+          textHash,
+          hasStructured: false,
+          metricsReady: false,
+          reason: `ocr_failed:${failCode}`,
+        };
+      }
 
       if (mimeType === 'text/csv' || fileName.toLowerCase().endsWith('.csv')) {
         console.log('[smart-import-sync] waitForOcrReadyOrMetrics skip (CSV)', {
@@ -422,6 +590,19 @@ async function waitForOcrReadyOrMetrics(
     maxMs,
     elapsedMs: Date.now() - start,
   });
+  const terminalAfterTimeout = await fetchRecentOcrGuardOutcome(sb, docId);
+  if (terminalAfterTimeout?.retryable && String(terminalAfterTimeout.errorCode || '') === 'unusable_ocr_text') {
+    console.log('[smart-import-sync] Skipping normalize; OCR unusable', { docId, reason: 'ocr_failed:unusable_ocr_text' });
+    return {
+      ok: false,
+      len: 0,
+      ocrStatus: terminalAfterTimeout.status || null,
+      textHash: null,
+      hasStructured: false,
+      metricsReady: false,
+      reason: 'ocr_failed:unusable_ocr_text',
+    };
+  }
   return { ok: false, len: 0, ocrStatus: null, textHash: null, hasStructured: false, metricsReady: false, reason: 'timeout' };
 }
 
@@ -513,6 +694,78 @@ async function ensureNormalized(
       status: existingImport.status,
       stagingCount,
     });
+  }
+
+  // Preflight gate: avoid racing normalize when OCR signals are not persisted yet.
+  // This commonly happens when smart-import-sync fires while smart-import-ocr already
+  // queued normalize with transient OCR text.
+  const hasTransientPayload =
+    (typeof payload?.ocrText === 'string' && payload.ocrText.trim().length > 0) ||
+    Boolean(payload?.ocrTextHash) ||
+    Number(payload?.ocrTextLength || 0) > 0;
+  if (!hasTransientPayload) {
+    const docSelectAttempts = [
+      'id, mime_type, status, ocr_status, ocr_text_hash, ocr_text_length, extracted_data, normalized_json, metadata',
+      'id, mime_type, status, ocr_status, ocr_text_hash, ocr_text_length, metadata',
+      'id, mime_type, status, ocr_status, metadata',
+      'id, mime_type, status',
+    ];
+    let docRow: any = null;
+    for (const selectClause of docSelectAttempts) {
+      const { data, error } = await sb
+        .from('user_documents')
+        .select(selectClause)
+        .eq('id', documentId)
+        .maybeSingle();
+      if (!error) {
+        docRow = data;
+        break;
+      }
+    }
+    const mimeType = String(docRow?.mime_type || '').toLowerCase();
+    const isCsv = mimeType === 'text/csv';
+    if (!isCsv) {
+      const docOcrStatus = String(docRow?.ocr_status || docRow?.status || '').toLowerCase();
+      const persistedHash = String(docRow?.ocr_text_hash || docRow?.extracted_data?.text_hash || '').trim();
+      const persistedLenRaw = docRow?.ocr_text_length ?? docRow?.extracted_data?.text_length ?? 0;
+      const persistedLen = Number.isFinite(Number(persistedLenRaw)) ? Number(persistedLenRaw) : 0;
+      const hasPersistedStructured = Boolean(docRow?.extracted_data) || Boolean(docRow?.normalized_json);
+      const metadata = docRow?.metadata && typeof docRow.metadata === 'object' ? docRow.metadata : {};
+      const metadataReady = Boolean(
+        metadata?.ocr?.status === 'ready' ||
+        metadata?.ocr?.status === 'ready_cached' ||
+        metadata?.ocr_status === 'ready' ||
+        metadata?.ocr_status === 'ready_cached' ||
+        metadata?.ocr_text_length ||
+        metadata?.text_hash
+      );
+      const ocrLooksReady =
+        docOcrStatus === 'ready' ||
+        docOcrStatus === 'ready_cached' ||
+        docOcrStatus === 'needs_review' ||
+        docOcrStatus === 'rejected';
+      const hasPersistedSignals =
+        Boolean(persistedHash) ||
+        persistedLen > 0 ||
+        hasPersistedStructured ||
+        metadataReady;
+      if (!ocrLooksReady && !hasPersistedSignals) {
+        if (SYNC_DEBUG_ENABLED) {
+          console.log('[smart-import-sync] normalize preflight waiting for OCR signals', {
+            documentId,
+            importId: existingImport?.id || null,
+            importStatus: existingImport?.status || null,
+            ocrStatus: docOcrStatus || null,
+          });
+        }
+        return {
+          ok: false,
+          importId: existingImport?.id,
+          processing: true,
+          reason: 'awaiting_ocr_signals',
+        };
+      }
+    }
   }
   
   // Trigger normalization
@@ -710,6 +963,7 @@ export const handler: Handler = async (event) => {
   try {
     const body = JSON.parse(event.body || '{}');
     const { userId, docIds, includeAllAccounts } = body;
+    const requestImportRunId = String(body?.importRunId || body?.requestId || '').trim();
     const autoCommit = body?.autoCommit !== false;
     const traceId: string = body?.traceId || event.headers['x-trace-id'] || event.headers['X-Trace-Id'] || `trace_${Date.now()}`;
     const syncDebug = process.env.SMART_IMPORT_SYNC_DEBUG === '1';
@@ -717,7 +971,7 @@ export const handler: Handler = async (event) => {
     const pollForOcrMsRaw = Number(body?.pollForOcrMs);
     const waitForOcrMs = Number.isFinite(waitForOcrMsRaw)
       ? Math.max(0, Math.min(30000, waitForOcrMsRaw))
-      : 15000;
+      : 8000;
     const pollForOcrMs = Number.isFinite(pollForOcrMsRaw)
       ? Math.max(100, Math.min(2000, pollForOcrMsRaw))
       : 500;
@@ -733,7 +987,7 @@ export const handler: Handler = async (event) => {
     const sb = admin();
     const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
     
-    console.log('[smart-import-sync] Starting sync', { userId: userId.substring(0, 8) + '...', docIds });
+    console.log('[smart-import-sync] Starting sync', { userId: userId.substring(0, 8) + '...', docIds, importRunId: requestImportRunId || null });
     if (syncDebug) {
       console.log('[smart-import-sync][debug] options', {
         autoCommit,
@@ -747,9 +1001,138 @@ export const handler: Handler = async (event) => {
     // Note: normalize-transactions creates import records, so if import doesn't exist,
     // we'll trigger normalization which will create it
     const importIds: string[] = [];
+    const blockedByLatestOcr: Array<{ importId: string; docId: string; errorCode: string }> = [];
     
     let anyNormalizeProcessing = false;
     for (const docId of docIds) {
+      // Doc-level hard gate: if OCR already marked this document failed/rejected,
+      // short-circuit immediately even when no import exists yet.
+      let { data: sourceDoc } = await sb
+        .from('user_documents')
+        .select('status, ocr_status, metadata')
+        .eq('id', String(docId))
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!sourceDoc) {
+        const { data: sourceDocFallback } = await sb
+          .from('user_documents')
+          .select('status, ocr_status, metadata')
+          .eq('id', String(docId))
+          .maybeSingle();
+        sourceDoc = sourceDocFallback || null;
+      }
+      const docStatusPre = String(sourceDoc?.status || '').toLowerCase();
+      const docOcrStatusPre = String(sourceDoc?.ocr_status || '').toLowerCase();
+      const docImportRunId = String(
+        sourceDoc?.metadata?.import_run_id ||
+        sourceDoc?.metadata?.importRunId ||
+        ''
+      ).trim();
+      const effectiveImportRunId = requestImportRunId || docImportRunId;
+      const isOrphanDoc = !effectiveImportRunId;
+      console.log('[smart-import-sync] entry', {
+        docId,
+        importRunId: effectiveImportRunId || null,
+        orphan: isOrphanDoc,
+        matchUploadContext: !isOrphanDoc,
+      });
+      const metadataErrorTextPre = String(
+        sourceDoc?.metadata?.ocr?.error ||
+        sourceDoc?.metadata?.ocr_error ||
+        sourceDoc?.metadata?.error ||
+        ''
+      ).toLowerCase();
+      const metadataErrorCodePre = String(
+        sourceDoc?.metadata?.ocr?.error_code ||
+        sourceDoc?.metadata?.ocr_error_code ||
+        sourceDoc?.metadata?.error_code ||
+        ''
+      ).toLowerCase();
+      const hasDocFailureSignalPre =
+        metadataErrorTextPre.includes('no provider returned text') ||
+        metadataErrorTextPre.includes('ocr failed') ||
+        metadataErrorTextPre.includes('input file corrupted') ||
+        metadataErrorTextPre.includes('e301') ||
+        metadataErrorTextPre.includes('provider') ||
+        metadataErrorCodePre === 'malformed_pdf' ||
+        metadataErrorCodePre === 'unusable_ocr_text' ||
+        metadataErrorCodePre === 'ocr_empty' ||
+        metadataErrorCodePre === 'no_provider_text' ||
+        metadataErrorCodePre === 'provider_error' ||
+        metadataErrorCodePre === 'timeout';
+      if (isOrphanDoc) {
+        console.log('[smart-import-sync] Skipping normalize; terminal or orphan doc', {
+          docId,
+          reason: 'orphan_doc_missing_import_run_id',
+          importRunId: null,
+        });
+        continue;
+      }
+      if (
+        docStatusPre === 'rejected' ||
+        docStatusPre === 'failed' ||
+        docOcrStatusPre === 'failed' ||
+        hasDocFailureSignalPre
+      ) {
+        console.log('[smart-import-sync] Skipping normalize; terminal or orphan doc', {
+          docId,
+          reason: 'terminal_doc_state',
+          importRunId: effectiveImportRunId,
+          docStatus: docStatusPre,
+          ocrStatus: docOcrStatusPre,
+          errorCode: metadataErrorCodePre || null,
+        });
+        const guardErrorCode = String(metadataErrorCodePre || (docOcrStatusPre === 'timed_out' ? 'timeout' : 'provider_error'));
+        if (guardErrorCode === 'unusable_ocr_text') {
+          console.log('[smart-import-sync] Skipping normalize; OCR unusable', { docId, reason: 'ocr_failed:unusable_ocr_text' });
+        }
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            ok: false,
+            state: mapOcrFailureState(guardErrorCode),
+            error_code: guardErrorCode,
+            retryable: isOcrFailureRetryable(guardErrorCode),
+            importId: null,
+            docId,
+            docIds,
+            importIds: [],
+            transactionCount: 0,
+          }),
+        };
+      }
+
+      // Hard pre-check: block sync before import discovery when recent OCR evidence
+      // indicates a retryable failure on this document. This prevents stale import reuse.
+      const docOcrGuard = await fetchRecentOcrGuardOutcome(sb, String(docId));
+      if (docOcrGuard?.retryable) {
+        const guardErrorCode = String(docOcrGuard.errorCode || 'provider_error');
+        console.warn('[smart-import-sync] stage=sync_guard_doc_latest_ocr_failed', {
+          docId,
+          status: docOcrGuard.status,
+          errorCode: guardErrorCode,
+        });
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            ok: false,
+            state: mapOcrFailureState(guardErrorCode),
+            error_code: guardErrorCode,
+            retryable: isOcrFailureRetryable(guardErrorCode),
+            importId: null,
+            docId,
+            docIds,
+            importIds: [],
+            transactionCount: 0,
+          }),
+        };
+      }
+      if (docOcrGuard?.pending && docOcrGuard?.recent) {
+        anyNormalizeProcessing = true;
+        continue;
+      }
       // Check if import exists
       let { data: importRecord } = await sb
         .from('imports')
@@ -757,6 +1140,15 @@ export const handler: Handler = async (event) => {
         .eq('document_id', docId)
         .eq('user_id', userId)
         .maybeSingle();
+      if (importRecord?.document_id && String(importRecord.document_id) !== String(docId)) {
+        console.warn('[smart-import-sync] Skipping orphan doc mismatch', {
+          incomingDocId: String(docId),
+          expectedOriginalUploadDocId: String(importRecord.document_id),
+          importId: importRecord.id,
+          mismatch: true,
+        });
+        continue;
+      }
       
       if (!importRecord) {
         // Import doesn't exist yet - trigger normalization which will create it
@@ -765,6 +1157,9 @@ export const handler: Handler = async (event) => {
         if (!waitResult.ok) {
           if (String(waitResult.reason || '').startsWith('ocr_failed:')) {
             const errorCode = String(waitResult.reason || '').split(':')[1] || 'provider_error';
+            if (errorCode === 'unusable_ocr_text') {
+              console.log('[smart-import-sync] Skipping normalize; OCR unusable', { docId, reason: waitResult.reason });
+            }
             console.warn('[smart-import-sync] stage=sync_check_latest_ocr', {
               docId,
               status: 'failed',
@@ -775,9 +1170,9 @@ export const handler: Handler = async (event) => {
               headers,
               body: JSON.stringify({
                 ok: false,
-                state: errorCode === 'timeout' ? 'ocr_timed_out_retry' : 'ocr_failed_retry',
+                state: mapOcrFailureState(errorCode),
                 error_code: errorCode,
-                retryable: true,
+                retryable: isOcrFailureRetryable(errorCode),
                 importId: null,
                 docId,
                 docIds,
@@ -851,6 +1246,12 @@ export const handler: Handler = async (event) => {
             .select('ocr_text')
             .eq('id', docId)
             .maybeSingle();
+          console.log('[smart-import-sync] normalize_entry', {
+            incomingDocId: String(docId),
+            expectedOriginalUploadDocId: String(docId),
+            importId: importRecord?.id || null,
+            mismatch: false,
+          });
             
           normalized = await ensureNormalized(sb, docId, userId, netlifyUrl, {
             ocrText: docWithText?.ocr_text || undefined,
@@ -887,6 +1288,49 @@ export const handler: Handler = async (event) => {
             continue;
           }
         }
+      } else {
+        if (importRecord?.document_id && String(importRecord.document_id) !== String(docId)) {
+          console.warn('[smart-import-sync] Skipping orphan doc mismatch', {
+            incomingDocId: String(docId),
+            expectedOriginalUploadDocId: String(importRecord.document_id),
+            importId: importRecord.id,
+            mismatch: true,
+          });
+          continue;
+        }
+        // Existing import path: still honor latest OCR failure signals for this doc.
+        // Without this gate, a stale parsed/committed import can be reused even when
+        // the newest OCR attempt for the same docId just failed.
+        const latestOcrOutcome = await fetchRecentOcrGuardOutcome(sb, String(importRecord.document_id || docId));
+        if (latestOcrOutcome?.retryable) {
+        if (String(latestOcrOutcome.errorCode || '') === 'unusable_ocr_text') {
+          console.log('[smart-import-sync] Skipping normalize; OCR unusable', {
+            docId: String(importRecord.document_id || docId),
+            reason: 'ocr_failed:unusable_ocr_text',
+          });
+        }
+          console.warn('[smart-import-sync] stage=sync_check_latest_ocr (existing import blocked)', {
+            importId: importRecord.id,
+            docId: String(importRecord.document_id || docId),
+            status: latestOcrOutcome.status,
+            errorCode: latestOcrOutcome.errorCode,
+          });
+          blockedByLatestOcr.push({
+            importId: importRecord.id,
+            docId: String(importRecord.document_id || docId),
+            errorCode: latestOcrOutcome.errorCode || 'provider_error',
+          });
+          continue;
+        }
+        if (latestOcrOutcome?.pending && latestOcrOutcome?.recent) {
+          console.warn('[smart-import-sync] stage=sync_wait_latest_ocr (existing import pending)', {
+            importId: importRecord.id,
+            docId: String(importRecord.document_id || docId),
+            status: latestOcrOutcome.status,
+          });
+          anyNormalizeProcessing = true;
+          continue;
+        }
       }
       
       if (importRecord.id) {
@@ -904,6 +1348,40 @@ export const handler: Handler = async (event) => {
       });
     }
     
+    if (importIds.length === 0 && blockedByLatestOcr.length > 0) {
+      const firstBlocked = blockedByLatestOcr[0];
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: false,
+          state: mapOcrFailureState(firstBlocked.errorCode),
+          error_code: firstBlocked.errorCode,
+          retryable: isOcrFailureRetryable(firstBlocked.errorCode),
+          importId: null,
+          blockedImportIds: blockedByLatestOcr.map((b) => b.importId),
+          docIds,
+          importIds: [],
+          transactionCount: 0,
+        }),
+      };
+    }
+
+    if (importIds.length === 0 && anyNormalizeProcessing) {
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          processing: true,
+          reason: 'ocr_processing',
+          docIds,
+          importIds: [],
+          transactionCount: 0,
+        }),
+      };
+    }
+
     if (importIds.length === 0) {
       return {
         statusCode: 200,
@@ -920,13 +1398,12 @@ export const handler: Handler = async (event) => {
 
     // 2. Ensure all imports are normalized (status='parsed')
     const readyImportIds: string[] = [];
-    const blockedByLatestOcr: Array<{ importId: string; docId: string; errorCode: string }> = [];
     
     for (const importId of importIds) {
       // Get document_id for this import
       const { data: importRecord } = await sb
         .from('imports')
-        .select('document_id, status')
+        .select('document_id, status, updated_at')
         .eq('id', importId)
         .eq('user_id', userId)
         .maybeSingle();
@@ -936,7 +1413,87 @@ export const handler: Handler = async (event) => {
         continue;
       }
 
-      const latestOcrOutcome = await fetchLatestOcrOutcome(sb, String(importRecord.document_id));
+      // Hard safety gate: never auto-commit when the source document is already
+      // marked failed/rejected by OCR. This prevents "not ready" statements from
+      // being treated as ready due to stale parsed/import state.
+      let { data: sourceDoc } = await sb
+        .from('user_documents')
+        .select('status, ocr_status, metadata, updated_at')
+        .eq('id', String(importRecord.document_id))
+        .eq('user_id', userId)
+        .maybeSingle();
+      // Schema/tenant fallback: some environments do not expose user_id on user_documents.
+      if (!sourceDoc) {
+        const { data: sourceDocFallback } = await sb
+          .from('user_documents')
+          .select('status, ocr_status, metadata, updated_at')
+          .eq('id', String(importRecord.document_id))
+          .maybeSingle();
+        sourceDoc = sourceDocFallback || null;
+      }
+      const docStatus = String(sourceDoc?.status || '').toLowerCase();
+      const docOcrStatus = String(sourceDoc?.ocr_status || '').toLowerCase();
+      const metadataErrorText = String(
+        sourceDoc?.metadata?.ocr?.error ||
+        sourceDoc?.metadata?.ocr_error ||
+        sourceDoc?.metadata?.error ||
+        ''
+      ).toLowerCase();
+      const metadataErrorCode = String(
+        sourceDoc?.metadata?.ocr?.error_code ||
+        sourceDoc?.metadata?.ocr_error_code ||
+        sourceDoc?.metadata?.error_code ||
+        ''
+      ).toLowerCase();
+      const hasDocFailureSignal =
+        metadataErrorText.includes('no provider returned text') ||
+        metadataErrorText.includes('ocr failed') ||
+        metadataErrorText.includes('input file corrupted') ||
+        metadataErrorText.includes('e301') ||
+        metadataErrorText.includes('provider') ||
+        metadataErrorCode === 'malformed_pdf' ||
+        metadataErrorCode === 'unusable_ocr_text' ||
+        metadataErrorCode === 'ocr_empty' ||
+        metadataErrorCode === 'no_provider_text' ||
+        metadataErrorCode === 'provider_error' ||
+        metadataErrorCode === 'timeout';
+      const docProcessingNow =
+        docStatus === 'ocr_processing' ||
+        docStatus === 'processing' ||
+        docOcrStatus === 'processing' ||
+        docOcrStatus === 'queued';
+      if (docProcessingNow) {
+        console.log('[smart-import-sync] source document still processing OCR; deferring import readiness', {
+          importId,
+          docId: String(importRecord.document_id),
+          docStatus: docStatus || null,
+          docOcrStatus: docOcrStatus || null,
+        });
+        anyNormalizeProcessing = true;
+        continue;
+      }
+      if (
+        docStatus === 'rejected' ||
+        docStatus === 'failed' ||
+        docOcrStatus === 'failed' ||
+        hasDocFailureSignal
+      ) {
+        console.warn('[smart-import-sync] blocking import due to document failure state', {
+          importId,
+          docId: String(importRecord.document_id),
+          docStatus: docStatus || null,
+          docOcrStatus: docOcrStatus || null,
+          metadataErrorCode: metadataErrorCode || null,
+        });
+        blockedByLatestOcr.push({
+          importId,
+          docId: String(importRecord.document_id),
+          errorCode: metadataErrorCode || 'ocr_failed',
+        });
+        continue;
+      }
+
+      const latestOcrOutcome = await fetchRecentOcrGuardOutcome(sb, String(importRecord.document_id));
       if (latestOcrOutcome?.retryable) {
         console.warn('[smart-import-sync] stage=sync_check_latest_ocr', {
           importId,
@@ -951,13 +1508,22 @@ export const handler: Handler = async (event) => {
         });
         continue;
       }
+      if (latestOcrOutcome?.pending && latestOcrOutcome?.recent) {
+        console.warn('[smart-import-sync] stage=sync_wait_latest_ocr', {
+          importId,
+          docId: String(importRecord.document_id),
+          status: latestOcrOutcome.status,
+        });
+        anyNormalizeProcessing = true;
+        continue;
+      }
       
       // If already parsed or committed, we're good
       if (importRecord.status === 'parsed' || importRecord.status === 'committed') {
         readyImportIds.push(importId);
         continue;
       }
-      
+
       // Ensure normalized
       const normalized = await ensureNormalized(sb, importRecord.document_id, userId, netlifyUrl, { traceId });
       if (normalized.processing) {
@@ -998,9 +1564,9 @@ export const handler: Handler = async (event) => {
         headers,
         body: JSON.stringify({
           ok: false,
-          state: firstBlocked.errorCode === 'timeout' ? 'ocr_timed_out_retry' : 'ocr_failed_retry',
+          state: mapOcrFailureState(firstBlocked.errorCode),
           error_code: firstBlocked.errorCode,
-          retryable: true,
+          retryable: isOcrFailureRetryable(firstBlocked.errorCode),
           importId: null,
           blockedImportIds: blockedByLatestOcr.map((b) => b.importId),
           docIds,

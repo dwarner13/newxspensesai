@@ -33,6 +33,42 @@ export type SmartImportPipelineResult = {
   };
 };
 
+function isTerminalRouterOcrFailure(payload: any): boolean {
+  const details = payload?.details || null;
+  const firstItem = Array.isArray(details?.items) ? details.items[0] : null;
+  const state = String(payload?.state || details?.state || '').toLowerCase();
+  const errorCode = String(
+    payload?.error_code ||
+    details?.error_code ||
+    firstItem?.error_code ||
+    ''
+  ).toLowerCase();
+  const error = String(
+    payload?.error ||
+    details?.error ||
+    firstItem?.error ||
+    ''
+  ).toLowerCase();
+  return (
+    state === 'ocr_failed_retry' ||
+    state === 'ocr_timed_out_retry' ||
+    errorCode === 'malformed_pdf' ||
+    errorCode === 'unusable_ocr_text' ||
+    errorCode === 'no_provider_text' ||
+    errorCode === 'provider_error' ||
+    errorCode === 'timeout' ||
+    error.includes('malformed_or_unsupported_pdf') ||
+    error.includes('invalid pdf structure') ||
+    error.includes('bad fcheck') ||
+    error.includes('flate stream') ||
+    error.includes('error e301') ||
+    error.includes('input file corrupted') ||
+    error.includes('unable to extract any text') ||
+    error.includes('appears to be blank or empty') ||
+    error.includes('no readable text found')
+  );
+}
+
 const inFlightPipelines = new Map<string, Promise<SmartImportPipelineResult>>();
 
 function buildPreInitPipelineKey(input: SmartImportPipelineInput): string {
@@ -52,10 +88,72 @@ function getAuthHeaders(input: SmartImportPipelineInput): Record<string, string>
   return input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {};
 }
 
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function bytesToAscii(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : '.'))
+    .join('');
+}
+
+async function logPdfUploadProbe(input: SmartImportPipelineInput): Promise<void> {
+  const isPdf =
+    (input.mimeType || '').toLowerCase() === 'application/pdf' ||
+    String(input.fileName || '').toLowerCase().endsWith('.pdf');
+  if (!isPdf) return;
+  try {
+    if (input.file) {
+      const first16 = new Uint8Array(await input.file.slice(0, 16).arrayBuffer());
+      const first8 = first16.slice(0, 8);
+      const tailStart = Math.max(0, input.file.size - 32);
+      const last32 = new Uint8Array(await input.file.slice(tailStart, input.file.size).arrayBuffer());
+      const tailWindowStart = Math.max(0, input.file.size - 256);
+      const tailWindow = new Uint8Array(await input.file.slice(tailWindowStart, input.file.size).arrayBuffer());
+      const tailAscii = bytesToAscii(tailWindow);
+      console.log('[upload-pdf-debug] frontend_before_upload', {
+        fileName: input.file.name,
+        mimeType: input.file.type || input.mimeType,
+        fileSize: input.file.size,
+        first16Hex: bytesToHex(first16),
+        first8Ascii: bytesToAscii(first8),
+        last32Hex: bytesToHex(last32),
+        tailHasEof: tailAscii.includes('%%EOF'),
+      });
+      return;
+    }
+    if (typeof input.base64 === 'string' && input.base64.length > 0) {
+      const normalizedBase64 = input.base64.includes(',')
+        ? input.base64.slice(input.base64.indexOf(',') + 1)
+        : input.base64;
+      const decoded = Uint8Array.from(atob(normalizedBase64), (c) => c.charCodeAt(0));
+      const first16 = decoded.slice(0, 16);
+      const first8 = decoded.slice(0, 8);
+      const last32 = decoded.slice(Math.max(0, decoded.length - 32));
+      const tailAscii = bytesToAscii(decoded.slice(Math.max(0, decoded.length - 256)));
+      console.log('[upload-pdf-debug] frontend_before_upload_base64', {
+        fileName: input.fileName,
+        mimeType: input.mimeType,
+        fileSize: decoded.length,
+        first16Hex: bytesToHex(first16),
+        first8Ascii: bytesToAscii(first8),
+        last32Hex: bytesToHex(last32),
+        tailHasEof: tailAscii.includes('%%EOF'),
+      });
+    }
+  } catch (error: any) {
+    console.warn('[upload-pdf-debug] frontend_probe_failed', {
+      error: error?.message || String(error),
+    });
+  }
+}
+
 async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<SmartImportPipelineResult | null> {
   // Prime Router mode A requires multipart/form-data; keep legacy path for base64 callers.
   if (!input.file) return null;
   const autoCommit = input.source === 'chat' ? false : true;
+  await logPdfUploadProbe(input);
 
   input.onProgress?.(10);
   const formData = new FormData();
@@ -103,11 +201,48 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
       });
       if (statusRes.ok) {
         const statusPayload = await statusRes.json().catch(() => ({}));
+        if (statusPayload?.terminal === true) {
+          console.warn('[client] Terminal OCR — skipping fallback', {
+            docId: documentId,
+            importRunId: input.requestId || null,
+            source: 'runViaPrimeRouter:no-import-status-poll',
+          });
+          return {
+            docId: documentId,
+            importIds: [],
+            queued: false,
+            via: 'ocr',
+            rejected: true,
+            reason: String(statusPayload?.error || statusPayload?.primeMessage || 'terminal_ocr'),
+          };
+        }
         const item = Array.isArray(statusPayload?.items) ? statusPayload.items[0] : null;
         const itemStatus = String(item?.status || '').toLowerCase();
         if (itemStatus === 'error' || itemStatus === 'failed') {
-          const reason = item?.error || statusPayload?.error || 'OCR processing failed';
-          throw new Error(String(reason));
+          const reason = String(item?.error || statusPayload?.error || 'OCR processing failed');
+          const terminalLike =
+            statusPayload?.terminal === true ||
+            isTerminalRouterOcrFailure(statusPayload) ||
+            isTerminalRouterOcrFailure({
+              error: reason,
+              error_code: item?.error_code,
+              details: { items: [item] },
+            });
+          console.warn('[client] Terminal OCR — skipping fallback', {
+            docId: documentId,
+            importRunId: input.requestId || null,
+            source: 'runViaPrimeRouter:no-import-status-item-error',
+            terminal: terminalLike,
+            reason,
+          });
+          return {
+            docId: documentId,
+            importIds: [],
+            queued: false,
+            via: 'ocr',
+            rejected: true,
+            reason,
+          };
         }
         if (itemStatus === 'done') {
           break;
@@ -130,6 +265,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
         waitForOcrMs: 12000,
         pollForOcrMs: 300,
         autoCommit,
+        importRunId: input.requestId || `router-sync-${documentId}-${Date.now()}`,
       }),
     });
     const syncPayload = syncRes.ok ? await syncRes.json().catch(() => ({})) : {};
@@ -154,14 +290,53 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
         'Content-Type': 'application/json',
         ...getAuthHeaders(input),
       },
-      body: JSON.stringify({ mode: 'status', importId, autoCommit }),
+      body: JSON.stringify({
+        mode: 'status',
+        importId,
+        autoCommit,
+        importRunId: input.requestId || `router-status-${importId}-${Date.now()}`,
+      }),
     });
     if (statusRes.ok) {
       const statusPayload = await statusRes.json().catch(() => ({}));
+      if (statusPayload?.terminal === true) {
+        console.warn('[client] Terminal OCR — skipping fallback', {
+          docId: documentId,
+          importId,
+          importRunId: input.requestId || null,
+          source: 'runViaPrimeRouter:status-poll',
+        });
+        return {
+          docId: documentId,
+          importId,
+          importIds: importId ? [importId] : [],
+          queued: false,
+          via: 'ocr',
+          rejected: true,
+          reason: String(statusPayload?.error || statusPayload?.primeMessage || 'terminal_ocr'),
+        };
+      }
       const status = String(statusPayload?.status || '').toLowerCase();
       if (status === 'error') {
-        const reason = statusPayload?.error || statusPayload?.details?.error || 'OCR processing failed';
-        throw new Error(String(reason));
+        const reason = String(statusPayload?.error || statusPayload?.details?.error || 'OCR processing failed');
+        const terminalLike = statusPayload?.terminal === true || isTerminalRouterOcrFailure(statusPayload);
+        console.warn('[client] Terminal OCR — skipping fallback', {
+          docId: documentId,
+          importId,
+          importRunId: input.requestId || null,
+          source: 'runViaPrimeRouter:status-error',
+          terminal: terminalLike,
+          reason,
+        });
+        return {
+          docId: documentId,
+          importId,
+          importIds: importId ? [importId] : [],
+          queued: false,
+          via: 'ocr',
+          rejected: true,
+          reason,
+        };
       }
       if (status === 'complete') {
         input.onProgress?.(100);
@@ -194,6 +369,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
 }
 
 async function putBytesToSignedUrl(input: SmartImportPipelineInput, uploadUrl: string): Promise<void> {
+  await logPdfUploadProbe(input);
   if (input.file) {
     const res = await fetch(uploadUrl, {
       method: 'PUT',
@@ -206,9 +382,13 @@ async function putBytesToSignedUrl(input: SmartImportPipelineInput, uploadUrl: s
     return;
   }
   if (typeof input.base64 === 'string') {
-    const buffer = Uint8Array.from(atob(input.base64), (c) => c.charCodeAt(0));
+    const normalizedBase64 = input.base64.includes(',')
+      ? input.base64.slice(input.base64.indexOf(',') + 1)
+      : input.base64;
+    const buffer = Uint8Array.from(atob(normalizedBase64), (c) => c.charCodeAt(0));
     const res = await fetch(uploadUrl, {
       method: 'PUT',
+      headers: { 'content-type': input.mimeType || 'application/octet-stream' },
       body: buffer,
     });
     if (!res.ok) {
@@ -510,6 +690,18 @@ export function runSmartImportPipeline(input: SmartImportPipelineInput): Promise
         const routed = await runViaPrimeRouter(input);
         if (routed) return routed;
       } catch (routerErr) {
+        const msg = String((routerErr as any)?.message || routerErr || '').toLowerCase();
+        const terminalRouterFailure =
+          msg.includes('unusable_ocr_text') ||
+          msg.includes('malformed_pdf') ||
+          msg.includes('parser_incompatible_pdf') ||
+          msg.includes('ocr_unusable') ||
+          msg.includes('ocr_failed_retry') ||
+          msg.includes('ocr_timed_out_retry') ||
+          msg.includes('upload rejected');
+        if (terminalRouterFailure) {
+          throw routerErr;
+        }
         console.warn('[runSmartImportPipeline] prime-router path failed, falling back to legacy path:', routerErr);
       }
 

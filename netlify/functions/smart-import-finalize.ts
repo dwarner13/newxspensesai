@@ -23,13 +23,15 @@ export const handler: Handler = async (event, context) => {
     try {
     if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method Not Allowed' };
     const body = JSON.parse(event.body || '{}');
-    const { userId, docId, expectedSize } = body;
+    const { userId, docId, expectedSize, retry } = body;
+    const traceIdHeader = event.headers?.['x-trace-id'] || event.headers?.['X-Trace-Id'] || null;
     if (!userId || !docId) return { statusCode: 400, body: 'Missing userId/docId' };
 
     const sb = admin();
 
     const { data: doc, error } = await sb.from('user_documents').select('*').eq('id', docId).single();
     if (error || !doc) return { statusCode: 404, body: 'doc not found' };
+    const explicitRetry = retry === true;
 
     // ⚡ UPLOAD COMPLETENESS CONTRACT: Verify file exists and size matches before processing
     
@@ -103,15 +105,49 @@ export const handler: Handler = async (event, context) => {
 
     // Route 1: Images/PDFs → OCR (guardrails run in OCR function)
     if (isImageOrPdf(doc.mime_type)) {
+      const docStatus = String(doc?.status || '').toLowerCase();
+      const docOcrStatus = String(doc?.ocr_status || '').toLowerCase();
+      const alreadyFinalized =
+        Boolean(doc?.ocr_completed_at) ||
+        docStatus === 'ready' ||
+        docStatus === 'needs_review' ||
+        docStatus === 'rejected' ||
+        docOcrStatus === 'ready' ||
+        docOcrStatus === 'ready_cached' ||
+        docOcrStatus === 'failed' ||
+        docOcrStatus === 'timed_out';
+      if (alreadyFinalized && !explicitRetry) {
+        return {
+          statusCode: 200,
+          body: JSON.stringify({
+            started: false,
+            queued: false,
+            skipped: true,
+            reason: 'ocr_already_finalized',
+            via: 'ocr',
+            status: doc?.status || null,
+            ocrStatus: doc?.ocr_status || null,
+          }),
+        };
+      }
+      // Mark processing immediately to avoid stale "ready" reuse while OCR is being retriggered.
+      await markDocStatus(docId, 'ocr_processing', 'ocr_retriggered');
       // Trigger OCR processing after successful upload
       fetch(`${netlifyUrl}/.netlify/functions/smart-import-ocr`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(traceIdHeader ? { 'x-trace-id': String(traceIdHeader) } : {}),
         },
         body: JSON.stringify({
           docId: docId,
-          userId: userId
+          userId: userId,
+          importRunId: explicitRetry ? `retry-${docId}-${Date.now()}` : `finalize-${docId}-${Date.now()}`,
+          traceId: traceIdHeader ? String(traceIdHeader) : `finalize-trace-${Date.now()}`,
+          source: 'smart-import-finalize',
+          caller: 'smart-import-finalize',
+          isRetry: explicitRetry,
+          explicitRecovery: explicitRetry,
         })
       }).catch(err => {
         console.error('[smart-import-finalize] Failed to trigger OCR:', err);

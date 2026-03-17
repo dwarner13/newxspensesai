@@ -72,6 +72,153 @@ type RetryableError = Error & { status?: number };
 
 type OcrFinalStatus = 'succeeded' | 'failed' | 'timed_out';
 
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error && typeof err.message === 'string') return err.message;
+  return String(err || 'unknown_error');
+}
+
+function trimErrorMessage(message: string, maxLen = 280): string {
+  const normalized = String(message || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  if (normalized.length <= maxLen) return normalized;
+  return `${normalized.slice(0, maxLen - 1)}...`;
+}
+
+function isKnownMalformedPdfError(err: unknown): boolean {
+  const msg = getErrorMessage(err).toLowerCase();
+  return (
+    msg.includes('invalid pdf structure') ||
+    msg.includes('bad fcheck') ||
+    msg.includes('flate stream') ||
+    msg.includes('ocr failed. input file corrupted?') ||
+    msg.includes('error e301')
+  );
+}
+
+function isNoTextProviderError(err: unknown): boolean {
+  const msg = getErrorMessage(err).toLowerCase();
+  return msg.includes('no provider returned text');
+}
+
+function extractPdfTextFromRawStreams(buffer: Buffer): string {
+  // Secondary parser fallback for non-standard PDFs: best-effort extraction of
+  // visible text tokens directly from stream bytes when structured parsers fail.
+  const latin = buffer.toString('latin1');
+  const parts: string[] = [];
+  const looksReadable = (value: string): boolean => {
+    const text = String(value || '').trim();
+    if (text.length < 3) return false;
+    const alpha = (text.match(/[A-Za-z]/g) || []).length;
+    const suspicious = (text.match(/[�\u2500-\u257F\u2580-\u259F]/g) || []).length;
+    const ratio = alpha / text.length;
+    const noise = suspicious / text.length;
+    return ratio >= 0.2 && noise <= 0.02;
+  };
+
+  // Text in PDF literals: (...) with escaped chars handled minimally.
+  const literalMatches = latin.match(/\((?:\\.|[^\\)]){3,}\)/g) || [];
+  for (const token of literalMatches) {
+    const inner = token.slice(1, -1)
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\n')
+      .replace(/\\t/g, ' ')
+      .replace(/\\\(/g, '(')
+      .replace(/\\\)/g, ')')
+      .replace(/\\\\/g, '\\');
+    if (/[A-Za-z]{3,}/.test(inner) && looksReadable(inner)) parts.push(inner);
+  }
+
+  // Hex strings: <...> often used in text operators.
+  const hexMatches = latin.match(/<([0-9A-Fa-f]{8,})>/g) || [];
+  for (const token of hexMatches.slice(0, 2000)) {
+    const hex = token.slice(1, -1);
+    if (hex.length % 2 !== 0) continue;
+    try {
+      const raw = Buffer.from(hex, 'hex');
+      const decodedUtf8 = raw.toString('utf8');
+      const decodedLatin = raw.toString('latin1');
+      const best = looksReadable(decodedUtf8) ? decodedUtf8 : decodedLatin;
+      if (/[A-Za-z]{3,}/.test(best) && looksReadable(best)) parts.push(best);
+    } catch {
+      // ignore bad hex
+    }
+  }
+
+  return cleanupOcrText(parts.join('\n'));
+}
+
+function isLikelyCorruptedText(value: string): boolean {
+  const text = String(value || '');
+  if (!text || text.trim().length < 40) return false;
+  const suspiciousChars = (text.match(/[�\u2500-\u257F\u2580-\u259F]/g) || []).length;
+  const controlChars = (text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g) || []).length;
+  const alphaChars = (text.match(/[A-Za-z]/g) || []).length;
+  const ratioNoise = (suspiciousChars + controlChars) / text.length;
+  const ratioAlpha = alphaChars / text.length;
+  return ratioNoise > 0.08 || ratioAlpha < 0.18;
+}
+
+function assessRescueTextReadability(value: string): { score: number; accepted: boolean; reason: string } {
+  const text = String(value || '');
+  const trimmed = text.trim();
+  if (!trimmed) return { score: 0, accepted: false, reason: 'empty' };
+  const len = Math.max(trimmed.length, 1);
+  const suspiciousChars = (trimmed.match(/[�\u2500-\u257F\u2580-\u259F]/g) || []).length;
+  const controlChars = (trimmed.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g) || []).length;
+  const spaces = (trimmed.match(/\s/g) || []).length;
+  const words = (trimmed.match(/\b[A-Za-z]{3,}\b/g) || []).length;
+  const printableChars = (trimmed.match(/[\x20-\x7E\n\r\t]/g) || []).length;
+  const noiseRatio = (suspiciousChars + controlChars) / len;
+  const spaceRatio = spaces / len;
+  const printableRatio = printableChars / len;
+  const wordDensity = words / Math.max(len / 20, 1);
+  const scoreRaw =
+    (printableRatio * 0.45) +
+    (Math.min(1, wordDensity) * 0.30) +
+    (Math.min(1, spaceRatio / 0.16) * 0.15) +
+    (Math.max(0, 1 - (noiseRatio / 0.05)) * 0.10);
+  const score = Math.max(0, Math.min(1, Number(scoreRaw.toFixed(3))));
+  if (trimmed.length < PDF_MIN_TEXT_LEN) {
+    return { score, accepted: false, reason: 'too_short' };
+  }
+  if (printableRatio < 0.80) {
+    return { score, accepted: false, reason: 'low_printable_ratio' };
+  }
+  if (noiseRatio > 0.04) {
+    return { score, accepted: false, reason: 'high_noise_ratio' };
+  }
+  if (spaceRatio < 0.08) {
+    return { score, accepted: false, reason: 'low_space_ratio' };
+  }
+  if (words < 12) {
+    return { score, accepted: false, reason: 'too_few_words' };
+  }
+  if (score < 0.62) {
+    return { score, accepted: false, reason: 'low_readability_score' };
+  }
+  return { score, accepted: true, reason: 'readable' };
+}
+
+function isLikelyReadableText(value: string): boolean {
+  return assessRescueTextReadability(value).accepted;
+}
+
+function isUselessOcrResponseText(value: string): boolean {
+  const text = String(value || '').toLowerCase().trim();
+  if (!text) return true;
+  return (
+    text.includes('there is no visible text in the image') ||
+    text.includes('no visible text in the image') ||
+    text.includes('unable to extract any text') ||
+    text.includes('unable to extract text') ||
+    text.includes('appears to be blank or empty') ||
+    text.includes('image appears to be blank') ||
+    text.includes('image is blank') ||
+    text.includes('no readable text found') ||
+    text.includes('no text could be recognized')
+  );
+}
+
 function isRetryableError(error: unknown): boolean {
   const err = error as RetryableError;
   if (!err) return false;
@@ -88,28 +235,58 @@ async function sleep(ms: number): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, ms));
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+  externalSignal?: AbortSignal
+): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let onAbort: (() => void) | null = null;
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      onAbort = () => controller.abort();
+      externalSignal.addEventListener('abort', onAbort, { once: true });
+    }
+  }
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timeout);
+    if (externalSignal && onAbort) {
+      externalSignal.removeEventListener('abort', onAbort);
+    }
   }
 }
 
-async function withRetries<T>(label: string, fn: () => Promise<T>): Promise<T> {
+async function withRetries<T>(
+  label: string,
+  fn: () => Promise<T>,
+  options?: { signal?: AbortSignal }
+): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= OCR_RETRY_ATTEMPTS; attempt++) {
+    if (options?.signal?.aborted) {
+      throw new Error(`${label}_aborted`);
+    }
     try {
       return await fn();
     } catch (error) {
       lastError = error;
+      if (options?.signal?.aborted) {
+        throw error;
+      }
       if (!isRetryableError(error) || attempt === OCR_RETRY_ATTEMPTS) {
         throw error;
       }
       const delay = OCR_RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
       console.warn(`[OCR] ${label} failed (attempt ${attempt}/${OCR_RETRY_ATTEMPTS}), retrying in ${delay}ms`);
+      if (options?.signal?.aborted) {
+        throw error;
+      }
       await sleep(delay);
     }
   }
@@ -284,10 +461,22 @@ function isStaleUpdatedAt(updatedAt: unknown, staleMs: number = OCR_LOCK_STALE_M
   return Date.now() - ts > staleMs;
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  label: string,
+  onTimeout?: () => void
+): Promise<T> {
   let timeoutHandle: any;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutHandle = setTimeout(() => reject(new Error(`${label}_timeout_${timeoutMs}ms`)), timeoutMs);
+    timeoutHandle = setTimeout(() => {
+      try {
+        onTimeout?.();
+      } catch {
+        // noop
+      }
+      reject(new Error(`${label}_timeout_${timeoutMs}ms`));
+    }, timeoutMs);
   });
   try {
     return await Promise.race([promise, timeoutPromise]);
@@ -640,9 +829,28 @@ async function extractEmbeddedPdfText(
   timeoutMs: number
 ): Promise<string> {
   const buf = await getPdfBuffer(docId, signedUrl, timeoutMs);
-  const text = await extractPdfTextWithPdfParse(buf);
-  console.log("[OCR] pdf-parse embedded text extracted", { textLength: text.trim().length });
-  return text;
+  try {
+    const text = await extractPdfTextWithPdfParse(buf);
+    console.log("[OCR] pdf-parse embedded text extracted", { textLength: text.trim().length });
+    return text;
+  } catch (parseError: any) {
+    const message = getErrorMessage(parseError);
+    const lower = message.toLowerCase();
+    const parserStructureError =
+      lower.includes('invalid pdf structure') ||
+      lower.includes('bad fcheck') ||
+      lower.includes('formaterror') ||
+      lower.includes('flate stream');
+    if (!parserStructureError) {
+      throw parseError;
+    }
+    console.warn('[OCR] pdf-parse failed on malformed structure; trying layout extraction fallback', {
+      error: message,
+    });
+    const layoutText = await extractPdfTextWithLayout(buf);
+    console.log("[OCR] layout embedded text extracted", { textLength: layoutText.trim().length });
+    return layoutText;
+  }
 }
 
 function shouldUseLayoutText(text: string): boolean {
@@ -749,6 +957,44 @@ async function fetchBinaryBuffer(signedUrl: string, timeoutMs: number): Promise<
   } finally {
     clearTimeout(t);
   }
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function bytesToAscii(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : '.'))
+    .join('');
+}
+
+function validatePdfEnvelope(buffer: Buffer): {
+  ok: boolean;
+  headerFound: boolean;
+  eofFound: boolean;
+  first16Hex: string;
+  first8Ascii: string;
+  last32Hex: string;
+  tailAscii: string;
+} {
+  const first16 = buffer.subarray(0, Math.min(16, buffer.length));
+  const first8 = buffer.subarray(0, Math.min(8, buffer.length));
+  const last32 = buffer.subarray(Math.max(0, buffer.length - 32));
+  const headWindow = buffer.subarray(0, Math.min(1024, buffer.length)).toString('latin1');
+  const tailWindow = buffer.subarray(Math.max(0, buffer.length - 2048)).toString('latin1');
+  const tailAscii = tailWindow.replace(/[^\x20-\x7E]/g, '.');
+  const headerFound = headWindow.includes('%PDF-');
+  const eofFound = tailWindow.includes('%%EOF');
+  return {
+    ok: headerFound && eofFound,
+    headerFound,
+    eofFound,
+    first16Hex: bytesToHex(first16),
+    first8Ascii: bytesToAscii(first8),
+    last32Hex: bytesToHex(last32),
+    tailAscii,
+  };
 }
 
 async function getPdfBuffer(docId: string, url: string, timeoutMs: number): Promise<Buffer> {
@@ -871,7 +1117,8 @@ async function runOCR(
   mimeType: string,
   expectedSize?: number,
   docId?: string,
-  docMode: 'statement' | 'receipt' = 'receipt'
+  docMode: 'statement' | 'receipt' = 'receipt',
+  abortSignal?: AbortSignal
 ): Promise<OCRRunResult> {
   const hasVision = !!process.env.GOOGLE_VISION_API_KEY;
   const hasOcrSpace = !!process.env.OCR_SPACE_API_KEY;
@@ -944,18 +1191,22 @@ async function runOCR(
       formData.append('OCREngine', '2');
     }
     const ocrSpaceStart = Date.now();
-    const response = await withRetries(enhanced ? 'OCR.space enhanced' : 'OCR.space', async () => {
-      const res = await fetchWithTimeout('https://api.ocr.space/parse/image', {
-        method: 'POST',
-        body: formData,
-      }, timeoutMs);
-      if (!res.ok) {
-        const error: RetryableError = new Error(`OCR.space API returned ${res.status}`);
-        error.status = res.status;
-        throw error;
-      }
-      return res;
-    });
+    const response = await withRetries(
+      enhanced ? 'OCR.space enhanced' : 'OCR.space',
+      async () => {
+        const res = await fetchWithTimeout('https://api.ocr.space/parse/image', {
+          method: 'POST',
+          body: formData,
+        }, timeoutMs, abortSignal);
+        if (!res.ok) {
+          const error: RetryableError = new Error(`OCR.space API returned ${res.status}`);
+          error.status = res.status;
+          throw error;
+        }
+        return res;
+      },
+      { signal: abortSignal }
+    );
     const result = await response.json();
     if (result?.IsErroredOnProcessing || (result?.OCRExitCode && result?.OCRExitCode !== 1)) {
       throw buildOcrSpaceError(result);
@@ -1020,7 +1271,13 @@ async function runOCR(
       }
       console.log('[OCR] No embedded text via pdf-parse (likely scanned PDF)');
     } catch (error: any) {
-      console.warn('[OCR] PDF embedded text extraction failed, falling back to OCR:', error.message || error);
+      if (isKnownMalformedPdfError(error) || isNoTextProviderError(error)) {
+        console.warn('[OCR] embedded_pdf_parse_failed_fallback_attempt', {
+          error: getErrorMessage(error),
+        });
+      } else {
+        console.warn('[OCR] PDF embedded text extraction failed, falling back to OCR:', getErrorMessage(error));
+      }
     }
   } else if (isPdf) {
     console.log('[OCR] PDF embedded text extraction disabled; using OCR.space');
@@ -1060,7 +1317,13 @@ async function runOCR(
           pageLimitReached: true,
         };
       }
-      console.error('[OCR] OCR.space error:', error.message || error);
+      if (isPdf && (isKnownMalformedPdfError(error) || isNoTextProviderError(error))) {
+        console.warn('[OCR] ocrspace_failed_fallback_attempt', {
+          error: getErrorMessage(error),
+        });
+      } else {
+        console.error('[OCR] OCR.space error:', getErrorMessage(error));
+      }
     }
   }
 
@@ -1224,7 +1487,7 @@ async function setDocumentOcrStatus(
 }
 
 function classifyOcrErrorCode(error: unknown): { status: OcrFinalStatus; errorCode: string } {
-  const raw = String((error as any)?.message || error || '').toLowerCase();
+  const raw = getErrorMessage(error).toLowerCase();
   if (raw.includes('timeout') || raw.includes('aborted')) {
     return { status: 'timed_out', errorCode: 'timeout' };
   }
@@ -1235,6 +1498,35 @@ function classifyOcrErrorCode(error: unknown): { status: OcrFinalStatus; errorCo
     return { status: 'failed', errorCode: 'provider_error' };
   }
   return { status: 'failed', errorCode: 'ocr_failed' };
+}
+
+async function finalizeTerminalOcrFailure(
+  sb: any,
+  params: {
+    ocrJobId: string | null;
+    docId: string;
+    error: unknown;
+    finalStatus?: OcrFinalStatus;
+    errorCode: string;
+    rejectionReason: string;
+  }
+): Promise<void> {
+  const trimmedError = trimErrorMessage(getErrorMessage(params.error));
+  await finalizeOcrJobOutcome(sb, {
+    ocrJobId: params.ocrJobId,
+    docId: params.docId,
+    status: params.finalStatus || 'failed',
+    errorCode: params.errorCode,
+    errorMessage: trimmedError || params.errorCode,
+  });
+  await setDocumentOcrStatus(sb, params.docId, 'failed');
+  await markDocStatus(params.docId, 'rejected', trimErrorMessage(params.rejectionReason, 220));
+  console.warn('[OCR] stage=ocr_status_finalized', {
+    docId: params.docId,
+    ocrStatus: 'failed',
+    status: 'rejected',
+    errorCode: params.errorCode,
+  });
 }
 
 function getMissingUserDocumentsColumn(error: unknown): string | null {
@@ -1386,6 +1678,7 @@ export const handler: Handler = async (event, context) => {
   let lockedDocId: string | null = null;
   let ocrJobId: string | null = null;
   let stopHeartbeat: (() => void) | null = null;
+  let ocrSucceeded = false;
 
   try {
     const contentType = event.headers['content-type'] || event.headers['Content-Type'] || '';
@@ -1408,12 +1701,48 @@ export const handler: Handler = async (event, context) => {
     const { userId, docId, threadId } = body;
     const expectedSize = body.expectedSize ? Number(body.expectedSize) : undefined;
     const importRunId = body.importRunId || body.requestId;
+    const caller = String(body?.caller || body?.source || 'unknown');
+    const isRetry = body?.isRetry === true || body?.retry === true;
+    const isExplicitRecovery =
+      body?.explicitRecovery === true ||
+      isRetry ||
+      String(importRunId || '').startsWith('stale-retry-');
     const logPrefix = `[OCR][${traceId}]`;
+    const isOrphanInvocation = !importRunId;
 
     console.log(`${logPrefix} START`, { docId, importRunId });
+    console.log('[smart-import-ocr] entry', {
+      caller,
+      source: String(body?.source || ''),
+      docId,
+      importRunId: importRunId || null,
+      orphan: isOrphanInvocation,
+      matchUploadContext: !isOrphanInvocation,
+      isRetry,
+      isExplicitRecovery,
+      traceId,
+    });
     if (!userId || !docId) {
       console.error(`${logPrefix} ERROR`, { error: 'Missing userId/docId' });
       return { statusCode: 400, body: JSON.stringify({ error: 'Missing userId/docId', traceId, importRunId }) };
+    }
+    if (isOrphanInvocation) {
+      console.warn('[smart-import-ocr] Skipping orphan OCR invocation', {
+        caller,
+        docId,
+        importRunId: null,
+        traceId,
+      });
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          ok: true,
+          skipped: true,
+          reason: 'orphan_invocation',
+          docId,
+          traceId,
+        }),
+      };
     }
 
     const sb = admin();
@@ -1427,6 +1756,44 @@ export const handler: Handler = async (event, context) => {
     
     if (error || !doc) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Document not found' }) };
+    }
+    console.log('[smart-import-ocr] doc_row_state', {
+      docId,
+      caller,
+      createdAt: doc?.created_at || null,
+      status: doc?.status || null,
+      ocrStatus: doc?.ocr_status || null,
+      reused: Boolean(doc?.ocr_completed_at || doc?.extracted_data),
+      importRunId: importRunId || null,
+    });
+    const terminalErrorCode = String(
+      doc?.metadata?.ocr?.error_code ||
+      doc?.metadata?.ocr_error_code ||
+      doc?.metadata?.error_code ||
+      ''
+    ).toLowerCase();
+    const terminalRejected =
+      (String(doc?.status || '').toLowerCase() === 'rejected' || String(doc?.ocr_status || '').toLowerCase() === 'failed') &&
+      (terminalErrorCode === 'unusable_ocr_text' || terminalErrorCode === 'malformed_pdf');
+    if (terminalRejected && !isExplicitRecovery) {
+      console.warn('[smart-import-ocr] Skipping orphan OCR invocation', {
+        caller,
+        docId,
+        importRunId: importRunId || null,
+        traceId,
+        reason: `terminal_already_finalized:${terminalErrorCode}`,
+      });
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          ok: true,
+          skipped: true,
+          reason: `terminal_already_finalized:${terminalErrorCode}`,
+          docId,
+          traceId,
+          importRunId: importRunId || null,
+        }),
+      };
     }
     const docUserId = doc.user_id;
     const effectiveUserId = docUserId || userId;
@@ -1612,7 +1979,83 @@ export const handler: Handler = async (event, context) => {
     });
 
     // Step 4: Resolve file hash + OCR job idempotency
-    const binaryBuffer = await fetchBinaryBuffer(signed.signedUrl, computeOcrTimeoutMs(expectedSize, effectiveMimeType));
+    const ocrTimeoutMs = computeOcrTimeoutMs(expectedSize, effectiveMimeType);
+    let downloadedStorageBuffer: Buffer | null = null;
+    try {
+      const { data: downloadBlob, error: downloadErr } = await sb.storage
+        .from(BUCKET)
+        .download(doc.storage_path);
+      if (!downloadErr && downloadBlob) {
+        const ab = await downloadBlob.arrayBuffer();
+        downloadedStorageBuffer = Buffer.from(ab);
+        if (effectiveMimeType === 'application/pdf') {
+          const probe = validatePdfEnvelope(downloadedStorageBuffer);
+          console.log('[upload-pdf-debug] ocr_storage_download_probe', {
+            docId,
+            bytes: downloadedStorageBuffer.length,
+            first16Hex: probe.first16Hex,
+            first8Ascii: probe.first8Ascii,
+            last32Hex: probe.last32Hex,
+            tailHasEof: probe.eofFound,
+            headerFound: probe.headerFound,
+            envelopeValid: probe.ok,
+          });
+        } else {
+          console.log('[upload-pdf-debug] ocr_storage_download_probe', {
+            docId,
+            bytes: downloadedStorageBuffer.length,
+            mimeType: effectiveMimeType,
+          });
+        }
+      } else {
+        console.warn('[upload-pdf-debug] ocr_storage_download_failed', {
+          docId,
+          error: downloadErr?.message || null,
+        });
+      }
+    } catch (downloadEx: any) {
+      console.warn('[upload-pdf-debug] ocr_storage_download_threw', {
+        docId,
+        error: downloadEx?.message || String(downloadEx),
+      });
+    }
+
+    const binaryBuffer = await fetchBinaryBuffer(signed.signedUrl, ocrTimeoutMs);
+    if (effectiveMimeType === 'application/pdf') {
+      const probe = validatePdfEnvelope(binaryBuffer);
+      console.log('[upload-pdf-debug] ocr_signed_url_probe', {
+        docId,
+        bytes: binaryBuffer.length,
+        first16Hex: probe.first16Hex,
+        first8Ascii: probe.first8Ascii,
+        last32Hex: probe.last32Hex,
+        tailHasEof: probe.eofFound,
+        headerFound: probe.headerFound,
+        envelopeValid: probe.ok,
+      });
+      if (downloadedStorageBuffer) {
+        const sameLength = downloadedStorageBuffer.length === binaryBuffer.length;
+        const samePrefix = downloadedStorageBuffer.subarray(0, Math.min(32, downloadedStorageBuffer.length))
+          .equals(binaryBuffer.subarray(0, Math.min(32, binaryBuffer.length)));
+        const sameSuffix = downloadedStorageBuffer
+          .subarray(Math.max(0, downloadedStorageBuffer.length - 32))
+          .equals(binaryBuffer.subarray(Math.max(0, binaryBuffer.length - 32)));
+        console.log('[upload-pdf-debug] ocr_download_vs_signed_comparison', {
+          docId,
+          sameLength,
+          samePrefix,
+          sameSuffix,
+        });
+      }
+      if (!probe.ok) {
+        console.warn('[upload-pdf-debug] pre_ocr_pdf_validation_failed', {
+          docId,
+          headerFound: probe.headerFound,
+          eofFound: probe.eofFound,
+          tailAscii: probe.tailAscii.slice(-128),
+        });
+      }
+    }
     const fileHash = computeFileHash(binaryBuffer);
     await sb
       .from('user_documents')
@@ -1765,7 +2208,11 @@ export const handler: Handler = async (event, context) => {
     let ocrPageLimitReached = false;
     let fallbackUsed = false;
     let fallbackSkippedByBudget = false;
+    let parserIncompatibilityLikely = false;
+    let handoffSource = 'primary_ocr';
+    let rescuedTextForHandoff = '';
     let scannedMetrics: OcrRunMetrics | null = null;
+    let scannedPdfMerged: OcrResult | null = null;
     const docMode: 'statement' | 'receipt' =
       effectiveMimeType === 'application/pdf' || /statement|bank|account|invoice/i.test(doc.original_name || '')
         ? 'statement'
@@ -1781,28 +2228,158 @@ export const handler: Handler = async (event, context) => {
       });
     }
     try {
+      const ocrRunController = new AbortController();
       const ocrResult = await withTimeout(
-        runOCR(signed.signedUrl, effectiveMimeType, expectedSize, docId, docMode),
+        runOCR(signed.signedUrl, effectiveMimeType, expectedSize, docId, docMode, ocrRunController.signal),
         OCR_STAGE_TIMEOUT_MS,
-        'ocr_stage'
+        'ocr_stage',
+        () => ocrRunController.abort()
       );
       ocrText = ocrResult.text;
       ocrProvider = ocrResult.provider;
       ocrDurationMs = ocrResult.durationMs;
       ocrPages = ocrResult.pages;
       ocrPageLimitReached = !!ocrResult.pageLimitReached;
+      handoffSource = String(ocrProvider || 'primary_ocr');
     } catch (ocrError: any) {
       console.error(`${logPrefix} ERROR`, { error: ocrError?.message || ocrError });
+      const ocrErrorMessage = getErrorMessage(ocrError);
+      const malformedPdfLikely =
+        effectiveMimeType === 'application/pdf' &&
+        (isKnownMalformedPdfError(ocrError) || isNoTextProviderError(ocrError));
+      parserIncompatibilityLikely = parserIncompatibilityLikely || malformedPdfLikely;
+      if (effectiveMimeType === 'application/pdf') {
+        try {
+          const scannedFallback = await runScannedPdfFallback({
+            pdfBuffer: binaryBuffer,
+            originalName: doc.original_name || '',
+            docMode,
+            allowPaidFallback,
+            sb,
+            ocrJobId,
+            userId: effectiveUserId,
+          });
+          scannedPdfMerged = scannedFallback.merged;
+          scannedMetrics = scannedFallback.metrics;
+          fallbackSkippedByBudget = scannedFallback.fallbackSkippedByBudget;
+          ocrText = scannedPdfMerged.rawText;
+          ocrProvider = scannedPdfMerged.engineUsed.includes('openai_vision')
+            ? 'openai_vision'
+            : scannedPdfMerged.engineUsed.includes('vision')
+              ? 'vision'
+              : 'ocrspace';
+          ocrPages = scannedPdfMerged.pages;
+          fallbackUsed = true;
+          handoffSource = 'scanned_pdf_fallback';
+          console.log('[OCR] recovered via scanned fallback after primary OCR failure', {
+            docId,
+            recoveredTextLength: String(ocrText || '').trim().length,
+            provider: ocrProvider,
+          });
+        } catch (scannedRecoveryError: any) {
+          const scannedRecoveryMessage = getErrorMessage(scannedRecoveryError);
+          const classified = classifyOcrErrorCode(ocrError);
+          const terminalMalformedPdf =
+            malformedPdfLikely ||
+            isKnownMalformedPdfError(scannedRecoveryError) ||
+            isNoTextProviderError(scannedRecoveryError);
+          parserIncompatibilityLikely = parserIncompatibilityLikely || terminalMalformedPdf;
+
+          // Secondary parser fallback before terminal rejection.
+          const rawStreamText = extractPdfTextFromRawStreams(binaryBuffer);
+          const rawStreamLen = rawStreamText.trim().length;
+          const rescueReadability = assessRescueTextReadability(rawStreamText);
+          const rawStreamReadable = rescueReadability.accepted;
+          const rawStreamAccepted = rawStreamLen >= PDF_MIN_TEXT_LEN && rawStreamReadable;
+          console.log('[OCR RESCUE DEBUG] raw_rescue_preview', rawStreamText.slice(0, 300));
+          console.log('[OCR RESCUE DEBUG] readability_score', rescueReadability.score);
+          console.log('[OCR RESCUE DEBUG] accepted_rescue_text', rawStreamAccepted);
+          if (!rawStreamAccepted && rawStreamLen > 0) {
+            console.warn('[OCR RESCUE WARNING] rejected_gibberish_rescue', {
+              docId,
+              textLength: rawStreamLen,
+              readabilityScore: rescueReadability.score,
+              reason: rescueReadability.reason,
+            });
+          }
+          if (rawStreamLen > 0) {
+            console.warn('[OCR] parser_incompatibility_visible_text_probe', {
+              docId,
+              textLength: rawStreamLen,
+              accepted: rawStreamAccepted,
+            });
+          }
+          if (rawStreamAccepted) {
+            console.warn('[OCR] parser_incompatibility_raw_stream_fallback_success', {
+              docId,
+              textLength: rawStreamLen,
+            });
+            ocrText = rawStreamText;
+            rescuedTextForHandoff = rawStreamText;
+            ocrProvider = 'embedded_pdf_parse';
+            ocrPages = undefined;
+            fallbackUsed = true;
+            handoffSource = 'raw_stream_fallback';
+            scannedPdfMerged = buildNormalizedResult({
+              text: rawStreamText,
+              provider: 'embedded_pdf_parse',
+              originalName: doc.original_name || '',
+              fallbackUsed: true,
+            });
+            scannedPdfMerged.needsUserConfirmation = true;
+            scannedPdfMerged.debug = {
+              ...(scannedPdfMerged.debug || {}),
+              parserIncompatiblePdf: true,
+              parserFallback: 'raw_stream_text_scan',
+            };
+            // Skip terminal rejection path and continue with normal guardrails/write flow.
+            // eslint-disable-next-line no-useless-catch
+          } else {
+          const errorCode = terminalMalformedPdf ? 'malformed_pdf' : classified.errorCode;
+          const userMessage = terminalMalformedPdf
+            ? 'Unreadable PDF structure. We could not safely read this PDF. Please open it, print/save as a new PDF, and upload the new copy.'
+            : `OCR failed: ${ocrErrorMessage}`;
+          if (terminalMalformedPdf) {
+            console.warn('[OCR] terminal_malformed_pdf_failure', {
+              docId,
+              ocrError: trimErrorMessage(ocrErrorMessage),
+              fallbackError: trimErrorMessage(scannedRecoveryMessage),
+            });
+          }
+          await finalizeTerminalOcrFailure(sb, {
+            ocrJobId,
+            docId,
+            error: scannedRecoveryMessage || ocrErrorMessage || 'ocr_failed',
+            finalStatus: classified.status,
+            errorCode,
+            rejectionReason: userMessage,
+          });
+          return {
+            statusCode: 200,
+            body: JSON.stringify({
+              ok: false,
+              rejected: true,
+              reason: terminalMalformedPdf ? 'parser_incompatible_pdf' : 'ocr_failed',
+              status: classified.status,
+              error_code: errorCode,
+              terminal: true,
+              traceId,
+              importRunId,
+              primeMessage: userMessage,
+            }),
+          };
+          }
+        }
+      } else {
       const classified = classifyOcrErrorCode(ocrError);
-      await finalizeOcrJobOutcome(sb, {
+      await finalizeTerminalOcrFailure(sb, {
         ocrJobId,
         docId,
-        status: classified.status,
+        error: ocrError?.message || 'ocr_failed',
+        finalStatus: classified.status,
         errorCode: classified.errorCode,
-        errorMessage: ocrError?.message || 'ocr_failed',
+        rejectionReason: `OCR failed: ${ocrError.message}`,
       });
-      await setDocumentOcrStatus(sb, docId, 'failed');
-      await markDocStatus(docId, 'rejected', `OCR failed: ${ocrError.message}`);
       return { 
         statusCode: 200, 
         body: JSON.stringify({ 
@@ -1815,9 +2392,9 @@ export const handler: Handler = async (event, context) => {
           importRunId,
         }) 
       };
+      }
     }
 
-    let scannedPdfMerged: OcrResult | null = null;
     if (shouldUseScannedPdfFallback({
       mimeType: effectiveMimeType,
       provider: ocrProvider,
@@ -1845,6 +2422,7 @@ export const handler: Handler = async (event, context) => {
             : 'ocrspace';
         ocrPages = scannedPdfMerged.pages;
         fallbackUsed = Boolean(scannedPdfMerged.fallbackUsed);
+        handoffSource = 'scanned_pdf_fallback';
       } catch (scannedError: any) {
         console.warn('[OCR] scanned PDF fallback failed; using best available text', {
           docId,
@@ -1936,12 +2514,15 @@ export const handler: Handler = async (event, context) => {
     const finalOcrLen = String(ocrText || '').trim().length;
     if (finalOcrLen < OCR_EMPTY_MIN_LEN) {
       const providerLabel = String(ocrProvider || '').toLowerCase();
-      const emptyErrorCode =
-        providerLabel === 'ocrspace'
-          ? 'ocr_empty'
-          : providerLabel.startsWith('embedded')
-            ? 'embedded_empty'
-            : 'ocr_empty_unknown';
+      const emptyErrorCode = parserIncompatibilityLikely
+        ? 'malformed_pdf'
+        : (
+          providerLabel === 'ocrspace'
+            ? 'ocr_empty'
+            : providerLabel.startsWith('embedded')
+              ? 'embedded_empty'
+              : 'ocr_empty_unknown'
+        );
       await finalizeOcrJobOutcome(sb, {
         ocrJobId,
         docId,
@@ -1960,6 +2541,41 @@ export const handler: Handler = async (event, context) => {
           retryable: true,
           status: 'failed',
           error_code: emptyErrorCode,
+          traceId,
+          importRunId,
+        }),
+      };
+    }
+
+    // Early hard-stop: reject boilerplate/non-document OCR text before any success
+    // logging, proof writes, or normalize handoff.
+    if (isUselessOcrResponseText(ocrText)) {
+      const unusableMessage = 'Scanned PDF text could not be recognized. Please re-save or upload a clearer PDF.';
+      console.warn('[OCR] unusable_ocr_text_detected', {
+        docId,
+        provider: ocrProvider || null,
+        preview: String(ocrText || '').slice(0, 220),
+        phase: 'pre_extracted_gate',
+      });
+      await finalizeTerminalOcrFailure(sb, {
+        ocrJobId,
+        docId,
+        error: 'unusable_ocr_text',
+        finalStatus: 'failed',
+        errorCode: 'unusable_ocr_text',
+        rejectionReason: unusableMessage,
+      });
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          ok: false,
+          rejected: true,
+          terminal: true,
+          reason: 'failed_or_unusable',
+          status: 'failed',
+          error_code: 'unusable_ocr_text',
+          short_reason: 'Scanned PDF text could not be recognized',
+          primeMessage: unusableMessage,
           traceId,
           importRunId,
         }),
@@ -2034,6 +2650,41 @@ export const handler: Handler = async (event, context) => {
     }
 
     let sanitizedText = sanitizeOcrText(guardrailResult.text);
+    if (isLikelyCorruptedText(sanitizedText) && rescuedTextForHandoff && isLikelyReadableText(rescuedTextForHandoff)) {
+      sanitizedText = sanitizeOcrText(rescuedTextForHandoff);
+      handoffSource = `${handoffSource}:rescued_text_override`;
+    }
+    if (isUselessOcrResponseText(sanitizedText)) {
+      const unusableMessage = 'Scanned PDF text could not be recognized. Please re-save or upload a clearer PDF.';
+      console.warn('[OCR] unusable_ocr_text_detected', {
+        docId,
+        provider: ocrProvider || null,
+        preview: sanitizedText.slice(0, 220),
+      });
+      await finalizeTerminalOcrFailure(sb, {
+        ocrJobId,
+        docId,
+        error: 'unusable_ocr_text',
+        finalStatus: 'failed',
+        errorCode: 'unusable_ocr_text',
+        rejectionReason: unusableMessage,
+      });
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          ok: false,
+          rejected: true,
+          terminal: true,
+          reason: 'failed_or_unusable',
+          status: 'failed',
+          error_code: 'unusable_ocr_text',
+          short_reason: 'Scanned PDF text could not be recognized',
+          primeMessage: unusableMessage,
+          traceId,
+          importRunId,
+        }),
+      };
+    }
     const redactedTextLength = sanitizedText.length;
     const redactedTextHash = redactedTextLength > 0
       ? createHash('sha256').update(sanitizedText).digest('hex')
@@ -2312,6 +2963,12 @@ export const handler: Handler = async (event, context) => {
           importRunId: importRunId || null,
           textLength: textMetrics.length ?? 0,
         });
+        const rescuedPreview = String(rescuedTextForHandoff || '').slice(0, 300);
+        const transientPreview = String(sanitizedText || '').slice(0, 300);
+        console.log('[OCR HANDOFF DEBUG] rescued_text_preview', rescuedPreview);
+        console.log('[OCR HANDOFF DEBUG] transient_text_preview', transientPreview);
+        console.log('[OCR HANDOFF DEBUG] same_text:', rescuedTextForHandoff ? rescuedTextForHandoff === sanitizedText : false);
+        console.log('[OCR HANDOFF DEBUG] handoff_source', handoffSource);
         fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
           method: 'POST',
           headers: {
@@ -2395,6 +3052,7 @@ export const handler: Handler = async (event, context) => {
     }
 
     // Return immediately - Byte can chat while OCR processes
+    ocrSucceeded = true;
     return { 
       statusCode: 200, 
       body: JSON.stringify({ 
@@ -2447,6 +3105,25 @@ export const handler: Handler = async (event, context) => {
     };
   } finally {
     if (stopHeartbeat) stopHeartbeat();
+    if (lockAcquired && lockedDocId && !ocrSucceeded) {
+      try {
+        const sb = admin();
+        const { data: docRow } = await sb
+          .from('user_documents')
+          .select('status')
+          .eq('id', lockedDocId)
+          .maybeSingle();
+        if (String(docRow?.status || '').toLowerCase() === 'ocr_processing') {
+          await setDocumentOcrStatus(sb, lockedDocId, 'failed');
+          await markDocStatus(lockedDocId, 'rejected', 'Unreadable PDF structure. Please re-save this PDF and upload the new copy.');
+        }
+      } catch (cleanupErr: any) {
+        console.warn('[OCR] lock cleanup fallback failed', {
+          docId: lockedDocId,
+          error: cleanupErr?.message || String(cleanupErr),
+        });
+      }
+    }
   }
 };
 

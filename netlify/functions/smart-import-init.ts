@@ -21,9 +21,47 @@ type ExistingDoc = {
 
 const BUCKET = 'docs';
 
+function isOcrLikeMime(mime: string | null | undefined): boolean {
+  const normalized = String(mime || '').toLowerCase();
+  return normalized === 'application/pdf' || normalized.startsWith('image/');
+}
+
+function isOcrLikeFileName(fileName: string | null | undefined): boolean {
+  const normalized = String(fileName || '').toLowerCase().trim();
+  return (
+    normalized.endsWith('.pdf') ||
+    normalized.endsWith('.png') ||
+    normalized.endsWith('.jpg') ||
+    normalized.endsWith('.jpeg') ||
+    normalized.endsWith('.webp') ||
+    normalized.endsWith('.heic')
+  );
+}
+
 function toInt(input: unknown, fallback = 0): number {
   const n = Number(input);
   return Number.isFinite(n) ? n : fallback;
+}
+
+function inferMimeTypeFromFileName(fileName: string | null | undefined): string | null {
+  const lower = String(fileName || '').trim().toLowerCase();
+  if (!lower) return null;
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.heic')) return 'image/heic';
+  if (lower.endsWith('.csv')) return 'text/csv';
+  return null;
+}
+
+function normalizeMimeType(rawMime: string | null | undefined, fileName: string | null | undefined): string {
+  const trimmed = String(rawMime || '').trim().toLowerCase();
+  const inferred = inferMimeTypeFromFileName(fileName);
+  // Force PDF uploads to keep canonical MIME even when callers send generic types.
+  if (inferred === 'application/pdf') return 'application/pdf';
+  if (trimmed && trimmed !== 'application/octet-stream') return trimmed;
+  return inferred || 'application/octet-stream';
 }
 
 function computeUploadHash(args: {
@@ -158,13 +196,17 @@ function buildInitResponse(args: {
   uploadHash: string;
   ocrJobStatus?: string | null;
   hasLiveStorageObject?: boolean | null;
+  forceReupload?: boolean;
 }) {
   const extracted = args.doc.extracted_data || null;
   const confidence = extracted?.confidence?.overall ?? null;
   const hasExtracted = hasExtractedDataSignal(extracted);
   const hasRecordedFileRef = hasFileReference(args.doc);
   const hasFileRef = args.hasLiveStorageObject === false ? false : hasRecordedFileRef;
-  const skipDecision = safeToSkipUpload(args.doc, args.ocrJobStatus || null, hasFileRef);
+  const defaultSkipDecision = safeToSkipUpload(args.doc, args.ocrJobStatus || null, hasFileRef);
+  const skipDecision = args.forceReupload
+    ? { safe: false, reason: 'ocr_reupload_required' }
+    : defaultSkipDecision;
   return {
     docId: args.doc.id,
     document_id: args.doc.id,
@@ -219,7 +261,7 @@ export const handler: Handler = async (event) => {
     }
 
     const sb = admin();
-    const effectiveMime = String(mimeType || mime || 'application/octet-stream');
+    const effectiveMime = normalizeMimeType(mimeType || mime, fileName);
     const normalizedFileSize = toInt(fileSize, 0);
     const normalizedLastModified = toInt(lastModified, 0);
     const uploadHash = computeUploadHash({
@@ -246,7 +288,17 @@ export const handler: Handler = async (event) => {
     if (existingByUploadHash?.id) {
       const ocrJobStatus = await fetchOcrJobStatus(sb, userId, existingByUploadHash.id, existingByUploadHash.content_hash);
       const hasLiveStorageObject = await storageObjectExists(sb, existingByUploadHash.storage_path);
-      const uploadUrl = (existingByUploadHash.status === 'ready' || ocrJobStatus === 'done') && hasLiveStorageObject
+      const forceReupload = isOcrLikeMime(effectiveMime) || isOcrLikeFileName(fileName);
+      if (forceReupload) {
+        // For OCR-backed docs, always create a fresh document row.
+        // Reusing docId can cause stale parsed imports/summaries to leak through.
+      } else {
+      console.log('[smart-import-init] doc_row_reused', {
+        docId: existingByUploadHash.id,
+        sourcePath: 'smart-import-init:upload_hash_reuse',
+        requestId: String(body?.requestId || body?.importRunId || ''),
+      });
+      const uploadUrl = (!forceReupload && (existingByUploadHash.status === 'ready' || ocrJobStatus === 'done') && hasLiveStorageObject)
         ? null
         : await createSignedUrl(sb, existingByUploadHash.storage_path);
 
@@ -260,9 +312,11 @@ export const handler: Handler = async (event) => {
             uploadHash,
             ocrJobStatus,
             hasLiveStorageObject,
+            forceReupload,
           })
         )
       };
+      }
     }
 
     const docId = randomUUID();
@@ -317,9 +371,32 @@ export const handler: Handler = async (event) => {
         .limit(1)
         .maybeSingle();
       if (racedDoc?.id) {
+        if (isOcrLikeMime(effectiveMime) || isOcrLikeFileName(fileName)) {
+          // Keep going so we insert a fresh row without upload_hash (fallback below),
+          // rather than reusing a raced OCR document.
+          delete insertPayload.upload_hash;
+          ({ data: insertedDoc, error: insertError } = await sb
+            .from('user_documents')
+            .insert(insertPayload)
+            .select('*')
+            .single());
+          if (!insertError && insertedDoc) {
+            // Fresh insert recovered; continue normal created response path.
+          } else {
+            // If still colliding, fall back to existing raced doc to avoid hard failure.
+          }
+        }
+      }
+      if (racedDoc?.id && (!insertedDoc || insertError)) {
+        console.log('[smart-import-init] doc_row_reused', {
+          docId: racedDoc.id,
+          sourcePath: 'smart-import-init:race_reuse',
+          requestId: String(body?.requestId || body?.importRunId || ''),
+        });
         const ocrJobStatus = await fetchOcrJobStatus(sb, userId, racedDoc.id, racedDoc.content_hash);
         const hasLiveStorageObject = await storageObjectExists(sb, racedDoc.storage_path);
-        const uploadUrl = (racedDoc.status === 'ready' || ocrJobStatus === 'done') && hasLiveStorageObject
+        const forceReupload = isOcrLikeMime(effectiveMime) || isOcrLikeFileName(fileName);
+        const uploadUrl = (!forceReupload && (racedDoc.status === 'ready' || ocrJobStatus === 'done') && hasLiveStorageObject)
           ? null
           : await createSignedUrl(sb, racedDoc.storage_path);
         return {
@@ -332,6 +409,7 @@ export const handler: Handler = async (event) => {
               uploadHash,
               ocrJobStatus,
               hasLiveStorageObject,
+              forceReupload,
             })
           ),
         };
@@ -345,6 +423,11 @@ export const handler: Handler = async (event) => {
         body: JSON.stringify({ error: 'Failed to create document' })
       };
     }
+    console.log('[smart-import-init] doc_row_created', {
+      docId: insertedDoc.id,
+      sourcePath: 'smart-import-init:create',
+      requestId: String(body?.requestId || body?.importRunId || ''),
+    });
 
     const uploadUrl = await createSignedUrl(sb, storagePath);
     if (!uploadUrl) {
