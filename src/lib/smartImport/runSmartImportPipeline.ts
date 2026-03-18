@@ -69,6 +69,39 @@ function isTerminalRouterOcrFailure(payload: any): boolean {
   );
 }
 
+function toTerminalOcrUserMessage(payload: any, item?: any): string {
+  const details = payload?.details || null;
+  const firstItem = item || (Array.isArray(details?.items) ? details.items[0] : null);
+  const errorCode = String(
+    payload?.error_code ||
+    details?.error_code ||
+    firstItem?.error_code ||
+    ''
+  ).toLowerCase();
+  const error = String(
+    payload?.error ||
+    payload?.primeMessage ||
+    details?.error ||
+    firstItem?.error ||
+    ''
+  ).toLowerCase();
+  if (errorCode === 'unusable_ocr_text' || error.includes('unable to extract any text') || error.includes('blank or empty')) {
+    return 'Scanned PDF text could not be recognized. Please re-save or upload a clearer PDF.';
+  }
+  if (
+    errorCode === 'malformed_pdf' ||
+    error.includes('invalid pdf structure') ||
+    error.includes('bad fcheck') ||
+    error.includes('flate stream') ||
+    error.includes('error e301') ||
+    error.includes('input file corrupted') ||
+    error.includes('no provider returned text')
+  ) {
+    return 'Unreadable PDF structure. Please re-save this PDF and upload the new copy.';
+  }
+  return String(payload?.error || payload?.primeMessage || firstItem?.error || 'OCR processing failed');
+}
+
 const inFlightPipelines = new Map<string, Promise<SmartImportPipelineResult>>();
 
 function buildPreInitPipelineKey(input: SmartImportPipelineInput): string {
@@ -188,7 +221,8 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
   // Some router responses do not have importId until OCR/sync has progressed.
   // In that case, poll OCR status by docId and then run sync directly.
   if (!importId) {
-    const ocrDeadline = Date.now() + 45000;
+    // Scanned PDFs can take significantly longer due to render + OCR fallback.
+    const ocrDeadline = Date.now() + 90000;
     let bestProgressNoImport = 72;
     while (Date.now() < ocrDeadline) {
       const statusRes = await fetch('/.netlify/functions/ocr-job-status', {
@@ -213,7 +247,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
             queued: false,
             via: 'ocr',
             rejected: true,
-            reason: String(statusPayload?.error || statusPayload?.primeMessage || 'terminal_ocr'),
+            reason: toTerminalOcrUserMessage(statusPayload),
           };
         }
         const item = Array.isArray(statusPayload?.items) ? statusPayload.items[0] : null;
@@ -241,7 +275,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
             queued: false,
             via: 'ocr',
             rejected: true,
-            reason,
+            reason: terminalLike ? toTerminalOcrUserMessage(statusPayload, item) : reason,
           };
         }
         if (itemStatus === 'done') {
@@ -262,8 +296,8 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
       body: JSON.stringify({
         userId: input.userId,
         docIds: [documentId],
-        waitForOcrMs: 12000,
-        pollForOcrMs: 300,
+        waitForOcrMs: 60000,
+        pollForOcrMs: 500,
         autoCommit,
         importRunId: input.requestId || `router-sync-${documentId}-${Date.now()}`,
       }),
@@ -281,7 +315,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
     };
   }
 
-  const pollDeadline = Date.now() + 45000;
+  const pollDeadline = Date.now() + 90000;
   let bestProgress = 72;
   while (Date.now() < pollDeadline) {
     const statusRes = await fetch('/.netlify/functions/prime-router', {
@@ -313,7 +347,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
           queued: false,
           via: 'ocr',
           rejected: true,
-          reason: String(statusPayload?.error || statusPayload?.primeMessage || 'terminal_ocr'),
+          reason: toTerminalOcrUserMessage(statusPayload),
         };
       }
       const status = String(statusPayload?.status || '').toLowerCase();
@@ -335,7 +369,7 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
           queued: false,
           via: 'ocr',
           rejected: true,
-          reason,
+          reason: terminalLike ? toTerminalOcrUserMessage(statusPayload) : reason,
         };
       }
       if (status === 'complete') {
@@ -464,8 +498,8 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
           userId: input.userId,
           docIds: [docId],
           // Keep reuse path aligned with canonical flow so OCR has time to finish.
-          waitForOcrMs: 12000,
-          pollForOcrMs: 300,
+          waitForOcrMs: 60000,
+          pollForOcrMs: 500,
           autoCommit: input.source === 'chat' ? false : true,
         }),
       });
@@ -575,7 +609,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
   let reachedTerminalOcrState = false;
 
   // Keep frontend deterministic: poll OCR status for image/PDF-like flow.
-  const pollDeadline = Date.now() + 45000;
+  const pollDeadline = Date.now() + 90000;
   while (Date.now() < pollDeadline) {
     const statusRes = await fetch('/.netlify/functions/ocr-job-status', {
       method: 'POST',
@@ -627,8 +661,8 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
       docIds: [docId],
       // Give OCR enough time to produce text so sync can actually normalize/import.
       // Too-short waits cause "nothing happened" stalls in Prime narration.
-      waitForOcrMs: reachedTerminalOcrState ? 20000 : 12000,
-      pollForOcrMs: 300,
+      waitForOcrMs: 60000,
+      pollForOcrMs: 500,
       autoCommit: input.source === 'chat' ? false : true,
     }),
   });
@@ -649,8 +683,8 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
         body: JSON.stringify({
           userId: input.userId,
           docIds: [docId],
-          waitForOcrMs: 30000,
-          pollForOcrMs: 400,
+          waitForOcrMs: 60000,
+          pollForOcrMs: 500,
           autoCommit: input.source === 'chat' ? false : true,
         }),
       });
@@ -659,6 +693,32 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
       }
     } catch {
       // Best effort only; keep original sync result.
+    }
+  }
+  console.log('[pipeline] syncData at commit point:', JSON.stringify({ importIds: syncData?.importIds, keys: syncData ? Object.keys(syncData) : null }));
+  const allImportIds = Array.isArray(syncData?.importIds) ? syncData.importIds : [];
+  if (allImportIds.length > 0) {
+    for (const importId of allImportIds) {
+      try {
+        await fetch('/.netlify/functions/approve-import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {}),
+          },
+          body: JSON.stringify({ importId, userId: input.userId }),
+        });
+        await fetch('/.netlify/functions/commit-import', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(input.authToken ? { Authorization: `Bearer ${input.authToken}` } : {}),
+          },
+          body: JSON.stringify({ importId, userId: input.userId }),
+        });
+      } catch {
+        // Best effort — sync autoCommit may have already handled this.
+      }
     }
   }
   input.onProgress?.(100);

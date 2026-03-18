@@ -45,7 +45,18 @@ const SYNC_DEBUG_ENABLED =
   String(process.env.VITE_LOG_LEVEL || '').toLowerCase() === 'debug';
 const PREFER_AI_STATEMENTS = process.env.OCR_PREFER_AI_STATEMENTS === '1';
 const OCR_EMPTY_MIN_LEN = Number(process.env.OCR_EMPTY_MIN_LEN || 20);
+const SYNC_DOWNSTREAM_TIMEOUT_MS = Number(process.env.SMART_IMPORT_SYNC_DOWNSTREAM_TIMEOUT_MS || 30000);
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Math.max(1000, timeoutMs));
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export function shouldProceedWithNormalize(input: {
   ocrStatus: string | null | undefined;
@@ -773,7 +784,7 @@ async function ensureNormalized(
     if (OCR_DEBUG_ENABLED) {
       console.log('[smart-import-sync] Triggering normalize-transactions', { documentId });
     }
-    const normalizeRes = await fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
+    const normalizeRes = await fetchWithTimeout(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -786,7 +797,7 @@ async function ensureNormalized(
         ocrTextHash: payload?.ocrTextHash || undefined,
         ocrTextLength: Number.isFinite(Number(payload?.ocrTextLength)) ? Number(payload?.ocrTextLength) : undefined,
       }),
-    });
+    }, SYNC_DOWNSTREAM_TIMEOUT_MS);
     
     if (!normalizeRes.ok) {
       const errorText = await normalizeRes.text();
@@ -970,7 +981,7 @@ export const handler: Handler = async (event) => {
     const waitForOcrMsRaw = Number(body?.waitForOcrMs);
     const pollForOcrMsRaw = Number(body?.pollForOcrMs);
     const waitForOcrMs = Number.isFinite(waitForOcrMsRaw)
-      ? Math.max(0, Math.min(30000, waitForOcrMsRaw))
+      ? Math.max(0, Math.min(60000, waitForOcrMsRaw))
       : 8000;
     const pollForOcrMs = Number.isFinite(pollForOcrMsRaw)
       ? Math.max(100, Math.min(2000, pollForOcrMsRaw))
@@ -1641,7 +1652,7 @@ export const handler: Handler = async (event) => {
           console.log('[APPROVAL] Auto-approved import for autoCommit', { importId, userId });
         }
 
-        const commitRes = await fetch(`${netlifyUrl}/.netlify/functions/commit-import`, {
+        const commitRes = await fetchWithTimeout(`${netlifyUrl}/.netlify/functions/commit-import`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1649,7 +1660,7 @@ export const handler: Handler = async (event) => {
             'x-trace-id': traceId,
           },
           body: JSON.stringify({ importId }),
-        });
+        }, SYNC_DOWNSTREAM_TIMEOUT_MS);
         
         if (commitRes.ok) {
           const commitData = await commitRes.json();
@@ -1742,6 +1753,34 @@ export const handler: Handler = async (event) => {
         warnings: warnings.length > 0 ? warnings : undefined,
         durationMs,
       });
+
+      // --- Approve + Commit ready imports ---
+      if (readyImportIds.length > 0) {
+        const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
+        for (const importId of readyImportIds) {
+          try {
+            await fetch(`${netlifyUrl}/.netlify/functions/approve-import`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-user-id': userId,
+              },
+              body: JSON.stringify({ importId, userId }),
+            });
+            await fetch(`${netlifyUrl}/.netlify/functions/commit-import`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-user-id': userId,
+              },
+              body: JSON.stringify({ importId, userId }),
+            });
+            console.log('[COMMIT] import committed:', importId);
+          } catch (commitErr: any) {
+            console.error('[COMMIT] approve/commit failed:', importId, commitErr?.message || commitErr);
+          }
+        }
+      }
 
       // --- Byte -> Prime announcement ---
       // Uses the existing helper to convert unannounced byte.import.completed events
