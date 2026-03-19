@@ -1,3 +1,4 @@
+console.log('[smart-import-sync] MODULE LOADED', new Date().toISOString());
 /**
  * Smart Import Sync Netlify Function
  * 
@@ -1988,4 +1989,5 @@ export const handler: Handler = async (event) => {
     };
   }
 };
+
 
