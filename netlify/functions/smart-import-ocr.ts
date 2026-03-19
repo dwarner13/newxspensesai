@@ -29,7 +29,6 @@ import {
 import { mergeOcrPages } from './lib/ocr/mergeOcrPages.js';
 import { selectWorstPagesForFallback, shouldEarlyStopScanning } from './lib/ocr/optimizationPolicy.js';
 import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
-import sharp from 'sharp';
 // OpenAI imported dynamically in runOpenAIVisionOcr to avoid init crash
 
 const BUCKET = 'docs';
@@ -1212,6 +1211,7 @@ async function prepareOcrSpaceImagePayload(
   let width = 1600;
   let buffer = originalBuffer;
 
+  const sharp = (await import('sharp')).default;
   try {
     const metadata = await sharp(originalBuffer).metadata();
     if (metadata.width) {
