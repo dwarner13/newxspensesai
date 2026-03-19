@@ -976,7 +976,7 @@ export const handler: Handler = async (event) => {
     const body = JSON.parse(event.body || '{}');
     const { userId, docIds, includeAllAccounts } = body;
     const requestImportRunId = String(body?.importRunId || body?.requestId || '').trim();
-    const autoCommit = body?.autoCommit !== false;
+    const autoCommit = true;
     const traceId: string = body?.traceId || event.headers['x-trace-id'] || event.headers['X-Trace-Id'] || `trace_${Date.now()}`;
     const syncDebug = process.env.SMART_IMPORT_SYNC_DEBUG === '1';
     const waitForOcrMsRaw = Number(body?.waitForOcrMs);
