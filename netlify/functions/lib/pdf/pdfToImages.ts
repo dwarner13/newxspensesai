@@ -1,4 +1,3 @@
-import sharp from 'sharp';
 import os from 'node:os';
 import path from 'node:path';
 import { promises as fs, existsSync, readdirSync } from 'node:fs';
@@ -125,13 +124,12 @@ async function tryGhostscriptRasterize(params: {
     for (let idx = 0; idx < selected.length; idx += 1) {
       const pngPath = path.join(tmpRoot, selected[idx]);
       const pngBuffer = await fs.readFile(pngPath);
-      const imageBuffer = await compressImage(pngBuffer, params.maxImageBytes);
-      const meta = await sharp(pngBuffer).metadata().catch(() => null);
+      const imageBuffer = pngBuffer.length <= params.maxImageBytes ? pngBuffer : await compressImage(pngBuffer, params.maxImageBytes);
       pages.push({
         pageIndex: idx,
         imageBuffer,
-        width: Number(meta?.width || 0),
-        height: Number(meta?.height || 0),
+        width: 0,
+        height: 0,
       });
     }
     console.log('[OCR] ghostscript raster fallback success', {
@@ -187,28 +185,9 @@ function toBufferFromCanvas(canvas: any): Buffer {
 }
 
 async function compressImage(buffer: Buffer, maxBytes: number): Promise<Buffer> {
-  let quality = 85;
-  let width: number | undefined;
-  let output = buffer;
-  const metadata = await sharp(buffer).metadata().catch(() => null);
-  if (metadata?.width) {
-    width = metadata.width;
-  }
-  for (let i = 0; i < 6; i += 1) {
-    output = await sharp(buffer)
-      .rotate()
-      .resize(width ? { width, withoutEnlargement: true } : undefined)
-      .jpeg({ quality })
-      .toBuffer();
-    if (output.length <= maxBytes) {
-      return output;
-    }
-    quality = Math.max(55, quality - 8);
-    if (width && i >= 2) {
-      width = Math.max(1000, Math.round(width * 0.85));
-    }
-  }
-  return output;
+  // Without sharp, return the buffer as-is. The OCR providers accept
+  // oversized images and will downsample server-side if needed.
+  return buffer;
 }
 
 export async function pdfToImages(
