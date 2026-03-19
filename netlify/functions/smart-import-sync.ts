@@ -1554,7 +1554,7 @@ export const handler: Handler = async (event) => {
       }
     }
     
-    console.log('[smart-import-sync] Ready imports', { readyImportIds });
+    console.log('[smart-import-sync] Ready imports', { readyImportIds, autoCommit, anyNormalizeProcessing, blockedByLatestOcrCount: blockedByLatestOcr.length });
     if (readyImportIds.length === 0 && anyNormalizeProcessing) {
       return {
         statusCode: 200,
@@ -1588,7 +1588,9 @@ export const handler: Handler = async (event) => {
       };
     }
 
+    console.log('[smart-import-sync] autoCommit check', { autoCommit, readyImportIds });
     if (!autoCommit) {
+      console.log('[smart-import-sync] EARLY RETURN: autoCommit=false, skipping commit phase', { readyImportIds });
       if (syncDebug) {
         console.log('[smart-import-sync][debug] autoCommit=false, returning ready imports only', { readyImportIds });
       }
@@ -1609,11 +1611,13 @@ export const handler: Handler = async (event) => {
     }
 
     // 3. Commit all ready imports
+    console.log('[smart-import-sync] ENTERING COMMIT PHASE', { readyImportIds, autoCommit });
     let totalTransactionCount = 0;
     const summaries: Record<string, any> = {};
     const issuesByImport: Record<string, any> = {};
     const committedImportIds: string[] = [];
     
+    console.log('[smart-import-sync] commit loop start', { readyImportIds, count: readyImportIds.length });
     for (const importId of readyImportIds) {
       // Check if already committed
       const { data: importRecord } = await sb
@@ -1623,6 +1627,7 @@ export const handler: Handler = async (event) => {
         .eq('user_id', userId)
         .maybeSingle();
       
+      console.log('[smart-import-sync] commit loop item', { importId, status: importRecord?.status || 'NOT_FOUND' });
       if (importRecord?.status === 'committed') {
         const { count: committedCount } = await sb
           .from('transactions')
