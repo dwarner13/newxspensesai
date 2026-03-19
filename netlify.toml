@@ -38,7 +38,7 @@
   timeout = 60
 
 [functions."smart-import-sync"]
-  timeout = q80
+  timeout = 180
 
 [functions."chat"]
   timeout = 60
