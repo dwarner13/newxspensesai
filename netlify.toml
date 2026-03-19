@@ -13,7 +13,8 @@
   # zod-to-json-schema: 435KB, has dist/cjs/index.js — safe to externalize
   # jsdom: used by safe_web_research tool but doesn't bundle well with esbuild
   included_files = ["netlify/functions/_shared/**", "netlify/functions/_lib/**"]
-  external_node_modules = ["openai", "undici", "jsdom", "@mozilla/readability", "pdf-parse", "pdf-lib", "@napi-rs/canvas", "@napi-rs/canvas-win32-x64-msvc", ]
+ external_node_modules = ["undici", "jsdom", "@mozilla/readability", "pdf-parse", "pdf-lib", "@napi-rs/canvas", "@napi-rs/canvas-win32-x64-msvc", ]
+ 
   # NOTE: Environment variables are configured in Netlify Dashboard
   # VITE_ prefixed vars are automatically excluded from functions (frontend-only)
   # To avoid AWS Lambda 4KB env var limit, ensure only necessary vars are set in dashboard
