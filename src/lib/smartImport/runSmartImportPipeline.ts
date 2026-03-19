@@ -185,7 +185,7 @@ async function logPdfUploadProbe(input: SmartImportPipelineInput): Promise<void>
 async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<SmartImportPipelineResult | null> {
   // Prime Router mode A requires multipart/form-data; keep legacy path for base64 callers.
   if (!input.file) return null;
-  const autoCommit = true;
+  const autoCommit = input.source === 'chat' ? false : true;
   await logPdfUploadProbe(input);
 
   input.onProgress?.(10);
@@ -500,7 +500,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
           // Keep reuse path aligned with canonical flow so OCR has time to finish.
           waitForOcrMs: 60000,
           pollForOcrMs: 500,
-          autoCommit: input.source === 'chat' ? false : true,
+          autoCommit: true,
         }),
       });
       if (syncRes.ok) {
@@ -663,7 +663,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
       // Too-short waits cause "nothing happened" stalls in Prime narration.
       waitForOcrMs: 60000,
       pollForOcrMs: 500,
-      autoCommit: input.source === 'chat' ? false : true,
+      autoCommit: true,
     }),
   });
   let syncData = syncRes.ok ? await syncRes.json() : null;
@@ -685,7 +685,7 @@ async function runWithInit(input: SmartImportPipelineInput, init: any, fileSize:
           docIds: [docId],
           waitForOcrMs: 60000,
           pollForOcrMs: 500,
-          autoCommit: input.source === 'chat' ? false : true,
+          autoCommit: true,
         }),
       });
       if (retrySyncRes.ok) {

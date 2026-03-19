@@ -1755,34 +1755,6 @@ export const handler: Handler = async (event) => {
         durationMs,
       });
 
-      // --- Approve + Commit ready imports ---
-      if (readyImportIds.length > 0) {
-        const netlifyUrl = process.env.NETLIFY_URL || 'http://localhost:8888';
-        for (const importId of readyImportIds) {
-          try {
-            await fetch(`${netlifyUrl}/.netlify/functions/approve-import`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-user-id': userId,
-              },
-              body: JSON.stringify({ importId, userId }),
-            });
-            await fetch(`${netlifyUrl}/.netlify/functions/commit-import`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-user-id': userId,
-              },
-              body: JSON.stringify({ importId, userId }),
-            });
-            console.log('[COMMIT] import committed:', importId);
-          } catch (commitErr: any) {
-            console.error('[COMMIT] approve/commit failed:', importId, commitErr?.message || commitErr);
-          }
-        }
-      }
-
       // --- Byte -> Prime announcement ---
       // Uses the existing helper to convert unannounced byte.import.completed events
       // into exactly-once chat_messages in Prime's thread.
