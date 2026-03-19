@@ -371,3 +371,5 @@ scripts/recurring-test/fixtures/**/*.jpeg
 scripts/recurring-test/fixtures/**/*.txt
 scripts/recurring-test/fixtures/**/*.csv
 scripts/recurring-test/fixtures/**/*.json
+secrets/
+*.json

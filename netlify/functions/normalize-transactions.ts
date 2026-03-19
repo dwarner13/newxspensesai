@@ -53,6 +53,35 @@ const NORMALIZE_DEBUG_ENABLED =
   String(process.env.PRIME_DEBUG || '').toLowerCase() === 'true';
 const NETLIFY_DEV_SOFT_TIMEOUT_MS = Number(process.env.NORMALIZE_DEV_SOFT_TIMEOUT_MS || 22000);
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ISSUER_PATTERNS = [
+  { match: /triangle/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /canadian tire/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /ctfs/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /ct financial/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /canadian tire bank/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /world elite mastercard/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /capital one/i, name: 'Capital One' },
+  { match: /td bank|td canada trust/i, name: 'TD Bank' },
+  { match: /rbc|royal bank of canada/i, name: 'RBC' },
+  { match: /scotiabank|bank of nova scotia/i, name: 'Scotiabank' },
+  { match: /cibc/i, name: 'CIBC' },
+  { match: /bmo|bank of montreal/i, name: 'BMO' },
+  { match: /desjardins/i, name: 'Desjardins' },
+  { match: /national bank/i, name: 'National Bank' },
+  { match: /tangerine/i, name: 'Tangerine' },
+  { match: /simplii/i, name: 'Simplii Financial' },
+  { match: /amex|american express/i, name: 'American Express' },
+  { match: /hsbc/i, name: 'HSBC' },
+];
+
+function detectIssuerFromRawText(text: string): string | null {
+  const raw = String(text || '');
+  if (!raw) return null;
+  for (const pattern of ISSUER_PATTERNS) {
+    if (pattern.match.test(raw)) return pattern.name;
+  }
+  return null;
+}
 
 function isMissingColumnError(error: any): boolean {
   const message = String(error?.message || '').toLowerCase();
@@ -97,6 +126,15 @@ function parseStatementSummary(text: string): ExtractedSummary {
   const interestMatch = normalized.match(/Interest Charged\s*\+?\s*\$?([0-9,]+\.\d{2})/i);
   const creditLimitMatch = normalized.match(/Credit Limit\s*\$?([0-9,]+\.\d{2})/i);
   const availableCreditMatch = normalized.match(/Available Credit\s*\$?([0-9,]+\.\d{2})/i);
+  const issuerLineMatch =
+    normalized.match(/(?:issuer|bank|financial institution|card issuer)\s*[:\-]\s*([^\n]{2,80})/i) ||
+    normalized.match(/([A-Z][A-Za-z& ]{2,40})\s+(?:Visa|Mastercard|American Express|Amex)/i);
+  const endingMatch =
+    normalized.match(/ending(?:\s+with|\s+in)?\s+(\d{4})/i) ||
+    normalized.match(/card\s*#\s*[0-9Xx*\- ]*(\d{4})/i) ||
+    normalized.match(/account(?: number)?\s*(?:ending|ending in|#)?\s*[Xx*\- ]*(\d{4})/i);
+
+  const inferIssuerFromText = (): string | undefined => detectIssuerFromRawText(normalized) || undefined;
 
   if (!periodMatch && !newBalanceMatch && !minPaymentMatch) {
     return null;
@@ -104,6 +142,8 @@ function parseStatementSummary(text: string): ExtractedSummary {
 
   return {
     docType: 'statement',
+    institution: (issuerLineMatch?.[1] || inferIssuerFromText() || '').trim() || undefined,
+    account_last4: endingMatch?.[1] || undefined,
     statement_period: periodMatch ? `${periodMatch[1]} - ${periodMatch[2]}` : undefined,
     new_balance: newBalanceMatch ? newBalanceMatch[1] : undefined,
     minimum_payment_due: minPaymentMatch ? minPaymentMatch[1] : undefined,
@@ -115,6 +155,17 @@ function parseStatementSummary(text: string): ExtractedSummary {
     credit_limit: creditLimitMatch ? creditLimitMatch[1] : undefined,
     available_credit: availableCreditMatch ? availableCreditMatch[1] : undefined,
   };
+}
+
+function isLikelyCorruptedText(value: string): boolean {
+  const text = String(value || '');
+  if (!text || text.trim().length < 40) return false;
+  const suspiciousChars = (text.match(/[�\u2500-\u257F\u2580-\u259F]/g) || []).length;
+  const controlChars = (text.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g) || []).length;
+  const alphaChars = (text.match(/[A-Za-z]/g) || []).length;
+  const ratioNoise = (suspiciousChars + controlChars) / text.length;
+  const ratioAlpha = alphaChars / text.length;
+  return ratioNoise > 0.08 || ratioAlpha < 0.18;
 }
 
 /**
@@ -240,8 +291,15 @@ function extractStatementMetaFromDoc(doc: UserDocumentRow, ocrInputText: string)
   ).trim();
   const accountDigits = accountRaw.replace(/\D/g, '');
   const accountLast4 = accountDigits ? accountDigits.slice(-4) : null;
+  const issuerFromText = detectIssuerFromRawText(ocrInputText);
   const issuerCandidate = String(
-    extracted?.issuer || extracted?.institution || extracted?.bank || extracted?.card || extracted?.card_name || ''
+    issuerFromText ||
+      extracted?.issuer ||
+      extracted?.institution ||
+      extracted?.bank ||
+      extracted?.card ||
+      extracted?.card_name ||
+      ''
   ).trim();
   return {
     periodStart,
@@ -466,6 +524,14 @@ async function processNormalizationInBackground(
         textLength: guardedOcrInputText.length,
         textHash: options?.transientOcrTextHash || docTextHash,
         structuredTextLength: docTextLength,
+      });
+    }
+    if (transientTextPathActive && isLikelyCorruptedText(guardedOcrInputText)) {
+      console.warn('[Byte OCR WARNING] transient_text_is_corrupted', {
+        documentId,
+        source: 'transient_ocrText',
+        textLength: guardedOcrInputText.length,
+        preview: guardedOcrInputText.slice(0, 300),
       });
     }
 
@@ -753,9 +819,14 @@ async function processNormalizationInBackground(
 
     // Try OCR text parsing first (if OCR text exists)
     if (hasOcrText) {
+      const sourceTextPath = transientTextPathActive
+        ? 'transient_ocrText'
+        : (docTextLength > 0 ? 'persisted_ocr_text' : (hasExtractedData ? 'extracted_data' : 'unknown'));
       normalizedTransactions = await normalizeOcrResult(guardedOcrInputText, userIdText, openaiClient, {
         filename: doc.original_name || '',
         includeAllAccounts: options?.includeAllAccounts,
+        sourceTextPath,
+        sourceValueType: typeof options?.transientOcrText,
       });
     }
 
@@ -864,13 +935,14 @@ async function processNormalizationInBackground(
       }
 
       const rawAmount = Number(tx.amount || 0);
-      const normalizedAmount = Math.abs(rawAmount);
       const isCreditCardStatement = (tx as any).statementType === 'credit_card';
       const isCreditCardCredit = Boolean((tx as any).statementCredit);
-      const type = tx.kind === 'bank'
-        ? (isCreditCardStatement && isCreditCardCredit ? 'expense' : (rawAmount < 0 ? 'expense' : 'income'))
-        : 'expense';
-
+      const typeLabel = isCreditCardCredit
+        ? 'Payment'
+        : (tx.kind === 'bank'
+            ? (rawAmount < 0 ? 'Purchase' : 'Credit')
+            : 'Purchase');
+      const normalizedAmount = isCreditCardCredit ? -Math.abs(rawAmount) : Math.abs(rawAmount);
       return {
         import_id: importRecord.id,
         user_id: userIdText,
@@ -880,9 +952,10 @@ async function processNormalizationInBackground(
           merchant: tx.merchant,
           description: description,
           amount: normalizedAmount,
-          type,
+          type: typeLabel,
           currency: tx.currency || 'CAD',
           category: null,
+          fx_note: (tx as any).fxNote || null,
           confidence: (tx as any).confidence ?? null,
           confidence_flags: (tx as any).confidenceFlags ?? null,
           account_name: (tx as any).accountName ?? null,
@@ -959,6 +1032,9 @@ async function processNormalizationInBackground(
     };
     const rawSummary = parseStatementSummary(guardedOcrInputText) || {};
     const parsedAccountSummary = {
+      institution: String(rawSummary.institution || '').trim() || null,
+      account_last4: String(rawSummary.account_last4 || '').trim() || null,
+      statement_period: String(rawSummary.statement_period || '').trim() || null,
       previous_balance: toMoney(rawSummary.previous_balance),
       new_balance: toMoney(rawSummary.new_balance),
       minimum_payment_due: toMoney(rawSummary.minimum_payment_due),

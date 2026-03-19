@@ -8,6 +8,7 @@
 import { createContext, useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 import type { PrimeState } from '../types/prime-state';
+import { QUIET_MODE } from '../lib/quietMode';
 
 export const PrimeContext = createContext<PrimeState | null>(null);
 const DEBUG = import.meta.env.DEV && (import.meta.env.VITE_DEBUG_PRIME_STATE === 'true' || import.meta.env.VITE_DEBUG_PRIME_STATE === '1');
@@ -102,6 +103,11 @@ export function PrimeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (QUIET_MODE) {
+      setIsLoading(false);
+      return;
+    }
+
     if (!ready || !userId) {
       setIsLoading(false);
       lastUserIdRef.current = null;
@@ -111,22 +117,32 @@ export function PrimeProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     fetchPrimeState(userId, { force: true });
 
-    const intervalId = setInterval(() => {
-      if (document.hidden) return;
-      fetchPrimeState(userId);
-    }, 60000);
-
-    const handleVisibility = () => {
-      if (!document.hidden) {
+    if (!QUIET_MODE) {
+      const intervalId = setInterval(() => {
+        if (document.hidden) return;
         fetchPrimeState(userId);
-      }
-    };
+      }, 60000);
 
-    document.addEventListener('visibilitychange', handleVisibility);
+      const handleVisibility = () => {
+        if (!document.hidden) {
+          fetchPrimeState(userId);
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibility);
+
+      return () => {
+        clearInterval(intervalId);
+        document.removeEventListener('visibilitychange', handleVisibility);
+        if (inFlightRef.current) {
+          inFlightRef.current.abort();
+          inFlightRef.current = null;
+          inFlightUserIdRef.current = null;
+        }
+      };
+    }
 
     return () => {
-      clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibility);
       if (inFlightRef.current) {
         inFlightRef.current.abort();
         inFlightRef.current = null;

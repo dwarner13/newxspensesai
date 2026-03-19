@@ -18,6 +18,7 @@ export const ROUTE_TO_FEATURE_KEY: Record<string, FeatureKey> = {
   '/dashboard/smart-import-ai': 'smart_import_ai',
   '/dashboard/ai-chat-assistant': 'ai_chat_assistant',
   '/dashboard/smart-categories': 'smart_categories',
+  '/dashboard/ai-results': 'reports',
   '/dashboard/analytics-ai': 'analytics_ai',
   '/dashboard/transactions': 'transactions',
   '/dashboard/bank-accounts': 'bank_accounts',

@@ -1,5 +1,3 @@
-console.log("GUARDRAILS_HEALTH_BUILD_MARKER=2025-12-27_STACK_ON");
-
 /**
  * Guardrails Health Check Hook
  * 
@@ -8,6 +6,7 @@ console.log("GUARDRAILS_HEALTH_BUILD_MARKER=2025-12-27_STACK_ON");
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { QUIET_MODE } from '../lib/quietMode';
 
 export interface GuardrailsHealthStatus {
   status: 'active' | 'degraded' | 'offline';
@@ -31,6 +30,24 @@ export function useGuardrailsHealth(isOpen: boolean, pollIntervalMs: number = 30
   const effectivePollMs = Math.max(pollIntervalMs, 60000);
 
   const checkHealth = useCallback(async () => {
+    // Quiet mode: skip backend polling to reduce local dev function pressure.
+    if (QUIET_MODE) {
+      const fallback: GuardrailsHealthStatus = {
+        status: 'active',
+        checks: {
+          moderation: true,
+          pii_masking: true,
+          logging: true,
+        },
+        last_check_at: new Date().toISOString(),
+        version: 'dev-quiet',
+      };
+      setHealth((prev) => prev ?? fallback);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
     if (document.hidden) {
       return;
     }

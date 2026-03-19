@@ -58,8 +58,10 @@ import { onBus, emitBus } from '../../lib/bus';
 import { usePostImportHandoff } from '../../hooks/usePostImportHandoff';
 import { PrimeSummaryReadyStrip } from './PrimeSummaryReadyStrip';
 import { useByteImportCompletion } from '../../hooks/useByteImportCompletion';
+import { useTagChatActions } from '../../hooks/useTagChatActions';
 import { log, debug, warn, error as logError } from '../../lib/logger';
 import { isPostImportTriggersDisabled, isPrimeUploadNarrationEnabled } from '../../lib/featureFlags';
+import { fetchPrimeSummarySingleFlight } from '../../lib/ai/primeSummaryClient';
 import {
   buildProgressStagesFromTruth,
   buildUnifiedRecapFromTruth,
@@ -254,7 +256,11 @@ export default function UnifiedAssistantChat({
   
   // CRITICAL: Track if user is near bottom for auto-scroll during streaming
   const [isNearBottomState, setIsNearBottomState] = useState(true);
-  const [chatBottomPaddingPx, setChatBottomPaddingPx] = useState(96);
+  // PrimeSlideoutShell already reserves footer space in layout flow.
+  // Keep only a small message-list gutter so the final message sits near the input,
+  // instead of floating in the middle when footer cards grow taller.
+  const MESSAGE_LIST_BOTTOM_GUTTER_PX = 20;
+  const [chatBottomPaddingPx, setChatBottomPaddingPx] = useState(MESSAGE_LIST_BOTTOM_GUTTER_PX);
   const scrollContainerElementRef = useRef<HTMLElement | null>(null); // Actual scroll container (found via DOM traversal)
   
   // Import summaries keyed by importId — accumulated across multiple uploads so Prime can
@@ -279,6 +285,7 @@ export default function UnifiedAssistantChat({
   const userJustSentRef = useRef(false);
   const autoPinToBottomRef = useRef(true);
   const forceAutoPinUntilRef = useRef(0);
+  const userScrollLockUntilRef = useRef(0);
   const scrollDebugEnabled = String(import.meta.env.VITE_LOG_LEVEL || '').toLowerCase() === 'debug';
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const isPrimeChatRevampEnabled = import.meta.env.VITE_PRIME_CHAT_REVAMP === '1';
@@ -287,7 +294,10 @@ export default function UnifiedAssistantChat({
     if (typeof window === 'undefined') return false;
     if (import.meta.env.VITE_PRIME_CHAT_REVAMP !== '1') return false;
     try {
-      return window.localStorage.getItem(PRIME_CHAT_WIDE_STORAGE_KEY) === '1';
+      const stored = window.localStorage.getItem(PRIME_CHAT_WIDE_STORAGE_KEY);
+      // Default to wide mode unless the user explicitly collapsed it.
+      if (stored === null) return true;
+      return stored === '1';
     } catch {
       return false;
     }
@@ -326,7 +336,9 @@ export default function UnifiedAssistantChat({
   const primeBatchInstructionRef = useRef<Map<string, string>>(new Map());
   const primeFinalStreamTimersRef = useRef<Map<string, number>>(new Map());
   const primeNarrationFinalizedImportIdsRef = useRef<Set<string>>(new Set());
+  const primeHiddenMessageSentRef = useRef<Set<string>>(new Set());
   const primeFinalSummaryTextByImportRef = useRef<Record<string, string>>({});
+  const primeFinalInjectionInFlightImportIdsRef = useRef<Set<string>>(new Set());
   const byteParseStatusSentRef = useRef<Set<string>>(new Set());
   const tagCompleteStatusSentRef = useRef<Set<string>>(new Set());
   const primeProcessingTimeoutRef = useRef<number | null>(null);
@@ -522,7 +534,11 @@ export default function UnifiedAssistantChat({
         // Map employee slug to employee_key
         const employeeKey = resolveEmployeeKey(effectiveEmployeeSlug);
         
-        if (import.meta.env.DEV && !devHistoryClearRef.current) {
+        const shouldClearHistoryOnOpenForDebug =
+          import.meta.env.DEV &&
+          (import.meta.env.VITE_CLEAR_CHAT_HISTORY_ON_OPEN === '1' ||
+            import.meta.env.VITE_CLEAR_CHAT_HISTORY_ON_OPEN === 'true');
+        if (shouldClearHistoryOnOpenForDebug && !devHistoryClearRef.current) {
           devHistoryClearRef.current = true;
           try {
             const session = await supabase.auth.getSession();
@@ -544,6 +560,11 @@ export default function UnifiedAssistantChat({
             localStorage.removeItem(storageKey);
             localStorage.removeItem(legacyKey);
           } catch {}
+        } else if (import.meta.env.DEV && !devHistoryClearRef.current) {
+          devHistoryClearRef.current = true;
+          if (import.meta.env.VITE_DEBUG_CHAT === 'true' || import.meta.env.VITE_DEBUG_CHAT === '1') {
+            log('[UnifiedAssistantChat] Preserving chat history on open (debug clear disabled).');
+          }
         }
 
         // First, try to get thread_id from localStorage (faster, avoids DB call)
@@ -1040,6 +1061,22 @@ export default function UnifiedAssistantChat({
   const [showGreetingTypingState, setShowGreetingTypingState] = useState(false);
   const [greetingText, setGreetingText] = useState('');
   const [typedGreeting, setTypedGreeting] = useState('');
+
+  // Listen for internal Prime UI actions (like sending a hidden summary prompt)
+  useEffect(() => {
+    return onBus('prime_ui_action', async (payload: any) => {
+      if (payload?.action === 'send_hidden_message' && payload?.content) {
+        if (import.meta.env.DEV) {
+          log('[UnifiedAssistantChat] Received prime_ui_action to send hidden message');
+        }
+        try {
+          await sendMessage(payload.content, { hidden: true });
+        } catch (err) {
+          warn('[UnifiedAssistantChat] Failed to send hidden message from prime_ui_action:', err);
+        }
+      }
+    });
+  }, [sendMessage]);
   const [primeGreetingData, setPrimeGreetingData] = useState<PrimeGreetingData | null>(null);
   const greetingCompletedRef = useRef(false);
   const userClosedRef = useRef(false); // Only clear greeting on explicit user close
@@ -1205,7 +1242,7 @@ export default function UnifiedAssistantChat({
   const uploadCircleLabel =
     uploadStatusMessage ||
     (queuedUploadCount > 0 && !isUploadingAttachments
-      ? `Upload queued (${queuedUploadCount})`
+      ? `Uploading (${queuedUploadCount})`
       : uploadStep === 'uploading'
         ? 'Upload received. Starting processing...'
         : uploadStep === 'processing'
@@ -1252,7 +1289,16 @@ export default function UnifiedAssistantChat({
 
   // Hook: Check if Tag is active
   const isTag = normalizedSlug === 'tag-ai';
-  
+
+  // Hook: Tag chat actions (preview → confirm → commit)
+  const {
+    pendingPreview,
+    isProcessing: isTagActionProcessing,
+    handleTagMessage,
+    confirmAction,
+    cancelAction,
+  } = useTagChatActions();
+
   // Hook: Byte upload hook - MUST be called unconditionally before early return
   const {
     isUploading: isByteUploading,
@@ -1272,6 +1318,8 @@ export default function UnifiedAssistantChat({
   const inFlightTurnRef = useRef(false);
   const streamStartedRef = useRef(false);
   const typingStallTimeoutRef = useRef<number | null>(null);
+  const streamRecoveryTimeoutRef = useRef<number | null>(null);
+  const [showStreamRecoveryCard, setShowStreamRecoveryCard] = useState(false);
   const [handoffNoteMessage, setHandoffNoteMessage] = useState<ChatMessage | null>(null);
   const handoffConsumedRef = useRef<Set<string>>(new Set());
 
@@ -1663,6 +1711,7 @@ export default function UnifiedAssistantChat({
 
   // Scroll-to-bottom helper (ChatGPT-style, uses scroll container + marker)
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto', force = false) => {
+    if (Date.now() < userScrollLockUntilRef.current) return;
     const shouldFollowActiveTurn =
       (isStreaming || isAssistantReplyPending || isUploadingAttachments || isPrimeSummaryPending) &&
       (userIsNearBottomRef.current || autoPinToBottomRef.current);
@@ -1696,32 +1745,12 @@ export default function UnifiedAssistantChat({
     setIsNearBottomState,
   ]);
 
-  // Keep message list bottom padding in sync with the sticky footer height.
-  // This prevents the newest message from getting visually stuck behind the input bar.
+  // Keep a small fixed bottom gutter for readability.
+  // NOTE: The shell footer does not overlap the scroll area, so footer-height padding
+  // causes large empty space and makes newest messages appear too high.
   useLayoutEffect(() => {
     if (!isOpen) return;
-    const footer = inputFooterRef.current;
-    if (!footer) return;
-
-    const recomputePadding = () => {
-      const footerHeight = Math.ceil(footer.getBoundingClientRect().height || 0);
-      const next = Math.max(96, Math.min(300, footerHeight + 20));
-      setChatBottomPaddingPx(next);
-    };
-
-    recomputePadding();
-
-    let footerResizeObserver: ResizeObserver | null = null;
-    if (typeof ResizeObserver !== 'undefined') {
-      footerResizeObserver = new ResizeObserver(() => recomputePadding());
-      footerResizeObserver.observe(footer);
-    }
-
-    window.addEventListener('resize', recomputePadding);
-    return () => {
-      footerResizeObserver?.disconnect();
-      window.removeEventListener('resize', recomputePadding);
-    };
+    setChatBottomPaddingPx(MESSAGE_LIST_BOTTOM_GUTTER_PX);
   }, [isOpen]);
 
   useEffect(() => {
@@ -1765,6 +1794,7 @@ export default function UnifiedAssistantChat({
     }, 100);
   }, [summaryForByte?.importId, summaryForByte?.content, summaryOverrides, isByte, smartImport.lastUploadSummary?.transactionCount, scrollToBottom]);
 
+  const primeSummaryPollInflightRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!isByte || !summaryForByte?.importId) return;
     const importId = summaryForByte.importId;
@@ -1772,39 +1802,41 @@ export default function UnifiedAssistantChat({
     const isGeneric = content.includes('ready for your review') ||
       content.includes('categorized results and insights are available');
     if (!isGeneric || summaryOverrides[importId]) return;
+    if (primeSummaryPollInflightRef.current.has(importId)) return;
+    primeSummaryPollInflightRef.current.add(importId);
     let cancelled = false;
-    let attempts = 0;
-    const poll = async () => {
-      attempts += 1;
+    void (async () => {
       try {
-        const response = await fetch('/.netlify/functions/prime-summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            importId,
-            docId: smartImport.lastUploadSummary?.docIds?.[0],
-            userId,
-          }),
-        });
-        if (response.ok) {
-          const payload = await response.json();
-          const summary = typeof payload?.summary === 'string' ? payload.summary : '';
-          if (summary && !summary.includes('ready for your review')) {
-            if (cancelled) return;
-            setSummaryOverrides((prev) => ({ ...prev, [importId]: summary }));
-            return;
+        for (let attempts = 0; attempts < 10 && !cancelled; attempts += 1) {
+          try {
+            const { summary } = await fetchPrimeSummarySingleFlight({
+              importId,
+              docId: smartImport.lastUploadSummary?.docIds?.[0],
+              userId,
+            });
+            const summaryText = String(summary || '').trim();
+            const summaryIsGeneric =
+              summaryText.includes('ready for your review') ||
+              summaryText.includes('categorized results and insights are available');
+            if (summaryText && !summaryIsGeneric) {
+              if (cancelled) return;
+              setSummaryOverrides((prev) => ({ ...prev, [importId]: summaryText }));
+              return;
+            }
+          } catch {
+            // no-op
+          }
+          if (!cancelled && attempts < 9) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
         }
-      } catch {
-        // no-op
+      } finally {
+        primeSummaryPollInflightRef.current.delete(importId);
       }
-      if (!cancelled && attempts < 10) {
-        setTimeout(poll, 2000);
-      }
-    };
-    poll();
+    })();
     return () => {
       cancelled = true;
+      primeSummaryPollInflightRef.current.delete(importId);
     };
   }, [isByte, summaryForByte?.importId, summaryForByte?.content, summaryOverrides, userId]);
 
@@ -2030,17 +2062,8 @@ export default function UnifiedAssistantChat({
     const handleScroll = () => {
       const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
       const nearBottom = distanceFromBottom < NEAR_BOTTOM_PX;
-      const shouldHardPinToBottom =
-        isUploadingAttachments || isPrimeSummaryPending || isAssistantReplyPending || isStreaming ||
-        Date.now() < forceAutoPinUntilRef.current;
-      if (shouldHardPinToBottom && !nearBottom) {
-        autoPinToBottomRef.current = true;
-        userScrolledUpRef.current = false;
-        requestAnimationFrame(() => {
-          container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
-        });
-        return;
-      }
+      // Never force-repin from inside a user scroll event. This keeps manual
+      // scroll-up reliable even during upload/summary progress updates.
       setIsNearBottomState(nearBottom);
       userIsNearBottomRef.current = nearBottom;
       userScrolledUpRef.current = !nearBottom;
@@ -2058,9 +2081,14 @@ export default function UnifiedAssistantChat({
       // scrolls far away from the bottom.
       if (nearBottom) {
         autoPinToBottomRef.current = true;
+        userScrollLockUntilRef.current = 0;
       } else {
-        // Respect manual scroll-up immediately; do not force pin during long processing states.
+        // Respect manual scroll-up immediately; cancel any force-pin timers/loops
+        // so the UI never "shakes" back to bottom while user is reading older text.
         autoPinToBottomRef.current = false;
+        forceAutoPinUntilRef.current = 0;
+        userJustSentRef.current = false;
+        userScrollLockUntilRef.current = Date.now() + 120000;
       }
     };
 
@@ -2408,6 +2436,7 @@ export default function UnifiedAssistantChat({
     primeBatchInstructionRef.current.clear();
     primeNarrationFinalizedImportIdsRef.current.clear();
     primeFinalSummaryTextByImportRef.current = {};
+    primeFinalInjectionInFlightImportIdsRef.current.clear();
     byteParseStatusSentRef.current.clear();
     tagCompleteStatusSentRef.current.clear();
     primeTimedOutBatchKeysRef.current.clear();
@@ -2542,10 +2571,34 @@ export default function UnifiedAssistantChat({
     }
   }, [buildAuthHeaders, clearPrimeUploadLocalState, isResettingUploads, smartImport.resetUploadState, userId]);
 
+  const handleCancelPrimeUploads = useCallback(() => {
+    const queueItems = Array.isArray(smartImport.uploadQueue?.items) ? smartImport.uploadQueue.items : [];
+    const cancellable = queueItems.filter(
+      (item) => item.status === 'pending' || item.status === 'uploading' || item.status === 'processing'
+    );
+    if (cancellable.length === 0) {
+      toast('No active uploads to cancel');
+      return;
+    }
+    cancellable.forEach((item) => {
+      smartImport.uploadQueue?.cancel?.(item.id);
+    });
+    setUploadStatus('error');
+    setUploadStatusMessage('Upload cancelled by user.');
+    setPrimeNarrationText('Upload cancelled. You can re-upload files anytime.');
+    toast.success(`Cancelled ${cancellable.length} upload${cancellable.length === 1 ? '' : 's'}.`);
+  }, [smartImport.uploadQueue?.items, smartImport.uploadQueue?.cancel]);
+
   const isPrimeBatchCloseIntent = useCallback((value: string) => {
     const text = value.trim().toLowerCase();
     if (!text) return false;
     return /(that'?s it|thats it|no more (docs|documents|files)|done uploading|finished uploading|all done uploading|close (the )?batch|nope that'?s it)/i.test(text);
+  }, []);
+
+  const isPrimeApprovalAffirmation = useCallback((value: string) => {
+    const text = String(value || '').trim().toLowerCase();
+    if (!text) return false;
+    return /^(yes|yes please|yep|yup|sure|ok|okay|go ahead|do it|approve|commit|please do)$/i.test(text);
   }, []);
 
   const utilityActions = null;
@@ -2852,7 +2905,7 @@ export default function UnifiedAssistantChat({
 
   // Strip common BMO/bank OCR prefixes and suffixes from merchant description strings
   const cleanMerchantName = (raw: string): string => {
-    let s = raw.trim();
+    let s = raw.replace(/[\r\n]+/g, ' ').trim();
     // Strip leading transaction-type prefixes (BMO, TD, RBC, etc.)
     s = s.replace(/^(?:debit\s+card\s+purchase|point\s+of\s+sale(?:\s+purchase)?)[,\s-]+/i, '');
     s = s.replace(/^pre-?authorized\s+payment\s+no\s+fee[,\s]+/i, '');
@@ -3264,9 +3317,9 @@ export default function UnifiedAssistantChat({
       const scrollEndTimeMulti = Date.now() + 10000;
       forceAutoPinUntilRef.current = scrollEndTimeMulti;
       autoPinToBottomRef.current = true;
-      userScrolledUpRef.current = false;
       userIsNearBottomRef.current = true;
       const hardScrollMulti = () => {
+        if (userScrolledUpRef.current || Date.now() < userScrollLockUntilRef.current) return;
         if (messagesEndRef.current) {
           messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
         } else {
@@ -3277,7 +3330,12 @@ export default function UnifiedAssistantChat({
       requestAnimationFrame(hardScrollMulti);
       requestAnimationFrame(() => requestAnimationFrame(hardScrollMulti));
       const scrollIntervalMulti = window.setInterval(() => {
-        if (Date.now() > scrollEndTimeMulti || forceAutoPinUntilRef.current === 0) {
+        if (
+          Date.now() > scrollEndTimeMulti ||
+          forceAutoPinUntilRef.current === 0 ||
+          userScrolledUpRef.current ||
+          Date.now() < userScrollLockUntilRef.current
+        ) {
           window.clearInterval(scrollIntervalMulti);
           return;
         }
@@ -3398,69 +3456,55 @@ export default function UnifiedAssistantChat({
     const spendingTeaser = spendingTeaserPatterns.length > 0
       ? `Everything's uncategorized right now — but I can already spot ${spendingTeaserPatterns.join(', ')} in your merchants. Head to Smart Categories to tag your transactions and I'll show you the full breakdown.`
       : "Everything's uncategorized right now. Head to Smart Categories to tag your transactions — once you do, I'll break down exactly where the rest went.";
+    // Build the hidden instruction payload for Prime. 
+    // We send this as a hidden message to trigger the Prime AI response based on the CEO template
+    const statementLabel = statementHeader.substring(0, 80);
+    const hiddenInstruction = [
+      `System: A new statement ("${statementLabel}") has just been imported and normalized.`,
+      `Summarize it using the PRIME DOCUMENT SUMMARY TEMPLATE (sections: Summary, Key details, Transactions, Issues).`,
+      `ONLY use the data below — never invent values. If a field is missing, mark as unknown or omit.`,
+      ``,
+      `STATEMENT FINANCIAL DATA:`,
+      bd ? `- Total added (income): $${fmtAmt(bd.totalIncome)}` : '',
+      bd ? `- Total deducted (spend): $${fmtAmt(bd.totalSpend)}` : '',
+      bd && bd.totalIncome > 0 ? `- Net cash flow: $${fmtAmt(bd.totalIncome - bd.totalSpend)} (${bd.totalIncome - bd.totalSpend >= 0 ? 'positive' : 'negative'})` : '',
+      bd && bd.topIncomeSources.length > 0
+        ? `- Income sources: ${bd.topIncomeSources.map(s => `${s.merchant}${s.count > 1 ? ` (${s.count}×)` : ''} $${fmtAmt(s.amt)}`).join(', ')}`
+        : '',
+      bd && cleanMerchants.length > 0
+        ? `- Top payees: ${cleanMerchants.map(m => `${m.merchant} $${fmtAmt(m.amt)}`).join(', ')}`
+        : '',
+      categorizedCats.length > 0
+        ? `- Top categories: ${categorizedCats.map(c => `${c.cat} $${fmtAmt(c.amt)}`).join(', ')}`
+        : '',
+      `- Transaction count: ${params.transactionCount ?? bd?.txCount ?? 'Unknown'}`,
+      tagNarrative ? `- Categorization: ${tagNarrative}` : '',
+      requestedInstruction ? `- User requested focus: ${requestedInstruction}` : ''
+    ].filter(Boolean).join('\n');
 
-    // Build narrative prose (empty string = paragraph break)
-    const lines = [
-      // Opening: name + in/out/net
-      `${userLabel ? `${userLabel}, ` : ''}here's your statement${bd ? ` — ${netSentence}` : '.'}`,
-
-      // Income sources (where the money came from)
-      ...(incomeSentence ? ['', incomeSentence] : []),
-
-      // Top obligations (biggest payees with total + %)
-      ...(obligationsSentence ? ['', obligationsSentence] : []),
-
-      // Categorization status or category breakdown
-      '',
-      allUncategorized ? spendingTeaser : tagSummary,
-
-      // Categories (categorized case only)
-      ...(catSentence ? ['', catSentence] : []),
-
-      // Custom instruction (if any)
-      ...(requestedInstruction ? ['', `Note: ${requestedInstruction}.`] : []),
-
-      // Closing question
-      '',
-      allUncategorized
-        ? "Anything specific you'd like me to dig into — the debt picture, those outgoing transfers, or the wellness spend?"
-        : "Anything specific you'd like me to dig into?",
-    ];
-    // Accumulate this document's breakdown into the per-importId map so Prime can discuss
-    // each uploaded statement independently in follow-up questions.
-    if (bd) {
-      setImportSummariesForPrime((prev) => ({
-        ...prev,
-        [params.importId]: {
-          label: statementHeader.substring(0, 80), // e.g. "BMO February 2026"
-          totalSpend: bd.totalSpend,
-          totalIncome: bd.totalIncome,
-          txCount: bd.txCount,
-          topCategories: bd.topCategories.map(({ cat, amt }) => ({ name: cat, amount: amt })),
-          topMerchants: bd.topMerchants.map(({ merchant, amt }) => ({ name: merchant, amount: amt })),
-          displayedAt: new Date().toISOString(),
-        },
-      }));
+    // Dedup: only send the hidden summary request ONCE per importId
+    if (primeHiddenMessageSentRef.current.has(params.importId)) {
+      // Already sent for this import in the current session.
+    } else {
+      primeHiddenMessageSentRef.current.add(params.importId);
+      emitBus('prime_ui_action', {
+        action: 'send_hidden_message',
+        content: hiddenInstruction
+      });
     }
+
     clearLegacyImportRecap();
-    streamPrimeFinalMessage({
-      messageId,
-      content: lines.join('\n'),
-      importId: params.importId,
-      batchKey: params.batchKey,
-      transactionCount: params.transactionCount ?? bd?.txCount ?? null,
-      needsReviewCount: params.needsReviewCount ?? null,
-      focusMerchants: cleanMerchants.slice(0, 4).map((row) => row.merchant),
-    });
+    // Do not call streamPrimeFinalMessage, we want the real AI to type out the response
+
     // Hard-pin scroll for the typing animation (~8-10 s).
     // Direct interval bypasses every conditional guard in scrollToBottom —
     // the only way to reliably follow TypingMessage as it grows.
     const scrollEndTime = Date.now() + 10000;
     forceAutoPinUntilRef.current = scrollEndTime;
     autoPinToBottomRef.current = true;
-    userScrolledUpRef.current = false;
     userIsNearBottomRef.current = true;
     const hardScroll = () => {
+      if (userScrolledUpRef.current || Date.now() < userScrollLockUntilRef.current) return;
       // scrollIntoView lets the browser find the scrollable ancestor — more
       // reliable than scrollTo on a specific container ref.
       if (messagesEndRef.current) {
@@ -3475,7 +3519,12 @@ export default function UnifiedAssistantChat({
     requestAnimationFrame(() => requestAnimationFrame(hardScroll));
     // Keep scrolling every 80 ms while the typing animation runs
     const scrollInterval = window.setInterval(() => {
-      if (Date.now() > scrollEndTime || forceAutoPinUntilRef.current === 0) {
+      if (
+        Date.now() > scrollEndTime ||
+        forceAutoPinUntilRef.current === 0 ||
+        userScrolledUpRef.current ||
+        Date.now() < userScrollLockUntilRef.current
+      ) {
         window.clearInterval(scrollInterval);
         return;
       }
@@ -3603,10 +3652,14 @@ export default function UnifiedAssistantChat({
       if (isPrimeNarrationEnabled && batchKey) {
         const totalDocs = Math.max(eligibleFiles.length, importIdsForBatch.length || 0);
         const completedDocs = importIdsForBatch.filter((id) => primeNarrationFinalizedImportIdsRef.current.has(id)).length;
+        const userLabel = (firstName || '').trim();
+        const progressText = totalDocs <= 1
+          ? `${userLabel ? `${userLabel}, ` : ''}I’m on it — reviewing your statement now. I’ll share your summary in a moment.`
+          : `${userLabel ? `${userLabel}, ` : ''}I’m reviewing ${totalDocs} files now (${completedDocs}/${totalDocs} ready). I’ll share each summary as it finishes.`;
         upsertPrimeUploadNarration({
           batchKey,
           importId: importIdsForBatch[0] || smartImport.lastUploadSummary?.importId,
-          text: `Byte pipeline active for ${totalDocs || 1} file${(totalDocs || 1) === 1 ? '' : 's'}. Completed ${completedDocs} of ${totalDocs || 1}.`,
+          text: progressText,
           stages: {
             byte: 'done',
             tag: 'active',
@@ -3657,6 +3710,7 @@ export default function UnifiedAssistantChat({
     mintPrimeBatchKey,
     persistPrimeBatchState,
     isPrimeNarrationEnabled,
+    firstName,
     uploadActorLabels,
     upsertPrimeUploadNarration,
   ]);
@@ -3761,6 +3815,12 @@ export default function UnifiedAssistantChat({
     let text = `Step 1 of 3: Upload received. Step 2 of 3: ${uploadActorLabels.reader} is extracting transactions from your files.`;
     let done = false;
     let failed = false;
+    const deferredActorStatuses: Array<{
+      actor: 'byte' | 'tag';
+      importId: string;
+      batchKey?: string;
+      text: string;
+    }> = [];
 
     if (hasError) {
       stages = { byte: 'error', tag: 'pending', saving: 'pending' };
@@ -3793,7 +3853,7 @@ export default function UnifiedAssistantChat({
         const byteText = txCountFromTruth !== null
           ? `${uploadActorLabels.reader} parse complete: ${txCountFromTruth} transaction${txCountFromTruth === 1 ? '' : 's'} extracted.`
           : `${uploadActorLabels.reader} parse complete.`;
-        upsertUploadActorStatus({
+        deferredActorStatuses.push({
           actor: 'byte',
           importId,
           batchKey,
@@ -3814,7 +3874,7 @@ export default function UnifiedAssistantChat({
           taggedCount !== null ? `Tagged: ${taggedCount}.` : null,
           needsReviewFromTruth !== null ? `Flagged for review: ${needsReviewFromTruth}.` : null,
         ].filter(Boolean).join(' ');
-        upsertUploadActorStatus({
+        deferredActorStatuses.push({
           actor: 'tag',
           importId,
           batchKey,
@@ -3873,6 +3933,10 @@ export default function UnifiedAssistantChat({
         failed,
       });
     }
+    // Prime should always speak first, then Byte/Tag status bubbles.
+    deferredActorStatuses.forEach((status) => {
+      upsertUploadActorStatus(status);
+    });
     if ((done || failed) && typeof window !== 'undefined') {
       window.sessionStorage.removeItem(`${PRIME_UPLOAD_NARRATION_STARTED_PREFIX}${batchKey}`);
       setPrimeSelectedUploadFileNames([]);
@@ -3914,6 +3978,8 @@ export default function UnifiedAssistantChat({
     if (!isPrimeNarrationEnabled) return;
     if (currentEmployeeSlug !== 'prime-boss') return;
     if (!primeSummaryReady) return;
+    if (primeFinalInjectionInFlightImportIdsRef.current.has(primeSummaryReady)) return;
+    primeFinalInjectionInFlightImportIdsRef.current.add(primeSummaryReady);
     let cancelled = false;
     void (async () => {
       const summary = getPrimeSummary(primeSummaryReady);
@@ -3941,11 +4007,12 @@ export default function UnifiedAssistantChat({
         return Number.isFinite(value) ? value : null;
       };
 
-      const transactionCount = parseCount(/(\d+)\s+transactions?\s+processed/i) ??
+      const transactionCount = summaryMeta?.byteTransactionCount ??
+        parseCount(/(\d+)\s+transactions?\s+processed/i) ??
         parseCount(/transactions:\s*(\d+)/i) ??
         null;
-      const needsReviewCount = summaryMeta?.needsReviewCount ?? null;
-      const autoCount = summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? null;
+      const needsReviewCount = summaryMeta?.needsReviewCount ?? summaryMeta?.tagFlagsRaised ?? null;
+      const autoCount = summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? summaryMeta?.tagCategoriesAssigned ?? null;
       if (!byteParseStatusSentRef.current.has(primeSummaryReady)) {
         const byteText = transactionCount !== null
           ? `${uploadActorLabels.reader} parse complete: ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} extracted.`
@@ -4021,10 +4088,14 @@ export default function UnifiedAssistantChat({
       // When all docs are done (including the single-doc case), the
       // injectPrimeUploadFinalMessage summary already shows — no "done" bubble needed.
       if (batchCompleted < batchTotal) {
+        const userLabel = (firstName || '').trim();
+        const progressText = batchTotal <= 1
+          ? `${userLabel ? `${userLabel}, ` : ''}I’m still reviewing your statement. I’ll post your summary shortly.`
+          : `${userLabel ? `${userLabel}, ` : ''}I’m reviewing ${batchTotal} files now (${batchCompleted}/${batchTotal} ready).`;
         upsertPrimeUploadNarration({
           batchKey: activeKey,
           importId: primeSummaryReady,
-          text: `Byte pipeline active for ${batchTotal} file${batchTotal === 1 ? '' : 's'}. Completed ${batchCompleted} of ${batchTotal}.`,
+          text: progressText,
           stages: { byte: 'done', tag: 'active', saving: 'pending' },
           done: false,
         });
@@ -4044,7 +4115,9 @@ export default function UnifiedAssistantChat({
       requestAnimationFrame(() => scrollToBottom('auto', true));
       window.setTimeout(() => scrollToBottom('auto', true), 300);
       window.setTimeout(() => scrollToBottom('auto', true), 1000);
-    })();
+    })().finally(() => {
+      primeFinalInjectionInFlightImportIdsRef.current.delete(primeSummaryReady);
+    });
     return () => {
       cancelled = true;
     };
@@ -4060,60 +4133,18 @@ export default function UnifiedAssistantChat({
     uploadActorLabels,
     upsertUploadActorStatus,
     upsertPrimeUploadNarration,
+    firstName,
     getImportIdsForBatch,
     upsertPrimeApprovalCard,
     hasVisiblePrimeFinalForImport,
   ]);
 
-  useEffect(() => {
-    if (!isPrimeNarrationEnabled) return;
-    if (currentEmployeeSlug !== 'prime-boss') return;
-    if (!recentImportId) return;
-    const timeline = getImportTimeline(recentImportId);
-    if (!timeline?.truth || timeline.truth.phase !== 'summary_ready') return;
-    const summary = getPrimeSummary(recentImportId);
-    const summaryMeta = getPrimeSummaryMeta(recentImportId);
-    const summaryText = String(summary?.content || 'Your categorized results and insights are available.').trim();
-    const isGenericSummaryText =
-      summaryText.includes('ready for your review') ||
-      summaryText.includes('categorized results and insights are available');
-    const previouslyFinalized = primeNarrationFinalizedImportIdsRef.current.has(recentImportId);
-    const previouslyPostedSummary = primeFinalSummaryTextByImportRef.current[recentImportId] || '';
-    const alreadyVisible = hasVisiblePrimeFinalForImport(recentImportId);
-    if (previouslyFinalized && previouslyPostedSummary === summaryText && alreadyVisible) return;
-    if (previouslyFinalized && isGenericSummaryText && alreadyVisible) return;
-    const fallbackBatchKey =
-      uploadImportIdToBatchKeyRef.current.get(recentImportId) ||
-      activePrimeUploadBatchKeyRef.current ||
-      recentImportId;
-    const capturedImportId = recentImportId;
-    void (async () => {
-      const breakdown = await loadImportBreakdown(capturedImportId);
-      injectPrimeUploadFinalMessage({
-        importId: capturedImportId,
-        summaryText,
-        transactionCount: null,
-        needsReviewCount: summaryMeta?.needsReviewCount ?? timeline.truth.needsReviewCount ?? null,
-        autoCount: summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? null,
-        aiCount: summaryMeta?.aiCount ?? null,
-        clarificationItems: clarificationCandidatesByImportIdRef.current[capturedImportId] || [],
-        batchKey: fallbackBatchKey,
-        breakdown,
-      });
-      primeNarrationFinalizedImportIdsRef.current.add(capturedImportId);
-      primeFinalSummaryTextByImportRef.current[capturedImportId] = summaryText;
-    })();
-  }, [
-    isPrimeNarrationEnabled,
-    currentEmployeeSlug,
-    recentImportId,
-    getImportTimeline,
-    getPrimeSummary,
-    getPrimeSummaryMeta,
-    injectPrimeUploadFinalMessage,
-    hasVisiblePrimeFinalForImport,
-    loadImportBreakdown,
-  ]);
+  const fetchPrimeSummaryDedupe = useCallback(async (importId: string): Promise<string> => {
+    const id = String(importId || '').trim();
+    if (!id) return '';
+    const { summary } = await fetchPrimeSummarySingleFlight({ importId: id });
+    return summary;
+  }, []);
 
   // Fallback: if timeline reports summary_ready but primeSummaryReady signal is missed
   // (common with reused importIds), still inject the final summary breakdown.
@@ -4133,47 +4164,39 @@ export default function UnifiedAssistantChat({
     void (async () => {
       for (const importId of targetImportIds) {
         if (!importId || cancelled) continue;
+        if (primeFinalInjectionInFlightImportIdsRef.current.has(importId)) continue;
         const timeline = getImportTimeline(importId);
         if (!timeline?.truth || timeline.truth.phase !== 'summary_ready') continue;
         if (primeNarrationFinalizedImportIdsRef.current.has(importId) && hasVisiblePrimeFinalForImport(importId)) continue;
-        let summaryText = String(getPrimeSummary(importId)?.content || '').trim();
-        const summaryMeta = getPrimeSummaryMeta(importId);
-        if (!summaryText) {
-          try {
-            const response = await fetch('/.netlify/functions/prime-summary', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ importId }),
-            });
-            if (response.ok) {
-              const payload = await response.json().catch(() => ({} as any));
-              summaryText = String(payload?.summary || '').trim();
-            }
-          } catch {
-            // Best effort fallback only.
+        primeFinalInjectionInFlightImportIdsRef.current.add(importId);
+        try {
+          let summaryText = String(getPrimeSummary(importId)?.content || '').trim();
+          const summaryMeta = getPrimeSummaryMeta(importId);
+          if (!summaryText) summaryText = await fetchPrimeSummaryDedupe(importId);
+          if (!summaryText) {
+            summaryText = 'Your categorized results and insights are available.';
           }
-        }
-        if (!summaryText) {
-          summaryText = 'Your categorized results and insights are available.';
-        }
-        const breakdown = await loadImportBreakdown(importId);
-        if (cancelled) continue;
-        injectPrimeUploadFinalMessage({
-          importId,
-          summaryText,
-          transactionCount: null,
-          needsReviewCount: summaryMeta?.needsReviewCount ?? timeline.truth.needsReviewCount ?? null,
-          autoCount: summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? null,
-          aiCount: summaryMeta?.aiCount ?? null,
-          clarificationItems: clarificationCandidatesByImportIdRef.current[importId] || [],
-          batchKey:
-            uploadImportIdToBatchKeyRef.current.get(importId) ||
-            activePrimeUploadBatchKeyRef.current ||
+          const breakdown = await loadImportBreakdown(importId);
+          if (cancelled) continue;
+          injectPrimeUploadFinalMessage({
             importId,
-          breakdown,
-        });
-        primeNarrationFinalizedImportIdsRef.current.add(importId);
-        primeFinalSummaryTextByImportRef.current[importId] = summaryText;
+            summaryText,
+            transactionCount: null,
+            needsReviewCount: summaryMeta?.needsReviewCount ?? timeline.truth.needsReviewCount ?? null,
+            autoCount: summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? null,
+            aiCount: summaryMeta?.aiCount ?? null,
+            clarificationItems: clarificationCandidatesByImportIdRef.current[importId] || [],
+            batchKey:
+              uploadImportIdToBatchKeyRef.current.get(importId) ||
+              activePrimeUploadBatchKeyRef.current ||
+              importId,
+            breakdown,
+          });
+          primeNarrationFinalizedImportIdsRef.current.add(importId);
+          primeFinalSummaryTextByImportRef.current[importId] = summaryText;
+        } finally {
+          primeFinalInjectionInFlightImportIdsRef.current.delete(importId);
+        }
       }
     })();
     return () => {
@@ -4190,74 +4213,11 @@ export default function UnifiedAssistantChat({
     injectPrimeUploadFinalMessage,
     hasVisiblePrimeFinalForImport,
     loadImportBreakdown,
+    fetchPrimeSummaryDedupe,
   ]);
 
-  // Hard fallback: if summary-ready occurred but no final Prime bubble is visible,
-  // fetch and inject once so the chat never appears blank.
-  useEffect(() => {
-    if (!isPrimeNarrationEnabled) return;
-    if (currentEmployeeSlug !== 'prime-boss') return;
-    const importId = String(primeSummaryReady || recentImportId || '').trim();
-    if (!importId) return;
-    if (hasVisiblePrimeFinalForImport(importId)) return;
-
-    const timer = window.setTimeout(() => {
-      if (hasVisiblePrimeFinalForImport(importId)) return;
-      void (async () => {
-        let summaryText = String(getPrimeSummary(importId)?.content || '').trim();
-        const summaryMeta = getPrimeSummaryMeta(importId);
-        const timeline = getImportTimeline(importId);
-        if (!summaryText || summaryText.includes('categorized results and insights are available')) {
-          try {
-            const response = await fetch('/.netlify/functions/prime-summary', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ importId }),
-            });
-            if (response.ok) {
-              const payload = await response.json().catch(() => ({} as any));
-              summaryText = String(payload?.summary || '').trim();
-            }
-          } catch {
-            // Best-effort safety path only.
-          }
-        }
-        if (!summaryText) {
-          summaryText = 'Your categorized results and insights are available.';
-        }
-        const breakdown = await loadImportBreakdown(importId);
-        injectPrimeUploadFinalMessage({
-          importId,
-          summaryText,
-          transactionCount: null,
-          needsReviewCount: summaryMeta?.needsReviewCount ?? timeline?.truth?.needsReviewCount ?? null,
-          autoCount: summaryMeta?.autoCount ?? summaryMeta?.taggedCount ?? null,
-          aiCount: summaryMeta?.aiCount ?? null,
-          clarificationItems: clarificationCandidatesByImportIdRef.current[importId] || [],
-          batchKey:
-            uploadImportIdToBatchKeyRef.current.get(importId) ||
-            activePrimeUploadBatchKeyRef.current ||
-            importId,
-          breakdown,
-        });
-        primeNarrationFinalizedImportIdsRef.current.add(importId);
-        primeFinalSummaryTextByImportRef.current[importId] = summaryText;
-      })();
-    }, 2200);
-
-    return () => window.clearTimeout(timer);
-  }, [
-    isPrimeNarrationEnabled,
-    currentEmployeeSlug,
-    primeSummaryReady,
-    recentImportId,
-    hasVisiblePrimeFinalForImport,
-    getPrimeSummary,
-    getPrimeSummaryMeta,
-    getImportTimeline,
-    injectPrimeUploadFinalMessage,
-    loadImportBreakdown,
-  ]);
+  // NOTE: We intentionally keep a single fallback injector path (summary_ready scan effect above).
+  // Additional per-import timer fallback was removed to avoid duplicate Prime final bubbles.
 
   const routeClarificationFeedback = useCallback(async (messageText: string) => {
     if (!userId) return 0;
@@ -4516,6 +4476,29 @@ export default function UnifiedAssistantChat({
         });
       }
     }
+
+    if (!hasAttachments && isPrimeNarrationEnabled && currentEmployeeSlug === 'prime-boss' && isPrimeApprovalAffirmation(trimmedMessage)) {
+      const pendingApproval = [...injectedMessages]
+        .reverse()
+        .map((msg) => (msg?.meta || {}) as any)
+        .find((metaAny) => {
+          if (metaAny?.type !== 'prime_upload_approval') return false;
+          const batchKey = String(metaAny?.batchKey || '').trim();
+          const importIds = Array.isArray(metaAny?.importIds) ? metaAny.importIds.map((id: any) => String(id || '').trim()).filter(Boolean) : [];
+          return Boolean(batchKey && importIds.length > 0);
+        });
+      if (pendingApproval) {
+        const batchKey = String(pendingApproval.batchKey || '').trim();
+        const importIds = Array.isArray(pendingApproval.importIds)
+          ? pendingApproval.importIds.map((id: any) => String(id || '').trim()).filter(Boolean)
+          : [];
+        if (batchKey && importIds.length > 0) {
+          setInputMessage('');
+          await approvePrimeBatchImport(batchKey, importIds);
+          return;
+        }
+      }
+    }
     
     if (hasAttachments) {
       let queuedInstructionAcked = false;
@@ -4566,7 +4549,7 @@ export default function UnifiedAssistantChat({
       if (pendingFiles.length > 0) {
         if (isStreaming || inFlightTurnRef.current) {
           enqueueUploads(pendingFiles);
-          toast('Prime queued your upload and will start it right after this response.');
+          toast('Prime is uploading your file right after this response.');
           if (!trimmedMessage || isPrimeUploadInstructionTurn) return;
         } else {
           const uploaded = await processByteUploads(pendingFiles);
@@ -4644,6 +4627,27 @@ export default function UnifiedAssistantChat({
       // the user will see the UI update and can send to the new employee.
       // NOTE: Hook creates placeholder BEFORE fetch, so typing indicator logic checks placeholder existence
       if (finalMessage) {
+        // ── Tag action intercept ────────────────────────────────────────
+        if (isTag && userId && session?.access_token) {
+          const intercepted = await handleTagMessage(finalMessage, {
+            userId,
+            authToken: session.access_token,
+            onConfirmMessage: (msg) => {
+              setInjectedMessages((prev) => [
+                ...prev,
+                {
+                  id: `tag-action-${Date.now()}`,
+                  role: 'assistant' as const,
+                  content: msg,
+                  created_at: new Date().toISOString(),
+                },
+              ]);
+            },
+          });
+          if (intercepted) return; // don't fall through to sendMessage
+        }
+        // ───────────────────────────────────────────────────────────────
+
         const autoMessageParam = new URLSearchParams(location.search).get('autoMessage')?.trim();
         const shouldAutoSendFinal = Boolean(autoMessageParam && autoMessageParam === finalMessage);
         if (shouldAutoSendFinal) {
@@ -4665,6 +4669,33 @@ export default function UnifiedAssistantChat({
       setIsAssistantReplyPending(false);
     }
   };
+
+  const handleRecoverFromStalledChat = useCallback(async () => {
+    const lastUserMessage = [...messages]
+      .reverse()
+      .find((msg) => msg.role === 'user' && String(msg.content || '').trim().length > 0);
+    const retryText = String(lastUserMessage?.content || '').trim();
+    cancelStream();
+    inFlightTurnRef.current = false;
+    streamStartedRef.current = false;
+    setIsAssistantReplyPending(false);
+    setShowStreamRecoveryCard(false);
+    if (!retryText) {
+      toast.error('I stopped the stuck response. Type your question again and send.');
+      return;
+    }
+    setInputMessage(retryText);
+    try {
+      await new Promise((resolve) => window.setTimeout(resolve, 150));
+      userJustSentRef.current = true;
+      autoPinToBottomRef.current = true;
+      await sendMessage(retryText, { employeeSlug: currentEmployeeSlug });
+      setInputMessage('');
+      toast('Retry sent.');
+    } catch {
+      toast('Stopped the stalled response. Press send to retry.');
+    }
+  }, [messages, cancelStream, sendMessage, currentEmployeeSlug]);
   
   // Track first assistant response and show trust message
   useEffect(() => {
@@ -4807,7 +4838,7 @@ export default function UnifiedAssistantChat({
     console.debug('[UnifiedAssistantChat] Upload started', { fileCount: limitedFiles.length });
     if (isStreaming || inFlightTurnRef.current) {
       enqueueUploads(limitedFiles);
-      toast('Prime queued your upload and will start it after the current response.');
+      toast('Prime is uploading your file after the current response.');
       return;
     }
     await processByteUploads(limitedFiles);
@@ -5016,20 +5047,30 @@ export default function UnifiedAssistantChat({
           // MVP refinement: keep Prime greeting to two lines max (calm, concise, trust-first).
           const variant = primeGreetingVariantRef.current;
           const welcomeLine = userName && userName !== 'there'
-            ? `Welcome back, ${userName}.`
-            : 'Welcome back.';
+            ? `Great to see you again, ${userName}.`
+            : 'Great to see you again.';
+          const workspaceSummary = primeState?.workspaceSummary;
+          const statementCount = Number(workspaceSummary?.statementCount || 0);
+          const conversationCount = Number(workspaceSummary?.conversationCount || 0);
+          const newStatementsSinceLastConversation = Number(workspaceSummary?.newStatementsSinceLastConversation || 0);
+          const continuityLine =
+            statementCount > 0 || conversationCount > 0
+              ? newStatementsSinceLastConversation > 0
+                ? `Since we last talked, ${newStatementsSinceLastConversation} statement${newStatementsSinceLastConversation === 1 ? '' : 's'} were added. On file: ${statementCount} statement${statementCount === 1 ? '' : 's'} and ${conversationCount} conversation${conversationCount === 1 ? '' : 's'}.`
+                : `On file: ${statementCount} statement${statementCount === 1 ? '' : 's'} and ${conversationCount} conversation${conversationCount === 1 ? '' : 's'}.`
+              : null;
           const snapshotLine = bullets.length > 0
             ? `Snapshot: ${bullets[0].replace(/^•\s*/, '')}.`
             : 'Your latest snapshot is ready.';
           const secondLineOptions = [
-            `${snapshotLine} Import a statement or ask a question.`,
-            'Import a statement when you are ready, or ask me anything about your finances.',
-            'Want a quick review, insights, or a fresh upload? I can start either.',
-            'I am ready to help. Upload a file or ask for your next best money move.',
+            `${snapshotLine} Ask for a quick money read, or import a statement and I will break it down.`,
+            'If you want, I can start with a quick read now, or we can import a statement for a deeper breakdown.',
+            'Want a fast check-in, spending insights, or a fresh upload review? I can run whichever helps most.',
+            'I am ready when you are - ask for your next best money move, or upload a file and I will unpack it.',
           ];
           greetingText = [
             welcomeLine,
-            secondLineOptions[variant] || secondLineOptions[0],
+            continuityLine || secondLineOptions[variant] || secondLineOptions[0],
           ].join('\n');
         } else if (isPrimeChatRevampEnabled) {
           const welcomeLine = userName && userName !== 'there'
@@ -5407,6 +5448,14 @@ export default function UnifiedAssistantChat({
   // stale DB copies must not appear alongside (or instead of) the freshly injected version.
   const filteredAuthoritativeMessages = authoritativeMessages.filter((msg) => {
     const metaAny = (msg?.meta || {}) as Record<string, unknown>;
+    if (
+      currentEmployeeSlug === 'prime-boss' &&
+      isPrimeNarrationEnabled &&
+      metaAny?.employee_key === 'byte-docs' &&
+      metaAny?.is_thought === true
+    ) {
+      return false;
+    }
     return metaAny?.type !== 'prime_upload_final';
   });
 
@@ -5465,13 +5514,17 @@ export default function UnifiedAssistantChat({
       (!activeBatchKey || String(meta?.batchKey || '') === String(activeBatchKey));
     const aActiveNarration = isActivePrimeNarration(aMeta);
     const bActiveNarration = isActivePrimeNarration(bMeta);
-    if (aActiveNarration !== bActiveNarration) {
-      // Keep active upload narration anchored near the newest messages.
-      return aActiveNarration ? 1 : -1;
-    }
-
     const aTime = getMessageSortTime(a);
     const bTime = getMessageSortTime(b);
+    if (aActiveNarration !== bActiveNarration) {
+      // Do not force narration to the bottom; preserve chronological order when possible.
+      // This avoids later assistant replies appearing above an earlier "I'm on it" narration.
+      if (aTime && bTime) {
+        return aTime - bTime;
+      }
+      // Fallback only when timestamps are unavailable.
+      return aActiveNarration ? 1 : -1;
+    }
     if (aTime && bTime) {
       return aTime - bTime;
     }
@@ -6001,12 +6054,26 @@ export default function UnifiedAssistantChat({
     if (isStreaming) {
       streamStartedRef.current = true;
       setIsAssistantReplyPending(true);
+      if (streamRecoveryTimeoutRef.current !== null) {
+        clearTimeout(streamRecoveryTimeoutRef.current);
+        streamRecoveryTimeoutRef.current = null;
+      }
+      streamRecoveryTimeoutRef.current = window.setTimeout(() => {
+        if (isStreaming) {
+          setShowStreamRecoveryCard(true);
+        }
+      }, 18000);
       if (typingStallTimeoutRef.current !== null) {
         clearTimeout(typingStallTimeoutRef.current);
         typingStallTimeoutRef.current = null;
       }
       return;
     }
+    if (streamRecoveryTimeoutRef.current !== null) {
+      clearTimeout(streamRecoveryTimeoutRef.current);
+      streamRecoveryTimeoutRef.current = null;
+    }
+    setShowStreamRecoveryCard(false);
     if (streamStartedRef.current) {
       inFlightTurnRef.current = false;
       streamStartedRef.current = false;
@@ -6030,6 +6097,15 @@ export default function UnifiedAssistantChat({
       typingStallTimeoutRef.current = null;
     }, 10000);
   }, [isStreaming, cancelStream]);
+
+  useEffect(() => {
+    return () => {
+      if (streamRecoveryTimeoutRef.current !== null) {
+        clearTimeout(streamRecoveryTimeoutRef.current);
+        streamRecoveryTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     inFlightTurnRef.current = false;
@@ -6206,20 +6282,32 @@ export default function UnifiedAssistantChat({
 
   // Status badge - Prime uses a single "Protected" chip with details tooltip.
   const statusBadge = normalizedSlug === 'prime-boss' ? (
-    <div className="relative group">
+    <div className="flex items-center gap-2">
+      <div className="relative group">
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-200"
+          title={`Online: Yes\nAI Ready: ${chatReady ? 'Yes' : 'No'}\nCustodian Ready: ${custodianReady ? 'Yes' : 'No'}`}
+        >
+          <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          <span>{guardrailsActive || piiProtectionActive ? 'Protected' : 'Secured'}</span>
+        </button>
+        <div className="pointer-events-none absolute right-0 top-full z-30 mt-2 min-w-[170px] rounded-lg border border-white/10 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-200 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+          <p>Online: Yes</p>
+          <p>AI Ready: {chatReady ? 'Yes' : 'No'}</p>
+          <p>Custodian Ready: {custodianReady ? 'Yes' : 'No'}</p>
+        </div>
+      </div>
       <button
         type="button"
-        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-200"
-        title={`Online: Yes\nAI Ready: ${chatReady ? 'Yes' : 'No'}\nCustodian Ready: ${custodianReady ? 'Yes' : 'No'}`}
+        onClick={() => navigate('/dashboard/bulk-upload')}
+        className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/35 bg-cyan-500/12 px-3 py-1 text-[11px] font-medium text-cyan-100 transition-colors hover:bg-cyan-500/22"
+        title="Bulk upload statements"
+        aria-label="Open bulk upload"
       >
-        <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-        <span>{guardrailsActive || piiProtectionActive ? 'Protected' : 'Secured'}</span>
+        <UploadCloud className="h-3.5 w-3.5" />
+        Bulk upload
       </button>
-      <div className="pointer-events-none absolute right-0 top-full z-30 mt-2 min-w-[170px] rounded-lg border border-white/10 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-200 opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
-        <p>Online: Yes</p>
-        <p>AI Ready: {chatReady ? 'Yes' : 'No'}</p>
-        <p>Custodian Ready: {custodianReady ? 'Yes' : 'No'}</p>
-      </div>
     </div>
   ) : (
     <div className="flex items-center gap-2 text-xs text-emerald-300">
@@ -6471,15 +6559,24 @@ export default function UnifiedAssistantChat({
             <div className="flex items-center gap-1.5">
               <span className="inline-block w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
               <span className="text-[11px] font-medium text-slate-200">
-                Batch in progress
+                Byte review in progress
               </span>
             </div>
-            <span className="text-[10px] text-slate-300 tabular-nums">
-              Files: {primeUploadDisplayCount}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-slate-300 tabular-nums">
+                Files: {primeUploadDisplayCount}
+              </span>
+              <button
+                type="button"
+                onClick={handleCancelPrimeUploads}
+                className="rounded-md border border-rose-400/45 bg-rose-500/15 px-2 py-0.5 text-[10px] font-medium text-rose-100 hover:bg-rose-500/25"
+              >
+                Cancel upload
+              </button>
+            </div>
           </div>
-          <div className="mt-1 text-[10px] text-slate-300 tabular-nums">
-            Slots: {Math.min(Math.max(primeQueueItemsForDisplay.length, isPrimeUploadFlowActive ? 1 : 0), 5)}/5
+          <div className="mt-1 text-xs text-slate-300 tabular-nums">
+            Uploading: {Math.min(Math.max(primeQueueItemsForDisplay.length, isPrimeUploadFlowActive ? 1 : 0), 5)}/5
           </div>
           {primeUploadNamesForCard.length > 0 && (
             <div className="mt-2 overflow-x-auto pb-1">
@@ -6494,15 +6591,62 @@ export default function UnifiedAssistantChat({
                     <span className="truncate font-semibold text-slate-100">{renderInlineStrong(fileName)}</span>
                   </div>
                   <span className="mt-1 inline-block text-cyan-200/90 text-[11px]">
-                    {renderInlineStrong("Byte is auditing entries...")}
+                    {renderInlineStrong("Byte is extracting transactions...")}
                   </span>
                 </div>
               ))}
               </div>
             </div>
           )}
-          <div className="mt-1.5 text-[10px] text-slate-400 line-clamp-2">
-            {renderInlineStrong(latestPrimeUploadHandoffText || primeNarrationStatusText || 'Byte is auditing entries. Prime will post the full summary when ready.')}
+        </div>
+      )}
+      {showStreamRecoveryCard && (
+        <div className="mb-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+          <div className="flex items-center justify-between gap-3">
+            <span>Response is taking longer than expected. You can stop and retry safely.</span>
+            <button
+              type="button"
+              onClick={handleRecoverFromStalledChat}
+              className="shrink-0 rounded-md border border-amber-300/40 bg-amber-400/15 px-2 py-1 text-[10px] font-semibold text-amber-100 hover:bg-amber-400/25"
+            >
+              Stop and Retry
+            </button>
+          </div>
+        </div>
+      )}
+      {isTag && pendingPreview && (
+        <div className="mx-4 mb-3 rounded-xl border border-violet-500/30 bg-violet-500/10 p-3 space-y-2">
+          <p className="text-[11px] font-semibold text-violet-300 uppercase tracking-wide">
+            Tag is ready to apply this change
+          </p>
+          <p className="text-[11px] text-slate-300">
+            {pendingPreview.matchCount} transactions → <strong>{pendingPreview.targetCategory}</strong>
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => confirmAction({
+                authToken: session?.access_token || '',
+                onSuccess: (msg) => setInjectedMessages((prev) => [
+                  ...prev,
+                  {
+                    id: `tag-commit-${Date.now()}`,
+                    role: 'assistant' as const,
+                    content: msg,
+                    created_at: new Date().toISOString(),
+                  },
+                ]),
+              })}
+              disabled={isTagActionProcessing}
+              className="rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-40 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors"
+            >
+              {isTagActionProcessing ? 'Applying…' : 'Confirm'}
+            </button>
+            <button
+              onClick={cancelAction}
+              className="rounded-lg border border-white/10 px-3 py-1.5 text-[11px] text-slate-400 hover:text-white transition-colors"
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
@@ -6548,9 +6692,9 @@ export default function UnifiedAssistantChat({
   // CRITICAL: In inline/page mode, do NOT trap scroll - let dashboard page scroll naturally
   if (mode === 'inline') {
     return (
-      <div 
+      <div
         data-unified-chat-mount={mountIdRef.current}
-        className="flex h-auto w-full min-w-0 flex-col min-h-0 bg-transparent">
+        className="flex h-full w-full min-w-0 min-h-0 flex-col bg-transparent">
         {/* HEADER */}
         <header className={compact ? "sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-5 pt-4 pb-3 backdrop-blur-sm shrink-0" : "sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-6 pt-5 pb-4 backdrop-blur-sm shrink-0"}>
           <div className="flex items-start justify-between gap-3">
@@ -6581,7 +6725,7 @@ export default function UnifiedAssistantChat({
         {/* CRITICAL: Remove overflow-y-auto in inline mode to prevent scroll trap */}
         <div
           ref={scrollContainerRef}
-          className="flex-1 min-h-0"
+          className="flex-1 min-h-0 overflow-y-auto"
         >
             <div className={(compact ? "px-4 pt-6 pb-3" : "px-4 pt-24 pb-4") + " relative"}>
             {showCenteredUploadIndicator && (
@@ -7006,7 +7150,7 @@ export default function UnifiedAssistantChat({
                     style={{
                       WebkitOverflowScrolling: 'touch',
                       paddingBottom: chatBottomPaddingPx,
-                      scrollPaddingBottom: chatBottomPaddingPx + 32,
+                      scrollPaddingBottom: chatBottomPaddingPx + 8,
                     }}
                     onWheelCapture={(e) => {
                       if (e.deltaY < 0) {
@@ -7156,7 +7300,7 @@ export default function UnifiedAssistantChat({
                         .filter(m => !(showPrimeOnboarding && !primeOnboardingCompleted && m.id === 'greeting-message'))
                         .filter(m => !(normalizedSlug === 'prime-boss' && (m.id === 'greeting-message' || m.id?.startsWith('prime-greeting-'))))
                         .map((message) => {
-                        const isGreetingMessage = message.id === 'greeting-message' || message.id?.startsWith('prime-greeting-');
+                        const isGreetingMessage = message.id === 'greeting-message' || message.id?.startsWith('prime-greeting-') || message.id?.startsWith('greeting-') || message.meta?.isGreeting === true;
                         // Detect handoff messages
                         const isHandoffMessage = message.role === 'assistant' && message.meta?.isHandoff === true;
                         const metaAny = message.meta as any;
@@ -7219,13 +7363,28 @@ export default function UnifiedAssistantChat({
                                 {normalizedSlug === 'prime-boss' && (
                                   <div className="px-4">
                                     <PrimeQuickActions
-                                      actions={primeGreetingData?.chips?.map(chip => ({
-                                        label: chip.label,
-                                        message: chip.message,
-                                        icon: Upload, // Default icon, can be enhanced later
-                                        sublabel: undefined,
-                                      }))}
+                                      actions={primeGreetingData?.chips
+                                        ? [
+                                            ...primeGreetingData.chips.map(chip => ({
+                                              label: chip.label,
+                                              message: chip.message,
+                                              icon: Upload, // Default icon, can be enhanced later
+                                              sublabel: undefined,
+                                            })),
+                                            {
+                                              label: 'Bulk upload statements',
+                                              message: 'Open bulk upload so I can process many statements for a full year',
+                                              icon: UploadCloud,
+                                              sublabel: 'Year-end catch-up',
+                                              routeHint: '/dashboard/bulk-upload',
+                                            },
+                                          ]
+                                        : undefined}
                                       onActionClick={(action) => {
+                                        if (action.routeHint) {
+                                          navigate(action.routeHint);
+                                          return;
+                                        }
                                         // Prefill input with action message
                                         setInputMessage(action.message);
                                         // Focus input
@@ -7289,7 +7448,7 @@ export default function UnifiedAssistantChat({
                                           : isHandoffMessage
                                           ? 'bg-purple-500/12 text-slate-100 px-3 py-2'
                                           : isGreetingMessage
-                                          ? 'text-slate-100'
+                                          ? 'bg-transparent text-slate-100 px-0 py-0'
                                           : `${aura.tint} text-slate-100 px-3 py-2`
                                       }`
                                 }
@@ -7520,13 +7679,26 @@ export default function UnifiedAssistantChat({
                         <div className="px-4 pb-4">
                           <PrimeQuickActions
                             actions={primeGreetingData?.chips?.length
-                              ? primeGreetingData.chips.map(chip => ({
-                                  label: chip.label,
-                                  message: chip.message,
-                                  icon: Upload,
-                                }))
+                              ? [
+                                  ...primeGreetingData.chips.map(chip => ({
+                                    label: chip.label,
+                                    message: chip.message,
+                                    icon: Upload,
+                                  })),
+                                  {
+                                    label: 'Bulk upload statements',
+                                    message: 'Open bulk upload so I can process many statements for a full year',
+                                    icon: UploadCloud,
+                                    sublabel: 'Year-end catch-up',
+                                    routeHint: '/dashboard/bulk-upload',
+                                  },
+                                ]
                               : undefined}
                             onActionClick={(action) => {
+                              if (action.routeHint) {
+                                navigate(action.routeHint);
+                                return;
+                              }
                               void handleSend({ messageOverride: action.message });
                             }}
                           />

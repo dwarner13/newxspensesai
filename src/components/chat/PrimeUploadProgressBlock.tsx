@@ -53,8 +53,8 @@ export function PrimeUploadProgressBlock({ stages }: PrimeUploadProgressBlockPro
     <div className="mt-3 rounded-2xl border border-white/10 bg-white/10 p-3 backdrop-blur-lg">
       <div className="mb-2 text-xs font-medium text-slate-200">Processing Document</div>
       <div className="space-y-1.5">
-        <StageRow label="Byte is auditing entries..." state={stages.byte} />
-        <StageRow label="Categorizing expenses" state={stages.tag} />
+        <StageRow label="Byte is extracting transactions" state={stages.byte} />
+        <StageRow label="Tag is organizing categories" state={stages.tag} />
         <StageRow label="Saving to your account" state={stages.saving} />
       </div>
     </div>

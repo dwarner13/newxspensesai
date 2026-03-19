@@ -18,8 +18,12 @@ export interface UseTransactionsResult {
 }
 
 const TRANSACTIONS_CACHE_TTL_MS = 90 * 1000;
+const MAX_CACHE_ROWS = 2000;
+const MAX_CACHE_CHARS = 1_500_000;
 
-export function useTransactions(): UseTransactionsResult {
+export function useTransactions(options?: {
+  importId?: string | null;
+}): UseTransactionsResult {
   const { userId } = useAuth();
   const [transactions, setTransactions] = useState<CommittedTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,11 +63,37 @@ export function useTransactions(): UseTransactionsResult {
 
       // Simplified query without nested joins to avoid 400 errors
       // If relationships are needed, fetch them separately
-      const { data, error } = await supabase
+      let query = supabase
         .from('transactions')
-        .select('*')
+        .select(
+          [
+            'id',
+            'user_id',
+            'posted_at',
+            'merchant_name',
+            'merchant',
+            'description',
+            'memo',
+            'amount',
+            'category',
+            'subcategory',
+            'category_source',
+            'type',
+            'import_id',
+            'document_id',
+            'hash',
+            'created_at',
+            'updated_at',
+          ].join(',')
+        )
         .eq('user_id', userId)
         .order('posted_at', { ascending: false });
+
+      if (options?.importId) {
+        query = query.eq('import_id', options.importId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         // Handle schema errors gracefully (table might not exist)
@@ -84,13 +114,21 @@ export function useTransactions(): UseTransactionsResult {
       setTransactions(nextData);
       hasRenderedDataRef.current = true;
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(
-          `xspenses:transactions-cache:${userId}`,
-          JSON.stringify({
+        const cacheKey = `xspenses:transactions-cache:${userId}`;
+        // Avoid expensive stringify/storage on very large datasets.
+        if (nextData.length <= MAX_CACHE_ROWS) {
+          const payload = JSON.stringify({
             ts: Date.now(),
             data: nextData,
-          })
-        );
+          });
+          if (payload.length <= MAX_CACHE_CHARS) {
+            window.sessionStorage.setItem(cacheKey, payload);
+          } else {
+            window.sessionStorage.removeItem(cacheKey);
+          }
+        } else {
+          window.sessionStorage.removeItem(cacheKey);
+        }
       }
       setIsError(false);
     } catch (error: any) {
@@ -109,7 +147,7 @@ export function useTransactions(): UseTransactionsResult {
       fetchInFlightRef.current = null;
     });
     return fetchInFlightRef.current;
-  }, [userId]);
+  }, [userId, options?.importId]);
 
   // Fast cache hydration for smoother route transitions.
   useEffect(() => {
@@ -117,6 +155,7 @@ export function useTransactions(): UseTransactionsResult {
     try {
       const raw = window.sessionStorage.getItem(`xspenses:transactions-cache:${userId}`);
       if (!raw) return;
+      if (raw.length > MAX_CACHE_CHARS) return;
       const parsed = JSON.parse(raw) as { ts?: number; data?: CommittedTransaction[] };
       if (!parsed?.ts || !Array.isArray(parsed?.data)) return;
       if (Date.now() - parsed.ts > TRANSACTIONS_CACHE_TTL_MS) return;

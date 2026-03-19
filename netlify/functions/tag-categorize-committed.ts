@@ -5,7 +5,7 @@
  * rows that are still uncategorized. Called by UncategorizedReviewQueue's
  * "Auto-Tag All" button.
  *
- * Does NOT use AI — rule matching only. Fetches up to 50 rows per call.
+ * Does NOT use AI — rule matching only. Fetches a large batch per call.
  * Returns { ok, updated, total }.
  */
 
@@ -22,7 +22,7 @@ const headers = {
 };
 
 const RULES: Array<{ contains: string[]; category: string }> = [
-  { contains: ['starbucks', 'tim horton', 'second cup'], category: 'Dining' },
+  { contains: ['starbucks', 'tim horton', 'second cup'], category: 'Food & Dining' },
   { contains: ['uber', 'lyft', 'taxi', 'transit', 'presto'], category: 'Transportation' },
   { contains: ['amazon', 'amzn'], category: 'Shopping' },
   { contains: ['insurance', 'assurance', 'allstate', 'intact'], category: 'Insurance' },
@@ -31,18 +31,76 @@ const RULES: Array<{ contains: string[]; category: string }> = [
   { contains: ['transfer', 'e-transfer', 'etransfer', 'interac'], category: 'Transfers' },
   { contains: ['gas', 'petro', 'shell', 'esso', 'fuel', 'husky', 'irving'], category: 'Transportation' },
   { contains: ['walmart', 'costco', 'kroger', 'safeway', 'sobeys', 'superstore', 'loblaws', 'metro ', 'iga ', 'food basics'], category: 'Groceries' },
-  { contains: ['mcdonald', 'restaurant', 'cafe', 'doordash', 'ubereats', 'skip the dishes', 'skip dish', 'pizza', 'sushi', 'burger', 'chicken', 'grill', 'pub '], category: 'Dining' },
+  { contains: ['mcdonald', 'restaurant', 'cafe', 'doordash', 'ubereats', 'skip the dishes', 'skip dish', 'pizza', 'sushi', 'burger', 'chicken', 'grill', 'pub '], category: 'Food & Dining' },
   { contains: ['best buy', 'apple store', 'ebay', 'staples', 'the source'], category: 'Shopping' },
-  { contains: ['netflix', 'spotify', 'disney', 'hulu', 'prime video', 'apple tv', 'crave', 'dazn'], category: 'Entertainment' },
+  { contains: ['netflix', 'spotify', 'disney', 'hulu', 'prime video', 'apple tv', 'crave', 'dazn'], category: 'Subscriptions' },
   { contains: ['rent', 'lease ', 'mortgage', 'condo fee', 'strata'], category: 'Housing' },
   { contains: ['doctor', 'pharmacy', 'hospital', 'medical', 'dental', 'clinic', 'shoppers drug', 'rexall', 'pharma'], category: 'Healthcare' },
-  { contains: ['atm', 'cash withdrawal', 'atm withdrawal'], category: 'Cash & ATM' },
+  { contains: ['atm', 'cash withdrawal', 'atm withdrawal'], category: 'Transfers' },
   { contains: ['bank fee', 'service fee', 'monthly fee', 'overdraft', 'nsf fee'], category: 'Bank Fees' },
-  { contains: ['gym', 'fitness', 'yoga', 'crossfit', 'goodlife', 'ymca', 'anytime fitness'], category: 'Health & Fitness' },
+  { contains: ['gym', 'fitness', 'yoga', 'crossfit', 'goodlife', 'ymca', 'anytime fitness'], category: 'Personal Care' },
   { contains: ['school', 'tuition', 'university', 'college', 'course', 'udemy', 'coursera'], category: 'Education' },
   { contains: ['travel', 'hotel', 'airbnb', 'expedia', 'air canada', 'westjet', 'united', 'delta'], category: 'Travel' },
   { contains: ['zara', 'h&m', 'uniqlo', 'gap ', 'old navy', 'winners', 'marshalls', 'reitmans', 'sport chek'], category: 'Shopping' },
 ];
+
+const CANONICAL_CATEGORIES = [
+  'Income',
+  'Groceries',
+  'Food & Dining',
+  'Transportation',
+  'Housing',
+  'Utilities',
+  'Shopping',
+  'Subscriptions',
+  'Entertainment',
+  'Healthcare',
+  'Insurance',
+  'Education',
+  'Travel',
+  'Transfers',
+  'Bank Fees',
+  'Business',
+  'Personal Care',
+  'Home & Garden',
+  'Other',
+  'Uncategorized',
+] as const;
+
+const CATEGORY_ALIASES: Record<string, string> = {
+  dining: 'Food & Dining',
+  'food and dining': 'Food & Dining',
+  health: 'Healthcare',
+  fees: 'Bank Fees',
+  'cash & atm': 'Transfers',
+  'health & fitness': 'Personal Care',
+};
+
+function normalizeCategoryKey(input: string): string {
+  return String(input || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeCanonicalCategory(input: string): string {
+  const key = normalizeCategoryKey(input);
+  if (!key) return 'Other';
+  const direct = CANONICAL_CATEGORIES.find((c) => normalizeCategoryKey(c) === key);
+  if (direct) return direct;
+  return CATEGORY_ALIASES[key] || 'Other';
+}
+
+function parseRuleCategory(value: string): { category: string; subcategory: string | null } {
+  const raw = String(value || '').trim();
+  if (!raw) return { category: 'Other', subcategory: null };
+  const delimiter = '::';
+  const idx = raw.indexOf(delimiter);
+  if (idx === -1) return { category: normalizeCanonicalCategory(raw), subcategory: null };
+  const category = normalizeCanonicalCategory(raw.slice(0, idx).trim() || 'Other');
+  const subcategory = raw.slice(idx + delimiter.length).trim() || null;
+  return { category, subcategory };
+}
 
 function normalizeVendorKey(s: string): string {
   return s
@@ -55,7 +113,7 @@ function normalizeVendorKey(s: string): string {
 function applyRules(merchant: string): string | null {
   const lower = merchant.toLowerCase();
   for (const rule of RULES) {
-    if (rule.contains.some((k) => lower.includes(k))) return rule.category;
+    if (rule.contains.some((k) => lower.includes(k))) return normalizeCanonicalCategory(rule.category);
   }
   return null;
 }
@@ -72,15 +130,26 @@ export const handler: Handler = async (event) => {
   }
   const userId = auth.userId;
   const supabase = serverSupabase();
+  const body = (() => {
+    try {
+      return JSON.parse(event.body || '{}') as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  })();
+  const requestedLimit = Number(body.limit);
+  const limit = Number.isFinite(requestedLimit)
+    ? Math.max(1, Math.min(1000, Math.floor(requestedLimit)))
+    : 300;
 
-  // 1. Fetch uncategorized committed transactions (newest first, up to 50)
+  // 1. Fetch uncategorized committed transactions (newest first, large batch)
   const { data: rows, error } = await supabase
     .from('transactions')
     .select('id, merchant_name, merchant')
     .eq('user_id', userId)
     .or('category.is.null,category.eq.Uncategorized')
     .order('posted_at', { ascending: false })
-    .limit(50);
+    .limit(limit);
 
   if (error) {
     safeLog('error', '[tag-categorize-committed] Fetch error', { userId, error: error.message });
@@ -129,36 +198,41 @@ export const handler: Handler = async (event) => {
     /* table may not exist yet — skip */
   }
 
-  function applyDbRules(merchant: string): string | null {
+  function applyDbRules(merchant: string): { category: string; subcategory: string | null } | null {
     const lower = merchant.toLowerCase();
     for (const rule of dbRules) {
       const val = rule.match_value.toLowerCase();
-      if (rule.match_type === 'exact' && lower === val) return rule.category;
-      if (rule.match_type === 'starts_with' && lower.startsWith(val)) return rule.category;
-      if (rule.match_type === 'contains' && lower.includes(val)) return rule.category;
+      if (rule.match_type === 'exact' && lower === val) return parseRuleCategory(rule.category);
+      if (rule.match_type === 'starts_with' && lower.startsWith(val)) return parseRuleCategory(rule.category);
+      if (rule.match_type === 'contains' && lower.includes(val)) return parseRuleCategory(rule.category);
       if (rule.match_type === 'regex') {
-        try { if (new RegExp(rule.match_value, 'i').test(merchant)) return rule.category; } catch {}
+        try { if (new RegExp(rule.match_value, 'i').test(merchant)) return parseRuleCategory(rule.category); } catch {}
       }
     }
     return null;
   }
 
   // 4. Apply memory → DB rules → inline rules for each tx
-  const updates: Array<{ id: string; category: string; source: string }> = [];
+  const updates: Array<{ id: string; category: string; subcategory?: string | null; source: string }> = [];
   for (let i = 0; i < txs.length; i++) {
     const tx = txs[i];
     const key = vendorKeys[i];
 
     const memoryCat = key ? memoryMap.get(key) : undefined;
     if (memoryCat) {
-      updates.push({ id: tx.id, category: memoryCat, source: 'learned' });
+      updates.push({ id: tx.id, category: normalizeCanonicalCategory(memoryCat), source: 'learned' });
       continue;
     }
 
     const merchant = tx.merchant_name || tx.merchant || '';
-    const dbCat = applyDbRules(merchant);
-    if (dbCat) {
-      updates.push({ id: tx.id, category: dbCat, source: 'rule' });
+    const dbRuleMatch = applyDbRules(merchant);
+    if (dbRuleMatch) {
+      updates.push({
+        id: tx.id,
+        category: normalizeCanonicalCategory(dbRuleMatch.category),
+        subcategory: dbRuleMatch.subcategory,
+        source: 'rule',
+      });
       continue;
     }
 
@@ -172,17 +246,21 @@ export const handler: Handler = async (event) => {
   let updated = 0;
   if (updates.length > 0) {
     const results = await Promise.allSettled(
-      updates.map((u) =>
-        supabase
+      updates.map((u) => {
+        const payload: Record<string, unknown> = {
+          category: u.category,
+          category_source: u.source,
+          updated_at: new Date().toISOString(),
+        };
+        if (Object.prototype.hasOwnProperty.call(u, 'subcategory')) {
+          payload.subcategory = u.subcategory ?? null;
+        }
+        return supabase
           .from('transactions')
-          .update({
-            category: u.category,
-            category_source: u.source,
-            updated_at: new Date().toISOString(),
-          })
+          .update(payload)
           .eq('id', u.id)
-          .eq('user_id', userId)
-      )
+          .eq('user_id', userId);
+      })
     );
     updated = results.filter(
       (r) => r.status === 'fulfilled' && !r.value.error

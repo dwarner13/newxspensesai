@@ -7,12 +7,13 @@
  * - Live tasks count
  * - Success rate
  * 
- * Auto-refreshes every 30 seconds to keep dashboard fresh.
+ * Auto-refreshes every 60 seconds to keep dashboard fresh.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getSupabase } from '../lib/supabase';
+import { QUIET_MODE } from '../lib/quietMode';
 
 export type PrimeLiveStats = {
   employees: {
@@ -36,12 +37,15 @@ export type UsePrimeLiveStatsResult = {
   refetch: () => Promise<void>;
 };
 
-const REFRESH_INTERVAL_MS = 30000; // 30 seconds
+const REFRESH_INTERVAL_MS = 60000; // 60 seconds while tab is visible
+const HIDDEN_REFRESH_INTERVAL_MS = 180000; // 3 minutes when tab is hidden
+const QUIET_REFRESH_INTERVAL_MS = 120000; // 2 minutes in quiet mode
 // Dedup window matches the refresh interval so staggered component intervals
-// all share the same fetch rather than producing N requests per 30-second cycle.
-const DEDUPE_WINDOW_MS = 28000;
+// all share the same fetch rather than producing N requests per cycle.
+const DEDUPE_WINDOW_MS = 55000;
 let sharedInFlightFetch: Promise<PrimeLiveStats | null> | null = null;
 let sharedLastFetchAt = 0;
+let sharedLastAttemptAt = 0;
 let sharedLastData: PrimeLiveStats | null = null;
 
 export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
@@ -55,6 +59,13 @@ export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
   const isFunctionDisabledRef = useRef(false);
 
   const fetchStats = useCallback(async (force = false) => {
+    if (QUIET_MODE) {
+      setIsLoading(false);
+      setIsError(false);
+      setErrorMessage(undefined);
+      return;
+    }
+
     // Only fetch when auth is ready AND userId exists AND is NOT a demo user
     if (!ready || !userId || isDemoUser) {
       setIsLoading(false);
@@ -70,6 +81,18 @@ export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
     }
 
     const now = Date.now();
+    // Hard global throttle: prevents request storms when multiple components
+    // repeatedly mount/remount before sharedLastData is available.
+    if (!force && now - sharedLastAttemptAt < DEDUPE_WINDOW_MS) {
+      if (sharedLastData) {
+        setData(sharedLastData);
+      }
+      setIsLoading(false);
+      setIsError(false);
+      setErrorMessage(undefined);
+      return;
+    }
+
     if (!force && sharedLastData && now - sharedLastFetchAt < DEDUPE_WINDOW_MS) {
       setData(sharedLastData);
       setIsLoading(false);
@@ -99,6 +122,7 @@ export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
     setErrorMessage(undefined);
 
     try {
+      sharedLastAttemptAt = Date.now();
       sharedInFlightFetch = (async () => {
         // Get Supabase session token for Authorization header
         const supabase = getSupabase();
@@ -179,18 +203,28 @@ export function usePrimeLiveStats(): UsePrimeLiveStatsResult {
 
   // Fetch on mount and when userId changes
   useEffect(() => {
+    if (QUIET_MODE) {
+      setIsLoading(false);
+      return;
+    }
     fetchStats();
   }, [ready, userId, isDemoUser, fetchStats]);
 
-  // Auto-refresh every 30 seconds (only if function is enabled)
+  // Auto-refresh every minute while visible (slower when tab is hidden).
   // CRITICAL: Pause polling during chat streaming to reduce load
   // Note: This hook doesn't have direct access to streaming state, but can be extended if needed
   useEffect(() => {
-    if (!ready || !userId || isDemoUser || isFunctionDisabledRef.current) return;
+    if (QUIET_MODE || !ready || !userId || isDemoUser || isFunctionDisabledRef.current) return;
 
+    const pollMs =
+      document.visibilityState === 'hidden'
+        ? HIDDEN_REFRESH_INTERVAL_MS
+        : QUIET_MODE
+          ? QUIET_REFRESH_INTERVAL_MS
+          : REFRESH_INTERVAL_MS;
     const interval = setInterval(() => {
       fetchStats();
-    }, REFRESH_INTERVAL_MS);
+    }, pollMs);
 
     return () => clearInterval(interval);
   }, [ready, userId, isDemoUser, fetchStats]);

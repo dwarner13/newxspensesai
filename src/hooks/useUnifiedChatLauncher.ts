@@ -68,12 +68,7 @@ export interface ChatLaunchOptions {
 }
 
 const CHAT_ALLOWED_PREFIXES = [
-  '/dashboard/prime-chat',
-  '/dashboard/team-room',
-  '/dashboard/employee-chat',
-  '/dashboard/chat',
-  '/dashboard/smart-import-ai',
-  '/dashboard/smart-categories',
+  '/dashboard',
 ];
 
 function isChatAllowedPath(pathname: string) {
@@ -267,7 +262,9 @@ export function useUnifiedChatLauncher() {
     }
 
     const guardPath = resolvedOptions?.routeHint || location.pathname;
-    if (!isChatAllowedPath(guardPath)) {
+    // Keep the user on their current dashboard scene (transactions/categories/etc).
+    // Only route to prime-chat when chat is opened from non-dashboard areas.
+    if (!guardPath.startsWith('/dashboard') && !isChatAllowedPath(guardPath)) {
       navigate('/dashboard/prime-chat');
     }
     openChatInternal(resolvedOptions);

@@ -71,6 +71,7 @@ import TestPage from './pages/dashboard/TestPage';
 // const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
 const AIFinancialAssistantPage = lazy(() => import('./pages/dashboard/AIFinancialAssistantPage'));
 const SmartImportAIPage = lazy(() => import('./pages/dashboard/SmartImportAIPage'));
+const BulkUploadPage = lazy(() => import('./pages/dashboard/BulkUploadPage'));
 const FinancialStoryPage = lazy(() => import('./pages/dashboard/FinancialStoryPage'));
 const UploadSpeedTest = lazy(() => import('./pages/dev/UploadSpeedTest'));
 const DashboardTransactionsPage = lazy(() => import('./pages/dashboard/DashboardTransactionsPage'));
@@ -78,6 +79,7 @@ const TransactionsPage = lazy(() => import('./pages/dashboard/TransactionsPage')
 const BankAccountsPage = lazy(() => import('./pages/dashboard/BankAccountsPage'));
 const GoalConciergePage = lazy(() => import('./pages/dashboard/GoalConciergePage'));
 const SmartCategoriesPage = lazy(() => import('./pages/dashboard/SmartCategoriesPage'));
+const AIResultsPage = lazy(() => import('./pages/dashboard/AIResultsPage'));
 const EmployeeChatPage = lazy(() => import('./pages/dashboard/EmployeeChatPage'));
 const AnalyticsAI = lazy(() => import('./pages/dashboard/AnalyticsAI'));
 
@@ -479,10 +481,12 @@ function App() {
                         </Suspense>
                       } />
                       <Route path="smart-import-ai" element={<SmartImportChatPage />} />
+                      <Route path="bulk-upload" element={<Suspense fallback={<LoadingSpinner />}><BulkUploadPage /></Suspense>} />
                       <Route path="ai-chat-assistant" element={<AIChatAssistantPage />} />
                       <Route path="ai-financial-assistant" element={<AIChatAssistantPage />} />
                       <Route path="ai-assistant" element={<Navigate to="/dashboard/ai-chat-assistant" replace />} />
                       <Route path="smart-categories" element={<Suspense fallback={<LoadingSpinner />}><SmartCategoriesPage /></Suspense>} />
+                      <Route path="ai-results" element={<Suspense fallback={<LoadingSpinner />}><AIResultsPage /></Suspense>} />
                       <Route path="ai-categorization" element={<Suspense fallback={<LoadingSpinner />}><SmartCategoriesPage /></Suspense>} />
                       <Route path="analytics-ai" element={<Suspense fallback={<LoadingSpinner />}><AnalyticsAI /></Suspense>} />
                       <Route path="ai-financial-freedom" element={<Suspense fallback={<LoadingSpinner />}><AIFinancialFreedomPage /></Suspense>} />

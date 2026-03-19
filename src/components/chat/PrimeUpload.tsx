@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-import { maskPII } from "../../../netlify/functions/_shared/pii";
+import { uploadWithProgress } from "../../lib/upload/uploadWithProgress";
 
 /**
  * ✅ ACCEPT LIST: Vetted safe file types only
@@ -18,7 +18,7 @@ const MAX_MB = 25;
 const MAX_FILES_PER_UPLOAD = 1; // Single file per submission for now
 
 export function PrimeUpload({ afterUpload }: { afterUpload?: (msg: string) => void }) {
-  const { user, supabase } = useAuth() as any;
+  const { user } = useAuth() as any;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,9 +71,8 @@ export function PrimeUpload({ afterUpload }: { afterUpload?: (msg: string) => vo
   /**
    * 🔐 Main upload handler
    * 1. Client-side validation
-   * 2. Upload to Supabase Storage (bucket: 'xspenses')
-   * 3. Create AI task for Byte ingestion
-   * 4. Audit log the event
+   * 2. Run canonical smart import pipeline
+   * 3. Report success/failure to chat UX
    */
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,50 +91,20 @@ export function PrimeUpload({ afterUpload }: { afterUpload?: (msg: string) => vo
     setBusy(true);
 
     try {
-      // 🔐 Generate secure path (user_id + UUID to prevent collisions/enumeration)
-      const fileId = crypto.randomUUID();
-      const path = `incoming/${user.id}/${fileId}/${file.name}`;
-
-      // ✅ Upload to Supabase Storage
-      const { error: upErr } = await supabase.storage
-        .from("xspenses")
-        .upload(path, file, { upsert: false });
-
-      if (upErr) {
-        throw new Error(`Storage upload failed: ${upErr.message}`);
-      }
-
-      // 🛡️ Prepare audit-safe metadata (redact filename if contains PII)
-      const { masked: safeFileName } = maskPII(file.name, "last4");
-      const auditMetadata = {
-        bucket: "xspenses",
-        path: path.substring(0, path.lastIndexOf("/")), // omit actual filename for audit
-        fileName: safeFileName,
-        fileId,
-        size: file.size,
-        mime: file.type || "application/octet-stream"
-      };
-
-      // 📤 Dispatch to Prime -> Byte ingestion
-      const res = await fetch("/.netlify/functions/prime-upload-dispatch", {
-        method: "POST",
-        headers: {
-          "x-user-id": user.id,
-          "content-type": "application/json"
-        },
-        body: JSON.stringify(auditMetadata)
+      const result = await uploadWithProgress({
+        userId: user.id,
+        file,
+        source: "chat",
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.error || `Upload dispatch failed (${res.status})`);
+      if (result.rejected) {
+        throw new Error(result.reason || "Upload rejected by import pipeline");
       }
 
       // ✅ Success callback
       afterUpload?.(
-        "Got it. I'm sending this to Byte for ingestion now. " +
-        "I'll notify you when it's ready for categorization."
+        result.queued
+          ? "Got it. Byte is processing this now. I'll notify you when it's ready for categorization."
+          : "Got it. Byte processed this upload and it's ready for categorization."
       );
     } catch (e: any) {
       console.error("[PrimeUpload] Error:", {

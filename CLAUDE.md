@@ -151,3 +151,56 @@ Migrations go in `sql/migrations/` with timestamp prefix (e.g., `20260220_name.s
 - Claude Vision must return clean JSON: ISO dates, clean merchant names, inferred categories
 - Low confidence rows flagged with status = 'needs_review'
 - Source column tracks whether Google Vision or Claude Vision was used
+
+## Prime Summary Pipeline
+
+### Key Files
+- `netlify/functions/prime-summary.ts` — summary endpoint, called after import commits
+- `netlify/functions/_shared/primeSummarizer.ts` — LLM prompt + deterministic formatter
+- `netlify/functions/process-statement.ts` — PDF parse → staging insert → breakdown build
+- `netlify/functions/commit-import.ts` — staging → transactions + persists StatementBreakdown
+
+### LLM vs Deterministic Path
+- `PRIME_SUMMARY_ALLOW_LLM=1` in `.env.local` → LLM path (Claude generates summary)
+- Without that flag → deterministic formatter runs (template-based, no AI reasoning)
+- The LLM path must be active for Prime to sound like an advisor, not a report
+
+### StatementBreakdown Schema
+Defined in `netlify/functions/_shared/` — version 1 schema:
+- `statement_meta` — issuer, account_last4, period_start, period_end, statement_type
+- `totals` — total_debits, total_credits, net, transaction_count
+- `category_totals` — array of { category, total, count, percentage }
+- `top_merchants` — array of { merchant, total, count }
+- `flags` — duplicate_count, refund_count, needs_review_count, low_confidence_count
+- `confidence` — overall, ocr_confidence, reconciled, recon_method
+- Persisted to `imports.statement_breakdown_json` (JSONB column) after commit
+
+### Known Issues (active as of March 2026)
+1. Issuer detection returns null for Canadian Tire / Triangle — needs pattern list
+2. Foreign currency transactions capturing USD amount instead of CAD amount
+3. Payment/credit transactions being dropped from capture
+4. import_summaries missing unique constraint on import_id — upsert fails
+5. Issues section shows placeholder text "still syncing" — must be removed
+6. ai_activity_events insert failing — employee_id column is NOT NULL
+
+### Prime Prompt Rules — DO NOT CHANGE WITHOUT DISCUSSION
+- Prime is an advisor, not a data formatter
+- Prime's Read section must be flowing paragraphs, not bullets
+- Never output "consider reviewing your budget" — specific numbers only
+- Never output placeholder text in Issues section
+- The analyst voice instructions live in PRIME_SUMMARIZER_SYSTEM_PROMPT
+
+### Database Migrations Needed
+Run this in Supabase SQL editor:
+ALTER TABLE import_summaries
+ADD CONSTRAINT import_summaries_import_id_key UNIQUE (import_id);
+
+## Agent Handoff Structure
+- Prime → Byte → Tag → Prime close (strict order, do not break)
+- prime-router.ts orchestrates the pipeline
+- Byte announces OCR completion to Prime chat thread via announceByteCompletionToPrime()
+- Tag must complete categorization BEFORE prime-summary fires
+- prime-summary is currently being called 3x per import — needs deduplication fix
+
+## Current Active Branch
+sidebar-safe-refactor

@@ -1,7 +1,7 @@
 // src/navigation/nav-registry.tsx
 import type { ReactNode } from "react";
 import {
-  Crown, Receipt, Landmark, Tags, BarChart3, FileText,
+  Crown, Receipt, Landmark, Tags, BarChart3, FileText, Brain,
   Target, Bell, Mic, Briefcase, Settings, Upload
 } from "lucide-react";
 
@@ -66,6 +66,14 @@ const NAV_ITEMS: NavItem[] = [
     icon: <BarChart3 className="w-5 h-5" />,
     group: "INSIGHTS",
     description: "Spending trends and patterns",
+  },
+  {
+    label: "AI results",
+    to: "/dashboard/ai-results",
+    icon: <Brain className="w-5 h-5" />,
+    group: "INSIGHTS",
+    description: "Unified AI timeline, summaries, and publish center",
+    badge: 'new',
   },
   {
     label: "Reports",

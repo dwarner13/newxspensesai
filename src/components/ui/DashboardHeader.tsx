@@ -40,6 +40,12 @@ function getFallbackTitle(pathname: string): { title: string; subtitle: string }
       subtitle: 'Monitor import status, history, and processing health.' 
     };
   }
+  if (pathname.startsWith('/dashboard/bulk-upload')) {
+    return {
+      title: 'Bulk Upload',
+      subtitle: 'Process high-volume statements in guided batches.',
+    };
+  }
   if (pathname.startsWith('/dashboard/settings')) {
     return { 
       title: 'Settings', 
@@ -72,6 +78,7 @@ const pageTitles: Record<string, { title: string; subtitle: string }> = {
   '/dashboard/transactions': { title: 'Transactions', subtitle: 'View and manage your financial transactions.' },
   '/dashboard/ai-financial-assistant': { title: 'AI Financial Assistant', subtitle: 'Get personalized financial advice from AI.' },
   '/dashboard/smart-import-ai': { title: 'Import Operations', subtitle: 'Monitor import status, history, and processing health.' },
+  '/dashboard/bulk-upload': { title: 'Bulk Upload', subtitle: 'Process high-volume statements in guided batches.' },
   '/dashboard/prime-chat': { title: 'Prime Chat', subtitle: 'Chat directly with Prime, your AI CEO.' },
   '/dashboard/ai-chat-assistant': { title: 'AI Chat Assistant', subtitle: 'Chat with your AI financial assistant.' },
   '/dashboard/team-room': { title: 'Team Room', subtitle: 'Collaborate with your AI financial team.' },
@@ -191,6 +198,8 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [unreadCount] = useState(4);
+  // Workspace tab strip (Dashboard/Overview/Planning/...) is intentionally hidden globally.
+  const hideWorkspaceTabs = true;
   const notificationsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -271,13 +280,18 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
     <header 
       id="dashboard-header" 
       className={cn(
-        "w-full border-b border-slate-800/60 bg-slate-950/80 backdrop-blur sticky top-0 z-30"
+        "block visible shrink-0 w-full border-b border-slate-800/60 bg-slate-950/80 backdrop-blur sticky top-0 z-30"
       )}
     >
       {/* DEV MARKER: Confirm this is the active header */}
       <div data-header-marker="ACTIVE_HEADER" className="hidden">ACTIVE_HEADER</div>
       
-      <div className="w-full px-4 md:px-6 md:pr-10 py-4 flex flex-col gap-3">
+      <div
+        className={cn(
+          'w-full px-4 md:px-6 md:pr-10 flex flex-col',
+          hideWorkspaceTabs ? 'py-3 gap-2' : 'py-4 gap-3'
+        )}
+      >
         {/* Row 1: Title + subtitle + utilities */}
         {/* Locked grid: Mobile [Title(minmax(280px,1fr)) Icons(auto)], Desktop [Title(minmax(280px,1fr)) Search(minmax(360px,560px)) Icons(auto)] */}
         {/* CRITICAL: Title has guaranteed 280px minimum, search is right-aligned and capped, icons pinned far right */}
@@ -497,48 +511,52 @@ export default function DashboardHeader({ customTitle, customSubtitle }: Dashboa
           </div>
         </div>
 
-        {/* Row 2: Tabs + Status pills (Guest Mode + AI Active + 24/7) */}
-        {/* Flex-wrap ensures status pills wrap below tabs on narrow screens instead of overlapping */}
-        <div className="flex items-center justify-between gap-4 min-w-0 w-full flex-wrap">
-          {/* Left: main tabs - scrollable container */}
-          <div className="min-w-0 flex-1 overflow-hidden shrink-0">
-            <div 
-              className="flex items-center gap-2 overflow-x-auto whitespace-nowrap no-scrollbar"
-              style={{
-                scrollbarWidth: 'none' as const,
-                msOverflowStyle: 'none' as const,
-                WebkitOverflowScrolling: 'touch' as const
-              }}
-            >
-              {tabs.map((tab) => {
-                const isActive = tab.id === activeTabId;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabClick(tab)}
-                    disabled={!tab.navigate}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={cn(
-                      "rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1.5 text-xs font-medium text-slate-200 whitespace-nowrap transition",
-                      "flex-none",
-                      isActive && "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/30",
-                      !isActive && "hover:bg-slate-900/80",
-                      !tab.navigate && 'opacity-50 cursor-not-allowed'
-                    )}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+        {!hideWorkspaceTabs && (
+          <>
+            {/* Row 2: Tabs + Status pills (Guest Mode + AI Active + 24/7) */}
+            {/* Flex-wrap ensures status pills wrap below tabs on narrow screens instead of overlapping */}
+            <div className="flex items-center justify-between gap-4 min-w-0 w-full flex-wrap">
+              {/* Left: main tabs - scrollable container */}
+              <div className="min-w-0 flex-1 overflow-hidden shrink-0">
+                <div 
+                  className="flex items-center gap-2 overflow-x-auto whitespace-nowrap no-scrollbar"
+                  style={{
+                    scrollbarWidth: 'none' as const,
+                    msOverflowStyle: 'none' as const,
+                    WebkitOverflowScrolling: 'touch' as const
+                  }}
+                >
+                  {tabs.map((tab) => {
+                    const isActive = tab.id === activeTabId;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => handleTabClick(tab)}
+                        disabled={!tab.navigate}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={cn(
+                          "rounded-full border border-slate-800 bg-slate-950/70 px-3 py-1.5 text-xs font-medium text-slate-200 whitespace-nowrap transition",
+                          "flex-none",
+                          isActive && "bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/30",
+                          !isActive && "hover:bg-slate-900/80",
+                          !tab.navigate && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* Right: Status pills (Guest Mode only) - AI Active moved to Row 1 icons column */}
+              {/* No padding-right needed: floating rail is fixed to viewport right, header aligns with content padding */}
+              <div className="flex items-center gap-3 flex-none shrink-0 justify-end relative z-[60]">
+                <GuestModeBadge />
+              </div>
             </div>
-          </div>
-          
-          {/* Right: Status pills (Guest Mode only) - AI Active moved to Row 1 icons column */}
-          {/* No padding-right needed: floating rail is fixed to viewport right, header aligns with content padding */}
-          <div className="flex items-center gap-3 flex-none shrink-0 justify-end relative z-[60]">
-            <GuestModeBadge />
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       {/* Command Palette Modal */}

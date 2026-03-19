@@ -31,6 +31,26 @@ import { getFirstMoney } from './_shared/money.js';
 
 const STAGED_ROWS_WAIT_MS = 12000;
 const STAGED_ROWS_POLL_MS = 750;
+const ISSUER_PATTERNS = [
+  { match: /triangle/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /canadian tire/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /ctfs/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /ct financial/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /canadian tire bank/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /world elite mastercard/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /capital one/i, name: 'Capital One' },
+  { match: /td bank|td canada trust/i, name: 'TD Bank' },
+  { match: /rbc|royal bank of canada/i, name: 'RBC' },
+  { match: /scotiabank|bank of nova scotia/i, name: 'Scotiabank' },
+  { match: /cibc/i, name: 'CIBC' },
+  { match: /bmo|bank of montreal/i, name: 'BMO' },
+  { match: /desjardins/i, name: 'Desjardins' },
+  { match: /national bank/i, name: 'National Bank' },
+  { match: /tangerine/i, name: 'Tangerine' },
+  { match: /simplii/i, name: 'Simplii Financial' },
+  { match: /amex|american express/i, name: 'American Express' },
+  { match: /hsbc/i, name: 'HSBC' },
+];
 
 export interface StatementBreakdown {
   version: 1;
@@ -121,6 +141,22 @@ function deriveStatementType(meta: any): 'bank' | 'credit_card' | 'unknown' {
 }
 
 function extractIssuer(meta: any): string | null {
+  const rawText = [
+    meta?.rawText,
+    meta?.text,
+    meta?.ocr_text,
+    meta?.summary,
+    meta?.institution,
+    meta?.issuer,
+    meta?.bank,
+    meta?.card,
+    meta?.card_name,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  for (const pattern of ISSUER_PATTERNS) {
+    if (pattern.match.test(rawText)) return pattern.name;
+  }
   const candidates = [
     meta?.issuer,
     meta?.institution,
@@ -1132,7 +1168,10 @@ export const handler: Handler = async (event, context) => {
           : new Date(rawDate + 'T00:00:00.000Z').toISOString();
         const dateOnly = rawDate.split('T')[0];
 
-        const merchantName = tx.merchant || tx.vendor || tx.vendor_normalized || null;
+        let merchantName = tx.merchant || tx.vendor || tx.vendor_normalized || null;
+        if (merchantName && String(merchantName).toLowerCase().replace(/[^a-z0-9]/g, '').includes('7eleven')) {
+          merchantName = '7-Eleven';
+        }
 
         return {
           id: randomUUID(),
@@ -1534,7 +1573,10 @@ export const handler: Handler = async (event, context) => {
         documentId: documentId || null,
       });
       console.log('[BREAKDOWN]', JSON.stringify(statementBreakdown, null, 2));
-      await persistStatementBreakdown(sb, importId, userIdText, statementBreakdown);
+      const persisted = await persistStatementBreakdown(sb, importId, userIdText, statementBreakdown);
+      if (!persisted) {
+        console.error('[CommitImport] ⚠ statement_breakdown_json NOT saved — run migration sql/migrations/20260301_imports_statement_breakdown.sql', { importId });
+      }
     } catch (breakdownError: any) {
       console.warn('[CommitImport] Failed to build/persist statement breakdown', {
         importId,

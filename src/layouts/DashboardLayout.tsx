@@ -54,6 +54,7 @@ function DashboardContentGrid({ children }: { children: React.ReactNode }) {
     '/dashboard/smart-import-ai',
     '/dashboard/ai-chat-assistant',
     '/dashboard/smart-categories',
+    '/dashboard/ai-results',
     '/dashboard/analytics-ai',
     '/dashboard/wellness-studio',
     '/dashboard/financial-therapist',
@@ -626,10 +627,18 @@ export default function DashboardLayout() {
     if (!ready || !userId || !profile) return;
     if (isChatOpen) return;
     if (didAutoOpenChatRef.current) return;
+    // Only auto-open on the main dashboard scene to avoid blocking
+    // navigation on feature pages (Transactions/Categories/etc).
+    const isMainDashboardRoute =
+      location.pathname === '/dashboard' || location.pathname === '/dashboard/';
+    if (!isMainDashboardRoute) return;
+    // Never auto-open on smaller viewports where slideout overlays
+    // can effectively block navigation taps.
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) return;
 
     didAutoOpenChatRef.current = true;
     openChat({ initialEmployeeSlug: 'prime-boss' });
-  }, [ready, userId, profile, isChatOpen, openChat]);
+  }, [ready, userId, profile, isChatOpen, openChat, location.pathname]);
 
   // Open chat history
   const handleOpenChatHistory = () => {
@@ -1255,22 +1264,6 @@ export default function DashboardLayout() {
         </ChatErrorBoundary>
       )}
       
-      {/* Prime Chat CTA - persistent expansion toggle */}
-      <button
-        type="button"
-        onClick={handlePrimeChatCta}
-        className={`fixed bottom-8 right-[100px] z-[70] hidden md:inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold shadow-lg backdrop-blur-sm transition-colors ${
-          isChatOpen
-            ? 'border-amber-400/60 bg-amber-500/20 text-amber-100'
-            : 'border-slate-600/70 bg-slate-900/80 text-slate-100 hover:border-slate-500 hover:bg-slate-800/85'
-        }`}
-        aria-pressed={isChatOpen}
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-        Chat with Prime
-      </button>
-
-
       {/* Chat History Sidebar */}
       <ChatHistorySidebar
         isOpen={isChatHistoryOpen}

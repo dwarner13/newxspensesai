@@ -4,7 +4,7 @@
  * Main transaction table component
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { TransactionRow } from './TransactionRow';
 import type { CommittedTransaction, PendingTransaction, TransactionFilters } from '../../types/transactions';
 
@@ -38,7 +38,7 @@ export function TransactionList({
   highlightTransactionIds,
 }: TransactionListProps) {
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const itemsPerPage = 25;
   const useDateGroupedView = true;
 
   // Combine and sort all transactions
@@ -79,8 +79,20 @@ export function TransactionList({
 
   // Pagination
   const totalPages = Math.ceil(allItems.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
+  const safeTotalPages = Math.max(1, totalPages);
+  const safeCurrentPage = Math.min(currentPage, safeTotalPages);
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage;
   const paginatedItems = allItems.slice(startIndex, startIndex + itemsPerPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [transactions, pendingTransactions, sortOrder]);
+
+  useEffect(() => {
+    if (currentPage > safeTotalPages) {
+      setCurrentPage(safeTotalPages);
+    }
+  }, [currentPage, safeTotalPages]);
 
   const groupedByDay = useMemo(() => {
     const sections: Array<{ key: string; label: string; items: typeof paginatedItems }> = [];
@@ -247,17 +259,17 @@ export function TransactionList({
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
+              disabled={safeCurrentPage === 1}
               className="px-3 py-1 text-xs bg-slate-800 text-slate-300 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
             <span className="text-xs text-slate-400">
-              Page {currentPage} of {totalPages}
+              Page {safeCurrentPage} of {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
+              disabled={safeCurrentPage === totalPages}
               className="px-3 py-1 text-xs bg-slate-800 text-slate-300 rounded hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next

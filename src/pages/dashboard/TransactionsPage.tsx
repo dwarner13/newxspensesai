@@ -14,6 +14,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { type TransactionsQuickViewMode } from '../../components/workspace/planning/TransactionsWorkspacePanel';
 import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
@@ -22,8 +23,8 @@ import { useTransactions } from '../../hooks/useTransactions';
 import { usePendingTransactions } from '../../hooks/usePendingTransactions';
 import { useImportList } from '../../hooks/useImportList';
 import { MonthNavigator } from '../../components/transactions/MonthNavigator';
-import { useTransactionFilters } from '../../hooks/useTransactionFilters';
 import { TransactionList } from '../../components/transactions/TransactionList';
+import { useTransactionFilters } from '../../hooks/useTransactionFilters';
 import { TransactionInsightDrawer } from '../../components/transactions/TransactionInsightDrawer';
 import { StatementSummaryHeader } from '../../components/transactions/StatementSummaryHeader';
 import { BulkActionsBar } from '../../components/transactions/BulkActionsBar';
@@ -35,15 +36,50 @@ import type { CommittedTransaction, PendingTransaction } from '../../types/trans
 import { getSupabase } from '../../lib/supabase';
 import { fetchCategoriesTree } from '../../lib/categories';
 import { createCategoryRule } from '../../lib/categoryRules';
+import { fetchPrimeSummarySingleFlight } from '../../lib/ai/primeSummaryClient';
 import { useAuth } from '../../contexts/AuthContext';
+import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
+import UnifiedAssistantChat from '../../components/chat/UnifiedAssistantChat';
 import toast from 'react-hot-toast';
 
 type Transaction = CommittedTransaction | PendingTransaction;
+type WowPreviewRow = {
+  id: string;
+  posted_at: string;
+  merchant_name: string;
+  amount: number;
+  category: string;
+};
+type DeviceImportNotice = {
+  id: string;
+  label: string;
+  docName: string;
+};
+type StatementReviewRow = {
+  id: string;
+  source: 'committed' | 'pending';
+  postedAt: string | null;
+  merchant: string;
+  amount: number;
+  category: string;
+  status: string;
+  payload: CommittedTransaction | PendingTransaction;
+};
+
+function toInstitutionLabel(label: string): string {
+  const raw = String(label || '').trim();
+  if (!raw) return 'Statement';
+  const issuerOnly = raw.split('•')[0]?.trim();
+  const normalized = (issuerOnly || raw).trim();
+  const hasInstitutionLikeText = /[A-Za-z]{3,}/.test(normalized);
+  return hasInstitutionLikeText ? normalized : 'Statement';
+}
 
 export default function TransactionsPage() {
   // Scroll to top when page loads
   useScrollToTop();
   const { userId } = useAuth();
+  const { openChat } = useUnifiedChatLauncher();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -65,20 +101,121 @@ export default function TransactionsPage() {
   
   // Import list for MonthNavigator
   const { imports: importList, isLoading: importListLoading } = useImportList();
+  const selectedImport = useMemo(
+    () => importList.find((item) => item.id === importIdFilter) || null,
+    [importList, importIdFilter]
+  );
+  const selectedStatementLabel = selectedImport?.statementLabel || selectedImport?.docName || 'Statement';
+  const selectedStatementInstitution = toInstitutionLabel(selectedStatementLabel);
+  const lastSeenImportIdRef = useRef<string | null>(null);
+  const [deviceImportNotice, setDeviceImportNotice] = useState<DeviceImportNotice | null>(null);
+  const [primeRecapSummary, setPrimeRecapSummary] = useState('');
+  const [primeRecapLoading, setPrimeRecapLoading] = useState(false);
+  const [primeRecapError, setPrimeRecapError] = useState<string | null>(null);
+  const [isStatementReviewModalOpen, setIsStatementReviewModalOpen] = useState(false);
+  const [isDiagnosticsPanelOpen, setIsDiagnosticsPanelOpen] = useState(false);
+  const [highlightViewingScope, setHighlightViewingScope] = useState(false);
 
-  const handleSelectMonth = useCallback((importId: string | null) => {
+  const navigateToImportScope = useCallback((importId: string | null, opts?: { openStatementModal?: boolean; clearTableFilters?: boolean }) => {
     const params = new URLSearchParams(location.search);
     if (importId) {
       params.set('importId', importId);
     } else {
       params.delete('importId');
     }
+    if (opts?.clearTableFilters) {
+      params.delete('category');
+      params.delete('status');
+      params.delete('focus');
+      params.delete('focusList');
+      params.delete('highImpact');
+    }
     const nextSearch = params.toString();
     navigate({
       pathname: location.pathname,
       search: nextSearch ? `?${nextSearch}` : '',
     });
+    if (opts?.openStatementModal !== false) {
+      setIsStatementReviewModalOpen(Boolean(importId));
+    }
   }, [location.pathname, location.search, navigate]);
+  const handleSelectMonth = useCallback((importId: string | null) => {
+    navigateToImportScope(importId, { openStatementModal: true });
+  }, [navigateToImportScope]);
+  useEffect(() => {
+    if (importListLoading || importList.length === 0) return;
+    const newest = importList[0];
+    if (!newest?.id) return;
+    if (!lastSeenImportIdRef.current) {
+      lastSeenImportIdRef.current = newest.id;
+      return;
+    }
+    if (newest.id !== lastSeenImportIdRef.current && newest.id !== importIdFilter) {
+      setDeviceImportNotice({
+        id: newest.id,
+        label: newest.label,
+        docName: newest.docName,
+      });
+    }
+    lastSeenImportIdRef.current = newest.id;
+  }, [importList, importListLoading, importIdFilter]);
+  useEffect(() => {
+    if (!deviceImportNotice) return;
+    if (importIdFilter === deviceImportNotice.id) {
+      setDeviceImportNotice(null);
+    }
+  }, [deviceImportNotice, importIdFilter]);
+  useEffect(() => {
+    if (!isStatementView && isStatementReviewModalOpen) {
+      setIsStatementReviewModalOpen(false);
+    }
+  }, [isStatementReviewModalOpen, isStatementView]);
+  useEffect(() => {
+    if (!highlightViewingScope || typeof window === 'undefined') return;
+    const timeoutId = window.setTimeout(() => setHighlightViewingScope(false), 1600);
+    return () => window.clearTimeout(timeoutId);
+  }, [highlightViewingScope]);
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!isDiagnosticsPanelOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isDiagnosticsPanelOpen]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!importIdFilter) {
+      setPrimeRecapSummary('');
+      setPrimeRecapError(null);
+      setPrimeRecapLoading(false);
+      return;
+    }
+    const loadPrimeRecap = async () => {
+      setPrimeRecapLoading(true);
+      setPrimeRecapError(null);
+      try {
+        const { summary } = await fetchPrimeSummarySingleFlight({ importId: importIdFilter });
+        if (cancelled) return;
+        if (summary) {
+          setPrimeRecapSummary(summary);
+          return;
+        }
+        setPrimeRecapError('Prime recap is not ready yet for this statement.');
+      } catch {
+        if (!cancelled) {
+          setPrimeRecapError('Could not load Prime recap right now.');
+        }
+      } finally {
+        if (!cancelled) setPrimeRecapLoading(false);
+      }
+    };
+    void loadPrimeRecap();
+    return () => {
+      cancelled = true;
+    };
+  }, [importIdFilter]);
 
   // Data hooks
   const {
@@ -87,14 +224,19 @@ export default function TransactionsPage() {
     isError: transactionsError,
     errorMessage: transactionsErrorMessage,
     refetch: refetchTransactions,
-  } = useTransactions();
+  } = useTransactions({
+    importId: importIdFilter || null,
+  });
   const {
     pendingTransactions,
     isLoading: pendingLoading,
     isError: pendingError,
     errorMessage: pendingErrorMessage,
     refetch: refetchPendingTransactions,
-  } = usePendingTransactions();
+  } = usePendingTransactions({
+    importId: importIdFilter || null,
+    includeDuplicateChecks: false,
+  });
   // Categories for inline editing
   const [categoryList, setCategoryList] = useState<string[]>([]);
   useEffect(() => {
@@ -105,14 +247,10 @@ export default function TransactionsPage() {
       // silently fall back to TransactionRow's built-in default list
     });
   }, [userId]);
-
   const handleCategoryChange = useCallback((txId: string, category: string) => {
-    // The real-time subscription will re-fetch automatically.
-    // Update scopedTransactions optimistically so the badge reflects the change
-    // without waiting for the next refetch cycle.
-    // (useTransactions keeps its own cache — nothing to mutate here directly.)
-    // The toast and optimistic update inside TransactionRow are sufficient.
-    void txId; void category;
+    // Rows handle optimistic updates; subscription/refetch reconciles authoritative state.
+    void txId;
+    void category;
   }, []);
 
   const committedSampleRow = useMemo(
@@ -282,9 +420,12 @@ export default function TransactionsPage() {
     transactions,
   ]);
   const { filters } = useTransactionFilters(scopedTransactions, scopedPendingTransactions);
-
-  // Sort order for TransactionList
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const showWowPreview = true;
+  const [showClassicDiagnostics] = useState(false);
+  const [wowSelectedIds, setWowSelectedIds] = useState<Set<string>>(new Set());
+  const [wowGroupMode, setWowGroupMode] = useState<'none' | 'selected' | 'merchant' | 'category'>('none');
+  const [wowPage, setWowPage] = useState(1);
   const [isGroupEditOpen, setIsGroupEditOpen] = useState(false);
   const [groupEditCategory, setGroupEditCategory] = useState('');
   const [dismissedGroupKeys, setDismissedGroupKeys] = useState<Record<string, true>>({});
@@ -310,9 +451,11 @@ export default function TransactionsPage() {
   const [selectedCategoryDrawerTxId, setSelectedCategoryDrawerTxId] = useState<string | null>(null);
   const [selectedCategoryDrawerReceiptUrl, setSelectedCategoryDrawerReceiptUrl] = useState<string | null>(null);
   const [isCategoryDrawerReceiptLoading, setIsCategoryDrawerReceiptLoading] = useState(false);
+  const wowRowsScrollRef = useRef<HTMLDivElement | null>(null);
   const [activeRuleCount, setActiveRuleCount] = useState<number | null>(null);
   const [recentFeedbackCount, setRecentFeedbackCount] = useState<number | null>(null);
   const spendingBreakdownRef = useRef<HTMLDivElement | null>(null);
+  const previewScopeRef = useRef<HTMLDivElement | null>(null);
   const deepLinkHandledRef = useRef<string>('');
 
   // Calculate pending counts
@@ -320,6 +463,113 @@ export default function TransactionsPage() {
   
   // Calculate stats for workspace panel
   const totalCount = scopedTransactions.length + scopedPendingTransactions.length;
+  const statementCount = importList.length;
+  const latestStatementId = importList[0]?.id || null;
+  const latestStatementLabel = importList[0]?.statementLabel || 'No recent statement';
+  const latestStatementInstitution = toInstitutionLabel(latestStatementLabel);
+  const committedCountByImport = useMemo(() => {
+    const counts = new Map<string, number>();
+    transactions.forEach((tx) => {
+      const importId = String(tx.import_id || '').trim();
+      if (!importId) return;
+      counts.set(importId, (counts.get(importId) || 0) + 1);
+    });
+    return counts;
+  }, [transactions]);
+  const pendingCountByImport = useMemo(() => {
+    const counts = new Map<string, number>();
+    pendingTransactions.forEach((ptx) => {
+      const record = ptx as unknown as Record<string, unknown>;
+      const nestedImport = record.import as Record<string, unknown> | undefined;
+      const importId = String(nestedImport?.id || ptx.import_id || '').trim();
+      if (!importId) return;
+      counts.set(importId, (counts.get(importId) || 0) + 1);
+    });
+    return counts;
+  }, [pendingTransactions]);
+  const statementQueueItems = useMemo(() => {
+    return importList.slice(0, 5).map((imp) => {
+      const committed = committedCountByImport.get(imp.id) || 0;
+      const pending = pendingCountByImport.get(imp.id) || 0;
+      const total = committed + pending;
+      const status = String(imp.status || '').toLowerCase();
+      const isDone = status.includes('committed') || status.includes('analyzed');
+      const isFailed = status.includes('failed') || status.includes('error');
+      const isReady = !isDone && !isFailed && (status.includes('parsed') || status.includes('ready') || status.includes('normalized'));
+      const statusLabel = isFailed
+        ? 'Needs attention'
+        : isDone
+          ? 'Ready in table'
+          : isReady
+            ? 'Ready to review'
+            : 'Loading';
+      return {
+        ...imp,
+        displayName: toInstitutionLabel(imp.statementLabel),
+        committed,
+        pending,
+        total,
+        isDone,
+        isFailed,
+        isReady,
+        statusLabel,
+      };
+    });
+  }, [committedCountByImport, importList, pendingCountByImport]);
+  const activeQueueScopeItem = useMemo(
+    () => statementQueueItems.find((item) => item.id === importIdFilter) || statementQueueItems[0] || null,
+    [importIdFilter, statementQueueItems]
+  );
+  const viewingScopeName =
+    activeQueueScopeItem?.displayName ||
+    (isStatementView ? selectedStatementInstitution : latestStatementInstitution);
+  const [lastSyncAtMs, setLastSyncAtMs] = useState<number>(() => Date.now());
+  const [syncNowMs, setSyncNowMs] = useState<number>(() => Date.now());
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const intervalId = window.setInterval(() => setSyncNowMs(Date.now()), 30000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+  useEffect(() => {
+    if (transactionsLoading || pendingLoading || importListLoading) return;
+    setLastSyncAtMs(Date.now());
+  }, [
+    importList.length,
+    importListLoading,
+    pendingLoading,
+    pendingTransactions.length,
+    transactions.length,
+    transactionsLoading,
+  ]);
+  const viewingScopeMetaLabel = activeQueueScopeItem
+    ? `${activeQueueScopeItem.label} · ${activeQueueScopeItem.statusLabel}`
+    : null;
+  const syncDeltaSec = Math.max(0, Math.floor((syncNowMs - lastSyncAtMs) / 1000));
+  const syncLabel =
+    syncDeltaSec < 10
+      ? 'Last sync: just now'
+      : syncDeltaSec < 60
+        ? `Last sync: ${syncDeltaSec}s ago`
+        : syncDeltaSec < 3600
+          ? `Last sync: ${Math.floor(syncDeltaSec / 60)}m ago`
+          : `Last sync: ${Math.floor(syncDeltaSec / 3600)}h ago`;
+  const unclassifiedStatementCount = useMemo(() => {
+    const importIds = new Set<string>();
+    scopedTransactions.forEach((tx) => {
+      if (!tx.category || tx.category === 'Uncategorized') {
+        const id = String(tx.import_id || '').trim();
+        if (id) importIds.add(id);
+      }
+    });
+    scopedPendingTransactions.forEach((ptx) => {
+      const category = String(ptx.tag_category || ptx.data_json?.category || '').trim();
+      if (!category || category.toLowerCase() === 'uncategorized') {
+        const id = String(ptx.import_id || '').trim();
+        if (id) importIds.add(id);
+      }
+    });
+    return importIds.size;
+  }, [scopedPendingTransactions, scopedTransactions]);
   const monthCount = useMemo(() => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -1020,6 +1270,134 @@ export default function TransactionsPage() {
       year: 'numeric',
     });
   }, []);
+  const wowPreviewRows = useMemo<WowPreviewRow[]>(() => {
+    const liveRows = urlFilteredCommitted.map((tx) => ({
+      id: tx.id,
+      posted_at: tx.posted_at,
+      merchant_name: tx.merchant_name || 'Unknown merchant',
+      amount: Number(tx.amount || 0),
+      category: tx.category || 'Uncategorized',
+    }));
+    return liveRows;
+  }, [urlFilteredCommitted]);
+  const wowVisibleRows = useMemo(() => {
+    if (wowGroupMode === 'selected') {
+      return wowPreviewRows.filter((row) => wowSelectedIds.has(row.id));
+    }
+    if (wowGroupMode === 'merchant') {
+      const merchantTotals = new Map<string, number>();
+      wowPreviewRows.forEach((row) => {
+        merchantTotals.set(row.merchant_name, (merchantTotals.get(row.merchant_name) || 0) + Math.abs(row.amount));
+      });
+      const topMerchant = Array.from(merchantTotals.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+      return topMerchant ? wowPreviewRows.filter((row) => row.merchant_name === topMerchant) : wowPreviewRows;
+    }
+    if (wowGroupMode === 'category') {
+      const categoryTotals = new Map<string, number>();
+      wowPreviewRows.forEach((row) => {
+        categoryTotals.set(row.category, (categoryTotals.get(row.category) || 0) + Math.abs(row.amount));
+      });
+      const topCategory = Array.from(categoryTotals.entries()).sort((a, b) => b[1] - a[1])[0]?.[0];
+      return topCategory ? wowPreviewRows.filter((row) => row.category === topCategory) : wowPreviewRows;
+    }
+    return wowPreviewRows;
+  }, [wowGroupMode, wowPreviewRows, wowSelectedIds]);
+  const wowGroupTotal = useMemo(
+    () => wowVisibleRows.reduce((sum, row) => sum + Math.abs(row.amount), 0),
+    [wowVisibleRows]
+  );
+  const wowPageSize = 10;
+  const scopeChipCount = wowVisibleRows.length;
+  const viewingScopePrefix = isStatementView ? 'Viewing' : 'Queue focus';
+  const viewingScopeDisplayName = viewingScopeName || (isStatementView ? 'Statement' : 'All statements');
+  const viewingScopeChipLabel = `${viewingScopePrefix}: ${viewingScopeDisplayName} (${scopeChipCount} transaction${scopeChipCount === 1 ? '' : 's'})`;
+  const wowTotalPages = useMemo(
+    () => Math.max(1, Math.ceil(wowVisibleRows.length / wowPageSize)),
+    [wowVisibleRows.length]
+  );
+  const wowPagedRows = useMemo(() => {
+    const start = (wowPage - 1) * wowPageSize;
+    return wowVisibleRows.slice(start, start + wowPageSize);
+  }, [wowPage, wowVisibleRows]);
+  const wowPageButtons = useMemo<Array<number | '…'>>(() => {
+    if (wowTotalPages <= 7) {
+      return Array.from({ length: wowTotalPages }, (_, idx) => idx + 1);
+    }
+    const pages = new Set<number>([1, wowTotalPages, wowPage - 1, wowPage, wowPage + 1]);
+    const normalized = Array.from(pages)
+      .filter((p) => p >= 1 && p <= wowTotalPages)
+      .sort((a, b) => a - b);
+    const output: Array<number | '…'> = [];
+    for (let i = 0; i < normalized.length; i += 1) {
+      const current = normalized[i];
+      const prev = normalized[i - 1];
+      if (i > 0 && prev !== undefined && current - prev > 1) {
+        output.push('…');
+      }
+      output.push(current);
+    }
+    return output;
+  }, [wowPage, wowTotalPages]);
+  useEffect(() => {
+    setWowPage(1);
+  }, [wowGroupMode, importIdFilter]);
+  useEffect(() => {
+    if (wowPage <= wowTotalPages) return;
+    setWowPage(wowTotalPages);
+  }, [wowPage, wowTotalPages]);
+  useEffect(() => {
+    wowRowsScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [wowPage]);
+  const statementReviewRows = useMemo<StatementReviewRow[]>(() => {
+    const committedRows: StatementReviewRow[] = scopedTransactions.map((tx) => ({
+      id: tx.id,
+      source: 'committed',
+      postedAt: tx.posted_at || null,
+      merchant: tx.merchant_name || 'Unknown merchant',
+      amount: Number(tx.amount || 0),
+      category: tx.category || 'Uncategorized',
+      status: 'committed',
+      payload: tx,
+    }));
+
+    const pendingRows: StatementReviewRow[] = scopedPendingTransactions.map((ptx) => {
+      const data = ptx.data_json || {};
+      const pendingCategory = ptx.tag_category || data.category || 'Uncategorized';
+      const pendingStatus = ptx.tag_status || (ptx.needsReview ? 'needs_review' : 'pending');
+      return {
+        id: ptx.id,
+        source: 'pending',
+        postedAt: data.date || ptx.parsed_at || null,
+        merchant: data.merchant || data.description || 'Unknown merchant',
+        amount: Number(data.amount || 0),
+        category: String(pendingCategory),
+        status: String(pendingStatus),
+        payload: ptx,
+      };
+    });
+
+    return [...committedRows, ...pendingRows].sort((a, b) => {
+      const ta = Date.parse(a.postedAt || '');
+      const tb = Date.parse(b.postedAt || '');
+      if (!Number.isNaN(ta) && !Number.isNaN(tb)) return tb - ta;
+      if (!Number.isNaN(ta)) return -1;
+      if (!Number.isNaN(tb)) return 1;
+      return 0;
+    });
+  }, [scopedPendingTransactions, scopedTransactions]);
+  const selectStatementFromPanel = useCallback((importId: string | null) => {
+    setIsDiagnosticsPanelOpen(false);
+    setHighlightViewingScope(true);
+    navigateToImportScope(importId, { openStatementModal: false, clearTableFilters: true });
+  }, [navigateToImportScope]);
+  const handleViewingScopeClick = useCallback(() => {
+    setHighlightViewingScope(true);
+    navigateToImportScope(null, { openStatementModal: false, clearTableFilters: true });
+  }, [navigateToImportScope]);
+  const handleSelectMonthInTable = useCallback((importId: string | null) => {
+    setHighlightViewingScope(true);
+    navigateToImportScope(importId, { openStatementModal: false, clearTableFilters: true });
+  }, [navigateToImportScope]);
   const statementHeaderSummary = useMemo(() => {
     const parseAmount = (value: unknown): number => {
       if (typeof value === 'number') {
@@ -1095,6 +1473,47 @@ export default function TransactionsPage() {
       search: nextSearch ? `?${nextSearch}` : '',
     });
   }, [location.pathname, location.search, navigate]);
+  const focusUncategorizedTransactions = useCallback(() => {
+    const params = new URLSearchParams(location.search);
+    params.set('category', 'Uncategorized');
+    params.delete('focus');
+    params.delete('focusList');
+    params.delete('highImpact');
+    navigate({
+      pathname: location.pathname,
+      search: params.toString() ? `?${params.toString()}` : '',
+    });
+  }, [location.pathname, location.search, navigate]);
+  const openPrimeBriefingFromPanel = useCallback(() => {
+    setIsDiagnosticsPanelOpen(false);
+    openChat({
+      initialEmployeeSlug: 'prime-boss',
+      context: {
+        page: 'transactions',
+        panel: 'diagnostics-side',
+        importId: importIdFilter || null,
+        scope: isStatementView ? 'statement' : 'all-statements',
+        kickoff: 'review-unclassified-statements',
+      },
+    });
+  }, [importIdFilter, isStatementView, openChat]);
+  const openPrimeFromTransactions = useCallback(() => {
+    openChat({
+      initialEmployeeSlug: 'prime-boss',
+      context: {
+        page: 'transactions',
+        importId: importIdFilter || null,
+        scope: isStatementView ? 'statement' : 'all-statements',
+      },
+    });
+  }, [importIdFilter, isStatementView, openChat]);
+  const aiScopeLockLabel = useMemo(() => {
+    if (isStatementView) return selectedStatementInstitution;
+    return 'All statements';
+  }, [isStatementView, selectedStatementInstitution]);
+  const aiScopeLockCount = isStatementView
+    ? importScopedCount
+    : urlFilteredCommitted.length + urlFilteredPending.length;
 
   // Tag AI bulk categorization — calls tag-categorize-batch once per unique importId
   const [isTagRunning, setIsTagRunning] = useState(false);
@@ -1315,8 +1734,15 @@ export default function TransactionsPage() {
       {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
       <DashboardPageShell
         center={
-          <div className="grid h-[calc(100vh-220px)] min-h-[520px] max-h-[780px] grid-cols-1 grid-rows-[auto_auto_1fr] gap-4">
-            <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
+          <div className="grid min-h-[560px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] gap-3">
+            <div className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-cyan-100">
+                  Transactions Workspace · Tag
+                </div>
+                <div />
+              </div>
+
               {isStatementView && (
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -1324,7 +1750,7 @@ export default function TransactionsPage() {
                       Statement View
                     </span>
                     <span className="text-[11px] text-slate-400">
-                      Import …{importIdFilter.slice(-8)}
+                      {selectedStatementInstitution}
                     </span>
                   </div>
                   <button
@@ -1349,7 +1775,7 @@ export default function TransactionsPage() {
                   />
                 </div>
               )}
-              <div className="mb-3 flex items-center justify-between">
+              <div className={`mb-3 flex items-center justify-between ${showClassicDiagnostics ? '' : 'hidden'}`}>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Transactions workspace</div>
                 <div className="flex items-center gap-2">
                   <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
@@ -1372,7 +1798,16 @@ export default function TransactionsPage() {
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+              {!isStatementView && showClassicDiagnostics && (
+                <div className="mb-3 rounded-lg border border-slate-800 bg-slate-900/55 px-3 py-2 text-[11px] text-slate-300">
+                  Viewing all statements. Each row now shows a source tag like
+                  <span className="mx-1 rounded border border-cyan-400/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-200">
+                    Statement 1a2b3c4d
+                  </span>
+                  so you can tell uploads apart quickly.
+                </div>
+              )}
+              <div className={`grid grid-cols-2 gap-2 md:grid-cols-4 ${showClassicDiagnostics ? '' : 'hidden'}`}>
                 <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
                   <div className="text-[11px] text-slate-400">Total</div>
                   <div className="text-sm font-semibold text-slate-100">{totalCount}</div>
@@ -1391,7 +1826,7 @@ export default function TransactionsPage() {
                 </div>
               </div>
 
-              <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/55 p-3">
+              <div className={`mt-3 rounded-lg border border-slate-800 bg-slate-900/55 p-3 ${showClassicDiagnostics ? '' : 'hidden'}`}>
                 <div className="mb-2 flex items-center justify-between">
                   <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
                     AI Confidence Heatmap
@@ -1422,9 +1857,9 @@ export default function TransactionsPage() {
                           onClick={() => focusCategoryTraining(row.category, row.needsTraining)}
                           className="w-full rounded-md border border-slate-800 px-2 py-1.5 text-left hover:bg-slate-800/80 transition-colors"
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="truncate text-xs text-slate-200">{row.category}</span>
-                            <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold border ${toneClass}`}>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{row.category}</span>
+                            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold border ${toneClass}`}>
                               {row.scorePct}%
                             </span>
                           </div>
@@ -1445,7 +1880,7 @@ export default function TransactionsPage() {
                 )}
               </div>
 
-              <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+              <div className={`mt-3 grid grid-cols-1 gap-2 md:grid-cols-3 ${showClassicDiagnostics ? '' : 'hidden'}`}>
                 <div className="rounded-lg border border-slate-800 bg-slate-900/55 p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Rule Opportunities</div>
@@ -1528,17 +1963,10 @@ export default function TransactionsPage() {
               </div>
             </div>
 
-            {/* Month / Statement Navigator */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
-              <MonthNavigator
-                imports={importListLoading ? [] : importList}
-                currentImportId={importIdFilter || null}
-                onSelect={handleSelectMonth}
-              />
-            </div>
-
-            <div className="grid min-h-0 grid-cols-1 gap-4 xl:grid-cols-[290px_minmax(0,1fr)]">
+            <div className={`grid min-h-0 grid-cols-1 gap-4 ${showWowPreview ? '' : 'xl:grid-cols-[290px_minmax(0,1fr)]'}`}>
               <div className="flex min-h-0 flex-col rounded-xl border border-slate-800 bg-slate-900 overflow-hidden xl:order-2">
+              {!showWowPreview && (
+                <>
               <div className="border-b border-slate-800 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-sm font-semibold text-slate-100">Transactions</div>
@@ -1576,13 +2004,26 @@ export default function TransactionsPage() {
                     <span className="rounded-md border border-slate-700 px-2 py-1 opacity-40 cursor-default select-none">Filters</span>
                     <button
                       type="button"
-                      onClick={() => navigate('/dashboard/smart-categories')}
+                      onClick={() => {
+                        const params = new URLSearchParams();
+                        if (importIdFilter) params.set('importId', importIdFilter);
+                        params.set('handoff', 'transactions_to_tag');
+                        const qs = params.toString();
+                        navigate(`/dashboard/smart-categories${qs ? `?${qs}` : ''}`);
+                      }}
                       className="flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-400 hover:border-violet-500/50 hover:text-violet-300 transition-colors"
                     >
                       Smart Categories ↗
                     </button>
                   </div>
                 </div>
+              </div>
+              <div className="border-b border-slate-800 bg-slate-900/85 px-3 py-2">
+                <MonthNavigator
+                  imports={importListLoading ? [] : importList}
+                  currentImportId={importIdFilter || null}
+                  onSelect={handleSelectMonthInTable}
+                />
               </div>
 
               <div className="border-b border-slate-800 p-4 flex-shrink-0">
@@ -1591,11 +2032,116 @@ export default function TransactionsPage() {
                   onResults={setSearchResults}
                 />
               </div>
+              {deviceImportNotice && (
+                <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-100">
+                  <div className="min-w-0">
+                    <div className="truncate">
+                      New statement available: <span className="font-semibold">{deviceImportNotice.docName}</span>
+                    </div>
+                    <div className="text-[11px] text-emerald-200/85">
+                      Added this session ({deviceImportNotice.label}). Open it here?
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSelectMonth(deviceImportNotice.id);
+                        setDeviceImportNotice(null);
+                      }}
+                      className="rounded-md border border-emerald-300/45 px-2 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/25 transition-colors"
+                    >
+                      Open statement
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeviceImportNotice(null)}
+                      className="rounded-md border border-emerald-300/25 px-2 py-1 text-[11px] text-emerald-200/90 hover:bg-emerald-500/15 transition-colors"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
+              {isStatementView && (
+                <div className="mx-4 mt-3 rounded-lg border border-violet-500/35 bg-violet-500/10 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-xs text-violet-100">
+                      Prime recap is pinned here while you review this statement.
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsStatementReviewModalOpen(true)}
+                        className="shrink-0 rounded-md border border-amber-300/45 px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-400/20 transition-colors"
+                      >
+                        Open Statement + Tag
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openPrimeFromTransactions}
+                        className="shrink-0 rounded-md border border-violet-300/45 px-2 py-1 text-[11px] text-violet-100 hover:bg-violet-400/20 transition-colors"
+                      >
+                        Open Prime chat here
+                      </button>
+                    </div>
+                  </div>
+                  <details className="mt-2 rounded-md border border-violet-400/20 bg-slate-950/40 p-2">
+                    <summary className="cursor-pointer text-[11px] text-violet-200/90">
+                      View latest Prime summary
+                    </summary>
+                    <div className="mt-2">
+                      {primeRecapLoading ? (
+                        <div className="text-[11px] text-slate-300">Loading recap...</div>
+                      ) : primeRecapError ? (
+                        <div className="text-[11px] text-amber-200">{primeRecapError}</div>
+                      ) : (
+                        <pre className="max-h-44 overflow-y-auto whitespace-pre-wrap text-[11px] leading-5 text-slate-200">
+                          {primeRecapSummary}
+                        </pre>
+                      )}
+                    </div>
+                  </details>
+                </div>
+              )}
+              <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-cyan-500/35 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
+                <div className="min-w-0">
+                  <div className="truncate">
+                    AI scope lock: <span className="font-semibold">{aiScopeLockLabel}</span> ({aiScopeLockCount} rows)
+                  </div>
+                  <div className="text-[11px] text-cyan-200/85">
+                    Tag and Prime transaction commands use this scope.
+                  </div>
+                </div>
+                {isStatementView ? (
+                  <button
+                    type="button"
+                    onClick={clearImportFilter}
+                    className="shrink-0 rounded-md border border-cyan-300/40 px-2 py-1 text-[11px] text-cyan-100 hover:bg-cyan-400/20 transition-colors"
+                  >
+                    Switch to all
+                  </button>
+                ) : (
+                  <span className="shrink-0 rounded-md border border-cyan-300/30 px-2 py-1 text-[11px] text-cyan-200/80">
+                    Lock by selecting a statement
+                  </span>
+                )}
+              </div>
+              {showWowPreview && (
+                <div className="mx-4 mt-3 rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2">
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Statements</div>
+                  <MonthNavigator
+                    imports={importListLoading ? [] : importList}
+                    currentImportId={importIdFilter || null}
+                    onSelect={handleSelectMonthInTable}
+                  />
+                </div>
+              )}
 
               {importIdFilter && (
                 <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-100">
                   <div className="min-w-0 truncate">
-                    Showing import <span className="font-semibold">…{importIdFilter.slice(-8)}</span> ({importScopedCount} records)
+                    Showing <span className="font-semibold">{selectedStatementInstitution}</span> ({importScopedCount} records)
                   </div>
                   <button
                     type="button"
@@ -1735,6 +2281,8 @@ export default function TransactionsPage() {
                 onAction={handleBulkAction}
                 onClearSelection={handleClearSelection}
               />
+                </>
+              )}
 
               <div className="flex-1 min-h-0 overflow-hidden">
                 {hasLoadError ? (
@@ -1755,6 +2303,263 @@ export default function TransactionsPage() {
                   <div className="flex items-center justify-center h-full">
                     <p className="text-sm text-slate-400">Loading transactions...</p>
                   </div>
+                ) : showWowPreview ? (
+                  <div className="grid h-full min-h-0 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+                    <div className="min-w-0 rounded-lg border border-slate-800 bg-slate-950/60">
+                      <div className="border-b border-slate-800 p-2">
+                        <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-700 bg-slate-950/70 p-2">
+                          <div className="flex-1 min-w-[220px] rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[11px] text-slate-400">
+                            Search: "Amazon over $10 last statement"
+                          </div>
+                          <span className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300">Merchant</span>
+                          <span className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300">Amount</span>
+                          <span className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300">Date</span>
+                          <span className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-300">Category</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
+                        <div ref={previewScopeRef} className="min-w-0">
+                          <button
+                            type="button"
+                            onClick={handleViewingScopeClick}
+                            className={`rounded-md border px-2 py-0.5 text-[10px] transition-all hover:border-cyan-300/70 hover:text-cyan-100 ${
+                              highlightViewingScope
+                                ? 'border-cyan-300/80 bg-cyan-500/25 text-cyan-100 shadow-[0_0_0_1px_rgba(103,232,249,0.4)]'
+                                : 'border-slate-700 bg-slate-900/70 text-slate-300'
+                            }`}
+                            title="Show all statements in the transactions table"
+                          >
+                            {viewingScopeChipLabel}
+                          </button>
+                          {viewingScopeMetaLabel ? (
+                            <div className="mt-1 text-[10px] text-slate-500">{viewingScopeMetaLabel} · {syncLabel}</div>
+                          ) : (
+                            <div className="mt-1 text-[10px] text-slate-500">{syncLabel}</div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Pages</span>
+                          {wowPageButtons.map((entry, idx) =>
+                            entry === '…' ? (
+                              <span key={`page-gap-${idx}`} className="px-1.5 text-[11px] text-slate-500">
+                                …
+                              </span>
+                            ) : (
+                              <button
+                                key={`page-btn-${entry}`}
+                                type="button"
+                                onClick={() => setWowPage(entry)}
+                                className={`min-w-[28px] rounded-md border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                                  wowPage === entry
+                                    ? 'border-cyan-400/50 bg-cyan-500/20 text-cyan-100'
+                                    : 'border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700'
+                                }`}
+                              >
+                                {entry}
+                              </button>
+                            )
+                          )}
+                        </div>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="grid grid-cols-[28px_92px_minmax(0,1fr)_104px] gap-2 border-b border-slate-800 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                          <div />
+                          <div>Date</div>
+                          <div>Merchant</div>
+                          <div className="text-right">Amount</div>
+                        </div>
+                        {wowVisibleRows.length === 0 ? (
+                          <div className="px-3 py-4 text-xs text-slate-500">No rows yet for this scope.</div>
+                        ) : (
+                          <>
+                            <div ref={wowRowsScrollRef} className="h-[520px] overflow-y-auto">
+                              {wowPagedRows.map((tx) => (
+                                <button
+                                  key={`wow-${tx.id}`}
+                                  type="button"
+                                  onClick={() => {
+                                    const committed = urlFilteredCommitted.find((row) => row.id === tx.id);
+                                    if (committed) handleTransactionClick(committed, false);
+                                  }}
+                                  className="grid w-full grid-cols-[28px_92px_minmax(0,1fr)_104px] gap-2 border-b border-slate-800/70 px-3 py-2 text-left text-[12px] hover:bg-slate-900/70"
+                                >
+                                  <label
+                                    className="flex items-center justify-center"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={wowSelectedIds.has(tx.id)}
+                                      onChange={(e) => {
+                                        setWowSelectedIds((prev) => {
+                                          const next = new Set(prev);
+                                          if (e.target.checked) next.add(tx.id);
+                                          else next.delete(tx.id);
+                                          return next;
+                                        });
+                                      }}
+                                      className="h-3.5 w-3.5 accent-cyan-400"
+                                    />
+                                  </label>
+                                  <div className="text-slate-400">{formatDate(tx.posted_at)}</div>
+                                  <div className="min-w-0">
+                                    <div className="truncate text-slate-100">{tx.merchant_name || 'Unknown merchant'}</div>
+                                    <div className="truncate text-[10px] text-slate-400">{tx.category || 'Uncategorized'}</div>
+                                  </div>
+                                  <div className={`truncate text-right font-semibold ${tx.amount < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                                    {tx.amount < 0 ? '-' : '+'}{formatMoney(Math.abs(Number(tx.amount || 0)))}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                            <div className="flex items-center justify-between border-t border-slate-800 px-3 py-2 text-[10px] text-slate-400">
+                              <div>
+                                Showing {Math.min((wowPage - 1) * wowPageSize + 1, wowVisibleRows.length)}-
+                                {Math.min(wowPage * wowPageSize, wowVisibleRows.length)} of {wowVisibleRows.length}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setWowPage((p) => Math.max(1, p - 1))}
+                                  disabled={wowPage <= 1}
+                                  className="rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-200 disabled:opacity-40"
+                                >
+                                  Prev
+                                </button>
+                                <span className="text-[10px] text-slate-300">
+                                  Page {wowPage} / {wowTotalPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setWowPage((p) => Math.min(wowTotalPages, p + 1))}
+                                  disabled={wowPage >= wowTotalPages}
+                                  className="rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-200 disabled:opacity-40"
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-cyan-500/30 bg-slate-950/80 shadow-[0_0_0_1px_rgba(34,211,238,0.12),0_12px_40px_rgba(2,6,23,0.55)]">
+                      <div className="border-b border-slate-800 px-3 py-2.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-200">Tag Queue + Copilot</div>
+                        <div className="mt-0.5 text-[10px] text-slate-400">One AI action rail, no extra chat threads.</div>
+                      </div>
+                      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+                        <div className="rounded-lg border border-slate-800 bg-slate-900/55 p-2.5">
+                          <div className="mb-2 flex items-center justify-between">
+                            <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Statement Queue</div>
+                            <span className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-400">5 max</span>
+                          </div>
+                          <div className="space-y-1.5">
+                            {statementQueueItems.length === 0 ? (
+                              <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1.5 text-[11px] text-slate-500">
+                                No statements in queue yet.
+                              </div>
+                            ) : (
+                              statementQueueItems.map((item) => (
+                                <button
+                                  key={`queue-${item.id}`}
+                                  type="button"
+                                  onClick={() => handleSelectMonthInTable(item.id)}
+                                  className={`w-full rounded border px-2 py-1.5 text-left transition-all ${
+                                    importIdFilter === item.id
+                                      ? 'border-cyan-400/50 bg-cyan-500/15'
+                                      : 'border-slate-800 bg-slate-950/60 hover:bg-slate-900'
+                                  }`}
+                                  title={item.statementLabel}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="min-w-0 truncate text-[11px] font-medium text-slate-100">{item.displayName}</div>
+                                    <span
+                                      className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] ${
+                                        item.isFailed
+                                          ? 'border-rose-500/35 bg-rose-500/10 text-rose-200'
+                                          : item.isDone
+                                            ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200'
+                                            : item.isReady
+                                              ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-200'
+                                              : 'border-amber-500/35 bg-amber-500/10 text-amber-200'
+                                      }`}
+                                    >
+                                      {item.statusLabel}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+                                    <span>{item.total} tx</span>
+                                    <span>{item.label}</span>
+                                  </div>
+                                </button>
+                              ))
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-800 bg-slate-900/55 p-2.5">
+                          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Copilot Actions</div>
+                          <div className="grid grid-cols-1 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => { void handleCategorizeWithTagAI(); }}
+                              disabled={isTagRunning || pendingCount <= 0}
+                              className="rounded border border-violet-400/35 bg-violet-500/10 px-2 py-1.5 text-left text-[11px] text-violet-100 transition-colors hover:bg-violet-500/20 disabled:opacity-50"
+                            >
+                              {isTagRunning ? 'Running Tag AI categorization…' : 'Apply high-confidence categories'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={focusUncertainQueue}
+                              className="rounded border border-amber-400/30 bg-amber-500/10 px-2 py-1.5 text-left text-[11px] text-amber-100 hover:bg-amber-500/20 transition-colors"
+                            >
+                              Review uncertain transactions
+                            </button>
+                            <button
+                              type="button"
+                              onClick={openPrimeFromTransactions}
+                              className="rounded border border-cyan-400/30 bg-cyan-500/10 px-2 py-1.5 text-left text-[11px] text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+                            >
+                              Ask Prime for this scope
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-800 bg-slate-900/55 p-2.5">
+                          <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Scope Snapshot</div>
+                          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                            <div className="rounded border border-slate-800 bg-slate-950/60 px-1.5 py-1 text-center">
+                              <div className="text-slate-500">Rows</div>
+                              <div className="font-semibold text-slate-100">{aiScopeLockCount}</div>
+                            </div>
+                            <div className="rounded border border-slate-800 bg-slate-950/60 px-1.5 py-1 text-center">
+                              <div className="text-slate-500">Uncat</div>
+                              <div className="font-semibold text-amber-300">{uncategorizedCount}</div>
+                            </div>
+                            <div className="rounded border border-slate-800 bg-slate-950/60 px-1.5 py-1 text-center">
+                              <div className="text-slate-500">Rules</div>
+                              <div className="font-semibold text-violet-300">{ruleSuggestionChips.length}</div>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (latestStatementId) handleSelectMonthInTable(latestStatementId);
+                            }}
+                            disabled={!latestStatementId}
+                            className="mt-2 w-full rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800 transition-colors disabled:opacity-50"
+                          >
+                            Review latest statement
+                          </button>
+                        </div>
+                      </div>
+                      <div className="border-t border-slate-800 px-3 py-2 text-[10px] text-slate-500">
+                        Completed statements rise to the top automatically as status updates land.
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <TransactionList
                     transactions={urlFilteredCommitted}
@@ -1773,6 +2578,7 @@ export default function TransactionsPage() {
               </div>
               </div>
 
+              {!showWowPreview && (
               <div className="hidden xl:flex min-h-0 flex-col rounded-xl border border-slate-800 bg-slate-900 overflow-hidden xl:order-1">
               <div className="border-b border-slate-800 px-4 py-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Spending Breakdown</div>
@@ -1818,7 +2624,7 @@ export default function TransactionsPage() {
                         }`}
                         title={`View ${cat} transactions`}
                       >
-                        <span className="truncate text-slate-300">{cat}</span>
+                        <span className="min-w-0 flex-1 truncate text-slate-300">{cat}</span>
                         <span className="flex-shrink-0 font-medium text-slate-100">{formatMoney(amount)}</span>
                       </button>
                     ))
@@ -1826,6 +2632,7 @@ export default function TransactionsPage() {
                 </div>
               </div>
               </div>
+              )}
             </div>
           </div>
         }
@@ -1847,7 +2654,7 @@ export default function TransactionsPage() {
               <div className="border-b border-slate-800 px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-slate-100">
+                    <div className="min-w-0 truncate text-sm font-semibold text-slate-100">
                       {selectedCategoryDrilldown} transactions
                     </div>
                     <div className="mt-0.5 text-xs text-slate-400">
@@ -2019,6 +2826,340 @@ export default function TransactionsPage() {
           setIsSplitModalOpen(true);
         }}
       />
+      {isDiagnosticsPanelOpen && typeof document !== 'undefined' &&
+        createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-[9998] bg-slate-950/88 backdrop-blur-[18px]"
+            onClick={() => {
+              setIsDiagnosticsPanelOpen(false);
+            }}
+            aria-hidden
+          />
+          <aside className="fixed bottom-4 right-4 top-4 z-[9999] w-[min(96vw,560px)] overflow-hidden rounded-2xl border border-cyan-400/25 bg-[radial-gradient(120%_120%_at_100%_0%,rgba(34,211,238,0.14),rgba(2,6,23,0.97)_55%)] shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_0_40px_rgba(34,211,238,0.22),0_0_80px_rgba(59,130,246,0.14)]">
+            <div className="h-full w-full overflow-hidden flex flex-col bg-slate-950/92">
+            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-100">Portfolio Control Center</div>
+                <div className="text-[10px] text-slate-400">Live diagnostics and assistant desk for this workspace</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDiagnosticsPanelOpen(false);
+                }}
+                className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="border-b border-slate-800 p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectStatementFromPanel(null);
+                  }}
+                  className="rounded border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-left hover:bg-slate-800 transition-colors"
+                >
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Statements</div>
+                  <div className="font-semibold text-slate-100">{statementCount}</div>
+                  <div className="mt-0.5 truncate text-[10px] text-slate-400">{latestStatementLabel}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={openPrimeBriefingFromPanel}
+                  className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1.5 text-left hover:bg-amber-500/15 transition-colors"
+                >
+                  <div className="text-[10px] uppercase tracking-wide text-amber-200/80">Unclassified statements</div>
+                  <div className="font-semibold text-amber-300">{unclassifiedStatementCount}</div>
+                  <div className="mt-0.5 text-[10px] text-amber-200/80">Open Prime review briefing</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleReviewClick();
+                  }}
+                  className="rounded border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-left hover:bg-slate-800 transition-colors"
+                >
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Pending queue</div>
+                  <div className="font-semibold text-amber-300">{uncertainQueue.uncertain}</div>
+                  <div className="mt-0.5 text-[10px] text-slate-400">Jump to review area</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    focusUncategorizedTransactions();
+                  }}
+                  className="rounded border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-left hover:bg-slate-800 transition-colors"
+                >
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Uncategorized transactions</div>
+                  <div className="font-semibold text-slate-100">{uncategorizedCount}</div>
+                  <div className="mt-0.5 text-[10px] text-slate-400">Filter table now</div>
+                </button>
+              </div>
+              <div className="mt-2 text-[10px] text-slate-400">
+                Scope: <span className="text-slate-200">{isStatementView ? selectedStatementInstitution : 'All statements'}</span> · Active rules: <span className="text-slate-200">{activeRuleCount ?? '—'}</span>
+              </div>
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => selectStatementFromPanel(null)}
+                  className="rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-1 text-[10px] font-semibold text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+                >
+                  Open statement pages in main table
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-3">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/65 p-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-cyan-200">Tag Action Center</div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={focusUncategorizedTransactions}
+                    className="rounded border border-slate-700 bg-slate-950/70 px-2 py-2 text-left text-xs text-slate-200 hover:bg-slate-800 transition-colors"
+                  >
+                    <div className="font-semibold text-slate-100">Focus Uncategorized</div>
+                    <div className="mt-0.5 text-[10px] text-slate-400">{uncategorizedCount} rows need category</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={focusUncertainQueue}
+                    className="rounded border border-slate-700 bg-slate-950/70 px-2 py-2 text-left text-xs text-slate-200 hover:bg-slate-800 transition-colors"
+                  >
+                    <div className="font-semibold text-amber-200">Open Review Queue</div>
+                    <div className="mt-0.5 text-[10px] text-slate-400">{uncertainQueue.uncertain} uncertain pending</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void handleCategorizeWithTagAI(); }}
+                    disabled={isTagRunning}
+                    className="rounded border border-violet-500/40 bg-violet-500/10 px-2 py-2 text-left text-xs text-violet-100 hover:bg-violet-500/20 disabled:opacity-60 transition-colors"
+                  >
+                    <div className="font-semibold">{isTagRunning ? 'Tag is categorizing…' : 'Run Tag Auto-Categorize'}</div>
+                    <div className="mt-0.5 text-[10px] text-violet-200/80">Apply best-fit categories in batch</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openPrimeFromTransactions}
+                    className="rounded border border-cyan-500/35 bg-cyan-500/10 px-2 py-2 text-left text-xs text-cyan-100 hover:bg-cyan-500/20 transition-colors"
+                  >
+                    <div className="font-semibold">Open Prime Full Chat</div>
+                    <div className="mt-0.5 text-[10px] text-cyan-200/80">Use full conversation panel for deeper review</div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/65 p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Rule Suggestions</div>
+                  <div className="text-[10px] text-slate-500">{ruleSuggestionChips.length} found</div>
+                </div>
+                {ruleSuggestionChips.length === 0 ? (
+                  <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-2 text-[11px] text-slate-500">
+                    No repeated merchant patterns yet.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {ruleSuggestionChips.slice(0, 5).map((chip) => (
+                      <div key={`diag-rule-${chip.merchant}-${chip.category}`} className="rounded border border-slate-800 bg-slate-950/60 p-2">
+                        <div className="text-[11px] font-medium text-slate-100 truncate">{chip.merchant} → {chip.category}</div>
+                        <div className="mt-0.5 text-[10px] text-slate-400">{chip.count} matching transactions</div>
+                        <div className="mt-1.5 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => focusRuleOpportunity(chip.merchant)}
+                            className="rounded border border-slate-700 px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-800"
+                          >
+                            View
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isRuleCreateSaving === chip.merchant}
+                            onClick={() => { void handleCreateRuleFromChip(chip.merchant, chip.category); }}
+                            className="rounded border border-violet-400/40 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-100 hover:bg-violet-500/25 disabled:opacity-60"
+                          >
+                            {isRuleCreateSaving === chip.merchant ? 'Saving…' : 'Apply rule'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/65 p-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Statement Scope</div>
+                <div className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => selectStatementFromPanel(null)}
+                    className={`w-full rounded border px-2 py-1.5 text-left text-[11px] transition-colors ${
+                      !importIdFilter
+                        ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-100'
+                        : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    All statements
+                  </button>
+                  {importList.slice(0, 4).map((imp) => (
+                    <button
+                      key={`diag-scope-${imp.id}`}
+                      type="button"
+                      onClick={() => selectStatementFromPanel(imp.id)}
+                      className={`w-full rounded border px-2 py-1.5 text-left text-[11px] transition-colors ${
+                        importIdFilter === imp.id
+                          ? 'border-cyan-400/50 bg-cyan-500/15 text-cyan-100'
+                          : 'border-slate-700 bg-slate-950/70 text-slate-300 hover:bg-slate-800'
+                      }`}
+                      title={imp.statementLabel}
+                    >
+                      <div className="truncate">{imp.statementLabel}</div>
+                      <div className="text-[10px] text-slate-500">{imp.label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-slate-800 bg-slate-900/65 p-3">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">Recent Activity</div>
+                <div className="space-y-1 text-[10px] text-slate-400">
+                  {recentLearningRows
+                    .filter((row) => row.value > 0)
+                    .slice(0, 4)
+                    .map((row) => (
+                      <div key={`diag-recent-${row.label}`} className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1">
+                        {row.value} {row.label}
+                      </div>
+                    ))}
+                  {recentLearningRows.every((row) => row.value === 0) && (
+                    <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-slate-500">
+                      No recent tag activity yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            </div>
+          </aside>
+        </>,
+        document.body
+      )}
+      {isStatementReviewModalOpen && isStatementView && (
+        <div className="fixed inset-0 z-[80] bg-black/70 p-3 md:p-5">
+          <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-950 shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-slate-100">
+                  Statement Review - {selectedStatementInstitution}
+                </div>
+                <div className="text-xs text-slate-400">
+                  Scope locked to this statement ({importScopedCount} records). Tag on the right can apply changes for this scope.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsStatementReviewModalOpen(false)}
+                className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+            <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.75fr)]">
+              <div className="min-h-0 overflow-hidden border-b border-slate-800 lg:border-b-0 lg:border-r lg:border-slate-800">
+                <div className="grid grid-cols-2 gap-2 border-b border-slate-800 px-4 py-3 text-xs md:grid-cols-4">
+                  <div className="rounded border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-slate-300">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Rows</div>
+                    <div className="font-semibold text-slate-100">{statementReviewRows.length}</div>
+                  </div>
+                  <div className="rounded border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-slate-300">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Committed</div>
+                    <div className="font-semibold text-slate-100">{scopedTransactions.length}</div>
+                  </div>
+                  <div className="rounded border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-slate-300">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Pending</div>
+                    <div className="font-semibold text-amber-300">{scopedPendingTransactions.length}</div>
+                  </div>
+                  <div className="rounded border border-slate-800 bg-slate-900/70 px-2 py-1.5 text-slate-300">
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">Uncategorized</div>
+                    <div className="font-semibold text-slate-100">{statementHeaderSummary.uncategorized}</div>
+                  </div>
+                </div>
+                <div className="h-full overflow-auto px-4 pb-4 pt-3">
+                  {statementReviewRows.length === 0 ? (
+                    <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-xs text-slate-400">
+                      No transactions found for this statement yet.
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-lg border border-slate-800">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-900/90 text-slate-300">
+                          <tr>
+                            <th className="px-3 py-2 font-medium">Date</th>
+                            <th className="px-3 py-2 font-medium">Merchant</th>
+                            <th className="px-3 py-2 font-medium">Amount</th>
+                            <th className="px-3 py-2 font-medium">Category</th>
+                            <th className="px-3 py-2 font-medium">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800 bg-slate-950/60">
+                          {statementReviewRows.map((row) => (
+                            <tr key={`${row.source}:${row.id}`} className="hover:bg-slate-900/70">
+                              <td className="px-3 py-2 text-slate-300">{formatDate(row.postedAt)}</td>
+                              <td className="px-3 py-2 text-slate-200">{row.merchant}</td>
+                              <td
+                                className={`px-3 py-2 font-medium ${
+                                  row.amount < 0 ? 'text-rose-300' : 'text-emerald-300'
+                                }`}
+                              >
+                                {formatMoney(row.amount)}
+                              </td>
+                              <td className="px-3 py-2 text-slate-300">{row.category || 'Uncategorized'}</td>
+                              <td className="px-3 py-2">
+                                <span
+                                  className={`rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${
+                                    row.source === 'pending'
+                                      ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+                                      : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                                  }`}
+                                >
+                                  {row.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="min-h-0 overflow-hidden">
+                <UnifiedAssistantChat
+                  mode="inline"
+                  renderMode="page"
+                  disableRuntime={false}
+                  isOpen
+                  compact
+                  showTypingIndicator
+                  initialEmployeeSlug="tag-ai"
+                  context={{
+                    page: 'transactions',
+                    scope: 'statement',
+                    importId: importIdFilter,
+                    statementLabel: selectedStatementInstitution,
+                    recordCount: statementReviewRows.length,
+                  }}
+                  initialQuestion={`Review ${selectedStatementInstitution} and help me clean up categories for this statement only.`}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

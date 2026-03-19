@@ -2,6 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
+const disableFunctionsProxy =
+  process.env.VITE_DISABLE_FUNCTION_PROXY === '1' ||
+  process.env.VITE_DISABLE_FUNCTION_PROXY === 'true';
+const chatOnlyProxy =
+  process.env.VITE_CHAT_ONLY_PROXY === '1' ||
+  process.env.VITE_CHAT_ONLY_PROXY === 'true';
+
 // https://vitejs.dev/config/
 export default defineConfig({
   base: '/', // Use relative base path for development
@@ -23,28 +30,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['pdfjs-dist/build/pdf.worker.entry', 'openai', 'openai/_shims/auto/runtime'],
-    include: [
-      'react',
-      'react-dom',
-      'react-router-dom',
-      'framer-motion',
-      'motion-utils',
-      'pdfjs-dist',
-      'tesseract.js',
-      'lucide-react',
-      '@radix-ui/react-compose-refs',
-      '@radix-ui/react-dialog',
-      '@radix-ui/react-dropdown-menu',
-      '@radix-ui/react-portal',
-      '@radix-ui/react-progress',
-      '@radix-ui/react-scroll-area',
-      '@radix-ui/react-select',
-      '@radix-ui/react-separator',
-      '@radix-ui/react-slot',
-      '@radix-ui/react-switch',
-      '@radix-ui/react-tabs',
-      '@radix-ui/react-tooltip'
-    ],
     esbuildOptions: {
       target: 'es2020'
     }
@@ -92,18 +77,30 @@ export default defineConfig({
     watch: {
       usePolling: false,
       interval: 1000,
+      // Netlify rewrites .netlify/functions-serve continuously; ignoring it prevents HMR thrash.
+      ignored: ['**/.netlify/**'],
     },
     headers: {
       'Cross-Origin-Embedder-Policy': 'credentialless',
       'Cross-Origin-Opener-Policy': 'same-origin'
     },
-    proxy: {
-      '/.netlify/functions': {
-        target: 'http://localhost:8888',
-        changeOrigin: true,
-        secure: false
-      }
-    }
+    proxy: disableFunctionsProxy
+      ? undefined
+      : chatOnlyProxy
+        ? {
+            '/.netlify/functions/chat': {
+              target: 'http://localhost:9999',
+              changeOrigin: true,
+              secure: false
+            }
+          }
+        : {
+            '/.netlify/functions': {
+              target: 'http://localhost:9999',
+              changeOrigin: true,
+              secure: false
+            }
+          }
   },
   preview: {
     port: 3000,

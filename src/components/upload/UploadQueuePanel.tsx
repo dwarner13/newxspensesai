@@ -16,6 +16,7 @@ export interface UploadQueuePanelProps {
   onCancel?: (uploadId: string) => void;
   onRetry?: (uploadId: string) => void;
   onViewDocument?: (item: UploadQueueItem) => void;
+  onReprocessDocument?: (item: UploadQueueItem) => void;
   showIntegrityBadge?: boolean;
   showHeader?: boolean;
   className?: string;
@@ -100,6 +101,7 @@ export function UploadQueuePanel({
   onCancel,
   onRetry,
   onViewDocument,
+  onReprocessDocument,
   showIntegrityBadge = true,
   showHeader = true,
   className = '',
@@ -275,6 +277,19 @@ export function UploadQueuePanel({
                     View
                   </button>
                 )}
+                {item.status === 'completed' &&
+                  item.result?.docId &&
+                  onReprocessDocument &&
+                  (item.result?.reused === true || item.result?.queued === true) && (
+                    <button
+                      onClick={() => onReprocessDocument(item)}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-amber-500/15 text-amber-200 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+                      title="Reprocess this file"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Reprocess
+                    </button>
+                  )}
                 {item.status === 'uploading' && onCancel && (
                   <button
                     onClick={() => onCancel(item.id)}

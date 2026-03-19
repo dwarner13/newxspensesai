@@ -31,25 +31,18 @@ export function PrimeWelcomeOverlayCinematic({ onDismiss }: PrimeWelcomeOverlayC
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [clickedButton, setClickedButton] = useState<string | null>(null);
 
-  // Check if already dismissed OR if onboarding just completed
+  // Show only as a one-time immediate post-onboarding moment.
+  // Prevents stale fullscreen overlays from blocking dashboard navigation.
   useEffect(() => {
-    // Check if onboarding just completed (set by onboarding completion)
     const justCompleted = sessionStorage.getItem(SESSION_KEY_ONBOARDING_COMPLETED);
     if (justCompleted === '1') {
-      // Clear the flag immediately
       sessionStorage.removeItem(SESSION_KEY_ONBOARDING_COMPLETED);
-      // Show overlay even if previously dismissed (first-time completion)
       setIsVisible(true);
       return;
     }
-    
-    // Otherwise, check if already dismissed
-    const dismissed = localStorage.getItem(STORAGE_KEY);
-    if (dismissed === '1') {
-      setIsVisible(false);
-      return;
-    }
-    setIsVisible(true);
+
+    // Default to hidden outside the post-onboarding handoff moment.
+    setIsVisible(false);
   }, []);
 
   // Prevent body scroll when overlay is open

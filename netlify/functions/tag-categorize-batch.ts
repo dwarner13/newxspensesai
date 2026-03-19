@@ -13,6 +13,17 @@ type StagingRow = {
   tag_category?: string | null;
 };
 
+function parseRuleCategory(value: string): { category: string; subcategory: string | null } {
+  const raw = String(value || '').trim();
+  if (!raw) return { category: 'Other', subcategory: null };
+  const delimiter = '::';
+  const idx = raw.indexOf(delimiter);
+  if (idx === -1) return { category: normalizeCanonicalCategory(raw), subcategory: null };
+  const category = normalizeCanonicalCategory(raw.slice(0, idx).trim() || 'Other');
+  const subcategory = raw.slice(idx + delimiter.length).trim() || null;
+  return { category, subcategory };
+}
+
 type MemoryRow = {
   user_id: string;
   vendor_key: string;
@@ -38,7 +49,7 @@ const headers = {
 };
 
 const RULES: Array<{ contains: string[]; category: string; subcategory?: string }> = [
-  { contains: ['starbucks'], category: 'Dining', subcategory: 'Coffee' },
+  { contains: ['starbucks'], category: 'Food & Dining', subcategory: 'Coffee' },
   { contains: ['uber'], category: 'Transportation' },
   { contains: ['amazon'], category: 'Shopping' },
   { contains: ['insurance'], category: 'Insurance' },
@@ -48,29 +59,59 @@ const RULES: Array<{ contains: string[]; category: string; subcategory?: string 
   { contains: ['gas', 'petro', 'shell'], category: 'Transportation', subcategory: 'Fuel' },
   { contains: ['lyft', 'taxi'], category: 'Transportation', subcategory: 'Rideshare' },
   { contains: ['walmart', 'costco', 'kroger', 'safeway', 'sobeys', 'superstore'], category: 'Groceries' },
-  { contains: ['mcdonald', 'restaurant', 'cafe', 'doordash', 'ubereats'], category: 'Dining' },
+  { contains: ['mcdonald', 'restaurant', 'cafe', 'doordash', 'ubereats'], category: 'Food & Dining' },
   { contains: ['best buy', 'apple', 'ebay'], category: 'Shopping' },
-  { contains: ['netflix', 'spotify', 'disney'], category: 'Entertainment', subcategory: 'Subscriptions' },
+  { contains: ['netflix', 'spotify', 'disney'], category: 'Subscriptions', subcategory: 'Streaming' },
   { contains: ['hydro', 'internet', 'bell'], category: 'Utilities' },
 ];
 
 const CANONICAL_CATEGORIES = [
-  'Groceries',
-  'Dining',
-  'Transportation',
-  'Shopping',
-  'Utilities',
-  'Insurance',
-  'Housing',
   'Income',
-  'Transfers',
-  'Fees',
+  'Groceries',
+  'Food & Dining',
+  'Transportation',
+  'Housing',
+  'Utilities',
+  'Shopping',
+  'Subscriptions',
   'Entertainment',
-  'Health',
+  'Healthcare',
+  'Insurance',
+  'Education',
+  'Travel',
+  'Transfers',
+  'Bank Fees',
+  'Business',
+  'Personal Care',
+  'Home & Garden',
   'Other',
+  'Uncategorized',
 ] as const;
 
 const CANONICAL_CATEGORY_SET = new Set<string>(CANONICAL_CATEGORIES);
+const CATEGORY_ALIASES: Record<string, string> = {
+  dining: 'Food & Dining',
+  'food and dining': 'Food & Dining',
+  health: 'Healthcare',
+  fees: 'Bank Fees',
+  'cash & atm': 'Transfers',
+  'health & fitness': 'Personal Care',
+};
+
+function normalizeCategoryKey(input: string): string {
+  return String(input || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function normalizeCanonicalCategory(input: string): string {
+  const key = normalizeCategoryKey(input);
+  if (!key) return 'Other';
+  const direct = CANONICAL_CATEGORIES.find((c) => normalizeCategoryKey(c) === key);
+  if (direct) return direct;
+  return CATEGORY_ALIASES[key] || 'Other';
+}
 
 function asBool(value: unknown, fallback = false): boolean {
   if (typeof value === 'boolean') return value;
@@ -143,7 +184,7 @@ function pickRule(vendorText: string): CategorizeResult | null {
   for (const rule of RULES) {
     if (rule.contains.some((token) => lower.includes(token))) {
       return {
-        category: rule.category,
+        category: normalizeCanonicalCategory(rule.category),
         subcategory: rule.subcategory || null,
         confidence: 0.85,
         reason: `Matched rule token for ${rule.category}`,
@@ -212,8 +253,12 @@ async function runAiCategorization(
   let confidence = clampConfidence(confidenceRaw);
 
   const rawCategory = parsed.category?.trim() || 'Other';
-  let category = CANONICAL_CATEGORY_SET.has(rawCategory) ? rawCategory : 'Other';
-  const outsideCanonical = !CANONICAL_CATEGORY_SET.has(rawCategory);
+  const normalizedCategory = normalizeCanonicalCategory(rawCategory);
+  const rawKey = normalizeCategoryKey(rawCategory);
+  const isDirectCanonical = CANONICAL_CATEGORIES.some((c) => normalizeCategoryKey(c) === rawKey);
+  const isAliasedCategory = Boolean(CATEGORY_ALIASES[rawKey]);
+  const outsideCanonical = !isDirectCanonical && !isAliasedCategory;
+  let category = outsideCanonical ? 'Other' : normalizedCategory;
   let reason = outsideCanonical
     ? 'Out of vocabulary category'
     : parsed.reason?.trim() || 'AI guessed best category';
@@ -375,9 +420,10 @@ export const handler: Handler = async (event) => {
           try { matched = new RegExp(rule.match_value, 'i').test(text); } catch {}
         }
         if (matched) {
+          const decoded = parseRuleCategory(rule.category);
           return {
-            category: rule.category,
-            subcategory: null,
+            category: decoded.category,
+            subcategory: decoded.subcategory,
             confidence: 0.9,
             reason: `Matched user rule (${rule.match_type}: ${rule.match_value})`,
             source: 'rules',
@@ -400,7 +446,7 @@ export const handler: Handler = async (event) => {
       const memory = memoryMap.get(vendorKey);
       if (memory) {
         result = {
-          category: memory.category,
+          category: normalizeCanonicalCategory(memory.category),
           subcategory: memory.subcategory,
           confidence: 0.92,
           reason: 'Matched vendor memory',

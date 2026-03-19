@@ -1,14 +1,23 @@
 import OpenAI from "openai";
 
 export const PRIME_SUMMARY_SYSTEM_PROMPT = `ROLE
-You are Prime, the user-facing financial guide.
+You are Prime — XspensesAI's lead financial intelligence agent and the user's
+personal financial advisor. You speak with authority, warmth, and specificity.
+You never hedge unnecessarily. You sound like a CFP who also happens to know
+the user's data cold.
 
 RULES
-- Never mention internal worker names or system internals.
-- Supportive, trust-first tone.
-- If you include numbers, use only grounded values from inputs.
-- Include: key totals, 2-3 highlights, 1-2 flags, and 3-6 next actions.
-- Plain text only.
+- Never invent values. Ground every claim in the input data.
+- If a value is missing, say so once and move on — do not dwell on gaps.
+- Never mention internal systems, agents, or implementation details.
+- Never use phrases like "based on available data" or "it appears that".
+- Speak directly to the user as their advisor, not as a report generator.
+- Use dollar amounts, percentages, and specific category names — never vague generalities.
+
+VOICE
+- Confident but not cold. Specific but not robotic.
+- Lead with what matters most, not with what's easiest to say.
+- One clear opinion or recommendation per summary — don't just list, advise.
 `;
 
 type PrimeSummaryInput = {
@@ -137,6 +146,10 @@ function deterministicPrimeSummary(input: PrimeSummaryInput): string {
 export async function runPrimeSummary(input: PrimeSummaryInput): Promise<string> {
   const openai = getOpenAiClient();
   const deterministic = deterministicPrimeSummary(input);
+  console.log('[prime-summary] LLM flag:', process.env.PRIME_SUMMARY_ALLOW_LLM);
+  if (process.env.PRIME_SUMMARY_ALLOW_LLM !== '1') {
+    return normalizePrimeSummaryOutput(deterministic);
+  }
   if (!openai) return normalizePrimeSummaryOutput(deterministic);
   try {
     const completion = await openai.chat.completions.create({
@@ -163,6 +176,116 @@ export async function runPrimeSummary(input: PrimeSummaryInput): Promise<string>
     return text;
   } catch {
     return normalizePrimeSummaryOutput(deterministic);
+  }
+}
+
+// ── Advisor-voice LLM summary using Anthropic (Claude) ───────────────────────
+
+const PRIME_ADVISOR_SYSTEM_PROMPT = `You are Prime — XspensesAI's lead financial intelligence agent and the user's personal financial advisor. You speak with authority, warmth, and specificity. You sound like a CFP who knows the user's numbers cold.
+
+RULES
+- Never invent values. Ground every claim in the input data.
+- If a value is missing, say so once and move on — do not dwell on gaps.
+- Never mention internal systems, agents, or implementation details.
+- Never use phrases like "based on available data" or "it appears that".
+- Speak directly to the user as their advisor, not as a report generator.
+- Use dollar amounts, percentages, and specific category names — never vague generalities.
+
+VOICE
+- Confident but not cold. Specific but not robotic.
+- Lead with what matters most, not what's easiest to say.
+- One clear opinion or recommendation per summary — don't just list, advise.
+
+STRUCTURE
+1) One sentence: what was reviewed (period, account type, total spend).
+2) Key totals — opening/closing balance, total in/out. Numbers only, no fluff.
+3) Top spending categories with amounts — call out anything worth noticing.
+4) One flag or risk worth the user's attention.
+5) One clear next action — specific, not generic.
+
+FORMAT
+- Plain text only. Short paragraphs or tight bullets.
+- Max 250 words. Every sentence must earn its place.
+- Close with a single actionable sentence Prime owns, not a list of maybes.`;
+
+export async function runLLMAdvisorSummary(params: {
+  analytics: any;
+  deterministicNarrative: string;
+  docName: string;
+  period: string | null;
+  transactionCount: number | null;
+}): Promise<string> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return params.deterministicNarrative;
+
+  const { analytics, deterministicNarrative, docName, period, transactionCount } = params;
+  const totals = analytics?.totals || {};
+  const categoryTotals = Array.isArray(analytics?.category_totals)
+    ? analytics.category_totals.slice(0, 6)
+    : [];
+  const topMerchants = Array.isArray(analytics?.top_merchants)
+    ? analytics.top_merchants.slice(0, 4)
+    : [];
+  const flags = analytics?.flags || {};
+  const statementMeta = analytics?.statement_meta || {};
+
+  const dataPayload = {
+    document: docName,
+    period: period || 'unknown',
+    transaction_count: transactionCount,
+    institution: statementMeta?.issuer || null,
+    account_last4: statementMeta?.account_last4 || null,
+    totals: {
+      opening_balance: totals?.opening_balance ?? null,
+      closing_balance: totals?.closing_balance ?? null,
+      total_debits: totals?.total_debits ?? null,
+      total_credits: totals?.total_credits ?? null,
+      net: totals?.net ?? null,
+    },
+    top_categories: categoryTotals.map((c: any) => ({
+      category: c?.category,
+      total: c?.total,
+      count: c?.count,
+    })),
+    top_merchants: topMerchants.map((m: any) => ({
+      merchant: m?.merchant,
+      total: m?.total,
+      count: m?.count,
+    })),
+    needs_review_count: flags?.needs_review_count ?? 0,
+    deterministic_draft: deterministicNarrative,
+  };
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 600,
+        system: PRIME_ADVISOR_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: `Write the Prime summary for this statement data:\n\n${JSON.stringify(dataPayload, null, 2)}`,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) return deterministicNarrative;
+
+    const data = await response.json();
+    const text = data?.content?.[0]?.text?.trim();
+    if (!text || text.length < 40) return deterministicNarrative;
+
+    return normalizePrimeSummaryOutput(text);
+  } catch {
+    return deterministicNarrative;
   }
 }
 

@@ -135,11 +135,21 @@ export class DocumentProcessingWorkflow {
           pageCount: hybridOcrResult.pages.length,
           textLength: extractedText.length,
           processingTimeMs: hybridOcrResult.metadata.processingTimeMs,
+          contractPass: hybridOcrResult.contract?.pass,
+          contractNeedsReview: hybridOcrResult.contract?.needsReview,
+          contractReasons: hybridOcrResult.contract?.reasons || [],
         });
         
         // Validate extracted text
         if (!extractedText || extractedText.trim().length === 0) {
           throw new Error('Hybrid OCR processing failed: no text extracted. The document may be too low quality or in an unsupported format.');
+        }
+
+        if (hybridOcrResult.contract && !hybridOcrResult.contract.pass) {
+          console.warn('[HybridOCR] Contract check failed', {
+            reasons: hybridOcrResult.contract.reasons,
+            checks: hybridOcrResult.contract.checks,
+          });
         }
         
       } catch (hybridError: any) {
@@ -469,6 +479,7 @@ export class DocumentProcessingWorkflow {
           confidence: hybridOcrResult.confidence,
           hadFallback: hybridOcrResult.hadFallback,
           warnings: hybridOcrResult.warnings,
+          contract: hybridOcrResult.contract,
           metadata: hybridOcrResult.metadata,
         } : undefined,
         // Legacy fields for backward compatibility

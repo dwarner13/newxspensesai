@@ -30,6 +30,16 @@ export interface PrimeState {
   
   /** Last updated timestamp */
   lastUpdated: string; // ISO timestamp
+
+  /** Workspace continuity metrics for return greetings */
+  workspaceSummary?: WorkspaceSummary;
+}
+
+export interface WorkspaceSummary {
+  statementCount: number;
+  conversationCount: number;
+  newStatementsSinceLastConversation: number;
+  lastConversationAt: string | null;
 }
 
 export interface UserProfileSummary {

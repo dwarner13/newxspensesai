@@ -82,7 +82,8 @@ export class UploadQueue {
     concurrency?: number
   ) {
     this.uploadFunction = uploadFunction;
-    this.concurrency = concurrency ?? (isMobile() ? 1 : 2);
+    // Always use 1 for sequential strict Sync Lock processing
+    this.concurrency = concurrency ?? 1;
   }
 
   /**

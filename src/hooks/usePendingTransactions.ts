@@ -20,8 +20,13 @@ export interface UsePendingTransactionsResult {
 }
 
 const PENDING_TRANSACTIONS_CACHE_TTL_MS = 90 * 1000;
+const MAX_PENDING_CACHE_ROWS = 1200;
+const MAX_PENDING_CACHE_CHARS = 900_000;
 
-export function usePendingTransactions(): UsePendingTransactionsResult {
+export function usePendingTransactions(options?: {
+  importId?: string | null;
+  includeDuplicateChecks?: boolean;
+}): UsePendingTransactionsResult {
   const { userId } = useAuth();
   const [pendingTransactions, setPendingTransactions] = useState<PendingTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -31,6 +36,9 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
   const fetchInFlightRef = useRef<Promise<void> | null>(null);
   const lastFetchAtRef = useRef(0);
   const realtimeRefetchTimerRef = useRef<number | null>(null);
+  const scopedImportId = String(options?.importId || '').trim();
+  const includeDuplicateChecks = options?.includeDuplicateChecks === true;
+  const cacheKey = `xspenses:pending-transactions-cache:${userId}:${scopedImportId || 'all'}`;
 
   const fetchPendingTransactions = useCallback(async () => {
     if (!userId) {
@@ -60,10 +68,18 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
       }
 
       // Fetch staging transactions
-      const { data: stagingData, error: stagingError } = await supabase
+      let stagingQuery = supabase
         .from('transactions_staging')
         .select(`
-          *,
+          id,
+          import_id,
+          parsed_at,
+          data_json,
+          tag_category,
+          tag_subcategory,
+          tag_confidence,
+          tag_status,
+          tag_rule_source,
           import:imports!inner(
             id,
             status,
@@ -76,6 +92,10 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
         `)
         .eq('user_id', userId)
         .order('parsed_at', { ascending: false });
+      if (scopedImportId) {
+        stagingQuery = stagingQuery.eq('import_id', scopedImportId);
+      }
+      const { data: stagingData, error: stagingError } = await stagingQuery;
 
       if (stagingError) {
         throw stagingError;
@@ -86,7 +106,7 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
         hasRenderedDataRef.current = true;
         if (typeof window !== 'undefined') {
           window.sessionStorage.setItem(
-            `xspenses:pending-transactions-cache:${userId}`,
+            cacheKey,
             JSON.stringify({
               ts: Date.now(),
               data: [],
@@ -106,8 +126,11 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
           // Calculate confidence scores
           const confidence = calculateConfidence(dataJson, ocrText);
 
-          // Check for duplicates
-          const duplicates = await checkForDuplicates(dataJson, userId);
+          // Duplicate detection is expensive (N network calls for N rows).
+          // Keep it opt-in so initial Transactions load feels immediate.
+          const duplicates = includeDuplicateChecks
+            ? await checkForDuplicates(dataJson, userId)
+            : [];
 
           const raw = staging as Record<string, unknown>;
           return {
@@ -135,13 +158,19 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
       setPendingTransactions(processed);
       hasRenderedDataRef.current = true;
       if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(
-          `xspenses:pending-transactions-cache:${userId}`,
-          JSON.stringify({
+        if (processed.length <= MAX_PENDING_CACHE_ROWS) {
+          const payload = JSON.stringify({
             ts: Date.now(),
             data: processed,
-          })
-        );
+          });
+          if (payload.length <= MAX_PENDING_CACHE_CHARS) {
+            window.sessionStorage.setItem(cacheKey, payload);
+          } else {
+            window.sessionStorage.removeItem(cacheKey);
+          }
+        } else {
+          window.sessionStorage.removeItem(cacheKey);
+        }
       }
       setIsError(false);
     } catch (error: any) {
@@ -160,14 +189,15 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
       fetchInFlightRef.current = null;
     });
     return fetchInFlightRef.current;
-  }, [userId]);
+  }, [userId, scopedImportId, cacheKey, includeDuplicateChecks]);
 
   // Fast cache hydration for smoother route transitions.
   useEffect(() => {
     if (!userId || typeof window === 'undefined') return;
     try {
-      const raw = window.sessionStorage.getItem(`xspenses:pending-transactions-cache:${userId}`);
+      const raw = window.sessionStorage.getItem(cacheKey);
       if (!raw) return;
+      if (raw.length > MAX_PENDING_CACHE_CHARS) return;
       const parsed = JSON.parse(raw) as { ts?: number; data?: PendingTransaction[] };
       if (!parsed?.ts || !Array.isArray(parsed?.data)) return;
       if (Date.now() - parsed.ts > PENDING_TRANSACTIONS_CACHE_TTL_MS) return;
@@ -177,7 +207,7 @@ export function usePendingTransactions(): UsePendingTransactionsResult {
     } catch {
       // Ignore cache parse errors.
     }
-  }, [userId]);
+  }, [userId, cacheKey]);
 
   // Initial fetch
   useEffect(() => {

@@ -83,6 +83,12 @@ export async function detectAndUpsertRecurringObligations(
 
       // Calculate next estimated date
       const lastDate = new Date(sorted[sorted.length - 1].date);
+      const firstSeenDate = sorted[0]?.date
+        ? String(sorted[0].date).slice(0, 10)
+        : null;
+      const lastSeenDate = sorted[sorted.length - 1]?.date
+        ? String(sorted[sorted.length - 1].date).slice(0, 10)
+        : null;
       const nextEstimatedDate = calculateNextEstimatedDate(
         lastDate,
         analysis.intervalDays,
@@ -113,6 +119,8 @@ export async function detectAndUpsertRecurringObligations(
         obligation_type: 'payment',
         avg_amount: analysis.averageAmount,
         frequency: analysis.frequency,
+        first_seen_date: firstSeenDate || lastSeenDate,
+        last_seen_date: lastSeenDate,
         next_estimated_date: nextEstimatedDate?.toISOString().split('T')[0] || null,
         updated_at: new Date().toISOString(),
       };

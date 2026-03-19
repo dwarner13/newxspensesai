@@ -451,7 +451,7 @@ export function ByteUploadPanel({
       await fetch('/.netlify/functions/smart-import-finalize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, docId }),
+        body: JSON.stringify({ userId, docId, retry: true }),
       });
       toast.success('Retrying OCR...');
     } catch {
@@ -503,7 +503,7 @@ export function ByteUploadPanel({
   ).length;
   const slotLimit = 5;
   const getQueueStatusLabel = (status: UploadQueueItem['status']) => {
-    if (status === 'pending') return 'Queued';
+    if (status === 'pending') return 'Uploading';
     if (status === 'uploading') return 'Uploading';
     if (status === 'processing') return 'Byte is scanning...';
     if (status === 'summarized') return 'Summary ready';
@@ -631,7 +631,7 @@ export function ByteUploadPanel({
           {compact && isCollapsed ? (
             <div className="flex items-center justify-between rounded-xl bg-white/6 px-3 py-2 text-xs text-slate-200 backdrop-blur-sm">
               <span>
-                {uploadQueue.items.length} upload{uploadQueue.items.length === 1 ? '' : 's'} in queue
+                {uploadQueue.items.length} upload{uploadQueue.items.length === 1 ? '' : 's'} uploading
               </span>
               <div className="flex items-center gap-2">
                 {uploadQueue.items[0]?.result?.docId && (
@@ -794,7 +794,7 @@ export function ByteUploadPanel({
             ref={fileInputRef}
             type="file"
             multiple
-            accept="*/*"
+            accept=".pdf,.csv,.xls,.xlsx,.jpg,.jpeg,.png,.webp,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/jpeg,image/png,image/webp"
             onChange={handleFileSelect}
             className="hidden"
           />
@@ -836,7 +836,7 @@ export function ByteUploadPanel({
           ref={fileInputRef}
           type="file"
           multiple
-          accept="*/*"
+          accept=".pdf,.csv,.xls,.xlsx,.jpg,.jpeg,.png,.webp,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/jpeg,image/png,image/webp"
           onChange={handleFileSelect}
           className="hidden"
         />

@@ -19,23 +19,26 @@ import type { CommittedTransaction, PendingTransaction } from '../../types/trans
 
 // Fallback list used if DB categories haven't loaded yet
 const DEFAULT_CATEGORIES = [
-  'Food & Dining',
-  'Groceries',
-  'Transportation',
-  'Entertainment',
-  'Shopping',
-  'Healthcare',
-  'Utilities',
-  'Travel',
   'Income',
-  'Business',
-  'Education',
-  'Home & Garden',
-  'Personal Care',
+  'Groceries',
+  'Food & Dining',
+  'Transportation',
+  'Housing',
+  'Utilities',
+  'Shopping',
   'Subscriptions',
-  'Bank Fees',
+  'Entertainment',
+  'Healthcare',
+  'Insurance',
+  'Education',
+  'Travel',
   'Transfers',
+  'Bank Fees',
+  'Business',
+  'Personal Care',
+  'Home & Garden',
   'Other',
+  'Uncategorized',
 ];
 
 interface TransactionRowProps {
@@ -197,12 +200,25 @@ export function TransactionRow({
 
   const merchantSubtext = showItemHint ? cleanedItemHint : (aliasMatch?.itemHint || '');
   const merchantForRule = aliasMatch?.label || merchantResolved;
+  const sourceImportId = String(
+    (isPending ? pendingTransaction?.import_id : transaction?.import_id) || ''
+  ).trim();
+  const sourceDocumentId = String(
+    (!isPending ? transaction?.document_id : '') || ''
+  ).trim();
+  const statementSourceLabel = sourceImportId
+    ? `Statement ${sourceImportId.slice(-8)}`
+    : sourceDocumentId
+      ? `Doc ${sourceDocumentId.slice(-8)}`
+      : null;
 
   const amount = isPending ? pendingTransaction.data_json.amount ?? 0 : transaction?.amount ?? 0;
   const pendingCategory = isPending
     ? (pendingTransaction.tag_category || (pendingTransaction.data_json as { category?: string }).category)
     : undefined;
-  const rawCategory = isCommitted ? transaction?.category : pendingCategory;
+  const rawCategory = isCommitted
+    ? (transaction?.category || null)
+    : (pendingCategory || null);
 
   // ── Category editing state ────────────────────────────────────────────────
   const [localCategory, setLocalCategory] = useState<string | undefined>(rawCategory);
@@ -476,6 +492,14 @@ export function TransactionRow({
               {merchantSubtext}
             </div>
           ) : null}
+          {statementSourceLabel ? (
+            <div
+              className="mt-1 inline-flex max-w-full items-center rounded border border-cyan-400/30 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium text-cyan-200"
+              title={statementSourceLabel}
+            >
+              <span className="truncate">{statementSourceLabel}</span>
+            </div>
+          ) : null}
           {isPending && (
             <ConfidenceBar score={pendingTransaction.confidence.overall} showPercentage={false} />
           )}
@@ -501,17 +525,21 @@ export function TransactionRow({
               {isSaving ? (
                 <Loader2 className="h-3 w-3 animate-spin text-slate-400 shrink-0" />
               ) : null}
-              <span className="truncate max-w-[130px]">
+              <span className="block max-w-[130px] truncate">
                 {localCategory || <span className="text-slate-500 italic">Uncategorized</span>}
               </span>
               <ChevronDown className="h-3 w-3 shrink-0 text-slate-500 group-hover/cat:text-slate-300 transition-colors" />
             </div>
           ) : localCategory ? (
             <span
-              className="inline-flex items-center gap-1 max-w-[160px] px-2 py-0.5 rounded bg-slate-800 text-slate-200"
-              title={localCategory}
+              className={`inline-flex min-w-0 items-center gap-1 max-w-[160px] px-2 py-0.5 rounded border ${
+                localCategory
+                  ? 'border-slate-600 bg-slate-700/60 text-slate-300'
+                  : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+              }`}
+              title={localCategory ?? 'Uncategorized'}
             >
-              <span className="truncate">{localCategory}</span>
+              <span className="block min-w-0 truncate">{localCategory ?? 'Uncategorized'}</span>
               {isPending && pendingTransaction?.tag_rule_source && (
                 <span
                   className={`shrink-0 text-[9px] font-semibold uppercase tracking-wide px-1 rounded ${

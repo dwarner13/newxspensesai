@@ -7,6 +7,8 @@ import { UploadQueuePanel } from '../upload/UploadQueuePanel';
 import { DocumentViewerModal } from '../ui/DocumentViewerModal';
 import { getSupabase } from '../../lib/supabase';
 import { isSmartImportOpsDashboardV1Enabled } from '../../lib/featureFlags';
+import { fetchPrimeSummarySingleFlight } from '../../lib/ai/primeSummaryClient';
+import toast from 'react-hot-toast';
 
 interface SmartImportUploadStatusPanelProps {
   stats?: DocumentStats | null;
@@ -50,6 +52,8 @@ export function SmartImportUploadStatusPanel({
   } | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [isRetryingOcr, setIsRetryingOcr] = useState(false);
+  const [reprocessingDocId, setReprocessingDocId] = useState<string | null>(null);
+  const [isRefreshingOcr, setIsRefreshingOcr] = useState(false);
   const refreshTimerRef = useRef<number | null>(null);
   const navigate = useNavigate();
   const debugEnabled = import.meta.env.VITE_OCR_DEBUG === '1';
@@ -79,14 +83,9 @@ export function SmartImportUploadStatusPanel({
     const load = async () => {
       setSummaryLoading(true);
       try {
-        const res = await fetch('/.netlify/functions/prime-summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ importId: importIdForView }),
-        });
-        const payload = await res.json().catch(() => ({}));
+        const { summary } = await fetchPrimeSummarySingleFlight({ importId: importIdForView });
         if (cancelled) return;
-        setSummaryMarkdown(typeof payload?.summary === 'string' ? payload.summary : '');
+        setSummaryMarkdown(summary);
       } catch {
         if (!cancelled) setSummaryMarkdown('');
       } finally {
@@ -243,13 +242,90 @@ export function SmartImportUploadStatusPanel({
       await fetch('/.netlify/functions/smart-import-finalize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, docId }),
+        body: JSON.stringify({ userId, docId, retry: true }),
       });
       await refreshDocument(docId);
     } finally {
       setIsRetryingOcr(false);
     }
   }, [userId, refreshDocument]);
+
+  const handleReprocessDocument = useCallback(async (item: UploadQueueItem) => {
+    if (!userId) return;
+    const docId = String(item.result?.docId || '').trim();
+    if (!docId) return;
+    if (reprocessingDocId === docId) return;
+    setReprocessingDocId(docId);
+    try {
+      const res = await fetch('/.netlify/functions/smart-import-finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, docId, retry: true }),
+      });
+      if (!res.ok) {
+        throw new Error(`Reprocess failed (${res.status})`);
+      }
+      await refreshDocument(docId);
+      refreshDebugPayload?.();
+      toast.success('Reprocessing started for this file');
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to start reprocessing');
+    } finally {
+      setReprocessingDocId((current) => (current === docId ? null : current));
+    }
+  }, [userId, refreshDocument, refreshDebugPayload, reprocessingDocId]);
+
+  const handleRefreshOcr = useCallback(async () => {
+    if (!userId || isRefreshingOcr) return;
+    const docIds = (lastUploadSummary?.docIds || []).filter(Boolean);
+    if (docIds.length === 0) {
+      toast('No recent upload to refresh.');
+      return;
+    }
+    setIsRefreshingOcr(true);
+    try {
+      const [statusRes, syncRes] = await Promise.all([
+        fetch('/.netlify/functions/ocr-job-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, docIds }),
+        }),
+        fetch('/.netlify/functions/smart-import-sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId,
+            docIds,
+            waitForOcrMs: 0,
+            pollForOcrMs: 250,
+            autoCommit: true,
+          }),
+        }),
+      ]);
+
+      const statusPayload = statusRes.ok ? await statusRes.json().catch(() => ({})) : {};
+      const syncPayload = syncRes.ok ? await syncRes.json().catch(() => ({})) : {};
+      const items = Array.isArray(statusPayload?.items) ? statusPayload.items : [];
+      const doneCount = items.filter((item: any) => String(item?.status || '').toLowerCase() === 'done').length;
+      const errorCount = items.filter((item: any) => String(item?.status || '').toLowerCase() === 'error').length;
+      const processingCount = Math.max(0, items.length - doneCount - errorCount);
+
+      refreshDebugPayload?.();
+
+      if (errorCount > 0) {
+        toast.error(`Refresh complete: ${errorCount} file(s) need retry/reprocess.`);
+      } else if (processingCount > 0) {
+        toast(`OCR refreshed: ${processingCount} still processing, ${doneCount} done.`);
+      } else {
+        const txCount = Number(syncPayload?.transactionCount || 0);
+        toast.success(txCount > 0 ? `OCR refreshed: ${doneCount} done, ${txCount} transactions synced.` : `OCR refreshed: ${doneCount} done.`);
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to refresh OCR status');
+    } finally {
+      setIsRefreshingOcr(false);
+    }
+  }, [userId, isRefreshingOcr, lastUploadSummary?.docIds, refreshDebugPayload]);
 
   useEffect(() => {
     if (!viewerOpen || !viewerDoc?.id) return;
@@ -285,12 +361,21 @@ export function SmartImportUploadStatusPanel({
               </div>
             </div>
             {importIdForView && (
-              <button
-                onClick={() => navigate(`/dashboard/transactions?importId=${importIdForView}`)}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-slate-700"
-              >
-                View in Transactions
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRefreshOcr}
+                  disabled={isRefreshingOcr}
+                  className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-2 text-xs font-medium text-amber-100 hover:bg-amber-500/20 disabled:opacity-60"
+                >
+                  {isRefreshingOcr ? 'Refreshing OCR...' : 'Refresh OCR'}
+                </button>
+                <button
+                  onClick={() => navigate(`/dashboard/transactions?importId=${importIdForView}`)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-100 hover:bg-slate-700"
+                >
+                  View in Transactions
+                </button>
+              </div>
             )}
           </div>
           {lastUploadSummary?.summary && (
@@ -360,6 +445,7 @@ export function SmartImportUploadStatusPanel({
               onCancel={uploadQueue.cancel}
               onRetry={uploadQueue.retry}
               onViewDocument={handleViewDocument}
+              onReprocessDocument={handleReprocessDocument}
               className="border border-slate-700/70 shadow-none"
             />
           )}

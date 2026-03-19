@@ -18,6 +18,17 @@ export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavi
   const containerRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
 
+  const formatLongDate = (raw: string) => {
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return raw || 'Unknown date';
+    return d.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
   // Scroll active chip into view whenever selection changes
   useEffect(() => {
     activeRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
@@ -61,7 +72,7 @@ export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavi
             type="button"
             ref={isActive ? activeRef : undefined}
             onClick={() => onSelect(imp.id)}
-            title={imp.docName}
+            title={`${imp.statementLabel} • ${imp.docName} • Uploaded ${formatLongDate(imp.created_at)}`}
             className={[
               'flex-shrink-0 rounded-full border px-3 py-1 text-[11px] font-medium transition-colors',
               isActive
@@ -69,7 +80,9 @@ export function MonthNavigator({ imports, currentImportId, onSelect }: MonthNavi
                 : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:border-slate-600 hover:text-slate-200',
             ].join(' ')}
           >
-            {imp.label}
+            <span className="truncate max-w-[260px] inline-block align-middle">
+              {imp.statementLabel} · {imp.label}
+            </span>
           </button>
         );
       })}

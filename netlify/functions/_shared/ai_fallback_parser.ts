@@ -83,6 +83,8 @@ CRITICAL RULES:
 
 7. Currency: Assume CAD if not specified.
 
+8. Foreign currency transactions: When a transaction shows both a foreign currency amount (e.g., "USD 29.99") and a CAD converted amount, always use the CAD amount. The CAD amount is what was actually charged to the account.
+
 Example output format (JSON object with transactions array):
 {
   "transactions": [
@@ -151,36 +153,57 @@ Return a JSON object with a "transactions" array containing all extracted transa
       console.warn('[Byte OCR] AI fallback response does not contain transactions array. Keys:', Object.keys(parsed || {}));
       return [];
     }
+    console.log('[Byte OCR DEBUG] parsed AI transaction count:', Array.isArray(transactions) ? transactions.length : -1);
+    console.log('[Byte OCR DEBUG] parsed AI transaction sample:', Array.isArray(transactions) ? transactions.slice(0, 5) : transactions);
 
     // Validate and normalize transactions
     const validatedTransactions: ParsedTransaction[] = [];
     for (const tx of transactions) {
-      // Validate required fields
-      if (!tx.date || !tx.description || typeof tx.amount !== 'number') {
-        console.warn('[Byte OCR] Skipping invalid transaction (missing required fields):', tx);
+      console.log('[Byte OCR DEBUG] raw AI tx:', tx);
+
+      if (!tx.date || typeof tx.amount === 'undefined' || tx.amount === null) {
+        console.warn('[Byte OCR] Skipping transaction (missing critical fields):', tx);
         continue;
       }
 
+      tx.description = String(tx.description || tx.merchant || 'Unknown').trim();
+
       // Validate date format (YYYY-MM-DD)
       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(tx.date)) {
-        // Try to normalize date
-        const normalizedDate = normalizeDate(tx.date);
-        if (!normalizedDate) {
+      let normalizedDate = String(tx.date).trim();
+      if (!dateRegex.test(normalizedDate)) {
+        const reparsed = normalizeDate(normalizedDate);
+        if (!reparsed) {
           console.warn('[Byte OCR] Skipping transaction with invalid date:', tx.date);
           continue;
         }
-        tx.date = normalizedDate;
+        normalizedDate = reparsed;
       }
+      tx.date = normalizedDate;
 
       // Validate amount is finite
-      if (!isFinite(tx.amount) || tx.amount === 0) {
+      let amount = tx.amount;
+
+      if (typeof amount === 'string') {
+        amount = parseFloat(amount.replace(/[^0-9.\-]/g, ''));
+      }
+
+      if (!Number.isFinite(amount) || amount === 0) {
         console.warn('[Byte OCR] Skipping transaction with invalid amount:', tx.amount);
         continue;
       }
 
+      tx.amount = amount;
+
       // Extract merchant from description if not provided
       const merchant = tx.merchant || extractMerchantFromDescription(tx.description);
+
+      console.log('[Byte OCR DEBUG] accepted AI tx:', {
+        date: tx.date,
+        description: tx.description,
+        merchant,
+        amount: tx.amount,
+      });
 
       validatedTransactions.push({
         date: tx.date,

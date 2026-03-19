@@ -45,6 +45,8 @@ interface AssistantUpsertParams {
   employeeKey?: string;
 }
 
+const STREAM_IDLE_TIMEOUT_MS = 45_000;
+
 export interface ChatHeaders {
   guardrails?: string;
   piiMask?: string;
@@ -89,6 +91,7 @@ export function usePrimeChat(
   
   // Ensure userId is a string (defensive check)
   const safeUserId = typeof userId === 'string' ? userId : String(userId || 'temp-user');
+  const suppressByteThoughtsInPrime = employeeOverride === 'prime';
   
   // Retrieve sessionId from localStorage if not provided and we have userId + employeeOverride
   const [effectiveSessionId, setEffectiveSessionId] = useState<string | undefined>(() => {
@@ -258,6 +261,7 @@ export function usePrimeChat(
   
   // CRITICAL: Track finalized requestIds to prevent late chunks from creating duplicates
   const finalizedRequestIdsRef = useRef<Set<string>>(new Set());
+  const recentBroadcastProgressRef = useRef<Map<string, number>>(new Map());
   
   // CRITICAL: Track streaming message by requestId for idempotent placeholder creation
   const streamingMsgByRequestRef = useRef<Map<string, string>>(new Map());
@@ -301,8 +305,19 @@ export function usePrimeChat(
         .channel(`chat-progress-${safeUserId}`)
         .on('broadcast', { event: 'progress' }, (payload) => {
           if (!isSubscribed) return;
+          if (suppressByteThoughtsInPrime) return;
           const message = payload.payload?.message;
           if (message) {
+            const normalized = String(message || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            const now = Date.now();
+            const lastSeen = recentBroadcastProgressRef.current.get(normalized) || 0;
+            // Dedupe duplicate progress broadcasts emitted by overlapping OCR/sync calls.
+            if (normalized && now - lastSeen < 8000) {
+              return;
+            }
+            if (normalized) {
+              recentBroadcastProgressRef.current.set(normalized, now);
+            }
             log(`[usePrimeChat] Broadcast progress received: ${message}`);
             setMessages((prev) => {
               // Upate existing thought bubble if present
@@ -354,7 +369,7 @@ export function usePrimeChat(
         if (cleanup) cleanup();
       });
     };
-  }, [safeUserId]);
+  }, [safeUserId, suppressByteThoughtsInPrime]);
   
   // PART A: Hard dedupe key (no time component)
   const normalizeText = (s: string) => {
@@ -530,6 +545,9 @@ export function usePrimeChat(
   const resetStream = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    inFlightRef.current = false;
+    activeRequestIdRef.current = null;
+    streamingIdRef.current = null;
     setIsStreaming(false);
   }, []);
 
@@ -604,6 +622,23 @@ export function usePrimeChat(
       }
 
       if (!matched) {
+        if (!isStreaming && normalizedContent.trim()) {
+          const normalizedFinal = normalizedContent.replace(/\s+/g, ' ').trim().toLowerCase();
+          const recentDuplicate = prev.find((msg) => {
+            if (msg.role !== 'assistant') return false;
+            if (msg.id === messageId) return false;
+            if (msg.meta?.is_streaming) return false;
+            if (employeeKey && msg.meta?.employee_key && msg.meta.employee_key !== employeeKey) return false;
+            const msgNorm = String(msg.content || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            if (msgNorm !== normalizedFinal) return false;
+            if (!msg.createdAt) return true;
+            const age = Date.now() - Date.parse(msg.createdAt);
+            return Number.isFinite(age) ? age < 20000 : true;
+          });
+          if (recentDuplicate) {
+            return prev;
+          }
+        }
         next.push({
           id: messageId,
           role: 'assistant',
@@ -825,6 +860,9 @@ export function usePrimeChat(
           
           // Handle specialist_thought events to display temporary progress bubbles
           if (j.type === 'specialist_thought' && j.employee && j.content) {
+            if (suppressByteThoughtsInPrime && String(j.employee) === 'byte-docs') {
+              return { aiText, hasContent };
+            }
             log(`[usePrimeChat] Specialist thought from ${j.employee}: ${j.content}`);
             setMessages(prev => [...prev, {
               id: `thought-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
@@ -1150,6 +1188,25 @@ export function usePrimeChat(
     retryCountRef.current = 0; // Reset retry count
 
     const attemptStream = async (isRetry = false): Promise<void> => {
+      let streamTimedOut = false;
+      let streamTimeoutHandle: number | null = null;
+      const clearStreamTimeout = () => {
+        if (streamTimeoutHandle !== null) {
+          window.clearTimeout(streamTimeoutHandle);
+          streamTimeoutHandle = null;
+        }
+      };
+      const armStreamTimeout = () => {
+        clearStreamTimeout();
+        streamTimeoutHandle = window.setTimeout(() => {
+          streamTimedOut = true;
+          try {
+            controller.abort();
+          } catch {
+            // no-op
+          }
+        }, STREAM_IDLE_TIMEOUT_MS);
+      };
       try {
         // Map outgoing employee slug back to employeeOverride format for header (only if Prime)
         // employeeOverride header should only be 'prime' when the active employee is actually Prime
@@ -1381,6 +1438,8 @@ export function usePrimeChat(
           console.groupEnd();
         }
 
+        // Guard against a stalled request/stream leaving the UI in a frozen state.
+        armStreamTimeout();
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 
@@ -1585,7 +1644,9 @@ export function usePrimeChat(
         try {
           // Enhanced SSE parsing with buffering
           while (true) {
+            armStreamTimeout();
             const { value, done } = await reader.read();
+            clearStreamTimeout();
             if (done) break;
             
             // Decode chunk (handles partial UTF-8 sequences)
@@ -1746,7 +1807,7 @@ export function usePrimeChat(
         setIsStreaming(false);
         abortRef.current = null;
         } catch (err: any) {
-          if (err.name === 'AbortError') {
+          if (err.name === 'AbortError' && !streamTimedOut) {
             // User aborted, don't retry
             // Only clear if this is still the active request
             if (activeRequestIdRef.current === requestId) {
@@ -1765,6 +1826,9 @@ export function usePrimeChat(
               activeRequestIdRef.current = null;
             }
             return;
+          }
+          if (streamTimedOut && import.meta.env.DEV) {
+            warn(`[usePrimeChat] stream timeout after ${STREAM_IDLE_TIMEOUT_MS}ms; switching to JSON fallback`);
           }
           
           // Log error for debugging
@@ -1884,6 +1948,7 @@ export function usePrimeChat(
             employeeKey: employeeSlugToSend,
           });
         } finally {
+          clearStreamTimeout();
           // Only clear if this is still the active request
           // CRITICAL: Get assistant message ID from mapping (aiId is out of scope here)
           const assistantMsgId = streamingMsgByRequestRef.current.get(requestId) || streamingIdRef.current;
@@ -1928,6 +1993,7 @@ export function usePrimeChat(
           }
         }
       } finally {
+        clearStreamTimeout();
         // Ensure in-flight guard is always cleared, even if send fails early
         // Only clear if this is still the active request
         if (activeRequestIdRef.current === requestId) {

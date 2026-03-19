@@ -93,8 +93,8 @@ export function PrimeSlideoutShell({
   className = "",
   floatingRail,
   isExpanded = false,
-  collapsedWidthPx = 576,
-  expandedViewportRatio = 0.68,
+  collapsedWidthPx = 640,
+  expandedViewportRatio = 0.72,
   minExpandedWidthPx = 780,
   maxExpandedWidthPx = 1200,
   freezeResizeRecompute = false,
@@ -307,6 +307,22 @@ export function PrimeSlideoutShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleShellWheelCapture = (e: React.WheelEvent<HTMLElement>) => {
+    // If wheel already originates in the designated chat scroll owner, let it behave normally.
+    const target = e.target as HTMLElement | null;
+    if (target?.closest?.('[data-scroll-container="true"]')) return;
+
+    // When cursor is over sticky header/footer/welcome regions, forward wheel to chat scroll owner.
+    const root = shellRef.current as HTMLElement | null;
+    const scrollOwner = root?.querySelector?.('[data-scroll-container="true"]') as HTMLElement | null;
+    if (!scrollOwner) return;
+    if (!Number.isFinite(e.deltaY) || e.deltaY === 0) return;
+
+    scrollOwner.scrollTop += e.deltaY;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
   return (
     <div className={`flex h-full items-stretch py-4 ${align === 'center' ? 'justify-center px-2' : 'justify-end pr-4'}`}>
       <motion.aside
@@ -347,6 +363,7 @@ export function PrimeSlideoutShell({
           overflow-hidden transform-gpu
           ${className}
         `}
+        onWheelCapture={handleShellWheelCapture}
       >
         {/* Relative wrapper for rail + content */}
         <div className="relative flex flex-col h-full overflow-hidden min-h-0">
@@ -441,7 +458,6 @@ export function PrimeSlideoutShell({
             {footer && (
               <div
                 className="sticky bottom-0 z-20 border-t border-white/10 bg-slate-950/95 px-4 pt-3 pb-4 backdrop-blur-sm flex-shrink-0 min-h-0"
-                style={{ maxHeight: "200px", overflowY: "auto" }}
               >
                 {footer}
               </div>

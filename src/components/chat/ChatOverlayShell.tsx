@@ -6,8 +6,8 @@
  * Matches the Prime chat design with orange gradient border and wide layout
  */
 
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Minus } from 'lucide-react';
 import { GuardrailNotice } from './GuardrailNotice';
 
 export interface ChatOverlayShellProps {
@@ -62,10 +62,24 @@ export function ChatOverlayShell({
   welcomeRegion,
   suggestedPrompts, // Deprecated, kept for backward compatibility
 }: ChatOverlayShellProps) {
+  const [isMinimized, setIsMinimized] = useState(false);
   // Use quickActions if provided, fallback to suggestedPrompts for backward compatibility
   const actionsSection = quickActions || suggestedPrompts;
+
+  if (isMinimized) {
+    return (
+      <div 
+        className="prime-orb"
+        title="Restore Prime Workspace"
+        onClick={() => setIsMinimized(false)}
+      >
+        <span className="prime-orb-inner">P</span>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center px-4 transition-all duration-300 ${isMinimized ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
@@ -113,13 +127,22 @@ export function ChatOverlayShell({
                     <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.9)]" />
                     <span>{statusText}</span>
                   </div>
-                  <button
-                    onClick={onClose}
-                    className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 rounded-lg transition-colors"
-                    aria-label="Close chat"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setIsMinimized(true)}
+                      className="p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 rounded-lg transition-colors"
+                      aria-label="Minimize chat"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="p-2 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                      aria-label="Close chat"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </header>

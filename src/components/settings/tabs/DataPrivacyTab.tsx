@@ -56,6 +56,30 @@ export function DataPrivacyTab() {
 
   return (
     <div className="space-y-6">
+      {/* Danger Zone (Data Cleanup) */}
+      {!isDemoUser && (
+        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2 text-red-500">
+            <AlertTriangle className="w-4 h-4" />
+            Danger Zone
+          </h3>
+
+          <div className="space-y-3">
+            <p className="text-xs text-slate-400">
+              Surgically remove all test data (imports and transactions) from your account. This is permanently destructive.
+            </p>
+            <Button
+              onClick={() => setShowDangerZone(true)}
+              variant="secondary"
+              className="w-full bg-slate-800 hover:bg-red-500/10 text-red-500 border border-slate-700 hover:border-red-500/30 transition-all"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Nuke Test Data
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Data Export */}
       <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
         <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
@@ -107,30 +131,6 @@ export function DataPrivacyTab() {
               <Trash2 className="w-4 h-4 mr-2" />
               Delete My Account
               <span className="ml-2 text-xs">(Coming soon)</span>
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Danger Zone (Data Cleanup) */}
-      {!isDemoUser && (
-        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-          <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2 text-red-500">
-            <AlertTriangle className="w-4 h-4" />
-            Danger Zone
-          </h3>
-
-          <div className="space-y-3">
-            <p className="text-xs text-slate-400">
-              Surgically remove all test data (imports and transactions) from your account. This is permanently destructive.
-            </p>
-            <Button
-              onClick={() => setShowDangerZone(true)}
-              variant="secondary"
-              className="w-full bg-slate-800 hover:bg-red-500/10 text-red-500 border border-slate-700 hover:border-red-500/30 transition-all"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              Nuke Test Data
             </Button>
           </div>
         </div>

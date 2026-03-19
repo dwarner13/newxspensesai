@@ -23,6 +23,18 @@ export interface HybridOCRResult {
   confidence: number;        // 0–1 simple heuristic
   hadFallback: boolean;
   warnings: string[];
+  contract: {
+    version: 'v1';
+    pass: boolean;
+    needsReview: boolean;
+    reasons: string[];
+    checks: {
+      hasText: boolean;
+      hasPages: boolean;
+      confidenceAccepted: boolean;
+      fallbackOrWarningContext: boolean;
+    };
+  };
   metadata: {
     fileType: 'pdf' | 'image' | 'csv' | 'text' | 'unknown';
     mimeType?: string;
@@ -40,6 +52,49 @@ export interface HybridOCROptions {
   minConfidence?: number;     // Default: 0.3 (30%)
   minTextLength?: number;     // Default: 50 characters
   enableFallback?: boolean;   // Default: true
+  contractMinConfidence?: number; // Default: 0.4
+}
+
+function evaluateHybridOcrContract(params: {
+  fullText: string;
+  pages: OCRPageResult[];
+  confidence: number;
+  warnings: string[];
+  hadFallback: boolean;
+  source: 'primary' | 'fallback';
+  minConfidence: number;
+  minTextLength: number;
+}): HybridOCRResult['contract'] {
+  const trimmedText = String(params.fullText || '').trim();
+  const hasText = trimmedText.length >= params.minTextLength;
+  const hasPages = Array.isArray(params.pages) && params.pages.length > 0;
+  const confidenceAccepted = Number(params.confidence || 0) >= params.minConfidence;
+  const fallbackOrWarningContext = params.hadFallback || (params.warnings?.length || 0) > 0 || params.source === 'fallback';
+  const reasons: string[] = [];
+
+  if (!hasText) {
+    reasons.push('no_text_extracted');
+  }
+  if (!hasPages) {
+    reasons.push('pages_detected_missing');
+  }
+  if (!confidenceAccepted && !fallbackOrWarningContext) {
+    reasons.push('confidence_below_threshold_without_review_context');
+  }
+
+  const needsReview = !confidenceAccepted || (params.warnings?.length || 0) > 0 || trimmedText.length < Math.max(1, params.minTextLength * 2);
+  return {
+    version: 'v1',
+    pass: reasons.length === 0,
+    needsReview,
+    reasons,
+    checks: {
+      hasText,
+      hasPages,
+      confidenceAccepted,
+      fallbackOrWarningContext,
+    },
+  };
 }
 
 /**
@@ -57,10 +112,16 @@ export async function runHybridOCR(
 ): Promise<HybridOCRResult> {
   const startTime = Date.now();
   const warnings: string[] = [];
+  console.log('[BULK_OCR_CONTRACT_ACTIVE] runHybridOCR:start', {
+    fileName: options.fileName || 'document',
+    mimeType: options.mimeType || null,
+    bytes: fileBuffer.length,
+  });
   
   // Default options
   const minConfidence = options.minConfidence ?? 0.3;
   const minTextLength = options.minTextLength ?? 50;
+  const contractMinConfidence = options.contractMinConfidence ?? 0.4;
   const enableFallback = options.enableFallback ?? true;
   
   // Detect file type
@@ -264,14 +325,34 @@ export async function runHybridOCR(
   }
   
   const processingTime = Date.now() - startTime;
+  const clampedConfidence = Math.max(0, Math.min(1, finalConfidence));
+  const contract = evaluateHybridOcrContract({
+    fullText: finalText.trim(),
+    pages,
+    confidence: clampedConfidence,
+    warnings,
+    hadFallback,
+    source: finalSource,
+    minConfidence: contractMinConfidence,
+    minTextLength,
+  });
+  console.log('[BULK_OCR_CONTRACT_ACTIVE] runHybridOCR:result', {
+    source: finalSource,
+    confidence: clampedConfidence,
+    textLength: finalText.trim().length,
+    contractPass: contract.pass,
+    contractNeedsReview: contract.needsReview,
+    contractReasons: contract.reasons,
+  });
   
   return {
     pages,
     fullText: finalText.trim(),
     source: finalSource,
-    confidence: Math.max(0, Math.min(1, finalConfidence)), // Clamp to 0-1
+    confidence: clampedConfidence, // Clamp to 0-1
     hadFallback,
     warnings,
+    contract,
     metadata: {
       fileType: actualFileType,
       mimeType: mimeType || fileTypeInfo.mimeType,

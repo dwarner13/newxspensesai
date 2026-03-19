@@ -9,13 +9,14 @@
 
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Upload, TrendingUp, Search, BarChart2 } from 'lucide-react';
+import { Upload, TrendingUp, Search, BarChart2, UploadCloud } from 'lucide-react';
 
 export interface PrimeQuickAction {
   label: string;
   message: string;
   icon: React.ComponentType<{ className?: string }>;
   sublabel?: string;
+  routeHint?: string;
 }
 
 const DEFAULT_ACTIONS: PrimeQuickAction[] = [
@@ -42,6 +43,13 @@ const DEFAULT_ACTIONS: PrimeQuickAction[] = [
     message: 'I want to upload a bank statement or receipt',
     icon: Upload,
     sublabel: 'Add new document',
+  },
+  {
+    label: 'Bulk upload statements',
+    message: 'Open bulk upload so I can process many statements for a full year',
+    icon: UploadCloud,
+    sublabel: 'Year-end catch-up',
+    routeHint: '/dashboard/bulk-upload',
   },
 ];
 

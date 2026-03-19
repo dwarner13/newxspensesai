@@ -441,7 +441,7 @@ export function ChatInputBar({
           <input
             ref={cameraInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             capture="environment"
             onChange={handleFileSelect}
             className="hidden"
@@ -454,7 +454,7 @@ export function ChatInputBar({
             ref={galleryInputRef}
             type="file"
             multiple
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             onChange={handleFileSelect}
             className="hidden"
             disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming)}
@@ -466,7 +466,7 @@ export function ChatInputBar({
             ref={statementInputRef}
             type="file"
             multiple
-            accept="*/*"
+            accept=".pdf,.csv,.xls,.xlsx,.jpg,.jpeg,.png,.webp,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/jpeg,image/png,image/webp"
             onChange={handleFileSelect}
             className="hidden"
             disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming)}
@@ -478,7 +478,7 @@ export function ChatInputBar({
             ref={fileInputRef}
             type="file"
             multiple
-            accept="*/*"
+            accept=".pdf,.csv,.xls,.xlsx,.jpg,.jpeg,.png,.webp,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/jpeg,image/png,image/webp"
             onChange={handleFileSelect}
             className="hidden"
             disabled={disabled || (!allowAttachmentsWhileStreaming && isStreaming)}

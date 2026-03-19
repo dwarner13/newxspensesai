@@ -128,7 +128,7 @@ export default function DesktopChatSideBar({
 
   const inferUploadStageText = (title: string, progress: number, status: string): string => {
     const lower = (title || '').toLowerCase();
-    if (status === 'queued') return 'Queued for Byte processing...';
+    if (status === 'queued') return 'Uploading for Byte processing...';
     if (/scan|scanning|page/.test(lower)) return 'Scanning pages...';
     if (/ocr|extract|parse|read/.test(lower)) return 'Extracting text with OCR...';
     if (/normalize|clean|map/.test(lower)) return 'Normalizing transaction fields...';
@@ -502,22 +502,23 @@ export default function DesktopChatSideBar({
           // data-floating-rail provides stable selector for debugging/verification
           // Changed from md:flex to sm:flex so rail shows when DevTools is docked (>=640px)
           // Keep rail visible while chat is open and fully crisp.
-          isChatOpen && 'opacity-100 pointer-events-auto translate-x-0',
+          // Hide rail completely when any right drawer (settings/account) is open
+          isRightDrawerOpen && 'opacity-0 pointer-events-none translate-x-4',
+          !isRightDrawerOpen && isChatOpen && 'opacity-100 pointer-events-auto translate-x-0',
           // Visual dimming when mini workspace is active
-          activeMiniWorkspace && !isChatOpen && 'opacity-50 pointer-events-auto translate-x-0 transition-all duration-250',
-          // When right panel is open: de-emphasize but keep clickable
-          isAnyPanelOpen && !isChatOpen && !activeMiniWorkspace && 'opacity-30 pointer-events-auto translate-x-0',
+          !isRightDrawerOpen && activeMiniWorkspace && !isChatOpen && 'opacity-50 pointer-events-auto translate-x-0 transition-all duration-250',
+          // When right panel is open: hide completely
+          !isRightDrawerOpen && isAnyPanelOpen && !isChatOpen && !activeMiniWorkspace && 'opacity-0 pointer-events-none translate-x-4',
           // Default state: fully visible and interactive
-          !isChatOpen && !activeMiniWorkspace && !isAnyPanelOpen && 'opacity-100 pointer-events-auto translate-x-0 transition-all duration-250',
+          !isRightDrawerOpen && !isChatOpen && !activeMiniWorkspace && !isAnyPanelOpen && 'opacity-100 pointer-events-auto translate-x-0 transition-all duration-250',
           className
         )}
         style={{
           position: 'fixed',
           right: 'var(--rail-gap, 24px)',
           top: 'calc(50% + 48px)',
-          pointerEvents: 'auto',
-          // Allow tooltip/glow to render outside the rail bounds.
-          // Transition handled by CSS classes above
+          // pointerEvents managed by Tailwind classes (pointer-events-auto/none)
+          // Inline style removed so pointer-events-none works when drawer is open
         }}
       >
         <motion.div

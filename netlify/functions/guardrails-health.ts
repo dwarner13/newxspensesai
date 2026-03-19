@@ -14,7 +14,6 @@
 // ====== GUARDRAILS HEALTH ======
 
 import type { Handler } from '@netlify/functions';
-import { admin } from './_shared/supabase.js';
 import { log, warn } from './_shared/log.js';
 
 interface HealthCheckResult {
@@ -50,6 +49,29 @@ export const handler: Handler = async (event) => {
       statusCode: 405,
       headers,
       body: JSON.stringify({ error: 'Method not allowed' }),
+    };
+  }
+
+  // Fast path for local quiet mode: avoid heavy dynamic imports/DB checks that can
+  // wedge local functions serving during rapid UI iteration.
+  const isLocalDev = process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development';
+  const isQuietMode =
+    process.env.VITE_QUIET_MODE === '1' ||
+    process.env.VITE_QUIET_MODE === 'true' ||
+    process.env.QUIET_LOGS === 'true';
+  if (isLocalDev && isQuietMode) {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        ok: true,
+        status: 'online',
+        enabled: true,
+        pii_masking: true,
+        moderation: true,
+        policy_version: 'dev-quiet',
+        checked_at: new Date().toISOString(),
+      }),
     };
   }
 
@@ -107,6 +129,7 @@ export const handler: Handler = async (event) => {
 
     // Check 3: Supabase connection is reachable (for logging) - non-blocking
     try {
+      const { admin } = await import('./_shared/supabase.js');
       const supabase = admin();
       const { error: dbError } = await supabase
         .from('guardrail_events')

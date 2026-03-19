@@ -19,6 +19,7 @@ import { Check, ChevronRight, Loader2, Sparkles, Tag, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getSupabase } from '../../lib/supabase';
 import { createCategoryRule } from '../../lib/categoryRules';
+import { fetchPrimeSummarySingleFlight } from '../../lib/ai/primeSummaryClient';
 import { useUncategorizedTransactions } from '../../hooks/useUncategorizedTransactions';
 import { useAuth } from '../../contexts/AuthContext';
 import type { UncategorizedTx } from '../../hooks/useUncategorizedTransactions';
@@ -234,7 +235,7 @@ export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ limit: 1000 }),
       });
       const json = (await res.json()) as { ok: boolean; updated?: number; total?: number };
       if (json.ok) {
@@ -244,6 +245,16 @@ export function UncategorizedReviewQueue({ categories, monthRange }: Props) {
           toast.success(
             `Tag categorized ${json.updated} of ${json.total} transaction${json.total !== 1 ? 's' : ''}`
           );
+          // ── Re-fire Prime so summary reflects real categories ──
+          try {
+            await fetchPrimeSummarySingleFlight({ limit: 1000 }, {
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+          } catch {
+            // non-fatal — categories are written, summary will be stale
+          }
         }
         refresh();
       } else {

@@ -22,6 +22,11 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY!
 );
 
+function isUserScopeQueryError(err: any): boolean {
+  const msg = String(err?.message || '').toLowerCase();
+  return msg.includes('user_id') || msg.includes('failed to parse logic tree');
+}
+
 // ============================================================================
 // CATEGORY FETCHING
 // ============================================================================
@@ -39,19 +44,28 @@ const supabase = createClient(
 export async function fetchCategoriesTree(userId?: string): Promise<Category[]> {
   try {
     // RLS enforces: user_id IS NULL (system) OR user_id = auth.uid()
-    const query = supabase
+    let query = supabase
       .from("categories")
       .select("*")
       .eq("is_active", true);
 
     // Include both system and user-specific categories
     if (userId) {
-      query.or(`user_id.is.null, user_id.eq.${userId}`);
+      query = query.or(`user_id.is.null,user_id.eq.${userId}`);
     } else {
-      query.is("user_id", null); // System categories only
+      query = query.is("user_id", null); // System categories only
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+    if (error && isUserScopeQueryError(error)) {
+      // Some environments don't expose user_id on categories; fall back to active list.
+      const fallback = await supabase
+        .from("categories")
+        .select("*")
+        .eq("is_active", true);
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) throw error;
     return ((data ?? []) as Category[]).sort((a, b) =>
@@ -103,19 +117,28 @@ export async function findCategoryIdByNameOrSlug(
 ): Promise<string | null> {
   try {
     // Try name first (case-insensitive)
-    const query = supabase
+    let query = supabase
       .from("categories")
       .select("id, name, slug, user_id")
       .eq("is_active", true)
       .ilike("name", nameOrSlug);
 
     if (userId) {
-      query.or(`user_id.is.null, user_id.eq.${userId}`);
+      query = query.or(`user_id.is.null,user_id.eq.${userId}`);
     } else {
-      query.is("user_id", null);
+      query = query.is("user_id", null);
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+    if (error && isUserScopeQueryError(error)) {
+      const fallback = await supabase
+        .from("categories")
+        .select("id, name, slug")
+        .eq("is_active", true)
+        .ilike("name", nameOrSlug);
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) throw error;
 
@@ -131,12 +154,21 @@ export async function findCategoryIdByNameOrSlug(
       .eq("slug", nameOrSlug.toLowerCase());
 
     if (userId) {
-      slugQuery.or(`user_id.is.null, user_id.eq.${userId}`);
+      slugQuery.or(`user_id.is.null,user_id.eq.${userId}`);
     } else {
       slugQuery.is("user_id", null);
     }
 
-    const { data: slugData, error: slugError } = await slugQuery;
+    let { data: slugData, error: slugError } = await slugQuery;
+    if (slugError && isUserScopeQueryError(slugError)) {
+      const fallback = await supabase
+        .from("categories")
+        .select("id, name, slug")
+        .eq("is_active", true)
+        .eq("slug", nameOrSlug.toLowerCase());
+      slugData = fallback.data;
+      slugError = fallback.error;
+    }
 
     if (slugError) throw slugError;
     return slugData && slugData.length > 0 ? slugData[0].id : null;
@@ -168,12 +200,22 @@ export async function searchCategories(
       .limit(limit);
 
     if (userId) {
-      searchQuery.or(`user_id.is.null, user_id.eq.${userId}`);
+      searchQuery.or(`user_id.is.null,user_id.eq.${userId}`);
     } else {
       searchQuery.is("user_id", null);
     }
 
-    const { data, error } = await searchQuery;
+    let { data, error } = await searchQuery;
+    if (error && isUserScopeQueryError(error)) {
+      const fallback = await supabase
+        .from("categories")
+        .select("*")
+        .eq("is_active", true)
+        .ilike("name", `%${query}%`)
+        .limit(limit);
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) throw error;
     return (data ?? []) as Category[];
@@ -300,12 +342,21 @@ export async function fetchNormalizedMerchant(
       .eq("vendor_raw", vendorRaw);
 
     if (userId) {
-      query.or(`user_id.is.null, user_id.eq.${userId}`);
+      query.or(`user_id.is.null,user_id.eq.${userId}`);
     } else {
       query.is("user_id", null);
     }
 
-    const { data, error } = await query.single();
+    let { data, error } = await query.single();
+    if (error && isUserScopeQueryError(error)) {
+      const fallback = await supabase
+        .from("normalized_merchants")
+        .select("*")
+        .eq("vendor_raw", vendorRaw)
+        .single();
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error && error.code !== "PGRST116") throw error;
     return (data ?? null) as NormalizedMerchant | null;

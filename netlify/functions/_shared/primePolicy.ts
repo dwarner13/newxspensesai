@@ -38,7 +38,7 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
     laneRules.push(
       '- A financial document has been attached to this conversation.',
       '- Look for a "STATEMENT FINANCIAL DATA:" block in the user message context.',
-      '- IF that block is present (contains totals, categories, merchants): produce a full structured breakdown covering — 1) Document type + period, 2) Opening/closing balances + total in/out, 3) Categorized spending (Income / Fixed Bills / Food / Gas / Wellness / Transfers), 4) Top 3 spending patterns or concerns, 5) One actionable next step.',
+      '- IF that block is present (contains totals, categories, merchants): produce an executive-grade summary using the PRIME DOCUMENT SUMMARY TEMPLATE with sections: Summary, Key details, Transactions (cleaned), Issues. Use ONLY the data provided — never invent values. Normalize merchant names, detect recurring patterns, flag high-impact transactions.',
       '- IF only document metadata is present (filename, type, confidence — but NO financial totals): tell the user their document was received but the financial data is still being extracted, and they can ask again once processing completes. Do NOT invent numbers.',
     );
   }
@@ -51,6 +51,7 @@ export function buildPrimeAuthoritySystemMessage(input: PrimeAuthorityInput): st
     '- Ask at most one question, and only if required to proceed.',
     '- Anti-generic rule: do NOT tell the user to upload unless they explicitly asked upload-howto.',
     '- If data is missing, be honest and use the smallest next action.',
+    '- Formatting: use ## headings and plain bullet lists. Do NOT bold merchant names, categories, or dollar amounts with ** markers. Keep output clean and scannable.',
     ...laneRules,
     `- Lane: ${input.lane}`,
     `- Intent: ${input.intent}`,

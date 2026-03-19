@@ -12,6 +12,7 @@
 import { ParsedDoc, InvoiceData, ReceiptData, parseInvoiceLike, parseReceiptLike, normalizeParsed } from './ocr_parsers';
 import { maskPII } from './pii';
 import { categorizeTransaction as sharedCategorize, categorizeTransactionWithLearning } from './categorize';
+import { cleanupOcrText } from '../lib/ocr/cleanupOcrText';
 
 export type NormalizedTransaction = {
   userId: string;
@@ -27,6 +28,8 @@ export type NormalizedTransaction = {
   accountName?: string;
   statementType?: 'credit_card' | 'bank';
   statementCredit?: boolean;
+  fxNote?: string;
+  transactionType?: 'Purchase' | 'Payment' | 'Credit';
   items?: Array<{
     name: string;
     qty?: number;
@@ -53,22 +56,44 @@ export async function normalizeOcrResult(
   text: string,
   userId: string = 'default-user',
   openaiClient?: any,
-  context?: { filename?: string; includeAllAccounts?: boolean }
+  context?: { filename?: string; includeAllAccounts?: boolean; sourceTextPath?: string; sourceValueType?: string }
 ): Promise<NormalizedTransaction[]>;
 export function normalizeOcrResult(
   text: string,
   userId: string = 'default-user',
   openaiClient?: any,
-  context?: { filename?: string; includeAllAccounts?: boolean }
+  context?: { filename?: string; includeAllAccounts?: boolean; sourceTextPath?: string; sourceValueType?: string }
 ): Promise<NormalizedTransaction[]> | NormalizedTransaction[];
 export function normalizeOcrResult(
   text: string,
   userId: string = 'default-user',
   openaiClient?: any,
-  context?: { filename?: string; includeAllAccounts?: boolean }
+  context?: { filename?: string; includeAllAccounts?: boolean; sourceTextPath?: string; sourceValueType?: string }
 ): Promise<NormalizedTransaction[]> | NormalizedTransaction[] {
-  const normalizedText = text || "";
+  const sourceTextPath = String(context?.sourceTextPath || 'unknown');
+  const sourceValueType = String(context?.sourceValueType || typeof text);
+  const rawInputText = typeof text === 'string' ? text : String(text ?? '');
+  const normalizedText = cleanupOcrText(rawInputText);
+  console.log('[Byte OCR DEBUG] source_text_path', {
+    sourceTextPath,
+    sourceValueType,
+    rawLength: rawInputText.length,
+    cleanedLength: normalizedText.length,
+  });
+  console.log('[Byte OCR DEBUG] pre_cleanup_preview', rawInputText.slice(0, 300));
+  console.log('[Byte OCR DEBUG] post_cleanup_preview', normalizedText.slice(0, 300));
   const filename = context?.filename || '';
+  const isCorruptedText = (value: string): boolean => {
+    const sample = String(value || '');
+    if (!sample || sample.trim().length < 40) return false;
+    const suspiciousChars = (sample.match(/[�\u2500-\u257F\u2580-\u259F]/g) || []).length;
+    const controlChars = (sample.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g) || []).length;
+    const alphaChars = (sample.match(/[A-Za-z]/g) || []).length;
+    const sampleLen = sample.length || 1;
+    const noisyRatio = (suspiciousChars + controlChars) / sampleLen;
+    const alphaRatio = alphaChars / sampleLen;
+    return noisyRatio > 0.08 || alphaRatio < 0.18;
+  };
   const hasReceiptHints = /transaction\s+record|interac|verified\s+by\s+pin|pump\s+\d+|esso\s+express\s+pay|thank\s+you|hst\s+included|gst\s*#|total\s*[:$]/i.test(normalizedText);
   const hasStrongStatementHints = /opening balance|closing balance|statement period|period ending|account summary|minimum payment|credit limit|transaction details|for the period ending|cardmember/i.test(normalizedText);
   const hasStatementKeyword = /\bstatement\b/i.test(normalizedText);
@@ -199,6 +224,8 @@ export function normalizeOcrResult(
     accountName: (tx as any).accountName,
     statementType: (tx as any).statementType,
     statementCredit: (tx as any).statementCredit,
+    fxNote: (tx as any).fxNote,
+    transactionType: (tx as any).transactionType,
     docId: undefined
   }));
 
@@ -210,6 +237,15 @@ export function normalizeOcrResult(
 
   // Primary parser found 0 transactions (or too few for credit card) - use AI fallback if OpenAI client is available
   if (openaiClient) {
+    if (isCorruptedText(normalizedText)) {
+      console.warn('[Byte OCR WARNING] corrupted_text_detected', {
+        sourceTextPath,
+        sourceValueType,
+        length: normalizedText.length,
+        preview: normalizedText.slice(0, 300),
+      });
+      return mappedBankTransactions;
+    }
     if (bankTransactions.length > 0 && isCreditCard) {
       console.log(`[Byte OCR] Primary parser found ${bankTransactions.length} transaction(s) on credit card statement, using AI fallback parser`);
     } else if (preferAiForCibc) {
@@ -224,10 +260,20 @@ export function normalizeOcrResult(
     
     // Detect statement type for better AI parsing
     const statementType: 'credit_card' | 'bank' | 'unknown' = isCreditCard ? 'credit_card' : 'bank';
+    console.log('[Byte OCR DEBUG] statement type decision:', {
+      isCreditCard,
+      preferAiForCibc,
+      preferAiForStatements,
+      lowCoverage,
+      detectedStatementType: statementType,
+      bankTransactionsCount: bankTransactions.length,
+      dateLineCount,
+    });
     
     // Call AI fallback (async)
     return (async () => {
       const { aiFallbackParseTransactions } = await import('./ai_fallback_parser.js');
+      console.log('[Byte OCR DEBUG] sending OCR text preview to AI fallback:', normalizedText.slice(0, 1200));
       const aiTransactions = await aiFallbackParseTransactions({
         ocrText: normalizedText,
         statementType,
@@ -1902,6 +1948,16 @@ function normalizeShortDate(dateStr: string): string | undefined {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+function parseFxNote(text: string): string | null {
+  const match = text.match(/(\d{1,3}(?:,\d{3})*\.\d{2})\s+(USD|EUR|GBP)\s*@\s*([0-9.]+)/i);
+  if (!match) return null;
+  return `${match[1]} ${String(match[2] || '').toUpperCase()} @ ${match[3]}`;
+}
+
+function isFxOnlyContinuationLine(line: string): boolean {
+  return /^\s*\d{1,3}(?:,\d{3})*\.\d{2}\s+(USD|EUR|GBP)\s*@\s*[0-9.]+\s*$/i.test(line);
+}
+
 function parseCreditCardStatementLine(line: string): {
   date?: string;
   merchant?: string;
@@ -1909,9 +1965,11 @@ function parseCreditCardStatementLine(line: string): {
   amount: number;
   category?: string;
   isCredit?: boolean;
+  fxNote?: string;
+  transactionType?: 'Purchase' | 'Payment' | 'Credit';
 } | null {
-  const withPostDate = /^(\d{1,2}[\/\-]\d{1,2})\s+(\d{1,2}[\/\-]\d{1,2})\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))\s*(CR|CREDIT)?$/i;
-  const singleDate = /^(\d{1,2}[\/\-]\d{1,2})\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))\s*(CR|CREDIT)?$/i;
+  const withPostDate = /^(\d{1,2}[\/\-]\d{1,2})\s+(\d{1,2}[\/\-]\d{1,2})\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))(?:\s+\d{1,3}(?:,\d{3})*\.\d{2}\s+(?:USD|EUR|GBP)\s*@\s*[0-9.]+)?\s*(CR|CREDIT)?$/i;
+  const singleDate = /^(\d{1,2}[\/\-]\d{1,2})\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))(?:\s+\d{1,3}(?:,\d{3})*\.\d{2}\s+(?:USD|EUR|GBP)\s*@\s*[0-9.]+)?\s*(CR|CREDIT)?$/i;
 
   let dateStr: string | undefined;
   let description: string;
@@ -1939,8 +1997,12 @@ function parseCreditCardStatementLine(line: string): {
   const cleanedDesc = cleanDescription(description);
   const merchant = extractMerchant(cleanedDesc);
   const normalizedDate = normalizeShortDate(dateStr || '') || normalizeDate(dateStr || '');
+  const fxNote = parseFxNote(line);
   const isCredit =
     Boolean(creditFlag) || /payment|credit|refund|reversal/i.test(cleanedDesc);
+  const transactionType: 'Purchase' | 'Payment' | 'Credit' = /payment/i.test(cleanedDesc)
+    ? 'Payment'
+    : (isCredit ? 'Credit' : 'Purchase');
   const signedAmount = isCredit ? Math.abs(amount) : -Math.abs(amount);
 
   const confidenceData = buildStatementConfidence({
@@ -1958,6 +2020,8 @@ function parseCreditCardStatementLine(line: string): {
     amount: signedAmount,
     category: categorizeTransactionSync(cleanedDesc),
     isCredit,
+    fxNote: fxNote || undefined,
+    transactionType,
     confidence: confidenceData.confidence,
     confidenceFlags: [...confidenceData.flags, ...creditFlags],
   };
@@ -1986,6 +2050,8 @@ export function normalizeBankStatement(
   accountName?: string;
   statementType?: 'credit_card' | 'bank';
   statementCredit?: boolean;
+  fxNote?: string;
+  transactionType?: 'Purchase' | 'Payment' | 'Credit';
 }> {
   const transactions: Array<{
     date?: string;
@@ -2038,6 +2104,7 @@ export function normalizeBankStatement(
 
   // Second, try Canadian bank statement format (single-line)
   for (const line of lines) {
+    if (isFxOnlyContinuationLine(line)) continue;
     if (isSummaryLine(line)) continue;
 
     if (lastBalance !== null && /DebitCardPurchase|Pre-Authorized|Pre-authorized|DirectDeposit|Payment/i.test(line)) {
@@ -2130,6 +2197,8 @@ export function normalizeBankStatement(
           confidenceFlags: ccTx.confidenceFlags,
           statementType,
           statementCredit: ccTx.isCredit,
+          fxNote: ccTx.fxNote,
+          transactionType: ccTx.transactionType,
         });
         continue;
       }

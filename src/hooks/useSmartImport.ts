@@ -383,11 +383,104 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
     return new Promise((resolve, reject) => {
       const results: UploadResult[] = [];
       const completedIds = new Set<string>();
-      const timeoutMs = Math.max(uploadIds.length * 60000, 120000); // 1m per file, min 2m
+      const failedIds = new Set<string>();
+      const cancelledIds = new Set<string>();
+      const timeoutMs = Math.max(uploadIds.length * 120000, 300000); // 2m per file, min 5m
       let lastActivityAt = Date.now();
 
       const touchActivity = () => {
         lastActivityAt = Date.now();
+      };
+
+      const maybeFinish = () => {
+        const terminalCount = completedIds.size + failedIds.size + cancelledIds.size;
+        const total = uploadIds.length;
+        if (terminalCount < total) return false;
+
+        unsubscribe();
+        window.clearInterval(watchdog);
+        setUploading(false);
+
+        if (completedIds.size === 0) {
+          const firstFailed = uploadQueue.items.find((item) => failedIds.has(item.id));
+          const firstCancelled = uploadQueue.items.find((item) => cancelledIds.has(item.id));
+          const finalError =
+            firstFailed?.error ||
+            (cancelledIds.size > 0 && failedIds.size === 0
+              ? 'Upload cancelled'
+              : 'Upload failed');
+          reject(new Error(finalError || firstCancelled?.error || 'Upload failed'));
+          return true;
+        }
+
+        // Collect docIds and sync transaction counts
+        const docIds = results.map(r => r.docId).filter(Boolean);
+        const importIds = Array.from(
+          new Set(
+            results
+              .flatMap((r) => [
+                ...(Array.isArray(r.importIds) ? r.importIds : []),
+                ...(r.importId ? [r.importId] : []),
+              ])
+              .filter((id): id is string => typeof id === 'string' && id.length > 0)
+          )
+        );
+
+        // Keep UI in processing mode until OCR jobs are done.
+        const baseSummary = {
+          id: crypto.randomUUID(),
+          finishedAt: new Date().toISOString(),
+          fileCount: files.length,
+          docIds,
+          importId: importIds[0],
+          importIds,
+        };
+        setLastUploadSummary(baseSummary);
+        setLastDebugPayload(null);
+        updateUploadProgress({
+          isUploading: true,
+          progress: 95,
+          step: 'processing',
+          error: null,
+        });
+        if (sourceParam !== 'chat') {
+          uploadQueue.clearCompleted();
+        }
+        resolve(results);
+        const totalTx = results.reduce((sum, item) => sum + (item.transactionCount || 0), 0);
+        setLastUploadSummary({
+          ...baseSummary,
+          transactionCount: totalTx > 0 ? totalTx : undefined,
+        });
+        const hasPendingProcessing = results.some((item) =>
+          Boolean(item.queued) || (
+            item.transactionCount === undefined &&
+            item.normalizedTransactionCount === undefined &&
+            item.stats?.transactionCount === undefined
+          )
+        );
+        if (hasPendingProcessing) {
+          // Keep panel in processing mode while backend catch-up completes.
+          if (completionTimerRef.current) {
+            window.clearTimeout(completionTimerRef.current);
+          }
+          completionTimerRef.current = window.setTimeout(() => {
+            if (runVersion !== resetVersionRef.current) return;
+            completeUpload();
+            completionTimerRef.current = null;
+          }, 45000);
+        } else {
+          completeUpload();
+        }
+        if (debugTimerRef.current) {
+          window.clearTimeout(debugTimerRef.current);
+        }
+        debugTimerRef.current = window.setTimeout(() => {
+          if (runVersion !== resetVersionRef.current) return;
+          refreshDebugPayload({ includeAllAccounts: false });
+          debugTimerRef.current = null;
+        }, 1500);
+        return true;
       };
       
       // Subscribe to queue events (only if queue is initialized and has .on method)
@@ -410,85 +503,16 @@ export function useSmartImport(userId?: string, source: UploadSource = 'upload')
           const total = uploadIds.length;
           setUploadFileCount({ current: completed, total });
           setProgress((completed / total) * 100);
-          
-          // Check if all done
-          if (completed === total) {
-            unsubscribe();
-            window.clearInterval(watchdog);
-            
-            // Collect docIds and sync transaction counts
-            const docIds = results.map(r => r.docId).filter(Boolean);
-            const importIds = Array.from(
-              new Set(
-                results
-                  .flatMap((r) => [
-                    ...(Array.isArray(r.importIds) ? r.importIds : []),
-                    ...(r.importId ? [r.importId] : []),
-                  ])
-                  .filter((id): id is string => typeof id === 'string' && id.length > 0)
-              )
-            );
-
-            // Keep UI in processing mode until OCR jobs are done.
-            const baseSummary = {
-              id: crypto.randomUUID(),
-              finishedAt: new Date().toISOString(),
-              fileCount: files.length,
-              docIds,
-              importId: importIds[0],
-              importIds,
-            };
-            setLastUploadSummary(baseSummary);
-            setLastDebugPayload(null);
-            updateUploadProgress({
-              isUploading: true,
-              progress: 95,
-              step: 'processing',
-              error: null,
-            });
-            if (sourceParam !== 'chat') {
-              uploadQueue.clearCompleted();
-            }
-            resolve(results);
-            const totalTx = results.reduce((sum, item) => sum + (item.transactionCount || 0), 0);
-            setLastUploadSummary({
-              ...baseSummary,
-              transactionCount: totalTx > 0 ? totalTx : undefined,
-            });
-            const hasPendingProcessing = results.some((item) =>
-              Boolean(item.queued) || (
-                item.transactionCount === undefined &&
-                item.normalizedTransactionCount === undefined &&
-                item.stats?.transactionCount === undefined
-              )
-            );
-            if (hasPendingProcessing) {
-              // Keep panel in processing mode while backend catch-up completes.
-              if (completionTimerRef.current) {
-                window.clearTimeout(completionTimerRef.current);
-              }
-              completionTimerRef.current = window.setTimeout(() => {
-                if (runVersion !== resetVersionRef.current) return;
-                completeUpload();
-                completionTimerRef.current = null;
-              }, 45000);
-            } else {
-              completeUpload();
-            }
-            if (debugTimerRef.current) {
-              window.clearTimeout(debugTimerRef.current);
-            }
-            debugTimerRef.current = window.setTimeout(() => {
-              if (runVersion !== resetVersionRef.current) return;
-              refreshDebugPayload({ includeAllAccounts: false });
-              debugTimerRef.current = null;
-            }, 1500);
-            setUploading(false);
-          }
+          maybeFinish();
         } else if (event.type === 'item-error') {
           if (runVersion !== resetVersionRef.current) return;
+          failedIds.add(event.item.id);
           setError(event.item.error || 'Upload failed');
-          // Don't reject - let other files continue
+          maybeFinish();
+        } else if (event.type === 'item-cancelled') {
+          if (runVersion !== resetVersionRef.current) return;
+          cancelledIds.add(event.item.id);
+          maybeFinish();
         } else if (event.type === 'queue-progress') {
           if (runVersion !== resetVersionRef.current) return;
           setProgress(event.progress.overallProgress);

@@ -74,6 +74,26 @@ function toDataUrl(buffer: Buffer): string {
   return `data:image/jpeg;base64,${buffer.toString('base64')}`;
 }
 
+function isUselessOcrResponseText(value: string): boolean {
+  const text = String(value || '').toLowerCase().trim();
+  if (!text) return true;
+  return (
+    text.includes('there is no visible text in the image') ||
+    text.includes('no visible text in the image') ||
+    text.includes("i'm unable to extract any text") ||
+    text.includes('i am unable to extract any text') ||
+    text.includes('unable to extract any text') ||
+    text.includes('unable to extract text') ||
+    text.includes('appears to be blank or empty') ||
+    text.includes('image appears to be blank') ||
+    text.includes('image is blank') ||
+    text.includes('if you have another image') ||
+    text.includes("if you have another image or text you'd like me to assist with") ||
+    text.includes('no readable text found') ||
+    text.includes('no text could be recognized')
+  );
+}
+
 async function callOcrSpace(args: {
   imageBuffer: Buffer;
   statementMode: boolean;
@@ -125,6 +145,9 @@ async function callOpenAiVision(args: {
   if (!process.env.OPENAI_API_KEY) return null;
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const model = process.env.OPENAI_VISION_MODEL || 'gpt-4o-mini';
+  const timeoutMs = Math.max(4000, Math.min(45000, Number(args.timeoutMs || 25000)));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   const res = await client.chat.completions.create({
     model,
     temperature: 0,
@@ -133,14 +156,27 @@ async function callOpenAiVision(args: {
       {
         role: 'user',
         content: [
-          { type: 'text', text: 'Extract all visible text. Return text only, preserve line breaks.' },
+          {
+            type: 'text',
+            text: [
+              'OCR task: return only text that is visually present in this image.',
+              'Do not explain or add assistant commentary.',
+              'Preserve line breaks.',
+              'If no readable text exists, return an empty string.',
+            ].join('\n'),
+          },
           { type: 'image_url', image_url: { url: toDataUrl(args.imageBuffer) } },
         ],
       },
     ],
-  });
-  const text = (res.choices?.[0]?.message?.content || '').trim();
-  if (!text) return null;
+  }, {
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timer));
+  const text = String(res.choices?.[0]?.message?.content || '')
+    .replace(/^```(?:text)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  if (!text || isUselessOcrResponseText(text)) return null;
   return { text, provider: 'openai_vision' };
 }
 
@@ -169,7 +205,7 @@ async function callGoogleVision(args: {
     if (!res.ok) return null;
     const payload = await res.json();
     const text = payload?.responses?.[0]?.fullTextAnnotation?.text || '';
-    if (!text.trim()) return null;
+    if (!text.trim() || isUselessOcrResponseText(text)) return null;
     return { text, provider: 'vision' };
   } finally {
     clearTimeout(timer);

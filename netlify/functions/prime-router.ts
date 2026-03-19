@@ -619,6 +619,8 @@ export const handler: Handler = async (event) => {
     if (mode === "status") {
       const importId = body.importId || event.queryStringParameters?.importId;
       const statusImportRunId = String(body?.importRunId || body?.requestId || `status-${importId || Date.now()}`);
+      const waitForOcrMs = Number.isFinite(Number(body?.waitForOcrMs)) ? Math.max(5000, Math.min(90000, Number(body?.waitForOcrMs))) : 60000;
+      const pollForOcrMs = Number.isFinite(Number(body?.pollForOcrMs)) ? Math.max(200, Math.min(2000, Number(body?.pollForOcrMs))) : 500;
       const autoCommit = body?.autoCommit !== false;
       if (!importId) return json(400, { ok: false, error: "status mode requires importId" });
       const ctx = await getImportContext(String(importId));
@@ -813,6 +815,8 @@ export const handler: Handler = async (event) => {
           docIds: [ctx.documentId],
           autoCommit,
           importRunId: statusImportRunId,
+          waitForOcrMs,
+          pollForOcrMs,
         }),
       });
       const syncState = String(syncRes.data?.state || '');

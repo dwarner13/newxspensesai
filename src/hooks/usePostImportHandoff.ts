@@ -10,6 +10,7 @@ import { onBus } from '../lib/bus';
 import { getSupabase } from '../lib/supabase';
 import { log, error } from '../lib/logger';
 import { isPostImportTriggersDisabled, isPrimeUploadNarrationEnabled } from '../lib/featureFlags';
+import { fetchPrimeSummarySingleFlight } from '../lib/ai/primeSummaryClient';
 import {
   buildUploadTimelineTruthFromRouterStatus,
   type UploadTimelineTruth,
@@ -28,6 +29,11 @@ interface PrimeSummaryMeta {
   autoCount?: number | null;
   aiCount?: number | null;
   taggedCount?: number | null;
+  byteStatus?: 'queued' | 'confirmed' | 'error' | null;
+  byteTransactionCount?: number | null;
+  tagStatus?: 'queued' | 'confirmed' | 'error' | null;
+  tagCategoriesAssigned?: number | null;
+  tagFlagsRaised?: number | null;
   ready?: boolean | null;
 }
 
@@ -432,6 +438,13 @@ async function preparePrimeSummary(importId: string, _userId: string, importIds?
       const isGeneric = (content: string) =>
         content.includes('ready for your review') ||
         content.includes('categorized results and insights are available');
+      const isUsableSummary = (content: string) => {
+        const text = String(content || '').trim();
+        if (!text || isGeneric(text)) return false;
+        // Accept concise-but-real summaries too; strict heading/length checks
+        // were causing valid Prime summaries to be dropped from UI handoff.
+        return text.length >= 24;
+      };
       let routerReportedNotReady = false;
 
       // Canonical orchestration endpoint for chat summary path.
@@ -444,16 +457,45 @@ async function preparePrimeSummary(importId: string, _userId: string, importIds?
         });
         if (response.ok) {
           const payload = await response.json();
+          const terminalReason = String(
+            payload?.error_code ||
+            payload?.meta?.reason ||
+            payload?.summary?.error_code ||
+            ''
+          ).toLowerCase();
+          const terminalState = String(payload?.state || '').toLowerCase();
+          const terminalSummary = String(payload?.summary?.summary || payload?.summary || '').trim();
+          const isTerminalOcrRejection =
+            terminalState === 'terminal_ocr_rejected' ||
+            terminalReason === 'malformed_pdf' ||
+            terminalReason === 'unusable_ocr_text' ||
+            terminalReason === 'ocr_rejected';
+          if (isTerminalOcrRejection) {
+            const terminalContent = terminalSummary ||
+              (terminalReason === 'unusable_ocr_text'
+                ? 'Scanned PDF text could not be recognized. Please re-save or upload a clearer PDF.'
+                : 'Unreadable PDF structure. Please re-save this PDF and upload the new copy.');
+            return {
+              content: terminalContent,
+              meta: {
+                tagRan: false,
+                ready: false,
+              },
+            };
+          }
           const routerSummary = payload?.summary?.summary;
           if (typeof routerSummary === 'string' && routerSummary && !isGeneric(routerSummary)) {
+            const handoff = payload?.meta?.handoff || {};
             const totalProcessed =
+              payload?.meta?.byteTransactionCount ??
               parseCount(routerSummary, /Parsed transactions:\s*(\d+)/i) ??
               parseCount(routerSummary, /(\d+)\s+transactions?\s+processed/i);
             const needsReview =
               payload?.meta?.needsReviewCount ??
+              handoff?.tag_flags_raised ??
               parseCount(routerSummary, /Flagged for review:\s*(\d+)/i) ??
               parseCount(routerSummary, /(\d+)\s+transactions?\s+need review/i);
-            const autoCount = payload?.meta?.autoCount ?? (
+            const autoCount = payload?.meta?.autoCount ?? handoff?.tag_categories_assigned ?? (
               totalProcessed !== null && needsReview !== null ? Math.max(totalProcessed - needsReview, 0) : null
             );
             return {
@@ -463,7 +505,12 @@ async function preparePrimeSummary(importId: string, _userId: string, importIds?
                 needsReviewCount: needsReview,
                 autoCount,
                 aiCount: payload?.meta?.aiCount ?? null,
-                taggedCount: autoCount,
+                taggedCount: payload?.meta?.taggedCount ?? autoCount,
+                byteStatus: handoff?.byte_status ?? null,
+                byteTransactionCount: payload?.meta?.byteTransactionCount ?? handoff?.byte_transaction_count ?? totalProcessed,
+                tagStatus: handoff?.tag_status ?? null,
+                tagCategoriesAssigned: handoff?.tag_categories_assigned ?? autoCount,
+                tagFlagsRaised: handoff?.tag_flags_raised ?? needsReview,
                 ready: true,
               },
             };
@@ -480,29 +527,68 @@ async function preparePrimeSummary(importId: string, _userId: string, importIds?
 
       // Safe fallback: direct prime-summary if router summary path fails.
       try {
-        const response = await fetch('/.netlify/functions/prime-summary', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...authHeader },
-          body: JSON.stringify({ importId, importIds }),
-        });
-        if (response.ok) {
-          const payload = await response.json();
-          const fallbackSummary = payload?.summary;
-          if (typeof fallbackSummary === 'string' && fallbackSummary.trim().length > 0 && !isGeneric(fallbackSummary)) {
+        // ── Tag first so Prime reads real categories ──────────────────────
+        try {
+          await fetch('/.netlify/functions/tag-categorize-committed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeader },
+            body: JSON.stringify({ limit: 1000 }),
+          });
+        } catch {
+          // non-fatal — Prime will still run, categories may be partial
+        }
+        // ── Now Prime reads categorized data ─────────────────────────────
+        const result = await fetchPrimeSummarySingleFlight(
+          { importId, importIds },
+          { headers: authHeader }
+        );
+        const toSummaryResponse = (fallbackSummary: string) => {
             const totalProcessed =
               parseCount(fallbackSummary, /Parsed transactions:\s*(\d+)/i) ??
               parseCount(fallbackSummary, /(\d+)\s+transactions?\s+processed/i);
             const needsReview =
               parseCount(fallbackSummary, /Flagged for review:\s*(\d+)/i) ??
               parseCount(fallbackSummary, /(\d+)\s+transactions?\s+need review/i);
+            const taggedCount = totalProcessed !== null && needsReview !== null ? Math.max(totalProcessed - needsReview, 0) : null;
             return {
               content: fallbackSummary,
               meta: {
                 needsReviewCount: needsReview,
-                taggedCount: totalProcessed !== null && needsReview !== null ? Math.max(totalProcessed - needsReview, 0) : null,
+                taggedCount,
+                byteStatus: totalProcessed !== null ? 'confirmed' : null,
+                byteTransactionCount: totalProcessed,
+                tagStatus: needsReview !== null ? 'confirmed' : null,
+                tagCategoriesAssigned: taggedCount,
+                tagFlagsRaised: needsReview,
                 ready: true,
               },
             };
+        };
+        if (result.ok) {
+          const payload = result.payload;
+          const fallbackSummary = String(payload?.summary || '');
+          if (isUsableSummary(fallbackSummary)) {
+            return toSummaryResponse(fallbackSummary);
+          }
+          const summaryState = String(payload?.state || '').toLowerCase();
+          if (summaryState === 'already_processing' || !fallbackSummary.trim() || isGeneric(fallbackSummary)) {
+            for (let i = 0; i < 5; i += 1) {
+              await new Promise((resolve) => setTimeout(resolve, 600));
+              const retryRes = await fetch('/.netlify/functions/prime-summary', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeader },
+                body: JSON.stringify({ importId, importIds }),
+              });
+              if (!retryRes.ok) continue;
+              const retryPayload = await retryRes.json().catch(() => ({}));
+              const retrySummary = String(retryPayload?.summary || '');
+              if (isUsableSummary(retrySummary)) {
+                return toSummaryResponse(retrySummary);
+              }
+              if (String(retryPayload?.state || '').toLowerCase() !== 'already_processing') {
+                break;
+              }
+            }
           }
         }
       } catch (err: any) {

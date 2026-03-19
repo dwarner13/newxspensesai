@@ -1,0 +1,10 @@
+ignoredBuiltDependencies:
+  - '@parcel/watcher'
+  - esbuild
+  - netlify-cli
+  - sharp
+  - tesseract.js
+  - unix-dgram
+
+onlyBuiltDependencies:
+  - canvas

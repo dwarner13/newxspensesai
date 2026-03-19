@@ -30,7 +30,7 @@ interface UseUncategorizedResult {
   refresh: () => void;
 }
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 25;
 
 export function useUncategorizedTransactions(
   options?: UseUncategorizedOptions

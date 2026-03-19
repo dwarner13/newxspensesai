@@ -10,6 +10,12 @@ export default defineConfig({
       'src/**/*.test.ts',
       'src/**/*.spec.ts'
     ],
+    exclude: [
+      'node_modules/**',
+      'dist/**',
+      'netlify/functions_old/**',
+      'netlify/functions_old/**/*',
+    ],
     globals: false, // Use explicit imports instead of globals
   },
   resolve: {

@@ -97,7 +97,7 @@ export function ByteInlineUpload({
             multiple
             className="hidden"
             onChange={handleInputChange}
-            accept=".pdf,.csv,image/*"
+            accept=".pdf,.csv,image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
             disabled={isUploading}
           />
         </label>

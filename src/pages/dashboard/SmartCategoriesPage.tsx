@@ -1,21 +1,17 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Tag, Brain, Sparkles } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { TagWorkspacePanel } from '../../components/workspace/employees/TagWorkspacePanel';
-import { TagUnifiedCard } from '../../components/workspace/employees/TagUnifiedCard';
 import { DashboardPageShell } from '../../components/layout/DashboardPageShell';
-import { ActivityFeedSidebar } from '../../components/dashboard/ActivityFeedSidebar';
-import { UncategorizedReviewQueue } from '../../components/transactions/UncategorizedReviewQueue';
-import { CategoryBreakdownList } from '../../components/transactions/CategoryBreakdownList';
 import { useScrollToTop } from '../../hooks/useScrollToTop';
 import { useUnifiedChatLauncher } from '../../hooks/useUnifiedChatLauncher';
 import { useSmartCategoriesStats } from '../../hooks/useSmartCategoriesStats';
+import { useImportList } from '../../hooks/useImportList';
 import { useCategoryRules } from '../../hooks/useCategoryRules';
 import { createCategoryRule } from '../../lib/categoryRules';
+import { fetchPrimeSummarySingleFlight } from '../../lib/ai/primeSummaryClient';
 import type { EmployeeStat } from '../../config/employeeDisplayConfig';
-import { PageCinematicFade } from '../../components/ui/PageCinematicFade';
 import toast from 'react-hot-toast';
 
 // Local Transaction type for Smart Categories page
@@ -24,11 +20,13 @@ interface Transaction {
   date: string;
   description: string;
   category: string;
+  subcategory?: string | null;
   amount: number;
   type: 'income' | 'expense';
   merchant: string | null;
   confidence?: number | null;
   source_type?: string | null;
+  import_id?: string | null;
 }
 
 export type SmartCategorySummary = {
@@ -47,6 +45,28 @@ export type SmartCategorySummary = {
 };
 
 const SmartCategoriesPage: React.FC = () => {
+  const CANONICAL_CATEGORIES = [
+    'Income',
+    'Groceries',
+    'Food & Dining',
+    'Transportation',
+    'Housing',
+    'Utilities',
+    'Shopping',
+    'Subscriptions',
+    'Entertainment',
+    'Healthcare',
+    'Insurance',
+    'Education',
+    'Travel',
+    'Transfers',
+    'Bank Fees',
+    'Business',
+    'Personal Care',
+    'Home & Garden',
+    'Other',
+    'Uncategorized',
+  ] as const;
   // Scroll to top when page loads
   useScrollToTop();
   const navigate = useNavigate();
@@ -56,6 +76,7 @@ const SmartCategoriesPage: React.FC = () => {
 
   // Real stats from Supabase for Tag card + workspace panel
   const tagStats = useSmartCategoriesStats();
+  const { imports: importList } = useImportList();
   const categoryRules = useCategoryRules();
 
   // Build EmployeeStat[] for the Tag card hero — "—" when data is unavailable
@@ -84,6 +105,17 @@ const SmartCategoriesPage: React.FC = () => {
   // Removed workspace overlay state - now using unified chat slideout
   const [selectedCategoryForChat, setSelectedCategoryForChat] = useState<SmartCategorySummary | null>(null);
   const [isGeneratingStarterRules, setIsGeneratingStarterRules] = useState(false);
+  const [isRunningHandoffTag, setIsRunningHandoffTag] = useState(false);
+  const [breakdownSort, setBreakdownSort] = useState<'amount_desc' | 'tx_desc' | 'alpha' | 'trend_desc'>('amount_desc');
+  const [selectedInspectorCategory, setSelectedInspectorCategory] = useState<string | null>(null);
+  const [inspectorMoveCategory, setInspectorMoveCategory] = useState<string>('Other');
+  const [inspectorMoveSubcategory, setInspectorMoveSubcategory] = useState<string>('');
+  const [isInspectorApplying, setIsInspectorApplying] = useState(false);
+  const [isMerchantApplying, setIsMerchantApplying] = useState<string | null>(null);
+  const [merchantTargets, setMerchantTargets] = useState<Record<string, string>>({});
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [expandedTabs, setExpandedTabs] = useState<Record<string, 'subcategories' | 'insights' | 'merchants'>>({});
+  const [selectedMerchantByCategory, setSelectedMerchantByCategory] = useState<Record<string, string>>({});
 
   // Fetch transactions with Tag learning data
   // Use requestIdleCallback or setTimeout to avoid blocking initial render
@@ -112,31 +144,41 @@ const SmartCategoriesPage: React.FC = () => {
         throw new Error('Database connection not available');
       }
 
-      // Fetch transactions with category_source and confidence for Tag learning metrics
-      // Reduced limit for faster initial load - can paginate later if needed
-      const { data: transactionsData, error: transactionsError } = await supabase
-        .from('transactions')
-        .select('id, date, posted_at, description, merchant, category, amount, type, confidence, category_source, source_type')
-        .eq('user_id', userId)
-        .order('posted_at', { ascending: false })
-        .limit(250); // Reduced from 1000 for faster loading
-
-      if (transactionsError) {
-        throw new Error(transactionsError.message || 'Failed to load transactions');
+      // Fetch full transaction history in pages to support tax-year workflows.
+      const pageSize = 1000;
+      let pageStart = 0;
+      let allTransactionsData: any[] = [];
+      while (true) {
+        const pageEnd = pageStart + pageSize - 1;
+        const { data: pageRows, error: pageError } = await supabase
+          .from('transactions')
+          .select('id, date, posted_at, description, merchant, category, subcategory, amount, type, confidence, category_source, source_type, import_id')
+          .eq('user_id', userId)
+          .order('posted_at', { ascending: false })
+          .range(pageStart, pageEnd);
+        if (pageError) {
+          throw new Error(pageError.message || 'Failed to load transactions');
+        }
+        const rows = pageRows || [];
+        allTransactionsData = allTransactionsData.concat(rows);
+        if (rows.length < pageSize) break;
+        pageStart += pageSize;
       }
 
       // Transform Supabase data to match our Transaction interface
       // Include category_source and confidence for Tag learning metrics
-      const formattedTransactions: Transaction[] = (transactionsData || []).map((tx: any) => ({
+      const formattedTransactions: Transaction[] = allTransactionsData.map((tx: any) => ({
         id: tx.id,
         date: tx.date || tx.posted_at || '',
         description: tx.description || tx.memo || tx.merchant || 'Unknown',
         category: tx.category || 'Uncategorized',
+        subcategory: tx.subcategory || null,
         amount: typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount) || 0,
         type: (tx.type === 'income' || tx.type === 'Credit') ? 'income' : 'expense',
         merchant: tx.merchant || null,
         confidence: tx.confidence ?? null,
         source_type: tx.category_source || tx.source_type || null, // Use category_source from migration
+        import_id: tx.import_id || null,
       }));
 
       setTransactions(formattedTransactions);
@@ -264,6 +306,10 @@ const SmartCategoriesPage: React.FC = () => {
   // Persisted in URL as ?month=2025-01 so it survives page refreshes.
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedMonth = searchParams.get('month') || null;
+  const handoffSource = String(searchParams.get('handoff') || '').trim();
+  const handoffImportId = String(searchParams.get('importId') || '').trim();
+  const handoffBannerVisible = Boolean(handoffSource);
+  const handoffChatOpenedRef = useRef(false);
   const setSelectedMonth = (val: string | null) => {
     const next = new URLSearchParams(searchParams);
     if (val) next.set('month', val); else next.delete('month');
@@ -298,8 +344,8 @@ const SmartCategoriesPage: React.FC = () => {
     const start = new Date(y, m - 1, 1);
     const end = new Date(y, m, 0, 23, 59, 59, 999); // last ms of month
     return {
-      start: start.toISOString().slice(0, 10),
-      end: end.toISOString().slice(0, 10),
+      start: start.toISOString(),
+      end: end.toISOString(),
     };
   }, [selectedMonth]);
 
@@ -315,6 +361,23 @@ const SmartCategoriesPage: React.FC = () => {
       return key === selectedMonth;
     });
   }, [transactions, selectedMonth]);
+  const getTxDirection = (tx: Transaction): 'income' | 'expense' | 'unknown' => {
+    const txType = String(tx.type || '').toLowerCase();
+    const amount = Number(tx.amount) || 0;
+    const category = String(tx.category || '').toLowerCase();
+    if (txType === 'income') return 'income';
+    if (txType === 'expense') return 'expense';
+    if (category === 'income') return 'income';
+    if (amount < 0) return 'expense';
+    if (amount > 0) return 'income';
+    return 'unknown';
+  };
+  const isExpenseTx = (tx: Transaction): boolean => {
+    return getTxDirection(tx) === 'expense';
+  };
+  const isIncomeTx = (tx: Transaction): boolean => {
+    return getTxDirection(tx) === 'income';
+  };
 
   // Previous month's per-category spending (for trend arrows on breakdown rows)
   const prevMonthBreakdown = useMemo(() => {
@@ -331,7 +394,7 @@ const SmartCategoriesPage: React.FC = () => {
       const txKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (txKey !== prevKey) continue;
       const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-      if (amt >= 0) continue;
+      if (!isExpenseTx(tx)) continue;
       const cat = tx.category || 'Uncategorized';
       map.set(cat, (map.get(cat) || 0) + Math.abs(amt));
     }
@@ -343,7 +406,7 @@ const SmartCategoriesPage: React.FC = () => {
     const map = new Map<string, { amount: number; count: number }>();
     for (const tx of monthFilteredTransactions) {
       const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-      if (amt >= 0) continue; // expenses only (negative amounts)
+      if (!isExpenseTx(tx)) continue;
       const cat = tx.category || 'Uncategorized';
       const prev = map.get(cat) || { amount: 0, count: 0 };
       map.set(cat, { amount: prev.amount + Math.abs(amt), count: prev.count + 1 });
@@ -379,7 +442,7 @@ const SmartCategoriesPage: React.FC = () => {
     const map = new Map<string, { amount: number; count: number }>();
     for (const tx of monthFilteredTransactions) {
       const amt = typeof tx.amount === 'number' ? tx.amount : parseFloat(String(tx.amount)) || 0;
-      if (amt <= 0) continue;
+      if (!isIncomeTx(tx)) continue;
       const cat = tx.category || 'Uncategorized';
       const prev = map.get(cat) || { amount: 0, count: 0 };
       map.set(cat, { amount: prev.amount + amt, count: prev.count + 1 });
@@ -404,7 +467,7 @@ const SmartCategoriesPage: React.FC = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'CAD',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(amount);
@@ -677,84 +740,1224 @@ ${cat.avgConfidence !== null && cat.avgConfidence !== undefined ? `- Average con
       },
     });
   };
+  const dismissHandoffBanner = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('handoff');
+    setSearchParams(next, { replace: true });
+  };
+  const runHandoffCategorization = async () => {
+    if (!supabase) {
+      toast.error('Database connection unavailable');
+      return;
+    }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error('Session expired — please refresh');
+      return;
+    }
+    setIsRunningHandoffTag(true);
+    try {
+      const endpoint = handoffImportId
+        ? '/.netlify/functions/tag-categorize-batch'
+        : '/.netlify/functions/tag-categorize-committed';
+      const payload = handoffImportId
+        ? { importId: handoffImportId, limit: 500, maxAiCallsPerRun: 50 }
+        : { limit: 1000 };
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json?.ok === false) {
+        throw new Error(String(json?.error || json?.message || 'Categorization failed'));
+      }
+      const updated = Number(json?.updated ?? 0);
+      // ── Re-fire Prime so summary reflects real categories ──────
+      if (updated > 0 && handoffImportId) {
+        try {
+          await fetchPrimeSummarySingleFlight({ importId: handoffImportId }, {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+        } catch {
+          // non-fatal — categories are written, summary will be stale
+        }
+      }
+      const processed = Number(json?.processed ?? json?.total ?? 0);
+      toast.success(`Tag processed ${processed} row${processed === 1 ? '' : 's'} and updated ${updated}.`);
+      await fetchTransactions();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to run categorization');
+    } finally {
+      setIsRunningHandoffTag(false);
+    }
+  };
+  useEffect(() => {
+    if (!handoffBannerVisible) {
+      handoffChatOpenedRef.current = false;
+      return;
+    }
+    if (handoffChatOpenedRef.current) return;
+    openChat({
+      initialEmployeeSlug: 'tag-ai',
+      force: true,
+      context: {
+        page: 'smart-categories',
+        data: {
+          source: handoffSource || 'prime_to_tag',
+          importId: handoffImportId || null,
+        },
+      },
+    });
+    handoffChatOpenedRef.current = true;
+  }, [handoffBannerVisible, handoffSource, handoffImportId, openChat]);
 
-  // Show loading state immediately - don't wait for data
-  // This ensures the page renders instantly even while fetching transactions
+  const totalSpendAll = transactions.reduce((sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0);
+  const selectedImportFilter = String(searchParams.get('importId') || '').trim();
+  const handleSelectImportFilter = (importId: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (importId) next.set('importId', importId);
+    else next.delete('importId');
+    setSearchParams(next, { replace: true });
+  };
+  const scopedForBreakdown = selectedImportFilter
+    ? monthFilteredTransactions.filter((tx) => String(tx.import_id || '').trim() === selectedImportFilter)
+    : monthFilteredTransactions;
+  const totalSpent = scopedForBreakdown
+    .filter((tx) => isExpenseTx(tx))
+    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0);
+  const incomeTotal = scopedForBreakdown
+    .filter((tx) => isIncomeTx(tx))
+    .reduce((sum, tx) => sum + Math.abs(Number(tx.amount) || 0), 0);
+  const netTotal = incomeTotal - totalSpent;
+  const scopedExpenseBreakdownEntries = (() => {
+    const map = new Map<string, { amount: number; count: number; confidenceSum: number; confidenceCount: number }>();
+    for (const tx of scopedForBreakdown) {
+      const amount = Number(tx.amount) || 0;
+      if (!isExpenseTx(tx)) continue;
+      const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
+      const prev = map.get(cat) || { amount: 0, count: 0, confidenceSum: 0, confidenceCount: 0 };
+      const confidence = typeof tx.confidence === 'number' ? tx.confidence : null;
+      map.set(cat, {
+        amount: prev.amount + Math.abs(amount),
+        count: prev.count + 1,
+        confidenceSum: prev.confidenceSum + (confidence ?? 0),
+        confidenceCount: prev.confidenceCount + (confidence !== null ? 1 : 0),
+      });
+    }
+    let rows = Array.from(map.entries()).map(([category, value]) => {
+      const prevAmount = prevMonthBreakdown.get(category) ?? 0;
+      const pctOfTotal = totalSpent > 0 ? Math.round((value.amount / totalSpent) * 100) : 0;
+      const trendDelta = prevAmount > 0 ? ((value.amount - prevAmount) / prevAmount) * 100 : 0;
+      const trend: 'up' | 'down' | 'flat' =
+        prevAmount <= 0 || Math.abs(trendDelta) < 5 ? 'flat' : trendDelta > 0 ? 'up' : 'down';
+      const trendPct = prevAmount > 0 && Math.abs(trendDelta) >= 5 ? Math.abs(Math.round(trendDelta)) : undefined;
+      const avgConfidence = value.confidenceCount > 0 ? value.confidenceSum / value.confidenceCount : null;
+      return {
+        category,
+        amount: value.amount,
+        count: value.count,
+        pctOfTotal,
+        trend,
+        trendPct,
+        trendDeltaAbs: Math.abs(trendDelta),
+        avgConfidence,
+      };
+    });
+    if (rows.length === 0) {
+      const fallbackMap = new Map<string, { amount: number; count: number; confidenceSum: number; confidenceCount: number }>();
+      for (const tx of scopedForBreakdown) {
+        const amount = Math.abs(Number(tx.amount) || 0);
+        if (amount <= 0) continue;
+        const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
+        const prev = fallbackMap.get(cat) || { amount: 0, count: 0, confidenceSum: 0, confidenceCount: 0 };
+        const confidence = typeof tx.confidence === 'number' ? tx.confidence : null;
+        fallbackMap.set(cat, {
+          amount: prev.amount + amount,
+          count: prev.count + 1,
+          confidenceSum: prev.confidenceSum + (confidence ?? 0),
+          confidenceCount: prev.confidenceCount + (confidence !== null ? 1 : 0),
+        });
+      }
+      const fallbackTotal = Array.from(fallbackMap.values()).reduce((sum, value) => sum + value.amount, 0);
+      rows = Array.from(fallbackMap.entries()).map(([category, value]) => ({
+        category,
+        amount: value.amount,
+        count: value.count,
+        pctOfTotal: fallbackTotal > 0 ? Math.round((value.amount / fallbackTotal) * 100) : 0,
+        trend: 'flat' as const,
+        trendPct: undefined,
+        trendDeltaAbs: 0,
+        avgConfidence: value.confidenceCount > 0 ? value.confidenceSum / value.confidenceCount : null,
+      }));
+    }
+    rows.sort((a, b) => {
+      if (breakdownSort === 'tx_desc') return b.count - a.count;
+      if (breakdownSort === 'alpha') return a.category.localeCompare(b.category);
+      if (breakdownSort === 'trend_desc') return b.trendDeltaAbs - a.trendDeltaAbs;
+      return b.amount - a.amount;
+    });
+    return rows;
+  })();
+  const scopedIncomeBreakdownEntries = (() => {
+    const map = new Map<string, { amount: number; count: number }>();
+    for (const tx of scopedForBreakdown) {
+      const amount = Number(tx.amount) || 0;
+      if (!isIncomeTx(tx)) continue;
+      const cat = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
+      const prev = map.get(cat) || { amount: 0, count: 0 };
+      map.set(cat, {
+        amount: prev.amount + amount,
+        count: prev.count + 1,
+      });
+    }
+    return Array.from(map.entries())
+      .map(([category, value]) => ({ category, amount: value.amount, count: value.count }))
+      .sort((a, b) => b.amount - a.amount);
+  })();
+  const expenseCategorySet = new Set(
+    scopedExpenseBreakdownEntries.map((entry) => String(entry.category || '').trim().toLowerCase())
+  );
+  const scopedCategoryEntries = [
+    ...scopedExpenseBreakdownEntries.map((entry) => ({ ...entry, isIncome: false })),
+    ...scopedIncomeBreakdownEntries
+      .filter((entry) => {
+        const key = String(entry.category || '').trim().toLowerCase();
+        return key === 'income' || !expenseCategorySet.has(key);
+      })
+      .map((entry) => {
+      const summary = summaryMap.get(entry.category);
+      return {
+        category: entry.category,
+        amount: entry.amount,
+        count: entry.count,
+        pctOfTotal: incomeTotal > 0 ? Math.round((entry.amount / incomeTotal) * 100) : 0,
+        trend: 'flat' as const,
+        trendPct: undefined,
+        trendDeltaAbs: 0,
+        avgConfidence: summary?.avgConfidence ?? null,
+        isIncome: true,
+      };
+    }),
+  ].sort((a, b) => b.amount - a.amount);
+  const maxBreakdownAmount = Math.max(...scopedCategoryEntries.map((entry) => entry.amount), 0);
+  const otherBucket = scopedExpenseBreakdownEntries.find((entry) => entry.category.toLowerCase() === 'other');
+  const otherPct = otherBucket ? (totalSpent > 0 ? (otherBucket.amount / totalSpent) * 100 : 0) : 0;
+  const shouldWarnOther = otherPct >= 35 && (otherBucket?.amount || 0) > 0;
+  const otherMerchantSuggestions = useMemo(() => {
+    const map = new Map<string, { count: number; amount: number }>();
+    for (const tx of scopedForBreakdown) {
+      const amount = Number(tx.amount) || 0;
+      if (!isExpenseTx(tx)) continue;
+      const category = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
+      if (category.toLowerCase() !== 'other') continue;
+      const merchant = String(tx.merchant || tx.description || 'UNKNOWN-MERCHANT').trim().toUpperCase();
+      const prev = map.get(merchant) || { count: 0, amount: 0 };
+      map.set(merchant, {
+        count: prev.count + 1,
+        amount: prev.amount + Math.abs(amount),
+      });
+    }
+    return Array.from(map.entries())
+      .map(([merchant, value]) => ({
+        merchant,
+        count: value.count,
+        amount: value.amount,
+        suggestedCategory: inferStarterCategory(merchant),
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 10);
+  }, [scopedForBreakdown]);
+  const confidentMerchantSuggestions = useMemo(
+    () => otherMerchantSuggestions.filter((item) => item.suggestedCategory !== 'Other'),
+    [otherMerchantSuggestions]
+  );
+  const uncertainMerchantSuggestions = useMemo(
+    () => otherMerchantSuggestions.filter((item) => item.suggestedCategory === 'Other').slice(0, 3),
+    [otherMerchantSuggestions]
+  );
+  const selectedStatement = useMemo(
+    () => importList.find((item) => item.id === selectedImportFilter) || null,
+    [importList, selectedImportFilter]
+  );
+  const statementTabs = useMemo(
+    () => [
+      { id: '', label: 'All statements', sub: 'Full story' },
+      ...importList.slice(0, 12).map((item) => ({
+        id: item.id,
+        label: item.statementLabel,
+        sub: item.label,
+      })),
+    ],
+    [importList]
+  );
+  const topExpenseCategory = scopedExpenseBreakdownEntries[0] || null;
+  const topIncomeCategory = scopedIncomeBreakdownEntries[0] || null;
+  const tagSceneBrief = `${confidentMerchantSuggestions.length} merchant group${
+    confidentMerchantSuggestions.length === 1 ? '' : 's'
+  } confident, ${uncertainMerchantSuggestions.length} need review.`;
+  const primeSceneBrief = topExpenseCategory
+    ? `Top spend: ${topExpenseCategory.category} (${formatCurrency(topExpenseCategory.amount)}). Net ${netTotal >= 0 ? 'positive' : 'negative'} at ${formatCurrency(netTotal)}.`
+    : 'No major spend detected in this scope.';
+  const finleySceneBrief = topIncomeCategory
+    ? `Main income source: ${topIncomeCategory.category}. Cash flow is ${incomeTotal > totalSpent ? 'healthy' : 'tight'} this scene.`
+    : 'No income mapped in this scope yet.';
+  const inspectorRows = useMemo(() => {
+    if (!selectedInspectorCategory) return [];
+    return scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === selectedInspectorCategory);
+  }, [selectedInspectorCategory, scopedForBreakdown]);
+  const inspectorSourceBreakdown = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tx of inspectorRows) {
+      const source = String(tx.source_type || 'unknown').toLowerCase();
+      const normalized =
+        source === 'learned'
+          ? 'Vendor memory'
+          : source === 'rule' || source === 'rules'
+          ? 'DB rule'
+          : source === 'tag_chat' || source === 'manual'
+          ? 'Inline/manual'
+          : source === 'ai'
+          ? 'AI'
+          : 'Unknown';
+      counts.set(normalized, (counts.get(normalized) || 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [inspectorRows]);
+  const inspectorAvgConfidence = useMemo(() => {
+    if (!inspectorRows.length) return null;
+    const values = inspectorRows
+      .map((tx) => (typeof tx.confidence === 'number' ? tx.confidence : null))
+      .filter((v): v is number => v !== null);
+    if (!values.length) return null;
+    return values.reduce((sum, v) => sum + v, 0) / values.length;
+  }, [inspectorRows]);
+  const categoryColors: Record<string, string> = {
+    'Groceries': '#1D9E75',
+    'Transportation': '#8b5cf6',
+    'Food & Dining': '#f97316',
+    'Utilities': '#38bdf8',
+    'Fuel': '#fbbf24',
+    'Shopping': '#ec4899',
+    'Healthcare': '#4ade80',
+    'Subscriptions': '#94a3b8',
+    'Entertainment': '#0F6E56',
+    'Income': '#34d399',
+    'Other': '#475569',
+  };
+  const ruleCategories = Array.from(new Set(categorySummaries.map((summary) => summary.category)));
+  const subcategoryOptionsByCategory = useMemo(() => {
+    const byCategory = new Map<string, string[]>();
+    for (const tx of transactions) {
+      const category = String(tx.category || 'Uncategorized').trim() || 'Uncategorized';
+      const subcategory = String(tx.subcategory || '').trim();
+      if (!subcategory) continue;
+      if (!byCategory.has(category)) byCategory.set(category, []);
+      const bucket = byCategory.get(category)!;
+      if (!bucket.includes(subcategory)) bucket.push(subcategory);
+    }
+    for (const [category, values] of byCategory.entries()) {
+      values.sort((a, b) => a.localeCompare(b));
+      byCategory.set(category, values);
+    }
+    return byCategory;
+  }, [transactions]);
+  const [ruleMerchantContains, setRuleMerchantContains] = useState('');
+  const [ruleCategory, setRuleCategory] = useState<string>('');
+  const [ruleSubcategory, setRuleSubcategory] = useState<string>('');
+  const [isRuleBuilderSaving, setIsRuleBuilderSaving] = useState(false);
+  const [isRuleBuilderCreateAndRun, setIsRuleBuilderCreateAndRun] = useState(false);
+  const ruleMatchPreviewCount = useMemo(() => {
+    const needle = ruleMerchantContains.trim().toLowerCase();
+    if (!needle) return 0;
+    let count = 0;
+    for (const tx of transactions) {
+      const haystack = `${String(tx.merchant || '')} ${String(tx.description || '')}`.toLowerCase();
+      if (haystack.includes(needle)) count += 1;
+    }
+    return count;
+  }, [ruleMerchantContains, transactions]);
+  const subcategoryOptionsForSelectedCategory = subcategoryOptionsByCategory.get(ruleCategory) || [];
+
+  useEffect(() => {
+    if (ruleCategory) return;
+    if (ruleCategories.length > 0) {
+      setRuleCategory(ruleCategories[0]);
+      return;
+    }
+    setRuleCategory('Other');
+  }, [ruleCategory, ruleCategories]);
+
+  useEffect(() => {
+    if (!ruleSubcategory) return;
+    if (subcategoryOptionsForSelectedCategory.length === 0) return;
+    if (subcategoryOptionsForSelectedCategory.includes(ruleSubcategory)) return;
+    setRuleSubcategory('');
+  }, [ruleSubcategory, subcategoryOptionsForSelectedCategory]);
+
+  const handleCreateRuleFromBuilder = async (runTagAfterCreate: boolean) => {
+    if (!userId) {
+      toast.error('Sign in required');
+      return;
+    }
+    const merchantPattern = ruleMerchantContains.trim();
+    if (!merchantPattern) {
+      toast.error('Enter merchant text first');
+      return;
+    }
+    const targetCategory = ruleCategory.trim() || 'Other';
+    setIsRuleBuilderSaving(true);
+    setIsRuleBuilderCreateAndRun(runTagAfterCreate);
+    try {
+      const result = await createCategoryRule(
+        userId,
+        merchantPattern,
+        targetCategory,
+        'contains',
+        ruleSubcategory.trim() || null
+      );
+      if (!result.ok) {
+        throw new Error(result.error || 'Failed to create rule');
+      }
+      toast.success(
+        ruleSubcategory.trim()
+          ? `Rule saved: ${targetCategory} > ${ruleSubcategory.trim()}`
+          : `Rule saved: ${targetCategory}`
+      );
+      setRuleMerchantContains('');
+      categoryRules.refresh();
+      if (runTagAfterCreate) {
+        await runHandoffCategorization();
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to create rule');
+    } finally {
+      setIsRuleBuilderSaving(false);
+      setIsRuleBuilderCreateAndRun(false);
+    }
+  };
+  const getAccessToken = async (): Promise<string | null> => {
+    if (!supabase) return null;
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  };
+  const previewTagAction = async (matchValue: string, targetCategory: string, matchType: 'contains' | 'exact' = 'contains') => {
+    const token = await getAccessToken();
+    if (!token) throw new Error('Session expired — please refresh');
+    const res = await fetch('/.netlify/functions/tag-action', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        intent: 'preview',
+        matchValue,
+        targetCategory,
+        matchType,
+        importId: selectedImportFilter || null,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.ok === false) {
+      throw new Error(String(data?.error || 'Preview failed'));
+    }
+    return data as {
+      ok: boolean;
+      matchCount: number;
+      affectedIds: string[];
+      targetCategory: string;
+      targetSubcategory?: string | null;
+    };
+  };
+  const commitTagAction = async (payload: {
+    matchValue: string;
+    targetCategory: string;
+    matchType: 'contains' | 'exact';
+    affectedIds: string[];
+  }) => {
+    const token = await getAccessToken();
+    if (!token) throw new Error('Session expired — please refresh');
+    const res = await fetch('/.netlify/functions/tag-action', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        intent: 'commit',
+        ...payload,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.ok === false) {
+      throw new Error(String(data?.error || 'Commit failed'));
+    }
+    return data as { ok: boolean; updatedCount: number; targetCategory: string; targetSubcategory?: string | null };
+  };
+  const applyMerchantSuggestion = async (merchant: string, forcedTargetCategory?: string) => {
+    const targetCategory = forcedTargetCategory || merchantTargets[merchant] || inferStarterCategory(merchant);
+    setIsMerchantApplying(merchant);
+    try {
+      const preview = await previewTagAction(merchant, targetCategory, 'exact');
+      if (!preview.matchCount) {
+        toast('No matching rows found for this merchant');
+        return;
+      }
+      const committed = await commitTagAction({
+        matchValue: merchant,
+        targetCategory,
+        matchType: 'exact',
+        affectedIds: preview.affectedIds,
+      });
+      toast.success(`Updated ${committed.updatedCount} ${merchant} transaction${committed.updatedCount === 1 ? '' : 's'}`);
+      categoryRules.refresh();
+      await fetchTransactions();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to apply merchant rule');
+    } finally {
+      setIsMerchantApplying(null);
+    }
+  };
+  const handleClassifyConfidentMerchants = async () => {
+    if (confidentMerchantSuggestions.length === 0) {
+      toast('No confident merchant groups ready yet');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Let Tag classify ${confidentMerchantSuggestions.length} merchant group${confidentMerchantSuggestions.length === 1 ? '' : 's'} now?`
+    );
+    if (!confirmed) return;
+    try {
+      for (const item of confidentMerchantSuggestions) {
+        await applyMerchantSuggestion(item.merchant, item.suggestedCategory);
+      }
+      toast.success(`Tag classified ${confidentMerchantSuggestions.length} merchant group${confidentMerchantSuggestions.length === 1 ? '' : 's'}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to classify all merchants');
+    }
+  };
+  const handleApproveAllSuggestedRules = async () => {
+    if (confidentMerchantSuggestions.length === 0) {
+      toast('No suggested rules to approve');
+      return;
+    }
+    const confirmed = window.confirm(
+      `Approve ${confidentMerchantSuggestions.length} suggested Tag rule${confidentMerchantSuggestions.length === 1 ? '' : 's'} now?`
+    );
+    if (!confirmed) return;
+    try {
+      for (const item of confidentMerchantSuggestions) {
+        await applyMerchantSuggestion(item.merchant, merchantTargets[item.merchant] || item.suggestedCategory);
+      }
+      toast.success(`Approved ${confidentMerchantSuggestions.length} suggested rules`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to approve suggested rules');
+    }
+  };
+  const moveCategoryTransactions = async (fromCategory: string, toCategory: string, toSubcategory?: string | null) => {
+    if (!userId || !supabase) return false;
+    const affected = scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === fromCategory);
+    if (affected.length === 0) {
+      toast('No transactions in current scope');
+      return false;
+    }
+    const ids = affected.map((tx) => tx.id);
+    const { error } = await supabase
+      .from('transactions')
+      .update({
+        category: toCategory,
+        subcategory: String(toSubcategory || '').trim() || null,
+        category_source: 'manual',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .in('id', ids);
+    if (error) {
+      throw new Error(error.message || 'Bulk move failed');
+    }
+    toast.success(`Moved ${ids.length} transaction${ids.length === 1 ? '' : 's'} to ${toCategory}`);
+    await fetchTransactions();
+    return true;
+  };
+  const handleRenameOrMergeCategory = async (fromCategory: string) => {
+    const toCategory = window.prompt(`Rename / merge "${fromCategory}" to category:`, fromCategory)?.trim();
+    if (!toCategory || toCategory === fromCategory) return;
+    const toSubcategory = window.prompt('Subcategory (optional):', '')?.trim() || null;
+    const confirmed = window.confirm(
+      `Move all "${fromCategory}" transactions in current scope to ${toCategory}${toSubcategory ? ` > ${toSubcategory}` : ''}?`
+    );
+    if (!confirmed) return;
+    setIsInspectorApplying(true);
+    try {
+      const moved = await moveCategoryTransactions(fromCategory, toCategory, toSubcategory);
+      if (moved) {
+        setSelectedInspectorCategory(toCategory);
+        setInspectorMoveCategory(toCategory);
+        setInspectorMoveSubcategory(toSubcategory || '');
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Rename/merge failed');
+    } finally {
+      setIsInspectorApplying(false);
+    }
+  };
+  const applyInspectorBulkMove = async () => {
+    if (!selectedInspectorCategory || !userId) return;
+    const toCategory = inspectorMoveCategory.trim() || 'Other';
+    const affected = scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === selectedInspectorCategory);
+    const confirmed = window.confirm(
+      `Move ${affected.length} "${selectedInspectorCategory}" transaction${affected.length === 1 ? '' : 's'} to ${toCategory}${inspectorMoveSubcategory.trim() ? ` > ${inspectorMoveSubcategory.trim()}` : ''}?`
+    );
+    if (!confirmed) return;
+    setIsInspectorApplying(true);
+    try {
+      const moved = await moveCategoryTransactions(selectedInspectorCategory, toCategory, inspectorMoveSubcategory.trim() || null);
+      if (moved) {
+        setSelectedInspectorCategory(toCategory);
+        setExpandedCategory(toCategory);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to move category');
+    } finally {
+      setIsInspectorApplying(false);
+    }
+  };
+
   return (
-    <PageCinematicFade>
-      {/* Page title and status badges are handled by DashboardHeader - no duplicate here */}
-      <DashboardPageShell
-        left={
-          <TagWorkspacePanel
-            categoryCount={tagStats.categoryCount}
-            taggedToday={tagStats.taggedToday}
-            uncategorizedCount={tagStats.uncategorizedCount}
-            activeRulesCount={categoryRules.activeCount ?? tagStats.activeRulesCount}
-            isLoading={tagStats.isLoading}
-            rules={categoryRules.rules}
-            totalTimesApplied={categoryRules.totalTimesApplied}
-            userCategories={categorySummaries.map((s) => s.category)}
-            onRefreshRules={categoryRules.refresh}
-            starterRuleSuggestions={starterRuleSuggestions}
-            onGenerateStarterRules={handleGenerateStarterRules}
-            isGeneratingStarterRules={isGeneratingStarterRules}
-          />
-        }
-        center={
-          <TagUnifiedCard
-              stats={tagCardStats}
-              onExpandClick={() => {
-                openChat({
-                  initialEmployeeSlug: 'tag-ai',
-                  force: true,
-                  context: {
-                    page: 'smart-categories',
-                    data: {
-                      source: 'smart-categories-page',
-                    },
-                  },
-                });
-              }}
-              onChatInputClick={() => {
-                openChat({
-                  initialEmployeeSlug: 'tag-ai',
-                  force: true,
-                  context: {
-                    page: 'smart-categories',
-                    data: {
-                      source: 'smart-categories-page',
-                    },
-                  },
-                });
-              }}
-            />
-        }
-        between={
-          <div className="space-y-4">
-            <CategoryBreakdownList
-              entries={breakdownEntries}
-              incomeEntries={incomeBreakdownEntries}
-              availableMonths={availableMonths}
-              selectedMonth={selectedMonth}
-              onSelectMonth={setSelectedMonth}
-              isLoading={isLoading}
-              onUncategorizedClick={() =>
-                document.getElementById('uncategorized-queue')?.scrollIntoView({ behavior: 'smooth' })
-              }
-              onAskTag={(cat) => {
-                const summary = categorySummaries.find((s) => s.category === cat);
-                if (summary) handleAskTag(summary);
-              }}
-            />
-            <UncategorizedReviewQueue
-              categories={categorySummaries.map((s) => s.category)}
-              monthRange={monthRange}
-            />
+    <DashboardPageShell
+      center={
+        <div className="grid grid-cols-1 gap-3 p-4">
+        <section className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Total spend</div>
+            <div className="mt-1 text-sm font-semibold text-slate-100">{formatCurrency(totalSpendAll)}</div>
           </div>
-        }
-        right={<ActivityFeedSidebar scope="smart-categories" />}
-      />
-    </PageCinematicFade>
+          <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Auto-tagged %</div>
+            <div className="mt-1 text-sm font-semibold text-emerald-300">
+              {tagStats.autoTaggedPct !== null ? `${tagStats.autoTaggedPct}%` : '—'}
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Categories</div>
+            <div className="mt-1 text-sm font-semibold text-slate-100">
+              {tagStats.categoryCount !== null ? tagStats.categoryCount : '—'}
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Needs review</div>
+            <div className={`mt-1 text-sm font-semibold ${(tagStats.uncategorizedCount || 0) > 0 ? 'text-amber-300' : 'text-slate-100'}`}>
+              {tagStats.uncategorizedCount !== null ? tagStats.uncategorizedCount : '—'}
+            </div>
+          </div>
+        </section>
+
+            <section className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="flex flex-col rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+            <div className="border-b border-slate-800 px-4 py-3">
+              <div className="flex items-start gap-2">
+                <div className="mr-auto min-w-0">
+                  <div className="text-[10px] uppercase tracking-wide text-slate-500">Statements</div>
+                  <div className="mt-1 -mx-1 overflow-x-auto px-1 pb-1">
+                    <div className="flex w-max items-center gap-1.5">
+                      {statementTabs.map((tab) => {
+                        const isActive = (selectedImportFilter || '') === tab.id;
+                        return (
+                          <button
+                            key={`statement-tab-${tab.id || 'all'}`}
+                            type="button"
+                            onClick={() => handleSelectImportFilter(tab.id || null)}
+                            className={`max-w-[210px] shrink-0 truncate rounded-md border px-2 py-1 text-[10px] ${
+                              isActive
+                                ? 'border-violet-400/40 bg-violet-500/15 text-violet-200'
+                                : 'border-slate-700 text-slate-300 hover:bg-slate-800/70'
+                            }`}
+                            title={`${tab.label} · ${tab.sub}`}
+                          >
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {shouldWarnOther && (
+              <div className="border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-100">
+                <div className="flex items-center justify-between gap-2">
+                  <span>
+                    <span className="font-semibold">Other is high:</span>{' '}
+                    {formatCurrency(otherBucket?.amount || 0)} ({Math.round(otherPct)}% of spend)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={runHandoffCategorization}
+                    disabled={isRunningHandoffTag}
+                    className="rounded-md border border-amber-300/40 px-2 py-1 text-[11px] text-amber-100 hover:bg-amber-400/20 disabled:opacity-60"
+                  >
+                    Run Auto-Tag
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-2 border-b border-slate-800 px-4 py-3 bg-slate-900/70">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
+                <div className="text-[11px] text-slate-400">Total spent</div>
+                <div className="mt-1 text-sm font-semibold text-red-300">{formatCurrency(totalSpent)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
+                <div className="text-[11px] text-slate-400">Income</div>
+                <div className="mt-1 text-sm font-semibold text-emerald-300">{formatCurrency(incomeTotal)}</div>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2">
+                <div className="text-[11px] text-slate-400">Net</div>
+                <div className={`mt-1 text-sm font-semibold ${netTotal >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {formatCurrency(netTotal)}
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <div className="grid grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] gap-2 border-b border-slate-800 px-4 py-2 text-[11px] uppercase tracking-wide text-slate-500">
+                <div />
+                <div>Category</div>
+                <div>Bar</div>
+                <div className="text-right">% Total</div>
+                <div className="text-right">Amount</div>
+                <div className="text-right">Trend</div>
+                <div className="text-right">Conf</div>
+                <div className="text-right">Txns</div>
+              </div>
+
+              <div className="max-h-[56vh] overflow-y-auto">
+                {isLoading ? (
+                  <div className="px-4 py-4 text-sm text-slate-400">Loading category breakdown...</div>
+                ) : scopedCategoryEntries.length === 0 ? (
+                  <div className="px-4 py-4 text-sm text-slate-400">No transactions available for this scope.</div>
+                ) : (
+                  scopedCategoryEntries.map((entry) => {
+                    const categoryColor = categoryColors[entry.category] || '#8b5cf6';
+                    const width = maxBreakdownAmount > 0 ? Math.max(4, (entry.amount / maxBreakdownAmount) * 100) : 0;
+                    const isExpanded = expandedCategory === entry.category;
+                    const activeTab = expandedTabs[entry.category] || 'subcategories';
+                    const categoryTxs = scopedForBreakdown.filter((tx) => (tx.category || 'Uncategorized') === entry.category);
+                    const subcategoryMap = new Map<string, { amount: number; count: number }>();
+                    categoryTxs.forEach((tx) => {
+                      const sub = String((tx as any).subcategory || 'Unspecified').trim() || 'Unspecified';
+                      const prev = subcategoryMap.get(sub) || { amount: 0, count: 0 };
+                      subcategoryMap.set(sub, {
+                        amount: prev.amount + Math.abs(Number(tx.amount) || 0),
+                        count: prev.count + 1,
+                      });
+                    });
+                    const subRows = Array.from(subcategoryMap.entries())
+                      .map(([subcategory, value]) => ({ subcategory, amount: value.amount, count: value.count }))
+                      .sort((a, b) => b.amount - a.amount);
+                    const maxSubAmount = Math.max(...subRows.map((s) => s.amount), 0);
+                    const merchantMap = new Map<string, { amount: number; count: number }>();
+                    categoryTxs.forEach((tx) => {
+                      const merchant = String(tx.merchant || tx.description || 'UNKNOWN-MERCHANT').trim().toUpperCase();
+                      const prev = merchantMap.get(merchant) || { amount: 0, count: 0 };
+                      merchantMap.set(merchant, {
+                        amount: prev.amount + Math.abs(Number(tx.amount) || 0),
+                        count: prev.count + 1,
+                      });
+                    });
+                    const topMerchants = Array.from(merchantMap.entries())
+                      .map(([merchant, value]) => ({ merchant, amount: value.amount, count: value.count }))
+                      .sort((a, b) => b.amount - a.amount)
+                      .slice(0, 8);
+                    const categorySourceMap = new Map<string, number>();
+                    categoryTxs.forEach((tx) => {
+                      const source = String(tx.source_type || 'unknown').toLowerCase();
+                      const normalized =
+                        source === 'learned'
+                          ? 'Vendor memory'
+                          : source === 'rule' || source === 'rules'
+                          ? 'DB rule'
+                          : source === 'tag_chat' || source === 'manual'
+                          ? 'Inline/manual'
+                          : source === 'ai'
+                          ? 'AI'
+                          : 'Unknown';
+                      categorySourceMap.set(normalized, (categorySourceMap.get(normalized) || 0) + 1);
+                    });
+                    const categorySourceBreakdown = Array.from(categorySourceMap.entries())
+                      .map(([source, count]) => ({ source, count }))
+                      .sort((a, b) => b.count - a.count);
+                    const maxMerchantAmount = Math.max(...topMerchants.map((m) => m.amount), 0);
+                    const selectedMerchant = selectedMerchantByCategory[entry.category] || topMerchants[0]?.merchant || '';
+                    const selectedMerchantTxs = selectedMerchant
+                      ? categoryTxs
+                          .filter((tx) => String(tx.merchant || tx.description || 'UNKNOWN-MERCHANT').trim().toUpperCase() === selectedMerchant)
+                          .slice(0, 6)
+                      : [];
+
+                    return (
+                      <div key={entry.category} className="border-b border-slate-800/80 last:border-b-0 group">
+                        <div
+                          className={`grid cursor-pointer grid-cols-[36px_minmax(170px,1fr)_minmax(120px,1fr)_70px_110px_70px_80px_90px] items-center gap-2 px-4 py-2 transition-colors ${
+                            isExpanded ? 'bg-violet-500/12 border-l-2 border-violet-400' : 'hover:bg-slate-800/40 border-l-2 border-transparent'
+                          }`}
+                          onClick={() => {
+                            const nextExpanded = isExpanded ? null : entry.category;
+                            setExpandedCategory(nextExpanded);
+                            setSelectedInspectorCategory(entry.category);
+                            setInspectorMoveCategory(entry.category);
+                            setInspectorMoveSubcategory('');
+                            if (!expandedTabs[entry.category]) {
+                              setExpandedTabs((prev) => ({ ...prev, [entry.category]: 'subcategories' }));
+                            }
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const nextExpanded = isExpanded ? null : entry.category;
+                              setExpandedCategory(nextExpanded);
+                              setSelectedInspectorCategory(entry.category);
+                              setInspectorMoveCategory(entry.category);
+                              setInspectorMoveSubcategory('');
+                            }}
+                            className="h-6 w-6 rounded border border-slate-700 text-xs text-slate-300"
+                          >
+                            {isExpanded ? '−' : '+'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedInspectorCategory(entry.category);
+                              setInspectorMoveCategory(entry.category);
+                              setInspectorMoveSubcategory('');
+                            }}
+                            className="flex min-w-0 items-center gap-2 text-left"
+                          >
+                            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: categoryColor }} />
+                            <span className="truncate text-sm text-slate-100">{entry.category}</span>
+                            {entry.isIncome && (
+                              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-300">
+                                Income
+                              </span>
+                            )}
+                          </button>
+                          <div className="h-2 rounded-full bg-slate-800">
+                            <div className="h-full rounded-full" style={{ width: `${width}%`, backgroundColor: categoryColor }} />
+                          </div>
+                          <div className="text-right text-sm text-slate-300">{entry.pctOfTotal}%</div>
+                          <div className="text-right text-sm font-medium text-slate-100">{formatCurrency(entry.amount)}</div>
+                          <div className={`text-right text-xs ${
+                            entry.trend === 'up' ? 'text-red-300' : entry.trend === 'down' ? 'text-emerald-300' : 'text-slate-400'
+                          }`}>
+                            {entry.trend === 'flat' ? '—' : `${entry.trend === 'up' ? '↑' : '↓'} ${entry.trendPct ?? ''}%`}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setSelectedInspectorCategory(entry.category);
+                              setInspectorMoveCategory(entry.category);
+                              setInspectorMoveSubcategory('');
+                            }}
+                            className={`text-right text-xs ${
+                              entry.avgConfidence !== null && entry.avgConfidence < 0.7
+                                ? 'text-amber-300 underline decoration-dotted underline-offset-2'
+                                : 'text-slate-300'
+                            }`}
+                            title={
+                              entry.avgConfidence !== null && entry.avgConfidence < 0.7
+                                ? 'Low confidence — click for Tag explanation'
+                                : 'Open Tag inspector'
+                            }
+                          >
+                            {entry.avgConfidence === null || entry.avgConfidence < 0.01
+                              ? 'Learning'
+                              : `${Math.round(entry.avgConfidence * 100)}%`}
+                          </button>
+                          <div className="text-right text-sm text-slate-300">{entry.count}</div>
+                        </div>
+                        <div
+                          className={`overflow-hidden transition-all duration-300 ease-out ${
+                            isExpanded ? 'max-h-[620px] opacity-100' : 'max-h-0 opacity-0'
+                          }`}
+                        >
+                          <div className="border-t border-slate-800 bg-slate-950/45 px-4 py-3">
+                            <div className="mb-2 flex items-center gap-1">
+                              {([
+                                { id: 'subcategories', label: 'Subcategories' },
+                                { id: 'insights', label: 'Tag insights' },
+                                { id: 'merchants', label: 'Top merchants' },
+                              ] as const).map((tab) => (
+                                <button
+                                  key={`${entry.category}-${tab.id}`}
+                                  type="button"
+                                  onClick={() => setExpandedTabs((prev) => ({ ...prev, [entry.category]: tab.id }))}
+                                  className={`rounded-md px-2.5 py-1 text-[11px] ${
+                                    activeTab === tab.id
+                                      ? 'bg-violet-500/20 text-violet-200 border border-violet-400/30'
+                                      : 'text-slate-400 border border-slate-700 hover:bg-slate-800/70'
+                                  }`}
+                                >
+                                  {tab.label}
+                                </button>
+                              ))}
+                            </div>
+                            {activeTab === 'subcategories' && (
+                              <div className="space-y-1.5">
+                                {subRows.map((sub) => {
+                                  const subWidth = maxSubAmount > 0 ? Math.max(6, (sub.amount / maxSubAmount) * 100) : 0;
+                                  return (
+                                    <button
+                                      key={`${entry.category}-${sub.subcategory}`}
+                                      type="button"
+                                      onClick={() =>
+                                        navigate(
+                                          `/dashboard/transactions?category=${encodeURIComponent(entry.category)}&subcategory=${encodeURIComponent(sub.subcategory)}`
+                                        )
+                                      }
+                                      className="grid w-full grid-cols-[minmax(180px,1fr)_minmax(160px,1fr)_120px_70px] items-center gap-2 rounded-md border border-slate-800 bg-slate-900/60 px-2.5 py-1.5 text-left hover:bg-slate-800/70"
+                                    >
+                                      <div className="truncate text-[12px] text-slate-200">{sub.subcategory}</div>
+                                      <div className="h-1.5 rounded-full bg-slate-800">
+                                        <div className="h-full rounded-full" style={{ width: `${subWidth}%`, backgroundColor: categoryColor }} />
+                                      </div>
+                                      <div className="text-right text-[12px] text-slate-300">{formatCurrency(sub.amount)}</div>
+                                      <div className="text-right text-[12px] text-slate-400">{sub.count}</div>
+                                    </button>
+                                  );
+                                })}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const sub = window.prompt(`Add subcategory for "${entry.category}"`, '')?.trim();
+                                    if (!sub) return;
+                                    setRuleCategory(entry.category);
+                                    setRuleSubcategory(sub);
+                                    toast.success(`Subcategory "${sub}" staged in AutoCat Builder`);
+                                  }}
+                                  className="mt-1 rounded-md border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-[11px] text-violet-200 hover:bg-violet-500/20"
+                                >
+                                  Add subcategory
+                                </button>
+                              </div>
+                            )}
+                            {activeTab === 'insights' && (
+                              <div className="space-y-2 text-[12px]">
+                                <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2 text-slate-300">
+                                  Confidence: {entry.avgConfidence !== null ? `${Math.round(entry.avgConfidence * 100)}%` : 'n/a'} ·
+                                  Sources: {categorySourceBreakdown.map((src) => `${src.source} ${src.count}`).join(' | ') || 'No source data'}
+                                </div>
+                                <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2 text-slate-300">
+                                  {entry.trend === 'flat'
+                                    ? 'Trend is flat vs last month.'
+                                    : `Trend is ${entry.trend} by ${entry.trendPct ?? 0}% vs last month.`}{' '}
+                                  {entry.avgConfidence !== null && entry.avgConfidence < 0.7
+                                    ? 'Low confidence suggests inconsistent merchant mapping.'
+                                    : 'Confidence looks stable.'}
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedInspectorCategory(entry.category);
+                                      setInspectorMoveCategory(entry.category);
+                                      setInspectorMoveSubcategory('');
+                                    }}
+                                    className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800"
+                                  >
+                                    Reclassify from inspector
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRuleCategory(entry.category);
+                                      if (topMerchants[0]?.merchant) setRuleMerchantContains(topMerchants[0].merchant);
+                                    }}
+                                    className="rounded-md border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-[11px] text-violet-200 hover:bg-violet-500/20"
+                                  >
+                                    Create rule from top merchant
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={openTagWorkspace}
+                                    className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-200 hover:bg-cyan-500/20"
+                                  >
+                                    Ask Tag
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                            {activeTab === 'merchants' && (
+                              <div className="space-y-1.5">
+                                {topMerchants.map((merchantRow) => {
+                                  const merchantWidth = maxMerchantAmount > 0 ? Math.max(6, (merchantRow.amount / maxMerchantAmount) * 100) : 0;
+                                  const selected = selectedMerchant === merchantRow.merchant;
+                                  return (
+                                    <button
+                                      key={`${entry.category}-merchant-${merchantRow.merchant}`}
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedMerchantByCategory((prev) => ({ ...prev, [entry.category]: merchantRow.merchant }))
+                                      }
+                                      className={`grid w-full grid-cols-[minmax(170px,1fr)_minmax(160px,1fr)_120px_70px] items-center gap-2 rounded-md border px-2.5 py-1.5 text-left ${
+                                        selected
+                                          ? 'border-violet-500/40 bg-violet-500/10'
+                                          : 'border-slate-800 bg-slate-900/60 hover:bg-slate-800/70'
+                                      }`}
+                                    >
+                                      <div className="truncate text-[12px] text-slate-200">{merchantRow.merchant}</div>
+                                      <div className="h-1.5 rounded-full bg-slate-800">
+                                        <div className="h-full rounded-full bg-cyan-400" style={{ width: `${merchantWidth}%` }} />
+                                      </div>
+                                      <div className="text-right text-[12px] text-slate-300">{formatCurrency(merchantRow.amount)}</div>
+                                      <div className="text-right text-[12px] text-slate-400">{merchantRow.count}</div>
+                                    </button>
+                                  );
+                                })}
+                                {selectedMerchant && selectedMerchantTxs.length > 0 && (
+                                  <div className="mt-2 rounded-md border border-slate-800 bg-slate-900/60 p-2">
+                                    <div className="mb-1 text-[11px] text-slate-400">{selectedMerchant} transactions</div>
+                                    <div className="space-y-1">
+                                      {selectedMerchantTxs.map((tx) => (
+                                        <div key={`${entry.category}-tx-${tx.id}`} className="flex items-center justify-between text-[11px]">
+                                          <span className="truncate text-slate-300">{tx.description || tx.merchant || 'Transaction'}</span>
+                                          <span className="text-slate-400">{formatCurrency(Math.abs(Number(tx.amount) || 0))}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            <div className="mt-3 flex flex-wrap gap-1.5 border-t border-slate-800 pt-2">
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/dashboard/transactions?category=${encodeURIComponent(entry.category)}`)}
+                                className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-200 hover:bg-slate-800"
+                              >
+                                View all transactions
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRuleCategory(entry.category);
+                                  if (topMerchants[0]?.merchant) setRuleMerchantContains(topMerchants[0].merchant);
+                                }}
+                                className="rounded-md border border-violet-500/40 bg-violet-500/10 px-2 py-1 text-[11px] text-violet-200 hover:bg-violet-500/20"
+                              >
+                                Create a rule
+                              </button>
+                              <button
+                                type="button"
+                                onClick={openTagWorkspace}
+                                className="rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-[11px] text-cyan-200 hover:bg-cyan-500/20"
+                              >
+                                Ask Tag
+                              </button>
+                              {entry.category.toLowerCase() === 'other' && (
+                                <button
+                                  type="button"
+                                  onClick={runHandoffCategorization}
+                                  disabled={isRunningHandoffTag}
+                                  className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200 hover:bg-amber-500/20 disabled:opacity-60"
+                                >
+                                  Auto-Tag
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  void handleRenameOrMergeCategory(entry.category);
+                                }}
+                                className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+                              >
+                                Rename / merge category
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={runHandoffCategorization}
+                disabled={isRunningHandoffTag}
+                className="rounded-md border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-[11px] font-medium text-violet-300 hover:bg-violet-500/20 disabled:opacity-60"
+              >
+                {isRunningHandoffTag ? 'Tag running…' : 'Auto-Tag all transactions'}
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard/transactions?status=uncategorized')}
+                className="rounded-md border border-slate-700 px-2.5 py-1 text-[11px] text-slate-300 hover:bg-slate-800"
+              >
+                Review
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-3 xl:max-w-[300px]">
+            <div className="rounded-xl border border-violet-500/25 bg-violet-500/5 p-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-violet-200">Tag copilot</div>
+              <div className="mt-1 text-[10px] text-slate-400">
+                Scene: {selectedStatement ? `${selectedStatement.statementLabel} · ${selectedStatement.label}` : 'All statements'}
+              </div>
+              <div className="mt-2 -mx-1 overflow-x-auto px-1 pb-1">
+                <div className="flex w-max items-center gap-1">
+                  {statementTabs.slice(0, 8).map((tab) => {
+                    const isActive = (selectedImportFilter || '') === tab.id;
+                    return (
+                      <button
+                        key={`copilot-scene-tab-${tab.id || 'all'}`}
+                        type="button"
+                        onClick={() => handleSelectImportFilter(tab.id || null)}
+                        className={`max-w-[170px] shrink-0 truncate rounded border px-1.5 py-0.5 text-[10px] ${
+                          isActive
+                            ? 'border-violet-400/40 bg-violet-500/15 text-violet-200'
+                            : 'border-slate-700 text-slate-300 hover:bg-slate-800/70'
+                        }`}
+                        title={`${tab.label} · ${tab.sub}`}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="mt-2 text-[12px] leading-relaxed text-slate-200">
+                I analyzed <span className="font-semibold text-white">{scopedForBreakdown.length}</span> transactions.
+                I can confidently classify <span className="font-semibold text-emerald-300">{confidentMerchantSuggestions.length}</span> merchant groups in <span className="font-semibold text-amber-200">Other</span>.
+                The remaining <span className="font-semibold text-amber-300">{uncertainMerchantSuggestions.length}</span> need your input.
+              </div>
+              <div className="mt-2 space-y-1 text-[11px] text-slate-300">
+                <div className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1"><span className="text-violet-300">Tag:</span> {tagSceneBrief}</div>
+                <div className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1"><span className="text-cyan-300">Prime:</span> {primeSceneBrief}</div>
+                <div className="rounded border border-slate-800 bg-slate-900/60 px-2 py-1"><span className="text-emerald-300">Finley:</span> {finleySceneBrief}</div>
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleClassifyConfidentMerchants();
+                  }}
+                  disabled={isRunningHandoffTag || confidentMerchantSuggestions.length === 0}
+                  className="w-full rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-60"
+                >
+                  Let Tag classify all {confidentMerchantSuggestions.length} merchants now
+                </button>
+                <button
+                  type="button"
+                  onClick={runHandoffCategorization}
+                  disabled={isRunningHandoffTag}
+                  className="w-full rounded-md border border-cyan-500/40 bg-cyan-500/10 px-3 py-2 text-[11px] font-semibold text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-60"
+                >
+                  {isRunningHandoffTag ? 'Tag AI running…' : 'Run Tag AI pass on all transactions'}
+                </button>
+                <div className="grid grid-cols-3 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openChat({ initialEmployeeSlug: 'tag-ai', force: true, context: { page: 'smart-categories', data: { importId: selectedImportFilter || null } } })}
+                    className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-800"
+                  >
+                    Ask Tag
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openChat({ initialEmployeeSlug: 'prime-boss', force: true, context: { page: 'smart-categories', data: { importId: selectedImportFilter || null } } })}
+                    className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-800"
+                  >
+                    Ask Prime
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openChat({ initialEmployeeSlug: 'finley-forecasts', force: true, context: { page: 'smart-categories', data: { importId: selectedImportFilter || null } } })}
+                    className="rounded border border-slate-700 px-2 py-1 text-[10px] text-slate-200 hover:bg-slate-800"
+                  >
+                    Ask Finley
+                  </button>
+                </div>
+              </div>
+            </div>
+            {uncertainMerchantSuggestions.length > 0 && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-200">Need your input (top {uncertainMerchantSuggestions.length})</div>
+                <div className="mt-2 space-y-2">
+                  {uncertainMerchantSuggestions.map((item) => (
+                    <div key={`uncertain-${item.merchant}`} className="rounded-md border border-amber-400/20 bg-slate-950/40 p-2">
+                      <div className="truncate text-[11px] font-medium text-slate-100">{item.merchant}</div>
+                      <div className="mt-1 text-[10px] text-amber-100/80">{item.count} tx · {formatCurrency(item.amount)} · Tag needs confirmation</div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard/transactions?status=uncategorized')}
+                  className="mt-2 w-full rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-[11px] font-semibold text-amber-100 hover:bg-amber-500/20"
+                >
+                  Review only uncertain transactions
+                </button>
+              </div>
+            )}
+            {confidentMerchantSuggestions.length > 0 && (
+              <div className="rounded-xl border border-slate-800 bg-slate-900/55 p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Suggested rules</div>
+                <div className="mt-2 space-y-1.5">
+                  {confidentMerchantSuggestions.slice(0, 6).map((item) => {
+                    const selectedTarget = merchantTargets[item.merchant] || item.suggestedCategory;
+                    return (
+                      <div key={`suggested-${item.merchant}`} className="rounded-md border border-slate-800 bg-slate-900/60 p-2">
+                        <div className="truncate text-[11px] font-medium text-slate-100">{item.merchant}</div>
+                        <div className="mt-1 flex items-center gap-1">
+                          <div className="flex-1 rounded border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] text-slate-300">
+                            {selectedTarget}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void applyMerchantSuggestion(item.merchant);
+                            }}
+                            disabled={isMerchantApplying === item.merchant}
+                            className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-60"
+                          >
+                            {isMerchantApplying === item.merchant ? 'Applying…' : 'Approve'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void handleApproveAllSuggestedRules();
+                  }}
+                  className="mt-2 w-full rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px] font-semibold text-emerald-200 hover:bg-emerald-500/20"
+                >
+                  Approve all suggested rules
+                </button>
+              </div>
+            )}
+          </div>
+            </section>
+          </div>
+      }
+    />
   );
 };
 

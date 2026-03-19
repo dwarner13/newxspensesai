@@ -37,7 +37,7 @@ export interface UnifiedChatEngineReturn {
   messages: ChatMessage[];
   
   /** Send message function */
-  sendMessage: (content: string, options?: { documentIds?: string[]; employeeSlug?: string }) => Promise<void>;
+  sendMessage: (content: string, options?: { documentIds?: string[]; employeeSlug?: string; hidden?: boolean }) => Promise<void>;
   
   /** Whether streaming is in progress */
   isStreaming: boolean;
@@ -290,7 +290,7 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
   }, [primeChat.toolCalls]);
   
   // Wrap send to match useStreamChat's API (sendMessage takes just content string)
-  const sendMessage = useCallback(async (content: string, sendOptions?: { documentIds?: string[]; employeeSlug?: string }) => {
+  const sendMessage = useCallback(async (content: string, sendOptions?: { documentIds?: string[]; employeeSlug?: string; hidden?: boolean }) => {
     if (inFlightRef.current) {
       if (import.meta.env.DEV) {
         console.warn('[useUnifiedChatEngine] sendMessage blocked (inFlight)');
@@ -302,6 +302,7 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
       await primeChat.send(content, {
         documentIds: sendOptions?.documentIds,
         employeeSlug: sendOptions?.employeeSlug,
+        hidden: sendOptions?.hidden,
       });
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -314,6 +315,7 @@ export function useUnifiedChatEngine(options: UnifiedChatEngineOptions = {}): Un
   
   // Wrap stop as cancelStream
   const cancelStream = useCallback(() => {
+    inFlightRef.current = false;
     primeChat.stop();
   }, [primeChat.stop]);
   

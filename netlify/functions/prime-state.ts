@@ -21,6 +21,7 @@ type UserStage = import('../../src/types/prime-state').UserStage;
 type SuggestedNextAction = import('../../src/types/prime-state').SuggestedNextAction;
 type FeatureVisibilityMap = import('../../src/types/prime-state').FeatureVisibilityMap;
 type PrimeWarning = import('../../src/types/prime-state').PrimeWarning;
+type WorkspaceSummary = import('../../src/types/prime-state').WorkspaceSummary;
 
 /**
  * Get user profile summary
@@ -313,6 +314,61 @@ function buildWarnings(
   return warnings;
 }
 
+async function buildWorkspaceSummary(
+  supabase: any,
+  userId: string,
+  memorySummary: MemorySummary
+): Promise<WorkspaceSummary> {
+  const fallback: WorkspaceSummary = {
+    statementCount: 0,
+    conversationCount: 0,
+    newStatementsSinceLastConversation: 0,
+    lastConversationAt: null,
+  };
+
+  try {
+    const lastConversationAt = memorySummary?.recentConversations?.[0]?.lastMessageAt || null;
+
+    const [importsCountResult, sessionsCountResult, newSinceLastResult] = await Promise.all([
+      supabase
+        .from('imports')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId),
+      supabase
+        .from('chat_sessions')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId),
+      lastConversationAt
+        ? supabase
+            .from('imports')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .gt('created_at', lastConversationAt)
+        : Promise.resolve({ count: 0, error: null }),
+    ]);
+
+    if (importsCountResult?.error) {
+      warn('[prime-state] Failed to count imports', importsCountResult.error);
+    }
+    if (sessionsCountResult?.error) {
+      warn('[prime-state] Failed to count chat sessions', sessionsCountResult.error);
+    }
+    if (newSinceLastResult?.error) {
+      warn('[prime-state] Failed to count new imports since last conversation', newSinceLastResult.error);
+    }
+
+    return {
+      statementCount: Number(importsCountResult?.count || 0),
+      conversationCount: Number(sessionsCountResult?.count || 0),
+      newStatementsSinceLastConversation: Number(newSinceLastResult?.count || 0),
+      lastConversationAt,
+    };
+  } catch (error: any) {
+    warn('[prime-state] Error building workspace summary', { message: error?.message || String(error) });
+    return fallback;
+  }
+}
+
 export const handler: Handler = async (event) => {
   // Health check log
   // Use process.env for server-safe DEV detection (no import.meta in functions runtime)
@@ -360,6 +416,7 @@ export const handler: Handler = async (event) => {
       buildFinancialSnapshot(supabase, userId),
       buildMemorySummary(supabase, userId),
     ]);
+    const workspaceSummary = await buildWorkspaceSummary(supabase, userId, memorySummary);
     const currentStage = determineCurrentStage(profileSummary, financialSnapshot);
     const featureVisibilityMap = buildFeatureVisibilityMap(profileSummary);
     const suggestedNextAction = buildSuggestedNextAction(financialSnapshot, currentStage);
@@ -386,6 +443,7 @@ export const handler: Handler = async (event) => {
       featureVisibilityMap,
       warnings,
       lastUpdated: new Date().toISOString(),
+      workspaceSummary,
     };
 
     // Dev logging
@@ -395,6 +453,8 @@ export const handler: Handler = async (event) => {
         currentStage,
         hasTransactions: financialSnapshot.hasTransactions,
         transactionCount: financialSnapshot.transactionCount,
+        statementCount: workspaceSummary.statementCount,
+        conversationCount: workspaceSummary.conversationCount,
         suggestedAction: suggestedNextAction?.id,
         warningsCount: warnings.length,
       });

@@ -208,10 +208,10 @@ export function AccountCenterPanel() {
             "overflow-hidden transform-gpu pointer-events-auto"
           )}
         >
-          {/* Main content area - locked height, flex column (matches PrimeSlideoutShell structure) */}
-          <div className="flex h-full flex-1 flex-col overflow-hidden min-h-0">
+          {/* Main content area - flex column, min-h-0 enables scroll in flex child */}
+          <div className="flex flex-col min-h-0" style={{ height: '100%' }}>
             {/* Fixed Header - Non-scrolling (compact, professional) */}
-            <div className="sticky top-0 z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-6 pt-3 pb-2.5 backdrop-blur-sm flex-shrink-0 min-h-0">
+            <div className="z-20 border-b border-slate-800/70 bg-gradient-to-r from-slate-950/95 via-slate-950/90 to-slate-950/95 px-6 pt-3 pb-2.5 backdrop-blur-sm flex-shrink-0">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2.5">
@@ -271,8 +271,12 @@ export function AccountCenterPanel() {
             </div>
 
             {/* Content - Scrollable content area only */}
-            <div ref={contentRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
-              <div className="px-6 py-4 pb-28 min-w-0 flex flex-col">
+            <div
+              ref={contentRef}
+              className="flex-1 min-h-0 h-full overflow-y-auto overflow-x-hidden overscroll-contain touch-pan-y"
+              style={{ WebkitOverflowScrolling: 'touch' }}
+            >
+              <div className="px-6 py-4 pb-8 min-w-0">
                 {activeTab === 'account' && <AccountTab />}
                 {activeTab === 'billing' && <BillingTab />}
                 {activeTab === 'support' && <CustodianSupportTab />}

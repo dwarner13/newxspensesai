@@ -3,6 +3,7 @@ import { admin } from './_shared/supabase.js';
 import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
 import { runGuardrailsForText } from './_shared/guardrails-unified.js';
 import { maskPII as maskPiiFallback } from './_shared/pii.js';
+import { runLLMAdvisorSummary } from './_shared/primeSummarizer.js';
 
 const headers = {
   'Content-Type': 'application/json',
@@ -13,6 +14,34 @@ const headers = {
 
 const GENERIC_SUMMARY = 'Your categorized results and insights are available.';
 const LOW_CONFIDENCE_THRESHOLD = 0.6;
+const ISSUER_PATTERNS = [
+  { match: /triangle/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /canadian tire/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /ctfs/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /ct financial/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /canadian tire bank/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /world elite mastercard/i, name: 'Canadian Tire — Triangle Mastercard' },
+  { match: /capital one/i, name: 'Capital One' },
+  { match: /td bank|td canada trust/i, name: 'TD Bank' },
+  { match: /rbc|royal bank of canada/i, name: 'RBC' },
+  { match: /scotiabank|bank of nova scotia/i, name: 'Scotiabank' },
+  { match: /cibc/i, name: 'CIBC' },
+  { match: /bmo|bank of montreal/i, name: 'BMO' },
+  { match: /desjardins/i, name: 'Desjardins' },
+  { match: /national bank/i, name: 'National Bank' },
+  { match: /tangerine/i, name: 'Tangerine' },
+  { match: /simplii/i, name: 'Simplii Financial' },
+  { match: /amex|american express/i, name: 'American Express' },
+  { match: /hsbc/i, name: 'HSBC' },
+  { match: /\batb\b|atb financial/i, name: 'ATB Financial' },
+  { match: /servus/i, name: 'Servus Credit Union' },
+  { match: /coast capital/i, name: 'Coast Capital' },
+  { match: /vancity/i, name: 'Vancity' },
+  { match: /meridian/i, name: 'Meridian Credit Union' },
+  { match: /eq bank/i, name: 'EQ Bank' },
+  { match: /koho/i, name: 'KOHO' },
+  { match: /wealthsimple/i, name: 'Wealthsimple' },
+];
 
 interface StatementBreakdown {
   version: 1;
@@ -352,12 +381,79 @@ function formatMaybeAmount(value: unknown): string {
   return formatMoney(n);
 }
 
+function buildPrimeReadHeadline(institutionRaw: string | null | undefined, utilizationPct: number | null): string {
+  const institution = String(institutionRaw || '').trim() || 'This account';
+  const normalized = institution.toLowerCase();
+  let signal = 'The Strategic Read';
+  if (utilizationPct !== null && Number.isFinite(utilizationPct)) {
+    if (utilizationPct >= 90) signal = 'The Pressure Point';
+    else if (utilizationPct >= 75) signal = 'The Tight Zone';
+    else if (utilizationPct <= 35) signal = 'The Flex Zone';
+  }
+  if (normalized.includes('capital one')) signal = utilizationPct !== null && utilizationPct >= 90 ? 'The Pressure Point' : 'The Focus Lane';
+  if (normalized.includes('rbc')) signal = utilizationPct !== null && utilizationPct >= 90 ? 'The Weight' : 'The Control Lane';
+  if (normalized.includes('triangle')) signal = utilizationPct !== null && utilizationPct >= 90 ? 'The Weight' : 'The Loadout';
+  if (normalized.includes('scotia') || normalized.includes('scotiabank')) signal = utilizationPct !== null && utilizationPct >= 90 ? 'The Pinch Point' : 'The Control Path';
+  if (normalized.includes('cibc')) signal = utilizationPct !== null && utilizationPct >= 90 ? 'The Stress Point' : 'The Leverage Lane';
+  if (normalized.includes('td')) signal = utilizationPct !== null && utilizationPct >= 90 ? 'The Pressure Line' : 'The Planning Lane';
+  return `${institution} — ${signal}`;
+}
+
 function parseDateRangeLabel(dateRange: any): string | null {
   const start = String(dateRange?.startDate || dateRange?.start || '').trim();
   const end = String(dateRange?.endDate || dateRange?.end || '').trim();
   if (!start && !end) return null;
   if (start && end) return `${start} to ${end}`;
   return start || end;
+}
+
+function appendTransactionsCta(summary: string, importId: string): string {
+  const safeImportId = encodeURIComponent(String(importId || '').trim());
+  if (!safeImportId) return summary;
+  const cta = [
+    '## Continue in Transactions',
+    `- [View this statement in Transactions](/dashboard/transactions?importId=${safeImportId})`,
+    `- [Start Tag Categorization for this statement](/dashboard/smart-categories?importId=${safeImportId}&handoff=prime_to_tag)`,
+  ].join('\n');
+  if (summary.includes('## Continue in Transactions')) {
+    return summary;
+  }
+  return `${summary.trim()}\n\n${cta}\n`;
+}
+
+function detectIssuerFromRawText(rawText: string): string | null {
+  const text = String(rawText || '');
+  if (!text) return null;
+  for (const pattern of ISSUER_PATTERNS) {
+    if (pattern.match.test(text)) return pattern.name;
+  }
+  return null;
+}
+
+function detectInstitutionFromHeader(rawText: string): string | null {
+  const lines = String(rawText || '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, 60);
+  if (lines.length === 0) return null;
+
+  const statementLine = lines.find((line) => /account statement|statement period|statement date/i.test(line));
+  if (statementLine) {
+    const accountStatementMatch = statementLine.match(/^([A-Za-z][A-Za-z0-9&'., -]{2,60})\s+account statement\b/i);
+    if (accountStatementMatch?.[1]) {
+      const candidate = accountStatementMatch[1].trim();
+      if (!/^bank account$/i.test(candidate)) return candidate;
+    }
+  }
+
+  for (const line of lines) {
+    const orgMatch = line.match(/\b([A-Za-z][A-Za-z0-9&'., -]{2,60}\s(?:Bank|Credit Union|Financial|Trust))\b/i);
+    if (orgMatch?.[1] && !/^bank account/i.test(orgMatch[1])) {
+      return orgMatch[1].trim();
+    }
+  }
+  return null;
 }
 
 function renderPrimeNarrativeV1(params: {
@@ -375,6 +471,14 @@ function renderPrimeNarrativeV1(params: {
   const totalDebits = Number(totals.total_debits ?? a?.totalDebits);
   const totalCredits = Number(totals.total_credits ?? a?.totalCredits);
   const net = Number(totals.net);
+  const statementMeta = a?.statement_meta || {};
+  const institution = String(statementMeta?.issuer || '').trim() || 'unknown';
+  const accountLast4 = String(statementMeta?.account_last4 || '').trim() || null;
+  const needsReviewCount = Number(
+    a?.flags?.needs_review_count ??
+    a?.uncategorizedCount ??
+    0
+  );
 
   const categoryBreakdown = Array.isArray(a?.category_totals)
     ? a.category_totals.slice(0, 5).map((row: any) =>
@@ -392,37 +496,105 @@ function renderPrimeNarrativeV1(params: {
       )
     : [];
 
-  const lines: string[] = [
-    `Statement Summary — ${params.docName || 'Statement'}`,
-    '',
-    'WHAT I PROCESSED',
-    `I reviewed import ${String(a?.import_id || '').trim() || 'Not available in this statement.'}.`,
-    `Period: ${params.period || parseDateRangeLabel(a?.dateRange) || 'Not available in this statement.'}`,
-    '',
-    'KEY TOTALS',
-    `- Transaction count: ${txCount ?? 'Not available in this statement.'}`,
-    `- Total debits: ${formatMaybeAmount(totalDebits)}`,
-    `- Total credits: ${formatMaybeAmount(totalCredits)}`,
-    `- Net: ${formatMaybeAmount(net)}`,
-  ];
-
-  if (categoryBreakdown.length > 0) {
-    lines.push('', 'BREAKDOWN', ...categoryBreakdown);
-  }
-  if (notableFindings.length > 0) {
-    lines.push('', 'NOTABLE FINDINGS', ...notableFindings);
-  }
-  lines.push(
-    '',
-    'NEXT STEPS',
-    '- Review uncategorized transactions first.',
-    '- Verify the statement period and totals.',
-    '- Export transactions if you need a backup copy.',
-    '- Upload the next statement when ready.',
+  const summaryParagraphs: string[] = [];
+  const corePeriod = params.period || parseDateRangeLabel(a?.dateRange) || 'an unknown period';
+  const statusSentence =
+    needsReviewCount > 0
+      ? `Tag flagged ${needsReviewCount} item(s) for category review, so this snapshot is usable but still needs a quick pass before final decisions.`
+      : 'Tag did not flag category blockers, so this snapshot is ready for immediate review and action.';
+  summaryParagraphs.push(
+    `Here is what matters most from ${params.docName || 'your statement'}: Byte validated ${txCount ?? 'unknown'} transaction row(s) for ${corePeriod}. ${statusSentence}`
   );
-  if (params.warnings.length > 0) {
-    lines.push('', ...params.warnings.map((w) => `- ${w}`));
+  if (categoryBreakdown.length > 0) {
+    const topCategoryNames = categoryBreakdown
+      .slice(0, 3)
+      .map((line) => line.replace(/^- /, '').split(':')[0])
+      .join(', ');
+    summaryParagraphs.push(
+      `The spending pressure this cycle is concentrated in ${topCategoryNames}. Next best step: ${
+        needsReviewCount > 0
+          ? 'confirm the flagged lines first, then approve categorization.'
+          : 'review recurring merchants and high-impact charges so your plan is clear.'
+      }`
+    );
+  } else {
+    summaryParagraphs.push(
+      `This statement is grounded on validated rows. Next step: ${
+        needsReviewCount > 0
+          ? 'confirm flagged lines first, then approve categorization.'
+          : 'review recurring merchants and high-impact charges to lock in actions.'
+      }`
+    );
   }
+
+  const cleanedRows = Array.isArray(a?.top_merchants)
+    ? a.top_merchants.slice(0, 8).map((row: any) => {
+        const merchant = String(row?.merchant || '').trim() || 'UNKNOWN-MERCHANT';
+        const amount = formatMaybeAmount(row?.total);
+        const count = Number(row?.count || 0);
+        const note = count > 0 ? `${count} tx aggregate` : 'aggregate';
+        return `UNKNOWN-DATE | ${merchant} | ${amount} | UNKNOWN-CURRENCY | ${note}`;
+      })
+    : [];
+
+  const issues: string[] = [];
+  issues.push(...params.warnings.map((w) => `- ${w}`));
+  if (!params.period && !parseDateRangeLabel(a?.dateRange)) {
+    issues.push('- Statement period is unknown from current analytics payload.');
+  }
+  if (!Number.isFinite(totalDebits) || !Number.isFinite(totalCredits)) {
+    issues.push('- Some totals are not visible in analytics payload; verify against source statement.');
+  }
+  if (needsReviewCount > 0) {
+    issues.push(`- ${needsReviewCount} transaction(s) were flagged for review.`);
+  }
+
+  const lines: string[] = [
+    '## Summary',
+    ...summaryParagraphs.slice(0, 2),
+    '',
+    '## Key details',
+    `- Statement period: ${params.period || parseDateRangeLabel(a?.dateRange) || 'unknown'}`,
+    `- Institution / Card: ${institution}`,
+    `- Account last-4 (if present): ${accountLast4 || 'not present'}`,
+    `- Totals (only if visible): debits ${formatMaybeAmount(totalDebits)}, credits ${formatMaybeAmount(totalCredits)}, net ${formatMaybeAmount(net)}`,
+    '',
+    '## Transactions (cleaned)',
+    ...(cleanedRows.length > 0
+      ? cleanedRows
+      : ['- UNKNOWN-DATE | UNKNOWN-MERCHANT | UNKNOWN-AMOUNT | UNKNOWN-CURRENCY | analytics summary available but merchant lines not provided']),
+  ];
+  if (issues.length > 0) {
+    lines.push('', '## Issues / Uncertain lines', ...issues);
+  }
+  const primeReadClauses: string[] = [];
+  const utilization = Number(a?.statement_meta?.utilization_pct ?? a?.utilization_pct ?? NaN);
+  if (Number.isFinite(utilization)) {
+    if (utilization >= 90) {
+      primeReadClauses.push('utilization is very high, which keeps this account under constant payment pressure');
+    } else if (utilization >= 75) {
+      primeReadClauses.push('utilization is elevated and reducing principal should stay priority one');
+    }
+  }
+  if (Number.isFinite(net)) {
+    if (net < 0) {
+      primeReadClauses.push('the period closed net negative, so tightening discretionary spend can restore margin faster');
+    } else if (net > 0) {
+      primeReadClauses.push('the period closed net positive and that surplus should go to high-interest balances first');
+    }
+  }
+  if (categoryBreakdown.length > 0) {
+    primeReadClauses.push(`the biggest cost pressure is concentrated in ${categoryBreakdown[0].replace(/^- /, '').split(':')[0]}`);
+  }
+  const readParagraphOne =
+    primeReadClauses.length > 0
+      ? `What stands out right now is that ${primeReadClauses.join(', ')}.`
+      : 'The core numbers are clear — review the top merchants and recurring charges above to identify where spend pressure is highest.';
+  const readParagraphTwo =
+    'If you do one thing this cycle, push payment above minimum and review recurring charges so your monthly cash flow starts opening up instead of tightening.';
+  const narrativeInstitution = institution === 'unknown' ? 'This account' : institution;
+  const headline = buildPrimeReadHeadline(narrativeInstitution, Number.isFinite(utilization) ? utilization : null);
+  lines.push('', "## Prime's Read", `### ${escapeInlineMarkdown(headline)}`, readParagraphOne, '', readParagraphTwo);
   return lines.join('\n');
 }
 
@@ -500,7 +672,11 @@ function coerceDateLabel(value: unknown): string {
 
 function coerceMerchantLabel(value: unknown): string {
   const raw = String(value || '').trim();
-  return raw || 'UNKNOWN-MERCHANT';
+  return escapeInlineMarkdown(raw || 'UNKNOWN-MERCHANT');
+}
+
+function escapeInlineMarkdown(value: string): string {
+  return String(value || '').replace(/([\\`*_[\]{}])/g, '\\$1');
 }
 
 function coerceAmountLabel(value: unknown): string {
@@ -510,12 +686,26 @@ function coerceAmountLabel(value: unknown): string {
   return `${sign}${Math.abs(n).toFixed(2)}`;
 }
 
+function getStatementSummaryMeta(docData: any): Record<string, unknown> {
+  const summary = docData?.metadata?.statement_summary;
+  return summary && typeof summary === 'object' ? summary : {};
+}
+
 function getSummarySourceText(docData: any): string {
+  const statementSummary = getStatementSummaryMeta(docData);
   return cleanupOcrText(
-    docData?.ocr_text ||
-      docData?.extracted_data?.rawText ||
-      docData?.extracted_data?.text ||
-      ''
+    [
+      docData?.ocr_text,
+      docData?.summary,
+      docData?.extracted_data?.rawText,
+      docData?.extracted_data?.text,
+      statementSummary?.institution,
+      statementSummary?.issuer,
+      statementSummary?.card_name,
+      statementSummary?.card_brand,
+    ]
+      .filter(Boolean)
+      .join('\n')
   );
 }
 
@@ -542,24 +732,52 @@ function extractStatementPeriod(docData: any): string | null {
 
 function extractInstitutionOrCard(docData: any): string | null {
   const extracted = docData?.extracted_data || {};
+  const statementSummary = getStatementSummaryMeta(docData);
+  const normalizeInstitutionCandidate = (value: unknown): string | null => {
+    const raw = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!raw) return null;
+    const lower = raw.toLowerCase();
+    // Reject OCR/legal noise that often appears around exchange-rate disclaimers.
+    if (
+      lower.includes('transaction was converted') ||
+      lower.includes('may be obtained at') ||
+      lower.includes('exchange rate') ||
+      lower.includes('currency conversion') ||
+      lower.includes('for more information') ||
+      lower.includes('customer service') ||
+      lower.includes('terms and conditions')
+    ) {
+      return null;
+    }
+    // Reject overly long sentence-like values; institution/card labels are short.
+    if (raw.length > 50) return null;
+    // Require at least one alphabetic character and avoid mostly numeric blobs.
+    const alphaCount = (raw.match(/[A-Za-z]/g) || []).length;
+    const digitCount = (raw.match(/[0-9]/g) || []).length;
+    if (alphaCount < 3 || digitCount > alphaCount) return null;
+    return raw;
+  };
   const candidates = [
     extracted.institution,
     extracted.bank,
     extracted.card,
     extracted.card_name,
     extracted.issuer,
+    statementSummary?.institution,
+    statementSummary?.bank,
+    statementSummary?.issuer,
+    statementSummary?.card_name,
+    statementSummary?.card_brand,
   ];
   for (const candidate of candidates) {
-    const text = String(candidate || '').trim();
+    const text = normalizeInstitutionCandidate(candidate);
     if (text) return text;
   }
   const rawText = getSummarySourceText(docData);
-  if (/\brbc\b/i.test(rawText) && /\bvisa\b/i.test(rawText)) {
-    return 'RBC Visa';
-  }
-  if (/\broyal bank of canada\b/i.test(rawText) && /\bvisa\b/i.test(rawText)) {
-    return 'RBC Visa';
-  }
+  const matchedIssuer = detectIssuerFromRawText(rawText);
+  if (matchedIssuer) return matchedIssuer;
+  const headerInstitution = detectInstitutionFromHeader(rawText);
+  if (headerInstitution) return headerInstitution;
   const cardMatch = rawText.match(/Triangle World Elite Mastercard/i);
   if (cardMatch) return 'Triangle World Elite Mastercard';
   const bankMatch = rawText.match(/^([A-Z][A-Za-z0-9 ]+Account Statement)/m);
@@ -568,11 +786,15 @@ function extractInstitutionOrCard(docData: any): string | null {
 
 function extractAccountLast4(docData: any): string | null {
   const extracted = docData?.extracted_data || {};
+  const statementSummary = getStatementSummaryMeta(docData);
   const candidate = String(
     extracted.account_last4 ||
       extracted.account_last_4 ||
       extracted.last4 ||
       extracted.last_4 ||
+      statementSummary?.account_last4 ||
+      statementSummary?.last4 ||
+      statementSummary?.account_last_4 ||
       ''
   ).trim();
   if (candidate) return candidate.slice(-4);
@@ -602,6 +824,14 @@ function inferInstitutionFromFileName(docData: any): string | null {
     return 'Triangle World Elite Mastercard';
   }
   if (name.includes('rbc') && name.includes('visa')) return 'RBC Visa';
+  if (name.includes('scotia') && name.includes('visa')) return 'Scotiabank Visa';
+  if (name.includes('cibc') && name.includes('visa')) return 'CIBC Visa';
+  if (name.includes('td') && name.includes('visa')) return 'TD Visa';
+  if (name.includes('bmo') && name.includes('mastercard')) return 'BMO Mastercard';
+  if (name.includes('capitalone') || name.includes('capital one')) return 'Capital One';
+  if (name.includes('amex') || name.includes('americanexpress') || name.includes('american express')) return 'American Express';
+  if (name.includes('mastercard')) return 'Mastercard';
+  if (name.includes('visa')) return 'Visa';
   return null;
 }
 
@@ -617,6 +847,7 @@ function inferPeriodFromFileName(docData: any): string | null {
 
 function extractTotalsLine(docData: any): string | null {
   const extracted = docData?.extracted_data || {};
+  const statementSummary = getStatementSummaryMeta(docData);
   const parts: string[] = [];
   if (extracted.new_balance !== undefined && extracted.new_balance !== null && extracted.new_balance !== '') {
     parts.push(`balance ${coerceAmountLabel(extracted.new_balance)}`);
@@ -641,6 +872,12 @@ function extractTotalsLine(docData: any): string | null {
     if (newBalance) parts.push(`new balance ${Number(newBalance.replace(/,/g, '')).toFixed(2)}`);
     if (balanceDue) parts.push(`balance due ${Number(balanceDue.replace(/,/g, '')).toFixed(2)}`);
   }
+  if (parts.length === 0) {
+    const newBalance = parseFieldMoney(statementSummary?.new_balance);
+    const previousBalance = parseFieldMoney(statementSummary?.previous_balance);
+    if (previousBalance !== null) parts.push(`previous balance ${coerceAmountLabel(previousBalance)}`);
+    if (newBalance !== null) parts.push(`new balance ${coerceAmountLabel(newBalance)}`);
+  }
   return parts.length > 0 ? parts.join(' / ') : null;
 }
 
@@ -662,17 +899,32 @@ function parseFieldMoney(value: unknown): number | null {
 
 function extractCardStatementFields(docData: any): CardStatementFields {
   const extracted = docData?.extracted_data || {};
+  const statementSummary = getStatementSummaryMeta(docData);
   const rawText = getSummarySourceText(docData);
   const dueDateFromText = rawText.match(/Payment due date\s+([A-Za-z]{3,9}\s+\d{1,2},\s+\d{4})/i)?.[1] || null;
   const minDueFromText = rawText.match(/Minimum payment due\s*\$?([0-9,]+\.\d{2})/i)?.[1] || null;
   const newBalanceFromText = rawText.match(/Your New Balance\s*\$?([0-9,]+\.\d{2})/i)?.[1] || null;
   const creditLimitFromText = rawText.match(/Credit limit\s*\$?([0-9,]+\.\d{2})/i)?.[1] || null;
   const availableCreditFromText = rawText.match(/Available credit\s*\$?([0-9,]+\.\d{2})/i)?.[1] || null;
-  const dueDate = String(extracted.due_date || extracted.payment_due_date || '').trim() || null;
-  const minimumPayment = parseFieldMoney(extracted.minimum_payment_due ?? extracted.minimum_due ?? minDueFromText);
-  const newBalance = parseFieldMoney(extracted.new_balance ?? extracted.statement_balance ?? newBalanceFromText);
-  const creditLimit = parseFieldMoney(extracted.credit_limit ?? creditLimitFromText);
-  const availableCredit = parseFieldMoney(extracted.available_credit ?? availableCreditFromText);
+  const dueDate = String(
+    extracted.due_date ||
+      extracted.payment_due_date ||
+      statementSummary?.due_date ||
+      statementSummary?.payment_due_date ||
+      ''
+  ).trim() || null;
+  const minimumPayment = parseFieldMoney(
+    extracted.minimum_payment_due ?? extracted.minimum_due ?? statementSummary?.minimum_payment_due ?? minDueFromText
+  );
+  const newBalance = parseFieldMoney(
+    extracted.new_balance ?? extracted.statement_balance ?? statementSummary?.new_balance ?? newBalanceFromText
+  );
+  const creditLimit = parseFieldMoney(
+    extracted.credit_limit ?? statementSummary?.credit_limit ?? creditLimitFromText
+  );
+  const availableCredit = parseFieldMoney(
+    extracted.available_credit ?? statementSummary?.available_credit ?? availableCreditFromText
+  );
   const utilizationPct =
     creditLimit !== null && creditLimit > 0 && newBalance !== null
       ? Math.max(0, Math.min(100, (newBalance / creditLimit) * 100))
@@ -714,6 +966,47 @@ function toSummaryTransactionRow(tx: any): SummaryTransactionRow {
   return row;
 }
 
+function inferInstitutionFromTransactions(transactions: any[]): string | null {
+  const merchants = transactions
+    .map((tx) =>
+      String(
+        tx?.data_json?.merchant ||
+          tx?.data_json?.vendor ||
+          tx?.data_json?.description ||
+          ''
+      ).toUpperCase()
+    )
+    .filter(Boolean);
+  if (merchants.length === 0) return null;
+  const hasBankSignals = merchants.some(
+    (m) =>
+      m.includes('INTERAC') ||
+      m.includes('ABM') ||
+      m.includes('MOBILECHEQUE') ||
+      m.includes('E-TRANSFER')
+  );
+  if (hasBankSignals) return null;
+  return null;
+}
+
+function detectPaymentActivity(transactions: any[]): boolean {
+  return (Array.isArray(transactions) ? transactions : []).some((tx: any) => {
+    const data = tx?.data_json || {};
+    const amount = Number(tx?.amount ?? data?.amount ?? 0);
+    const direction = String(data?.direction || '').toLowerCase();
+    const category = String(tx?.tag_category || data?.category || '').toLowerCase();
+    const text = String(
+      data?.merchant || data?.description || data?.payee || data?.memo || ''
+    ).toLowerCase();
+    return (
+      amount < 0 ||
+      direction === 'credit' ||
+      category.includes('payment') ||
+      /\b(payment|autopay|auto-pay|thank you|credit card payment)\b/.test(text)
+    );
+  });
+}
+
 export function formatOcrSummaryMarkdown(params: {
   docData?: any;
   transactions?: any[];
@@ -731,35 +1024,72 @@ export function formatOcrSummaryMarkdown(params: {
   const needsReviewCount = Number(params.needsReviewCount || 0);
   const issues: string[] = Array.isArray(params.extraIssues) ? [...params.extraIssues] : [];
   const cardFields = extractCardStatementFields(docData);
+  const merchantCounts = new Map<string, { count: number; amount: number }>();
+  let totalCapturedAmount = 0;
+  let largestTxnAmount = 0;
+  let largestTxnMerchant = 'UNKNOWN-MERCHANT';
+  for (const tx of transactions) {
+    const data = tx?.data_json || {};
+    const merchant = String(
+      data.merchant || data.vendor || data.description || data.payee || data.memo || data.name || ''
+    ).trim();
+    const amountNum = Number(data.amount);
+    if (Number.isFinite(amountNum)) {
+      totalCapturedAmount += Math.abs(amountNum);
+      if (Math.abs(amountNum) > largestTxnAmount) {
+        largestTxnAmount = Math.abs(amountNum);
+        largestTxnMerchant = merchant || 'UNKNOWN-MERCHANT';
+      }
+    }
+    if (!merchant) continue;
+    const key = merchant.toLowerCase();
+    const existing = merchantCounts.get(key) || { count: 0, amount: 0 };
+    existing.count += 1;
+    if (Number.isFinite(amountNum)) {
+      existing.amount += Math.abs(amountNum);
+    }
+    merchantCounts.set(key, existing);
+  }
+  const recurringMerchants = Array.from(merchantCounts.entries())
+    .map(([merchant, stats]) => ({ merchant, ...stats }))
+    .filter((row) => row.count >= 2)
+    .sort((a, b) => b.count - a.count || b.amount - a.amount)
+    .slice(0, 3);
 
   const trustedCount = Math.max(transactionCount - needsReviewCount, 0);
-  const summaryBullets: string[] = [
-    `- I reviewed this document and captured ${transactionCount} transaction${transactionCount === 1 ? '' : 's'}.`,
-    `- ${trustedCount} look ready to use, and ${needsReviewCount} need a quick review.`,
-  ];
-  if (topCategories.length > 0) {
-    summaryBullets.push(`- Biggest spend signals this period: ${topCategories.slice(0, 3).join(', ')}.`);
+  const summaryParagraphs: string[] = [];
+  const normalizedTopCategories = topCategories
+    .map((c) => String(c || '').trim())
+    .filter(Boolean);
+  const nonUncategorizedTopCategories = normalizedTopCategories.filter(
+    (c) => c.toLowerCase() !== 'uncategorized'
+  );
+  const tagSentence =
+    nonUncategorizedTopCategories.length > 0
+      ? `Tag is already seeing spend patterns in ${nonUncategorizedTopCategories
+          .slice(0, 3)
+          .join(', ')}.`
+      : normalizedTopCategories.length > 0
+        ? `Tag placed ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} into initial categories — review and correct any mismatches so Tag can learn.`
+        : `All ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} are uncategorized — open Smart Categories to kick off Tag.`;
+  summaryParagraphs.push(
+    `Byte extracted ${transactionCount} transaction${transactionCount === 1 ? '' : 's'} for this statement, with ${trustedCount} currently ready to use and ${needsReviewCount} needing review.`
+  );
+  summaryParagraphs.push(tagSentence);
+  if (recurringMerchants.length > 0) {
+    const recurringLabel = recurringMerchants
+      .map((row) => `${escapeInlineMarkdown(String(row.merchant || '').toUpperCase())} (${row.count}x)`)
+      .join(', ');
+    summaryParagraphs.push(`A recurring pattern is visible in ${recurringLabel}.`);
   }
-  if (needsReviewCount > 0) {
-    summaryBullets.push('- Next best step: confirm the flagged lines first and I will learn from your corrections.');
-  } else {
-    summaryBullets.push('- Next best step: ask for top merchants, recurring charges, or unusual activity.');
+  if (totalCapturedAmount > 0) {
+    summaryParagraphs.push(`Total captured spend in this statement is ${formatMoney(totalCapturedAmount)}.`);
   }
-  if (cardFields.newBalance !== null) {
-    summaryBullets.push(`- Statement balance detected: ${formatMoney(cardFields.newBalance)}.`);
-  }
-  if (cardFields.utilizationPct !== null) {
-    const pct = `${cardFields.utilizationPct.toFixed(1)}%`;
-    summaryBullets.push(`- Credit utilization: ${pct}.`);
-    if (cardFields.utilizationPct >= 80) {
-      summaryBullets.push('- Risk signal: high utilization can increase interest pressure this cycle.');
-    }
-  }
-  if (cardFields.minimumPayment !== null || cardFields.dueDate) {
-    const minDue = cardFields.minimumPayment !== null ? formatMoney(cardFields.minimumPayment) : 'unknown minimum due';
-    const due = cardFields.dueDate || 'unknown due date';
-    summaryBullets.push(`- Next action: plan at least ${minDue} before ${due}.`);
-  }
+  const nextStepSentence =
+    needsReviewCount > 0
+      ? 'Next step: confirm the flagged lines first so corrections can be learned.'
+      : 'Next step: review top merchants, recurring charges, and unusual activity.';
+  summaryParagraphs.push(nextStepSentence);
 
   const txDates = transactions
     .map((tx: any) => String(tx?.data_json?.posted_at || tx?.data_json?.date || tx?.data_json?.transaction_date || '').slice(0, 10))
@@ -768,7 +1098,11 @@ export function formatOcrSummaryMarkdown(params: {
   const inferredPeriodFromTx =
     txDates.length >= 2 ? `${txDates[0]} to ${txDates[txDates.length - 1]}` : null;
   const period = extractStatementPeriod(docData) || inferPeriodFromFileName(docData) || inferredPeriodFromTx || 'unknown';
-  const institution = extractInstitutionOrCard(docData) || inferInstitutionFromFileName(docData) || 'unknown';
+  const institution =
+    extractInstitutionOrCard(docData) ||
+    inferInstitutionFromFileName(docData) ||
+    inferInstitutionFromTransactions(transactions) ||
+    null;
   const accountLast4 = extractAccountLast4(docData);
   const totalsLine = extractTotalsLine(docData);
 
@@ -778,19 +1112,24 @@ export function formatOcrSummaryMarkdown(params: {
     transactionLines.push(row.line);
     if (row.issue) issues.push(row.issue);
   }
+  const MAX_TX_LINES = 40;
+  const shownTransactionLines =
+    transactionLines.length > MAX_TX_LINES
+      ? transactionLines.slice(0, MAX_TX_LINES)
+      : transactionLines;
   if (transactionLines.length === 0) {
-    transactionLines.push('- UNKNOWN-DATE | UNKNOWN-MERCHANT | UNKNOWN-AMOUNT | UNKNOWN-CURRENCY | no parsed transactions');
+    shownTransactionLines.push('- UNKNOWN-DATE | UNKNOWN-MERCHANT | UNKNOWN-AMOUNT | UNKNOWN-CURRENCY | no parsed transactions');
   }
 
   const uniqueIssues = Array.from(new Set(issues.map((x) => String(x || '').trim()).filter(Boolean)));
 
   const output: string[] = [];
   output.push('## Summary');
-  output.push(...summaryBullets.slice(0, 6));
+  output.push(...summaryParagraphs.slice(0, 4));
   output.push('');
   output.push('## Key details');
   output.push(`- Statement period: ${period}`);
-  output.push(`- Institution / Card: ${institution}`);
+  output.push(`- Institution / Card: ${institution ? escapeInlineMarkdown(institution) : 'not detected from OCR'}`);
   output.push(`- Account last-4 (if present): ${accountLast4 || 'not present'}`);
   if (totalsLine) {
     output.push(`- Totals (only if visible): ${totalsLine}`);
@@ -806,15 +1145,76 @@ export function formatOcrSummaryMarkdown(params: {
   );
   output.push('');
   output.push('## Transactions (cleaned)');
-  output.push(...transactionLines);
-  output.push('');
-  output.push('## Issues / Uncertain lines');
-  if (uniqueIssues.length === 0) {
-    output.push('- None detected from parsed data');
-  } else {
+  output.push(...shownTransactionLines);
+  if (transactionLines.length > MAX_TX_LINES) {
+    output.push(
+      `- ... ${transactionLines.length - MAX_TX_LINES} more row(s) omitted for readability. Open Transactions for full list.`
+    );
+  }
+  if (uniqueIssues.length > 0) {
+    output.push('');
+    output.push('## Issues / Uncertain lines');
     output.push(...uniqueIssues.map((issue) => `- ${issue}`));
     output.push('- If any line looks wrong, tell me which one and I will fix and learn it.');
   }
+
+  const primeReadClauses: string[] = [];
+  if (cardFields.utilizationPct !== null) {
+    if (cardFields.utilizationPct >= 90) {
+      primeReadClauses.push('this account is running at very high utilization, which amplifies monthly interest pressure');
+    } else if (cardFields.utilizationPct >= 75) {
+      primeReadClauses.push('utilization is elevated and principal paydown should stay priority one');
+    }
+  }
+  if (recurringMerchants.length > 0) {
+    const topRecurring = recurringMerchants[0];
+    primeReadClauses.push(
+      `recurring spend is clustering around ${escapeInlineMarkdown(String(topRecurring.merchant || '').toUpperCase())} (${topRecurring.count} charges)`
+    );
+  }
+  if (largestTxnAmount > 0) {
+    primeReadClauses.push(
+      `the largest captured charge is ${formatMoney(largestTxnAmount)} at ${escapeInlineMarkdown(String(largestTxnMerchant || '').toUpperCase())}`
+    );
+  }
+  let actionParagraph = 'Keep non-essential card spend low for one cycle and prioritize this balance before adding new recurring charges.';
+  if (cardFields.minimumPayment !== null && cardFields.newBalance !== null) {
+    const suggestedPayment = Math.round(Math.max(cardFields.minimumPayment * 1.5, cardFields.minimumPayment + 50) * 100) / 100;
+    const projectedBalance = Math.max(cardFields.newBalance - suggestedPayment, 0);
+    if (cardFields.creditLimit !== null && cardFields.creditLimit > 0) {
+      const projectedUtilPct = Math.max(0, Math.min(100, (projectedBalance / cardFields.creditLimit) * 100));
+      actionParagraph = `One concrete move this cycle: pay ${formatMoney(suggestedPayment)} so balance trends toward ${formatMoney(projectedBalance)} (about ${projectedUtilPct.toFixed(1)}% utilization).`;
+    } else {
+      actionParagraph = `One concrete move this cycle: pay ${formatMoney(suggestedPayment)} so balance trends toward ${formatMoney(projectedBalance)}.`;
+    }
+  }
+  const readParagraphOne =
+    primeReadClauses.length > 0
+      ? `What this statement is telling us is that ${primeReadClauses.join(', ')}, and that is the pressure point to manage first.`
+      : 'This statement is cleanly parsed, but deeper insight is limited until categorization finishes.';
+  const topRecurring = recurringMerchants[0];
+  const recurringTotal = topRecurring ? topRecurring.amount : 0;
+  const recurringShare =
+    recurringTotal > 0 && totalCapturedAmount > 0
+      ? (recurringTotal / totalCapturedAmount) * 100
+      : null;
+  const readParagraphTwo =
+    recurringShare !== null && recurringShare >= 10
+      ? `${actionParagraph} Also, ${escapeInlineMarkdown(String(topRecurring.merchant || '').toUpperCase())} alone is about ${recurringShare.toFixed(
+          1
+        )}% of captured spend, so it is the first merchant to review for controllable cuts.`
+      : actionParagraph;
+  const readParagraphThree =
+    'If you want, I can break this into merchant-level actions next and show which recurring charges are easiest to trim first.';
+  const utilizationForHeadline =
+    cardFields.utilizationPct !== null && Number.isFinite(cardFields.utilizationPct)
+      ? cardFields.utilizationPct
+      : null;
+  const headline = buildPrimeReadHeadline(
+    institution || 'This account',
+    utilizationForHeadline
+  );
+  output.push('', "## Prime's Read", `### ${escapeInlineMarkdown(headline)}`, readParagraphOne, '', readParagraphTwo, '', readParagraphThree);
 
   return output.join('\n');
 }
@@ -969,9 +1369,10 @@ async function loadDocumentDataForSummary(sb: any, documentId: string): Promise<
   // Tiered SELECT so a missing column never silently returns null.
   // Each tier drops optional columns that may not yet exist in the schema cache.
   const selectAttempts = [
-    'id, ocr_text, ocr_text_hash, ocr_text_length, summary, original_name, pii_types, extracted_data',
-    'id, ocr_text_hash, ocr_text_length, summary, original_name, pii_types, extracted_data',
-    'id, ocr_text_hash, summary, original_name, extracted_data',
+    'id, ocr_text, ocr_text_hash, ocr_text_length, summary, original_name, pii_types, extracted_data, metadata',
+    'id, ocr_text_hash, ocr_text_length, summary, original_name, pii_types, extracted_data, metadata',
+    'id, ocr_text_hash, summary, original_name, extracted_data, metadata',
+    'id, summary, original_name, extracted_data, metadata',
     'id, summary, original_name, extracted_data',
   ];
 
@@ -1104,6 +1505,12 @@ export const handler: Handler = async (event) => {
         extraIssues: ['Import record not found for the provided identifier'],
       });
       const summary = await sanitizeSummaryForOutput(rawSummary, null);
+      const transactionsForLog: Array<{ amount: number }> = [];
+      const statementMeta: { issuer?: string | null } | null = null;
+      console.log('[prime-summary] output_path:', process.env.PRIME_SUMMARY_ALLOW_LLM === '1' ? 'LLM' : 'deterministic');
+      console.log('[prime-summary] issuer_detected:', statementMeta?.issuer ?? 'null');
+      console.log('[prime-summary] tx_count:', transactionsForLog?.length ?? 0);
+      console.log('[prime-summary] has_payment:', detectPaymentActivity(transactionsForLog));
       return {
         statusCode: 200,
         headers,
@@ -1250,10 +1657,40 @@ export const handler: Handler = async (event) => {
     const importStatus = String(importData?.status || '').toLowerCase();
 
     if (analyticsResolution.analytics) {
+      const mergedStatementMeta = {
+        ...(analyticsResolution.analytics?.statement_meta || {}),
+        issuer:
+          String(
+            analyticsResolution.analytics?.statement_meta?.issuer ||
+            resolvedMeta?.issuer ||
+            inferInstitutionFromTransactions(transactions) ||
+            ''
+          ).trim() || null,
+        account_last4:
+          String(
+            analyticsResolution.analytics?.statement_meta?.account_last4 ||
+            resolvedMeta?.accountLast4 ||
+            ''
+          ).trim() || null,
+        period_start:
+          normalizeIsoDateForBreakdown(
+            analyticsResolution.analytics?.statement_meta?.period_start ||
+            resolvedMeta?.periodStart
+          ),
+        period_end:
+          normalizeIsoDateForBreakdown(
+            analyticsResolution.analytics?.statement_meta?.period_end ||
+            resolvedMeta?.periodEnd
+          ),
+      };
+      const analyticsForSummary = {
+        ...analyticsResolution.analytics,
+        statement_meta: mergedStatementMeta,
+      };
       const warnings: string[] = [];
       const warningNeedsReview = Number(
-        analyticsResolution.analytics?.flags?.needs_review_count ??
-        analyticsResolution.analytics?.uncategorizedCount ??
+        analyticsForSummary?.flags?.needs_review_count ??
+        analyticsForSummary?.uncategorizedCount ??
         0
       );
       if (warningNeedsReview > 0) {
@@ -1262,11 +1699,33 @@ export const handler: Handler = async (event) => {
       const narrative = renderPrimeNarrativeV1({
         docName,
         period,
-        analytics: analyticsResolution.analytics,
+        analytics: analyticsForSummary,
         counts: { transactionCount },
         warnings,
       });
-      const summary = await sanitizeSummaryForOutput(narrative, String(importData?.user_id || '') || null);
+
+      // ── LLM advisor voice (gated by PRIME_SUMMARY_ALLOW_LLM=1) ──────────
+      const advisorNarrative = process.env.PRIME_SUMMARY_ALLOW_LLM === '1'
+        ? await runLLMAdvisorSummary({
+            analytics: analyticsForSummary,
+            deterministicNarrative: narrative,
+            docName,
+            period,
+            transactionCount,
+          })
+        : narrative;
+      // ────────────────────────────────────────────────────────────────────
+
+      const summaryWithCta = appendTransactionsCta(advisorNarrative, String(importId));
+      const summary = await sanitizeSummaryForOutput(summaryWithCta, String(importData?.user_id || '') || null);
+      const transactionsForLog = (Array.isArray(transactions) ? transactions : []).map((t: any) => ({
+        amount: Number(t?.amount ?? t?.data_json?.amount),
+      }));
+      const statementMeta = analyticsForSummary?.statement_meta || { issuer: resolvedMeta?.issuer || null };
+      console.log('[prime-summary] output_path:', process.env.PRIME_SUMMARY_ALLOW_LLM === '1' ? 'LLM' : 'deterministic');
+      console.log('[prime-summary] issuer_detected:', statementMeta?.issuer ?? 'null');
+      console.log('[prime-summary] tx_count:', transactionsForLog?.length ?? 0);
+      console.log('[prime-summary] has_payment:', detectPaymentActivity(transactions));
       console.log('[prime-summary] stage=prime_summary_rendered', {
         importId,
         hasAnalytics: true,
@@ -1295,26 +1754,46 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    let fallbackSummary = '';
-    
+    const needsReviewCount = transactions.filter(
+      (tx: any) => String(tx?.tag_status || '').trim().toLowerCase() === 'needs_review'
+    ).length;
+    const topCategories = Array.from(
+      transactions.reduce((acc: Map<string, number>, tx: any) => {
+        const data = tx?.data_json || {};
+        const category = String(tx?.tag_category || data?.category || '').trim() || 'Uncategorized';
+        acc.set(category, (acc.get(category) || 0) + 1);
+        return acc;
+      }, new Map<string, number>()).entries()
+    )
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([category]) => category);
+    const extraIssues: string[] = [];
     if (transactionCount === 0) {
-      fallbackSummary = [
-        `Clean Canvas.`,
-        `You have 0 transactions imported from ${docName}.`,
-        `- Upload a receipt or connect an account to get started.`
-      ].join('\n');
-    } else {
-      const txLabel = transactionCount === 1 ? '1 transaction' : `${transactionCount} transactions`;
-      fallbackSummary = [
-        `${txLabel} imported from ${docName}`,
-        `- ${txLabel} imported and categorized.`,
-        '- Ask me which merchants appeared most often this period.',
-        '- Ask me for a spending breakdown by category.',
-        '- Flag any unfamiliar charges and I can help you review them.',
-      ].join('\n');
+      extraIssues.push(`No parsed transactions are available yet for ${docName}.`);
     }
+    const fallbackSummary = formatOcrSummaryMarkdown({
+      docData: statementDocData || buildDocFallbackFromImport(importData),
+      transactions,
+      transactionCount,
+      topCategories,
+      needsReviewCount,
+      extraIssues,
+    });
     
-    const summary = await sanitizeSummaryForOutput(fallbackSummary, String(importData?.user_id || '') || null);
+    const summaryWithCta = appendTransactionsCta(fallbackSummary, String(importId));
+    const summary = await sanitizeSummaryForOutput(summaryWithCta, String(importData?.user_id || '') || null);
+    const transactionsForLog = (Array.isArray(transactions) ? transactions : []).map((t: any) => ({
+      amount: Number(t?.amount ?? t?.data_json?.amount),
+    }));
+    const statementMeta = {
+      ...(resolvedMeta || {}),
+      issuer: resolvedMeta?.issuer || inferInstitutionFromTransactions(transactions) || null,
+    };
+    console.log('[prime-summary] output_path:', process.env.PRIME_SUMMARY_ALLOW_LLM === '1' ? 'LLM' : 'deterministic');
+    console.log('[prime-summary] issuer_detected:', statementMeta?.issuer ?? 'null');
+    console.log('[prime-summary] tx_count:', transactionsForLog?.length ?? 0);
+    console.log('[prime-summary] has_payment:', detectPaymentActivity(transactions));
     console.log('[prime-summary] stage=prime_summary_rendered', {
       importId,
       hasAnalytics: false,
@@ -1334,6 +1813,12 @@ export const handler: Handler = async (event) => {
       extraIssues: [String(error?.message || 'Summary generation failed')],
     });
     const fallbackSummary = await sanitizeSummaryForOutput(rawFallbackSummary, null);
+    const transactionsForLog: Array<{ amount: number }> = [];
+    const statementMeta: { issuer?: string | null } | null = null;
+    console.log('[prime-summary] output_path:', process.env.PRIME_SUMMARY_ALLOW_LLM === '1' ? 'LLM' : 'deterministic');
+    console.log('[prime-summary] issuer_detected:', statementMeta?.issuer ?? 'null');
+    console.log('[prime-summary] tx_count:', transactionsForLog?.length ?? 0);
+    console.log('[prime-summary] has_payment:', detectPaymentActivity([]));
     return {
       statusCode: 200,
       headers,

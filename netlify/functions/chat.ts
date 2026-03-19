@@ -289,9 +289,11 @@ type ForcedTxSearchLatchEntry = {
 const EMPLOYEE_PROFILE_TTL_MS = 5 * 60 * 1000;
 const LAST_TX_SEARCH_CACHE_TTL_MS = 15 * 60 * 1000;
 const FORCED_TX_SEARCH_DEDUPE_MS = 10 * 1000;
+const THREAD_STATEMENT_CONTEXT_TTL_SECONDS = 2 * 60 * 60;
 const employeeProfileCache = new Map<string, EmployeeProfileCacheEntry>();
 const lastTxSearchCache = new Map<string, LastTxSearchCacheEntry>();
 const forcedTxSearchLatch = new Map<string, ForcedTxSearchLatchEntry>();
+const statementContextByThread = new Map<string, RuntimeCacheEntry<{ importId: string; label?: string | null }>>();
 const runtimeCache = {
   userProfile: new Map<string, RuntimeCacheEntry<any>>(),
   aiUserContext: new Map<string, RuntimeCacheEntry<any>>(),
@@ -326,6 +328,36 @@ function writeRuntimeCache<T>(
 ): void {
   if (ttlSeconds <= 0) return;
   map.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1000 });
+}
+
+function threadStatementContextKey(userId: string, threadId: string): string {
+  return `${userId}:${threadId}`;
+}
+
+function setThreadStatementContext(
+  userId: string,
+  threadId: string | null | undefined,
+  importId: string | null | undefined,
+  label?: string | null
+): void {
+  const tid = String(threadId || '').trim();
+  const iid = String(importId || '').trim();
+  if (!tid || !iid) return;
+  writeRuntimeCache(
+    statementContextByThread,
+    threadStatementContextKey(userId, tid),
+    { importId: iid, label: String(label || '').trim() || null },
+    THREAD_STATEMENT_CONTEXT_TTL_SECONDS
+  );
+}
+
+function getThreadStatementContext(
+  userId: string,
+  threadId: string | null | undefined
+): { importId: string; label?: string | null } | null {
+  const tid = String(threadId || '').trim();
+  if (!tid) return null;
+  return readRuntimeCache(statementContextByThread, threadStatementContextKey(userId, tid));
 }
 
 export async function getEmployeeProfileCached(
@@ -582,6 +614,10 @@ function detectPrimeIntent(message: string): PrimeIntent {
 function detectTemporalIntent(message: string): TemporalIntent {
   const text = String(message || '').trim().toLowerCase();
   if (!text) return null;
+  const likelyFinanceQuestion =
+    /\b(statement|statements|transaction|transactions|merchant|merchants|spend|spent|charge|charges|category|categories|import|upload)\b/i.test(text) ||
+    /\bmost\s+recent\s+date\s+for\b/i.test(text);
+  if (likelyFinanceQuestion) return null;
 
   const datePattern =
     /\b(what(?:'s| is)\s+(?:the\s+)?date|today(?:'s)?\s+date|date\s+today|what\s+day\s+is\s+it|which\s+day\s+is\s+it)\b/i;
@@ -751,15 +787,19 @@ function getClarificationDecision(
 
   const asksSpendOrCategory =
     /\b(spend|spending|categories?|category|expenses?|cashflow)\b/i.test(text);
+  const asksAboutSpecificUploadedStatement =
+    /\b(last|latest|previous|prior)\s+(statement|statment|statemnt|upload|document|file)\b/i.test(text) ||
+    /\bdo you see\b.+\b(statement|upload|document|file)\b/i.test(text) ||
+    /\b(use|open|show)\b.+\b(last|latest)\b.+\b(statement|upload|document)\b/i.test(text);
   const hasTimeframe =
     /\b(today|yesterday|this week|last week|this month|last month|this year|last year|month to date|mtd|year to date|ytd|current month)\b/i.test(text) ||
     /\bbetween\b.+\band\b/i.test(text) ||
     /\bfrom\b.+\bto\b/i.test(text);
   const asksSnapshotStyle = /\b(current|latest|snapshot|overview|right now)\b/i.test(text);
-  if (asksSpendOrCategory && !hasTimeframe && !asksSnapshotStyle) {
+  if (asksSpendOrCategory && !hasTimeframe && !asksSnapshotStyle && !asksAboutSpecificUploadedStatement) {
     return {
       reason: 'missing_timeframe',
-      question: 'Which timeframe should I use: this month, last month, or a custom date range?',
+      question: 'I can use your latest statement right now, or a timeframe like this month / last month. Which do you want?',
     };
   }
 
@@ -886,7 +926,7 @@ function buildInsightResponse(intent: Exclude<InsightIntent, null>, primeContext
   const topCategories = Array.isArray(fs?.topCategories) ? fs?.topCategories : [];
 
   if (!hasData) {
-    return "I don't have enough transaction data loaded yet for reliable insights. Sync your account or upload a statement, and I'll generate a concrete analysis.";
+    return "I don't have enough transaction data loaded yet for reliable insights. If you just uploaded a statement, I'm processing it now and will share a concrete analysis shortly. You can also sync an account for immediate baseline data.";
   }
 
   if (intent === 'spending_analysis') {
@@ -1559,7 +1599,10 @@ function isStatementBreakdownIntent(message: string): boolean {
     || /\b(uploaded|uploaded statement|what i uploaded|which statement|that upload|that statement|my statement|my document|the file|the document|the statement|this document|this statement|my import|the import)\b/.test(text);
   const breakdownAsks = /\b(break\s*down|breakdown|what'?s on|what is on|summar(?:y|ize)|summarise|what did you find|findings|show me|list|totals?|categories?|tell me|what'?s in|analyz[e|is]|analys[e|is]|review|overview|explain|describe|walk me|give me)\b/.test(text);
   const statementDetailAsks = /\b(due date|minimum payment|min payment|new balance|credit limit|available credit|account last[-\s]?4|last[-\s]?4|issuer|institution|card|visa|mastercard|credit card|bank statement|statement type|statement period|period start|period end)\b/.test(text);
-  return (explicitStatementContext && breakdownAsks) || statementDetailAsks;
+  // Bare month/time-range with no specific drill-down → treat as a breakdown request.
+  // "this month", "february", "last month" alone means the user wants the full summary.
+  const bareMonthRequest = /^\s*(this month|last month|january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|sept|october|oct|november|nov|december|dec)\s*[.?!]?\s*$/i.test(text);
+  return (explicitStatementContext && breakdownAsks) || statementDetailAsks || bareMonthRequest;
 }
 
 function isStatementQaIntent(message: string): boolean {
@@ -1567,16 +1610,48 @@ function isStatementQaIntent(message: string): boolean {
   if (!text.trim()) return false;
   const monthMentioned = /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|sept|october|oct|november|nov|december|dec|last month|this month)\b/.test(text);
   const statementKeywords = /\b(statement|transactions?|charges?|spend|spent|total|totals|category|categories|merchant|deposits?|income|refunds?|balance|fees?|interest|largest|biggest|top\s+\d+)\b/.test(text);
+  const merchantNeedle = extractMerchantNeedleFromQuestion(text);
+  const asksMerchantRecentDate =
+    /\b(most recent|latest|last)\s+(date|transaction)\b/.test(text) ||
+    /\b(date)\s+for\b/.test(text);
   const styleOnlyQuestion = /\b(visa|mastercard|bank statement|statement type|issuer|institution|due date|minimum payment|credit limit|available credit)\b/.test(text);
   if (styleOnlyQuestion && !/\b(transactions?|charges?|spend|spent|total|category|merchant|income|deposits?|refunds?|fees?|interest|largest|biggest|top\s+\d+)\b/.test(text)) {
     return false;
   }
-  return statementKeywords || monthMentioned;
+  // Bare month/time-range with no drill-down filter → route to breakdown, not QA.
+  // QA is for specific questions like "how much at Uber this month" or "show me charges".
+  if (monthMentioned && !statementKeywords && !merchantNeedle) {
+    return false;
+  }
+  return statementKeywords || monthMentioned || (asksMerchantRecentDate && Boolean(merchantNeedle));
 }
 
 function asksForLatestStatement(message: string): boolean {
   const text = String(message || '').toLowerCase();
   return /\b(latest|last|most recent|previous|prior)\s+(statement|upload|import|document)\b/.test(text);
+}
+
+function isStatementScopeSelectionIntent(message: string): boolean {
+  const text = String(message || '').toLowerCase().trim();
+  if (!text) return false;
+  return /\b(use|using|show|open|pull|load|select|switch(?:\s+to)?|work(?:\s+with)?|check|review|upload)\s+(?:my\s+)?(latest|last|most recent)\s+(statement|upload|import|document)\b/.test(text)
+    || /\bfrom\s+my\s+(latest|last|most recent)\s+(statement|upload|import|document)\b/.test(text)
+    || /^\s*(?:my\s+)?(latest|last|most recent)\s+(statement|upload|import|document)\s*$/.test(text);
+}
+
+function isStatementCountIntent(message: string): boolean {
+  const text = String(message || '').toLowerCase().trim();
+  if (!text) return false;
+  return /\b(how many|count|number of)\b.*\b(statements?|uploads?|imports?|documents?)\b/.test(text)
+    || /\b(statements?|uploads?|imports?)\s+(count|total)\b/.test(text);
+}
+
+function isLatestStatementDateIntent(message: string): boolean {
+  const text = String(message || '').toLowerCase().trim();
+  if (!text) return false;
+  return /\b(what|when).*\b(date)\b.*\b(last|latest|most recent)\s+(statement|upload|import|document)\b/.test(text)
+    || /\b(last|latest|most recent)\s+(statement|upload|import|document)\s+date\b/.test(text)
+    || /\bwhen\s+was\s+my\s+(last|latest|most recent)\s+(statement|upload|import|document)\b/.test(text);
 }
 
 function extractImportIdFromMessage(message: string): string | null {
@@ -1645,6 +1720,21 @@ function extractQueryHint(message: string): string | null {
   if (chargeMatch?.[1]) return String(chargeMatch[1]).trim();
 
   return null;
+}
+
+function normalizeMerchantQueryText(value: string): string {
+  return String(value || '')
+    .replace(/\?.*$/, '')
+    .replace(
+      /\b(this month|last month|latest|statement|upload|did i|do i|can you|tell me|how much|what is my|what's my|that statement|this statement|that upload|this upload)\b/gi,
+      ' '
+    )
+    .replace(/\b(on|for|from|in)\s+(that|this|my|the)\b/gi, ' ')
+    .replace(/\b(that|this|my)\b/gi, ' ')
+    .replace(/\b(transactions?|charges?|purchases?|payments?)\b/gi, ' ')
+    .replace(/^(a|an|the|my)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function parseToolResultContent(content: unknown): any {
@@ -1717,6 +1807,43 @@ async function resolveImportIdContextForTurn(
     if (latestImport?.importId) importId = latestImport.importId;
   }
   return importId || null;
+}
+
+function getMostRecentImportIdFromPrimeContext(
+  primeContext: ChatRequest['prime_context']
+): string | null {
+  const summaries = Array.isArray(primeContext?.recentImportSummaries)
+    ? primeContext!.recentImportSummaries!
+    : [];
+  if (summaries.length === 0) return null;
+  const sorted = [...summaries].sort((a, b) => {
+    const aTs = Date.parse(String(a?.displayedAt || ''));
+    const bTs = Date.parse(String(b?.displayedAt || ''));
+    if (Number.isFinite(aTs) && Number.isFinite(bTs)) return bTs - aTs;
+    if (Number.isFinite(aTs)) return -1;
+    if (Number.isFinite(bTs)) return 1;
+    return 0;
+  });
+  const importId = String(sorted[0]?.importId || '').trim();
+  return importId || null;
+}
+
+function getStatementLabelFromPrimeContext(
+  primeContext: ChatRequest['prime_context'],
+  importId: string | null | undefined
+): string | null {
+  const iid = String(importId || '').trim();
+  if (!iid) return null;
+  const summaries = Array.isArray(primeContext?.recentImportSummaries)
+    ? primeContext!.recentImportSummaries!
+    : [];
+  const match = summaries.find((row) => String(row?.importId || '').trim() === iid);
+  const label = String(match?.label || '').replace(/\s+/g, ' ').trim();
+  if (!label) return null;
+  // Guard against markdown heading fragments being surfaced as statement labels.
+  if (/^#+\s*summary\b/i.test(label)) return null;
+  if (/^(summary|key details|transactions|issues)\b/i.test(label)) return null;
+  return label;
 }
 
 function buildTxUpdateRefreshSystemMessage(args: {
@@ -2705,7 +2832,7 @@ function isPipelineFollowupMessage(message: string): boolean {
   if (/\bupload\b/.test(text) && /\b(find|found|anything|what did you find|see)\b/.test(text)) {
     return true;
   }
-  return /\b(summari[sz]e again|show subscriptions|why did you categor|why categorized|transfers vs spending|business expenses|set reminders from that|compare this month to last|that statement|last upload|that upload|my upload|did you find anything|what did you find|anything in my upload|any recurring charges|monthly subscriptions|what subscriptions|last ask|that last ask|did you get that|did i not upload|cannot find|can't find|you can'?t find|in your memory|did you miss|you repeated)\b/.test(text);
+  return /\b(summari[sz]e again|summari[sz]e|summary|summarise|summarize|sumarize|suumarize|usmmarize|show subscriptions|why did you categor|why categorized|transfers vs spending|business expenses|set reminders from that|compare this month to last|that statement|last upload|that upload|my upload|did you find anything|what did you find|anything in my upload|any recurring charges|monthly subscriptions|what subscriptions|last ask|that last ask|did you get that|did i not upload|cannot find|can't find|you can'?t find|in your memory|did you miss|you repeated)\b/.test(text);
 }
 
 function detectPipelineReuseIntent(message: string): 'explain_categorization' | 'tag_breakdown' | 'coaching_plan' | 'recurring_summary' | 'none' {
@@ -2714,9 +2841,15 @@ function detectPipelineReuseIntent(message: string): 'explain_categorization' | 
   if (/\bupload\b/.test(text) && /\b(find|found|anything|what did you find|see)\b/.test(text)) return 'tag_breakdown';
   if (/\b(why did you categor|why categorized|categorized .* as)\b/.test(text)) return 'explain_categorization';
   if (/\b(what subscriptions|any recurring charges|monthly subscriptions|recurring charges)\b/.test(text)) return 'recurring_summary';
-  if (/\b(show subscriptions|transfers vs spending|business expenses|summari[sz]e again|my upload|that upload|did you find anything|what did you find|last ask|that last ask|did you get that|did i not upload|cannot find|can't find|you can'?t find|in your memory|did you miss|you repeated)\b/.test(text)) return 'tag_breakdown';
+  if (/\b(show subscriptions|transfers vs spending|business expenses|summari[sz]e again|summari[sz]e|summary|summarise|summarize|sumarize|suumarize|usmmarize|my upload|that upload|did you find anything|what did you find|last ask|that last ask|did you get that|did i not upload|cannot find|can't find|you can'?t find|in your memory|did you miss|you repeated)\b/.test(text)) return 'tag_breakdown';
   if (/\b(set reminders from that|compare this month to last|plan|coach|next steps)\b/.test(text)) return 'coaching_plan';
   return 'none';
+}
+
+function isExplicitSummaryRecallIntent(message: string): boolean {
+  const text = String(message || '').toLowerCase().trim();
+  if (!text) return false;
+  return /\b(please\s+)?(summari[sz]e|summary|summarise|summarize|sumarize|suumarize|usmmarize)\b/.test(text);
 }
 
 function buildExplainCategorizationResponse(message: string, tagOutput: any): string {
@@ -2773,53 +2906,125 @@ function buildRecurringSummaryResponse(input: {
   ].join('\n');
 }
 
-function buildUploadFindingsResponseFromSummary(summaryText: string): string {
+function buildUploadFindingsResponseFromSummary(
+  summaryText: string,
+  options?: { institutionOverride?: string | null }
+): string {
   const text = String(summaryText || '').trim();
   if (!text) {
     return "I found your latest upload, but the summary content is empty. Upload one more time and I'll re-read it.";
   }
 
+  const inferInstitutionFromSummaryText = (source: string): string | null => {
+    const s = String(source || '').toLowerCase();
+    if (!s) return null;
+    if (/\bcapital one\b/.test(s)) return 'Capital One';
+    if (/\brbc\b|\broyal bank of canada\b/.test(s)) return 'RBC';
+    if (/\bscotiabank\b|\bscotia\b/.test(s)) return 'Scotiabank';
+    if (/\bcibc\b/.test(s)) return 'CIBC';
+    if (/\btd\b|\bcanada trust\b/.test(s)) return 'TD';
+    if (/\bbmo\b|\bbank of montreal\b/.test(s)) return 'BMO';
+    if (/\bamerican express\b|\bamex\b/.test(s)) return 'American Express';
+    return null;
+  };
+  const looksLikeNoisyInstitution = (value: string): boolean => {
+    const normalized = String(value || '').toLowerCase().trim();
+    if (!normalized) return true;
+    if (
+      normalized.includes('transaction was converted') ||
+      normalized.includes('nsaction was converted') ||
+      normalized.includes('may be obtained at') ||
+      normalized.includes('exchange rate') ||
+      normalized.includes('currency conversion') ||
+      normalized.includes('for more information') ||
+      normalized.includes('customer service')
+    ) {
+      return true;
+    }
+    if (normalized.length > 50) return true;
+    return false;
+  };
+  const sanitizeSummaryBullet = (line: string): string | null => {
+    const cleaned = String(line || '')
+      .replace(/^[\-\u2022*]+\s*/, '- ')
+      .replace(/\*\*/g, '')
+      .trim();
+    if (!cleaned) return null;
+    if (/^-+\s*institution\s*\/\s*card\s*:/i.test(cleaned)) {
+      const override = String(options?.institutionOverride || '').trim();
+      if (override) return `- Institution / Card: ${override}`;
+      const rawValue = cleaned.split(':').slice(1).join(':').trim();
+      if (looksLikeNoisyInstitution(rawValue)) {
+        const inferred = inferInstitutionFromSummaryText(text);
+        return inferred ? `- Institution / Card: ${inferred}` : '- Institution / Card: not detected from OCR';
+      }
+    }
+    return cleaned;
+  };
+
   const lines = text
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
+  const summarySectionStart = lines.findIndex((line) => /^##\s*summary\b/i.test(line));
+  const summarySectionEnd =
+    summarySectionStart >= 0
+      ? lines.findIndex((line, idx) => idx > summarySectionStart && /^##\s+/.test(line))
+      : -1;
+  const summaryNarrative = summarySectionStart >= 0
+    ? lines
+        .slice(
+          summarySectionStart + 1,
+          summarySectionEnd > summarySectionStart ? summarySectionEnd : undefined
+        )
+        .map((line) => line.replace(/^[\-\u2022*]+\s*/, '').replace(/\*\*/g, '').trim())
+        .filter((line) => line.length > 0)
+        .slice(0, 2)
+        .join(' ')
+    : '';
 
   const summaryBullets = lines
-    .filter((line) => /^-\s+/.test(line))
+    .filter((line) => /^[\-\u2022*]\s+/.test(line))
     .slice(0, 4)
-    .map((line) => line.replace(/^-+\s*/, '- '));
+    .map(sanitizeSummaryBullet)
+    .filter((line): line is string => Boolean(line));
 
   const txLines = lines
-    .filter((line) => /^-\s*\d{4}-\d{2}-\d{2}\s+\|/.test(line))
+    .filter((line) => /^[\-\u2022*]\s*\d{4}-\d{2}-\d{2}\s+\|/.test(line))
     .slice(0, 5)
-    .map((line) => line.replace(/^-+\s*/, '- '));
+    .map((line) => line.replace(/^[\-\u2022*]+\s*/, '- '));
 
   if (txLines.length > 0) {
     return [
-      'Yes — I found items in your latest upload.',
+      'Yes — I have your latest statement in front of me.',
+      'Prime read: here is what matters first.',
+      ...(summaryNarrative ? ['', summaryNarrative] : []),
       ...(summaryBullets.length > 0 ? ['', 'Top findings:', ...summaryBullets] : []),
       '',
       'Sample transactions I extracted:',
       ...txLines,
       '',
-      'If you want, I can list all rows or group this by category.',
+      'If you want, I can now turn this into one clear action plan (what to cut, what to keep, and what to review first).',
     ].join('\n');
   }
 
   return [
     'Yes — I found your latest upload summary.',
+    'Prime read: I can guide this step-by-step from here.',
+    ...(summaryNarrative ? ['', summaryNarrative] : []),
     ...(summaryBullets.length > 0
       ? ['', 'Top findings:', ...summaryBullets]
-      : ['I can walk through key details from it now.']),
+      : ['I can walk through key details from it now, then give you one clear next move.']),
   ].join('\n');
 }
 
 function isLastUploadRecallIntent(message: string): boolean {
   const text = String(message || '').toLowerCase();
   if (!text) return false;
-  return /\b(last|latest|previous|prior)\s+(receipt|upload|statement|document|file)\b/.test(text)
+  const statementToken = '(?:statement|statment|statemnt|stmnt)';
+  return new RegExp(`\\b(last|latest|previous|prior)\\s+(receipt|upload|${statementToken}|document|file)\\b`).test(text)
     || /\buse\s+(my\s+)?(last|latest|previous)\b/.test(text)
-    || /\b(recall|bring up|pull up)\s+(my\s+)?(last|latest)\s+(receipt|upload|statement|document)\b/.test(text);
+    || new RegExp(`\\b(recall|bring up|pull up)\\s+(my\\s+)?(last|latest)\\s+(receipt|upload|${statementToken}|document)\\b`).test(text);
 }
 
 function isLastUploadDetailIntent(message: string): boolean {
@@ -2837,6 +3042,90 @@ function isWorkspaceActivityIntent(message: string): boolean {
   const text = String(message || '').toLowerCase();
   if (!text) return false;
   return /\b(how active|activity|uploads?\s+(did i|have i)|how many uploads|workspace activity|last workspace)\b/.test(text);
+}
+
+function isPrimeSummarySystemPrompt(message: string): boolean {
+  const text = String(message || '');
+  if (!text.trim()) return false;
+  // Be robust to newline/formatting variants injected by import flows.
+  const lower = text.toLowerCase();
+  return (
+    lower.includes('system: a new statement') &&
+    lower.includes('prime document summary template') &&
+    lower.includes('statement financial data')
+  );
+}
+
+function isSimpleHowAreYouIntent(message: string): boolean {
+  const text = String(message || '').toLowerCase().trim();
+  if (!text) return false;
+  const compact = text.replace(/[^a-z]/g, '');
+  if (
+    compact === 'howareyou' ||
+    compact === 'howareyoudoing' ||
+    compact === 'howareyoutoday' ||
+    compact === 'howyoudoing' ||
+    compact === 'howsitgoing'
+  ) {
+    return true;
+  }
+  if (/\b(how are you|how are you doing|how are you today|how you doing|how's it going|hows it going)\b/.test(text)) {
+    return true;
+  }
+  // Accept lightweight variants like "hey prime, how are you?"
+  return /^(?:(?:hi|hey|hello)\b[\s,!.]*)?(?:prime\b[\s,!.]*)?(how are you|how are you doing|how are you today|how you doing|how's it going|hows it going)(?:\s+prime)?[\s?.!]*$/.test(text);
+}
+
+function isAskMyNameIntent(message: string): boolean {
+  const text = String(message || '').toLowerCase().trim();
+  if (!text) return false;
+  const compact = text.replace(/[^a-z]/g, '');
+  if (
+    compact.includes('whatismyname') ||
+    compact.includes('whatsmyname') ||
+    compact.includes('tellmyname') ||
+    compact.includes('whoami')
+  ) {
+    return true;
+  }
+
+  const words = text.replace(/[^a-z]/g, ' ').split(/\s+/).filter(Boolean);
+  const hasNameLikeToken = words.some((w) => w === 'name' || w === 'nam' || w === 'nae' || w === 'na');
+  const hasLead = words.includes('what') || words.includes('whats') || words.includes('tell');
+  const hasMy = words.includes('my');
+  return hasLead && hasMy && hasNameLikeToken;
+}
+
+function formatFirstName(displayName: string | null | undefined): string {
+  const cleaned = String(displayName || '').trim();
+  if (!cleaned) return 'there';
+  const first = cleaned.split(' ')[0] || 'there';
+  if (!first) return 'there';
+  return first === 'there' ? 'there' : first.charAt(0).toUpperCase() + first.slice(1);
+}
+
+function buildPrimeSmallTalkDeterministicReply(
+  message: string,
+  displayName: string | null | undefined
+): { text: string; intent: 'ask_my_name' | 'how_are_you' } | null {
+  const firstName = formatFirstName(displayName);
+  if (isAskMyNameIntent(message)) {
+    return {
+      intent: 'ask_my_name',
+      text: firstName === 'there'
+        ? "I don't have your name loaded yet. Add it in Account settings and I'll use it in chat."
+        : `Your profile name is ${firstName}.`,
+    };
+  }
+  if (isSimpleHowAreYouIntent(message)) {
+    return {
+      intent: 'how_are_you',
+      text: firstName === 'there'
+        ? 'I am doing well and ready to help. What should we tackle next with your money today?'
+        : `${firstName}, I am doing well and ready to help. What should we tackle next with your money today?`,
+    };
+  }
+  return null;
 }
 
 async function loadLatestImportSummaryTextBestEffort(
@@ -2900,11 +3189,7 @@ function extractMerchantNeedleFromQuestion(question: string): string | null {
   const q = String(question || '').toLowerCase();
   const connectorCapture = q.match(/\b(?:with|on|for|at)\s+([a-z0-9][a-z0-9&*'.,\-\s]{1,60})/i);
   if (connectorCapture?.[1]) {
-    const cleanedConnector = String(connectorCapture[1])
-      .replace(/\?.*$/, '')
-      .replace(/\b(this month|last month|latest|statement|upload|did i|do i|can you|tell me|how much)\b/gi, '')
-      .replace(/^(a|an|the|my)\s+/i, '')
-      .trim();
+    const cleanedConnector = normalizeMerchantQueryText(String(connectorCapture[1]));
     if (cleanedConnector.length >= 2) return cleanedConnector;
   }
   const patterns = [
@@ -2921,11 +3206,7 @@ function extractMerchantNeedleFromQuestion(question: string): string | null {
   for (const pattern of patterns) {
     const m = q.match(pattern);
     if (m?.[1]) {
-      const cleaned = String(m[1])
-        .replace(/\?+$/, '')
-        .replace(/\b(this month|last month|latest|statement|upload)\b/gi, '')
-        .replace(/^(a|an|the|my)\s+/i, '')
-        .trim();
+      const cleaned = normalizeMerchantQueryText(String(m[1]));
       if (cleaned.length >= 2) return cleaned;
     }
   }
@@ -3121,6 +3402,71 @@ async function loadLatestImportSummaryBestEffort(
   } catch {
     return null;
   }
+}
+
+async function loadImportSummaryTextByImportIdBestEffort(
+  sb: SupabaseClient,
+  userId: string,
+  importId: string
+): Promise<string | null> {
+  try {
+    const iid = String(importId || '').trim();
+    if (!iid) return null;
+    const { data, error } = await sb
+      .from('import_summaries')
+      .select('summary_text')
+      .eq('user_id', userId)
+      .eq('import_id', iid)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) return null;
+    const text = String(data?.summary_text || '').trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+function parseSummaryTransactionsLite(summaryText: string): Array<{ date: string; merchant: string; amount: number }> {
+  const text = String(summaryText || '');
+  if (!text) return [];
+  const rows: Array<{ date: string; merchant: string; amount: number }> = [];
+  for (const line of text.split(/\r?\n/)) {
+    const m = line.match(/^\s*(\d{4}-\d{2}-\d{2})\s*\|\s*([^|]+?)\s*\|\s*(-?\d+(?:\.\d+)?)\s*\|/);
+    if (!m) continue;
+    const amount = Number(m[3]);
+    if (!Number.isFinite(amount)) continue;
+    rows.push({
+      date: String(m[1]).trim(),
+      merchant: String(m[2]).trim(),
+      amount: Math.abs(amount),
+    });
+  }
+  return rows;
+}
+
+function computeMerchantStatsFromSummary(
+  summaryText: string,
+  merchantNeedle: string
+): { total: number; count: number; mostRecentDate: string | null; matches: string[] } {
+  const needle = normalizeMerchantQueryText(merchantNeedle).toLowerCase();
+  const tokens = needle.split(/[^a-z0-9]+/g).filter((t) => t.length >= 3);
+  const rows = parseSummaryTransactionsLite(summaryText);
+  const matched = rows.filter((row) => {
+    const merchant = String(row.merchant || '').toLowerCase();
+    if (!merchant || !needle) return false;
+    if (merchant.includes(needle)) return true;
+    return tokens.some((t) => merchant.includes(t));
+  });
+  const total = matched.reduce((sum, row) => sum + Math.abs(Number(row.amount || 0)), 0);
+  const mostRecentDate =
+    matched
+      .map((row) => row.date)
+      .filter(Boolean)
+      .sort((a, b) => b.localeCompare(a))[0] || null;
+  const matches = Array.from(new Set(matched.map((row) => row.merchant).filter(Boolean))).slice(0, 4);
+  return { total, count: matched.length, mostRecentDate, matches };
 }
 
 interface StatementBreakdown {
@@ -3490,7 +3836,15 @@ function inferInstitutionFromFileName(name: string): string | null {
   if ((lower.includes('triangle') || lower.includes('ctfs')) && (lower.includes('mastercard') || lower.includes('worldelite'))) {
     return 'Triangle World Elite Mastercard';
   }
+  if (lower.includes('capitalone') || lower.includes('capital one')) return 'Capital One';
+  if (lower.includes('scotia') && lower.includes('visa')) return 'Scotiabank Visa';
+  if (lower.includes('cibc') && lower.includes('visa')) return 'CIBC Visa';
+  if (lower.includes('td') && lower.includes('visa')) return 'TD Visa';
   if (lower.includes('rbc') && lower.includes('visa')) return 'RBC Visa';
+  if (lower.includes('bmo') && lower.includes('mastercard')) return 'BMO Mastercard';
+  if (lower.includes('amex') || lower.includes('american express')) return 'American Express';
+  if (lower.includes('mastercard')) return 'Mastercard';
+  if (lower.includes('visa')) return 'Visa';
   return null;
 }
 
@@ -3521,7 +3875,25 @@ async function resolveBreakdownKeyDetails(
   userId: string,
   breakdown: StatementBreakdown
 ): Promise<ResolvedKeyDetails> {
-  const baseIssuer = String(breakdown.statement_meta?.issuer || '').trim() || null;
+  const sanitizeIssuer = (value: unknown): string | null => {
+    const raw = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!raw) return null;
+    const lower = raw.toLowerCase();
+    if (
+      lower.includes('transaction was converted') ||
+      lower.includes('nsaction was converted') ||
+      lower.includes('may be obtained at') ||
+      lower.includes('exchange rate') ||
+      lower.includes('currency conversion') ||
+      lower.includes('for more information') ||
+      lower.includes('customer service')
+    ) {
+      return null;
+    }
+    if (raw.length > 50) return null;
+    return raw;
+  };
+  const baseIssuer = sanitizeIssuer(breakdown.statement_meta?.issuer);
   const baseLast4 = String(breakdown.statement_meta?.account_last4 || '').trim() || null;
   const basePeriodStart = normalizeIsoDate(breakdown.statement_meta?.period_start);
   const basePeriodEnd = normalizeIsoDate(breakdown.statement_meta?.period_end);
@@ -3565,8 +3937,10 @@ async function resolveBreakdownKeyDetails(
   }
 
   const issuer = baseIssuer ||
-    String(extracted?.issuer || extracted?.institution || extracted?.card || '').trim() ||
-    inferInstitutionFromFileName(fileName);
+    sanitizeIssuer(extracted?.issuer) ||
+    sanitizeIssuer(extracted?.institution) ||
+    sanitizeIssuer(extracted?.card) ||
+    inferInstitutionFromFileName(fileName || importFileUrl);
   const accountLast4 = baseLast4 ||
     String(extracted?.account_last4 || extracted?.last4 || '').trim() ||
     inferLast4FromFileName(fileName);
@@ -3830,6 +4204,40 @@ function renderStatementQaAnswer(message: string, req: StatementQaRequest, rows:
   const sample = [...rows]
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
     .slice(0, 10);
+
+  if (mode === 'merchant' && req.queryText) {
+    const queryLabel = String(req.queryText).trim();
+    const spendRows = charges;
+    const spendTotal = spendRows.reduce((sum, row) => sum + row.amount, 0);
+    const latestSpend = [...spendRows]
+      .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0] || null;
+    const matchedMerchants = Array.from(
+      new Set(
+        rows
+          .map((row) => String(row.merchant || '').trim())
+          .filter(Boolean)
+      )
+    ).slice(0, 3);
+    const asksDateOnly =
+      /\b(most recent|latest|last)\s+(date|transaction)\b/.test(lowerMessage) ||
+      /\bdate\s+for\b/.test(lowerMessage);
+    if (asksDateOnly) {
+      return latestSpend?.date
+        ? `From your latest statement context, the most recent ${queryLabel.toUpperCase()} transaction date is ${latestSpend.date}.`
+        : `I could not find a dated ${queryLabel.toUpperCase()} transaction in the current statement context.`;
+    }
+    return [
+      `I checked your latest statement context for ${queryLabel.toUpperCase()}.`,
+      `Total spend is $${spendTotal.toFixed(2)} across ${spendRows.length} transaction${spendRows.length === 1 ? '' : 's'}.`,
+      ...(latestSpend
+        ? [`Most recent charge: ${latestSpend.date || 'UNKNOWN-DATE'} | ${latestSpend.merchant || 'UNKNOWN-MERCHANT'} | $${latestSpend.amount.toFixed(2)}.`]
+        : []),
+      ...(matchedMerchants.length > 0
+        ? [`Matches found: ${matchedMerchants.join(', ')}.`]
+        : []),
+      `Want me to compare this with your previous statement?`,
+    ].join(' ');
+  }
 
   const lines: string[] = [];
   lines.push('## Summary');
@@ -5734,12 +6142,68 @@ export const handler: Handler = async (event, context) => {
     // Deterministic temporal capability: answer date/time without a model call.
     // This keeps simple utility requests fast and reliable.
     setStage('deterministic_brains');
-    const pipelineReuseIntent = detectPipelineReuseIntent(masked);
-    const recallLastUploadIntent = isLastUploadRecallIntent(masked);
-    const recallLastUploadDetailIntent = isLastUploadDetailIntent(masked);
-    const workspaceActivityIntent = isWorkspaceActivityIntent(masked);
-    const statementBreakdownIntent = isStatementBreakdownIntent(masked) || pipelineReuseIntent === 'tag_breakdown';
-    let forcedPrimeDecision: PrimeRouteDecision | null = null;
+
+    // System-generated summary requests must skip ALL deterministic paths
+    // and flow through to OpenAI so Prime can use the PRIME DOCUMENT SUMMARY TEMPLATE.
+    const isPrimeSummaryRequest = isPrimeSummarySystemPrompt(masked);
+
+    const pipelineReuseIntent = isPrimeSummaryRequest ? null : detectPipelineReuseIntent(masked);
+    const explicitSummaryRecallIntent = isPrimeSummaryRequest ? false : isExplicitSummaryRecallIntent(masked);
+    const heuristicLastUploadSummaryIntent =
+      !isPrimeSummaryRequest &&
+      /\b(summary|summarize|summarise)\b/.test(String(masked || '').toLowerCase()) &&
+      /\b(last|latest|recent)\b/.test(String(masked || '').toLowerCase()) &&
+      /\b(upload|statement|statment|receipt|file|import)\b/.test(String(masked || '').toLowerCase());
+    const recallLastUploadIntent = isPrimeSummaryRequest
+      ? false
+      : (isLastUploadRecallIntent(masked) || heuristicLastUploadSummaryIntent);
+    const recallLastUploadDetailIntent = isPrimeSummaryRequest ? false : isLastUploadDetailIntent(masked);
+    const workspaceActivityIntent = isPrimeSummaryRequest ? false : isWorkspaceActivityIntent(masked);
+    const statementBreakdownIntent = !isPrimeSummaryRequest && (isStatementBreakdownIntent(masked) || pipelineReuseIntent === 'tag_breakdown');
+    // When isPrimeSummaryRequest is true, forcedPrimeDecision stays null through the entire
+    // deterministic section so the request falls through to the OpenAI model call.
+    let forcedPrimeDecision: PrimeRouteDecision | null = isPrimeSummaryRequest ? null : null;
+    if (!forcedPrimeDecision && explicitSummaryRecallIntent && !statementBreakdownIntent && !hasAttachments) {
+      const scopedImportId = String(
+        threadStatementContext?.importId ||
+        getMostRecentImportIdFromPrimeContext(effectivePrimeContext) ||
+        await resolveImportIdContextForTurn(masked, sb, userId) ||
+        ''
+      ).trim();
+      if (scopedImportId) {
+        const breakdown = await loadStatementBreakdown(sb, userId, scopedImportId);
+        if (breakdown) {
+          const keyDetails = await resolveBreakdownKeyDetails(sb, userId, breakdown);
+          const enrichedBreakdown: StatementBreakdown = {
+            ...breakdown,
+            statement_meta: {
+              ...breakdown.statement_meta,
+              issuer: keyDetails.issuer || breakdown.statement_meta?.issuer || null,
+              account_last4: keyDetails.accountLast4 || breakdown.statement_meta?.account_last4 || null,
+              period_start: keyDetails.periodStart || breakdown.statement_meta?.period_start || null,
+              period_end: keyDetails.periodEnd || breakdown.statement_meta?.period_end || null,
+            },
+          };
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_breakdown',
+            deterministic_intent: 'statement_breakdown_from_summary_recall',
+            assistantText: renderStatementBreakdownMarkdown(enrichedBreakdown, { includeNextActions: true }),
+          };
+        }
+      }
+      if (!forcedPrimeDecision) {
+        const latestSummaryText = await loadLatestImportSummaryTextBestEffort(sb, userId);
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'upload_summary_recall',
+          deterministic_intent: 'latest_import_summary',
+          assistantText: latestSummaryText
+            ? latestSummaryText
+            : "I can't find a recent upload summary yet. Upload a statement and I'll summarize it in the full template.",
+        };
+      }
+    }
     if (!forcedPrimeDecision && statementBreakdownIntent && !hasAttachments) {
       const explicitImportId = extractImportIdFromMessage(masked);
       let resolvedImportId: string | null = explicitImportId;
@@ -5846,14 +6310,164 @@ export const handler: Handler = async (event, context) => {
       }
       }
     }
-    const statementQaIntent = isStatementQaIntent(masked);
+    const threadStatementContext = getThreadStatementContext(userId, threadId);
+    const statementCountIntent =
+      !isPrimeSummaryRequest &&
+      isStatementCountIntent(masked);
+    if (!forcedPrimeDecision && statementCountIntent && !hasAttachments) {
+      const [{ count: totalCount }, { count: processedCount }, latestImport] = await Promise.all([
+        sb
+          .from('imports')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId),
+        sb
+          .from('imports')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .in('status', ['committed', 'parsed']),
+        sb
+          .from('imports')
+          .select('created_at')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      const total = Number(totalCount || 0);
+      const ready = Number(processedCount || 0);
+      const latestCreatedAt = latestImport?.data?.created_at ? String(latestImport.data.created_at) : null;
+      const latestText = latestCreatedAt ? ` Latest upload: ${new Date(latestCreatedAt).toLocaleString()}.` : '';
+      forcedPrimeDecision = {
+        lane: 'deterministic',
+        deterministic_path: 'statement_inventory',
+        deterministic_intent: 'statement_count',
+        assistantText: total > 0
+          ? `I can see ${total} statement${total === 1 ? '' : 's'} total (${ready} processed).${latestText}`
+          : "I don't see any statements yet. Upload one and I will analyze it right away.",
+      };
+    }
+    const latestStatementDateIntent =
+      !isPrimeSummaryRequest &&
+      isLatestStatementDateIntent(masked);
+    if (!forcedPrimeDecision && latestStatementDateIntent && !hasAttachments) {
+      const contextImportId = getMostRecentImportIdFromPrimeContext(effectivePrimeContext);
+      const threadScopedImportId = String(threadStatementContext?.importId || '').trim() || null;
+      let facts = await loadLatestImportFactsBestEffort(sb, userId);
+      let resolvedImportId =
+        threadScopedImportId ||
+        contextImportId ||
+        String(facts?.importId || '').trim() ||
+        await resolveImportIdContextForTurn(masked, sb, userId);
+      if (!resolvedImportId) {
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'statement_inventory',
+          deterministic_intent: 'statement_latest_date_missing',
+          assistantText: "I couldn't find a processed statement yet. Upload one and I'll report the date immediately.",
+        };
+      } else {
+        const statementLabel =
+          getStatementLabelFromPrimeContext(effectivePrimeContext, resolvedImportId) ||
+          threadStatementContext?.label ||
+          null;
+        setThreadStatementContext(userId, threadId, resolvedImportId, statementLabel);
+        if (!facts || String(facts.importId || '') !== String(resolvedImportId)) {
+          const latest = await loadLatestImportSummaryBestEffort(sb, userId);
+          facts = {
+            importId: resolvedImportId,
+            createdAt: latest?.createdAt || null,
+            summaryText: latest?.summaryText || null,
+            transactionCount: 0,
+            totalAmount: 0,
+            topMerchant: null,
+            topDate: null,
+            currency: 'CAD',
+          };
+        }
+        const txDate = String(facts?.topDate || '').trim() || null;
+        const uploadedAt = String(facts?.createdAt || '').trim() || null;
+        const uploadedAtText = uploadedAt ? new Date(uploadedAt).toLocaleString() : null;
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'statement_inventory',
+          deterministic_intent: 'statement_latest_date',
+          assistantText: txDate
+            ? `The most recent transaction date in your latest statement${statementLabel ? ` (${statementLabel})` : ''} is ${txDate}.`
+            : uploadedAtText
+              ? `I found your latest statement${statementLabel ? ` (${statementLabel})` : ''}. Upload time: ${uploadedAtText}. I couldn't read a reliable transaction date yet.`
+              : `I found your latest statement${statementLabel ? ` (${statementLabel})` : ''}, but I couldn't read a reliable date yet.`,
+        };
+      }
+    }
+    const statementScopeSelectionIntent =
+      !isPrimeSummaryRequest &&
+      isStatementScopeSelectionIntent(masked);
+    if (!forcedPrimeDecision && statementScopeSelectionIntent && !hasAttachments) {
+      const explicitImportId = extractImportIdFromMessage(masked);
+      let resolvedImportId =
+        explicitImportId ||
+        getMostRecentImportIdFromPrimeContext(effectivePrimeContext) ||
+        String(threadStatementContext?.importId || '').trim() ||
+        await resolveImportIdContextForTurn(masked, sb, userId);
+      let facts = null as Awaited<ReturnType<typeof loadLatestImportFactsBestEffort>> | null;
+      if (!resolvedImportId) {
+        facts = await loadLatestImportFactsBestEffort(sb, userId);
+        if (facts?.importId) resolvedImportId = String(facts.importId).trim();
+      }
+      const statementLabel =
+        getStatementLabelFromPrimeContext(effectivePrimeContext, resolvedImportId) ||
+        threadStatementContext?.label ||
+        null;
+      if (resolvedImportId) {
+        setThreadStatementContext(userId, threadId, resolvedImportId, statementLabel);
+        const latestDate = facts?.topDate ? ` Most recent transaction date: ${facts.topDate}.` : '';
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'statement_scope_selection',
+          deterministic_intent: 'statement_scope_latest_selected',
+          assistantText: `Using your latest statement${statementLabel ? ` (${statementLabel})` : ''} now.${latestDate} Ask your question and I will answer from this statement.`,
+        };
+      } else {
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'statement_scope_selection',
+          deterministic_intent: 'statement_scope_latest_missing',
+          assistantText: "I couldn't find a processed statement yet. Upload a statement (or wait for processing to finish), then ask again.",
+        };
+      }
+    }
+    const statementQaIntent =
+      !isPrimeSummaryRequest &&
+      !explicitSummaryRecallIntent &&
+      !isStatementScopeSelectionIntent(masked) &&
+      isStatementQaIntent(masked);
     if (!forcedPrimeDecision && statementQaIntent && !hasAttachments) {
       const explicitImportId = extractImportIdFromMessage(masked);
-      const importIdForQa = explicitImportId || await resolveImportIdContextForTurn(masked, sb, userId);
+      const contextImportId = getMostRecentImportIdFromPrimeContext(effectivePrimeContext);
+      const threadScopedImportId = String(threadStatementContext?.importId || '').trim() || null;
+      let importIdForQa =
+        explicitImportId ||
+        contextImportId ||
+        threadScopedImportId ||
+        await resolveImportIdContextForTurn(masked, sb, userId);
+      let latestFactsForQa: Awaited<ReturnType<typeof loadLatestImportFactsBestEffort>> | null = null;
+      if (!importIdForQa) {
+        latestFactsForQa = await loadLatestImportFactsBestEffort(sb, userId);
+        importIdForQa = String(latestFactsForQa?.importId || '').trim() || null;
+      }
+      const statementLabelFromContext = getStatementLabelFromPrimeContext(effectivePrimeContext, importIdForQa)
+        || threadStatementContext?.label
+        || null;
+      if (importIdForQa) {
+        setThreadStatementContext(userId, threadId, importIdForQa, statementLabelFromContext);
+      }
       const dateHint = extractDateRangeHint(masked);
-      const queryHint = extractQueryHint(masked) || extractMerchantNeedleFromQuestion(masked);
-      const includePending = shouldIncludePendingInTxSearch(masked);
       const mode = inferStatementQaMode(masked);
+      const rawQueryHint = extractQueryHint(masked) || extractMerchantNeedleFromQuestion(masked);
+      const queryHint = mode === 'merchant'
+        ? normalizeMerchantQueryText(String(rawQueryHint || '')) || rawQueryHint
+        : rawQueryHint;
+      const includePending = mode === 'merchant' ? true : shouldIncludePendingInTxSearch(masked);
       const topN = parseTopNHint(masked);
       const qaRequest: StatementQaRequest = {
         importId: importIdForQa,
@@ -5870,12 +6484,66 @@ export const handler: Handler = async (event, context) => {
         `[Chat][statement_qa] stage=statement_qa rows_count=${qaRows.length} date_range=${qaRequest.startDate || 'none'}..${qaRequest.endDate || 'none'} doc_id=${firstDocId} import_id=${qaRequest.importId || 'none'}`
       );
       if (qaRows.length === 0) {
-        forcedPrimeDecision = {
-          lane: 'deterministic',
-          deterministic_path: 'statement_qa',
-          deterministic_intent: 'statement_qa_missing_scope',
-          assistantText: 'Which month or which statement upload should I use?',
-        };
+        if (mode === 'merchant' && queryHint) {
+          const facts = await loadLatestImportFactsBestEffort(sb, userId);
+          const merchantImportId = importIdForQa || contextImportId || threadScopedImportId || facts?.importId || null;
+          if (merchantImportId) {
+            const merchantSpend = await loadMerchantSpendForLatestImportBestEffort(
+              sb,
+              userId,
+              merchantImportId,
+              queryHint
+            );
+            if (merchantSpend.count > 0) {
+              forcedPrimeDecision = {
+                lane: 'deterministic',
+                deterministic_path: 'statement_qa',
+                deterministic_intent: 'statement_qa_merchant_fallback_latest',
+                assistantText: [
+                  `I checked ${statementLabelFromContext || 'your latest uploaded statement'}: ${String(queryHint).toUpperCase()} totals ${formatCurrency(merchantSpend.total, facts?.currency || 'CAD')}.`,
+                  `I matched ${merchantSpend.count} transaction${merchantSpend.count === 1 ? '' : 's'}.`,
+                  ...(merchantSpend.matches.length > 0 ? [`Matches: ${merchantSpend.matches.join(', ')}.`] : []),
+                ].join(' '),
+              };
+            }
+            if (!forcedPrimeDecision) {
+              const summaryText =
+                await loadImportSummaryTextByImportIdBestEffort(sb, userId, merchantImportId) ||
+                (await loadLatestImportSummaryBestEffort(sb, userId))?.summaryText ||
+                null;
+              if (summaryText) {
+                const summaryStats = computeMerchantStatsFromSummary(summaryText, String(queryHint));
+                if (summaryStats.count > 0) {
+                  const asksDateOnly =
+                    /\b(most recent|latest|last)\s+(date|transaction)\b/.test(String(masked || '').toLowerCase()) ||
+                    /\bdate\s+for\b/.test(String(masked || '').toLowerCase());
+                  forcedPrimeDecision = {
+                    lane: 'deterministic',
+                    deterministic_path: 'statement_qa',
+                    deterministic_intent: asksDateOnly ? 'statement_qa_merchant_date_from_summary' : 'statement_qa_merchant_total_from_summary',
+                    assistantText: asksDateOnly
+                      ? `${statementLabelFromContext || 'From your latest statement'}, the most recent ${String(queryHint).toUpperCase()} transaction date is ${summaryStats.mostRecentDate || 'unknown'}.`
+                      : `${statementLabelFromContext || 'On your latest statement'}, you spent ${formatCurrency(summaryStats.total, facts?.currency || 'CAD')} on ${String(queryHint).toUpperCase()} across ${summaryStats.count} transaction${summaryStats.count === 1 ? '' : 's'}.`,
+                  };
+                }
+              }
+            }
+          }
+        }
+        if (!forcedPrimeDecision) {
+          const hasScopedImport = Boolean(importIdForQa || contextImportId || threadScopedImportId || latestFactsForQa?.importId);
+          const scopeHint = hasScopedImport
+            ? `I checked ${statementLabelFromContext || 'your latest uploaded statement'} first, but I could not find a clear match yet.`
+            : "I can answer this right away once I know which uploaded statement to use.";
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_qa',
+            deterministic_intent: 'statement_qa_missing_scope',
+            assistantText: hasScopedImport
+              ? `${scopeHint} Tell me the merchant or month and I'll drill in immediately.`
+              : `${scopeHint} You can say "use my latest statement" and I will pull it now.`,
+          };
+        }
       } else {
         forcedPrimeDecision = {
           lane: 'deterministic',
@@ -5885,31 +6553,34 @@ export const handler: Handler = async (event, context) => {
         };
       }
     }
-    const merchantNeedleForTurn = extractMerchantNeedleFromQuestion(masked);
+    const merchantNeedleForTurn = isPrimeSummaryRequest ? null : extractMerchantNeedleFromQuestion(masked);
     const merchantSpendIntent =
-      Boolean(merchantNeedleForTurn) &&
+      !isPrimeSummaryRequest && Boolean(merchantNeedleForTurn) &&
       /\b(how much|amount|total|spend|spent|pay|paid)\b/.test(String(masked || '').toLowerCase());
     if (!forcedPrimeDecision && merchantSpendIntent && !hasAttachments) {
       const facts = await loadLatestImportFactsBestEffort(sb, userId);
-      if (facts?.importId && merchantNeedleForTurn) {
+      const scopedImportId = threadStatementContext?.importId || facts?.importId || null;
+      if (scopedImportId && merchantNeedleForTurn) {
         const merchantSpend = await loadMerchantSpendForLatestImportBestEffort(
           sb,
           userId,
-          facts.importId,
+          scopedImportId,
           merchantNeedleForTurn
         );
         if (merchantSpend.count > 0) {
+          const statementLabelFromContext =
+            getStatementLabelFromPrimeContext(effectivePrimeContext, scopedImportId) ||
+            threadStatementContext?.label ||
+            null;
           forcedPrimeDecision = {
             lane: 'deterministic',
             deterministic_path: 'statement_merchant_spend',
             deterministic_intent: 'latest_import_merchant_spend',
             assistantText: [
-              `Here is what I found for **${merchantNeedleForTurn.toUpperCase()}** on your latest uploaded statement:`,
-              '',
-              `- Total spend: ${formatCurrency(merchantSpend.total, facts.currency)}`,
-              `- Transactions matched: ${merchantSpend.count}`,
-              ...(merchantSpend.matches.length > 0 ? [`- Merchant match: ${merchantSpend.matches.join(', ')}`] : []),
-            ].join('\n'),
+              `On ${statementLabelFromContext || 'your latest statement'}, you spent ${formatCurrency(merchantSpend.total, facts?.currency || 'CAD')} with ${merchantNeedleForTurn}.`,
+              `That came from ${merchantSpend.count} transaction${merchantSpend.count === 1 ? '' : 's'}.`,
+              ...(merchantSpend.matches.length > 0 ? [`Matches I used: ${merchantSpend.matches.join(', ')}.`] : []),
+            ].join(' '),
           };
         } else {
           forcedPrimeDecision = {
@@ -5956,15 +6627,30 @@ export const handler: Handler = async (event, context) => {
       const firstName = rawFirst5947 === 'there' ? 'there' : rawFirst5947.charAt(0).toUpperCase() + rawFirst5947.slice(1);
       const latest = await loadLatestImportSummaryBestEffort(sb, userId);
       if (latest?.summaryText) {
+        let institutionOverride: string | null = null;
+        if (latest.importId) {
+          const breakdown = await loadStatementBreakdown(sb, userId, latest.importId);
+          if (breakdown) {
+            const keyDetails = await resolveBreakdownKeyDetails(sb, userId, breakdown);
+            institutionOverride = keyDetails.issuer || null;
+          }
+        }
+        const statementLabel = getStatementLabelFromPrimeContext(effectivePrimeContext, latest.importId);
+        setThreadStatementContext(
+          userId,
+          threadId,
+          latest.importId,
+          statementLabel
+        );
         const timestampText = latest.createdAt ? new Date(latest.createdAt).toLocaleString() : 'recently';
         forcedPrimeDecision = {
           lane: 'deterministic',
           deterministic_path: 'upload_recall',
           deterministic_intent: 'last_upload_recall',
           assistantText: [
-            `${firstName}, using your last uploaded document (${timestampText})${latest.importId ? ` [import ${latest.importId.slice(0, 8)}]` : ''}.`,
+            `${firstName}, using your last uploaded document${statementLabel ? ` (${statementLabel})` : ''} (${timestampText})${latest.importId ? ` [import ${latest.importId.slice(0, 8)}]` : ''}.`,
             '',
-            buildUploadFindingsResponseFromSummary(latest.summaryText),
+            buildUploadFindingsResponseFromSummary(latest.summaryText, { institutionOverride }),
           ].join('\n'),
         };
       } else {
@@ -6024,7 +6710,42 @@ export const handler: Handler = async (event, context) => {
         };
       }
     }
-    if (pipelineReuseIntent !== 'none' && lastPipelineSnapshot) {
+    if (!forcedPrimeDecision && isAskMyNameIntent(masked)) {
+      const displayName = await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
+      const firstName = formatFirstName(displayName);
+      forcedPrimeDecision = {
+        lane: 'deterministic',
+        deterministic_path: 'small_talk',
+        deterministic_intent: 'ask_my_name',
+        assistantText: firstName === 'there'
+          ? "I don't have your name loaded yet. Add it in Account settings and I'll use it in chat."
+          : `Your profile name is ${firstName}.`,
+      };
+    }
+    if (!forcedPrimeDecision && isSimpleHowAreYouIntent(masked)) {
+      const displayName = await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
+      const firstName = formatFirstName(displayName);
+      const assistantText = firstName === 'there'
+        ? 'I am doing well and ready to help. What should we tackle next with your money today?'
+        : `${firstName}, I am doing well and ready to help. What should we tackle next with your money today?`;
+      forcedPrimeDecision = {
+        lane: 'deterministic',
+        deterministic_path: 'small_talk',
+        deterministic_intent: 'how_are_you',
+        assistantText,
+      };
+    }
+    // Keep "last/latest upload summary" deterministic recalls authoritative.
+    // Without this guard, generic pipeline reuse can override recall responses
+    // and return stale wording even after fresh summary fixes.
+    if (
+      pipelineReuseIntent &&
+      pipelineReuseIntent !== 'none' &&
+      lastPipelineSnapshot &&
+      !explicitSummaryRecallIntent &&
+      !recallLastUploadIntent &&
+      !recallLastUploadDetailIntent
+    ) {
       if (pipelineReuseIntent === 'explain_categorization' && lastPipelineRaw?.tag_json) {
         const explainText = buildExplainCategorizationResponse(masked, lastPipelineRaw.tag_json);
         forcedPrimeDecision = {
@@ -6099,18 +6820,53 @@ export const handler: Handler = async (event, context) => {
         };
       }
     }
-    if (pipelineReuseIntent !== 'none' && !lastPipelineSnapshot) {
-      const latestSummaryText = await loadLatestImportSummaryTextBestEffort(sb, userId);
-      forcedPrimeDecision = {
-        lane: 'deterministic',
-        deterministic_path: 'pipeline_reuse',
-        deterministic_intent: pipelineReuseIntent,
-        assistantText: latestSummaryText
-          ? buildUploadFindingsResponseFromSummary(latestSummaryText)
-          : "I don't have a statement loaded yet. Upload one anytime.",
-      };
+    if (pipelineReuseIntent && pipelineReuseIntent !== 'none' && !lastPipelineSnapshot) {
+      const summaryRequestText = String(masked || '').toLowerCase();
+      const asksForSummaryOnly = /\b(please\s+)?(summari[sz]e|summary|summarise|sumarize|usmmarize)\b/.test(summaryRequestText);
+      const scopedImportId = String(
+        threadStatementContext?.importId ||
+        getMostRecentImportIdFromPrimeContext(effectivePrimeContext) ||
+        ''
+      ).trim();
+
+      // Prefer real statement breakdown rendering for "please summarize" when we already
+      // know which statement is in scope. This avoids repetitive canned recall responses.
+      if (asksForSummaryOnly && scopedImportId) {
+        const breakdown = await loadStatementBreakdown(sb, userId, scopedImportId);
+        if (breakdown) {
+          const keyDetails = await resolveBreakdownKeyDetails(sb, userId, breakdown);
+          const enrichedBreakdown: StatementBreakdown = {
+            ...breakdown,
+            statement_meta: {
+              ...breakdown.statement_meta,
+              issuer: keyDetails.issuer || breakdown.statement_meta?.issuer || null,
+              account_last4: keyDetails.accountLast4 || breakdown.statement_meta?.account_last4 || null,
+              period_start: keyDetails.periodStart || breakdown.statement_meta?.period_start || null,
+              period_end: keyDetails.periodEnd || breakdown.statement_meta?.period_end || null,
+            },
+          };
+          forcedPrimeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'statement_breakdown',
+            deterministic_intent: 'statement_breakdown_scoped_summary',
+            assistantText: renderStatementBreakdownMarkdown(enrichedBreakdown, { includeNextActions: true }),
+          };
+        }
+      }
+
+      if (!forcedPrimeDecision) {
+        const latestSummaryText = await loadLatestImportSummaryTextBestEffort(sb, userId);
+        forcedPrimeDecision = {
+          lane: 'deterministic',
+          deterministic_path: 'pipeline_reuse',
+          deterministic_intent: pipelineReuseIntent,
+          assistantText: latestSummaryText
+            ? buildUploadFindingsResponseFromSummary(latestSummaryText)
+            : "I don't have a statement loaded yet. Upload one anytime.",
+        };
+      }
     }
-    if (!forcedPrimeDecision) {
+    if (!forcedPrimeDecision && !isPrimeSummaryRequest) {
       const isPrimeForHelpFastLane = finalEmployeeSlug === 'prime-boss' || finalEmployeeSlug === 'prime';
       if (isPrimeForHelpFastLane && !hasAttachments) {
         const helpLane = shouldUseHelpFastLane(masked);
@@ -6136,7 +6892,7 @@ export const handler: Handler = async (event, context) => {
     }
     let payoffRawForSnapshot: any | undefined;
     let payoffSnapshotPatch: Partial<PipelineSnapshot> | undefined;
-    if (!forcedPrimeDecision && isPayoffProjectionIntent(masked) && !hasAttachments) {
+    if (!forcedPrimeDecision && !isPrimeSummaryRequest && isPayoffProjectionIntent(masked) && !hasAttachments) {
       const payoffResult = await buildPayoffProjectionResponse({
         messageText: masked,
         currency: String(effectivePrimeContext?.currency || 'CAD'),
@@ -6159,11 +6915,12 @@ export const handler: Handler = async (event, context) => {
       hasAttachments,
       primeContext: effectivePrimeContext,
     });
+    let preferredNameForPrime: string | null = effectivePrimeContext?.displayName || null;
 
     if (primeDecision.lane === 'deterministic') {
       orchCtx.deterministic_path = primeDecision.deterministic_path;
       orchCtx.deterministic_intent = primeDecision.deterministic_intent;
-      let assistantContent = sanitizePrimeAssistantPresentation(primeDecision.assistantText, finalEmployeeSlug);
+      let assistantContent = sanitizePrimeAssistantPresentation(primeDecision.assistantText, finalEmployeeSlug, preferredNameForPrime);
       assistantContent = ensureAssistantContent(assistantContent, orchestrationStage, orchCtx);
       fallbackUsed = orchCtx.fallback_used;
       setStage('respond');
@@ -6665,7 +7422,7 @@ export const handler: Handler = async (event, context) => {
           : 'Prime summary: upload/import processing is staged and ready for the next actionable step.',
       ].join('\n');
       const assistantContent = ensureAssistantContent(
-        sanitizePrimeAssistantPresentation(primeWorkerSummary, finalEmployeeSlug),
+        sanitizePrimeAssistantPresentation(primeWorkerSummary, finalEmployeeSlug, preferredNameForPrime),
         orchestrationStage,
         orchCtx
       );
@@ -6764,7 +7521,8 @@ export const handler: Handler = async (event, context) => {
           temporalIntent,
           effectivePrimeContext?.timezone || null
         ),
-        finalEmployeeSlug
+        finalEmployeeSlug,
+        preferredNameForPrime
       );
 
       console.log('[Chat] ⚡ Deterministic temporal response path', {
@@ -6860,7 +7618,8 @@ export const handler: Handler = async (event, context) => {
     if (groundedFactsIntent && isPrimeEmployeeForGroundedFacts && !hasAttachments) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildGroundedFactsResponse(groundedFactsIntent, effectivePrimeContext),
-        finalEmployeeSlug
+        finalEmployeeSlug,
+        preferredNameForPrime
       );
 
       console.log('[Chat] ⚡ Deterministic grounded facts response path', {
@@ -6951,15 +7710,32 @@ export const handler: Handler = async (event, context) => {
       };
     }
 
-    const clarificationDecision = getClarificationDecision(masked, effectivePrimeContext, finalEmployeeSlug);
-    if (clarificationDecision && !hasAttachments) {
+    const skipClarificationForStatementFlow =
+      Boolean(hidden) ||
+      explicitSummaryRecallIntent ||
+      statementBreakdownIntent ||
+      statementQaIntent ||
+      statementScopeSelectionIntent ||
+      recallLastUploadIntent ||
+      recallLastUploadDetailIntent;
+    const clarificationDecision =
+      isPrimeSummaryRequest || skipClarificationForStatementFlow
+        ? null
+        : getClarificationDecision(masked, effectivePrimeContext, finalEmployeeSlug);
+    const hasScopedStatementContext = Boolean(getThreadStatementContext(userId, threadId)?.importId);
+    const effectiveClarificationDecision =
+      clarificationDecision?.reason === 'missing_timeframe' && hasScopedStatementContext
+        ? null
+        : clarificationDecision;
+    if (effectiveClarificationDecision && !hasAttachments) {
       const assistantContent = sanitizePrimeAssistantPresentation(
-        clarificationDecision.question,
-        finalEmployeeSlug
+        effectiveClarificationDecision.question,
+        finalEmployeeSlug,
+        preferredNameForPrime
       );
 
       console.log('[Chat] ⚡ Deterministic clarification response path', {
-        reason: clarificationDecision.reason,
+        reason: effectiveClarificationDecision.reason,
         employee: finalEmployeeSlug,
       });
 
@@ -7007,7 +7783,7 @@ export const handler: Handler = async (event, context) => {
         toolsUsed: null,
         success: true,
         deterministicPath: 'clarification',
-        deterministicIntent: clarificationDecision.reason,
+        deterministicIntent: effectiveClarificationDecision.reason,
       });
 
       if (stream) {
@@ -7040,7 +7816,7 @@ export const handler: Handler = async (event, context) => {
           sessionId: finalSessionId,
           thread_id: threadId,
           guardrails: guardrailsStatus,
-          meta: { deterministic: 'clarification', reason: clarificationDecision.reason },
+          meta: { deterministic: 'clarification', reason: effectiveClarificationDecision.reason },
         }),
       };
     }
@@ -7050,7 +7826,8 @@ export const handler: Handler = async (event, context) => {
     if (coachingIntent && isPrimeEmployeeForCoaching && !hasAttachments) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildCoachingResponse(coachingIntent, effectivePrimeContext),
-        finalEmployeeSlug
+        finalEmployeeSlug,
+        preferredNameForPrime
       );
 
       console.log('[Chat] ⚡ Deterministic coaching response path', {
@@ -7146,7 +7923,8 @@ export const handler: Handler = async (event, context) => {
     if (insightIntent && isPrimeEmployeeForInsights && !hasAttachments) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildInsightResponse(insightIntent, effectivePrimeContext),
-        finalEmployeeSlug
+        finalEmployeeSlug,
+        preferredNameForPrime
       );
 
       console.log('[Chat] ⚡ Deterministic financial insight response path', {
@@ -7242,7 +8020,8 @@ export const handler: Handler = async (event, context) => {
     if (predictiveIntent && isPrimeEmployeeForPredictive && !hasAttachments) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildPredictiveResponse(predictiveIntent, effectivePrimeContext),
-        finalEmployeeSlug
+        finalEmployeeSlug,
+        preferredNameForPrime
       );
 
       console.log('[Chat] ⚡ Deterministic predictive finance response path', {
@@ -7338,7 +8117,8 @@ export const handler: Handler = async (event, context) => {
     if (automationIntent && isPrimeEmployeeForAutomation && !hasAttachments) {
       const assistantContent = sanitizePrimeAssistantPresentation(
         buildAutomationResponse(automationIntent, effectivePrimeContext),
-        finalEmployeeSlug
+        finalEmployeeSlug,
+        preferredNameForPrime
       );
 
       console.log('[Chat] ⚡ Deterministic automation response path', {
@@ -7733,6 +8513,9 @@ export const handler: Handler = async (event, context) => {
         : null;
       ctx = cachedCtx ?? await fetchAiUserContext(userId);
       userProfile = cachedProfile ?? await getUserProfile(sb, userId);
+      if (userProfile?.preferredName) {
+        preferredNameForPrime = userProfile.preferredName;
+      }
       if (!cachedCtx && runtimeCacheTtlSeconds > 0) {
         writeRuntimeCache(runtimeCache.aiUserContext, ctxCacheKey, ctx, runtimeCacheTtlSeconds);
       }
@@ -9201,6 +9984,21 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         primeIntent.isBreakdownReport &&
         !primeIntent.isUploadHowTo &&
         isGenericUploadTemplateReply(assistantContent);
+      const shouldForcePrimeSmallTalk =
+        isPrime &&
+        (isAskMyNameIntent(masked) || isSimpleHowAreYouIntent(masked));
+      if (shouldForcePrimeSmallTalk) {
+        const resolvedNameForSmallTalk =
+          preferredNameForPrime ||
+          await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
+        const deterministicSmallTalk = buildPrimeSmallTalkDeterministicReply(masked, resolvedNameForSmallTalk);
+        if (deterministicSmallTalk) {
+          assistantContent = deterministicSmallTalk.text;
+          orchCtx.deterministic_path = 'small_talk';
+          orchCtx.deterministic_intent = deterministicSmallTalk.intent;
+          console.log('[Chat] Forced deterministic small_talk override (streaming):', deterministicSmallTalk.intent);
+        }
+      }
       if (shouldRewritePrimeGeneric) {
         const rewritten = buildPrimeDeterministicRewrite({
           hasDocs: hasDocumentContext,
@@ -9211,7 +10009,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         writeSSE({ type: 'text', content: `\n\nUpdated answer:\n${rewritten}` });
       }
 
-      const sanitizedStreamAssistantContent = sanitizePrimeAssistantPresentation(assistantContent, finalEmployeeSlug);
+      const sanitizedStreamAssistantContent = sanitizePrimeAssistantPresentation(assistantContent, finalEmployeeSlug, preferredNameForPrime);
       if (sanitizedStreamAssistantContent !== assistantContent) {
         assistantContent = sanitizedStreamAssistantContent;
         writeSSE({ type: 'text', content: `\n\nUpdated answer:\n${assistantContent}` });
@@ -9847,6 +10645,21 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         primeIntent.isBreakdownReport &&
         !primeIntent.isUploadHowTo &&
         isGenericUploadTemplateReply(assistantContent);
+      const shouldForcePrimeSmallTalkNonStream =
+        isPrime &&
+        (isAskMyNameIntent(masked) || isSimpleHowAreYouIntent(masked));
+      if (shouldForcePrimeSmallTalkNonStream) {
+        const resolvedNameForSmallTalk =
+          preferredNameForPrime ||
+          await resolveUserDisplayNameBestEffort(sb, userId, effectivePrimeContext?.displayName || null);
+        const deterministicSmallTalk = buildPrimeSmallTalkDeterministicReply(masked, resolvedNameForSmallTalk);
+        if (deterministicSmallTalk) {
+          assistantContent = deterministicSmallTalk.text;
+          orchCtx.deterministic_path = 'small_talk';
+          orchCtx.deterministic_intent = deterministicSmallTalk.intent;
+          console.log('[Chat] Forced deterministic small_talk override (non-streaming):', deterministicSmallTalk.intent);
+        }
+      }
       if (shouldRewritePrimeGenericNonStream) {
         assistantContent = buildPrimeDeterministicRewrite({
           hasDocs: hasDocumentContext,
@@ -9854,7 +10667,7 @@ CUSTODIAN CONTEXT (Account Security & Settings):
         });
       }
 
-      assistantContent = sanitizePrimeAssistantPresentation(assistantContent, finalEmployeeSlug);
+      assistantContent = sanitizePrimeAssistantPresentation(assistantContent, finalEmployeeSlug, preferredNameForPrime);
       setStage('respond');
       assistantContent = ensureAssistantContent(assistantContent, orchestrationStage, orchCtx);
       if (assistantContent === buildSafeFallbackResponse(orchestrationStage)) {
@@ -10181,7 +10994,8 @@ function ensureAssistantContent(content: string | null | undefined, stage: strin
 
 function sanitizePrimeAssistantPresentation(
   content: string | null | undefined,
-  employeeSlug: string | null | undefined
+  employeeSlug: string | null | undefined,
+  preferredName?: string | null
 ): string {
   const text = String(content || '');
   const slug = String(employeeSlug || '').toLowerCase();
@@ -10189,13 +11003,23 @@ function sanitizePrimeAssistantPresentation(
   if (!isPrime) return text;
 
   let sanitized = sanitizePrimeResponse(text);
-  const mentionsUploads = /\b(upload|import|statement|statements)\b/i.test(sanitized);
-  const isGreetingLikeReply = /\b(how can i assist you today|how can i help|how are you)\b/i.test(sanitized);
-  const reassurance = "I'll guide you if anything doesn't import correctly.";
-  if (mentionsUploads && !isGreetingLikeReply && !sanitized.includes(reassurance)) {
-    sanitized = `${sanitized.trim()}\n\n${reassurance}`;
+  const isGreetingLikeReply = /\b(how can i assist you today|how can i help|how are you|i(?:'m| am) here and ready to help|i(?:'m| am) doing great)\b/i.test(sanitized);
+  // If Prime returned a generic greeting, add first-name personalization when available.
+  if (isGreetingLikeReply) {
+    const preferred = String(preferredName || '').trim();
+    const firstNameRaw = preferred.split(' ')[0] || '';
+    const firstName = firstNameRaw
+      ? firstNameRaw.charAt(0).toUpperCase() + firstNameRaw.slice(1)
+      : '';
+    if (firstName && firstName.toLowerCase() !== 'there') {
+      const alreadyAddressed = new RegExp(`\\b${firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(sanitized);
+      if (!alreadyAddressed) {
+        sanitized = `${firstName}, ${sanitized.charAt(0).toLowerCase()}${sanitized.slice(1)}`;
+      }
+    }
   }
-  return sanitized;
+  // Keep Prime conversational and avoid repetitive canned closers after every answer.
+  return isGreetingLikeReply ? sanitized : sanitized.trim();
 }
 
 async function logOrchestrationTelemetry(
