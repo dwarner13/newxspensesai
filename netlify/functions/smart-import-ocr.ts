@@ -3492,7 +3492,7 @@ export const handler: Handler = async (event, context) => {
         console.log('[OCR HANDOFF DEBUG] transient_text_preview', transientPreview);
         console.log('[OCR HANDOFF DEBUG] same_text:', rescuedTextForHandoff ? rescuedTextForHandoff === sanitizedText : false);
         console.log('[OCR HANDOFF DEBUG] handoff_source', handoffSource);
-        fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
+        await fetch(`${netlifyUrl}/.netlify/functions/normalize-transactions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
