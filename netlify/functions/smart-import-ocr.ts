@@ -1211,30 +1211,35 @@ async function prepareOcrSpaceImagePayload(
   let width = 1600;
   let buffer = originalBuffer;
 
-  const sharp = (await import('sharp')).default;
   try {
-    const metadata = await sharp(originalBuffer).metadata();
-    if (metadata.width) {
-      width = Math.min(width, metadata.width);
+    const sharp = (await import('sharp')).default;
+    try {
+      const metadata = await sharp(originalBuffer).metadata();
+      if (metadata.width) {
+        width = Math.min(width, metadata.width);
+      }
+    } catch {
+      // ignore metadata errors, keep defaults
     }
-  } catch {
-    // ignore metadata errors, keep defaults
-  }
 
-  for (let attempt = 0; attempt < 5; attempt++) {
-    buffer = await sharp(originalBuffer)
-      .rotate()
-      .resize({ width, withoutEnlargement: true })
-      .jpeg({ quality })
-      .toBuffer();
-    if (buffer.length <= 950 * 1024) {
-      break;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      buffer = await sharp(originalBuffer)
+        .rotate()
+        .resize({ width, withoutEnlargement: true })
+        .jpeg({ quality })
+        .toBuffer();
+      if (buffer.length <= 950 * 1024) {
+        break;
+      }
+      if (quality > 50) {
+        quality -= 10;
+      } else {
+        width = Math.max(800, Math.round(width * 0.8));
+      }
     }
-    if (quality > 50) {
-      quality -= 10;
-    } else {
-      width = Math.max(800, Math.round(width * 0.8));
-    }
+  } catch (e: any) {
+    console.warn('[OCR] sharp not available, using original buffer', e?.message);
+    buffer = originalBuffer;
   }
 
   console.log('[OCR] Prepared OCR.space image payload', {
