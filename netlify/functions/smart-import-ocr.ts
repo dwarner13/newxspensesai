@@ -30,7 +30,7 @@ import { mergeOcrPages } from './lib/ocr/mergeOcrPages.js';
 import { selectWorstPagesForFallback, shouldEarlyStopScanning } from './lib/ocr/optimizationPolicy.js';
 import { cleanupOcrText } from './lib/ocr/cleanupOcrText.js';
 import sharp from 'sharp';
-import OpenAI from 'openai';
+// OpenAI imported dynamically in runOpenAIVisionOcr to avoid init crash
 
 const BUCKET = 'docs';
 
@@ -1254,6 +1254,7 @@ async function runOpenAIVisionOcr(
   base64Image: string,
   timeoutMs: number
 ): Promise<OCRRunResult> {
+  const { default: OpenAI } = await import('openai');
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY as string });
   const model = process.env.OPENAI_VISION_MODEL || 'gpt-4o-mini';
   const start = Date.now();
@@ -3685,4 +3686,6 @@ export const handler: Handler = async (event, context) => {
     }
   }
 };
+
+
 
