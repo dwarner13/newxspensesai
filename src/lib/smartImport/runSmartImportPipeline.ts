@@ -185,7 +185,7 @@ async function logPdfUploadProbe(input: SmartImportPipelineInput): Promise<void>
 async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<SmartImportPipelineResult | null> {
   // Prime Router mode A requires multipart/form-data; keep legacy path for base64 callers.
   if (!input.file) return null;
-  const autoCommit = input.source === 'chat' ? false : true;
+  const autoCommit = true;
   await logPdfUploadProbe(input);
 
   input.onProgress?.(10);
