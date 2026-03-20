@@ -302,8 +302,48 @@ async function runViaPrimeRouter(input: SmartImportPipelineInput): Promise<Smart
         importRunId: input.requestId || `router-sync-${documentId}-${Date.now()}`,
       }),
     });
-    const syncPayload = syncRes.ok ? await syncRes.json().catch(() => ({})) : {};
-    const syncedImportId = String(syncPayload?.importIds?.[0] || '').trim() || undefined;
+    let syncPayload = syncRes.ok ? await syncRes.json().catch(() => ({})) : {};
+    let syncedImportId = String(syncPayload?.importIds?.[0] || '').trim() || undefined;
+
+    // Retry sync if no imports found — AI fallback parser may still be running.
+    // This matches the retry logic already present in runWithInit (line ~675).
+    if (!syncedImportId) {
+      const maxRetries = 3;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        console.log(`[runViaPrimeRouter] sync retry ${attempt}/${maxRetries} — waiting for normalize to complete`, { documentId });
+        await new Promise((r) => setTimeout(r, 5000));
+        try {
+          const retryRes = await fetch('/.netlify/functions/smart-import-sync', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...getAuthHeaders(input),
+            },
+            body: JSON.stringify({
+              userId: input.userId,
+              docIds: [documentId],
+              waitForOcrMs: 60000,
+              pollForOcrMs: 500,
+              autoCommit,
+              importRunId: input.requestId || `router-sync-retry-${documentId}-${Date.now()}`,
+            }),
+          });
+          if (retryRes.ok) {
+            const retryPayload = await retryRes.json().catch(() => ({}));
+            const retryImportId = String(retryPayload?.importIds?.[0] || '').trim() || undefined;
+            if (retryImportId) {
+              syncPayload = retryPayload;
+              syncedImportId = retryImportId;
+              console.log(`[runViaPrimeRouter] sync retry ${attempt} succeeded`, { documentId, importId: retryImportId, transactionCount: retryPayload?.transactionCount });
+              break;
+            }
+          }
+        } catch {
+          // Best effort — continue retrying
+        }
+      }
+    }
+
     input.onProgress?.(100);
     return {
       docId: documentId,

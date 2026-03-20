@@ -73,7 +73,6 @@ export function useTransactions(options?: {
             'merchant_name',
             'merchant',
             'description',
-            'memo',
             'amount',
             'category',
             'subcategory',
@@ -81,7 +80,6 @@ export function useTransactions(options?: {
             'type',
             'import_id',
             'document_id',
-            'hash',
             'created_at',
             'updated_at',
           ].join(',')

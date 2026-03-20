@@ -46,8 +46,7 @@ export async function fetchCategoriesTree(userId?: string): Promise<Category[]> 
     // RLS enforces: user_id IS NULL (system) OR user_id = auth.uid()
     let query = supabase
       .from("categories")
-      .select("*")
-      .eq("is_active", true);
+      .select("*");
 
     // Include both system and user-specific categories
     if (userId) {
@@ -62,7 +61,7 @@ export async function fetchCategoriesTree(userId?: string): Promise<Category[]> 
       const fallback = await supabase
         .from("categories")
         .select("*")
-        .eq("is_active", true);
+;
       data = fallback.data;
       error = fallback.error;
     }
@@ -89,7 +88,6 @@ export async function fetchCategoryById(categoryId: string): Promise<Category | 
       .from("categories")
       .select("*")
       .eq("id", categoryId)
-      .eq("is_active", true)
       .single();
 
     if (error && error.code !== "PGRST116") throw error;
@@ -120,7 +118,6 @@ export async function findCategoryIdByNameOrSlug(
     let query = supabase
       .from("categories")
       .select("id, name, slug, user_id")
-      .eq("is_active", true)
       .ilike("name", nameOrSlug);
 
     if (userId) {
@@ -134,8 +131,7 @@ export async function findCategoryIdByNameOrSlug(
       const fallback = await supabase
         .from("categories")
         .select("id, name, slug")
-        .eq("is_active", true)
-        .ilike("name", nameOrSlug);
+          .ilike("name", nameOrSlug);
       data = fallback.data;
       error = fallback.error;
     }
@@ -150,7 +146,6 @@ export async function findCategoryIdByNameOrSlug(
     const slugQuery = supabase
       .from("categories")
       .select("id, name, slug, user_id")
-      .eq("is_active", true)
       .eq("slug", nameOrSlug.toLowerCase());
 
     if (userId) {
@@ -164,8 +159,7 @@ export async function findCategoryIdByNameOrSlug(
       const fallback = await supabase
         .from("categories")
         .select("id, name, slug")
-        .eq("is_active", true)
-        .eq("slug", nameOrSlug.toLowerCase());
+          .eq("slug", nameOrSlug.toLowerCase());
       slugData = fallback.data;
       slugError = fallback.error;
     }
@@ -195,7 +189,6 @@ export async function searchCategories(
     const searchQuery = supabase
       .from("categories")
       .select("*")
-      .eq("is_active", true)
       .ilike("name", `%${query}%`)
       .limit(limit);
 
@@ -210,8 +203,7 @@ export async function searchCategories(
       const fallback = await supabase
         .from("categories")
         .select("*")
-        .eq("is_active", true)
-        .ilike("name", `%${query}%`)
+          .ilike("name", `%${query}%`)
         .limit(limit);
       data = fallback.data;
       error = fallback.error;
@@ -466,7 +458,6 @@ export async function fetchCategoriesByIds(
     const { data, error } = await supabase
       .from("categories")
       .select("*")
-      .eq("is_active", true)
       .in("id", categoryIds);
 
     if (error) throw error;
