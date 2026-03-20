@@ -1442,8 +1442,8 @@ export default function TransactionsPage() {
     const visibleRows: Transaction[] = [...scopedTransactions, ...scopedPendingTransactions];
     const amounts = visibleRows.map(getSafeAmount);
     const statementTransactions = visibleRows.length;
-    const income = amounts.filter((value) => value > 0).reduce((sum, value) => sum + value, 0);
-    const spending = Math.abs(amounts.filter((value) => value < 0).reduce((sum, value) => sum + value, 0));
+    const spending = amounts.filter((value) => value > 0).reduce((sum, value) => sum + value, 0);
+    const income = Math.abs(amounts.filter((value) => value < 0).reduce((sum, value) => sum + value, 0));
     const net = income - spending;
     const pendingReview = scopedPendingTransactions.length;
     const uncategorizedCommitted = scopedTransactions.filter(
@@ -1860,13 +1860,13 @@ export default function TransactionsPage() {
                           <div className="flex items-center justify-between gap-2">
                             <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{row.category}</span>
                             <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold border ${toneClass}`}>
-                              {row.scorePct}%
+                              {row.scorePct >= 50 ? `${row.scorePct}%` : '—'}
                             </span>
                           </div>
                           <div className="mt-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
                             <div
                               className={`h-full ${barClass}`}
-                              style={{ width: `${Math.max(4, Math.min(100, row.scorePct))}%` }}
+                              style={{ width: `${row.scorePct >= 50 ? Math.max(4, Math.min(100, row.scorePct)) : 0}%` }}
                             />
                           </div>
                           <div className="mt-1 flex items-center justify-between text-[10px] text-slate-500">
@@ -2617,15 +2617,23 @@ export default function TransactionsPage() {
                           setSelectedCategoryDrilldown(cat);
                           setCategoryDrawerOpen(true);
                         }}
-                        className={`flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left transition-colors ${
+                        className={`w-full rounded-md px-1.5 py-1 text-left transition-colors ${
                           focusFilter && cat.toLowerCase() === focusFilter.toLowerCase()
                             ? 'bg-cyan-500/15 ring-1 ring-cyan-400/40'
                             : 'hover:bg-slate-800/70'
                         }`}
                         title={`View ${cat} transactions`}
                       >
-                        <span className="min-w-0 flex-1 truncate text-slate-300">{cat}</span>
-                        <span className="flex-shrink-0 font-medium text-slate-100">{formatMoney(amount)}</span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 flex-1 truncate text-slate-300">{cat}</span>
+                          <span className="flex-shrink-0 font-medium text-slate-100">{formatMoney(amount)}</span>
+                        </div>
+                        <div className="mt-1 h-1 rounded-full bg-slate-800 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-cyan-500/60"
+                            style={{ width: `${categoryBreakdown.length > 0 ? Math.max(4, Math.round((amount / categoryBreakdown[0][1]) * 100)) : 0}%` }}
+                          />
+                        </div>
                       </button>
                     ))
                   )}

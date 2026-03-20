@@ -1894,8 +1894,15 @@ function routePrime(
     };
   }
 
+  // Import announcement bypass — never route statement imports to clarification
+  const lowerTextForBypass = sanitizedUserText.toLowerCase();
+  const isImportAnnouncement =
+    lowerTextForBypass.includes('system: a new statement') ||
+    lowerTextForBypass.includes('system: new statement imported') ||
+    lowerTextForBypass.includes('byte has finished processing');
+
   const clarificationDecision = getClarificationDecision(sanitizedUserText, meta.primeContext, meta.employeeSlug);
-  if (clarificationDecision && !meta.hasAttachments) {
+  if (clarificationDecision && !meta.hasAttachments && !isImportAnnouncement) {
     return {
       lane: 'deterministic',
       deterministic_path: 'clarification',
@@ -6910,11 +6917,64 @@ export const handler: Handler = async (event, context) => {
       payoffSnapshotPatch = payoffResult.payoffSnapshotPatch;
     }
 
-    const primeDecision = forcedPrimeDecision || routePrime(orchCtx, masked, {
+    let primeDecision = forcedPrimeDecision || routePrime(orchCtx, masked, {
       employeeSlug: finalEmployeeSlug,
       hasAttachments,
       primeContext: effectivePrimeContext,
     });
+
+    // Import announcement: if routePrime returned model lane, try loading persisted summary
+    if (primeDecision.lane === 'model') {
+      const lowerForAnnounce = masked.toLowerCase();
+      const isAnnouncement =
+        lowerForAnnounce.includes('system: a new statement') ||
+        (lowerForAnnounce.includes('statement') && lowerForAnnounce.includes('imported') && lowerForAnnounce.includes('financial data'));
+      if (isAnnouncement) {
+        try {
+          const { data: recentSummary } = await sb
+            .from('import_summaries')
+            .select('summary_text, import_id')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          if (recentSummary?.summary_text && recentSummary.summary_text.length > 40) {
+            primeDecision = {
+              lane: 'deterministic',
+              deterministic_path: 'import_summary_display',
+              deterministic_intent: 'show_persisted_summary',
+              assistantText: recentSummary.summary_text,
+            };
+          }
+        } catch {
+          // Summary not ready yet — fall through to model
+        }
+      }
+    }
+
+    // Upload/import intent: if worker_chain would run, try persisted summary first
+    if (primeDecision.lane === 'worker_chain') {
+      try {
+        const { data: savedRow } = await sb
+          .from('import_summaries')
+          .select('summary_text')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        if (savedRow?.summary_text && savedRow.summary_text.length > 40) {
+          primeDecision = {
+            lane: 'deterministic',
+            deterministic_path: 'import_summary_display',
+            deterministic_intent: 'show_persisted_summary',
+            assistantText: savedRow.summary_text,
+          };
+        }
+      } catch {
+        // No saved summary — proceed with worker chain
+      }
+    }
+
     let preferredNameForPrime: string | null = effectivePrimeContext?.displayName || null;
 
     if (primeDecision.lane === 'deterministic') {
@@ -7410,17 +7470,44 @@ export const handler: Handler = async (event, context) => {
       }
 
       setStage('respond');
-      const primeWorkerSummary = [
-        'I reviewed your statement context and prepared analysis and planning notes.',
-        workerNotes.length > 0 ? workerNotes.map((note) => `- ${note}`).join('\n') : '- Worker details unavailable.',
-        '- TAG insights:',
-        ...(Array.isArray(tagWorkerOutput.insights_for_prime) && tagWorkerOutput.insights_for_prime.length > 0
-          ? tagWorkerOutput.insights_for_prime.slice(0, 4).map((insight: string) => `  - ${insight}`)
-          : ['  - No additional insights available.']),
-        workerFailed
-          ? 'I hit a delay in one worker step, but I can continue once you retry.'
-          : 'Prime summary: upload/import processing is staged and ready for the next actionable step.',
-      ].join('\n');
+      let primeWorkerSummary: string;
+      if (workerFailed) {
+        // Try to load persisted summary from import_summaries
+        let savedSummary: string | null = null;
+        try {
+          const { data: summaryRow } = await sb
+            .from('import_summaries')
+            .select('summary_text')
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          if (summaryRow?.summary_text && summaryRow.summary_text.length > 40) {
+            savedSummary = summaryRow.summary_text;
+          }
+        } catch {
+          // No saved summary available
+        }
+        primeWorkerSummary = savedSummary || [
+          'I reviewed your information and prepared a clear summary with next steps.',
+          workerNotes.length > 0 ? workerNotes.map((note) => `- ${note}`).join('\n') : '- Worker details unavailable.',
+          '- TAG insights:',
+          ...(Array.isArray(tagWorkerOutput.insights_for_prime) && tagWorkerOutput.insights_for_prime.length > 0
+            ? tagWorkerOutput.insights_for_prime.slice(0, 4).map((insight: string) => `  - ${insight}`)
+            : ['  - No additional insights available.']),
+          'I hit a delay in one worker step, but I can continue once you retry.',
+        ].join('\n');
+      } else {
+        primeWorkerSummary = [
+          'I reviewed your statement context and prepared analysis and planning notes.',
+          workerNotes.length > 0 ? workerNotes.map((note) => `- ${note}`).join('\n') : '- Worker details unavailable.',
+          '- TAG insights:',
+          ...(Array.isArray(tagWorkerOutput.insights_for_prime) && tagWorkerOutput.insights_for_prime.length > 0
+            ? tagWorkerOutput.insights_for_prime.slice(0, 4).map((insight: string) => `  - ${insight}`)
+            : ['  - No additional insights available.']),
+          'Prime summary: upload/import processing is staged and ready for the next actionable step.',
+        ].join('\n');
+      }
       const assistantContent = ensureAssistantContent(
         sanitizePrimeAssistantPresentation(primeWorkerSummary, finalEmployeeSlug, preferredNameForPrime),
         orchestrationStage,

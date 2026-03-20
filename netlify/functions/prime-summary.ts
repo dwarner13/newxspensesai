@@ -136,7 +136,13 @@ function hasUsableStatementMetadata(breakdown: any): boolean {
 function isUsableBreakdown(breakdown: any): boolean {
   if (!breakdown || typeof breakdown !== 'object') return false;
   const hasTransactions = Array.isArray(breakdown.transactions) && breakdown.transactions.length > 0;
-  return hasTransactions || hasUsableStatementMetadata(breakdown);
+  const hasCategoryTotals = Array.isArray(breakdown.category_totals) && breakdown.category_totals.length > 0;
+  const hasTopMerchants = Array.isArray(breakdown.top_merchants) && breakdown.top_merchants.length > 0;
+  const hasTotals = breakdown.totals && typeof breakdown.totals === 'object' &&
+    (Number.isFinite(Number(breakdown.totals.total_debits)) || Number.isFinite(Number(breakdown.totals.total_credits)));
+  const hasAccountSummary = breakdown.account_summary && typeof breakdown.account_summary === 'object' &&
+    (Number.isFinite(Number(breakdown.account_summary.new_balance)) || Number.isFinite(Number(breakdown.account_summary.credit_limit)));
+  return hasTransactions || hasCategoryTotals || hasTopMerchants || hasTotals || hasAccountSummary || hasUsableStatementMetadata(breakdown);
 }
 
 function readStatementBreakdownFromImport(importData: any): StatementBreakdown | null {
@@ -202,6 +208,7 @@ async function loadStatementBreakdownFromSummaryFallback(
 
 async function loadImportRowWithBreakdown(sb: any, importId: string): Promise<any | null> {
   const selectAttempts = [
+    'id, user_id, status, created_at, document_id, file_url, statement_breakdown_json, metadata',
     'id, user_id, status, created_at, document_id, file_url, statement_breakdown_json, statement_breakdown, metadata, summary, analytics, committed_summary, results_json',
     'id, user_id, status, created_at, document_id, file_url, statement_breakdown_json, statement_breakdown, metadata, summary',
     'id, user_id, status, created_at, document_id, file_url, statement_breakdown_json, metadata, summary',
@@ -413,7 +420,6 @@ function appendTransactionsCta(summary: string, importId: string): string {
   const cta = [
     '## Continue in Transactions',
     `- [View this statement in Transactions](/dashboard/transactions?importId=${safeImportId})`,
-    `- [Start Tag Categorization for this statement](/dashboard/smart-categories?importId=${safeImportId}&handoff=prime_to_tag)`,
   ].join('\n');
   if (summary.includes('## Continue in Transactions')) {
     return summary;
@@ -1731,6 +1737,30 @@ export const handler: Handler = async (event) => {
         hasAnalytics: true,
         txCount: transactionCount,
       });
+
+      // Persist summary to import_summaries so chat can display it
+      try {
+        const effectiveUserId = String(importData?.user_id || '').trim();
+        if (importId && effectiveUserId) {
+          await sb
+            .from('import_summaries')
+            .upsert(
+              {
+                import_id: importId,
+                user_id: effectiveUserId,
+                summary_text: summary,
+                statement_breakdown_json: analyticsForSummary || null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'import_id,user_id' }
+            );
+          console.log('[prime-summary] summary persisted to import_summaries', { importId });
+        }
+      } catch (persistErr: any) {
+        console.error('[prime-summary] failed to persist summary', persistErr?.message);
+      }
+
       return {
         statusCode: 200,
         headers,
@@ -1799,6 +1829,29 @@ export const handler: Handler = async (event) => {
       hasAnalytics: false,
       txCount: transactionCount,
     });
+
+    // Persist summary to import_summaries so chat can display it
+    try {
+      const effectiveUserId = String(importData?.user_id || '').trim();
+      if (importId && effectiveUserId) {
+        await sb
+          .from('import_summaries')
+          .upsert(
+            {
+              import_id: importId,
+              user_id: effectiveUserId,
+              summary_text: summary,
+              statement_breakdown_json: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'import_id,user_id' }
+          );
+        console.log('[prime-summary] summary persisted to import_summaries', { importId });
+      }
+    } catch (persistErr: any) {
+      console.error('[prime-summary] failed to persist summary', persistErr?.message);
+    }
 
     return {
       statusCode: 200,

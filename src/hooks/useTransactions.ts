@@ -114,7 +114,7 @@ export function useTransactions(options?: {
       setTransactions(nextData);
       hasRenderedDataRef.current = true;
       if (typeof window !== 'undefined') {
-        const cacheKey = `xspenses:transactions-cache:${userId}`;
+        const cacheKey = `xspenses:transactions-cache:${userId}:${options?.importId || 'all'}`;
         // Avoid expensive stringify/storage on very large datasets.
         if (nextData.length <= MAX_CACHE_ROWS) {
           const payload = JSON.stringify({
@@ -153,7 +153,7 @@ export function useTransactions(options?: {
   useEffect(() => {
     if (!userId || typeof window === 'undefined') return;
     try {
-      const raw = window.sessionStorage.getItem(`xspenses:transactions-cache:${userId}`);
+      const raw = window.sessionStorage.getItem(`xspenses:transactions-cache:${userId}:${options?.importId || 'all'}`);
       if (!raw) return;
       if (raw.length > MAX_CACHE_CHARS) return;
       const parsed = JSON.parse(raw) as { ts?: number; data?: CommittedTransaction[] };
