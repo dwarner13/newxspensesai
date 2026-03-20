@@ -8,6 +8,7 @@
  * Used as a fallback when normalizeBankStatement() returns 0 transactions.
  */
 
+// OpenAI import retained for type compat but Claude is used for actual parsing
 import OpenAI from 'openai';
 
 // Transaction shape matching normalizeBankStatement output
@@ -34,8 +35,10 @@ export async function aiFallbackParseTransactions(params: {
   ocrText: string;
   statementType?: 'credit_card' | 'bank' | 'unknown';
   openaiClient: OpenAI;
+  anthropicApiKey?: string;
 }): Promise<ParsedTransaction[]> {
   const { ocrText, statementType = 'unknown', openaiClient } = params;
+  const anthropicApiKey = params.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
 
   // Safety: Truncate OCR text to avoid token explosions
   const MAX_OCR_LENGTH = 15000; // ~3-4k tokens
@@ -78,12 +81,22 @@ CRITICAL RULES:
 5. For bank statements:
    - Debits/withdrawals = negative amounts
    - Deposits/credits = positive amounts
+   - CRITICAL: Bank statements have MULTIPLE number columns. Typically: "Amounts Deducted", "Amounts Added", and "Balance".
+   - You MUST use the "Amounts Deducted" or "Amounts Added" column for the transaction amount.
+   - NEVER use the "Balance" column — it is the running account balance, NOT the transaction amount.
+   - The Balance column values are typically much larger numbers (e.g., 2,751.36 vs 6.74). If an amount seems unusually large for a convenience store or small purchase, you are likely reading the Balance column by mistake.
+   - For BMO statements specifically: columns are "Amounts deducted from your account ($)" and "Amounts added to your account ($)" and "Balance ($)". Only use the first two.
+   - A 7-Eleven purchase should be $1-60, not $500+. A gas station fill should be $40-80, not $800+. Use common sense as a sanity check.
 
 6. If you cannot find any real line-item transactions, output: { "transactions": [] }
 
 7. Currency: Assume CAD if not specified.
 
 8. Foreign currency transactions: When a transaction shows both a foreign currency amount (e.g., "USD 29.99") and a CAD converted amount, always use the CAD amount. The CAD amount is what was actually charged to the account.
+
+9. Institution detection: Look for bank/issuer name in headers, footers, or logos (e.g., BMO, TD, RBC). Include an "institution" field in the top-level JSON if found.
+
+10. Merchant name formatting: Preserve spaces in merchant names. Use "SAVE ON FOODS" not "SAVEONFOODS", "CANADIAN TIRE" not "CANADIANTIRE", "7-ELEVEN STORE" not "7-ELEVENSTORE".
 
 Example output format (JSON object with transactions array):
 {
@@ -99,20 +112,60 @@ ${truncatedText}
 
 Return a JSON object with a "transactions" array containing all extracted transactions. Format: { "transactions": [...] }`;
 
-    console.log(`[Byte OCR] Calling OpenAI AI fallback parser for ${statementType} statement (${truncatedText.length} chars)`);
 
-    const response = await openaiClient.chat.completions.create({
-      model: 'gpt-4o-mini', // Use cheaper model for parsing
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      response_format: { type: 'json_object' }, // Force JSON mode (returns { "transactions": [...] })
-      temperature: 0.1, // Low temperature for consistent parsing
-      max_tokens: 8000, // gpt-4o-mini supports 16k; 4k was too low for large statements
-    });
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    let content: string | null = null;
 
-    const content = response.choices[0]?.message?.content;
+    // Try Claude first (much better at distinguishing Amount vs Balance columns)
+    if (anthropicKey) {
+      console.log(`[Byte OCR] Calling Claude AI fallback parser for ${statementType} statement (${truncatedText.length} chars)`);
+      try {
+        const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": anthropicKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 8000,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt + "\n\nReturn ONLY the JSON object. No markdown, no backticks, no commentary." }],
+          }),
+        });
+        if (claudeRes.ok) {
+          const claudeData = await claudeRes.json() as any;
+          content = claudeData?.content?.[0]?.text ?? null;
+          if (content) console.log("[Byte OCR] Claude fallback returned content");
+        } else {
+          console.warn("[Byte OCR] Claude fallback HTTP error:", claudeRes.status);
+        }
+      } catch (claudeErr: any) {
+        console.warn("[Byte OCR] Claude fallback error:", claudeErr?.message?.slice(0, 120));
+      }
+    }
+
+    // Fall back to OpenAI if Claude failed
+    if (!content) {
+      console.log(`[Byte OCR] Falling back to OpenAI for ${statementType} statement`);
+      const response = await openaiClient.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+        max_tokens: 8000,
+      });
+      content = response.choices[0]?.message?.content ?? null;
+    }
+
+    if (!content) {
+      console.warn("[Byte OCR] AI fallback returned empty response");
+      return [];
+    }
     if (!content) {
       console.warn('[Byte OCR] AI fallback returned empty response');
       return [];

@@ -195,16 +195,24 @@ Format:
 {
   "period": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
   "accountSummary": { "openingBalance": number, "closingBalance": number },
+  "institution": "Bank name if detected (e.g. BMO, TD, RBC)",
   "transactions": [
     {
       "date": "YYYY-MM-DD",
-      "merchant": "clean readable name, no terminal IDs or location codes",
+      "merchant": "clean readable name with spaces preserved, no terminal IDs",
       "amount": number,
       "type": "debit or credit",
       "category": "Food | Transport | Shopping | Entertainment | Health | Utilities | Income | Transfer | Other"
     }
   ]
 }
+CRITICAL RULES:
+- Bank statements have MULTIPLE number columns: Amounts Deducted, Amounts Added, and Balance.
+- Use ONLY the Deducted or Added column for the transaction amount.
+- NEVER use the Balance column. It is the running account balance, NOT the transaction amount.
+- If a 7-Eleven purchase shows as $500+, you are reading the Balance column by mistake.
+- Preserve spaces in merchant names: "SAVE ON FOODS" not "SAVEONFOODS", "CANADIAN TIRE" not "CANADIANTIRE".
+- Debits/withdrawals/purchases = negative amounts. Deposits/credits/income = positive amounts.
 If any field is unclear, use null. Never guess amounts or dates.`;
 
 async function extractWithClaudeVision(base64: string, mimeType: string): Promise<Omit<ExtractionResult, 'source' | 'rawText' | 'confidence'>> {
@@ -298,6 +306,16 @@ Format:
       "amount": number,
       "type": "debit or credit",
       "category": "Food | Transport | Shopping | Entertainment | Health | Utilities | Income | Transfer | Other"
+      "institution": "Bank name if detected (e.g. BMO, TD, RBC, Scotiabank)"
+    }
+  ]
+}
+CRITICAL: Bank statements have multiple number columns (Amounts Deducted, Amounts Added, Balance).
+Use ONLY the Deducted or Added column for amounts. NEVER use the Balance column — it is the running total, not the transaction amount.
+If a convenience store purchase appears as $500+, you are reading the Balance column by mistake.
+Preserve spaces in merchant names: "SAVE ON FOODS" not "SAVEONFOODS".
+Return ONLY the JSON object described above with no other text.
+DUMMY_MARKER
     }
   ]
 }
@@ -544,6 +562,7 @@ export const handler: Handler = async (event) => {
     const { error: eventError } = await sb.from('ai_activity_events').insert({
       event_type: 'byte.import.completed',
       user_id: userId,
+      employee_id: 'byte-docs',
       details: {
         import_run_id: importRunId,
         doc_count: 1,

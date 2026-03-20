@@ -42,8 +42,15 @@ const RULES: Array<{ contains: string[]; category: string }> = [
   { contains: ['school', 'tuition', 'university', 'college', 'course', 'udemy', 'coursera'], category: 'Education' },
   { contains: ['travel', 'hotel', 'airbnb', 'expedia', 'air canada', 'westjet', 'united', 'delta'], category: 'Travel' },
   { contains: ['zara', 'h&m', 'uniqlo', 'gap ', 'old navy', 'winners', 'marshalls', 'reitmans', 'sport chek'], category: 'Shopping' },
-];
+  { contains: ['hair design', 'hair salon', 'salon', 'barber', 'patalaro', 'spa ', 'nails', 'wax'], category: 'Personal Care' },
+  { contains: ['cursor', 'notion', 'figma', 'github', 'copilot', 'jetbrains', 'vercel'], category: 'Subscriptions' },
+  { contains: ['apple.com', 'apple one', 'icloud'], category: 'Subscriptions' },
+  { contains: ['home depot', 'home hardware', 'rona', 'lowes', 'canadian tire'], category: 'Home & Garden' },
+  { contains: ['balanceprotector', 'balance protector', 'credit protect'], category: 'Bank Fees' },
+  { contains: ['primevideo', 'prime video'], category: 'Subscriptions' },
+  { contains: ['payment'], category: 'Income' },
 
+];
 const CANONICAL_CATEGORIES = [
   'Income',
   'Groceries',
@@ -147,7 +154,7 @@ export const handler: Handler = async (event) => {
     .from('transactions')
     .select('id, merchant_name, merchant')
     .eq('user_id', userId)
-    .or('category.is.null,category.eq.Uncategorized')
+    .or('category.is.null,category.eq.Uncategorized,category.eq.Other')
     .order('posted_at', { ascending: false })
     .limit(limit);
 

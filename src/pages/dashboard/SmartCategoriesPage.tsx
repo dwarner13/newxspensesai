@@ -362,15 +362,27 @@ const SmartCategoriesPage: React.FC = () => {
     });
   }, [transactions, selectedMonth]);
   const getTxDirection = (tx: Transaction): 'income' | 'expense' | 'unknown' => {
-    const txType = String(tx.type || '').toLowerCase();
     const amount = Number(tx.amount) || 0;
     const category = String(tx.category || '').toLowerCase();
-    if (txType === 'income') return 'income';
-    if (txType === 'expense') return 'expense';
+    const merchant = String(tx.merchant || '').toUpperCase().trim();
+    const description = String(tx.description || '').toUpperCase().trim();
+
+    // 1. Category override — if Tag/user explicitly set "Income", trust it
     if (category === 'income') return 'income';
-    if (amount < 0) return 'expense';
-    if (amount > 0) return 'income';
-    return 'unknown';
+
+    // 2. Merchant/description patterns — payments, credits, refunds are income
+    const INCOME_PATTERNS = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
+    const INCOME_CONTAINS = /\b(PAYMENT RECEIVED|PAYMENT THANK YOU|CREDIT ADJUSTMENT|REFUND|DEPOSIT|E-TRANSFER IN|PAYROLL)\b/;
+    if (INCOME_PATTERNS.test(merchant) || INCOME_CONTAINS.test(merchant) || INCOME_CONTAINS.test(description)) {
+      return 'income';
+    }
+
+    // 3. Explicit income type from DB (if import ever sets it correctly)
+    const txType = String(tx.type || '').toLowerCase();
+    if (txType === 'income' || txType === 'credit') return 'income';
+
+    // 4. Everything else with a positive amount on a credit card statement is a charge
+    return 'expense';
   };
   const isExpenseTx = (tx: Transaction): boolean => {
     return getTxDirection(tx) === 'expense';

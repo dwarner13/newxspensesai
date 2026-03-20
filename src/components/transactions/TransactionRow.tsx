@@ -398,7 +398,13 @@ export function TransactionRow({
     );
   }
 
-  const isExpense = amount < 0;
+  // Detect income using merchant patterns (mirrors getTxDirection from SmartCategoriesPage)
+  const INCOME_PATTERNS_TR = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
+  const txMerchantUpper = String(isPending ? (pendingTransaction.data_json?.merchant || '') : (transaction?.merchant || transaction?.merchant_name || '')).toUpperCase().trim();
+  const txType = String(isPending ? '' : (transaction?.type || '')).toLowerCase();
+  const txCategory = String(isPending ? (pendingTransaction.tag_category || '') : (transaction?.category || '')).toLowerCase();
+  const isIncomeTx = txType === 'income' || txCategory === 'income' || INCOME_PATTERNS_TR.test(txMerchantUpper);
+  const isExpense = !isIncomeTx;
   const amountColor = isExpense ? 'text-red-400' : 'text-emerald-400';
   const amountDisplay = Math.abs(amount).toFixed(2);
 

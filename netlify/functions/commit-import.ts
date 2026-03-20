@@ -314,7 +314,7 @@ async function persistStatementBreakdown(
       .from('import_summaries')
       .upsert(
         { import_id: importId, user_id: userIdText, statement_breakdown_json: breakdown, employee: 'prime', version: 1 },
-        { onConflict: 'import_id,user_id,version' }
+        { onConflict: 'import_id' }
       );
     if (!summaryError) return true;
     console.warn('[CommitImport] persistStatementBreakdown: import_summaries also failed (row-not-found path)', { importId, error: summaryError.message });
@@ -392,7 +392,7 @@ async function persistStatementBreakdown(
       .from('import_summaries')
       .upsert(
         { import_id: importId, user_id: userIdText, statement_breakdown_json: breakdown, employee: 'prime', version: 1 },
-        { onConflict: 'import_id,user_id,version' }
+        { onConflict: 'import_id' }
       );
     if (!summaryError) {
       console.log('[CommitImport] persistStatementBreakdown B: wrote to import_summaries', { importId });
@@ -421,14 +421,19 @@ async function buildStatementBreakdown(args: {
   if (documentId) {
     const { data: docRow } = await sb
       .from('user_documents')
-      .select('extracted_data,mime_type,file_type')
+      .select('extracted_data,metadata,mime_type,file_type')
       .eq('id', documentId)
       .eq('user_id', userIdText)
       .maybeSingle();
+    const extractedData = docRow?.extracted_data && typeof docRow.extracted_data === 'object' ? docRow.extracted_data : {};
+    const docMetadata = docRow?.metadata && typeof docRow.metadata === 'object' ? docRow.metadata : {};
     docMeta = {
-      ...(docRow?.extracted_data && typeof docRow.extracted_data === 'object' ? docRow.extracted_data : {}),
+      ...extractedData,
       mime_type: docRow?.mime_type || null,
       file_type: docRow?.file_type || null,
+      // Merge issuer/institution from metadata.statement_summary (written by normalize-transactions)
+      institution: extractedData?.institution || docMetadata?.statement_summary?.institution || docMetadata?.issuer || null,
+      issuer: extractedData?.issuer || docMetadata?.statement_summary?.issuer || docMetadata?.issuer || null,
     };
   }
 
@@ -484,10 +489,15 @@ async function buildStatementBreakdown(args: {
     const needsReview = Boolean(row?.needs_review ?? row?.metadata?.needs_review ?? false);
     const confidence = toNum(row?.confidence ?? row?.metadata?.confidence);
 
-    const isCredit = amountNum > 0 || typeText === 'income' || typeText === 'credit';
-    const isDebit = amountNum < 0 || typeText === 'expense' || typeText === 'debit';
-    if (isCredit) totalCredits += absAmount;
-    if (isDebit) totalDebits += absAmount;
+    // Use merchant patterns to detect income (mirrors getTxDirection from frontend)
+    const INCOME_EXACT_BD = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
+    const INCOME_CONTAINS_BD = /\b(PAYMENT RECEIVED|PAYMENT THANK YOU|CREDIT ADJUSTMENT|REFUND|DEPOSIT|E-TRANSFER IN|PAYROLL)\b/;
+    const merchantUpper = String(row?.merchant || row?.description || '').toUpperCase().trim();
+    const isIncomeTx = typeText === 'income' || typeText === 'credit' ||
+                       INCOME_EXACT_BD.test(merchantUpper) || INCOME_CONTAINS_BD.test(merchantUpper);
+    const isDebitTx = !isIncomeTx;
+    if (isIncomeTx) totalCredits += absAmount;
+    if (isDebitTx) totalDebits += absAmount;
 
     if (needsReview) needsReviewCount += 1;
     if (!dateValue) missingDateCount += 1;
@@ -495,7 +505,7 @@ async function buildStatementBreakdown(args: {
       confidenceSamples.push(confidence);
       if (confidence < 0.7) lowConfidenceCount += 1;
     }
-    if (typeText === 'refund' || (statementType === 'credit_card' && amountNum > 0)) {
+    if (typeText === 'refund' || /REFUND/i.test(merchantUpper)) {
       refundCount += 1;
     }
 
@@ -1125,11 +1135,18 @@ export const handler: Handler = async (event, context) => {
         
         // Determine transaction type (income vs expense)
         const amount = Number(tx.amount) || 0;
-        const isIncome = tx.type === 'income' || 
-                        tx.type === 'Credit' || 
-                        tx.direction === 'in' || 
-                        tx.is_credit === true ||
-                        amount < 0; // Negative amounts might be credits
+        const merchant = String(tx.merchant || tx.vendor || tx.vendor_normalized || '').toUpperCase().trim();
+        const description = String(tx.description || tx.memo || '').toUpperCase().trim();
+        const INCOME_EXACT = /^(PAYMENT|CREDIT|REFUND|DEPOSIT|CASHBACK|REWARD|REBATE|REIMBURSEMENT)$/;
+        const INCOME_CONTAINS = /\b(PAYMENT RECEIVED|PAYMENT THANK YOU|CREDIT ADJUSTMENT|REFUND|DEPOSIT|E-TRANSFER IN|PAYROLL)\b/;
+        const isIncome = INCOME_EXACT.test(merchant) ||
+                        INCOME_CONTAINS.test(merchant) ||
+                        INCOME_CONTAINS.test(description) ||
+                        tx.type === 'income' ||
+                        tx.type === 'credit' ||
+                        tx.type === 'Credit' ||
+                        tx.direction === 'in' ||
+                        tx.is_credit === true;
         
         // If transaction doesn't have a category, use Tag learning to categorize it
         let category = tx.category || tx.category_suggested;
@@ -1183,7 +1200,8 @@ export const handler: Handler = async (event, context) => {
           merchant_name: merchantName, // field read by TransactionRow for committed rows
           merchant: merchantName,      // kept for legacy breakdown queries
           amount: signedAmount,
-          category: category || 'Uncategorized',
+          type: isIncome ? 'income' : 'expense',
+          category: isIncome ? 'Income' : (category || 'Uncategorized'),
           category_source: categorySource || (tx.category_source as string | null) || null,
           source_type: 'smart_import',
           source: 'bank_statement',

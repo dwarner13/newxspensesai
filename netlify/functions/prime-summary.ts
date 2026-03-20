@@ -208,6 +208,7 @@ async function loadStatementBreakdownFromSummaryFallback(
 
 async function loadImportRowWithBreakdown(sb: any, importId: string): Promise<any | null> {
   const selectAttempts = [
+    'id, user_id, status, created_at, document_id, file_url, statement_breakdown_json',
     'id, user_id, status, created_at, document_id, file_url, statement_breakdown_json, metadata',
     'id, user_id, status, created_at, document_id, file_url, statement_breakdown_json, statement_breakdown, metadata, summary, analytics, committed_summary, results_json',
     'id, user_id, status, created_at, document_id, file_url, statement_breakdown_json, statement_breakdown, metadata, summary',
@@ -222,7 +223,22 @@ async function loadImportRowWithBreakdown(sb: any, importId: string): Promise<an
       .select(selectClause)
       .eq('id', importId)
       .maybeSingle();
-    if (!error) return data || null;
+    if (!error) {
+      console.log('[prime-summary] loadImportRowWithBreakdown success', {
+        importId,
+        selectClause: selectClause.substring(0, 80),
+        hasData: Boolean(data),
+        hasBreakdownJson: Boolean(data?.statement_breakdown_json),
+        breakdownJsonType: typeof data?.statement_breakdown_json,
+      });
+      return data || null;
+    }
+    console.log('[prime-summary] loadImportRowWithBreakdown select failed', {
+      importId,
+      selectClause: selectClause.substring(0, 80),
+      errorCode: error?.code,
+      errorMessage: error?.message?.substring(0, 120),
+    });
   }
   return null;
 }
@@ -1753,7 +1769,7 @@ export const handler: Handler = async (event) => {
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               },
-              { onConflict: 'import_id,user_id' }
+              { onConflict: 'import_id' }
             );
           console.log('[prime-summary] summary persisted to import_summaries', { importId });
         }
@@ -1845,7 +1861,7 @@ export const handler: Handler = async (event) => {
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             },
-            { onConflict: 'import_id,user_id' }
+            { onConflict: 'import_id' }
           );
         console.log('[prime-summary] summary persisted to import_summaries', { importId });
       }
